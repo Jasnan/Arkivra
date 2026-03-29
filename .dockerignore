@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.env
+.env.local
+*.log
+postgres-data
+redis-data
+docling-data
+document-storage
+backups
+coverage
+.DS_Store

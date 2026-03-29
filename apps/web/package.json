@@ -1,0 +1,28 @@
+{
+  "name": "@arkivra/web",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Arkivra web frontend",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^7.2.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.2",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5"
+  }
+}

@@ -1,0 +1,109 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: arkivra
+      POSTGRES_PASSWORD: arkivra
+      POSTGRES_DB: arkivra
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arkivra -d arkivra"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  docling:
+    image: ds4sd/docling-serve:latest
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    volumes:
+      - docling-data:/tmp/docling
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "1221:1221"
+    environment:
+      NODE_ENV: production
+      PROCESS_MODE: web
+      ARKIVRA_PORT: "1221"
+      ARKIVRA_HOSTNAME: "0.0.0.0"
+      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
+      ARKIVRA_REDIS_URL: redis://redis:6379
+      ARKIVRA_DOCLING_URL: http://docling:5000
+      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
+      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
+      ARKIVRA_STORAGE_FS_PATH: /app/document-storage
+      ARKIVRA_SERVER_BASE_URL: ${ARKIVRA_SERVER_BASE_URL:-http://localhost:1221}
+      ARKIVRA_CORS_ORIGINS: ${ARKIVRA_CORS_ORIGINS:-http://localhost:1221}
+    volumes:
+      - document-storage:/app/document-storage
+      - backups:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1221/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PROCESS_MODE: worker
+      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
+      ARKIVRA_REDIS_URL: redis://redis:6379
+      ARKIVRA_DOCLING_URL: http://docling:5000
+      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
+      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
+      ARKIVRA_STORAGE_FS_PATH: /app/document-storage
+    volumes:
+      - document-storage:/app/document-storage
+      - backups:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  docling-data:
+  document-storage:
+  backups:

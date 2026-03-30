@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { serve } from '@hono/node-server';
 import { parseConfig } from './modules/config/config.js';
+import { createAuth } from './modules/auth/auth.services.js';
 import { setupDatabase } from './modules/database/database.js';
 import { createServer } from './modules/server/server.js';
 
@@ -14,9 +15,10 @@ export async function startApp() {
   console.info(`Starting Arkivra in "${processMode}" mode...`);
 
   const { db, pool } = setupDatabase({ config });
+  const { auth } = createAuth({ db, config });
 
   if (isWebMode) {
-    const { app } = createServer({ config, db });
+    const { app } = createServer({ config, auth });
 
     serve(
       {

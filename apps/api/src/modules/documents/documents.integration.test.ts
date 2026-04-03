@@ -1,0 +1,409 @@
+import type { Database } from '../database/database.js';
+import type { StorageDriver } from '../storage/storage.types.js';
+import type { EncryptionServices } from '../encryption/encryption.services.js';
+import type { ServerContext } from '../server/server.types.js';
+import type { DocumentsServices } from './documents.services.js';
+import type { VaultsServices } from '../vaults/vaults.services.js';
+import { Hono } from 'hono';
+import { describe, expect, test, vi } from 'vitest';
+import { registerVaultRoutes } from '../vaults/vaults.routes.js';
+import { registerDocumentRoutes } from './documents.routes.js';
+
+function createMockDocumentsServices() {
+  const services = {
+    uploadDocument: vi.fn(async ({ fileName, mimeType, vaultId }) => ({
+      document: {
+        id: 'doc_test_1',
+        vaultId,
+        name: fileName,
+        originalName: fileName,
+        originalSize: 100,
+        mimeType,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+      duplicate: false,
+      existingId: null,
+    })),
+    downloadDocument: vi.fn(async () => ({
+      fileData: Buffer.from('file-content'),
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      size: 12,
+    })),
+    listDocuments: vi.fn(async () => [
+      {
+        id: 'doc_1',
+        name: 'report.pdf',
+        originalName: 'report.pdf',
+        originalSize: 1024,
+        mimeType: 'application/pdf',
+        documentDate: null,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        isDeleted: false,
+        deletedAt: null,
+      },
+    ]),
+    getDocument: vi.fn(async () => ({
+      id: 'doc_1',
+      name: 'report.pdf',
+      originalName: 'report.pdf',
+      originalSize: 1024,
+      originalSha256Hash: 'abc123',
+      mimeType: 'application/pdf',
+      content: '',
+      documentDate: null,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      isDeleted: false,
+      deletedAt: null,
+      createdBy: 'usr_1',
+    })),
+    renameDocument: vi.fn(async ({ name }) => ({
+      id: 'doc_1',
+      name,
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    })),
+    updateDocumentDate: vi.fn(async ({ documentDate }) => ({
+      id: 'doc_1',
+      documentDate,
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    })),
+    softDeleteDocument: vi.fn(async () => ({ id: 'doc_1' })),
+    restoreDocument: vi.fn(async () => ({ id: 'doc_1' })),
+    hardDeleteDocument: vi.fn(async () => ({ id: 'doc_1' })),
+  };
+
+  return services as unknown as DocumentsServices;
+}
+
+function createMockVaultsServices() {
+  return {
+    createVault: vi.fn(),
+    getMember: vi.fn(async () => null),
+    getVaultForUser: vi.fn(async () => ({ id: 'vlt_1', name: 'Test', role: 'owner' })),
+    listMembers: vi.fn(async () => []),
+    listUserVaults: vi.fn(async () => []),
+    removeMember: vi.fn(),
+    softDeleteVault: vi.fn(),
+    updateVaultName: vi.fn(),
+    upsertMember: vi.fn(),
+  } as unknown as VaultsServices;
+}
+
+function createTestApp({
+  docServices,
+  vaultServices,
+}: {
+  docServices: DocumentsServices;
+  vaultServices?: VaultsServices;
+}) {
+  const app = new Hono<ServerContext>();
+
+  app.use('*', async (context, next) => {
+    context.set('userId', null);
+    context.set('session', null);
+    context.set('vaultId', null);
+    context.set('vaultRole', null);
+
+    const userIdHeader = context.req.header('x-test-user-id');
+
+    if (typeof userIdHeader === 'string' && userIdHeader.length > 0) {
+      context.set('userId', userIdHeader);
+      context.set('session', {
+        id: `ses_${userIdHeader}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userId: userIdHeader,
+        expiresAt: new Date(Date.now() + 3600_000),
+        token: `tok_${userIdHeader}`,
+      });
+    }
+
+    await next();
+  });
+
+  const mockDb = {} as Database;
+  const vs = vaultServices ?? createMockVaultsServices();
+
+  registerVaultRoutes({ app, db: mockDb, services: vs });
+  registerDocumentRoutes({
+    app,
+    db: mockDb,
+    storage: {} as StorageDriver,
+    encryption: {} as EncryptionServices,
+    services: docServices,
+  });
+
+  return app;
+}
+
+describe('documents integration', () => {
+  test('returns 401 for unauthenticated document listing', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents');
+
+    expect(response.status).toBe(401);
+  });
+
+  test('returns 403 when user has no vault access', async () => {
+    const docServices = createMockDocumentsServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => null);
+
+    const app = createTestApp({ docServices, vaultServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  test('lists documents in vault for authenticated member', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(body.documents).toHaveLength(1);
+    expect(body.documents[0].id).toBe('doc_1');
+    expect(docServices.listDocuments).toHaveBeenCalledWith({ vaultId: 'vlt_1', includeDeleted: false });
+  });
+
+  test('uploads a document', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const formData = new FormData();
+    formData.append('file', new File(['hello world'], 'test.txt', { type: 'text/plain' }));
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+      body: formData,
+    });
+
+    expect(response.status).toBe(201);
+    const body = await response.json() as any;
+    expect(body.document.id).toBe('doc_test_1');
+    expect(docServices.uploadDocument).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns 409 for duplicate document upload', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).uploadDocument = vi.fn(async () => ({
+      document: null,
+      duplicate: true,
+      existingId: 'doc_existing_1',
+    }));
+
+    const app = createTestApp({ docServices });
+
+    const formData = new FormData();
+    formData.append('file', new File(['hello world'], 'test.txt', { type: 'text/plain' }));
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+      body: formData,
+    });
+
+    expect(response.status).toBe(409);
+    const body = await response.json() as any;
+    expect(body.error.code).toBe('document.duplicate');
+    expect(body.error.existingId).toBe('doc_existing_1');
+  });
+
+  test('returns 400 for upload without multipart form data', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      method: 'POST',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'test' }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = await response.json() as any;
+    expect(body.error.code).toBe('document.invalid_upload');
+  });
+
+  test('gets document details', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(body.document.id).toBe('doc_1');
+    expect(docServices.getDocument).toHaveBeenCalledWith({ documentId: 'doc_1', vaultId: 'vlt_1' });
+  });
+
+  test('returns 404 for non-existent document', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).getDocument = vi.fn(async () => null);
+
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_missing', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(404);
+    const body = await response.json() as any;
+    expect(body.error.code).toBe('document.not_found');
+  });
+
+  test('downloads document file', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/download', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(response.headers.get('content-disposition')).toContain('test.pdf');
+    const body = await response.arrayBuffer();
+    expect(Buffer.from(body).toString()).toBe('file-content');
+  });
+
+  test('returns 404 when downloading non-existent document', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).downloadDocument = vi.fn(async () => null);
+
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_missing/download', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  test('renames a document', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      method: 'PATCH',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'new-name.pdf' }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(body.document.name).toBe('new-name.pdf');
+    expect(docServices.renameDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      name: 'new-name.pdf',
+    });
+  });
+
+  test('returns 400 for empty rename', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      method: 'PATCH',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ name: '  ' }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = await response.json() as any;
+    expect(body.error.code).toBe('document.invalid_name');
+  });
+
+  test('soft deletes a document', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(204);
+    expect(docServices.softDeleteDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      deletedBy: 'usr_1',
+    });
+  });
+
+  test('restores a soft-deleted document', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/restore', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(body.document.id).toBe('doc_1');
+    expect(docServices.restoreDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+    });
+  });
+
+  test('hard deletes a soft-deleted document (owner)', async () => {
+    const docServices = createMockDocumentsServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({ id: 'vlt_1', name: 'Test', role: 'owner' }));
+
+    const app = createTestApp({ docServices, vaultServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/permanent', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_owner' },
+    });
+
+    expect(response.status).toBe(204);
+    expect(docServices.hardDeleteDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+    });
+  });
+
+  test('forbids hard delete for member role', async () => {
+    const docServices = createMockDocumentsServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({ id: 'vlt_1', name: 'Test', role: 'member' }));
+
+    const app = createTestApp({ docServices, vaultServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/permanent', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_member' },
+    });
+
+    expect(response.status).toBe(403);
+  });
+});

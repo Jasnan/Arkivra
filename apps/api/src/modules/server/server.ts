@@ -1,13 +1,23 @@
 import type { Config } from '../config/config.js';
 import type { Auth } from '../auth/auth.services.js';
+import type { Database } from '../database/database.js';
+import type { StorageDriver } from '../storage/storage.types.js';
+import type { EncryptionServices } from '../encryption/encryption.services.js';
+import type { ProcessDocumentJobData } from '../worker/worker.types.js';
+
+type DocumentQueue = {
+  enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
+};
 import type { ServerContext } from './server.types.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { registerAuthRoutes } from '../auth/auth.routes.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
+import { registerVaultRoutes } from '../vaults/vaults.routes.js';
+import { registerDocumentRoutes } from '../documents/documents.routes.js';
 
-export function createServer({ config, auth }: { config: Config; auth: Auth }) {
+export function createServer({ config, auth, db, storage, encryption, documentQueue }: { config: Config; auth: Auth; db: Database; storage: StorageDriver; encryption: EncryptionServices; documentQueue?: DocumentQueue }) {
   const app = new Hono<ServerContext>({ strict: true });
 
   app.use(cors({
@@ -20,10 +30,14 @@ export function createServer({ config, auth }: { config: Config; auth: Auth }) {
   app.use('*', async (context, next) => {
     context.set('userId', null);
     context.set('session', null);
+    context.set('vaultId', null);
+    context.set('vaultRole', null);
     await next();
   });
 
   registerAuthRoutes({ app, auth });
+  registerVaultRoutes({ app, db });
+  registerDocumentRoutes({ app, db, storage, encryption, documentQueue });
 
   // Health check endpoint
   app.get('/api/health', (c) => {

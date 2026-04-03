@@ -1,4 +1,7 @@
 import type { Auth } from './auth.services.js';
+import type { Database } from '../database/database.js';
+import type { StorageDriver } from '../storage/storage.types.js';
+import type { EncryptionServices } from '../encryption/encryption.services.js';
 import { describe, expect, test, vi } from 'vitest';
 import { parseConfig } from '../config/config.js';
 import { createServer } from '../server/server.js';
@@ -21,12 +24,16 @@ function createMockAuth() {
   return { auth, handler, getSession };
 }
 
+const mockDb = {} as Database;
+const mockStorage = { write: vi.fn(), read: vi.fn(), remove: vi.fn(), exists: vi.fn() } as unknown as StorageDriver;
+const mockEncryption = { isEnabled: () => false, encrypt: vi.fn(), decrypt: vi.fn() } as unknown as EncryptionServices;
+
 describe('auth integration', () => {
   test('delegates signup route to Better Auth handler', async () => {
     const { config } = parseConfig({ env: {} });
     const { auth, handler } = createMockAuth();
 
-    const { app } = createServer({ config, auth });
+    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
 
     const response = await app.request('/api/auth/sign-up/email', { method: 'POST' });
 
@@ -39,7 +46,7 @@ describe('auth integration', () => {
     const { config } = parseConfig({ env: {} });
     const { auth, handler } = createMockAuth();
 
-    const { app } = createServer({ config, auth });
+    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
 
     const response = await app.request('/api/auth/sign-in/email', { method: 'POST' });
 
@@ -52,7 +59,7 @@ describe('auth integration', () => {
     const { config } = parseConfig({ env: {} });
     const { auth, handler } = createMockAuth();
 
-    const { app } = createServer({ config, auth });
+    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
 
     const response = await app.request('/api/auth/two-factor/verify', { method: 'POST' });
 
@@ -65,7 +72,7 @@ describe('auth integration', () => {
     const { config } = parseConfig({ env: {} });
     const { auth } = createMockAuth();
 
-    const { app } = createServer({ config, auth });
+    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
 
     const response = await app.request('/api/me', { method: 'GET' });
 
@@ -91,7 +98,7 @@ describe('auth integration', () => {
       },
     });
 
-    const { app } = createServer({ config, auth });
+    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
 
     const response = await app.request('/api/me', { method: 'GET' });
 

@@ -34,11 +34,11 @@ services:
     image: quay.io/docling-project/docling-serve:latest
     restart: unless-stopped
     ports:
-      - "5001:5000"
+      - "5001:5001"
     volumes:
       - docling-data:/tmp/docling
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -58,7 +58,7 @@ services:
       ARKIVRA_HOSTNAME: "0.0.0.0"
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_REDIS_URL: redis://redis:6379
-      ARKIVRA_DOCLING_URL: http://docling:5000
+      ARKIVRA_DOCLING_URL: http://docling:5001
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
       ARKIVRA_STORAGE_FS_PATH: /app/document-storage
@@ -88,7 +88,7 @@ services:
       PROCESS_MODE: worker
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_REDIS_URL: redis://redis:6379
-      ARKIVRA_DOCLING_URL: http://docling:5000
+      ARKIVRA_DOCLING_URL: http://docling:5001
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
       ARKIVRA_STORAGE_FS_PATH: /app/document-storage

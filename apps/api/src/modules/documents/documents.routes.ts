@@ -38,7 +38,8 @@ export function registerDocumentRoutes({
     }
 
     const includeDeleted = context.req.query('includeDeleted') === 'true';
-    const documents = await documentsServices.listDocuments({ vaultId, includeDeleted });
+    const tagId = context.req.query('tagId');
+    const documents = await documentsServices.listDocuments({ vaultId, includeDeleted, tagId });
 
     return context.json({ documents });
   });

@@ -28,6 +28,7 @@ type TestContext = {
   userId: string | null;
   vaultId: string | null;
   documentId: string | null;
+  tagId: string | null;
 };
 
 function createTestPdfBuffer() {
@@ -133,6 +134,7 @@ describe.sequential('document upload processing e2e', () => {
     userId: null,
     vaultId: null,
     documentId: null,
+    tagId: null,
   };
 
   let redis: Redis | null = null;
@@ -353,5 +355,93 @@ describe.sequential('document upload processing e2e', () => {
     expect(searchBody.resultsCount).toBeGreaterThanOrEqual(1);
     expect(searchBody.results[0]?.documentId).toBe(testContext.documentId);
     expect(searchBody.results[0]?.bestChunk.snippet).toContain('Docling');
+
+    const createTagResponse = await app.request(`/api/vaults/${testContext.vaultId}/tags`, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'Important',
+        color: '#FF0000',
+      }),
+    });
+
+    expect(createTagResponse.status).toBe(201);
+
+    const createTagBody = await createTagResponse.json() as {
+      tag: { id: string };
+    };
+
+    testContext.tagId = createTagBody.tag.id;
+
+    const assignTagResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        tagId: testContext.tagId,
+      }),
+    });
+
+    expect(assignTagResponse.status).toBe(201);
+
+    const listDocumentTagsResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`, {
+      method: 'GET',
+      headers: {
+        cookie: sessionCookie,
+      },
+    });
+
+    expect(listDocumentTagsResponse.status).toBe(200);
+
+    const listDocumentTagsBody = await listDocumentTagsResponse.json() as {
+      tags: Array<{ id: string; name: string }>;
+    };
+
+    expect(listDocumentTagsBody.tags).toHaveLength(1);
+    expect(listDocumentTagsBody.tags[0]?.id).toBe(testContext.tagId);
+    expect(listDocumentTagsBody.tags[0]?.name).toBe('Important');
+
+    const filteredDocumentsResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents?tagId=${testContext.tagId}`, {
+      method: 'GET',
+      headers: {
+        cookie: sessionCookie,
+      },
+    });
+
+    expect(filteredDocumentsResponse.status).toBe(200);
+
+    const filteredDocumentsBody = await filteredDocumentsResponse.json() as {
+      documents: Array<{ id: string }>;
+    };
+
+    expect(filteredDocumentsBody.documents).toHaveLength(1);
+    expect(filteredDocumentsBody.documents[0]?.id).toBe(testContext.documentId);
+
+    const removeTagResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags/${testContext.tagId}`, {
+      method: 'DELETE',
+      headers: {
+        cookie: sessionCookie,
+      },
+    });
+
+    expect(removeTagResponse.status).toBe(204);
+
+    const listTagsAfterRemovalResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`, {
+      method: 'GET',
+      headers: {
+        cookie: sessionCookie,
+      },
+    });
+
+    const listTagsAfterRemovalBody = await listTagsAfterRemovalResponse.json() as {
+      tags: Array<{ id: string }>;
+    };
+
+    expect(listTagsAfterRemovalBody.tags).toHaveLength(0);
   }, 60_000);
 });

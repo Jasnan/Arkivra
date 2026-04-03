@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import { and, desc, eq } from 'drizzle-orm';
-import { documentsTable } from '../database/schema/index.js';
+import { and, desc, eq, exists } from 'drizzle-orm';
+import { documentTagsTable, documentsTable, tagsTable } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
@@ -150,14 +150,33 @@ export function createDocumentsServices({
   async function listDocuments({
     vaultId,
     includeDeleted = false,
+    tagId,
   }: {
     vaultId: string;
     includeDeleted?: boolean;
+    tagId?: string;
   }) {
     const conditions = [eq(documentsTable.vaultId, vaultId)];
 
     if (!includeDeleted) {
       conditions.push(eq(documentsTable.isDeleted, false));
+    }
+
+    if (tagId !== undefined) {
+      conditions.push(
+        exists(
+          db.select({ documentId: documentTagsTable.documentId })
+            .from(documentTagsTable)
+            .innerJoin(tagsTable, eq(documentTagsTable.tagId, tagsTable.id))
+            .where(
+              and(
+                eq(documentTagsTable.documentId, documentsTable.id),
+                eq(documentTagsTable.tagId, tagId),
+                eq(tagsTable.vaultId, vaultId),
+              ),
+            ),
+        ),
+      );
     }
 
     return db

@@ -178,6 +178,22 @@ describe('documents integration', () => {
     expect(docServices.listDocuments).toHaveBeenCalledWith({ vaultId: 'vlt_1', includeDeleted: false });
   });
 
+  test('filters documents by tag id', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents?tagId=tag_1', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(docServices.listDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      includeDeleted: false,
+      tagId: 'tag_1',
+    });
+  });
+
   test('uploads a document', async () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });

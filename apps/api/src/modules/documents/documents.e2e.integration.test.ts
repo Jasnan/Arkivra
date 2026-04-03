@@ -330,5 +330,28 @@ describe.sequential('document upload processing e2e', () => {
     expect(chunks.length).toBeGreaterThan(0);
     expect(chunks[0]?.chunkType).toBe('heading');
     expect(chunks[0]?.content).toContain('Arkivra Docling E2E Test PDF');
+
+    const searchResponse = await app.request(`/api/vaults/${testContext.vaultId}/search?q=Docling&pageIndex=0&pageSize=10`, {
+      method: 'GET',
+      headers: {
+        cookie: sessionCookie,
+      },
+    });
+
+    expect(searchResponse.status).toBe(200);
+
+    const searchBody = await searchResponse.json() as {
+      resultsCount: number;
+      results: Array<{
+        documentId: string;
+        bestChunk: {
+          snippet: string;
+        };
+      }>;
+    };
+
+    expect(searchBody.resultsCount).toBeGreaterThanOrEqual(1);
+    expect(searchBody.results[0]?.documentId).toBe(testContext.documentId);
+    expect(searchBody.results[0]?.bestChunk.snippet).toContain('Docling');
   }, 60_000);
 });

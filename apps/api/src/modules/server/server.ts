@@ -16,6 +16,7 @@ import { registerAuthRoutes } from '../auth/auth.routes.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { registerVaultRoutes } from '../vaults/vaults.routes.js';
 import { registerDocumentRoutes } from '../documents/documents.routes.js';
+import { registerSearchRoutes } from '../search/search.routes.js';
 
 export function createServer({ config, auth, db, storage, encryption, documentQueue }: { config: Config; auth: Auth; db: Database; storage: StorageDriver; encryption: EncryptionServices; documentQueue?: DocumentQueue }) {
   const app = new Hono<ServerContext>({ strict: true });
@@ -38,6 +39,7 @@ export function createServer({ config, auth, db, storage, encryption, documentQu
   registerAuthRoutes({ app, auth });
   registerVaultRoutes({ app, db });
   registerDocumentRoutes({ app, db, storage, encryption, documentQueue });
+  registerSearchRoutes({ app, db });
 
   // Health check endpoint
   app.get('/api/health', (c) => {

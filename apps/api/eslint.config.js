@@ -4,7 +4,7 @@ export default antfu({
   stylistic: false,
   typescript: true,
   rules: {
-    'no-console': 'warn',
+    'no-console': 'off',
     'e18e/prefer-static-regex': 'off',
     'import/first': 'off',
     'jsonc/sort-keys': 'off',

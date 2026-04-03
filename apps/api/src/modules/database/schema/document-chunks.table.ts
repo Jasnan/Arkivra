@@ -1,5 +1,4 @@
 import { index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 import { createPrimaryKeyField } from './helpers.js';
 import { documentsTable } from './documents.table.js';
 import { vaultsTable } from './vaults.table.js';

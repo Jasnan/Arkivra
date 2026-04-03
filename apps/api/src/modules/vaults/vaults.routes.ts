@@ -258,6 +258,8 @@ export function registerVaultRoutes({
     requireVaultPermission('members.manage'),
     async (context) => {
       const vaultId = context.get('vaultId');
+      const currentRole = context.get('vaultRole');
+      const isGlobalAdmin = context.get('isGlobalAdmin');
 
       if (vaultId === null) {
         return context.json(
@@ -316,6 +318,8 @@ export function registerVaultRoutes({
     requireVaultPermission('members.manage'),
     async (context) => {
       const vaultId = context.get('vaultId');
+      const currentRole = context.get('vaultRole');
+      const isGlobalAdmin = context.get('isGlobalAdmin');
 
       if (vaultId === null) {
         return context.json(

@@ -28,12 +28,12 @@ pnpm-debug.log*
 # Test
 coverage/
 
-# Docker volumes
-postgres-data/
-redis-data/
-docling-data/
-document-storage/
-backups/
+# Docker volumes / local runtime data
+/postgres-data/
+/redis-data/
+/docling-data/
+/document-storage/
+/backups/
 
 # Drizzle
 drizzle/meta/

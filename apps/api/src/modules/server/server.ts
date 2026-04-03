@@ -4,9 +4,14 @@ import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
+import type { CreateBackupJobResult, RestoreBackupJobResult } from '../admin/backups/backups.types.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
+};
+type BackupQueue = {
+  enqueueCreateBackup: () => Promise<CreateBackupJobResult>;
+  enqueueRestoreBackup: (args: { backupId: string }) => Promise<RestoreBackupJobResult>;
 };
 import type { ServerContext } from './server.types.js';
 import { Hono } from 'hono';
@@ -18,9 +23,12 @@ import { registerVaultRoutes } from '../vaults/vaults.routes.js';
 import { registerDocumentRoutes } from '../documents/documents.routes.js';
 import { registerSearchRoutes } from '../search/search.routes.js';
 import { registerTagRoutes } from '../tags/tags.routes.js';
+import { createBackupServices } from '../admin/backups/backups.services.js';
+import { registerBackupRoutes } from '../admin/backups/backups.routes.js';
 
-export function createServer({ config, auth, db, storage, encryption, documentQueue }: { config: Config; auth: Auth; db: Database; storage: StorageDriver; encryption: EncryptionServices; documentQueue?: DocumentQueue }) {
+export function createServer({ config, auth, db, storage, encryption, documentQueue, backupQueue }: { config: Config; auth: Auth; db: Database; storage: StorageDriver; encryption: EncryptionServices; documentQueue?: DocumentQueue; backupQueue?: BackupQueue }) {
   const app = new Hono<ServerContext>({ strict: true });
+  const backupServices = createBackupServices({ config });
 
   app.use(cors({
     origin: config.server.corsOrigins,
@@ -37,11 +45,36 @@ export function createServer({ config, auth, db, storage, encryption, documentQu
     await next();
   });
 
+  app.use('/api/*', async (context, next) => {
+    const path = context.req.path;
+    const maintenanceModeEnabled = await backupServices.isMaintenanceModeEnabled();
+
+    if (
+      maintenanceModeEnabled
+      && path !== '/api/health'
+      && !path.startsWith('/api/auth/')
+      && !path.startsWith('/api/admin/backups')
+    ) {
+      return context.json(
+        {
+          error: {
+            code: 'system.maintenance_mode',
+            message: 'Restore in progress. Arkivra is temporarily in maintenance mode.',
+          },
+        },
+        503,
+      );
+    }
+
+    await next();
+  });
+
   registerAuthRoutes({ app, auth });
   registerVaultRoutes({ app, db });
   registerDocumentRoutes({ app, db, storage, encryption, documentQueue });
   registerSearchRoutes({ app, db });
   registerTagRoutes({ app, db });
+  registerBackupRoutes({ app, config, backupQueue, backupServices });
 
   // Health check endpoint
   app.get('/api/health', (c) => {

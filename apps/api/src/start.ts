@@ -12,6 +12,9 @@ import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDocumentWorker } from './modules/worker/document.worker.js';
 import { createMaintenanceQueue } from './modules/worker/maintenance.queue.js';
 import { createMaintenanceWorker } from './modules/worker/maintenance.worker.js';
+import { createBackupQueue } from './modules/worker/backup.queue.js';
+import { createBackupWorker } from './modules/worker/backup.worker.js';
+import { createBackupServices } from './modules/admin/backups/backups.services.js';
 
 export async function startApp() {
   const { config } = parseConfig({ env: process.env });
@@ -30,9 +33,11 @@ export async function startApp() {
   const redis = new Redis(config.redis.url, { maxRetriesPerRequest: null });
   const documentQueue = createDocumentQueue({ connection: redis });
   const maintenanceQueue = createMaintenanceQueue({ connection: redis });
+  const backupQueue = createBackupQueue({ connection: redis });
+  const backupServices = createBackupServices({ config });
 
   if (isWebMode) {
-    const { app } = createServer({ config, auth, db, storage, encryption, documentQueue });
+    const { app } = createServer({ config, auth, db, storage, encryption, documentQueue, backupQueue });
 
     serve(
       {
@@ -64,6 +69,14 @@ export async function startApp() {
       defaultRetentionDays: config.backgroundJobs.documentRetentionDays,
       storage,
     });
+    const backupWorker = createBackupWorker({
+      backupDirectory: backupServices.backupDirectory,
+      connection: redis,
+      maintenanceFlagPath: backupServices.maintenanceFlagPath,
+      pool,
+      storageBasePath: config.storage.filesystem.basePath,
+      version: config.version,
+    });
 
     await maintenanceQueue.scheduleHardDeleteExpiredDocuments({
       cronPattern: config.backgroundJobs.hardDeleteExpiredDocumentsCron,
@@ -76,6 +89,7 @@ export async function startApp() {
     );
     cleanups.push(async () => documentWorker.close());
     cleanups.push(async () => maintenanceWorker.close());
+    cleanups.push(async () => backupWorker.close());
   }
 
   // Graceful shutdown
@@ -86,6 +100,7 @@ export async function startApp() {
     }
     await documentQueue.close();
     await maintenanceQueue.close();
+    await backupQueue.close();
     await redis.quit();
     await pool.end();
     process.exit(0);

@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "test": "vitest run",
+    "test:e2e:backups": "vitest run src/modules/admin/backups/backups.e2e.integration.test.ts",
     "test:e2e:background-jobs": "vitest run src/modules/worker/background-jobs.e2e.integration.test.ts",
     "test:e2e:processing": "vitest run src/modules/documents/documents.e2e.integration.test.ts",
     "test:watch": "vitest watch",

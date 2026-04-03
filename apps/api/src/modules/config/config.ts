@@ -76,6 +76,20 @@ export const configDefinition = {
       env: 'ARKIVRA_DOCUMENT_RETENTION_DAYS',
     },
   },
+  backups: {
+    directory: {
+      doc: 'Directory where backup archives and restore temporary files are stored.',
+      schema: z.string(),
+      default: './backups',
+      env: 'ARKIVRA_BACKUPS_PATH',
+    },
+    maintenanceFlagFile: {
+      doc: 'Filename used to indicate maintenance mode during restore operations.',
+      schema: z.string(),
+      default: '.maintenance-mode',
+      env: 'ARKIVRA_BACKUPS_MAINTENANCE_FLAG_FILE',
+    },
+  },
   docling: {
     url: {
       doc: 'Docling HTTP API base URL.',

@@ -13,6 +13,7 @@
     "build": "pnpm --filter './apps/*' build",
     "lint": "pnpm --filter './apps/*' lint",
     "test": "vitest run",
+    "test:e2e:backups": "pnpm --filter @arkivra/api test:e2e:backups",
     "test:e2e:background-jobs": "pnpm --filter @arkivra/api test:e2e:background-jobs",
     "test:e2e:processing": "pnpm --filter @arkivra/api test:e2e:processing",
     "test:watch": "vitest watch",

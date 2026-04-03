@@ -37,7 +37,15 @@ export async function startApp() {
   const backupServices = createBackupServices({ config });
 
   if (isWebMode) {
-    const { app } = createServer({ config, auth, db, storage, encryption, documentQueue, backupQueue });
+    const { app } = createServer({
+      config,
+      auth,
+      db,
+      storage,
+      encryption,
+      documentQueue,
+      backupQueue,
+    });
 
     serve(
       {

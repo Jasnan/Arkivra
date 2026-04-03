@@ -87,7 +87,7 @@ That was the code.`;
     const chunks = chunkMarkdownContent(md);
     expect(chunks.length).toBeGreaterThanOrEqual(1);
     // Code block content should be preserved
-    const allContent = chunks.map(c => c.content).join('\n');
+    const allContent = chunks.map((c) => c.content).join('\n');
     expect(allContent).toContain('console.log');
   });
 });

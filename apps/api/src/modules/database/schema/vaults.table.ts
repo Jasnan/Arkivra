@@ -13,9 +13,7 @@ export const vaultsTable = pgTable(
     deletedAt: timestamp('deleted_at', { mode: 'date' }),
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
-  table => [
-    index('vaults_deleted_at_idx').on(table.deletedAt),
-  ],
+  (table) => [index('vaults_deleted_at_idx').on(table.deletedAt)],
 );
 
 export const vaultMembersTable = pgTable(
@@ -32,9 +30,9 @@ export const vaultMembersTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: 'cascade' }),
 
-    role: text('role', { enum: ['owner', 'admin', 'member'] }).notNull(),
+    role: text('role', { enum: ['owner', 'member'] }).notNull(),
   },
-  table => [
+  (table) => [
     unique('vault_members_vault_user_unique').on(table.vaultId, table.userId),
     index('vault_members_user_id_idx').on(table.userId),
   ],

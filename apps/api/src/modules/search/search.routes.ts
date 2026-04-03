@@ -5,7 +5,7 @@ import type { DocumentSearchServices } from './search.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import { createDocumentSearchServices } from './search.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { requireVaultAccess } from '../vaults/vaults.middleware.js';
+import { requireVaultAccess, requireVaultPermission } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 
 function parsePageIndex(value: string | undefined) {
@@ -42,6 +42,7 @@ export function registerSearchRoutes({
 
   app.use('/api/vaults/:vaultId/search', requireAuthentication());
   app.use('/api/vaults/:vaultId/search', requireVaultAccess({ services: vaultsServices }));
+  app.use('/api/vaults/:vaultId/search', requireVaultPermission('documents.read'));
 
   app.get('/api/vaults/:vaultId/search', async (context) => {
     const vaultId = context.get('vaultId');
@@ -63,7 +64,12 @@ export function registerSearchRoutes({
 
     if (pageIndex === null) {
       return context.json(
-        { error: { code: 'search.invalid_page_index', message: 'pageIndex must be an integer >= 0' } },
+        {
+          error: {
+            code: 'search.invalid_page_index',
+            message: 'pageIndex must be an integer >= 0',
+          },
+        },
         400,
       );
     }
@@ -72,7 +78,12 @@ export function registerSearchRoutes({
 
     if (pageSize === null) {
       return context.json(
-        { error: { code: 'search.invalid_page_size', message: 'pageSize must be an integer between 1 and 100' } },
+        {
+          error: {
+            code: 'search.invalid_page_size',
+            message: 'pageSize must be an integer between 1 and 100',
+          },
+        },
         400,
       );
     }

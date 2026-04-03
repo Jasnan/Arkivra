@@ -46,7 +46,7 @@ export function createDoclingClient({ baseUrl }: { baseUrl: string }) {
       throw new Error(`Docling API error: ${response.status} ${response.statusText} - ${text}`);
     }
 
-    const data = await response.json() as DoclingConvertResponse;
+    const data = (await response.json()) as DoclingConvertResponse;
 
     if (data.status === 'failure') {
       throw new Error(`Docling conversion failed: ${data.errors.join(', ')}`);

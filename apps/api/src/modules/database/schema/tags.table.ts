@@ -16,9 +16,7 @@ export const tagsTable = pgTable(
     name: text('name').notNull(),
     color: text('color'),
   },
-  table => [
-    unique('tags_vault_name_unique').on(table.vaultId, table.name),
-  ],
+  (table) => [unique('tags_vault_name_unique').on(table.vaultId, table.name)],
 );
 
 export const documentTagsTable = pgTable(
@@ -32,7 +30,7 @@ export const documentTagsTable = pgTable(
       .notNull()
       .references(() => tagsTable.id, { onDelete: 'cascade' }),
   },
-  table => ({
+  (table) => ({
     pk: primaryKey({ columns: [table.documentId, table.tagId] }),
   }),
 );

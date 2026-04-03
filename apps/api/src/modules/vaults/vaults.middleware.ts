@@ -1,4 +1,5 @@
 import type { VaultRole } from './vaults.types.js';
+import type { VaultMemberPermission } from '../authorization/authorization.types.js';
 import type { VaultsServices } from './vaults.services.js';
 import { createMiddleware } from 'hono/factory';
 
@@ -48,6 +49,8 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
 
     context.set('vaultId', vaultId);
     context.set('vaultRole', vault.role);
+    context.set('vaultPermissions', vault.permissions);
+    context.set('isGlobalAdmin', vault.isGlobalAdmin || context.get('isGlobalAdmin'));
 
     await next();
   });
@@ -55,9 +58,39 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
 
 export function requireVaultRole(...roles: VaultRole[]) {
   return createMiddleware(async (context, next) => {
+    if (context.get('isGlobalAdmin')) {
+      await next();
+      return;
+    }
+
     const vaultRole = context.get('vaultRole');
 
     if (vaultRole === null || !roles.includes(vaultRole)) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.forbidden',
+            message: 'Forbidden',
+          },
+        },
+        403,
+      );
+    }
+
+    await next();
+  });
+}
+
+export function requireVaultPermission(...permissions: VaultMemberPermission[]) {
+  return createMiddleware(async (context, next) => {
+    if (context.get('isGlobalAdmin') || context.get('vaultRole') === 'owner') {
+      await next();
+      return;
+    }
+
+    const vaultPermissions = context.get('vaultPermissions');
+
+    if (!permissions.every((permission) => vaultPermissions.includes(permission))) {
       return context.json(
         {
           error: {

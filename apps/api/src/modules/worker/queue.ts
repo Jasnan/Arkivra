@@ -19,15 +19,8 @@ export function createDocumentQueue({ connection }: { connection: Redis }) {
     },
   });
 
-  async function enqueueProcessDocument({
-    documentId,
-    vaultId,
-  }: JobData) {
-    await queue.add(
-      'process',
-      { documentId, vaultId },
-      { jobId: `process-doc-${documentId}` },
-    );
+  async function enqueueProcessDocument({ documentId, vaultId }: JobData) {
+    await queue.add('process', { documentId, vaultId }, { jobId: `process-doc-${documentId}` });
   }
 
   async function close() {

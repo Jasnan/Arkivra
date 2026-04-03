@@ -11,6 +11,8 @@
     "dev": "pnpm --filter @arkivra/api dev",
     "dev:web": "pnpm --filter @arkivra/web dev",
     "build": "pnpm --filter './apps/*' build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "pnpm --filter './apps/*' lint",
     "test": "vitest run",
     "test:e2e:backups": "pnpm --filter @arkivra/api test:e2e:backups",
@@ -23,6 +25,7 @@
     "db:studio": "pnpm --filter @arkivra/api db:studio"
   },
   "devDependencies": {
+    "prettier": "^3.6.2",
     "vitest": "^4.0.3",
     "typescript": "^5.9.3"
   }

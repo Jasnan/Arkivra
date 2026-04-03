@@ -13,15 +13,15 @@ const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
 const PUBLIC_TABLES_IN_RESTORE_ORDER = [
   'users',
+  'user_global_roles',
   'vaults',
   'vault_members',
+  'vault_member_permissions',
   'documents',
   'document_chunks',
   'tags',
   'document_tags',
-  'auth_sessions',
   'auth_accounts',
-  'auth_verifications',
   'auth_two_factor',
 ] as const;
 
@@ -114,7 +114,7 @@ async function dumpDatabaseSql({ pool }: { pool: Pool }) {
       [tableName],
     );
 
-    const columns = columnResult.rows.map(row => row.column_name as string);
+    const columns = columnResult.rows.map((row) => row.column_name as string);
 
     if (columns.length === 0) {
       continue;
@@ -131,7 +131,9 @@ async function dumpDatabaseSql({ pool }: { pool: Pool }) {
     const columnList = columns.map(sqlIdentifier).join(', ');
 
     for (const row of result.rows) {
-      const values = columns.map(column => sqlLiteral((row as Record<string, unknown>)[column])).join(', ');
+      const values = columns
+        .map((column) => sqlLiteral((row as Record<string, unknown>)[column]))
+        .join(', ');
       sqlText += `INSERT INTO ${sqlIdentifier(tableName)} (${columnList}) VALUES (${values});\n`;
     }
   }
@@ -168,7 +170,9 @@ export async function createBackupArchive({
 }): Promise<CreateBackupResult> {
   const createdAt = new Date();
   const backupId = `arkivra-backup-${createdAt.toISOString().replaceAll(':', '-')}.tar.gz`;
-  const tempDirectory = await import('node:fs/promises').then(fs => fs.mkdtemp(join(tmpdir(), 'arkivra-backup-')));
+  const tempDirectory = await import('node:fs/promises').then((fs) =>
+    fs.mkdtemp(join(tmpdir(), 'arkivra-backup-')),
+  );
   const archivePath = join(resolve(backupDirectory), backupId);
   const databaseSql = await dumpDatabaseSql({ pool });
 
@@ -178,12 +182,16 @@ export async function createBackupArchive({
     await writeFile(join(tempDirectory, 'database.sql'), databaseSql, 'utf8');
     await writeFile(
       join(tempDirectory, 'metadata.json'),
-      JSON.stringify({
-        id: backupId,
-        arkivraVersion: version,
-        createdAt: createdAt.toISOString(),
-        formatVersion: BACKUP_FORMAT_VERSION,
-      }, null, 2),
+      JSON.stringify(
+        {
+          id: backupId,
+          arkivraVersion: version,
+          createdAt: createdAt.toISOString(),
+          formatVersion: BACKUP_FORMAT_VERSION,
+        },
+        null,
+        2,
+      ),
       'utf8',
     );
 
@@ -196,8 +204,7 @@ export async function createBackupArchive({
       cwd: tempDirectory,
       destinationPath: archivePath,
     });
-  }
-  finally {
+  } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }
 
@@ -221,10 +228,16 @@ export async function restoreBackupArchive({
   storageBasePath: string;
 }): Promise<RestoreBackupResult> {
   const archivePath = join(resolve(backupDirectory), backupId);
-  const tempDirectory = await import('node:fs/promises').then(fs => fs.mkdtemp(join(tmpdir(), 'arkivra-restore-')));
+  const tempDirectory = await import('node:fs/promises').then((fs) =>
+    fs.mkdtemp(join(tmpdir(), 'arkivra-restore-')),
+  );
 
   await mkdir(resolve(backupDirectory), { recursive: true });
-  await writeFile(maintenanceFlagPath, JSON.stringify({ startedAt: new Date().toISOString(), backupId }), 'utf8');
+  await writeFile(
+    maintenanceFlagPath,
+    JSON.stringify({ startedAt: new Date().toISOString(), backupId }),
+    'utf8',
+  );
 
   try {
     await extractTarGzArchive({
@@ -257,8 +270,7 @@ export async function restoreBackupArchive({
       backupId,
       restored: true,
     };
-  }
-  finally {
+  } finally {
     await rm(tempDirectory, { recursive: true, force: true });
     await rm(maintenanceFlagPath, { force: true });
   }
@@ -302,13 +314,16 @@ export function createBackupWorker({
     throw new Error(`Unknown backup job: ${job.name}`);
   }
 
-  const worker = new Worker(BACKUP_QUEUE, async job => processBackupJob(job), {
+  const worker = new Worker(BACKUP_QUEUE, async (job) => processBackupJob(job), {
     connection,
     concurrency: 1,
   });
 
   worker.on('failed', (job, error) => {
-    console.error(`Backup job failed for ${job?.name ?? 'unknown'} (${job?.id ?? 'unknown'}):`, error.message);
+    console.error(
+      `Backup job failed for ${job?.name ?? 'unknown'} (${job?.id ?? 'unknown'}):`,
+      error.message,
+    );
   });
 
   worker.on('completed', (job) => {

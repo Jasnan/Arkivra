@@ -81,7 +81,7 @@ export function createMaintenanceWorker({
 
   const worker = new Worker<HardDeleteExpiredDocumentsJobData>(
     MAINTENANCE_QUEUE,
-    async job => processMaintenanceJob(job),
+    async (job) => processMaintenanceJob(job),
     {
       connection,
       concurrency: 1,

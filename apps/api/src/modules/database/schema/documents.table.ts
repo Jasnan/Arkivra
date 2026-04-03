@@ -1,4 +1,12 @@
-import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createPrimaryKeyField, createTimestampColumns } from './helpers.js';
 import { usersTable } from './users.table.js';
 import { vaultsTable } from './vaults.table.js';
@@ -13,8 +21,7 @@ export const documentsTable = pgTable(
       .notNull()
       .references(() => vaultsTable.id, { onDelete: 'cascade' }),
 
-    createdBy: text('created_by')
-      .references(() => usersTable.id, { onDelete: 'set null' }),
+    createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
 
     originalName: text('original_name').notNull(),
     originalSize: integer('original_size').notNull().default(0),
@@ -32,12 +39,15 @@ export const documentsTable = pgTable(
 
     isDeleted: boolean('is_deleted').notNull().default(false),
     deletedAt: timestamp('deleted_at', { mode: 'date' }),
-    deletedBy: text('deleted_by')
-      .references(() => usersTable.id, { onDelete: 'set null' }),
+    deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
-  table => [
+  (table) => [
     uniqueIndex('documents_vault_hash_unique').on(table.vaultId, table.originalSha256Hash),
-    index('documents_vault_deleted_created_idx').on(table.vaultId, table.isDeleted, table.createdAt),
+    index('documents_vault_deleted_created_idx').on(
+      table.vaultId,
+      table.isDeleted,
+      table.createdAt,
+    ),
     index('documents_vault_deleted_idx').on(table.vaultId, table.isDeleted),
     index('documents_hash_idx').on(table.originalSha256Hash),
     index('documents_kek_version_idx').on(table.fileEncryptionKekVersion),

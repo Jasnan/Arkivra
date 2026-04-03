@@ -56,7 +56,8 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
     }
 
     const offset = pageIndex * pageSize;
-    const headlineOptions = 'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20, MinWords=5';
+    const headlineOptions =
+      'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20, MinWords=5';
 
     const countResult = await db.execute<CountRow>(sql`
       WITH search_query AS (
@@ -153,7 +154,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
       OFFSET ${offset}
     `);
 
-    const results: SearchResultItem[] = searchResult.rows.map(row => ({
+    const results: SearchResultItem[] = searchResult.rows.map((row) => ({
       documentId: row.document_id,
       name: row.name,
       originalName: row.original_name,

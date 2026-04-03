@@ -6,7 +6,12 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { parseConfig } from '../config/config.js';
 import { setupDatabase } from '../database/database.js';
-import { documentsTable, usersTable, vaultMembersTable, vaultsTable } from '../database/schema/index.js';
+import {
+  documentsTable,
+  usersTable,
+  vaultMembersTable,
+  vaultsTable,
+} from '../database/schema/index.js';
 import { createStorageDriver } from '../storage/storage.services.js';
 import { createMaintenanceQueue } from './maintenance.queue.js';
 import { createMaintenanceWorker } from './maintenance.worker.js';
@@ -32,7 +37,8 @@ describe.sequential('background jobs e2e', () => {
       env: {
         ...process.env,
         NODE_ENV: 'test',
-        ARKIVRA_DATABASE_URL: process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
+        ARKIVRA_DATABASE_URL:
+          process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
         ARKIVRA_REDIS_URL: process.env.ARKIVRA_REDIS_URL ?? 'redis://127.0.0.1:6379/2',
         ARKIVRA_STORAGE_FS_PATH: storagePath,
       },
@@ -100,15 +106,24 @@ describe.sequential('background jobs e2e', () => {
 
   afterAll(async () => {
     if (documentId !== null && db !== null) {
-      await db.delete(documentsTable).where(eq(documentsTable.id, documentId)).catch(() => undefined);
+      await db
+        .delete(documentsTable)
+        .where(eq(documentsTable.id, documentId))
+        .catch(() => undefined);
     }
 
     if (vaultId !== null && db !== null) {
-      await db.delete(vaultsTable).where(eq(vaultsTable.id, vaultId)).catch(() => undefined);
+      await db
+        .delete(vaultsTable)
+        .where(eq(vaultsTable.id, vaultId))
+        .catch(() => undefined);
     }
 
     if (userId !== null && db !== null) {
-      await db.delete(usersTable).where(eq(usersTable.id, userId)).catch(() => undefined);
+      await db
+        .delete(usersTable)
+        .where(eq(usersTable.id, userId))
+        .catch(() => undefined);
     }
 
     if (maintenanceQueue !== null) {
@@ -129,7 +144,13 @@ describe.sequential('background jobs e2e', () => {
   });
 
   test('hard deletes expired soft-deleted documents from the queue worker', async () => {
-    if (db === null || maintenanceQueue === null || storageKey === null || documentId === null || vaultId === null) {
+    if (
+      db === null ||
+      maintenanceQueue === null ||
+      storageKey === null ||
+      documentId === null ||
+      vaultId === null
+    ) {
       throw new Error('Background jobs test dependencies were not initialized');
     }
 
@@ -141,19 +162,14 @@ describe.sequential('background jobs e2e', () => {
       const [document] = await db
         .select({ id: documentsTable.id })
         .from(documentsTable)
-        .where(
-          and(
-            eq(documentsTable.id, documentId),
-            eq(documentsTable.vaultId, vaultId),
-          ),
-        )
+        .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
         .limit(1);
 
       if (document === undefined) {
         break;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     const [documentAfterCleanup] = await db

@@ -1,0 +1,5 @@
+node_modules
+dist
+coverage
+.pnpm-store
+apps/api/drizzle/meta

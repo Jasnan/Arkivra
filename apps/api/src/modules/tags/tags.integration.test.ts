@@ -61,11 +61,20 @@ function createMockTagsServices() {
   } as unknown as TagsServices;
 }
 
-function createMockVaultsServices(role: 'owner' | 'admin' | 'member' = 'owner') {
+function createMockVaultsServices(role: 'owner' | 'member' = 'owner') {
   return {
     createVault: vi.fn(),
     getMember: vi.fn(async () => null),
-    getVaultForUser: vi.fn(async () => ({ id: 'vlt_1', name: 'Test Vault', role })),
+    getVaultForUser: vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role,
+      permissions: role === 'member' ? ['documents.read'] : [],
+      isGlobalAdmin: false,
+    })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
     removeMember: vi.fn(),
@@ -87,8 +96,11 @@ function createTestApp({
   app.use('*', async (context, next) => {
     context.set('userId', null);
     context.set('session', null);
+    context.set('userDisabled', false);
+    context.set('isGlobalAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
+    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -126,7 +138,7 @@ describe('tags integration', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.tags).toHaveLength(1);
     expect(body.tags[0].id).toBe('tag_1');
     expect((tagsServices as any).listTags).toHaveBeenCalledWith({ vaultId: 'vlt_1' });
@@ -151,6 +163,33 @@ describe('tags integration', () => {
       name: 'Important',
       color: '#FF0000',
     });
+  });
+
+  test('allows member with tags.manage permission to create a tag', async () => {
+    const tagsServices = createMockTagsServices();
+    const vaultServices = createMockVaultsServices('member');
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'member',
+      permissions: ['documents.read', 'tags.manage'],
+      isGlobalAdmin: false,
+    }));
+
+    const app = createTestApp({ tagsServices, vaultServices });
+    const response = await app.request('/api/vaults/vlt_1/tags', {
+      method: 'POST',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'Collaborative', color: '#00FF00' }),
+    });
+
+    expect(response.status).toBe(201);
   });
 
   test('returns 400 for invalid tag color', async () => {
@@ -243,7 +282,7 @@ describe('tags integration', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.tags).toHaveLength(1);
     expect((tagsServices as any).listDocumentTags).toHaveBeenCalledWith({
       vaultId: 'vlt_1',

@@ -32,11 +32,9 @@ export const documentChunksTable = pgTable(
     chunkType: text('chunk_type'),
     tokenCount: integer('token_count'),
 
-    createdAt: timestamp('created_at', { mode: 'date' })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   },
-  table => [
+  (table) => [
     unique('document_chunks_doc_index_unique').on(table.documentId, table.chunkIndex),
     index('document_chunks_vault_doc_idx').on(table.vaultId, table.documentId),
   ],

@@ -41,7 +41,7 @@ export const configDefinition = {
     },
     corsOrigins: {
       doc: 'Comma-separated list of allowed CORS origins.',
-      schema: z.string().transform(value => value.split(',')),
+      schema: z.string().transform((value) => value.split(',')),
       default: 'http://localhost:5173',
       env: 'ARKIVRA_CORS_ORIGINS',
     },
@@ -131,19 +131,24 @@ export const configDefinition = {
     },
     isRegistrationEnabled: {
       doc: 'Whether new user registration is enabled.',
-      schema: z.union([z.boolean(), z.string().transform(v => v === 'true' || v === '1')]),
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
       default: true,
       env: 'ARKIVRA_AUTH_REGISTRATION_ENABLED',
     },
     isEmailVerificationRequired: {
       doc: 'Whether email verification is required after signup.',
-      schema: z.union([z.boolean(), z.string().transform(v => v === 'true' || v === '1')]),
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
       default: false,
       env: 'ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED',
     },
     trustedOrigins: {
       doc: 'Comma-separated list of trusted origins for auth (CSRF protection).',
-      schema: z.string().transform(value => value.split(',').map(v => v.trim()).filter(Boolean)),
+      schema: z.string().transform((value) =>
+        value
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      ),
       default: 'http://localhost:5173,http://localhost:1221',
       env: 'ARKIVRA_AUTH_TRUSTED_ORIGINS',
     },

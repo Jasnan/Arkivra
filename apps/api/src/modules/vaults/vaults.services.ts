@@ -1,58 +1,125 @@
 import type { Database } from '../database/database.js';
 import type { VaultRole } from './vaults.types.js';
-import { and, desc, eq, isNull } from 'drizzle-orm';
-import { usersTable, vaultMembersTable, vaultsTable } from '../database/schema/index.js';
+import type { VaultMemberPermission } from '../authorization/authorization.types.js';
+import {
+  DEFAULT_MEMBER_PERMISSIONS,
+  VAULT_MEMBER_PERMISSIONS,
+  normalizeVaultMemberPermissions,
+} from '../authorization/authorization.types.js';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import {
+  userGlobalRolesTable,
+  usersTable,
+  vaultMemberPermissionsTable,
+  vaultMembersTable,
+  vaultsTable,
+} from '../database/schema/index.js';
+
+const ALL_VAULT_MEMBER_PERMISSIONS = [...VAULT_MEMBER_PERMISSIONS];
+
+function getOwnerFallbackPermissions() {
+  return [...ALL_VAULT_MEMBER_PERMISSIONS];
+}
+
+async function loadPermissionsByMemberId({ db, memberIds }: { db: Database; memberIds: string[] }) {
+  if (memberIds.length === 0) {
+    return new Map<string, VaultMemberPermission[]>();
+  }
+
+  const rows = await db
+    .select({
+      vaultMemberId: vaultMemberPermissionsTable.vaultMemberId,
+      permission: vaultMemberPermissionsTable.permission,
+    })
+    .from(vaultMemberPermissionsTable)
+    .where(inArray(vaultMemberPermissionsTable.vaultMemberId, memberIds));
+
+  const permissionsByMemberId = new Map<string, VaultMemberPermission[]>();
+
+  for (const row of rows) {
+    const current = permissionsByMemberId.get(row.vaultMemberId) ?? [];
+    current.push(row.permission as VaultMemberPermission);
+    permissionsByMemberId.set(row.vaultMemberId, current);
+  }
+
+  return permissionsByMemberId;
+}
 
 export function createVaultsServices({ db }: { db: Database }) {
   async function listUserVaults({ userId }: { userId: string }) {
-    return db
+    const vaults = await db
       .select({
         id: vaultsTable.id,
         name: vaultsTable.name,
         createdAt: vaultsTable.createdAt,
         updatedAt: vaultsTable.updatedAt,
+        deletedAt: vaultsTable.deletedAt,
         role: vaultMembersTable.role,
+        memberId: vaultMembersTable.id,
       })
       .from(vaultMembersTable)
       .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
-      .where(
-        and(
-          eq(vaultMembersTable.userId, userId),
-          isNull(vaultsTable.deletedAt),
-        ),
-      )
+      .where(and(eq(vaultMembersTable.userId, userId), isNull(vaultsTable.deletedAt)))
       .orderBy(desc(vaultsTable.createdAt));
+
+    const permissionsByMemberId = await loadPermissionsByMemberId({
+      db,
+      memberIds: vaults.map((vault) => vault.memberId),
+    });
+
+    return vaults.map((vault) => ({
+      id: vault.id,
+      name: vault.name,
+      createdAt: vault.createdAt,
+      updatedAt: vault.updatedAt,
+      deletedAt: vault.deletedAt,
+      role: vault.role,
+      permissions:
+        vault.role === 'owner'
+          ? getOwnerFallbackPermissions()
+          : (permissionsByMemberId.get(vault.memberId) ?? []),
+      isGlobalAdmin: false,
+    }));
   }
 
   async function createVault({ userId, name }: { userId: string; name: string }) {
     return db.transaction(async (tx) => {
-      const [vault] = await tx
-        .insert(vaultsTable)
-        .values({ name })
-        .returning();
+      const [vault] = await tx.insert(vaultsTable).values({ name }).returning();
 
       if (vault === undefined) {
         throw new Error('Failed to create vault');
       }
 
-      await tx
-        .insert(vaultMembersTable)
-        .values({
-          vaultId: vault.id,
-          userId,
-          role: 'owner',
-        });
+      await tx.insert(vaultMembersTable).values({
+        vaultId: vault.id,
+        userId,
+        role: 'owner',
+      });
 
       return {
         ...vault,
+        deletedAt: null,
         role: 'owner' as const,
+        permissions: getOwnerFallbackPermissions(),
+        isGlobalAdmin: false,
       };
     });
   }
 
   async function getVaultForUser({ vaultId, userId }: { vaultId: string; userId: string }) {
-    const [vault] = await db
+    const [globalAdminRole] = await db
+      .select({ role: userGlobalRolesTable.role })
+      .from(userGlobalRolesTable)
+      .where(
+        and(eq(userGlobalRolesTable.userId, userId), eq(userGlobalRolesTable.role, 'global_admin')),
+      )
+      .limit(1);
+
+    const isGlobalAdmin = globalAdminRole !== undefined;
+
+    const [member] = await db
       .select({
+        memberId: vaultMembersTable.id,
         id: vaultsTable.id,
         name: vaultsTable.name,
         createdAt: vaultsTable.createdAt,
@@ -71,7 +138,53 @@ export function createVaultsServices({ db }: { db: Database }) {
       )
       .limit(1);
 
-    return vault ?? null;
+    if (member !== undefined) {
+      const permissionsByMemberId = await loadPermissionsByMemberId({
+        db,
+        memberIds: [member.memberId],
+      });
+
+      return {
+        id: member.id,
+        name: member.name,
+        createdAt: member.createdAt,
+        updatedAt: member.updatedAt,
+        deletedAt: member.deletedAt,
+        role: member.role,
+        permissions:
+          isGlobalAdmin || member.role === 'owner'
+            ? getOwnerFallbackPermissions()
+            : (permissionsByMemberId.get(member.memberId) ?? []),
+        isGlobalAdmin,
+      };
+    }
+
+    if (!isGlobalAdmin) {
+      return null;
+    }
+
+    const [vault] = await db
+      .select({
+        id: vaultsTable.id,
+        name: vaultsTable.name,
+        createdAt: vaultsTable.createdAt,
+        updatedAt: vaultsTable.updatedAt,
+        deletedAt: vaultsTable.deletedAt,
+      })
+      .from(vaultsTable)
+      .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
+      .limit(1);
+
+    if (vault === undefined) {
+      return null;
+    }
+
+    return {
+      ...vault,
+      role: null,
+      permissions: getOwnerFallbackPermissions(),
+      isGlobalAdmin: true,
+    };
   }
 
   async function updateVaultName({ vaultId, name }: { vaultId: string; name: string }) {
@@ -107,8 +220,9 @@ export function createVaultsServices({ db }: { db: Database }) {
   }
 
   async function listMembers({ vaultId }: { vaultId: string }) {
-    return db
+    const members = await db
       .select({
+        memberId: vaultMembersTable.id,
         userId: vaultMembersTable.userId,
         role: vaultMembersTable.role,
         email: usersTable.email,
@@ -117,73 +231,189 @@ export function createVaultsServices({ db }: { db: Database }) {
       .from(vaultMembersTable)
       .innerJoin(usersTable, eq(vaultMembersTable.userId, usersTable.id))
       .where(eq(vaultMembersTable.vaultId, vaultId));
+
+    const permissionsByMemberId = await loadPermissionsByMemberId({
+      db,
+      memberIds: members.map((member) => member.memberId),
+    });
+
+    return members.map((member) => ({
+      userId: member.userId,
+      role: member.role,
+      email: member.email,
+      name: member.name,
+      permissions:
+        member.role === 'owner'
+          ? getOwnerFallbackPermissions()
+          : (permissionsByMemberId.get(member.memberId) ?? []),
+    }));
   }
 
   async function upsertMember({
     vaultId,
     userId,
     role,
+    permissions,
   }: {
     vaultId: string;
     userId: string;
     role: VaultRole;
+    permissions?: readonly VaultMemberPermission[];
   }) {
-    const [member] = await db
-      .insert(vaultMembersTable)
-      .values({ vaultId, userId, role })
-      .onConflictDoUpdate({
-        target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
-        set: {
-          role,
-          updatedAt: new Date(),
-        },
-      })
-      .returning({
-        userId: vaultMembersTable.userId,
-        role: vaultMembersTable.role,
-      });
+    return db.transaction(async (tx) => {
+      const normalizedPermissions =
+        role === 'owner'
+          ? []
+          : normalizeVaultMemberPermissions(
+              (permissions ?? DEFAULT_MEMBER_PERMISSIONS) as VaultMemberPermission[],
+            );
 
-    return member;
+      if (role === 'owner') {
+        const existingOwners = await tx
+          .select({
+            id: vaultMembersTable.id,
+            userId: vaultMembersTable.userId,
+          })
+          .from(vaultMembersTable)
+          .where(and(eq(vaultMembersTable.vaultId, vaultId), eq(vaultMembersTable.role, 'owner')));
+
+        for (const owner of existingOwners) {
+          if (owner.userId === userId) {
+            continue;
+          }
+
+          await tx
+            .update(vaultMembersTable)
+            .set({
+              role: 'member',
+              updatedAt: new Date(),
+            })
+            .where(eq(vaultMembersTable.id, owner.id));
+
+          await tx
+            .delete(vaultMemberPermissionsTable)
+            .where(eq(vaultMemberPermissionsTable.vaultMemberId, owner.id));
+
+          if (DEFAULT_MEMBER_PERMISSIONS.length > 0) {
+            await tx.insert(vaultMemberPermissionsTable).values(
+              DEFAULT_MEMBER_PERMISSIONS.map((permission) => ({
+                vaultMemberId: owner.id,
+                permission,
+              })),
+            );
+          }
+        }
+      }
+
+      const [member] = await tx
+        .insert(vaultMembersTable)
+        .values({ vaultId, userId, role })
+        .onConflictDoUpdate({
+          target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
+          set: {
+            role,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({
+          memberId: vaultMembersTable.id,
+          userId: vaultMembersTable.userId,
+          role: vaultMembersTable.role,
+        });
+
+      if (member === undefined) {
+        throw new Error('Failed to upsert vault member');
+      }
+
+      await tx
+        .delete(vaultMemberPermissionsTable)
+        .where(eq(vaultMemberPermissionsTable.vaultMemberId, member.memberId));
+
+      if (normalizedPermissions.length > 0) {
+        await tx.insert(vaultMemberPermissionsTable).values(
+          normalizedPermissions.map((permission) => ({
+            vaultMemberId: member.memberId,
+            permission,
+          })),
+        );
+      }
+
+      return {
+        userId: member.userId,
+        role: member.role,
+        permissions:
+          member.role === 'owner' ? getOwnerFallbackPermissions() : normalizedPermissions,
+      };
+    });
   }
 
   async function getMember({ vaultId, userId }: { vaultId: string; userId: string }) {
     const [member] = await db
       .select({
+        memberId: vaultMembersTable.id,
         userId: vaultMembersTable.userId,
         role: vaultMembersTable.role,
       })
       .from(vaultMembersTable)
-      .where(
-        and(
-          eq(vaultMembersTable.vaultId, vaultId),
-          eq(vaultMembersTable.userId, userId),
-        ),
-      )
+      .where(and(eq(vaultMembersTable.vaultId, vaultId), eq(vaultMembersTable.userId, userId)))
       .limit(1);
 
-    return member ?? null;
+    if (member === undefined) {
+      return null;
+    }
+
+    const permissionsByMemberId = await loadPermissionsByMemberId({
+      db,
+      memberIds: [member.memberId],
+    });
+
+    return {
+      userId: member.userId,
+      role: member.role,
+      permissions:
+        member.role === 'owner'
+          ? getOwnerFallbackPermissions()
+          : (permissionsByMemberId.get(member.memberId) ?? []),
+    };
   }
 
   async function removeMember({ vaultId, userId }: { vaultId: string; userId: string }) {
     const [member] = await db
       .delete(vaultMembersTable)
-      .where(
-        and(
-          eq(vaultMembersTable.vaultId, vaultId),
-          eq(vaultMembersTable.userId, userId),
-        ),
-      )
+      .where(and(eq(vaultMembersTable.vaultId, vaultId), eq(vaultMembersTable.userId, userId)))
       .returning({
         userId: vaultMembersTable.userId,
       });
 
     return member ?? null;
+  }
+
+  async function listAllVaults() {
+    return db
+      .select({
+        id: vaultsTable.id,
+        name: vaultsTable.name,
+        createdAt: vaultsTable.createdAt,
+        updatedAt: vaultsTable.updatedAt,
+        ownerUserId: vaultMembersTable.userId,
+        ownerEmail: usersTable.email,
+        ownerName: usersTable.name,
+      })
+      .from(vaultsTable)
+      .leftJoin(
+        vaultMembersTable,
+        and(eq(vaultMembersTable.vaultId, vaultsTable.id), eq(vaultMembersTable.role, 'owner')),
+      )
+      .leftJoin(usersTable, eq(vaultMembersTable.userId, usersTable.id))
+      .where(isNull(vaultsTable.deletedAt))
+      .orderBy(desc(vaultsTable.createdAt));
   }
 
   return {
     createVault,
     getMember,
     getVaultForUser,
+    listAllVaults,
     listMembers,
     listUserVaults,
     removeMember,

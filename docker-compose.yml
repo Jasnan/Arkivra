@@ -7,12 +7,12 @@ services:
       POSTGRES_PASSWORD: arkivra
       POSTGRES_DB: arkivra
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U arkivra -d arkivra"]
+      test: ['CMD-SHELL', 'pg_isready -U arkivra -d arkivra']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -21,11 +21,11 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,11 +34,11 @@ services:
     image: quay.io/docling-project/docling-serve:latest
     restart: unless-stopped
     ports:
-      - "5001:5001"
+      - '5001:5001'
     volumes:
       - docling-data:/tmp/docling
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:5001/health']
       interval: 10s
       timeout: 10s
       retries: 5
@@ -50,12 +50,12 @@ services:
       dockerfile: ./apps/api/Dockerfile
     restart: unless-stopped
     ports:
-      - "1221:1221"
+      - '1221:1221'
     environment:
       NODE_ENV: production
       PROCESS_MODE: web
-      ARKIVRA_PORT: "1221"
-      ARKIVRA_HOSTNAME: "0.0.0.0"
+      ARKIVRA_PORT: '1221'
+      ARKIVRA_HOSTNAME: '0.0.0.0'
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_REDIS_URL: redis://redis:6379
       ARKIVRA_BACKUPS_PATH: /app/backups
@@ -74,7 +74,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:1221/api/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:1221/api/health']
       interval: 10s
       timeout: 5s
       retries: 5

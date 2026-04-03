@@ -19,19 +19,13 @@ export function createPrimaryKeyField({ prefix }: { prefix?: string } = {}) {
 
 export function createTimestampColumns() {
   return {
-    createdAt: timestamp('created_at', { mode: 'date' })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp('updated_at', { mode: 'date' })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
   };
 }
 
 export function createCreatedAtField() {
   return {
-    createdAt: timestamp('created_at', { mode: 'date' })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   };
 }

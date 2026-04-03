@@ -44,7 +44,16 @@ function createMockVaultsServices() {
   return {
     createVault: vi.fn(),
     getMember: vi.fn(async () => null),
-    getVaultForUser: vi.fn(async () => ({ id: 'vlt_1', name: 'Test', role: 'owner' })),
+    getVaultForUser: vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
+    })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
     removeMember: vi.fn(),
@@ -66,8 +75,11 @@ function createTestApp({
   app.use('*', async (context, next) => {
     context.set('userId', null);
     context.set('session', null);
+    context.set('userDisabled', false);
+    context.set('isGlobalAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
+    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -118,6 +130,28 @@ describe('search integration', () => {
     expect(response.status).toBe(403);
   });
 
+  test('returns 403 when member lacks documents.read permission', async () => {
+    const searchServices = createMockSearchServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'member',
+      permissions: [],
+      isGlobalAdmin: false,
+    }));
+
+    const app = createTestApp({ searchServices, vaultServices });
+    const response = await app.request('/api/vaults/vlt_1/search?q=arkivra', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
   test('returns 400 for missing search query', async () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
@@ -139,9 +173,12 @@ describe('search integration', () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
 
-    const response = await app.request('/api/vaults/vlt_1/search?q=arkivra&pageIndex=-1&pageSize=500', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/search?q=arkivra&pageIndex=-1&pageSize=500',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
@@ -156,13 +193,16 @@ describe('search integration', () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
 
-    const response = await app.request('/api/vaults/vlt_1/search?q=arkivra&pageIndex=1&pageSize=5', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/search?q=arkivra&pageIndex=1&pageSize=5',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(200);
 
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.resultsCount).toBe(1);
     expect(body.results).toHaveLength(1);
     expect(body.results[0].documentId).toBe('doc_1');

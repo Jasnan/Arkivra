@@ -82,7 +82,16 @@ function createMockVaultsServices() {
   return {
     createVault: vi.fn(),
     getMember: vi.fn(async () => null),
-    getVaultForUser: vi.fn(async () => ({ id: 'vlt_1', name: 'Test', role: 'owner' })),
+    getVaultForUser: vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
+    })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
     removeMember: vi.fn(),
@@ -104,8 +113,11 @@ function createTestApp({
   app.use('*', async (context, next) => {
     context.set('userId', null);
     context.set('session', null);
+    context.set('userDisabled', false);
+    context.set('isGlobalAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
+    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -163,6 +175,33 @@ describe('documents integration', () => {
     expect(response.status).toBe(403);
   });
 
+  test('returns 403 when member lacks documents.create permission', async () => {
+    const docServices = createMockDocumentsServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'member',
+      permissions: ['documents.read'],
+      isGlobalAdmin: false,
+    }));
+
+    const app = createTestApp({ docServices, vaultServices });
+    const formData = new FormData();
+    formData.append('file', new File(['hello world'], 'test.txt', { type: 'text/plain' }));
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+      body: formData,
+    });
+
+    expect(response.status).toBe(403);
+  });
+
   test('lists documents in vault for authenticated member', async () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });
@@ -172,10 +211,13 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.documents).toHaveLength(1);
     expect(body.documents[0].id).toBe('doc_1');
-    expect(docServices.listDocuments).toHaveBeenCalledWith({ vaultId: 'vlt_1', includeDeleted: false });
+    expect(docServices.listDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      includeDeleted: false,
+    });
   });
 
   test('filters documents by tag id', async () => {
@@ -208,7 +250,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(201);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.document.id).toBe('doc_test_1');
     expect(docServices.uploadDocument).toHaveBeenCalledTimes(1);
   });
@@ -233,7 +275,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(409);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.error.code).toBe('document.duplicate');
     expect(body.error.existingId).toBe('doc_existing_1');
   });
@@ -252,7 +294,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(400);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.error.code).toBe('document.invalid_upload');
   });
 
@@ -265,7 +307,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.document.id).toBe('doc_1');
     expect(docServices.getDocument).toHaveBeenCalledWith({ documentId: 'doc_1', vaultId: 'vlt_1' });
   });
@@ -281,7 +323,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(404);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.error.code).toBe('document.not_found');
   });
 
@@ -327,7 +369,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.document.name).toBe('new-name.pdf');
     expect(docServices.renameDocument).toHaveBeenCalledWith({
       documentId: 'doc_1',
@@ -350,7 +392,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(400);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.error.code).toBe('document.invalid_name');
   });
 
@@ -381,7 +423,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.document.id).toBe('doc_1');
     expect(docServices.restoreDocument).toHaveBeenCalledWith({
       documentId: 'doc_1',
@@ -392,7 +434,16 @@ describe('documents integration', () => {
   test('hard deletes a soft-deleted document (owner)', async () => {
     const docServices = createMockDocumentsServices();
     const vaultServices = createMockVaultsServices();
-    (vaultServices as any).getVaultForUser = vi.fn(async () => ({ id: 'vlt_1', name: 'Test', role: 'owner' }));
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
+    }));
 
     const app = createTestApp({ docServices, vaultServices });
 
@@ -411,7 +462,16 @@ describe('documents integration', () => {
   test('forbids hard delete for member role', async () => {
     const docServices = createMockDocumentsServices();
     const vaultServices = createMockVaultsServices();
-    (vaultServices as any).getVaultForUser = vi.fn(async () => ({ id: 'vlt_1', name: 'Test', role: 'member' }));
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'member',
+      permissions: ['documents.read'],
+      isGlobalAdmin: false,
+    }));
 
     const app = createTestApp({ docServices, vaultServices });
 

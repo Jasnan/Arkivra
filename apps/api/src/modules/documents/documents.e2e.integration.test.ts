@@ -99,12 +99,7 @@ async function waitForProcessing({
         content: documentsTable.content,
       })
       .from(documentsTable)
-      .where(
-        and(
-          eq(documentsTable.id, documentId),
-          eq(documentsTable.vaultId, vaultId),
-        ),
-      )
+      .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
       .limit(1);
 
     const [chunkSummary] = await db
@@ -119,7 +114,7 @@ async function waitForProcessing({
       return;
     }
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
   throw new Error(`Timed out waiting for document ${documentId} to be processed`);
@@ -152,7 +147,8 @@ describe.sequential('document upload processing e2e', () => {
         ...process.env,
         NODE_ENV: 'test',
         PROCESS_MODE: 'all',
-        ARKIVRA_DATABASE_URL: process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
+        ARKIVRA_DATABASE_URL:
+          process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
         ARKIVRA_REDIS_URL: process.env.ARKIVRA_REDIS_URL ?? 'redis://127.0.0.1:6379/1',
         ARKIVRA_DOCLING_URL: process.env.ARKIVRA_DOCLING_URL ?? 'http://127.0.0.1:5001',
         ARKIVRA_SERVER_BASE_URL: 'http://localhost:1221',
@@ -258,7 +254,7 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(signUpResponse.status).toBe(200);
 
-    const signUpBody = await signUpResponse.json() as { user: { id: string } };
+    const signUpBody = (await signUpResponse.json()) as { user: { id: string } };
     testContext.userId = signUpBody.user.id;
 
     const sessionCookie = getSessionCookie(signUpResponse);
@@ -274,7 +270,7 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(createVaultResponse.status).toBe(201);
 
-    const createVaultBody = await createVaultResponse.json() as {
+    const createVaultBody = (await createVaultResponse.json()) as {
       vault: { id: string };
     };
     testContext.vaultId = createVaultBody.vault.id;
@@ -295,7 +291,7 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(uploadResponse.status).toBe(201);
 
-    const uploadBody = await uploadResponse.json() as {
+    const uploadBody = (await uploadResponse.json()) as {
       document: { id: string; content: string };
     };
 
@@ -333,16 +329,19 @@ describe.sequential('document upload processing e2e', () => {
     expect(chunks[0]?.chunkType).toBe('heading');
     expect(chunks[0]?.content).toContain('Arkivra Docling E2E Test PDF');
 
-    const searchResponse = await app.request(`/api/vaults/${testContext.vaultId}/search?q=Docling&pageIndex=0&pageSize=10`, {
-      method: 'GET',
-      headers: {
-        cookie: sessionCookie,
+    const searchResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/search?q=Docling&pageIndex=0&pageSize=10`,
+      {
+        method: 'GET',
+        headers: {
+          cookie: sessionCookie,
+        },
       },
-    });
+    );
 
     expect(searchResponse.status).toBe(200);
 
-    const searchBody = await searchResponse.json() as {
+    const searchBody = (await searchResponse.json()) as {
       resultsCount: number;
       results: Array<{
         documentId: string;
@@ -370,35 +369,41 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(createTagResponse.status).toBe(201);
 
-    const createTagBody = await createTagResponse.json() as {
+    const createTagBody = (await createTagResponse.json()) as {
       tag: { id: string };
     };
 
     testContext.tagId = createTagBody.tag.id;
 
-    const assignTagResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`, {
-      method: 'POST',
-      headers: {
-        cookie: sessionCookie,
-        'content-type': 'application/json',
+    const assignTagResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: sessionCookie,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          tagId: testContext.tagId,
+        }),
       },
-      body: JSON.stringify({
-        tagId: testContext.tagId,
-      }),
-    });
+    );
 
     expect(assignTagResponse.status).toBe(201);
 
-    const listDocumentTagsResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`, {
-      method: 'GET',
-      headers: {
-        cookie: sessionCookie,
+    const listDocumentTagsResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`,
+      {
+        method: 'GET',
+        headers: {
+          cookie: sessionCookie,
+        },
       },
-    });
+    );
 
     expect(listDocumentTagsResponse.status).toBe(200);
 
-    const listDocumentTagsBody = await listDocumentTagsResponse.json() as {
+    const listDocumentTagsBody = (await listDocumentTagsResponse.json()) as {
       tags: Array<{ id: string; name: string }>;
     };
 
@@ -406,39 +411,48 @@ describe.sequential('document upload processing e2e', () => {
     expect(listDocumentTagsBody.tags[0]?.id).toBe(testContext.tagId);
     expect(listDocumentTagsBody.tags[0]?.name).toBe('Important');
 
-    const filteredDocumentsResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents?tagId=${testContext.tagId}`, {
-      method: 'GET',
-      headers: {
-        cookie: sessionCookie,
+    const filteredDocumentsResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents?tagId=${testContext.tagId}`,
+      {
+        method: 'GET',
+        headers: {
+          cookie: sessionCookie,
+        },
       },
-    });
+    );
 
     expect(filteredDocumentsResponse.status).toBe(200);
 
-    const filteredDocumentsBody = await filteredDocumentsResponse.json() as {
+    const filteredDocumentsBody = (await filteredDocumentsResponse.json()) as {
       documents: Array<{ id: string }>;
     };
 
     expect(filteredDocumentsBody.documents).toHaveLength(1);
     expect(filteredDocumentsBody.documents[0]?.id).toBe(testContext.documentId);
 
-    const removeTagResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags/${testContext.tagId}`, {
-      method: 'DELETE',
-      headers: {
-        cookie: sessionCookie,
+    const removeTagResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags/${testContext.tagId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          cookie: sessionCookie,
+        },
       },
-    });
+    );
 
     expect(removeTagResponse.status).toBe(204);
 
-    const listTagsAfterRemovalResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`, {
-      method: 'GET',
-      headers: {
-        cookie: sessionCookie,
+    const listTagsAfterRemovalResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${testContext.documentId}/tags`,
+      {
+        method: 'GET',
+        headers: {
+          cookie: sessionCookie,
+        },
       },
-    });
+    );
 
-    const listTagsAfterRemovalBody = await listTagsAfterRemovalResponse.json() as {
+    const listTagsAfterRemovalBody = (await listTagsAfterRemovalResponse.json()) as {
       tags: Array<{ id: string }>;
     };
 

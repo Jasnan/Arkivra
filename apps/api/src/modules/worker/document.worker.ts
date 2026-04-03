@@ -29,12 +29,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     const [doc] = await db
       .select()
       .from(documentsTable)
-      .where(
-        and(
-          eq(documentsTable.id, documentId),
-          eq(documentsTable.vaultId, vaultId),
-        ),
-      )
+      .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
       .limit(1);
 
     if (doc === undefined) {
@@ -52,17 +47,13 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     // 3. Decrypt if encrypted
     let fileData: Buffer;
 
-    if (
-      doc.fileEncryptionKeyWrapped !== null
-      && doc.fileEncryptionKekVersion !== null
-    ) {
+    if (doc.fileEncryptionKeyWrapped !== null && doc.fileEncryptionKekVersion !== null) {
       fileData = encryption.decrypt({
         encryptedData: rawData,
         wrappedDek: doc.fileEncryptionKeyWrapped,
         kekVersion: doc.fileEncryptionKekVersion,
       });
-    }
-    else {
+    } else {
       fileData = rawData;
     }
 
@@ -83,25 +74,21 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     const chunks = chunkMarkdownContent(markdownContent);
 
     // 6. Delete any existing chunks for this document (re-processing)
-    await db
-      .delete(documentChunksTable)
-      .where(eq(documentChunksTable.documentId, documentId));
+    await db.delete(documentChunksTable).where(eq(documentChunksTable.documentId, documentId));
 
     // 7. Insert chunks
     if (chunks.length > 0) {
-      await db
-        .insert(documentChunksTable)
-        .values(
-          chunks.map(chunk => ({
-            documentId,
-            vaultId,
-            chunkIndex: chunk.chunkIndex,
-            content: chunk.content,
-            pageNumber: chunk.pageNumber,
-            chunkType: chunk.chunkType,
-            tokenCount: chunk.tokenCount,
-          })),
-        );
+      await db.insert(documentChunksTable).values(
+        chunks.map((chunk) => ({
+          documentId,
+          vaultId,
+          chunkIndex: chunk.chunkIndex,
+          content: chunk.content,
+          pageNumber: chunk.pageNumber,
+          chunkType: chunk.chunkType,
+          tokenCount: chunk.tokenCount,
+        })),
+      );
     }
 
     await job.updateProgress(90);
@@ -134,10 +121,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
   );
 
   worker.on('failed', (job, error) => {
-    console.error(
-      `Document processing failed for job ${job?.id ?? 'unknown'}:`,
-      error.message,
-    );
+    console.error(`Document processing failed for job ${job?.id ?? 'unknown'}:`, error.message);
   });
 
   worker.on('completed', (job) => {

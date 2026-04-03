@@ -15,10 +15,12 @@ CREATE TABLE IF NOT EXISTS "users" (
   "email_verified" boolean DEFAULT false NOT NULL,
   "name" text,
   "image" text,
-  "two_factor_enabled" boolean DEFAULT false NOT NULL
+  "two_factor_enabled" boolean DEFAULT false NOT NULL,
+  "disabled_at" timestamp
 );
 
 CREATE INDEX IF NOT EXISTS "users_email_idx" ON "users" ("email");
+CREATE INDEX IF NOT EXISTS "users_disabled_at_idx" ON "users" ("disabled_at");
 
 -- ============================================================
 -- Vaults
@@ -48,6 +50,27 @@ CREATE TABLE IF NOT EXISTS "vault_members" (
 );
 
 CREATE INDEX IF NOT EXISTS "vault_members_user_id_idx" ON "vault_members" ("user_id");
+
+-- ============================================================
+-- Authorization
+-- ============================================================
+CREATE TABLE IF NOT EXISTS "user_global_roles" (
+  "user_id" text NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "role" text NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  CONSTRAINT "user_global_roles_pk" PRIMARY KEY ("user_id", "role")
+);
+
+CREATE INDEX IF NOT EXISTS "user_global_roles_role_idx" ON "user_global_roles" ("role");
+
+CREATE TABLE IF NOT EXISTS "vault_member_permissions" (
+  "vault_member_id" text NOT NULL REFERENCES "vault_members"("id") ON DELETE CASCADE,
+  "permission" text NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  CONSTRAINT "vault_member_permissions_pk" PRIMARY KEY ("vault_member_id", "permission")
+);
+
+CREATE INDEX IF NOT EXISTS "vault_member_permissions_permission_idx" ON "vault_member_permissions" ("permission");
 
 -- ============================================================
 -- Documents

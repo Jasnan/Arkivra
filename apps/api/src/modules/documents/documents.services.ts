@@ -72,8 +72,7 @@ export function createDocumentsServices({
       wrappedDek = result.wrappedDek;
       kekVersion = result.kekVersion;
       algorithm = result.algorithm;
-    }
-    else {
+    } else {
       dataToStore = fileData;
     }
 
@@ -104,7 +103,13 @@ export function createDocumentsServices({
     return { document, duplicate: false, existingId: null };
   }
 
-  async function downloadDocument({ documentId, vaultId }: { documentId: string; vaultId: string }) {
+  async function downloadDocument({
+    documentId,
+    vaultId,
+  }: {
+    documentId: string;
+    vaultId: string;
+  }) {
     const [doc] = await db
       .select()
       .from(documentsTable)
@@ -125,17 +130,13 @@ export function createDocumentsServices({
 
     let fileData: Buffer;
 
-    if (
-      doc.fileEncryptionKeyWrapped !== null
-      && doc.fileEncryptionKekVersion !== null
-    ) {
+    if (doc.fileEncryptionKeyWrapped !== null && doc.fileEncryptionKekVersion !== null) {
       fileData = encryption.decrypt({
         encryptedData: rawData,
         wrappedDek: doc.fileEncryptionKeyWrapped,
         kekVersion: doc.fileEncryptionKekVersion,
       });
-    }
-    else {
+    } else {
       fileData = rawData;
     }
 
@@ -165,7 +166,8 @@ export function createDocumentsServices({
     if (tagId !== undefined) {
       conditions.push(
         exists(
-          db.select({ documentId: documentTagsTable.documentId })
+          db
+            .select({ documentId: documentTagsTable.documentId })
             .from(documentTagsTable)
             .innerJoin(tagsTable, eq(documentTagsTable.tagId, tagsTable.id))
             .where(
@@ -215,12 +217,7 @@ export function createDocumentsServices({
         createdBy: documentsTable.createdBy,
       })
       .from(documentsTable)
-      .where(
-        and(
-          eq(documentsTable.id, documentId),
-          eq(documentsTable.vaultId, vaultId),
-        ),
-      )
+      .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
       .limit(1);
 
     return doc ?? null;
@@ -311,13 +308,7 @@ export function createDocumentsServices({
     return doc ?? null;
   }
 
-  async function restoreDocument({
-    documentId,
-    vaultId,
-  }: {
-    documentId: string;
-    vaultId: string;
-  }) {
+  async function restoreDocument({ documentId, vaultId }: { documentId: string; vaultId: string }) {
     const [doc] = await db
       .update(documentsTable)
       .set({
@@ -369,9 +360,7 @@ export function createDocumentsServices({
     await storage.remove(doc.originalStorageKey);
 
     // Delete DB record
-    await db
-      .delete(documentsTable)
-      .where(eq(documentsTable.id, doc.id));
+    await db.delete(documentsTable).where(eq(documentsTable.id, doc.id));
 
     return { id: doc.id };
   }

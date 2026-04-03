@@ -47,13 +47,17 @@ function createMockDeps() {
   } as unknown as EncryptionServices;
 
   const doclingClient = {
-    convertFile: vi.fn(async (_args: { fileName: string; mimeType: string; fileData: Buffer }) => doclingResponse),
+    convertFile: vi.fn(
+      async (_args: { fileName: string; mimeType: string; fileData: Buffer }) => doclingResponse,
+    ),
   };
 
   const progressUpdates: number[] = [];
   const job = {
     data: { documentId: 'doc_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
-    updateProgress: vi.fn((p: number) => { progressUpdates.push(p); }),
+    updateProgress: vi.fn((p: number) => {
+      progressUpdates.push(p);
+    }),
   };
 
   return { docRow, storage, encryption, doclingClient, job, progressUpdates };
@@ -74,8 +78,7 @@ async function runPipeline(deps: ReturnType<typeof createMockDeps>) {
       wrappedDek: docRow.fileEncryptionKeyWrapped,
       kekVersion: docRow.fileEncryptionKekVersion,
     });
-  }
-  else {
+  } else {
     fileData = rawData;
   }
 
@@ -126,7 +129,7 @@ describe('document worker pipeline', () => {
     const { chunks } = await runPipeline(deps);
 
     expect(chunks.length).toBeGreaterThanOrEqual(2);
-    const allContent = chunks.map(c => c.content).join('\n');
+    const allContent = chunks.map((c) => c.content).join('\n');
     expect(allContent).toContain('Title');
     expect(allContent).toContain('Paragraph');
   });

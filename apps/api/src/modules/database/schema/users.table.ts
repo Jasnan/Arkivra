@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, text } from 'drizzle-orm/pg-core';
+import { boolean, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { createPrimaryKeyField, createTimestampColumns } from './helpers.js';
 
 export const usersTable = pgTable(
@@ -12,8 +12,10 @@ export const usersTable = pgTable(
     name: text('name'),
     image: text('image'),
     twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+    disabledAt: timestamp('disabled_at', { mode: 'date' }),
   },
-  table => [
+  (table) => [
     index('users_email_idx').on(table.email),
+    index('users_disabled_at_idx').on(table.disabledAt),
   ],
 );

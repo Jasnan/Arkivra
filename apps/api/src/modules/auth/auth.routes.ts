@@ -1,14 +1,19 @@
 import type { Hono } from 'hono';
+import type { AuthorizationServices } from '../authorization/authorization.services.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { Auth } from './auth.services.js';
 
-export function registerAuthRoutes({ app, auth }: { app: Hono<ServerContext>; auth: Auth }) {
+export function registerAuthRoutes({
+  app,
+  auth,
+  authorizationServices,
+}: {
+  app: Hono<ServerContext>;
+  auth: Auth;
+  authorizationServices: AuthorizationServices;
+}) {
   // Better Auth handles all /api/auth/* routes (signup, login, logout, session, 2FA, etc.)
-  app.on(
-    ['POST', 'GET'],
-    '/api/auth/**',
-    async context => auth.handler(context.req.raw),
-  );
+  app.on(['POST', 'GET'], '/api/auth/**', async (context) => auth.handler(context.req.raw));
 
   // Session extraction middleware — runs on ALL routes after auth routes
   // Extracts user/session from cookie and sets it on context
@@ -17,8 +22,18 @@ export function registerAuthRoutes({ app, auth }: { app: Hono<ServerContext>; au
 
     if (sessionData) {
       const { user, session } = sessionData;
-      context.set('userId', user.id);
-      context.set('session', session);
+      await authorizationServices.ensureBootstrapGlobalAdmin({ userId: user.id });
+      const authorizationState = await authorizationServices.getUserAuthorizationState({
+        userId: user.id,
+      });
+
+      if (authorizationState?.disabledAt !== null) {
+        context.set('userDisabled', true);
+      } else {
+        context.set('userId', user.id);
+        context.set('session', session);
+        context.set('isGlobalAdmin', authorizationState?.isGlobalAdmin ?? false);
+      }
     }
 
     return next();

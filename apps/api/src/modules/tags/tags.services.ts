@@ -27,10 +27,7 @@ export function createTagsServices({ db }: { db: Database }) {
     name: string;
     color: string | null;
   }) {
-    const [tag] = await db
-      .insert(tagsTable)
-      .values({ vaultId, name, color })
-      .returning();
+    const [tag] = await db.insert(tagsTable).values({ vaultId, name, color }).returning();
 
     return tag ?? null;
   }
@@ -66,13 +63,7 @@ export function createTagsServices({ db }: { db: Database }) {
     return tag ?? null;
   }
 
-  async function deleteTag({
-    tagId,
-    vaultId,
-  }: {
-    tagId: string;
-    vaultId: string;
-  }) {
+  async function deleteTag({ tagId, vaultId }: { tagId: string; vaultId: string }) {
     const [tag] = await db
       .delete(tagsTable)
       .where(and(eq(tagsTable.id, tagId), eq(tagsTable.vaultId, vaultId)))
@@ -123,10 +114,7 @@ export function createTagsServices({ db }: { db: Database }) {
       return { success: false as const, reason: 'tag_not_found' as const };
     }
 
-    await db
-      .insert(documentTagsTable)
-      .values({ documentId, tagId })
-      .onConflictDoNothing();
+    await db.insert(documentTagsTable).values({ documentId, tagId }).onConflictDoNothing();
 
     return { success: true as const, tag };
   }
@@ -147,7 +135,8 @@ export function createTagsServices({ db }: { db: Database }) {
           eq(documentTagsTable.documentId, documentId),
           eq(documentTagsTable.tagId, tagId),
           exists(
-            db.select({ id: tagsTable.id })
+            db
+              .select({ id: tagsTable.id })
               .from(tagsTable)
               .where(and(eq(tagsTable.id, tagId), eq(tagsTable.vaultId, vaultId))),
           ),
@@ -176,12 +165,7 @@ export function createTagsServices({ db }: { db: Database }) {
       })
       .from(documentTagsTable)
       .innerJoin(tagsTable, eq(documentTagsTable.tagId, tagsTable.id))
-      .where(
-        and(
-          eq(documentTagsTable.documentId, documentId),
-          eq(tagsTable.vaultId, vaultId),
-        ),
-      )
+      .where(and(eq(documentTagsTable.documentId, documentId), eq(tagsTable.vaultId, vaultId)))
       .orderBy(tagsTable.name);
   }
 

@@ -17,19 +17,18 @@ describe('maintenance queue', () => {
   });
 
   test('enqueues a hard-delete-expired-documents job', async () => {
-    const { createMaintenanceQueue, HARD_DELETE_EXPIRED_DOCUMENTS_JOB } = await import('./maintenance.queue.js');
+    const { createMaintenanceQueue, HARD_DELETE_EXPIRED_DOCUMENTS_JOB } =
+      await import('./maintenance.queue.js');
 
     const queue = createMaintenanceQueue({ connection: {} as never });
     await queue.enqueueHardDeleteExpiredDocuments({ retentionDays: 7 });
 
-    expect(queueAdd).toHaveBeenCalledWith(
-      HARD_DELETE_EXPIRED_DOCUMENTS_JOB,
-      { retentionDays: 7 },
-    );
+    expect(queueAdd).toHaveBeenCalledWith(HARD_DELETE_EXPIRED_DOCUMENTS_JOB, { retentionDays: 7 });
   });
 
   test('schedules the daily hard-delete-expired-documents job', async () => {
-    const { createMaintenanceQueue, HARD_DELETE_EXPIRED_DOCUMENTS_JOB } = await import('./maintenance.queue.js');
+    const { createMaintenanceQueue, HARD_DELETE_EXPIRED_DOCUMENTS_JOB } =
+      await import('./maintenance.queue.js');
 
     const queue = createMaintenanceQueue({ connection: {} as never });
     await queue.scheduleHardDeleteExpiredDocuments({

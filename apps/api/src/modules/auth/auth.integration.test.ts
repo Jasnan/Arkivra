@@ -7,10 +7,13 @@ import { parseConfig } from '../config/config.js';
 import { createServer } from '../server/server.js';
 
 function createMockAuth() {
-  const handler = vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  }));
+  const handler = vi.fn(
+    async () =>
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+  );
 
   const getSession = vi.fn(async () => null as unknown);
 
@@ -25,15 +28,47 @@ function createMockAuth() {
 }
 
 const mockDb = {} as Database;
-const mockStorage = { write: vi.fn(), read: vi.fn(), remove: vi.fn(), exists: vi.fn() } as unknown as StorageDriver;
-const mockEncryption = { isEnabled: () => false, encrypt: vi.fn(), decrypt: vi.fn() } as unknown as EncryptionServices;
+const mockStorage = {
+  write: vi.fn(),
+  read: vi.fn(),
+  remove: vi.fn(),
+  exists: vi.fn(),
+} as unknown as StorageDriver;
+const mockEncryption = {
+  isEnabled: () => false,
+  encrypt: vi.fn(),
+  decrypt: vi.fn(),
+} as unknown as EncryptionServices;
+const mockAuthorizationServices = {
+  countActiveGlobalAdmins: vi.fn(),
+  ensureBootstrapGlobalAdmin: vi.fn(async () => false),
+  getUserAuthorizationState: vi.fn(async () => ({
+    userId: 'usr_test_1',
+    disabledAt: null,
+    globalRoles: [],
+    isGlobalAdmin: false,
+  })),
+  getUserWithRoles: vi.fn(),
+  grantGlobalAdmin: vi.fn(),
+  listGlobalRolesForUser: vi.fn(async () => []),
+  listUsers: vi.fn(async () => []),
+  revokeGlobalAdmin: vi.fn(),
+  setUserDisabled: vi.fn(),
+};
 
 describe('auth integration', () => {
   test('delegates signup route to Better Auth handler', async () => {
     const { config } = parseConfig({ env: {} });
     const { auth, handler } = createMockAuth();
 
-    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
+    const { app } = createServer({
+      config,
+      auth,
+      db: mockDb,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
 
     const response = await app.request('/api/auth/sign-up/email', { method: 'POST' });
 
@@ -46,7 +81,14 @@ describe('auth integration', () => {
     const { config } = parseConfig({ env: {} });
     const { auth, handler } = createMockAuth();
 
-    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
+    const { app } = createServer({
+      config,
+      auth,
+      db: mockDb,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
 
     const response = await app.request('/api/auth/sign-in/email', { method: 'POST' });
 
@@ -59,7 +101,14 @@ describe('auth integration', () => {
     const { config } = parseConfig({ env: {} });
     const { auth, handler } = createMockAuth();
 
-    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
+    const { app } = createServer({
+      config,
+      auth,
+      db: mockDb,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
 
     const response = await app.request('/api/auth/two-factor/verify', { method: 'POST' });
 
@@ -72,7 +121,14 @@ describe('auth integration', () => {
     const { config } = parseConfig({ env: {} });
     const { auth } = createMockAuth();
 
-    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
+    const { app } = createServer({
+      config,
+      auth,
+      db: mockDb,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
 
     const response = await app.request('/api/me', { method: 'GET' });
 
@@ -98,7 +154,14 @@ describe('auth integration', () => {
       },
     });
 
-    const { app } = createServer({ config, auth, db: mockDb, storage: mockStorage, encryption: mockEncryption });
+    const { app } = createServer({
+      config,
+      auth,
+      db: mockDb,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
 
     const response = await app.request('/api/me', { method: 'GET' });
 
@@ -106,6 +169,7 @@ describe('auth integration', () => {
     expect(await response.json()).toEqual({
       userId: 'usr_test_1',
       sessionId: 'ses_test_1',
+      isGlobalAdmin: false,
     });
   });
 });

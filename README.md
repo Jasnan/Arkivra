@@ -19,16 +19,16 @@ Arkivra is a self-hosted document management system designed for individuals and
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React + Vite + TypeScript + Tailwind CSS + shadcn/ui |
-| Backend | Hono + Node.js |
-| ORM | Drizzle ORM (pg-core) |
-| Database | PostgreSQL 16 + pgvector |
-| Auth | Better Auth |
-| Queue | BullMQ + Redis |
-| Extraction | Docling |
-| Deployment | Docker Compose (5 services) |
+| Layer      | Technology                                           |
+| ---------- | ---------------------------------------------------- |
+| Frontend   | React + Vite + TypeScript + Tailwind CSS + shadcn/ui |
+| Backend    | Hono + Node.js                                       |
+| ORM        | Drizzle ORM (pg-core)                                |
+| Database   | PostgreSQL 16 + pgvector                             |
+| Auth       | Better Auth                                          |
+| Queue      | BullMQ + Redis                                       |
+| Extraction | Docling                                              |
+| Deployment | Docker Compose (5 services)                          |
 
 ## Quick Start
 
@@ -95,15 +95,15 @@ pnpm dev:web
 
 All configuration is via environment variables. See [`.env.example`](.env.example) for the full reference.
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ARKIVRA_DATABASE_URL` | PostgreSQL connection string | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
-| `ARKIVRA_REDIS_URL` | Redis connection string | `redis://localhost:6379` |
-| `ARKIVRA_DOCLING_URL` | Docling HTTP API URL | `http://localhost:5001` |
-| `ARKIVRA_AUTH_SECRET` | Session signing secret (**change in production**) | dev default |
-| `ARKIVRA_ENCRYPTION_KEYS` | KEK for envelope encryption (format: `version:hex-key`) | — |
-| `ARKIVRA_PORT` | API server port | `1221` |
-| `PROCESS_MODE` | `all`, `web`, or `worker` | `all` |
+| Variable                  | Description                                             | Default                                             |
+| ------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
+| `ARKIVRA_DATABASE_URL`    | PostgreSQL connection string                            | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
+| `ARKIVRA_REDIS_URL`       | Redis connection string                                 | `redis://localhost:6379`                            |
+| `ARKIVRA_DOCLING_URL`     | Docling HTTP API URL                                    | `http://localhost:5001`                             |
+| `ARKIVRA_AUTH_SECRET`     | Session signing secret (**change in production**)       | dev default                                         |
+| `ARKIVRA_ENCRYPTION_KEYS` | KEK for envelope encryption (format: `version:hex-key`) | —                                                   |
+| `ARKIVRA_PORT`            | API server port                                         | `1221`                                              |
+| `PROCESS_MODE`            | `all`, `web`, or `worker`                               | `all`                                               |
 
 ## Encryption
 
@@ -143,13 +143,13 @@ arkivra/
 
 ## Roadmap
 
-| Version | Features |
-|---------|----------|
+| Version          | Features                                                          |
+| ---------------- | ----------------------------------------------------------------- |
 | **V1** (current) | Documents, Vaults, Auth, Search, Tags, Encryption, Backup/Restore |
-| **V1.1** | Tagging rules, i18n, Custom properties |
-| **V1.2** | API keys, Webhooks, Email ingestion |
-| **V1.3** | Folder ingestion, CLI |
-| **V2** | AI semantic search, Document chat (Ollama + pgvector) |
+| **V1.1**         | Tagging rules, i18n, Custom properties                            |
+| **V1.2**         | API keys, Webhooks, Email ingestion                               |
+| **V1.3**         | Folder ingestion, CLI                                             |
+| **V2**           | AI semantic search, Document chat (Ollama + pgvector)             |
 
 ## License
 

@@ -40,8 +40,7 @@ export function chunkMarkdownContent(markdown: string): Chunk[] {
         tokenCount: estimateTokens(trimmed),
       });
       chunkIndex++;
-    }
-    else {
+    } else {
       // Split large sections into overlapping chunks
       const subChunks = splitLargeSection(trimmed, section.type);
 
@@ -78,11 +77,10 @@ function splitIntoSections(markdown: string): Section[] {
         sections.push({ content: currentContent.trim(), type: currentType });
       }
 
-      currentContent = line + '\n';
+      currentContent = `${line}\n`;
       currentType = 'heading';
-    }
-    else {
-      currentContent += line + '\n';
+    } else {
+      currentContent += `${line}\n`;
 
       if (currentType === 'heading' && line.trim().length > 0) {
         currentType = 'section';
@@ -98,10 +96,7 @@ function splitIntoSections(markdown: string): Section[] {
   return sections;
 }
 
-function splitLargeSection(
-  text: string,
-  type: string,
-): Omit<Chunk, 'chunkIndex'>[] {
+function splitLargeSection(text: string, type: string): Omit<Chunk, 'chunkIndex'>[] {
   const chunks: Omit<Chunk, 'chunkIndex'>[] = [];
   let start = 0;
 

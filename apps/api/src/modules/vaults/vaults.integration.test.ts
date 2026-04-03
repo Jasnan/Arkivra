@@ -10,7 +10,12 @@ function createMockVaultsServices() {
     createVault: vi.fn(async ({ name, userId }) => ({
       id: 'vlt_test_1',
       name,
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
       role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
       userId,
     })),
     getMember: vi.fn(async () => null),
@@ -32,8 +37,11 @@ function createTestApp({ services }: { services: VaultsServices }) {
   app.use('*', async (context, next) => {
     context.set('userId', null);
     context.set('session', null);
+    context.set('userDisabled', false);
+    context.set('isGlobalAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
+    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -73,11 +81,13 @@ describe('vaults integration', () => {
 
   test('lists vaults for authenticated user', async () => {
     const services = createMockVaultsServices();
-    (services as any).listUserVaults = vi.fn(async () => [{
-      id: 'vlt_1',
-      name: 'Personal Vault',
-      role: 'owner',
-    }]);
+    (services as any).listUserVaults = vi.fn(async () => [
+      {
+        id: 'vlt_1',
+        name: 'Personal Vault',
+        role: 'owner',
+      },
+    ]);
 
     const app = createTestApp({ services });
 
@@ -133,7 +143,16 @@ describe('vaults integration', () => {
 
   test('returns vault detail for member', async () => {
     const services = createMockVaultsServices();
-    (services as any).getVaultForUser = vi.fn(async () => ({ id: 'vlt_1', name: 'Team Vault', role: 'owner' }));
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
+    }));
 
     const app = createTestApp({ services });
 
@@ -142,14 +161,24 @@ describe('vaults integration', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      vault: { id: 'vlt_1', name: 'Team Vault', role: 'owner' },
-    });
+    const body = (await response.json()) as any;
+    expect(body.vault.id).toBe('vlt_1');
+    expect(body.vault.name).toBe('Team Vault');
+    expect(body.vault.role).toBe('owner');
   });
 
   test('blocks member from adding vault members', async () => {
     const services = createMockVaultsServices();
-    (services as any).getVaultForUser = vi.fn(async () => ({ id: 'vlt_1', name: 'Team Vault', role: 'member' }));
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'member',
+      permissions: ['documents.read'],
+      isGlobalAdmin: false,
+    }));
 
     const app = createTestApp({ services });
 
@@ -159,7 +188,7 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_1',
       },
-      body: JSON.stringify({ userId: 'usr_2', role: 'member' }),
+      body: JSON.stringify({ userId: 'usr_2', role: 'member', permissions: ['documents.read'] }),
     });
 
     expect(response.status).toBe(403);
@@ -167,7 +196,16 @@ describe('vaults integration', () => {
 
   test('allows owner to add vault members', async () => {
     const services = createMockVaultsServices();
-    (services as any).getVaultForUser = vi.fn(async () => ({ id: 'vlt_1', name: 'Team Vault', role: 'owner' }));
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
+    }));
 
     const app = createTestApp({ services });
 
@@ -177,7 +215,11 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_owner',
       },
-      body: JSON.stringify({ userId: 'usr_2', role: 'member' }),
+      body: JSON.stringify({
+        userId: 'usr_2',
+        role: 'member',
+        permissions: ['documents.read', 'documents.create'],
+      }),
     });
 
     expect(response.status).toBe(201);
@@ -185,6 +227,64 @@ describe('vaults integration', () => {
       vaultId: 'vlt_1',
       userId: 'usr_2',
       role: 'member',
+      permissions: ['documents.read', 'documents.create'],
+    });
+  });
+
+  test('allows member with members.manage permission to add vault members', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'member',
+      permissions: ['members.manage'],
+      isGlobalAdmin: false,
+    }));
+
+    const app = createTestApp({ services });
+    const response = await app.request('/api/vaults/vlt_1/members', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_member',
+      },
+      body: JSON.stringify({ userId: 'usr_3', role: 'member', permissions: ['documents.read'] }),
+    });
+
+    expect(response.status).toBe(201);
+  });
+
+  test('transfers ownership to another member', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
+    }));
+
+    const app = createTestApp({ services });
+    const response = await app.request('/api/vaults/vlt_1/ownership', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_owner',
+      },
+      body: JSON.stringify({ userId: 'usr_2' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.upsertMember).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      userId: 'usr_2',
+      role: 'owner',
     });
   });
 });

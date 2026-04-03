@@ -26,8 +26,8 @@ export function parseKekKeys(raw: string | undefined): KekEntry[] {
 
   return raw
     .split(',')
-    .map(entry => entry.trim())
-    .filter(entry => entry.length > 0)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
     .map((entry) => {
       const colonIndex = entry.indexOf(':');
 
@@ -43,7 +43,9 @@ export function parseKekKeys(raw: string | undefined): KekEntry[] {
       }
 
       if (hexKey.length !== 64) {
-        throw new Error(`KEK key must be 32 bytes (64 hex chars), version "${version}" has ${hexKey.length} chars`);
+        throw new Error(
+          `KEK key must be 32 bytes (64 hex chars), version "${version}" has ${hexKey.length} chars`,
+        );
       }
 
       return {
@@ -67,10 +69,12 @@ function getActiveKek(keks: KekEntry[]): KekEntry {
 }
 
 function findKekByVersion(keks: KekEntry[], version: string): KekEntry {
-  const kek = keks.find(k => k.version === version);
+  const kek = keks.find((k) => k.version === version);
 
   if (kek === undefined) {
-    throw new Error(`KEK version "${version}" not found. Cannot decrypt. Available versions: ${keks.map(k => k.version).join(', ')}`);
+    throw new Error(
+      `KEK version "${version}" not found. Cannot decrypt. Available versions: ${keks.map((k) => k.version).join(', ')}`,
+    );
   }
 
   return kek;

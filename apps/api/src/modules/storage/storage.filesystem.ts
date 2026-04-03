@@ -30,8 +30,7 @@ export function createFilesystemStorage({ basePath }: { basePath: string }): Sto
       try {
         await stat(filePath);
         return true;
-      }
-      catch {
+      } catch {
         return false;
       }
     },

@@ -48,9 +48,7 @@ export function createAuth({ db, config }: { db: Database; config: Config }) {
       deleteUser: { enabled: false },
     },
 
-    plugins: [
-      twoFactor(),
-    ],
+    plugins: [twoFactor()],
   });
 
   return { auth };

@@ -10,6 +10,8 @@ import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDocumentWorker } from './modules/worker/document.worker.js';
+import { createMaintenanceQueue } from './modules/worker/maintenance.queue.js';
+import { createMaintenanceWorker } from './modules/worker/maintenance.worker.js';
 
 export async function startApp() {
   const { config } = parseConfig({ env: process.env });
@@ -27,6 +29,7 @@ export async function startApp() {
 
   const redis = new Redis(config.redis.url, { maxRetriesPerRequest: null });
   const documentQueue = createDocumentQueue({ connection: redis });
+  const maintenanceQueue = createMaintenanceQueue({ connection: redis });
 
   if (isWebMode) {
     const { app } = createServer({ config, auth, db, storage, encryption, documentQueue });
@@ -55,9 +58,24 @@ export async function startApp() {
       doclingClient,
       connection: redis,
     });
+    const maintenanceWorker = createMaintenanceWorker({
+      connection: redis,
+      db,
+      defaultRetentionDays: config.backgroundJobs.documentRetentionDays,
+      storage,
+    });
+
+    await maintenanceQueue.scheduleHardDeleteExpiredDocuments({
+      cronPattern: config.backgroundJobs.hardDeleteExpiredDocumentsCron,
+      retentionDays: config.backgroundJobs.documentRetentionDays,
+    });
 
     console.info('Document processing worker started');
+    console.info(
+      `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,
+    );
     cleanups.push(async () => documentWorker.close());
+    cleanups.push(async () => maintenanceWorker.close());
   }
 
   // Graceful shutdown
@@ -67,6 +85,7 @@ export async function startApp() {
       await fn();
     }
     await documentQueue.close();
+    await maintenanceQueue.close();
     await redis.quit();
     await pool.end();
     process.exit(0);

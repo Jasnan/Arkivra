@@ -62,6 +62,20 @@ export const configDefinition = {
       env: 'ARKIVRA_REDIS_URL',
     },
   },
+  backgroundJobs: {
+    hardDeleteExpiredDocumentsCron: {
+      doc: 'Cron pattern for scheduling the expired soft-deleted document cleanup job.',
+      schema: z.string(),
+      default: '0 3 * * *',
+      env: 'ARKIVRA_HARD_DELETE_EXPIRED_DOCUMENTS_CRON',
+    },
+    documentRetentionDays: {
+      doc: 'Number of days a soft-deleted document is retained before background hard deletion.',
+      schema: z.coerce.number().int().min(0),
+      default: 30,
+      env: 'ARKIVRA_DOCUMENT_RETENTION_DAYS',
+    },
+  },
   docling: {
     url: {
       doc: 'Docling HTTP API base URL.',

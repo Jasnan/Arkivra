@@ -1,35 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command } from 'cmdk';
-import { Archive, FolderOpen, LifeBuoy, Search, ShieldCheck } from 'lucide-react';
-
 const commandItems = [
-  {
-    label: 'Open dashboard',
-    value: 'dashboard',
-    icon: Archive,
-    action: (navigate: ReturnType<typeof useNavigate>) => navigate('/'),
-  },
-  {
-    label: 'Vaults workspace',
-    value: 'vaults',
-    icon: FolderOpen,
-  },
-  {
-    label: 'Search everything',
-    value: 'search',
-    icon: Search,
-  },
-  {
-    label: 'Admin console',
-    value: 'admin',
-    icon: ShieldCheck,
-  },
-  {
-    label: 'Release notes',
-    value: 'help',
-    icon: LifeBuoy,
-  },
+  { label: 'Go to home', value: 'home', action: (navigate: ReturnType<typeof useNavigate>) => navigate('/') },
+  { label: 'Auth pages', value: 'auth' },
+  { label: 'Vault workspace', value: 'vaults' },
 ];
 
 function isCommandShortcut(event: KeyboardEvent) {
@@ -89,7 +64,7 @@ export function CommandMenu() {
           <Command.Input
             autoFocus
             className="h-14 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            placeholder="Search pages, actions, and workspace shortcuts..."
+            placeholder="Jump to a page or scaffolded area..."
           />
         </div>
         <Command.List className="max-h-[22rem] overflow-y-auto p-3">
@@ -98,8 +73,6 @@ export function CommandMenu() {
           </Command.Empty>
           <Command.Group heading="Workspace" className="text-sm text-muted-foreground">
             {commandItems.map(item => {
-              const Icon = item.icon;
-
               return (
                 <Command.Item
                   key={item.value}
@@ -110,12 +83,9 @@ export function CommandMenu() {
                     setOpen(false);
                   }}
                 >
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                    <Icon className="size-4" />
-                  </div>
                   <div>
                     <p className="font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">Phase 3 scaffold placeholder</p>
+                    <p className="text-xs text-muted-foreground">Scaffold placeholder</p>
                   </div>
                 </Command.Item>
               );

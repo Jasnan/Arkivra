@@ -4,6 +4,14 @@ export default antfu({
   stylistic: false,
   typescript: true,
   react: true,
+  overrides: [
+    {
+      files: ['src/app/router.tsx', 'src/test/utils.tsx'],
+      rules: {
+        'react-refresh/only-export-components': 'off',
+      },
+    },
+  ],
   rules: {
     'no-console': 'warn',
     'jsonc/sort-keys': 'off',

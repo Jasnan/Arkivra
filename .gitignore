@@ -41,3 +41,4 @@ drizzle/meta/
 # Misc
 *.tgz
 .cache/
+tsconfig.tsbuildinfo

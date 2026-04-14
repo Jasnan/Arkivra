@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command } from 'cmdk';
-const commandItems = [
-  { label: 'Go to home', value: 'home', action: (navigate: ReturnType<typeof useNavigate>) => navigate('/') },
-  { label: 'Auth pages', value: 'auth' },
-  { label: 'Vault workspace', value: 'vaults' },
-];
+import { useMeQuery } from '@/features/me/me.queries';
 
 function isCommandShortcut(event: KeyboardEvent) {
   return event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey);
@@ -14,6 +10,16 @@ function isCommandShortcut(event: KeyboardEvent) {
 export function CommandMenu() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const meQuery = useMeQuery();
+  const commandItems = [
+    { label: 'Vaults', description: 'Open your vault workspace', value: 'vaults', action: () => navigate('/vaults') },
+    { label: 'Search', description: 'Search across accessible documents', value: 'search', action: () => navigate('/search') },
+    { label: 'Settings', description: 'Manage your account and security', value: 'settings', action: () => navigate('/settings') },
+    { label: 'About', description: 'View version info and project links', value: 'about', action: () => navigate('/about') },
+    ...(meQuery.data?.isGlobalAdmin
+      ? [{ label: 'Admin', description: 'Open backups, users, and vault oversight', value: 'admin', action: () => navigate('/admin') }]
+      : []),
+  ];
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -79,13 +85,13 @@ export function CommandMenu() {
                   value={item.value}
                   className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 text-foreground outline-none data-[selected=true]:bg-muted"
                   onSelect={() => {
-                    item.action?.(navigate);
+                    item.action();
                     setOpen(false);
                   }}
                 >
                   <div>
                     <p className="font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">Scaffold placeholder</p>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
                   </div>
                 </Command.Item>
               );

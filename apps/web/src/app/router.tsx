@@ -9,6 +9,9 @@ import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
 import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
 import { DashboardPage } from '@/features/dashboard/dashboard-page';
+import { CreateVaultPage } from '@/features/vaults/pages/create-vault-page';
+import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
+import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 
 function RootLayout() {
   return (
@@ -46,6 +49,10 @@ export function createAppRouter() {
       children: [
         {
           index: true,
+          element: <Navigate to="/vaults" replace />,
+        },
+        {
+          path: 'dashboard',
           element: <DashboardPage />,
         },
         {
@@ -53,8 +60,20 @@ export function createAppRouter() {
           element: <TwoFactorSetupPage />,
         },
         {
+          path: 'vaults',
+          element: <VaultsPage />,
+        },
+        {
+          path: 'vaults/new',
+          element: <CreateVaultPage />,
+        },
+        {
+          path: 'vaults/:vaultId/settings',
+          element: <VaultSettingsPage />,
+        },
+        {
           path: '*',
-          element: <Navigate to="/" replace />,
+          element: <Navigate to="/vaults" replace />,
         },
       ],
     },

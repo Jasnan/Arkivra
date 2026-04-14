@@ -28,7 +28,6 @@ export function createDoclingClient({ baseUrl }: { baseUrl: string }) {
     const blob = new Blob([fileData], { type: mimeType });
     formData.append('files', blob, fileName);
     formData.append('to_formats', 'text');
-    formData.append('to_formats', 'md');
     formData.append('do_ocr', 'true');
     formData.append('ocr_engine', 'easyocr');
     formData.append('table_mode', 'fast');
@@ -36,10 +35,17 @@ export function createDoclingClient({ baseUrl }: { baseUrl: string }) {
 
     const url = `${baseUrl}/v1/convert/file`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      body: formData,
-    });
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown fetch error';
+      throw new Error(`Docling request failed for ${url}: ${message}`);
+    }
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');

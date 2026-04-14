@@ -174,6 +174,37 @@ export function registerDocumentRoutes({
     },
   );
 
+  app.get(
+    '/api/vaults/:vaultId/documents/:documentId/file',
+    requireVaultPermission('documents.download'),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const documentId = context.req.param('documentId');
+      const result = await documentsServices.downloadDocument({ documentId, vaultId });
+
+      if (result === null) {
+        return context.json(
+          { error: { code: 'document.not_found', message: 'Document not found' } },
+          404,
+        );
+      }
+
+      return new Response(result.fileData, {
+        status: 200,
+        headers: {
+          'content-type': result.mimeType,
+          'content-length': String(result.fileData.length),
+          'content-disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`,
+        },
+      });
+    },
+  );
+
   // Rename document
   app.patch(
     '/api/vaults/:vaultId/documents/:documentId',

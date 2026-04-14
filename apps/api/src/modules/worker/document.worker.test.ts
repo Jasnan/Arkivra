@@ -4,6 +4,7 @@ import type { DoclingConvertResponse } from '../docling/docling.client.js';
 import type { ProcessDocumentJobData } from './worker.types.js';
 import { describe, expect, test, vi } from 'vitest';
 import { chunkMarkdownContent } from '../docling/docling.chunker.js';
+import { sanitizeDoclingMarkdown, sanitizeDoclingText } from '../docling/docling.text.js';
 
 // Test the core processing logic without importing bullmq.
 // We replicate the worker's processDocument pipeline using mocks.
@@ -94,8 +95,8 @@ async function runPipeline(deps: ReturnType<typeof createMockDeps>) {
   await job.updateProgress(60);
 
   // 4. Chunk
-  const markdownContent = result.document.md_content || '';
-  const textContent = result.document.text_content || '';
+  const markdownContent = sanitizeDoclingMarkdown(result.document.md_content || '');
+  const textContent = sanitizeDoclingText(result.document.text_content || '');
   const chunks = chunkMarkdownContent(markdownContent);
 
   await job.updateProgress(90);
@@ -179,5 +180,26 @@ describe('document worker pipeline', () => {
     await runPipeline(deps);
 
     expect(deps.encryption.decrypt).not.toHaveBeenCalled();
+  });
+
+  test('strips markdown images and data URIs from extracted text', async () => {
+    const deps = createMockDeps();
+    deps.doclingClient.convertFile = vi.fn(async () => ({
+      ...doclingResponse,
+      document: {
+        ...doclingResponse.document,
+        md_content: '# Title\n\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\n\nParagraph one.',
+        text_content: 'Title\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\nParagraph one.',
+      },
+    }));
+
+    const { chunks, textContent } = await runPipeline(deps);
+    const combinedChunkText = chunks.map(chunk => chunk.content).join('\n');
+
+    expect(textContent).toContain('Paragraph one.');
+    expect(textContent).not.toContain('data:image');
+    expect(textContent).not.toContain('![Preview]');
+    expect(combinedChunkText).not.toContain('data:image');
+    expect(combinedChunkText).not.toContain('![Preview]');
   });
 });

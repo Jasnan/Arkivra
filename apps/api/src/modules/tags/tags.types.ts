@@ -3,6 +3,7 @@ export type Tag = {
   vaultId: string;
   name: string;
   color: string | null;
+  documentsCount?: number;
   createdAt: string | Date;
   updatedAt: string | Date;
 };

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ export function TagsPage() {
 
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#2563eb');
+  const [filterText, setFilterText] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -62,6 +63,17 @@ export function TagsPage() {
   if (!vaultId) {
     return <p className="text-sm text-destructive">Invalid vault id.</p>;
   }
+
+  const tags = tagsQuery.data?.tags ?? [];
+  const normalizedFilter = filterText.trim().toLowerCase();
+  const filteredTags = useMemo(
+    () => tags.filter(tag => tag.name.toLowerCase().includes(normalizedFilter)),
+    [normalizedFilter, tags],
+  );
+  const taggedDocumentsCount = useMemo(
+    () => tags.reduce((total, tag) => total + (tag.documentsCount ?? 0), 0),
+    [tags],
+  );
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -119,12 +131,49 @@ export function TagsPage() {
 
         <div className="rounded-2xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Manage tags</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tags.length} tag{tags.length === 1 ? '' : 's'} across {taggedDocumentsCount} document assignment{taggedDocumentsCount === 1 ? '' : 's'}.
+          </p>
+          <div className="mt-4 space-y-1.5">
+            <label htmlFor="tag-filter" className="text-sm font-medium">Filter tags</label>
+            <input
+              id="tag-filter"
+              value={filterText}
+              onChange={event => setFilterText(event.target.value)}
+              className={inputClassName}
+              placeholder="Search tag names..."
+            />
+          </div>
+
           {tagsQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading tags…</p> : null}
           {tagsQuery.isError ? <p className="mt-4 text-sm text-destructive">Unable to load tags.</p> : null}
+          {!tagsQuery.isLoading && tags.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-border bg-background/70 p-4 text-sm text-muted-foreground">
+              No tags yet. Create the first one to organize documents across this vault.
+            </div>
+          ) : null}
+          {!tagsQuery.isLoading && tags.length > 0 && filteredTags.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-border bg-background/70 p-4 text-sm text-muted-foreground">
+              No tags match that filter.
+            </div>
+          ) : null}
 
           <ul className="mt-4 space-y-3">
-            {(tagsQuery.data?.tags ?? []).map(tag => (
+            {filteredTags.map(tag => (
               <li key={tag.id} className="rounded-xl border border-border bg-background p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-2 text-sm font-medium">
+                    <span
+                      aria-hidden="true"
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: tag.color ?? '#64748b' }}
+                    />
+                    <span>{tag.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Used by {tag.documentsCount ?? 0} document{(tag.documentsCount ?? 0) === 1 ? '' : 's'}
+                  </p>
+                </div>
                 <form
                   className="grid gap-3 lg:grid-cols-[1fr_120px_auto_auto]"
                   onSubmit={(event) => {
@@ -167,6 +216,9 @@ export function TagsPage() {
                     Delete
                   </Button>
                 </form>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Deleting a tag removes it from every tagged document in this vault.
+                </p>
               </li>
             ))}
           </ul>

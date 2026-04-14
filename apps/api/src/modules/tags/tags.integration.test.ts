@@ -15,6 +15,7 @@ function createMockTagsServices() {
         vaultId: 'vlt_1',
         name: 'Important',
         color: '#FF0000',
+        documentsCount: 2,
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
       },
@@ -141,6 +142,7 @@ describe('tags integration', () => {
     const body = (await response.json()) as any;
     expect(body.tags).toHaveLength(1);
     expect(body.tags[0].id).toBe('tag_1');
+    expect(body.tags[0].documentsCount).toBe(2);
     expect((tagsServices as any).listTags).toHaveBeenCalledWith({ vaultId: 'vlt_1' });
   });
 

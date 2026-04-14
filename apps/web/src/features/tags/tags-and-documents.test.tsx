@@ -26,7 +26,7 @@ describe('tags and documents pages', () => {
       if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
         return jsonResponse({
           tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb', documentsCount: 2 },
           ],
         });
       }
@@ -53,6 +53,7 @@ describe('tags and documents pages', () => {
     });
 
     expect(await screen.findByDisplayValue('Invoices')).toBeInTheDocument();
+    expect(screen.getByText(/used by 2 documents/i)).toBeInTheDocument();
     await user.type(screen.getByLabelText(/^name$/i), 'Receipts');
     await user.click(screen.getByRole('button', { name: /create tag/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags', expect.objectContaining({
@@ -74,6 +75,37 @@ describe('tags and documents pages', () => {
       credentials: 'include',
       method: 'DELETE',
     })));
+  });
+
+  it('filters tags on the management page', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          tags: [
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb', documentsCount: 2 },
+            { id: 'tag_2', name: 'Legal', color: '#22c55e', documentsCount: 1 },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<TagsPage />, {
+      initialEntries: ['/vaults/vlt_1/tags'],
+      routePath: '/vaults/:vaultId/tags',
+    });
+
+    expect(await screen.findByDisplayValue('Invoices')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Legal')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/filter tags/i), 'inv');
+
+    expect(screen.getByDisplayValue('Invoices')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Legal')).not.toBeInTheDocument();
   });
 
   it('filters the document list by tag', async () => {

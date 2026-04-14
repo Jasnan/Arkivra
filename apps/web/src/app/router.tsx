@@ -12,7 +12,10 @@ import { DashboardPage } from '@/features/dashboard/dashboard-page';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page';
+import { AdminPage } from '@/features/admin/pages/admin-page';
+import { AboutPage } from '@/features/about/pages/about-page';
 import { SearchPage } from '@/features/search/pages/search-page';
+import { SettingsPage } from '@/features/settings/pages/settings-page';
 import { TagsPage } from '@/features/tags/pages/tags-page';
 import { CreateVaultPage } from '@/features/vaults/pages/create-vault-page';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
@@ -95,6 +98,18 @@ export function createAppRouter() {
         {
           path: 'search',
           element: <SearchPage />,
+        },
+        {
+          path: 'settings',
+          element: <SettingsPage />,
+        },
+        {
+          path: 'admin',
+          element: <AdminPage />,
+        },
+        {
+          path: 'about',
+          element: <AboutPage />,
         },
         {
           path: '*',

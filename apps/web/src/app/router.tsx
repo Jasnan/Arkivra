@@ -8,7 +8,6 @@ import { RequestPasswordResetPage } from '@/features/auth/pages/request-password
 import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
 import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
-import { DashboardPage } from '@/features/dashboard/dashboard-page';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page';
@@ -58,10 +57,6 @@ export function createAppRouter() {
         {
           index: true,
           element: <Navigate to="/vaults" replace />,
-        },
-        {
-          path: 'dashboard',
-          element: <DashboardPage />,
         },
         {
           path: 'two-factor/setup',

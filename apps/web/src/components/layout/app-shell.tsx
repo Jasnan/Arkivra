@@ -1,9 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Command as CommandIcon } from 'lucide-react';
-import { CommandMenu } from '@/components/navigation/command-menu';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
-import { Button } from '@/components/ui/button';
 import { useMeQuery } from '@/features/me/me.queries';
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -38,22 +35,12 @@ export function AppShell({ children }: PropsWithChildren) {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="gap-2"
-              type="button"
-              onClick={() => window.dispatchEvent(new Event('arkivra:command-menu.open'))}
-            >
-              <CommandIcon className="size-4" />
-              Command menu
-            </Button>
             <ThemeToggle />
           </div>
         </header>
 
         <main className="flex-1">{children}</main>
       </div>
-      <CommandMenu />
     </div>
   );
 }

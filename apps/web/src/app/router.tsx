@@ -9,6 +9,10 @@ import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
 import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
 import { DashboardPage } from '@/features/dashboard/dashboard-page';
+import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
+import { DocumentsPage } from '@/features/documents/pages/documents-page';
+import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page';
+import { TagsPage } from '@/features/tags/pages/tags-page';
 import { CreateVaultPage } from '@/features/vaults/pages/create-vault-page';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
@@ -70,6 +74,22 @@ export function createAppRouter() {
         {
           path: 'vaults/:vaultId/settings',
           element: <VaultSettingsPage />,
+        },
+        {
+          path: 'vaults/:vaultId/documents',
+          element: <DocumentsPage />,
+        },
+        {
+          path: 'vaults/:vaultId/documents/trash',
+          element: <DocumentTrashPage />,
+        },
+        {
+          path: 'vaults/:vaultId/documents/:documentId',
+          element: <DocumentDetailPage />,
+        },
+        {
+          path: 'vaults/:vaultId/tags',
+          element: <TagsPage />,
         },
         {
           path: '*',

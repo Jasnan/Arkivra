@@ -59,9 +59,14 @@ export function VaultsPage() {
                     <p className="font-medium">{vault.name}</p>
                     <p className="text-xs text-muted-foreground">{vault.id} • role: {vault.role ?? 'global_admin'}</p>
                   </div>
-                  <Link to={`/vaults/${vault.id}/settings`} className="text-sm font-medium text-primary hover:underline">
-                    Open settings
-                  </Link>
+                  <div className="flex gap-3">
+                    <Link to={`/vaults/${vault.id}/documents`} className="text-sm font-medium text-primary hover:underline">
+                      Open documents
+                    </Link>
+                    <Link to={`/vaults/${vault.id}/settings`} className="text-sm font-medium text-primary hover:underline">
+                      Settings
+                    </Link>
+                  </div>
                 </div>
               </li>
             ))}

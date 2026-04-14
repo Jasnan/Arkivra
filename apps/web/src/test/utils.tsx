@@ -2,10 +2,14 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 
-function TestProviders({ children }: PropsWithChildren) {
+function TestProviders({
+  children,
+  initialEntries,
+  routePath,
+}: PropsWithChildren<{ initialEntries?: string[]; routePath?: string }>) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -17,12 +21,29 @@ function TestProviders({ children }: PropsWithChildren) {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>{children}</MemoryRouter>
+        <MemoryRouter initialEntries={initialEntries}>
+          {routePath
+            ? (
+                <Routes>
+                  <Route path={routePath} element={<>{children}</>} />
+                </Routes>
+              )
+            : children}
+        </MemoryRouter>
       </QueryClientProvider>
     </ThemeProvider>
   );
 }
 
-export function renderWithProviders(ui: ReactNode) {
-  return render(ui, { wrapper: TestProviders });
+export function renderWithProviders(
+  ui: ReactNode,
+  options?: { initialEntries?: string[]; routePath?: string },
+) {
+  return render(ui, {
+    wrapper: ({ children }) => (
+      <TestProviders initialEntries={options?.initialEntries} routePath={options?.routePath}>
+        {children}
+      </TestProviders>
+    ),
+  });
 }

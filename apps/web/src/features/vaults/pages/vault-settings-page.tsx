@@ -181,7 +181,10 @@ export function VaultSettingsPage() {
           <h2 className="font-serif text-4xl tracking-tight">Vault settings</h2>
           <p className="text-sm text-muted-foreground">{vault.name} • {vault.id}</p>
         </div>
-        <Link to="/vaults" className="text-sm font-medium text-primary hover:underline">Back to vault list</Link>
+        <div className="flex gap-3">
+          <Link to={`/vaults/${vaultId}/documents`} className="text-sm font-medium text-primary hover:underline">Open documents</Link>
+          <Link to="/vaults" className="text-sm font-medium text-primary hover:underline">Back to vault list</Link>
+        </div>
       </div>
 
       {statusMessage ? <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">{statusMessage}</p> : null}

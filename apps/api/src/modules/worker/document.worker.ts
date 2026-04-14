@@ -9,6 +9,7 @@ import { Worker } from 'bullmq';
 import { eq, and } from 'drizzle-orm';
 import { documentsTable, documentChunksTable } from '../database/schema/index.js';
 import { chunkMarkdownContent } from '../docling/docling.chunker.js';
+import { sanitizeDoclingMarkdown, sanitizeDoclingText } from '../docling/docling.text.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 
 export type DocumentWorkerDeps = {
@@ -69,9 +70,10 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     await job.updateProgress(60);
 
     // 5. Parse response into chunks
-    const markdownContent = result.document.md_content || '';
-    const textContent = result.document.text_content || '';
-    const chunks = chunkMarkdownContent(markdownContent);
+    const textContent = sanitizeDoclingText(result.document.text_content || '');
+    const markdownContent = sanitizeDoclingMarkdown(result.document.md_content || '');
+    const chunkSource = markdownContent || textContent;
+    const chunks = chunkMarkdownContent(chunkSource);
 
     // 6. Delete any existing chunks for this document (re-processing)
     await db.delete(documentChunksTable).where(eq(documentChunksTable.documentId, documentId));

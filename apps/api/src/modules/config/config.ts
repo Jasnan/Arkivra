@@ -94,7 +94,7 @@ export const configDefinition = {
     url: {
       doc: 'Docling HTTP API base URL.',
       schema: z.string().url(),
-      default: 'http://localhost:5000',
+      default: 'http://localhost:5001',
       env: 'ARKIVRA_DOCLING_URL',
     },
   },

@@ -337,6 +337,23 @@ describe('documents integration', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(response.headers.get('content-disposition')).toContain('attachment');
+    expect(response.headers.get('content-disposition')).toContain('test.pdf');
+    const body = await response.arrayBuffer();
+    expect(Buffer.from(body).toString()).toBe('file-content');
+  });
+
+  test('serves document file inline for previews', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/file', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(response.headers.get('content-disposition')).toContain('inline');
     expect(response.headers.get('content-disposition')).toContain('test.pdf');
     const body = await response.arrayBuffer();
     expect(Buffer.from(body).toString()).toBe('file-content');

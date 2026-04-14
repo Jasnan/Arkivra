@@ -32,7 +32,7 @@ coverage/
 /postgres-data/
 /redis-data/
 /docling-data/
-/document-storage/
+/apps/api/document-storage/
 /backups/
 
 # Drizzle
@@ -42,3 +42,4 @@ drizzle/meta/
 *.tgz
 .cache/
 tsconfig.tsbuildinfo
+

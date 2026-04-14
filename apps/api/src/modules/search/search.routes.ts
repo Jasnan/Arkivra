@@ -26,6 +26,15 @@ function parsePageSize(value: string | undefined) {
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100 ? parsed : null;
 }
 
+function parseOptionalDate(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function registerSearchRoutes({
   app,
   db,
@@ -39,6 +48,8 @@ export function registerSearchRoutes({
 }) {
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
   const searchServices = services ?? createDocumentSearchServices({ db });
+
+  app.use('/api/search', requireAuthentication());
 
   app.use('/api/vaults/:vaultId/search', requireAuthentication());
   app.use('/api/vaults/:vaultId/search', requireVaultAccess({ services: vaultsServices }));
@@ -88,11 +99,163 @@ export function registerSearchRoutes({
       );
     }
 
+    const tagId = context.req.query('tagId')?.trim() || undefined;
+    const dateFrom = parseOptionalDate(context.req.query('dateFrom'));
+
+    if (dateFrom === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_date_from',
+            message: 'dateFrom must be a valid date',
+          },
+        },
+        400,
+      );
+    }
+
+    const dateTo = parseOptionalDate(context.req.query('dateTo'));
+
+    if (dateTo === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_date_to',
+            message: 'dateTo must be a valid date',
+          },
+        },
+        400,
+      );
+    }
+
     const result = await searchServices.searchDocuments({
       vaultId,
       query,
       pageIndex,
       pageSize,
+      tagId,
+      dateFrom,
+      dateTo,
+    });
+
+    return context.json(result);
+  });
+
+  app.get('/api/search', async (context) => {
+    const userId = context.get('userId');
+
+    if (userId === null) {
+      return context.json(
+        { error: { code: 'auth.unauthorized', message: 'Unauthorized' } },
+        401,
+      );
+    }
+
+    const query = context.req.query('q')?.trim() ?? '';
+
+    if (query.length === 0) {
+      return context.json(
+        { error: { code: 'search.invalid_query', message: 'Search query is required' } },
+        400,
+      );
+    }
+
+    const pageIndex = parsePageIndex(context.req.query('pageIndex'));
+
+    if (pageIndex === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_page_index',
+            message: 'pageIndex must be an integer >= 0',
+          },
+        },
+        400,
+      );
+    }
+
+    const pageSize = parsePageSize(context.req.query('pageSize'));
+
+    if (pageSize === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_page_size',
+            message: 'pageSize must be an integer between 1 and 100',
+          },
+        },
+        400,
+      );
+    }
+
+    const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
+    const tagId = context.req.query('tagId')?.trim() || undefined;
+    const dateFrom = parseOptionalDate(context.req.query('dateFrom'));
+
+    if (dateFrom === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_date_from',
+            message: 'dateFrom must be a valid date',
+          },
+        },
+        400,
+      );
+    }
+
+    const dateTo = parseOptionalDate(context.req.query('dateTo'));
+
+    if (dateTo === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_date_to',
+            message: 'dateTo must be a valid date',
+          },
+        },
+        400,
+      );
+    }
+
+    const vaults = await vaultsServices.listUserVaults({ userId });
+    const readableVaults = vaults.filter(vault =>
+      vault.isGlobalAdmin
+      || vault.role === 'owner'
+      || vault.permissions.includes('documents.read'),
+    );
+
+    const allowedVaultIds = readableVaults.map(vault => vault.id);
+
+    if (allowedVaultIds.length === 0) {
+      return context.json({
+        query,
+        pageIndex,
+        pageSize,
+        results: [],
+        resultsCount: 0,
+        filters: {
+          vaultId: requestedVaultId ?? null,
+          tagId: tagId ?? null,
+          dateFrom: dateFrom?.toISOString() ?? null,
+          dateTo: dateTo?.toISOString() ?? null,
+        },
+      });
+    }
+
+    if (requestedVaultId && !allowedVaultIds.includes(requestedVaultId)) {
+      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+    }
+
+    const result = await searchServices.searchDocuments({
+      vaultIds: requestedVaultId ? [requestedVaultId] : allowedVaultIds,
+      vaultId: requestedVaultId,
+      query,
+      pageIndex,
+      pageSize,
+      tagId,
+      dateFrom,
+      dateTo,
     });
 
     return context.json(result);

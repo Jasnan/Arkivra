@@ -10,13 +10,21 @@ import { registerSearchRoutes } from './search.routes.js';
 function createMockSearchServices() {
   return {
     name: 'test-search',
-    searchDocuments: vi.fn(async ({ vaultId, query, pageIndex, pageSize }) => ({
+    searchDocuments: vi.fn(async ({ vaultId, vaultIds, query, pageIndex, pageSize, tagId, dateFrom, dateTo }) => ({
       query,
       pageIndex,
       pageSize,
       resultsCount: 1,
+      filters: {
+        vaultId: vaultId ?? null,
+        tagId: tagId ?? null,
+        dateFrom: dateFrom?.toISOString() ?? null,
+        dateTo: dateTo?.toISOString() ?? null,
+      },
       results: [
         {
+          vaultId: vaultId ?? vaultIds?.[0] ?? 'vlt_1',
+          vaultName: 'Test Vault',
           documentId: 'doc_1',
           name: 'arkivra-e2e.pdf',
           originalName: 'arkivra-e2e.pdf',
@@ -189,6 +197,23 @@ describe('search integration', () => {
     });
   });
 
+  test('returns 400 for invalid date filters', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search?q=arkivra&dateFrom=not-a-date', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'search.invalid_date_from',
+        message: 'dateFrom must be a valid date',
+      },
+    });
+  });
+
   test('returns search results for authenticated vault members', async () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
@@ -213,5 +238,87 @@ describe('search integration', () => {
       pageIndex: 1,
       pageSize: 5,
     });
+  });
+
+  test('passes tag and date filters to search services', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request(
+      '/api/vaults/vlt_1/search?q=arkivra&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect((searchServices as any).searchDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      query: 'arkivra',
+      pageIndex: 0,
+      pageSize: 20,
+      tagId: 'tag_1',
+      dateFrom: new Date('2026-04-01'),
+      dateTo: new Date('2026-04-30'),
+    });
+  });
+
+  test('searches across accessible vaults on the global endpoint', async () => {
+    const searchServices = createMockSearchServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).listUserVaults = vi.fn(async () => [
+      {
+        id: 'vlt_1',
+        name: 'Alpha',
+        role: 'owner',
+        permissions: ['documents.read'],
+        isGlobalAdmin: false,
+      },
+      {
+        id: 'vlt_2',
+        name: 'Beta',
+        role: 'member',
+        permissions: ['documents.read'],
+        isGlobalAdmin: false,
+      },
+    ]);
+
+    const app = createTestApp({ searchServices, vaultServices });
+    const response = await app.request('/api/search?q=arkivra', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect((searchServices as any).searchDocuments).toHaveBeenCalledWith({
+      vaultIds: ['vlt_1', 'vlt_2'],
+      vaultId: undefined,
+      query: 'arkivra',
+      pageIndex: 0,
+      pageSize: 20,
+      tagId: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+    });
+  });
+
+  test('returns 403 for a forbidden vault on the global endpoint', async () => {
+    const searchServices = createMockSearchServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).listUserVaults = vi.fn(async () => [
+      {
+        id: 'vlt_1',
+        name: 'Alpha',
+        role: 'owner',
+        permissions: ['documents.read'],
+        isGlobalAdmin: false,
+      },
+    ]);
+
+    const app = createTestApp({ searchServices, vaultServices });
+    const response = await app.request('/api/search?q=arkivra&vaultId=vlt_2', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(403);
   });
 });

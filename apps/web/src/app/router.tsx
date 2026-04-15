@@ -14,7 +14,6 @@ import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page';
 import { AdminPage } from '@/features/admin/pages/admin-page';
 import { AboutPage } from '@/features/about/pages/about-page';
-import { SearchPage } from '@/features/search/pages/search-page';
 import { SettingsPage } from '@/features/settings/pages/settings-page';
 import { TagsPage } from '@/features/tags/pages/tags-page';
 import { CreateVaultPage } from '@/features/vaults/pages/create-vault-page';
@@ -97,7 +96,7 @@ export function createAppRouter() {
         },
         {
           path: 'search',
-          element: <SearchPage />,
+          element: <Navigate to="/documents" replace />,
         },
         {
           path: 'settings',

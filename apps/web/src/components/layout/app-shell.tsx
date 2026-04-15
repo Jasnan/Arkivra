@@ -1,20 +1,28 @@
-import type { FormEvent, PropsWithChildren } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import type { PropsWithChildren } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowRight,
   Compass,
+  FileSearch,
   FileText,
   LogOut,
+  SearchX,
   Plus,
   Search,
   Settings,
   ShieldCheck,
   UserCircle2,
   Vault,
+  X,
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { Button } from '@/components/ui/button';
+import { formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
+import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
+import { tokenizeSnippet } from '@/features/search/search.utils';
 import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 
@@ -26,17 +34,43 @@ export function AppShell({ children }: PropsWithChildren) {
   const meQuery = useMeQuery();
   const { data: sessionData } = authClient.useSession();
   const [searchValue, setSearchValue] = useState('');
+  const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
+  const quickSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const deferredSearchValue = useDeferredValue(searchValue.trim());
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    setSearchValue(params.get('q') ?? '');
-  }, [location.search]);
+    if (!isQuickSearchOpen) {
+      setSearchValue('');
+    }
+  }, [isQuickSearchOpen, location.pathname]);
+
+  useEffect(() => {
+    if (!isQuickSearchOpen) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      quickSearchInputRef.current?.focus();
+    });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsQuickSearchOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isQuickSearchOpen]);
 
   const navItems = useMemo(() => {
     const baseItems = [
       { to: '/vaults', label: 'Vaults', icon: Vault },
       { to: '/documents', label: 'Documents', icon: FileText },
-      { to: '/search', label: 'Search', icon: Search },
       { to: '/settings', label: 'Settings', icon: Settings },
       { to: '/about', label: 'About', icon: Compass },
     ];
@@ -48,10 +82,14 @@ export function AppShell({ children }: PropsWithChildren) {
     return baseItems;
   }, [meQuery.data?.isGlobalAdmin]);
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const query = searchValue.trim();
-    navigate(query.length > 0 ? `/search?q=${encodeURIComponent(query)}` : '/search');
+  const quickSearchQuery = useGlobalSearchDocumentsQuery({
+    query: deferredSearchValue,
+    pageIndex: 0,
+    pageSize: 8,
+  });
+
+  function closeQuickSearch() {
+    setIsQuickSearchOpen(false);
   }
 
   return (
@@ -100,16 +138,17 @@ export function AppShell({ children }: PropsWithChildren) {
           <header className="sticky top-0 z-40 bg-background/92 py-4 backdrop-blur">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <form onSubmit={handleSearchSubmit} className="relative min-w-0 sm:w-[20rem] lg:w-[30rem]">
+                <div className="relative min-w-0 sm:w-[20rem] lg:w-[30rem]">
                   <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     aria-label="Global search"
-                    value={searchValue}
-                    onChange={event => setSearchValue(event.target.value)}
                     placeholder="Quick search"
                     className="vault-input pl-11"
+                    readOnly
+                    onFocus={() => setIsQuickSearchOpen(true)}
+                    onClick={() => setIsQuickSearchOpen(true)}
                   />
-                </form>
+                </div>
 
                 <ThemeToggle />
 
@@ -184,6 +223,116 @@ export function AppShell({ children }: PropsWithChildren) {
           </main>
         </div>
       </div>
+      {isQuickSearchOpen ? createPortal(
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-foreground/20 px-4 py-16 backdrop-blur-sm">
+          <div className="w-full max-w-4xl rounded-2xl border border-border/70 bg-background shadow-[0_24px_60px_rgba(19,27,46,0.18)]">
+            <div className="border-b border-border/70 p-4 sm:p-5">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    ref={quickSearchInputRef}
+                    aria-label="Quick search modal"
+                    value={searchValue}
+                    onChange={event => setSearchValue(event.target.value)}
+                    placeholder="Search across all accessible documents..."
+                    className="vault-input pl-11 pr-11"
+                  />
+                  {searchValue.length > 0 ? (
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+                      onClick={() => setSearchValue('')}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-card text-muted-foreground transition hover:text-foreground"
+                  onClick={closeQuickSearch}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto p-4 sm:p-5">
+              {deferredSearchValue.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-xl bg-secondary text-primary">
+                    <FileSearch className="size-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Start typing to search</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Results will appear here without leaving the current page.
+                    </p>
+                  </div>
+                </div>
+              ) : quickSearchQuery.isLoading ? (
+                <p className="px-2 py-10 text-sm text-muted-foreground">Searching documents...</p>
+              ) : quickSearchQuery.isError ? (
+                <p className="px-2 py-10 text-sm text-destructive">Unable to run quick search.</p>
+              ) : (quickSearchQuery.data?.results.length ?? 0) === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
+                    <SearchX className="size-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">No matching documents</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Try a different name, phrase, or keyword.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(quickSearchQuery.data?.results ?? []).map(result => (
+                    <button
+                      key={`${result.vaultId}-${result.documentId}`}
+                      type="button"
+                      className="w-full rounded-xl border border-border/70 bg-card px-4 py-4 text-left transition hover:bg-secondary/45"
+                      onClick={() => {
+                        closeQuickSearch();
+                        navigate(`/vaults/${result.vaultId}/documents/${result.documentId}`);
+                      }}
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-base font-semibold text-foreground">{result.name}</p>
+                            <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {result.vaultName} • {result.mimeType} • Updated {formatDate(result.updatedAt)}
+                          </p>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {tokenizeSnippet(result.bestChunk.snippet).map(part =>
+                              part.highlighted
+                                ? (
+                                    <mark key={`${result.documentId}-${part.key}`} className="rounded bg-accent px-1 text-accent-foreground">
+                                      {part.text}
+                                    </mark>
+                                  )
+                                : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
+                            )}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                          {result.bestChunk.pageNumber !== null ? `Page ${result.bestChunk.pageNumber}` : 'Match'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
     </div>
   );
 }

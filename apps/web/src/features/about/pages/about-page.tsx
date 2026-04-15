@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { BookOpen, LockKeyhole, SearchCheck } from 'lucide-react';
+import { PageIntro, StatCard, SurfacePanel } from '@/components/layout/vault-ui';
 import { getHealth } from '@/lib/api';
 
 export function AboutPage() {
@@ -8,49 +10,79 @@ export function AboutPage() {
   });
 
   return (
-    <section className="space-y-6 pb-8">
-      <div>
-        <h2 className="font-serif text-4xl tracking-tight">About</h2>
-        <p className="text-sm text-muted-foreground">Arkivra is a self-hosted, AI-ready document management system built for private control and future search workflows.</p>
+    <section className="space-y-8 pb-8">
+      <PageIntro
+        eyebrow="Platform Overview"
+        title="About Arkivra"
+        description="Arkivra is a self-hosted, AI-ready document management system built for private control, structured search, and a durable vault model."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          label="Hosting model"
+          value="Self-hosted"
+          meta="Documents stay on infrastructure you control."
+          icon={<LockKeyhole className="size-5" />}
+        />
+        <StatCard
+          label="Search posture"
+          value="Keyword live"
+          meta="Semantic and chat workflows can layer in later phases."
+          icon={<SearchCheck className="size-5" />}
+        />
+        <StatCard
+          label="License"
+          value="AGPL-3.0"
+          meta="Open source by default."
+          icon={<BookOpen className="size-5" />}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <h3 className="text-lg font-semibold">Instance</h3>
-          {healthQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading version info…</p> : null}
-          {healthQuery.isError ? <p className="mt-4 text-sm text-destructive">Unable to load instance metadata.</p> : null}
+        <SurfacePanel className="space-y-5">
+          <div>
+            <p className="vault-label">Instance</p>
+            <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Runtime status</h2>
+          </div>
+
+          {healthQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading version info...</p> : null}
+          {healthQuery.isError ? <p className="text-sm text-destructive">Unable to load instance metadata.</p> : null}
           {healthQuery.data ? (
-            <dl className="mt-4 space-y-3 text-sm">
+            <dl className="space-y-4 text-sm">
               <div>
                 <dt className="text-muted-foreground">Status</dt>
-                <dd className="font-medium">{healthQuery.data.status}</dd>
+                <dd className="font-medium text-foreground">{healthQuery.data.status}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Version</dt>
-                <dd className="font-medium">{healthQuery.data.version}</dd>
+                <dd className="font-medium text-foreground">{healthQuery.data.version}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Reported at</dt>
-                <dd className="font-medium">{new Date(healthQuery.data.timestamp).toLocaleString()}</dd>
+                <dd className="font-medium text-foreground">{new Date(healthQuery.data.timestamp).toLocaleString()}</dd>
               </div>
             </dl>
           ) : null}
-        </div>
+        </SurfacePanel>
 
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <h3 className="text-lg font-semibold">Project</h3>
-          <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-            <li>Self-hosted first: documents stay on infrastructure you control.</li>
-            <li>Search-ready foundation: keyword search is live today, with semantic workflows planned for later phases.</li>
-            <li>Open source under AGPL-3.0-or-later.</li>
-          </ul>
+        <SurfacePanel variant="soft" className="space-y-5">
+          <div>
+            <p className="vault-label">Project</p>
+            <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Core direction</h2>
+          </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="space-y-3 text-sm leading-6 text-muted-foreground">
+            <p>Self-hosted first, so the installation runs on infrastructure you control.</p>
+            <p>Vault-based organization with explicit ownership, membership, and permissions.</p>
+            <p>Keyword search is live today, with semantic workflows planned for future phases.</p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
             <a
               href="https://github.com/Jasnan/Arkivra"
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-medium text-primary hover:underline"
+              className="vault-link"
             >
               GitHub repository
             </a>
@@ -58,12 +90,12 @@ export function AboutPage() {
               href="https://github.com/Jasnan/Arkivra/blob/main/README.md"
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-medium text-primary hover:underline"
+              className="vault-link"
             >
               README
             </a>
           </div>
-        </div>
+        </SurfacePanel>
       </div>
     </section>
   );

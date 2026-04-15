@@ -15,7 +15,7 @@ const queryClient = new QueryClient({
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster position="top-right" richColors />

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { PageIntro, StatCard, StatusBanner, SurfacePanel } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   permanentlyDeleteDocument,
@@ -50,39 +52,57 @@ export function DocumentTrashPage() {
   const deletedDocuments = (documentsQuery.data?.documents ?? []).filter(document => document.isDeleted);
 
   return (
-    <section className="space-y-6 pb-8">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-serif text-4xl tracking-tight">Trash</h2>
-          <p className="text-sm text-muted-foreground">Restore deleted documents or remove them permanently.</p>
+    <section className="space-y-8 pb-8">
+      <PageIntro
+        eyebrow="Lifecycle Control"
+        title="Trash"
+        description="Review deleted documents, restore them back to the vault, or remove them permanently."
+        actions={<Link to={`/vaults/${vaultId}/documents`} className="vault-link">Back to documents</Link>}
+      />
+
+      {(statusMessage || errorMessage) ? (
+        <div className="grid gap-3">
+          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
+          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
         </div>
-        <Link to={`/vaults/${vaultId}/documents`} className="text-sm font-medium text-primary hover:underline">Back to documents</Link>
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <StatCard
+          label="Deleted records"
+          value={deletedDocuments.length}
+          meta="Documents currently waiting in the vault trash."
+          icon={<Trash2 className="size-5" />}
+        />
+        <StatCard
+          label="Recovery status"
+          value={deletedDocuments.length > 0 ? 'Available' : 'Clear'}
+          meta={deletedDocuments.length > 0 ? 'Each item can be restored or removed forever.' : 'Nothing is waiting in trash right now.'}
+          icon={<RotateCcw className="size-5" />}
+        />
       </div>
 
-      {statusMessage ? <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">{statusMessage}</p> : null}
-      {errorMessage ? <p className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{errorMessage}</p> : null}
-
-      <div className="rounded-2xl border border-border bg-card p-6">
-        {documentsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading deleted documents…</p> : null}
+      <SurfacePanel className="space-y-5">
+        {documentsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading deleted documents...</p> : null}
         {documentsQuery.isError ? <p className="text-sm text-destructive">Unable to load trash.</p> : null}
 
         {!documentsQuery.isLoading && deletedDocuments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Trash is empty.</p>
+          <div className="vault-empty">Trash is empty.</div>
         ) : (
-          <ul className="space-y-3">
+          <div className="space-y-4">
             {deletedDocuments.map(document => (
-              <li key={document.id} className="rounded-xl border border-border bg-background p-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <article key={document.id} className="rounded-[24px] bg-secondary/56 p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <Link to={`/vaults/${vaultId}/documents/${document.id}`} className="font-medium text-primary hover:underline">
+                    <Link to={`/vaults/${vaultId}/documents/${document.id}`} className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground transition hover:text-primary">
                       {document.name}
                     </Link>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="mt-2 text-sm text-muted-foreground">
                       Deleted {formatDate(document.deletedAt)} • {formatBytes(document.originalSize)}
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-3">
                     <Button
                       type="button"
                       variant="outline"
@@ -109,11 +129,11 @@ export function DocumentTrashPage() {
                     </Button>
                   </div>
                 </div>
-              </li>
+              </article>
             ))}
-          </ul>
+          </div>
         )}
-      </div>
+      </SurfacePanel>
     </section>
   );
 }

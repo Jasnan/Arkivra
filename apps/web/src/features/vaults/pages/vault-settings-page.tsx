@@ -1,7 +1,9 @@
 import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { PageIntro, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   addVaultMember,
@@ -137,7 +139,7 @@ export function VaultSettingsPage() {
   }
 
   if (vaultQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading vault settings…</p>;
+    return <p className="text-sm text-muted-foreground">Loading vault settings...</p>;
   }
 
   if (vaultQuery.isError || !vaultQuery.data) {
@@ -175,190 +177,245 @@ export function VaultSettingsPage() {
   }
 
   return (
-    <section className="space-y-6 pb-8">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-serif text-4xl tracking-tight">Vault settings</h2>
-          <p className="text-sm text-muted-foreground">{vault.name} • {vault.id}</p>
+    <section className="space-y-8 pb-8">
+      <PageIntro
+        eyebrow="Vault Governance"
+        title="Vault settings"
+        description={`${vault.name} • ${vault.id}`}
+        actions={(
+          <>
+            <Link to={`/vaults/${vaultId}/documents`} className="vault-link">Open documents</Link>
+            <Link to="/vaults" className="vault-link">Back to vault list</Link>
+          </>
+        )}
+      />
+
+      {(statusMessage || errorMessage) ? (
+        <div className="grid gap-3">
+          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
+          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
         </div>
-        <div className="flex gap-3">
-          <Link to={`/vaults/${vaultId}/documents`} className="text-sm font-medium text-primary hover:underline">Open documents</Link>
-          <Link to="/vaults" className="text-sm font-medium text-primary hover:underline">Back to vault list</Link>
-        </div>
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          label="Your role"
+          value={vault.role ?? 'global_admin'}
+          meta="Current privilege level inside this vault."
+          icon={<ShieldCheck className="size-5" />}
+        />
+        <StatCard
+          label="Members"
+          value={members.length}
+          meta="People currently attached to this vault."
+          icon={<Users className="size-5" />}
+        />
+        <StatCard
+          label="Vault control"
+          value={canManageMembers ? 'Managed' : 'Limited'}
+          meta={canManageMembers ? 'You can invite and update members here.' : 'Your current permissions do not allow member management.'}
+          icon={<Vault className="size-5" />}
+        />
       </div>
 
-      {statusMessage ? <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">{statusMessage}</p> : null}
-      {errorMessage ? <p className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{errorMessage}</p> : null}
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-6">
+          <SurfacePanel className="space-y-5">
+            <div>
+              <p className="vault-label">Rename Vault</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Vault identity</h2>
+            </div>
+            <form className="space-y-4" onSubmit={handleRename}>
+              <input
+                type="text"
+                defaultValue={vault.name}
+                onChange={event => setName(event.target.value)}
+                className={vaultInputClassName}
+              />
+              <Button type="submit" disabled={renameMutation.isPending}>
+                {renameMutation.isPending ? 'Saving...' : 'Save name'}
+              </Button>
+            </form>
+          </SurfacePanel>
 
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h3 className="text-lg font-semibold">Rename vault</h3>
-        <form className="mt-4 space-y-4" onSubmit={handleRename}>
-          <input
-            type="text"
-            defaultValue={vault.name}
-            onChange={event => setName(event.target.value)}
-            className="h-10 w-full max-w-xl rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <Button type="submit" disabled={renameMutation.isPending}>
-            {renameMutation.isPending ? 'Saving…' : 'Save name'}
-          </Button>
-        </form>
-      </div>
+          <SurfacePanel className="space-y-5">
+            <div>
+              <p className="vault-label">Invite Member</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Access onboarding</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Invite by user id and assign initial permissions.
+              </p>
+            </div>
+            <form className="space-y-4" onSubmit={handleInvite}>
+              <input
+                type="text"
+                value={inviteUserId}
+                onChange={event => setInviteUserId(event.target.value)}
+                placeholder="usr_..."
+                className={vaultInputClassName}
+                disabled={!canManageMembers}
+              />
 
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h3 className="text-lg font-semibold">Invite member</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Invite by user id and assign initial permissions.</p>
-        <form className="mt-4 space-y-4" onSubmit={handleInvite}>
-          <input
-            type="text"
-            value={inviteUserId}
-            onChange={event => setInviteUserId(event.target.value)}
-            placeholder="usr_..."
-            className="h-10 w-full max-w-xl rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            disabled={!canManageMembers}
-          />
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            {VAULT_MEMBER_PERMISSIONS.map(permission => (
-              <label key={permission} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={invitePermissions.includes(permission)}
-                  onChange={(event) => {
-                    if (event.target.checked) {
-                      setInvitePermissions(current => [...new Set([...current, permission])]);
-                    }
-                    else {
-                      setInvitePermissions(current => current.filter(item => item !== permission));
-                    }
-                  }}
-                  disabled={!canManageMembers}
-                />
-                {permission}
-              </label>
-            ))}
-          </div>
-
-          <Button type="submit" disabled={!canManageMembers || inviteMutation.isPending}>
-            {inviteMutation.isPending ? 'Inviting…' : 'Invite member'}
-          </Button>
-        </form>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h3 className="text-lg font-semibold">Members & permissions</h3>
-        {membersQuery.isLoading ? <p className="mt-3 text-sm text-muted-foreground">Loading members…</p> : null}
-        {membersQuery.isError ? <p className="mt-3 text-sm text-destructive">Unable to load members.</p> : null}
-
-        <ul className="mt-4 space-y-4">
-          {members.map(member => (
-            <li key={member.userId} className="rounded-xl border border-border bg-background p-4">
-              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-medium">{member.name ?? member.email}</p>
-                  <p className="text-xs text-muted-foreground">{member.userId} • {member.role}</p>
-                </div>
-                {member.role === 'member' ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!canManageMembers || removeMemberMutation.isPending}
-                    onClick={() => removeMemberMutation.mutate({ vaultId, memberUserId: member.userId })}
-                  >
-                    Remove
-                  </Button>
-                ) : null}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {VAULT_MEMBER_PERMISSIONS.map(permission => (
+                  <label key={permission} className="flex items-center gap-3 rounded-[18px] bg-secondary/55 px-4 py-3 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={invitePermissions.includes(permission)}
+                      onChange={(event) => {
+                        if (event.target.checked) {
+                          setInvitePermissions(current => [...new Set([...current, permission])]);
+                        }
+                        else {
+                          setInvitePermissions(current => current.filter(item => item !== permission));
+                        }
+                      }}
+                      disabled={!canManageMembers}
+                    />
+                    <span>{permission}</span>
+                  </label>
+                ))}
               </div>
 
-              {member.role === 'member' ? (
-                <form
-                  className="space-y-3"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    setStatusMessage(null);
-                    setErrorMessage(null);
+              <Button type="submit" disabled={!canManageMembers || inviteMutation.isPending}>
+                {inviteMutation.isPending ? 'Inviting...' : 'Invite member'}
+              </Button>
+            </form>
+          </SurfacePanel>
 
-                    const permissions = collectPermissions(event.currentTarget);
-                    updateMemberMutation.mutate({
-                      vaultId,
-                      memberUserId: member.userId,
-                      role: 'member',
-                      permissions,
-                    });
-                  }}
-                >
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {VAULT_MEMBER_PERMISSIONS.map(permission => (
-                      <label key={`${member.userId}-${permission}`} className="flex items-center gap-2 text-sm">
-                        <input
-                          name="permissions"
-                          type="checkbox"
-                          value={permission}
-                          defaultChecked={member.permissions.includes(permission)}
-                          disabled={!canManageMembers}
-                        />
-                        {permission}
-                      </label>
-                    ))}
+          <SurfacePanel className="space-y-5">
+            <div>
+              <p className="vault-label">Members & Permissions</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Access roster</h2>
+            </div>
+
+            {membersQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading members...</p> : null}
+            {membersQuery.isError ? <p className="text-sm text-destructive">Unable to load members.</p> : null}
+
+            <div className="space-y-4">
+              {members.map(member => (
+                <article key={member.userId} className="rounded-[24px] bg-secondary/56 p-5">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{member.name ?? member.email}</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">{member.userId} • {member.role}</p>
+                    </div>
+                    {member.role === 'member' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!canManageMembers || removeMemberMutation.isPending}
+                        onClick={() => removeMemberMutation.mutate({ vaultId, memberUserId: member.userId })}
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
                   </div>
 
-                  <Button type="submit" disabled={!canManageMembers || updateMemberMutation.isPending}>
-                    {updateMemberMutation.isPending ? 'Saving…' : 'Save permissions'}
-                  </Button>
-                </form>
-              ) : (
-                <p className="text-xs text-muted-foreground">Owner has full permissions.</p>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
+                  {member.role === 'member' ? (
+                    <form
+                      className="space-y-4"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        setStatusMessage(null);
+                        setErrorMessage(null);
 
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h3 className="text-lg font-semibold">Transfer ownership</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Promote a member to owner.</p>
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <select
-            className="h-10 w-full max-w-xl rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={transferTargetUserId}
-            onChange={event => setTransferTargetUserId(event.target.value)}
-            disabled={ownerCandidates.length === 0}
-          >
-            <option value="">Select member</option>
-            {ownerCandidates.map(member => (
-              <option key={member.userId} value={member.userId}>{member.name ?? member.email} ({member.userId})</option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            disabled={transferTargetUserId.length === 0 || transferMutation.isPending || vault.role !== 'owner'}
-            onClick={() => {
-              setStatusMessage(null);
-              setErrorMessage(null);
-              transferMutation.mutate({ vaultId, userId: transferTargetUserId });
-            }}
-          >
-            {transferMutation.isPending ? 'Transferring…' : 'Transfer ownership'}
-          </Button>
+                        const permissions = collectPermissions(event.currentTarget);
+                        updateMemberMutation.mutate({
+                          vaultId,
+                          memberUserId: member.userId,
+                          role: 'member',
+                          permissions,
+                        });
+                      }}
+                    >
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {VAULT_MEMBER_PERMISSIONS.map(permission => (
+                          <label key={`${member.userId}-${permission}`} className="flex items-center gap-3 rounded-[18px] bg-card/80 px-4 py-3 text-sm text-foreground">
+                            <input
+                              name="permissions"
+                              type="checkbox"
+                              value={permission}
+                              defaultChecked={member.permissions.includes(permission)}
+                              disabled={!canManageMembers}
+                            />
+                            <span>{permission}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <Button type="submit" disabled={!canManageMembers || updateMemberMutation.isPending}>
+                        {updateMemberMutation.isPending ? 'Saving...' : 'Save permissions'}
+                      </Button>
+                    </form>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Owner has full permissions.</p>
+                  )}
+                </article>
+              ))}
+            </div>
+          </SurfacePanel>
         </div>
-      </div>
 
-      <div className="rounded-2xl border border-destructive/40 bg-card p-6">
-        <h3 className="text-lg font-semibold text-destructive">Danger zone</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Delete this vault permanently from active view.</p>
-        <Button
-          type="button"
-          variant="outline"
-          className="mt-4"
-          disabled={deleteMutation.isPending || vault.role !== 'owner'}
-          onClick={() => {
-            setStatusMessage(null);
-            setErrorMessage(null);
-            deleteMutation.mutate({ vaultId });
-          }}
-        >
-          {deleteMutation.isPending ? 'Deleting…' : 'Delete vault'}
-        </Button>
+        <div className="space-y-6">
+          <SurfacePanel variant="soft" className="space-y-5">
+            <div>
+              <p className="vault-label">Transfer Ownership</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Promote a member</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Promote an existing member to owner when responsibility needs to change hands.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <select
+                className={vaultInputClassName}
+                value={transferTargetUserId}
+                onChange={event => setTransferTargetUserId(event.target.value)}
+                disabled={ownerCandidates.length === 0}
+              >
+                <option value="">Select member</option>
+                {ownerCandidates.map(member => (
+                  <option key={member.userId} value={member.userId}>{member.name ?? member.email} ({member.userId})</option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                disabled={transferTargetUserId.length === 0 || transferMutation.isPending || vault.role !== 'owner'}
+                onClick={() => {
+                  setStatusMessage(null);
+                  setErrorMessage(null);
+                  transferMutation.mutate({ vaultId, userId: transferTargetUserId });
+                }}
+              >
+                <ArrowRightLeft className="size-4" />
+                {transferMutation.isPending ? 'Transferring...' : 'Transfer ownership'}
+              </Button>
+            </div>
+          </SurfacePanel>
+
+          <SurfacePanel variant="strong" className="space-y-5">
+            <div>
+              <p className="vault-label text-primary-foreground/70">Danger Zone</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em]">Delete vault</h2>
+            </div>
+            <p className="text-sm leading-6 text-primary-foreground/80">
+              Delete this vault permanently from active view. This action remains owner-only.
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              disabled={deleteMutation.isPending || vault.role !== 'owner'}
+              onClick={() => {
+                setStatusMessage(null);
+                setErrorMessage(null);
+                deleteMutation.mutate({ vaultId });
+              }}
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete vault'}
+            </Button>
+          </SurfacePanel>
+        </div>
       </div>
     </section>
   );

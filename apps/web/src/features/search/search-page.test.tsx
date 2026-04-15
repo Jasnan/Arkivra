@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SearchPage } from '@/features/search/pages/search-page';
+import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
 import { renderWithProviders } from '@/test/utils';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -11,7 +11,7 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-describe('search page', () => {
+describe('documents library search controls', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -29,6 +29,10 @@ describe('search page', () => {
         });
       }
 
+      if (url.endsWith('/api/vaults/vlt_1/documents')) {
+        return jsonResponse({ documents: [] });
+      }
+
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
         return jsonResponse({
           tags: [
@@ -41,7 +45,7 @@ describe('search page', () => {
         return jsonResponse({
           query: 'arkivra',
           pageIndex: 0,
-          pageSize: 10,
+          pageSize: 25,
           resultsCount: 1,
           filters: {
             vaultId: null,
@@ -78,9 +82,9 @@ describe('search page', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<SearchPage />, {
-      initialEntries: ['/search'],
-      routePath: '/search',
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
     });
 
     await user.type(screen.getByLabelText(/search text/i), 'arkivra');
@@ -102,6 +106,10 @@ describe('search page', () => {
         });
       }
 
+      if (url.endsWith('/api/vaults/vlt_1/documents')) {
+        return jsonResponse({ documents: [] });
+      }
+
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
         return jsonResponse({
           tags: [
@@ -114,7 +122,7 @@ describe('search page', () => {
         return jsonResponse({
           query: 'invoice',
           pageIndex: 0,
-          pageSize: 10,
+          pageSize: 25,
           resultsCount: 0,
           filters: {
             vaultId: 'vlt_1',
@@ -130,11 +138,12 @@ describe('search page', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<SearchPage />, {
-      initialEntries: ['/search?q=invoice'],
-      routePath: '/search',
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
     });
 
+    await user.type(screen.getByLabelText(/search text/i), 'invoice');
     await screen.findByRole('option', { name: 'Invoices Vault' });
     await user.selectOptions(screen.getByLabelText(/vault scope/i), 'vlt_1');
     await screen.findByRole('option', { name: 'Invoices' });
@@ -144,7 +153,7 @@ describe('search page', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/search?q=invoice&pageIndex=0&pageSize=10&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30'),
+        expect.stringContaining('/api/search?q=invoice&pageIndex=0&pageSize=25&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30'),
         expect.objectContaining({ credentials: 'include' }),
       );
     });

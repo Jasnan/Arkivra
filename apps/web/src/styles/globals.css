@@ -1,52 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: 42 39% 97%;
-  --foreground: 222 28% 12%;
+  --background: 252 71% 98%;
+  --foreground: 221 39% 13%;
   --card: 0 0% 100%;
-  --card-foreground: 222 28% 12%;
+  --card-foreground: 221 39% 13%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222 28% 12%;
-  --primary: 210 82% 35%;
+  --popover-foreground: 221 39% 13%;
+  --primary: 218 100% 13%;
   --primary-foreground: 210 40% 98%;
-  --secondary: 206 40% 93%;
-  --secondary-foreground: 222 28% 12%;
-  --muted: 204 32% 94%;
-  --muted-foreground: 219 15% 40%;
-  --accent: 199 53% 90%;
-  --accent-foreground: 222 28% 12%;
+  --secondary: 228 57% 96%;
+  --secondary-foreground: 221 39% 13%;
+  --muted: 229 44% 95%;
+  --muted-foreground: 221 16% 44%;
+  --accent: 193 80% 90%;
+  --accent-foreground: 221 39% 13%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 210 40% 98%;
-  --border: 208 26% 84%;
-  --input: 208 26% 84%;
-  --ring: 210 82% 35%;
-  --radius: 1rem;
-  --font-sans: "Inter Variable", "Inter", "Segoe UI", sans-serif;
-  --font-serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
+  --border: 225 28% 89%;
+  --input: 225 28% 89%;
+  --ring: 216 62% 44%;
+  --radius: 1.5rem;
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --font-display: "Manrope", "Avenir Next", sans-serif;
 }
 
 .dark {
-  --background: 223 33% 9%;
-  --foreground: 210 40% 98%;
-  --card: 223 31% 12%;
-  --card-foreground: 210 40% 98%;
-  --popover: 223 31% 12%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 198 84% 66%;
+  --background: 223 32% 10%;
+  --foreground: 210 40% 96%;
+  --card: 224 28% 14%;
+  --card-foreground: 210 40% 96%;
+  --popover: 224 28% 14%;
+  --popover-foreground: 210 40% 96%;
+  --primary: 216 94% 82%;
   --primary-foreground: 222 47% 11%;
-  --secondary: 222 22% 20%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 222 22% 18%;
-  --muted-foreground: 216 15% 72%;
-  --accent: 218 27% 24%;
-  --accent-foreground: 210 40% 98%;
+  --secondary: 222 25% 19%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 223 22% 18%;
+  --muted-foreground: 217 15% 72%;
+  --accent: 196 57% 21%;
+  --accent-foreground: 210 40% 96%;
   --destructive: 0 75% 58%;
   --destructive-foreground: 210 40% 98%;
   --border: 222 20% 24%;
   --input: 222 20% 24%;
-  --ring: 198 84% 66%;
+  --ring: 216 94% 82%;
 }
 
 @theme inline {
@@ -69,12 +70,11 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --radius-sm: calc(var(--radius) - 0.25rem);
-  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-sm: calc(var(--radius) - 0.35rem);
+  --radius-md: calc(var(--radius) - 0.2rem);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 0.25rem);
+  --radius-xl: calc(var(--radius) + 0.35rem);
   --font-sans: var(--font-sans);
-  --font-serif: var(--font-serif);
 }
 
 @layer base {
@@ -93,9 +93,59 @@
   body {
     @apply bg-background font-sans text-foreground antialiased;
     min-height: 100vh;
+    background-color: hsl(var(--background));
+  }
+
+  .dark body {
+    background-color: hsl(var(--background));
   }
 
   #root {
     min-height: 100vh;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .vault-label {
+    @apply text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground;
+  }
+
+  .vault-panel {
+    @apply rounded-[22px] bg-card p-5 ring-1 ring-border/70;
+  }
+
+  .vault-panel-soft {
+    @apply rounded-[22px] bg-secondary/45 p-5 ring-1 ring-border/60;
+  }
+
+  .vault-panel-strong {
+    @apply rounded-[22px] bg-primary p-5 text-primary-foreground ring-1 ring-primary/30;
+  }
+
+  .vault-chip {
+    @apply inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-muted-foreground;
+  }
+
+  .vault-link {
+    @apply text-sm font-semibold text-primary transition hover:text-primary/80;
+  }
+
+  .vault-input {
+    @apply h-11 w-full rounded-xl bg-background px-4 text-sm text-foreground outline-none ring-1 ring-border transition focus-visible:ring-2 focus-visible:ring-primary/30;
+  }
+
+  .vault-empty {
+    @apply rounded-[18px] bg-secondary/35 p-5 text-sm text-muted-foreground ring-1 ring-border/50;
   }
 }

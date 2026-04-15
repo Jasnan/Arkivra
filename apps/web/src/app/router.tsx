@@ -8,6 +8,7 @@ import { RequestPasswordResetPage } from '@/features/auth/pages/request-password
 import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
 import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
+import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page';
@@ -73,6 +74,10 @@ export function createAppRouter() {
         {
           path: 'vaults/:vaultId/settings',
           element: <VaultSettingsPage />,
+        },
+        {
+          path: 'documents',
+          element: <AllDocumentsPage />,
         },
         {
           path: 'vaults/:vaultId/documents',

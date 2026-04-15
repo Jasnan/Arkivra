@@ -1,13 +1,14 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Archive, ArrowRight, Search as SearchIcon, Tags, Vault } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { PageIntro, SectionTitle, StatCard, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import { Button } from '@/components/ui/button';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { stripSnippetMarkup, tokenizeSnippet } from '@/features/search/search.utils';
 import { useTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
-const inputClassName = 'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
 const PAGE_SIZE = 10;
 
 export function SearchPage() {
@@ -26,7 +27,8 @@ export function SearchPage() {
 
     if (query.trim().length > 0) {
       next.set('q', query.trim());
-    } else {
+    }
+    else {
       next.delete('q');
     }
 
@@ -57,7 +59,8 @@ export function SearchPage() {
     for (const [key, value] of Object.entries(nextValues)) {
       if (value) {
         next.set(key, value);
-      } else {
+      }
+      else {
         next.delete(key);
       }
     }
@@ -67,133 +70,174 @@ export function SearchPage() {
   }
 
   return (
-    <section className="space-y-6 pb-8">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="font-serif text-4xl tracking-tight">Search</h2>
-          <p className="text-sm text-muted-foreground">Search extracted text across all vaults you can access.</p>
-        </div>
-        <Link to="/vaults" className="text-sm font-medium text-primary hover:underline">
-          Back to vaults
-        </Link>
+    <section className="space-y-8 pb-8">
+      <PageIntro
+        eyebrow="Global Discovery"
+        title="Search across vaults"
+        description="Run full-text discovery across every vault you can access, then narrow results by vault, tag, or document date."
+        actions={<Link to="/vaults" className="vault-link">Back to vaults</Link>}
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          label="Accessible vaults"
+          value={(vaultsQuery.data?.vaults ?? []).length}
+          meta="Search spans only the workspaces your account can reach."
+          icon={<Vault className="size-5" />}
+        />
+        <StatCard
+          label="Current scope"
+          value={vaultId ? 'Focused' : 'All vaults'}
+          meta={vaultId ? 'Results are limited to one selected vault.' : 'Results can come from any accessible vault.'}
+          icon={<Archive className="size-5" />}
+        />
+        <StatCard
+          label="Matches"
+          value={deferredQuery.length > 0 ? (searchQuery.data?.resultsCount ?? 0) : 0}
+          meta={deferredQuery.length > 0 ? 'Count updates as search terms and filters change.' : 'Start typing to query extracted text.'}
+          icon={<SearchIcon className="size-5" />}
+        />
       </div>
 
-      <div className="grid gap-4 rounded-2xl border border-border bg-card p-6 lg:grid-cols-[2fr_1fr_1fr_1fr]">
-        <div className="space-y-1.5">
-          <label htmlFor="global-search" className="text-sm font-medium">Search text</label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              id="global-search"
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              placeholder="Search invoices, clauses, names..."
-              className="h-10 w-full rounded-xl border border-input bg-background pl-10 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
+      <SurfacePanel className="space-y-5">
+        <SectionTitle eyebrow="Search Controls" title="Query and refine" />
+
+        <div className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+          <div className="space-y-2">
+            <label htmlFor="global-search" className="vault-label">Search text</label>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                id="global-search"
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="Search invoices, clauses, names..."
+                className={`${vaultInputClassName} pl-11`}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="search-vault" className="vault-label">Vault scope</label>
+            <select
+              id="search-vault"
+              value={vaultId}
+              onChange={(event) => {
+                const nextVaultId = event.target.value;
+                updateFilters({
+                  vaultId: nextVaultId,
+                  tagId: nextVaultId ? tagId : '',
+                });
+              }}
+              className={vaultInputClassName}
+            >
+              <option value="">All vaults</option>
+              {(vaultsQuery.data?.vaults ?? []).map(vault => (
+                <option key={vault.id} value={vault.id}>{vault.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="search-tag" className="vault-label">Tag filter</label>
+            <select
+              id="search-tag"
+              value={tagId}
+              onChange={event => updateFilters({ tagId: event.target.value })}
+              className={vaultInputClassName}
+              disabled={!vaultId}
+            >
+              <option value="">{vaultId ? 'All tags' : 'Choose a vault first'}</option>
+              {(tagsQuery.data?.tags ?? []).map(tag => (
+                <option key={tag.id} value={tag.id}>{tag.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="space-y-2">
+              <label htmlFor="date-from" className="vault-label">Date from</label>
+              <input
+                id="date-from"
+                type="date"
+                value={dateFrom}
+                onChange={event => updateFilters({ dateFrom: event.target.value })}
+                className={vaultInputClassName}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="date-to" className="vault-label">Date to</label>
+              <input
+                id="date-to"
+                type="date"
+                value={dateTo}
+                onChange={event => updateFilters({ dateTo: event.target.value })}
+                className={vaultInputClassName}
+              />
+            </div>
           </div>
         </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="search-vault" className="text-sm font-medium">Vault scope</label>
-          <select
-            id="search-vault"
-            value={vaultId}
-            onChange={(event) => {
-              const nextVaultId = event.target.value;
-              updateFilters({
-                vaultId: nextVaultId,
-                tagId: nextVaultId ? tagId : '',
-              });
-            }}
-            className={inputClassName}
-          >
-            <option value="">All vaults</option>
-            {(vaultsQuery.data?.vaults ?? []).map(vault => (
-              <option key={vault.id} value={vault.id}>{vault.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="search-tag" className="text-sm font-medium">Tag filter</label>
-          <select
-            id="search-tag"
-            value={tagId}
-            onChange={event => updateFilters({ tagId: event.target.value })}
-            className={inputClassName}
-            disabled={!vaultId}
-          >
-            <option value="">{vaultId ? 'All tags' : 'Choose a vault first'}</option>
-            {(tagsQuery.data?.tags ?? []).map(tag => (
-              <option key={tag.id} value={tag.id}>{tag.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          <div className="space-y-1.5">
-            <label htmlFor="date-from" className="text-sm font-medium">Date from</label>
-            <input
-              id="date-from"
-              type="date"
-              value={dateFrom}
-              onChange={event => updateFilters({ dateFrom: event.target.value })}
-              className={inputClassName}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="date-to" className="text-sm font-medium">Date to</label>
-            <input
-              id="date-to"
-              type="date"
-              value={dateTo}
-              onChange={event => updateFilters({ dateTo: event.target.value })}
-              className={inputClassName}
-            />
-          </div>
-        </div>
-      </div>
+      </SurfacePanel>
 
       {deferredQuery.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-sm text-muted-foreground">
-          Start typing to search extracted text across all accessible vaults.
-        </div>
+        <SurfacePanel variant="soft" className="space-y-3">
+          <p className="vault-label">Discovery Idle</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Start typing to search extracted text across all accessible vaults.
+          </p>
+        </SurfacePanel>
       ) : (
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Results</h3>
-            <p className="text-sm text-muted-foreground">{searchQuery.data?.resultsCount ?? 0} matches</p>
-          </div>
+        <SurfacePanel className="space-y-5">
+          <SectionTitle
+            eyebrow="Search Results"
+            title="Matches"
+            action={<span className="vault-chip">{searchQuery.data?.resultsCount ?? 0} matches</span>}
+          />
 
-          {searchQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Searching…</p> : null}
-          {searchQuery.isError ? <p className="mt-4 text-sm text-destructive">Unable to search your vaults.</p> : null}
+          {searchQuery.isLoading ? <p className="text-sm text-muted-foreground">Searching...</p> : null}
+          {searchQuery.isError ? <p className="text-sm text-destructive">Unable to search your vaults.</p> : null}
 
           {!searchQuery.isLoading && (searchQuery.data?.results.length ?? 0) === 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">No documents matched your query and filters.</p>
+            <div className="vault-empty">No documents matched your query and filters.</div>
           ) : (
-            <ul className="mt-4 space-y-3">
+            <div className="space-y-4">
               {(searchQuery.data?.results ?? []).map(result => (
-                <li key={`${result.vaultId}-${result.documentId}`} className="rounded-xl border border-border bg-background p-4">
-                  <div className="space-y-3">
-                    <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <Link to={`/vaults/${result.vaultId}/documents/${result.documentId}`} className="font-medium text-primary hover:underline">
-                          {result.name}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">
-                          {result.vaultName} • {result.mimeType} • {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'} • Updated {formatDate(result.updatedAt)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Document date: {formatDate(result.documentDate)}
-                        </p>
+                <article key={`${result.vaultId}-${result.documentId}`} className="rounded-[24px] bg-secondary/56 p-5">
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-3">
+                        <div>
+                          <Link to={`/vaults/${result.vaultId}/documents/${result.documentId}`} className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground transition hover:text-primary">
+                            {result.name}
+                          </Link>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {result.vaultName} • {result.mimeType} • {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'} • Updated {formatDate(result.updatedAt)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Document date: {formatDate(result.documentDate)}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className="vault-chip">
+                            <Vault className="size-3.5" />
+                            {result.vaultName}
+                          </span>
+                          <span className="vault-chip">
+                            <Tags className="size-3.5" />
+                            {result.bestChunk.chunkType ?? 'text chunk'}
+                          </span>
+                        </div>
                       </div>
-                      <Link to={`/vaults/${result.vaultId}/documents/${result.documentId}`} className="text-sm font-medium text-primary hover:underline">
+
+                      <Link to={`/vaults/${result.vaultId}/documents/${result.documentId}`} className="vault-link inline-flex items-center gap-2">
                         Open document
+                        <ArrowRight className="size-4" />
                       </Link>
                     </div>
 
-                    <div className="rounded-xl border border-border bg-card p-4 text-sm leading-6">
-                      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    <div className="rounded-[20px] bg-card/85 p-4 text-sm leading-7 text-foreground">
+                      <p className="vault-label mb-3">
                         Best matching snippet
                         {result.bestChunk.pageNumber !== null ? ` • Page ${result.bestChunk.pageNumber}` : ''}
                       </p>
@@ -201,7 +245,7 @@ export function SearchPage() {
                         {tokenizeSnippet(result.bestChunk.snippet).map(part =>
                           part.highlighted
                             ? (
-                                <mark key={`${result.documentId}-${part.key}`} className="rounded-sm bg-primary/15 px-1 text-foreground">
+                                <mark key={`${result.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
                                   {part.text}
                                 </mark>
                               )
@@ -210,22 +254,26 @@ export function SearchPage() {
                       </p>
                     </div>
 
-                    <details className="rounded-xl border border-border bg-card/60 p-4 text-sm text-muted-foreground">
-                      <summary className="cursor-pointer font-medium text-foreground">Matched chunk preview</summary>
-                      <p className="mt-3 whitespace-pre-wrap break-words">{stripSnippetMarkup(result.bestChunk.content)}</p>
+                    <details className="rounded-[20px] bg-card/70 p-4 text-sm text-muted-foreground">
+                      <summary className="cursor-pointer font-semibold text-foreground">Matched chunk preview</summary>
+                      <p className="mt-3 whitespace-pre-wrap break-words leading-6">
+                        {stripSnippetMarkup(result.bestChunk.content)}
+                      </p>
                     </details>
                   </div>
-                </li>
+                </article>
               ))}
-            </ul>
+            </div>
           )}
 
-          <div className="mt-6 flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">Page {pageIndex + 1} of {totalPages}</p>
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+              Page {pageIndex + 1} of {totalPages}
+            </p>
             <div className="flex gap-2">
-              <button
+              <Button
                 type="button"
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium disabled:pointer-events-none disabled:opacity-50 hover:bg-accent"
+                variant="outline"
                 disabled={pageIndex === 0}
                 onClick={() => {
                   const next = new URLSearchParams(searchParams);
@@ -234,10 +282,10 @@ export function SearchPage() {
                 }}
               >
                 Previous
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium disabled:pointer-events-none disabled:opacity-50 hover:bg-accent"
+                variant="outline"
                 disabled={pageIndex >= totalPages - 1}
                 onClick={() => {
                   const next = new URLSearchParams(searchParams);
@@ -246,10 +294,10 @@ export function SearchPage() {
                 }}
               >
                 Next
-              </button>
+              </Button>
             </div>
           </div>
-        </div>
+        </SurfacePanel>
       )}
     </section>
   );

@@ -2,11 +2,10 @@ import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
+import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
-
-const inputClassName = 'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function TagsPage() {
   const params = useParams<{ vaultId: string }>();
@@ -88,118 +87,125 @@ export function TagsPage() {
 
   return (
     <section className="space-y-6 pb-8">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-serif text-4xl tracking-tight">Tags</h2>
-          <p className="text-sm text-muted-foreground">Create reusable labels and keep document filters tidy.</p>
-        </div>
-        <Link to={`/vaults/${vaultId}/documents`} className="text-sm font-medium text-primary hover:underline">Back to documents</Link>
-      </div>
-
-      {statusMessage ? <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">{statusMessage}</p> : null}
-      {errorMessage ? <p className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{errorMessage}</p> : null}
-
-      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <h3 className="text-lg font-semibold">Create tag</h3>
-          <form className="mt-4 space-y-4" onSubmit={handleCreate}>
-            <div className="space-y-1.5">
-              <label htmlFor="tag-name" className="text-sm font-medium">Name</label>
-              <input
-                id="tag-name"
-                value={newTagName}
-                onChange={event => setNewTagName(event.target.value)}
-                className={inputClassName}
-                placeholder="Invoices"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="tag-color" className="text-sm font-medium">Color</label>
-              <input
-                id="tag-color"
-                type="color"
-                value={newTagColor}
-                onChange={event => setNewTagColor(event.target.value)}
-                className="h-12 w-full rounded-xl border border-input bg-background p-2"
-              />
-            </div>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Creating…' : 'Create tag'}
+      <PageIntro
+        eyebrow="Vault Taxonomy"
+        title="Tags"
+        description="Manage the labels used to organize this vault."
+        actions={(
+          <div className="flex items-center gap-3">
+            <Link to={`/vaults/${vaultId}/documents`} className="vault-link">Back to documents</Link>
+            <Button type="submit" form="create-tag-form" disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Creating...' : 'Create tag'}
             </Button>
-          </form>
-        </div>
+          </div>
+        )}
+      />
 
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <h3 className="text-lg font-semibold">Manage tags</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {tags.length} tag{tags.length === 1 ? '' : 's'} across {taggedDocumentsCount} document assignment{taggedDocumentsCount === 1 ? '' : 's'}.
-          </p>
-          <div className="mt-4 space-y-1.5">
-            <label htmlFor="tag-filter" className="text-sm font-medium">Filter tags</label>
+      {(statusMessage || errorMessage) ? (
+        <div className="grid gap-3">
+          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
+          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
+        </div>
+      ) : null}
+
+      <SurfacePanel className="space-y-4">
+        <form id="create-tag-form" className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_160px]" onSubmit={handleCreate}>
+          <div className="space-y-2">
+            <label htmlFor="tag-name" className="sr-only">Name</label>
+            <input
+              id="tag-name"
+              value={newTagName}
+              onChange={event => setNewTagName(event.target.value)}
+              className={vaultInputClassName}
+              placeholder="Create a tag..."
+            />
+          </div>
+          <input
+            id="tag-color"
+            type="color"
+            value={newTagColor}
+            onChange={event => setNewTagColor(event.target.value)}
+            className="h-11 w-full rounded-xl bg-background p-1 ring-1 ring-border"
+          />
+          <div className="space-y-2">
+            <label htmlFor="tag-filter" className="sr-only">Filter tags</label>
             <input
               id="tag-filter"
               value={filterText}
               onChange={event => setFilterText(event.target.value)}
-              className={inputClassName}
-              placeholder="Search tag names..."
+              className={vaultInputClassName}
+              placeholder="Filter tags..."
             />
           </div>
+        </form>
 
-          {tagsQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading tags…</p> : null}
-          {tagsQuery.isError ? <p className="mt-4 text-sm text-destructive">Unable to load tags.</p> : null}
-          {!tagsQuery.isLoading && tags.length === 0 ? (
-            <div className="mt-4 rounded-xl border border-dashed border-border bg-background/70 p-4 text-sm text-muted-foreground">
-              No tags yet. Create the first one to organize documents across this vault.
-            </div>
-          ) : null}
-          {!tagsQuery.isLoading && tags.length > 0 && filteredTags.length === 0 ? (
-            <div className="mt-4 rounded-xl border border-dashed border-border bg-background/70 p-4 text-sm text-muted-foreground">
-              No tags match that filter.
-            </div>
-          ) : null}
+        <p className="text-sm text-muted-foreground">
+          {tags.length} tag{tags.length === 1 ? '' : 's'} across {taggedDocumentsCount} assignments
+        </p>
+      </SurfacePanel>
 
-          <ul className="mt-4 space-y-3">
-            {filteredTags.map(tag => (
-              <li key={tag.id} className="rounded-xl border border-border bg-background p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-2 text-sm font-medium">
-                    <span
-                      aria-hidden="true"
-                      className="size-2 rounded-full"
-                      style={{ backgroundColor: tag.color ?? '#64748b' }}
-                    />
-                    <span>{tag.name}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Used by {tag.documentsCount ?? 0} document{(tag.documentsCount ?? 0) === 1 ? '' : 's'}
-                  </p>
+      <SurfacePanel className="overflow-hidden p-0">
+        <div className="hidden grid-cols-[220px_minmax(0,1fr)_160px_180px_150px] gap-6 px-6 py-4 text-sm text-muted-foreground md:grid">
+          <span>Tag</span>
+          <span>Description</span>
+          <span>Documents</span>
+          <span>Created</span>
+          <span>Actions</span>
+        </div>
+
+        {tagsQuery.isLoading ? <p className="px-6 py-6 text-sm text-muted-foreground">Loading tags...</p> : null}
+        {tagsQuery.isError ? <p className="px-6 py-6 text-sm text-destructive">Unable to load tags.</p> : null}
+        {!tagsQuery.isLoading && tags.length === 0 ? (
+          <div className="px-6 py-8 text-sm text-muted-foreground">No tags yet. Create the first one to organize documents in this vault.</div>
+        ) : null}
+        {!tagsQuery.isLoading && tags.length > 0 && filteredTags.length === 0 ? (
+          <div className="px-6 py-8 text-sm text-muted-foreground">No tags match that filter.</div>
+        ) : null}
+
+        <div className="divide-y divide-border/70">
+          {filteredTags.map(tag => (
+            <article key={tag.id} className="grid gap-4 px-6 py-5 md:grid-cols-[220px_minmax(0,1fr)_160px_180px_150px] md:items-center md:gap-6">
+              <div className="inline-flex w-fit items-center gap-3 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-foreground">
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 rounded-full"
+                  style={{ backgroundColor: tag.color ?? '#64748b' }}
+                />
+                <span>{tag.name}</span>
+              </div>
+
+              <form
+                className="contents"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setStatusMessage(null);
+                  setErrorMessage(null);
+                  const formData = new FormData(event.currentTarget);
+                  updateMutation.mutate({
+                    vaultId,
+                    tagId: tag.id,
+                    name: String(formData.get('name') ?? '').trim(),
+                    color: String(formData.get('color') ?? '') || null,
+                  });
+                }}
+              >
+                <input
+                  name="name"
+                  defaultValue={tag.name}
+                  className={`${vaultInputClassName} md:hidden`}
+                  aria-label={`Tag name for ${tag.name}`}
+                />
+                <div className="hidden md:block text-sm text-muted-foreground">
+                  Used for vault classification.
                 </div>
-                <form
-                  className="grid gap-3 lg:grid-cols-[1fr_120px_auto_auto]"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    setStatusMessage(null);
-                    setErrorMessage(null);
-                    const formData = new FormData(event.currentTarget);
-                    updateMutation.mutate({
-                      vaultId,
-                      tagId: tag.id,
-                      name: String(formData.get('name') ?? '').trim(),
-                      color: String(formData.get('color') ?? '') || null,
-                    });
-                  }}
-                >
-                  <input
-                    name="name"
-                    defaultValue={tag.name}
-                    className={inputClassName}
-                    aria-label={`Tag name for ${tag.name}`}
-                  />
+                <div className="text-sm text-muted-foreground">Used by {tag.documentsCount ?? 0} document{(tag.documentsCount ?? 0) === 1 ? '' : 's'}</div>
+                <div className="text-sm text-muted-foreground">Current vault</div>
+                <div className="flex gap-2">
                   <input
                     name="color"
                     type="color"
                     defaultValue={tag.color ?? '#64748b'}
-                    className="h-10 w-full rounded-xl border border-input bg-background p-1"
+                    className="h-10 w-10 rounded-lg bg-background p-1 ring-1 ring-border"
                     aria-label={`Tag color for ${tag.name}`}
                   />
                   <Button type="submit" variant="outline" disabled={updateMutation.isPending}>Save</Button>
@@ -215,15 +221,12 @@ export function TagsPage() {
                   >
                     Delete
                   </Button>
-                </form>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Deleting a tag removes it from every tagged document in this vault.
-                </p>
-              </li>
-            ))}
-          </ul>
+                </div>
+              </form>
+            </article>
+          ))}
         </div>
-      </div>
+      </SurfacePanel>
     </section>
   );
 }

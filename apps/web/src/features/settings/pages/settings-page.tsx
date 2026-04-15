@@ -1,12 +1,12 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { KeyRound, MailCheck, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PageIntro, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import { authClient } from '@/lib/auth-client';
-
-const inputClassName = 'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -108,30 +108,51 @@ export function SettingsPage() {
   });
 
   if (sessionPending) {
-    return <p className="text-sm text-muted-foreground">Loading your account…</p>;
+    return <p className="text-sm text-muted-foreground">Loading your account...</p>;
   }
 
   return (
-    <section className="space-y-6 pb-8">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-serif text-4xl tracking-tight">Settings</h2>
-          <p className="text-sm text-muted-foreground">Manage your account profile, password, and security preferences.</p>
+    <section className="space-y-8 pb-8">
+      <PageIntro
+        eyebrow="Identity & Access"
+        title="Account settings"
+        description="Manage your profile, email, password, and session security without leaving the vault workspace."
+        actions={meQuery.data?.isGlobalAdmin ? <Link to="/admin" className="vault-link">Open admin panel</Link> : undefined}
+      />
+
+      {(statusMessage || errorMessage) ? (
+        <div className="grid gap-3">
+          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
+          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
         </div>
-        {meQuery.data?.isGlobalAdmin ? (
-          <Link to="/admin" className="text-sm font-medium text-primary hover:underline">Open admin panel</Link>
-        ) : null}
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          label="Signed in as"
+          value={sessionData?.user.email ?? 'Unknown'}
+          meta="This is the active account for the current session."
+          icon={<MailCheck className="size-5" />}
+          className="md:col-span-2"
+        />
+        <StatCard
+          label="Two-factor"
+          value={sessionData?.user.twoFactorEnabled ? 'Enabled' : 'Off'}
+          meta={sessionData?.user.twoFactorEnabled ? 'A second factor is protecting this account.' : 'Set up 2FA to strengthen account security.'}
+          icon={<ShieldCheck className="size-5" />}
+        />
       </div>
 
-      {statusMessage ? <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">{statusMessage}</p> : null}
-      {errorMessage ? <p className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{errorMessage}</p> : null}
-
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <h3 className="text-lg font-semibold">Profile</h3>
+          <SurfacePanel className="space-y-5">
+            <div>
+              <p className="vault-label">Profile</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Identity details</h2>
+            </div>
+
             <form
-              className="mt-4 space-y-4"
+              className="space-y-4"
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 setStatusMessage(null);
@@ -139,30 +160,30 @@ export function SettingsPage() {
                 profileMutation.mutate();
               }}
             >
-              <div className="space-y-1.5">
-                <label htmlFor="settings-name" className="text-sm font-medium">Name</label>
+              <div className="space-y-2">
+                <label htmlFor="settings-name" className="vault-label">Name</label>
                 <input
                   id="settings-name"
                   value={profileName}
                   onChange={event => setProfileName(event.target.value)}
-                  className={inputClassName}
+                  className={vaultInputClassName}
                   placeholder="Your name"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label htmlFor="settings-email" className="text-sm font-medium">Email</label>
+              <div className="space-y-2">
+                <label htmlFor="settings-email" className="vault-label">Email</label>
                 <input
                   id="settings-email"
                   type="email"
                   value={profileEmail}
                   onChange={event => setProfileEmail(event.target.value)}
-                  className={inputClassName}
+                  className={vaultInputClassName}
                   placeholder="you@example.com"
                 />
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button type="submit" disabled={profileMutation.isPending}>
-                  {profileMutation.isPending ? 'Saving…' : 'Save profile'}
+                  {profileMutation.isPending ? 'Saving...' : 'Save profile'}
                 </Button>
                 <Button
                   type="button"
@@ -174,16 +195,20 @@ export function SettingsPage() {
                     emailMutation.mutate();
                   }}
                 >
-                  {emailMutation.isPending ? 'Sending…' : 'Change email'}
+                  {emailMutation.isPending ? 'Sending...' : 'Change email'}
                 </Button>
               </div>
             </form>
-          </div>
+          </SurfacePanel>
 
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <h3 className="text-lg font-semibold">Password</h3>
+          <SurfacePanel className="space-y-5">
+            <div>
+              <p className="vault-label">Credentials</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Password</h2>
+            </div>
+
             <form
-              className="mt-4 space-y-4"
+              className="space-y-4"
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 setStatusMessage(null);
@@ -191,76 +216,81 @@ export function SettingsPage() {
                 passwordMutation.mutate();
               }}
             >
-              <div className="space-y-1.5">
-                <label htmlFor="settings-current-password" className="text-sm font-medium">Current password</label>
+              <div className="space-y-2">
+                <label htmlFor="settings-current-password" className="vault-label">Current password</label>
                 <input
                   id="settings-current-password"
                   type="password"
                   value={currentPassword}
                   onChange={event => setCurrentPassword(event.target.value)}
-                  className={inputClassName}
+                  className={vaultInputClassName}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label htmlFor="settings-new-password" className="text-sm font-medium">New password</label>
+              <div className="space-y-2">
+                <label htmlFor="settings-new-password" className="vault-label">New password</label>
                 <input
                   id="settings-new-password"
                   type="password"
                   value={nextPassword}
                   onChange={event => setNextPassword(event.target.value)}
-                  className={inputClassName}
+                  className={vaultInputClassName}
                 />
               </div>
               <Button type="submit" disabled={passwordMutation.isPending}>
-                {passwordMutation.isPending ? 'Updating…' : 'Change password'}
+                {passwordMutation.isPending ? 'Updating...' : 'Change password'}
               </Button>
             </form>
-          </div>
+          </SurfacePanel>
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <h3 className="text-lg font-semibold">Security</h3>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Signed in as</dt>
-                <dd className="font-medium">{sessionData?.user.email ?? 'Unknown'}</dd>
+          <SurfacePanel variant="soft" className="space-y-5">
+            <div>
+              <p className="vault-label">Security</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Security</h2>
+            </div>
+
+            <dl className="space-y-4 text-sm">
+              <div className="flex items-start gap-3">
+                <MailCheck className="mt-0.5 size-4 text-primary" />
+                <div>
+                  <dt className="text-muted-foreground">Email verified</dt>
+                  <dd className="font-medium text-foreground">{sessionData?.user.emailVerified ? 'Yes' : 'No'}</dd>
+                </div>
               </div>
-              <div>
-                <dt className="text-muted-foreground">Email verified</dt>
-                <dd className="font-medium">{sessionData?.user.emailVerified ? 'Yes' : 'No'}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Two-factor authentication</dt>
-                <dd className="font-medium">{sessionData?.user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Session id</dt>
-                <dd className="font-mono text-xs">{meQuery.data?.sessionId ?? 'Loading…'}</dd>
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 size-4 text-primary" />
+                <div>
+                  <dt className="text-muted-foreground">Two-factor authentication</dt>
+                  <dd className="font-medium text-foreground">{sessionData?.user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}</dd>
+                </div>
               </div>
             </dl>
 
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link to="/two-factor/setup" className="text-sm font-medium text-primary hover:underline">
-                Manage 2FA
-              </Link>
-              <Link to="/request-password-reset" className="text-sm font-medium text-primary hover:underline">
-                Send reset email
-              </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/two-factor/setup" className="vault-link">Manage 2FA</Link>
+              <Link to="/request-password-reset" className="vault-link">Send reset email</Link>
             </div>
-          </div>
+          </SurfacePanel>
 
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <h3 className="text-lg font-semibold">Access</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <SurfacePanel variant="strong" className="space-y-5">
+            <div>
+              <p className="vault-label text-primary-foreground/70">Access</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em]">
+                Session role
+              </h2>
+            </div>
+
+            <p className="text-sm leading-6 text-primary-foreground/80">
               {meQuery.data?.isGlobalAdmin
                 ? 'This account has global admin access for the Arkivra installation.'
                 : 'This account does not have global admin access.'}
             </p>
+
             <Button
               type="button"
-              variant="outline"
-              className="mt-4"
+              variant="secondary"
+              className="w-full"
               disabled={signOutMutation.isPending}
               onClick={() => {
                 setStatusMessage(null);
@@ -268,9 +298,10 @@ export function SettingsPage() {
                 signOutMutation.mutate();
               }}
             >
-              {signOutMutation.isPending ? 'Signing out…' : 'Sign out'}
+              <KeyRound className="size-4" />
+              {signOutMutation.isPending ? 'Signing out...' : 'Sign out'}
             </Button>
-          </div>
+          </SurfacePanel>
         </div>
       </div>
     </section>

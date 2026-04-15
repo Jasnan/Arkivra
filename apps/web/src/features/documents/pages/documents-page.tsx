@@ -1,8 +1,9 @@
 import type { ChangeEvent } from 'react';
 import { useId, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search as SearchIcon, Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   getDocumentDownloadUrl,
@@ -15,8 +16,15 @@ import { useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useTagsQuery } from '@/features/tags/tags.queries';
 
-const inputClassName = 'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring';
 const PAGE_SIZE = 8;
+
+function DocumentIcon() {
+  return (
+    <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary ring-1 ring-border/60">
+      <span className="font-display text-xs font-extrabold tracking-[0.12em]">PDF</span>
+    </div>
+  );
+}
 
 export function DocumentsPage() {
   const params = useParams<{ vaultId: string }>();
@@ -82,7 +90,6 @@ export function DocumentsPage() {
     },
   });
 
-  const hasIntegratedFilters = searchText.trim().length > 0 || selectedTagId.length > 0 || dateFrom.length > 0 || dateTo.length > 0;
   const filteredDocuments = useMemo(() => sortDocuments(
     (documentsQuery.data?.documents ?? []).filter((document) => {
       const documentDateValue = document.documentDate ? new Date(document.documentDate) : null;
@@ -110,16 +117,21 @@ export function DocumentsPage() {
   if (!vaultId) {
     return <p className="text-sm text-destructive">Invalid vault id.</p>;
   }
+
   const pageCount = Math.max(1, Math.ceil(filteredDocuments.length / PAGE_SIZE));
   const safePageIndex = Math.min(pageIndex, pageCount - 1);
   const visibleDocuments = filteredDocuments.slice(
     safePageIndex * PAGE_SIZE,
     (safePageIndex + 1) * PAGE_SIZE,
   );
+  const usingSearch = searchText.trim().length > 0;
   const searchResultCount = searchQuery.data?.resultsCount ?? 0;
-  const activeResultCount = searchText.trim().length > 0 ? searchResultCount : filteredDocuments.length;
+  const activeResultCount = usingSearch ? searchResultCount : filteredDocuments.length;
   const activePageCount = Math.max(1, Math.ceil(activeResultCount / PAGE_SIZE));
-  const activePageIndex = searchText.trim().length > 0 ? pageIndex : safePageIndex;
+  const activePageIndex = usingSearch ? pageIndex : safePageIndex;
+  const emptyState = !documentsQuery.isLoading
+    && !searchQuery.isLoading
+    && (usingSearch ? (searchQuery.data?.results.length ?? 0) === 0 : filteredDocuments.length === 0);
 
   async function handleUploadChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -136,110 +148,89 @@ export function DocumentsPage() {
 
   return (
     <section className="space-y-6 pb-8">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="font-serif text-4xl tracking-tight">Documents</h2>
-          <p className="text-sm text-muted-foreground">Upload, filter, and review documents in this vault.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/search" className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium hover:bg-accent">
-            Search all vaults
-          </Link>
-          <Link to={`/vaults/${vaultId}/documents/trash`} className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium hover:bg-accent">
-            Open trash
-          </Link>
-          <Link to={`/vaults/${vaultId}/tags`} className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium hover:bg-accent">
-            Manage tags
-          </Link>
-          <label htmlFor={uploadInputId} className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            {uploadMutation.isPending ? 'Uploading…' : 'Upload files'}
-          </label>
-          <input
-            id={uploadInputId}
-            type="file"
-            multiple
-            className="sr-only"
-            onChange={handleUploadChange}
-          />
-        </div>
-      </div>
+      <PageIntro
+        eyebrow="Vault Operations"
+        title="Documents"
+        description="A focused document index for this vault."
+        actions={(
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to={`/vaults/${vaultId}/documents/trash`} className="vault-link">Deleted documents</Link>
+            <Link to={`/vaults/${vaultId}/tags`} className="vault-link">Tags</Link>
+            <label htmlFor={uploadInputId}>
+              <span className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">
+                <Upload className="size-4" />
+                Import document
+              </span>
+            </label>
+          </div>
+        )}
+      />
 
-      {statusMessage ? <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">{statusMessage}</p> : null}
-      {errorMessage ? <p className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{errorMessage}</p> : null}
+      {(statusMessage || errorMessage) ? (
+        <div className="grid gap-3">
+          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
+          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
+        </div>
+      ) : null}
 
-      <div className="grid gap-4 rounded-2xl border border-border bg-card p-6 lg:grid-cols-[2fr_1fr_1fr_1fr]">
-        <div className="space-y-1.5">
-          <label htmlFor="vault-search" className="text-sm font-medium">Search this vault</label>
+      <SurfacePanel className="space-y-4">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_180px_180px_180px]">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
-              id="vault-search"
+              aria-label="Search documents"
               value={searchText}
               onChange={(event) => {
                 setSearchText(event.target.value);
                 setPageIndex(0);
               }}
-              placeholder="Search extracted text in this vault..."
-              className="h-10 w-full rounded-xl border border-input bg-background pl-10 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder="Search documents..."
+              className={`${vaultInputClassName} pl-11`}
             />
           </div>
-          <p className="text-xs text-muted-foreground">Leave filters empty to show all documents.</p>
-        </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="document-tag" className="text-sm font-medium">Tag filter</label>
           <select
-            id="document-tag"
+            aria-label="Tag filter"
             value={selectedTagId}
             onChange={(event) => {
               setSelectedTagId(event.target.value);
               setPageIndex(0);
             }}
-            className={inputClassName}
+            className={vaultInputClassName}
           >
             <option value="">All tags</option>
             {(tagsQuery.data?.tags ?? []).map(tag => (
               <option key={tag.id} value={tag.id}>{tag.name}</option>
             ))}
           </select>
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          <div className="space-y-1.5">
-            <label htmlFor="date-from" className="text-sm font-medium">Date from</label>
-            <input
-              id="date-from"
-              type="date"
-              value={dateFrom}
-              onChange={(event) => {
-                setDateFrom(event.target.value);
-                setPageIndex(0);
-              }}
-              className={inputClassName}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="date-to" className="text-sm font-medium">Date to</label>
-            <input
-              id="date-to"
-              type="date"
-              value={dateTo}
-              onChange={(event) => {
-                setDateTo(event.target.value);
-                setPageIndex(0);
-              }}
-              className={inputClassName}
-            />
-          </div>
-        </div>
+          <input
+            aria-label="Date from"
+            type="date"
+            value={dateFrom}
+            onChange={(event) => {
+              setDateFrom(event.target.value);
+              setPageIndex(0);
+            }}
+            className={vaultInputClassName}
+          />
 
-        <div className="space-y-1.5">
-          <label htmlFor="document-sort" className="text-sm font-medium">Sort</label>
+          <input
+            aria-label="Date to"
+            type="date"
+            value={dateTo}
+            onChange={(event) => {
+              setDateTo(event.target.value);
+              setPageIndex(0);
+            }}
+            className={vaultInputClassName}
+          />
+
           <select
-            id="document-sort"
+            aria-label="Sort"
             value={sort}
-            onChange={(event) => setSort(event.target.value as typeof sort)}
-            className={inputClassName}
+            onChange={event => setSort(event.target.value as typeof sort)}
+            className={vaultInputClassName}
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -248,125 +239,102 @@ export function DocumentsPage() {
             <option value="size-desc">Largest first</option>
           </select>
         </div>
-      </div>
 
-      <div className="rounded-2xl border border-dashed border-border bg-card/50 p-6">
-        <h3 className="text-lg font-semibold">Drop zone ready</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Use the upload button for single or multi-file uploads. Drag-and-drop is represented here in the layout and can share the same hidden file input workflow.
+        <p className="text-sm text-muted-foreground">
+          {activeResultCount} document{activeResultCount === 1 ? '' : 's'} in total
         </p>
-      </div>
+      </SurfacePanel>
 
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">{hasIntegratedFilters ? 'Filtered documents' : 'Library'}</h3>
-            <p className="text-sm text-muted-foreground">
-              {hasIntegratedFilters
-                ? `${activeResultCount} visible`
-                : `${filteredDocuments.length} visible`}
-            </p>
-          </div>
+      <SurfacePanel className="overflow-hidden p-0">
+        <div className="hidden grid-cols-[minmax(0,1.4fr)_220px_200px_140px] gap-6 px-6 py-4 text-sm text-muted-foreground md:grid">
+          <span>File name</span>
+          <span>Tags / Match</span>
+          <span>Created</span>
+          <span>Actions</span>
         </div>
 
-        {documentsQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading documents…</p> : null}
-        {documentsQuery.isError ? <p className="mt-4 text-sm text-destructive">Unable to load documents.</p> : null}
-        {searchQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Searching documents…</p> : null}
-        {searchQuery.isError ? <p className="mt-4 text-sm text-destructive">Unable to search this vault.</p> : null}
+        {documentsQuery.isLoading ? <p className="px-6 py-6 text-sm text-muted-foreground">Loading documents...</p> : null}
+        {documentsQuery.isError ? <p className="px-6 py-6 text-sm text-destructive">Unable to load documents.</p> : null}
+        {searchQuery.isLoading ? <p className="px-6 py-6 text-sm text-muted-foreground">Searching documents...</p> : null}
+        {searchQuery.isError ? <p className="px-6 py-6 text-sm text-destructive">Unable to search this vault.</p> : null}
 
-        {!documentsQuery.isLoading && !searchQuery.isLoading && (hasIntegratedFilters
-          ? (searchText.trim().length > 0 ? (searchQuery.data?.results.length ?? 0) === 0 : filteredDocuments.length === 0)
-          : filteredDocuments.length === 0) ? (
-          <p className="mt-4 text-sm text-muted-foreground">No documents match the current filters.</p>
+        {emptyState ? (
+          <div className="px-6 py-8 text-sm text-muted-foreground">No documents match the current filters.</div>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {searchText.trim().length > 0
+          <div className="divide-y divide-border/70">
+            {usingSearch
               ? (searchQuery.data?.results ?? []).map(result => (
-                  <li key={result.documentId} className="rounded-xl border border-border bg-background p-4">
-                    <div className="space-y-3">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-1">
-                          <Link to={`/vaults/${vaultId}/documents/${result.documentId}`} className="font-medium text-primary hover:underline">
-                            {result.name}
-                          </Link>
-                          <p className="text-xs text-muted-foreground">
-                            {result.mimeType} • {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'} • Updated {formatDate(result.updatedAt)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Document date: {formatDate(result.documentDate)}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <Link to={`/vaults/${vaultId}/documents/${result.documentId}`} className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium hover:bg-accent">
-                            Open
-                          </Link>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-border bg-card p-4 text-sm leading-6">
-                        <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                          Matching snippet
-                          {result.bestChunk.pageNumber !== null ? ` • Page ${result.bestChunk.pageNumber}` : ''}
+                  <article key={result.documentId} className="grid gap-4 px-6 py-5 md:grid-cols-[minmax(0,1.4fr)_220px_200px_140px] md:items-center md:gap-6">
+                    <div className="flex items-start gap-4">
+                      <DocumentIcon />
+                      <div className="min-w-0">
+                        <Link to={`/vaults/${vaultId}/documents/${result.documentId}`} className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary">
+                          {result.name}
+                        </Link>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {result.mimeType} • {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'}
                         </p>
-                        <p className="break-words">
-                          {tokenizeSnippet(result.bestChunk.snippet).map(part =>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {tokenizeSnippet(result.bestChunk.snippet).slice(0, 6).map(part =>
                             part.highlighted
-                              ? (
-                                  <mark key={`${result.documentId}-${part.key}`} className="rounded-sm bg-primary/15 px-1 text-foreground">
-                                    {part.text}
-                                  </mark>
-                                )
+                              ? <mark key={`${result.documentId}-${part.key}`} className="rounded bg-accent px-1 text-accent-foreground">{part.text}</mark>
                               : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
                           )}
                         </p>
                       </div>
                     </div>
-                  </li>
+                    <div className="text-sm text-muted-foreground">
+                      {result.bestChunk.pageNumber !== null ? `Page ${result.bestChunk.pageNumber}` : 'Text match'}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatDate(result.updatedAt)}
+                    </div>
+                    <div className="flex gap-3">
+                      <Link to={`/vaults/${vaultId}/documents/${result.documentId}`} className="vault-link">Open</Link>
+                    </div>
+                  </article>
                 ))
               : visibleDocuments.map(document => (
-                  <li key={document.id} className="rounded-xl border border-border bg-background p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-1">
-                        <Link to={`/vaults/${vaultId}/documents/${document.id}`} className="font-medium text-primary hover:underline">
+                  <article key={document.id} className="grid gap-4 px-6 py-5 md:grid-cols-[minmax(0,1.4fr)_220px_200px_140px] md:items-center md:gap-6">
+                    <div className="flex items-start gap-4">
+                      <DocumentIcon />
+                      <div className="min-w-0">
+                        <Link to={`/vaults/${vaultId}/documents/${document.id}`} className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary">
                           {document.name}
                         </Link>
-                        <p className="text-xs text-muted-foreground">
-                          {document.mimeType} • {formatBytes(document.originalSize)} • Uploaded {formatDate(document.createdAt)}
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {formatBytes(document.originalSize)} • {document.mimeType}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          Document date: {formatDate(document.documentDate)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <a
-                          href={getDocumentDownloadUrl({ vaultId, documentId: document.id })}
-                          className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium hover:bg-accent"
-                        >
-                          Download
-                        </a>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => {
-                            setStatusMessage(null);
-                            setErrorMessage(null);
-                            deleteMutation.mutate({ vaultId, documentId: document.id });
-                          }}
-                        >
-                          Move to trash
-                        </Button>
                       </div>
                     </div>
-                  </li>
+                    <div className="text-sm text-muted-foreground">
+                      {document.documentDate ? formatDate(document.documentDate) : 'No date'}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatDate(document.createdAt)}
+                    </div>
+                    <div className="flex gap-3">
+                      <a href={getDocumentDownloadUrl({ vaultId, documentId: document.id })} className="vault-link">Download</a>
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-muted-foreground transition hover:text-foreground"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => {
+                          setStatusMessage(null);
+                          setErrorMessage(null);
+                          deleteMutation.mutate({ vaultId, documentId: document.id });
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
                 ))}
-          </ul>
+          </div>
         )}
 
-        <div className="mt-6 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Page {activePageIndex + 1} of {activePageCount}</p>
+        <div className="flex flex-col gap-3 border-t border-border/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">Page {activePageIndex + 1} of {activePageCount}</p>
           <div className="flex gap-2">
             <Button
               type="button"
@@ -386,7 +354,15 @@ export function DocumentsPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </SurfacePanel>
+
+      <input
+        id={uploadInputId}
+        type="file"
+        multiple
+        className="sr-only"
+        onChange={handleUploadChange}
+      />
     </section>
   );
 }

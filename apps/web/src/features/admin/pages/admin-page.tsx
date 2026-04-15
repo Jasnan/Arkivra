@@ -1,4 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArchiveRestore, DatabaseBackup, Users, Vault } from 'lucide-react';
+import { PageIntro, StatCard, StatusBanner, SurfacePanel } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   createBackup,
@@ -9,8 +11,8 @@ import {
   updateAdminUser,
 } from '@/features/admin/admin.api';
 import { adminQueryKeys, useAdminBackupsQuery, useAdminUsersQuery, useAdminVaultsQuery } from '@/features/admin/admin.queries';
-import { useMeQuery } from '@/features/me/me.queries';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import { useMeQuery } from '@/features/me/me.queries';
 
 export function AdminPage() {
   const queryClient = useQueryClient();
@@ -53,73 +55,105 @@ export function AdminPage() {
   });
 
   if (meQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading admin context…</p>;
+    return <p className="text-sm text-muted-foreground">Loading admin context...</p>;
   }
 
   if (!isEnabled) {
     return (
-      <section className="space-y-4 pb-8">
-        <h2 className="font-serif text-4xl tracking-tight">Admin</h2>
-        <p className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-          Global admin access is required to open this page.
-        </p>
+      <section className="space-y-6 pb-8">
+        <PageIntro
+          eyebrow="Instance Oversight"
+          title="Admin"
+          description="Global admin access is required to open this page."
+        />
+        <StatusBanner tone="danger">Global admin access is required to open this page.</StatusBanner>
       </section>
     );
   }
 
   return (
-    <section className="space-y-6 pb-8">
-      <div>
-        <h2 className="font-serif text-4xl tracking-tight">Admin</h2>
-        <p className="text-sm text-muted-foreground">Manage backups, user access, and installation-wide vault oversight.</p>
+    <section className="space-y-8 pb-8">
+      <PageIntro
+        eyebrow="Instance Oversight"
+        title="Admin"
+        description="Manage backups, user access, and installation-wide vault oversight from a single governance surface."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          label="Backups"
+          value={(backupsQuery.data?.backups ?? []).length}
+          meta="Archives currently available on the server."
+          icon={<DatabaseBackup className="size-5" />}
+        />
+        <StatCard
+          label="Users"
+          value={(usersQuery.data?.users ?? []).length}
+          meta="Accounts currently visible to the admin API."
+          icon={<Users className="size-5" />}
+        />
+        <StatCard
+          label="Vaults"
+          value={(vaultsQuery.data?.vaults ?? []).length}
+          meta="Active vaults under installation oversight."
+          icon={<Vault className="size-5" />}
+        />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SurfacePanel className="space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h3 className="text-lg font-semibold">Backups</h3>
-                <p className="text-sm text-muted-foreground">Create a new archive or restore one already stored on the server.</p>
+                <p className="vault-label">Backups</p>
+                <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Archive control</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Create a new archive or restore one already stored on the server.
+                </p>
               </div>
               <Button
                 type="button"
                 disabled={createBackupMutation.isPending}
                 onClick={() => createBackupMutation.mutate()}
               >
-                {createBackupMutation.isPending ? 'Queueing…' : 'Create backup'}
+                {createBackupMutation.isPending ? 'Queueing...' : 'Create backup'}
               </Button>
             </div>
 
             {createBackupMutation.data ? (
-              <p className="mt-4 text-sm text-muted-foreground">Backup queued as job `{createBackupMutation.data.jobId}`.</p>
+              <StatusBanner>Backup queued as job `{createBackupMutation.data.jobId}`.</StatusBanner>
             ) : null}
             {createBackupMutation.isError ? (
-              <p className="mt-4 text-sm text-destructive">
+              <StatusBanner tone="danger">
                 {createBackupMutation.error instanceof Error ? createBackupMutation.error.message : 'Could not queue backup.'}
-              </p>
+              </StatusBanner>
+            ) : null}
+            {restoreBackupMutation.data ? (
+              <StatusBanner>Restore queued as job `{restoreBackupMutation.data.jobId}`.</StatusBanner>
+            ) : null}
+            {restoreBackupMutation.isError ? (
+              <StatusBanner tone="danger">
+                {restoreBackupMutation.error instanceof Error ? restoreBackupMutation.error.message : 'Could not queue restore.'}
+              </StatusBanner>
             ) : null}
 
-            {backupsQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading backups…</p> : null}
+            {backupsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading backups...</p> : null}
             {!backupsQuery.isLoading && (backupsQuery.data?.backups.length ?? 0) === 0 ? (
-              <p className="mt-4 text-sm text-muted-foreground">No backups available yet.</p>
+              <div className="vault-empty">No backups available yet.</div>
             ) : null}
 
-            <ul className="mt-4 space-y-3">
+            <div className="space-y-4">
               {(backupsQuery.data?.backups ?? []).map(backup => (
-                <li key={backup.id} className="rounded-xl border border-border bg-background p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <article key={backup.id} className="rounded-[24px] bg-secondary/56 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="font-medium">{backup.fileName}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{backup.fileName}</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">
                         Created {formatDate(backup.createdAt)} • {formatBytes(backup.size)}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <a
-                        href={getBackupDownloadUrl({ backupId: backup.id })}
-                        className="inline-flex h-10 items-center justify-center rounded-xl border border-input px-4 text-sm font-medium hover:bg-accent"
-                      >
+                    <div className="flex flex-wrap gap-3">
+                      <a href={getBackupDownloadUrl({ backupId: backup.id })} className="vault-link">
                         Download
                       </a>
                       <Button
@@ -128,43 +162,41 @@ export function AdminPage() {
                         disabled={restoreBackupMutation.isPending}
                         onClick={() => restoreBackupMutation.mutate({ backupId: backup.id })}
                       >
-                        {restoreBackupMutation.isPending ? 'Queueing…' : 'Restore'}
+                        <ArchiveRestore className="size-4" />
+                        {restoreBackupMutation.isPending ? 'Queueing...' : 'Restore'}
                       </Button>
                     </div>
                   </div>
-                </li>
+                </article>
               ))}
-            </ul>
+            </div>
+          </SurfacePanel>
 
-            {restoreBackupMutation.data ? (
-              <p className="mt-4 text-sm text-muted-foreground">Restore queued as job `{restoreBackupMutation.data.jobId}`.</p>
-            ) : null}
-            {restoreBackupMutation.isError ? (
-              <p className="mt-4 text-sm text-destructive">
-                {restoreBackupMutation.error instanceof Error ? restoreBackupMutation.error.message : 'Could not queue restore.'}
+          <SurfacePanel className="space-y-5">
+            <div>
+              <p className="vault-label">Users</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Access control</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Suspend accounts and manage global admin privileges.
               </p>
-            ) : null}
-          </div>
+            </div>
 
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <h3 className="text-lg font-semibold">Users</h3>
-            <p className="text-sm text-muted-foreground">Suspend accounts and manage global admin privileges.</p>
+            {usersQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading users...</p> : null}
 
-            {usersQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading users…</p> : null}
-            <ul className="mt-4 space-y-3">
+            <div className="space-y-4">
               {(usersQuery.data?.users ?? []).map(user => (
-                <li key={user.id} className="rounded-xl border border-border bg-background p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <article key={user.id} className="rounded-[24px] bg-secondary/56 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="font-medium">{user.name ?? 'Unnamed user'}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{user.name ?? 'Unnamed user'}</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {user.email} • {user.isGlobalAdmin ? 'global admin' : 'user'} • {user.disabledAt ? 'disabled' : 'active'}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         2FA {user.twoFactorEnabled ? 'enabled' : 'not enabled'} • created {formatDate(user.createdAt)}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3">
                       <Button
                         type="button"
                         variant="outline"
@@ -194,50 +226,55 @@ export function AdminPage() {
                       )}
                     </div>
                   </div>
-                </li>
+                </article>
               ))}
-            </ul>
+            </div>
 
             {updateUserMutation.isError ? (
-              <p className="mt-4 text-sm text-destructive">
+              <StatusBanner tone="danger">
                 {updateUserMutation.error instanceof Error ? updateUserMutation.error.message : 'Could not update user.'}
-              </p>
+              </StatusBanner>
             ) : null}
             {grantAdminMutation.isError ? (
-              <p className="mt-4 text-sm text-destructive">
+              <StatusBanner tone="danger">
                 {grantAdminMutation.error instanceof Error ? grantAdminMutation.error.message : 'Could not grant admin.'}
-              </p>
+              </StatusBanner>
             ) : null}
             {revokeAdminMutation.isError ? (
-              <p className="mt-4 text-sm text-destructive">
+              <StatusBanner tone="danger">
                 {revokeAdminMutation.error instanceof Error ? revokeAdminMutation.error.message : 'Could not revoke admin.'}
-              </p>
+              </StatusBanner>
             ) : null}
-          </div>
+          </SurfacePanel>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <h3 className="text-lg font-semibold">Vault oversight</h3>
-          <p className="text-sm text-muted-foreground">Inspect active vault ownership across the installation.</p>
+        <SurfacePanel variant="soft" className="space-y-5">
+          <div>
+            <p className="vault-label">Vault Oversight</p>
+            <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Ownership ledger</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Inspect active vault ownership across the installation.
+            </p>
+          </div>
 
-          {vaultsQuery.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading vaults…</p> : null}
+          {vaultsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading vaults...</p> : null}
           {!vaultsQuery.isLoading && (vaultsQuery.data?.vaults.length ?? 0) === 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">No active vaults found.</p>
+            <div className="vault-empty">No active vaults found.</div>
           ) : null}
 
-          <ul className="mt-4 space-y-3">
+          <div className="space-y-4">
             {(vaultsQuery.data?.vaults ?? []).map(vault => (
-              <li key={vault.id} className="rounded-xl border border-border bg-background p-4">
-                <p className="font-medium">{vault.name}</p>
-                <p className="text-xs text-muted-foreground">{vault.id}</p>
-                <p className="mt-2 text-sm text-muted-foreground">
+              <article key={vault.id} className="rounded-[24px] bg-card/85 p-5">
+                <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{vault.name}</h3>
+                <p className="mt-2 text-xs text-muted-foreground">{vault.id}</p>
+                <p className="mt-4 text-sm text-muted-foreground">
                   Owner: {vault.ownerName ?? 'Unknown'}{vault.ownerEmail ? ` (${vault.ownerEmail})` : ''}
                 </p>
-                <p className="text-xs text-muted-foreground">Created {formatDate(vault.createdAt)}</p>
-              </li>
+                <p className="text-sm text-muted-foreground">Created {formatDate(vault.createdAt)}</p>
+              </article>
             ))}
-          </ul>
-        </div>
+          </div>
+        </SurfacePanel>
       </div>
     </section>
   );

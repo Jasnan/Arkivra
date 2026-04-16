@@ -1,6 +1,6 @@
 import type { Database } from '../database/database.js';
-import { and, desc, eq, exists, sql } from 'drizzle-orm';
-import { documentTagsTable, documentsTable, tagsTable } from '../database/schema/index.js';
+import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
+import { documentTagsTable, documentsTable, tagsTable, vaultsTable } from '../database/schema/index.js';
 
 export function createTagsServices({ db }: { db: Database }) {
   async function listTags({ vaultId }: { vaultId: string }) {
@@ -28,6 +28,39 @@ export function createTagsServices({ db }: { db: Database }) {
       .where(eq(tagsTable.vaultId, vaultId))
       .groupBy(tagsTable.id)
       .orderBy(desc(tagsTable.createdAt), tagsTable.name);
+  }
+
+  async function listAccessibleTags({ vaultIds }: { vaultIds: string[] }) {
+    if (vaultIds.length === 0) {
+      return [];
+    }
+
+    const documentsCount = sql<number>`count(${documentsTable.id})::int`;
+
+    return db
+      .select({
+        id: tagsTable.id,
+        vaultId: tagsTable.vaultId,
+        vaultName: vaultsTable.name,
+        name: tagsTable.name,
+        color: tagsTable.color,
+        documentsCount,
+        createdAt: tagsTable.createdAt,
+        updatedAt: tagsTable.updatedAt,
+      })
+      .from(tagsTable)
+      .innerJoin(vaultsTable, eq(tagsTable.vaultId, vaultsTable.id))
+      .leftJoin(documentTagsTable, eq(documentTagsTable.tagId, tagsTable.id))
+      .leftJoin(
+        documentsTable,
+        and(
+          eq(documentTagsTable.documentId, documentsTable.id),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .where(inArray(tagsTable.vaultId, vaultIds))
+      .groupBy(tagsTable.id, vaultsTable.name)
+      .orderBy(asc(tagsTable.name), asc(vaultsTable.name));
   }
 
   async function createTag({
@@ -185,6 +218,7 @@ export function createTagsServices({ db }: { db: Database }) {
     assignTagToDocument,
     createTag,
     deleteTag,
+    listAccessibleTags,
     listDocumentTags,
     listTags,
     removeTagFromDocument,

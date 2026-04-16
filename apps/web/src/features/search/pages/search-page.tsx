@@ -46,6 +46,7 @@ export function SearchPage() {
     tagId: tagId || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
+    enabled: deferredQuery.length > 0 || vaultId.length > 0 || tagId.length > 0 || dateFrom.length > 0 || dateTo.length > 0,
   });
 
   const totalPages = useMemo(() => {
@@ -223,10 +224,12 @@ export function SearchPage() {
                             <Vault className="size-3.5" />
                             {result.vaultName}
                           </span>
-                          <span className="vault-chip">
-                            <Tags className="size-3.5" />
-                            {result.bestChunk.chunkType ?? 'text chunk'}
-                          </span>
+                          {result.bestChunk ? (
+                            <span className="vault-chip">
+                              <Tags className="size-3.5" />
+                              {result.bestChunk.chunkType ?? 'text chunk'}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
 
@@ -236,30 +239,34 @@ export function SearchPage() {
                       </Link>
                     </div>
 
-                    <div className="rounded-[20px] bg-card/85 p-4 text-sm leading-7 text-foreground">
-                      <p className="vault-label mb-3">
-                        Best matching snippet
-                        {result.bestChunk.pageNumber !== null ? ` • Page ${result.bestChunk.pageNumber}` : ''}
-                      </p>
-                      <p className="break-words">
-                        {tokenizeSnippet(result.bestChunk.snippet).map(part =>
-                          part.highlighted
-                            ? (
-                                <mark key={`${result.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
-                                  {part.text}
-                                </mark>
-                              )
-                            : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
-                        )}
-                      </p>
-                    </div>
+                    {result.bestChunk ? (
+                      <>
+                        <div className="rounded-[20px] bg-card/85 p-4 text-sm leading-7 text-foreground">
+                          <p className="vault-label mb-3">
+                            Best matching snippet
+                            {result.bestChunk.pageNumber !== null ? ` • Page ${result.bestChunk.pageNumber}` : ''}
+                          </p>
+                          <p className="break-words">
+                            {tokenizeSnippet(result.bestChunk.snippet).map(part =>
+                              part.highlighted
+                                ? (
+                                    <mark key={`${result.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
+                                      {part.text}
+                                    </mark>
+                                  )
+                                : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
+                            )}
+                          </p>
+                        </div>
 
-                    <details className="rounded-[20px] bg-card/70 p-4 text-sm text-muted-foreground">
-                      <summary className="cursor-pointer font-semibold text-foreground">Matched chunk preview</summary>
-                      <p className="mt-3 whitespace-pre-wrap break-words leading-6">
-                        {stripSnippetMarkup(result.bestChunk.content)}
-                      </p>
-                    </details>
+                        <details className="rounded-[20px] bg-card/70 p-4 text-sm text-muted-foreground">
+                          <summary className="cursor-pointer font-semibold text-foreground">Matched chunk preview</summary>
+                          <p className="mt-3 whitespace-pre-wrap break-words leading-6">
+                            {stripSnippetMarkup(result.bestChunk.content)}
+                          </p>
+                        </details>
+                      </>
+                    ) : null}
                   </div>
                 </article>
               ))}

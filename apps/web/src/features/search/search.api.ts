@@ -3,29 +3,40 @@ import type { SearchResultPage } from './search.types';
 
 export async function searchVaultDocuments({
   vaultId,
-  query,
+  query = '',
   pageIndex = 0,
   pageSize = 10,
   tagId,
+  tagIds,
   dateFrom,
   dateTo,
+  sortBy,
 }: {
   vaultId: string;
-  query: string;
+  query?: string;
   pageIndex?: number;
   pageSize?: number;
   tagId?: string;
+  tagIds?: string[];
   dateFrom?: string;
   dateTo?: string;
+  sortBy?: string;
 }) {
   const params = new URLSearchParams({
-    q: query,
     pageIndex: String(pageIndex),
     pageSize: String(pageSize),
   });
 
+  if (query.trim().length > 0) {
+    params.set('q', query);
+  }
+
   if (tagId) {
     params.set('tagId', tagId);
+  }
+
+  if (tagIds && tagIds.length > 0) {
+    params.set('tagIds', tagIds.join(','));
   }
 
   if (dateFrom) {
@@ -36,31 +47,42 @@ export async function searchVaultDocuments({
     params.set('dateTo', dateTo);
   }
 
+  if (sortBy) {
+    params.set('sortBy', sortBy);
+  }
+
   return fetchJson<SearchResultPage>(`/api/vaults/${vaultId}/search?${params.toString()}`);
 }
 
 export async function searchAllDocuments({
-  query,
+  query = '',
   pageIndex = 0,
   pageSize = 10,
   vaultId,
   tagId,
+  tagIds,
   dateFrom,
   dateTo,
+  sortBy,
 }: {
-  query: string;
+  query?: string;
   pageIndex?: number;
   pageSize?: number;
   vaultId?: string;
   tagId?: string;
+  tagIds?: string[];
   dateFrom?: string;
   dateTo?: string;
+  sortBy?: string;
 }) {
   const params = new URLSearchParams({
-    q: query,
     pageIndex: String(pageIndex),
     pageSize: String(pageSize),
   });
+
+  if (query.trim().length > 0) {
+    params.set('q', query);
+  }
 
   if (vaultId) {
     params.set('vaultId', vaultId);
@@ -70,12 +92,20 @@ export async function searchAllDocuments({
     params.set('tagId', tagId);
   }
 
+  if (tagIds && tagIds.length > 0) {
+    params.set('tagIds', tagIds.join(','));
+  }
+
   if (dateFrom) {
     params.set('dateFrom', dateFrom);
   }
 
   if (dateTo) {
     params.set('dateTo', dateTo);
+  }
+
+  if (sortBy) {
+    params.set('sortBy', sortBy);
   }
 
   return fetchJson<SearchResultPage>(`/api/search?${params.toString()}`);

@@ -49,6 +49,7 @@ export function registerTagRoutes({
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
   const tagsServices = services ?? createTagsServices({ db });
 
+  app.use('/api/tags', requireAuthentication());
   app.use('/api/vaults/:vaultId/tags', requireAuthentication());
   app.use('/api/vaults/:vaultId/tags/*', requireAuthentication());
   app.use('/api/vaults/:vaultId/documents/:documentId/tags', requireAuthentication());
@@ -72,6 +73,33 @@ export function registerTagRoutes({
     }
 
     const tags = await tagsServices.listTags({ vaultId });
+    return context.json({ tags });
+  });
+
+  app.get('/api/tags', async (context) => {
+    const userId = context.get('userId');
+
+    if (userId === null) {
+      return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
+    }
+
+    const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
+    const vaults = await vaultsServices.listUserVaults({ userId });
+    const readableVaults = vaults.filter(vault =>
+      vault.isGlobalAdmin
+      || vault.role === 'owner'
+      || vault.permissions.includes('documents.read'),
+    );
+    const allowedVaultIds = readableVaults.map(vault => vault.id);
+
+    if (requestedVaultId && !allowedVaultIds.includes(requestedVaultId)) {
+      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+    }
+
+    const tags = await tagsServices.listAccessibleTags({
+      vaultIds: requestedVaultId ? [requestedVaultId] : allowedVaultIds,
+    });
+
     return context.json({ tags });
   });
 

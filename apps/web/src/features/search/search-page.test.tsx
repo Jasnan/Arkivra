@@ -16,7 +16,7 @@ describe('documents library search controls', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows instant search results with snippet highlights', async () => {
+  it('renders backend search results with highlighted snippets', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -24,43 +24,42 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Invoices Vault', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
           ],
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/documents')) {
-        return jsonResponse({ documents: [] });
-      }
-
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.startsWith('/api/tags')) {
         return jsonResponse({
           tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },
           ],
         });
       }
 
-      if (url.includes('/api/search?')) {
+      if (url.includes('/api/search?') && url.includes('q=arkivra')) {
         return jsonResponse({
           query: 'arkivra',
           pageIndex: 0,
-          pageSize: 25,
+          pageSize: 100,
           resultsCount: 1,
           filters: {
             vaultId: null,
             tagId: null,
+            tagIds: [],
             dateFrom: null,
             dateTo: null,
+            sortBy: 'document_date_desc',
           },
           results: [
             {
               vaultId: 'vlt_1',
-              vaultName: 'Invoices Vault',
+              vaultName: 'Sherlock',
               documentId: 'doc_1',
-              name: 'invoice.pdf',
-              originalName: 'invoice.pdf',
-              mimeType: 'application/pdf',
+              name: 'Receipt for Groceries.txt',
+              originalName: 'Receipt for Groceries.txt',
+              originalSize: 49000,
+              mimeType: 'text/plain',
               documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
@@ -78,57 +77,19 @@ describe('documents library search controls', () => {
         });
       }
 
-      throw new Error(`Unhandled request ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    renderWithProviders(<AllDocumentsPage />, {
-      initialEntries: ['/documents'],
-      routePath: '/documents',
-    });
-
-    await user.type(screen.getByLabelText(/search text/i), 'arkivra');
-
-    expect(await screen.findByText(/invoice\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByText('Arkivra', { selector: 'mark' })).toBeInTheDocument();
-  });
-
-  it('passes tag and date filters to the search request', async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url.endsWith('/api/vaults')) {
-        return jsonResponse({
-          vaults: [
-            { id: 'vlt_1', name: 'Invoices Vault', role: 'owner' },
-          ],
-        });
-      }
-
-      if (url.endsWith('/api/vaults/vlt_1/documents')) {
-        return jsonResponse({ documents: [] });
-      }
-
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
-        return jsonResponse({
-          tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
-          ],
-        });
-      }
-
       if (url.includes('/api/search?')) {
         return jsonResponse({
-          query: 'invoice',
+          query: '',
           pageIndex: 0,
-          pageSize: 25,
+          pageSize: 100,
           resultsCount: 0,
           filters: {
-            vaultId: 'vlt_1',
-            tagId: 'tag_1',
-            dateFrom: '2026-04-01T00:00:00.000Z',
-            dateTo: '2026-04-30T23:59:59.999Z',
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'document_date_desc',
           },
           results: [],
         });
@@ -143,17 +104,77 @@ describe('documents library search controls', () => {
       routePath: '/documents',
     });
 
-    await user.type(screen.getByLabelText(/search text/i), 'invoice');
-    await screen.findByRole('option', { name: 'Invoices Vault' });
-    await user.selectOptions(screen.getByLabelText(/vault scope/i), 'vlt_1');
-    await screen.findByRole('option', { name: 'Invoices' });
-    await user.selectOptions(screen.getByLabelText(/tag filter/i), 'tag_1');
-    await user.type(screen.getByLabelText(/date from/i), '2026-04-01');
-    await user.type(screen.getByLabelText(/date to/i), '2026-04-30');
+    await user.type(screen.getByLabelText(/search documents/i), 'arkivra');
+
+    expect(await screen.findByText(/receipt for groceries\.txt/i)).toBeInTheDocument();
+    expect(screen.getByText('Arkivra', { selector: 'mark' })).toBeInTheDocument();
+  });
+
+  it('sends vault, tag, date, and sort filters to the backend', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url === '/api/tags' || url === '/api/tags?vaultId=vlt_1') {
+        return jsonResponse({
+          tags: [
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },
+          ],
+        });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: 'vlt_1',
+            tagId: 'tag_1',
+            tagIds: ['tag_1'],
+            dateFrom: '2026-04-01T00:00:00.000Z',
+            dateTo: '2026-04-30T23:59:59.999Z',
+            sortBy: 'name_asc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.type(screen.getByLabelText(/search documents/i), 'invoice');
+    await screen.findByRole('option', { name: 'Sherlock' });
+    await user.selectOptions(screen.getByLabelText(/vault filter/i), 'vlt_1');
+
+    await user.click(screen.getByRole('button', { name: /select tags/i }));
+    await user.click(screen.getByRole('checkbox'));
+
+    await user.click(screen.getByRole('button', { name: /date/i }));
+    await user.type(screen.getByLabelText(/from/i), '2026-04-01');
+    await user.type(screen.getByLabelText(/to/i), '2026-04-30');
+    await user.click(screen.getByRole('button', { name: /apply/i }));
+
+    await user.selectOptions(screen.getByLabelText(/sort documents/i), 'name_asc');
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/search?q=invoice&pageIndex=0&pageSize=25&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30'),
+        expect.stringContaining('/api/search?pageIndex=0&pageSize=100&q=invoice&vaultId=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc'),
         expect.objectContaining({ credentials: 'include' }),
       );
     });

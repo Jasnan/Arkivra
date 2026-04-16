@@ -1,9 +1,19 @@
 export interface SearchFilters {
   vaultId: string | null;
   tagId: string | null;
+  tagIds: string[];
   dateFrom: string | null;
   dateTo: string | null;
+  sortBy: SearchSortBy;
 }
+
+export type SearchSortBy =
+  | 'document_date_desc'
+  | 'document_date_asc'
+  | 'updated_desc'
+  | 'updated_asc'
+  | 'name_asc'
+  | 'name_desc';
 
 export interface SearchResultItem {
   vaultId: string;
@@ -11,6 +21,7 @@ export interface SearchResultItem {
   documentId: string;
   name: string;
   originalName: string;
+  originalSize: number;
   mimeType: string;
   documentDate: string | null;
   createdAt: string;
@@ -23,7 +34,7 @@ export interface SearchResultItem {
     content: string;
     snippet: string;
     score: number;
-  };
+  } | null;
 }
 
 export interface SearchResultPage {

@@ -5,6 +5,18 @@ interface TagsResponse {
   tags: Tag[];
 }
 
+export async function listAccessibleTags({ vaultId }: { vaultId?: string } = {}) {
+  const params = new URLSearchParams();
+
+  if (vaultId) {
+    params.set('vaultId', vaultId);
+  }
+
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : '';
+
+  return fetchJson<TagsResponse>(`/api/tags${suffix}`);
+}
+
 export async function listTags({ vaultId }: { vaultId: string }) {
   return fetchJson<TagsResponse>(`/api/vaults/${vaultId}/tags`);
 }

@@ -2,6 +2,7 @@ import type { Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { DocumentSearchServices } from './search.types.js';
+import { SEARCH_SORT_VALUES } from './search.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import { createDocumentSearchServices } from './search.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
@@ -35,6 +36,23 @@ function parseOptionalDate(value: string | undefined) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parseTagIds(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const tagIds = [...new Set(value.split(',').map(part => part.trim()).filter(Boolean))];
+  return tagIds.length > 0 ? tagIds : undefined;
+}
+
+function parseSortBy(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return 'document_date_desc' as const;
+  }
+
+  return SEARCH_SORT_VALUES.includes(value as any) ? value as (typeof SEARCH_SORT_VALUES)[number] : null;
+}
+
 export function registerSearchRoutes({
   app,
   db,
@@ -63,13 +81,6 @@ export function registerSearchRoutes({
     }
 
     const query = context.req.query('q')?.trim() ?? '';
-
-    if (query.length === 0) {
-      return context.json(
-        { error: { code: 'search.invalid_query', message: 'Search query is required' } },
-        400,
-      );
-    }
 
     const pageIndex = parsePageIndex(context.req.query('pageIndex'));
 
@@ -100,6 +111,7 @@ export function registerSearchRoutes({
     }
 
     const tagId = context.req.query('tagId')?.trim() || undefined;
+    const tagIds = parseTagIds(context.req.query('tagIds'));
     const dateFrom = parseOptionalDate(context.req.query('dateFrom'));
 
     if (dateFrom === null) {
@@ -128,14 +140,30 @@ export function registerSearchRoutes({
       );
     }
 
+    const sortBy = parseSortBy(context.req.query('sortBy'));
+
+    if (sortBy === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_sort_by',
+            message: `sortBy must be one of ${SEARCH_SORT_VALUES.join(', ')}`,
+          },
+        },
+        400,
+      );
+    }
+
     const result = await searchServices.searchDocuments({
       vaultId,
       query,
       pageIndex,
       pageSize,
       tagId,
+      tagIds,
       dateFrom,
       dateTo,
+      sortBy,
     });
 
     return context.json(result);
@@ -152,13 +180,6 @@ export function registerSearchRoutes({
     }
 
     const query = context.req.query('q')?.trim() ?? '';
-
-    if (query.length === 0) {
-      return context.json(
-        { error: { code: 'search.invalid_query', message: 'Search query is required' } },
-        400,
-      );
-    }
 
     const pageIndex = parsePageIndex(context.req.query('pageIndex'));
 
@@ -190,6 +211,7 @@ export function registerSearchRoutes({
 
     const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
     const tagId = context.req.query('tagId')?.trim() || undefined;
+    const tagIds = parseTagIds(context.req.query('tagIds'));
     const dateFrom = parseOptionalDate(context.req.query('dateFrom'));
 
     if (dateFrom === null) {
@@ -218,6 +240,20 @@ export function registerSearchRoutes({
       );
     }
 
+    const sortBy = parseSortBy(context.req.query('sortBy'));
+
+    if (sortBy === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_sort_by',
+            message: `sortBy must be one of ${SEARCH_SORT_VALUES.join(', ')}`,
+          },
+        },
+        400,
+      );
+    }
+
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaults = vaults.filter(vault =>
       vault.isGlobalAdmin
@@ -237,8 +273,10 @@ export function registerSearchRoutes({
         filters: {
           vaultId: requestedVaultId ?? null,
           tagId: tagId ?? null,
+          tagIds: tagIds ?? (tagId ? [tagId] : []),
           dateFrom: dateFrom?.toISOString() ?? null,
           dateTo: dateTo?.toISOString() ?? null,
+          sortBy,
         },
       });
     }
@@ -254,8 +292,10 @@ export function registerSearchRoutes({
       pageIndex,
       pageSize,
       tagId,
+      tagIds,
       dateFrom,
       dateTo,
+      sortBy,
     });
 
     return context.json(result);

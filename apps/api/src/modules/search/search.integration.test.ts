@@ -10,7 +10,7 @@ import { registerSearchRoutes } from './search.routes.js';
 function createMockSearchServices() {
   return {
     name: 'test-search',
-    searchDocuments: vi.fn(async ({ vaultId, vaultIds, query, pageIndex, pageSize, tagId, dateFrom, dateTo }) => ({
+    searchDocuments: vi.fn(async ({ vaultId, vaultIds, query, pageIndex, pageSize, tagId, tagIds, dateFrom, dateTo, sortBy }) => ({
       query,
       pageIndex,
       pageSize,
@@ -18,8 +18,10 @@ function createMockSearchServices() {
       filters: {
         vaultId: vaultId ?? null,
         tagId: tagId ?? null,
+        tagIds: tagIds ?? (tagId ? [tagId] : []),
         dateFrom: dateFrom?.toISOString() ?? null,
         dateTo: dateTo?.toISOString() ?? null,
+        sortBy: sortBy ?? 'document_date_desc',
       },
       results: [
         {
@@ -28,6 +30,7 @@ function createMockSearchServices() {
           documentId: 'doc_1',
           name: 'arkivra-e2e.pdf',
           originalName: 'arkivra-e2e.pdf',
+          originalSize: 42000,
           mimeType: 'application/pdf',
           documentDate: null,
           createdAt: '2025-01-01T00:00:00.000Z',
@@ -85,6 +88,7 @@ function createTestApp({
     context.set('session', null);
     context.set('userDisabled', false);
     context.set('isGlobalAdmin', false);
+    context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
     context.set('vaultPermissions', []);
@@ -160,7 +164,7 @@ describe('search integration', () => {
     expect(response.status).toBe(403);
   });
 
-  test('returns 400 for missing search query', async () => {
+  test('supports browse mode without a search query', async () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
 
@@ -168,12 +172,17 @@ describe('search integration', () => {
       headers: { 'x-test-user-id': 'usr_1' },
     });
 
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: {
-        code: 'search.invalid_query',
-        message: 'Search query is required',
-      },
+    expect(response.status).toBe(200);
+    expect((searchServices as any).searchDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      query: '',
+      pageIndex: 0,
+      pageSize: 20,
+      tagId: undefined,
+      tagIds: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      sortBy: 'document_date_desc',
     });
   });
 
@@ -237,15 +246,20 @@ describe('search integration', () => {
       query: 'arkivra',
       pageIndex: 1,
       pageSize: 5,
+      tagId: undefined,
+      tagIds: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      sortBy: 'document_date_desc',
     });
   });
 
-  test('passes tag and date filters to search services', async () => {
+  test('passes tag, date, and sort filters to search services', async () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
 
     const response = await app.request(
-      '/api/vaults/vlt_1/search?q=arkivra&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30',
+      '/api/vaults/vlt_1/search?q=arkivra&tagIds=tag_1,tag_2&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc',
       {
         headers: { 'x-test-user-id': 'usr_1' },
       },
@@ -257,9 +271,11 @@ describe('search integration', () => {
       query: 'arkivra',
       pageIndex: 0,
       pageSize: 20,
-      tagId: 'tag_1',
+      tagId: undefined,
+      tagIds: ['tag_1', 'tag_2'],
       dateFrom: new Date('2026-04-01'),
       dateTo: new Date('2026-04-30'),
+      sortBy: 'name_asc',
     });
   });
 
@@ -296,8 +312,10 @@ describe('search integration', () => {
       pageIndex: 0,
       pageSize: 20,
       tagId: undefined,
+      tagIds: undefined,
       dateFrom: undefined,
       dateTo: undefined,
+      sortBy: 'document_date_desc',
     });
   });
 

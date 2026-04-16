@@ -54,6 +54,7 @@ export function DocumentsPage() {
     tagId: selectedTagId || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
+    enabled: searchText.trim().length > 0,
   });
 
   const uploadMutation = useMutation({
@@ -274,17 +275,19 @@ export function DocumentsPage() {
                         <p className="mt-1 text-sm text-muted-foreground">
                           {result.mimeType} • {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'}
                         </p>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          {tokenizeSnippet(result.bestChunk.snippet).slice(0, 6).map(part =>
-                            part.highlighted
-                              ? <mark key={`${result.documentId}-${part.key}`} className="rounded bg-accent px-1 text-accent-foreground">{part.text}</mark>
-                              : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
-                          )}
-                        </p>
+                        {result.bestChunk ? (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {tokenizeSnippet(result.bestChunk.snippet).slice(0, 6).map(part =>
+                              part.highlighted
+                                ? <mark key={`${result.documentId}-${part.key}`} className="rounded bg-accent px-1 text-accent-foreground">{part.text}</mark>
+                                : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
+                            )}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {result.bestChunk.pageNumber !== null ? `Page ${result.bestChunk.pageNumber}` : 'Text match'}
+                      {result.bestChunk?.pageNumber !== null && result.bestChunk?.pageNumber !== undefined ? `Page ${result.bestChunk.pageNumber}` : 'Text match'}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {formatDate(result.updatedAt)}

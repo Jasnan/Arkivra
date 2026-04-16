@@ -120,6 +120,7 @@ export function AppShell({ children }: PropsWithChildren) {
     query: deferredSearchValue,
     pageIndex: 0,
     pageSize: 8,
+    enabled: isQuickSearchOpen && deferredSearchValue.length > 0,
   });
 
   function closeQuickSearch() {
@@ -359,20 +360,22 @@ export function AppShell({ children }: PropsWithChildren) {
                           <p className="mt-1 text-sm text-muted-foreground">
                             {result.vaultName} • {result.mimeType} • Updated {formatDate(result.updatedAt)}
                           </p>
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            {tokenizeSnippet(result.bestChunk.snippet).map(part =>
-                              part.highlighted
-                                ? (
-                                    <mark key={`${result.documentId}-${part.key}`} className="rounded bg-accent px-1 text-accent-foreground">
-                                      {part.text}
-                                    </mark>
-                                  )
-                                : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
-                            )}
-                          </p>
+                          {result.bestChunk ? (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {tokenizeSnippet(result.bestChunk.snippet).map(part =>
+                                part.highlighted
+                                  ? (
+                                      <mark key={`${result.documentId}-${part.key}`} className="rounded bg-accent px-1 text-accent-foreground">
+                                        {part.text}
+                                      </mark>
+                                    )
+                                  : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
+                              )}
+                            </p>
+                          ) : null}
                         </div>
                         <span className="shrink-0 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          {result.bestChunk.pageNumber !== null ? `Page ${result.bestChunk.pageNumber}` : 'Match'}
+                          {result.bestChunk?.pageNumber !== null && result.bestChunk?.pageNumber !== undefined ? `Page ${result.bestChunk.pageNumber}` : 'Match'}
                         </span>
                       </div>
                     </button>

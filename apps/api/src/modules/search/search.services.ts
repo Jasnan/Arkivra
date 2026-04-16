@@ -1,5 +1,5 @@
 import type { Database } from '../database/database.js';
-import type { DocumentSearchServices, SearchResultItem } from './search.types.js';
+import type { DocumentSearchServices, SearchResultItem, SearchSortBy } from './search.types.js';
 import { sql } from 'drizzle-orm';
 
 type SearchRow = {
@@ -8,18 +8,19 @@ type SearchRow = {
   document_id: string;
   name: string;
   original_name: string;
+  original_size: number;
   mime_type: string;
   document_date: Date | null;
   created_at: Date;
   updated_at: Date;
   matched_chunks_count: number;
-  chunk_index: number;
+  chunk_index: number | null;
   chunk_type: string | null;
   page_number: number | null;
-  chunk_content: string;
-  snippet: string;
-  score: number;
-  fulltext_match: boolean;
+  chunk_content: string | null;
+  snippet: string | null;
+  score: number | null;
+  fulltext_match: boolean | null;
   substring_position: number | null;
 };
 
@@ -51,6 +52,85 @@ function toSqlDateBoundary(value: Date | null | undefined, boundary: 'start' | '
   return normalized;
 }
 
+function normalizeTagIds(tagId: string | undefined, tagIds: string[] | undefined) {
+  return [...new Set([
+    ...(tagIds ?? []).map(item => item.trim()),
+    ...(tagId ? [tagId.trim()] : []),
+  ].filter(Boolean))];
+}
+
+function getBrowseOrderSql(sortBy: SearchSortBy) {
+  switch (sortBy) {
+    case 'document_date_asc':
+      return sql`d.document_date ASC NULLS LAST, d.updated_at DESC, d.name ASC`;
+    case 'updated_desc':
+      return sql`d.updated_at DESC, d.document_date DESC NULLS LAST, d.name ASC`;
+    case 'updated_asc':
+      return sql`d.updated_at ASC, d.document_date ASC NULLS LAST, d.name ASC`;
+    case 'name_asc':
+      return sql`d.name ASC, d.updated_at DESC`;
+    case 'name_desc':
+      return sql`d.name DESC, d.updated_at DESC`;
+    case 'document_date_desc':
+    default:
+      return sql`d.document_date DESC NULLS LAST, d.updated_at DESC, d.name ASC`;
+  }
+}
+
+function getSearchOrderSql(sortBy: SearchSortBy) {
+  switch (sortBy) {
+    case 'document_date_asc':
+      return sql`document_date ASC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+    case 'updated_desc':
+      return sql`updated_at DESC, document_date DESC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+    case 'updated_asc':
+      return sql`updated_at ASC, document_date ASC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+    case 'name_asc':
+      return sql`name ASC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
+    case 'name_desc':
+      return sql`name DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
+    case 'document_date_desc':
+    default:
+      return sql`document_date DESC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+  }
+}
+
+function createEmptyResponse({
+  query,
+  pageIndex,
+  pageSize,
+  vaultId,
+  tagIds,
+  dateFrom,
+  dateTo,
+  sortBy,
+}: {
+  query: string;
+  pageIndex: number;
+  pageSize: number;
+  vaultId?: string;
+  tagIds: string[];
+  dateFrom?: Date | null;
+  dateTo?: Date | null;
+  sortBy: SearchSortBy;
+}) {
+  return {
+    query,
+    pageIndex,
+    pageSize,
+    results: [],
+    resultsCount: 0,
+    filters: {
+      vaultId: vaultId ?? null,
+      tagId: tagIds[0] ?? null,
+      tagIds,
+      dateFrom: toIsoString(toSqlDateBoundary(dateFrom ?? null, 'start')),
+      dateTo: toIsoString(toSqlDateBoundary(dateTo ?? null, 'end')),
+      sortBy,
+    },
+  };
+}
+
 export function createDocumentSearchServices({ db }: { db: Database }): DocumentSearchServices {
   async function searchDocuments({
     vaultId,
@@ -59,8 +139,10 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
     pageIndex,
     pageSize,
     tagId,
+    tagIds,
     dateFrom,
     dateTo,
+    sortBy = 'document_date_desc',
   }: {
     vaultId?: string;
     vaultIds?: string[];
@@ -68,34 +150,138 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
     pageIndex: number;
     pageSize: number;
     tagId?: string;
+    tagIds?: string[];
     dateFrom?: Date | null;
     dateTo?: Date | null;
+    sortBy?: SearchSortBy;
   }) {
     const trimmedQuery = query.trim();
-    const effectiveVaultIds = vaultIds?.length > 0 ? vaultIds : vaultId ? [vaultId] : [];
-    const normalizedTagId = tagId?.trim() || null;
+    const effectiveVaultIds: string[] = vaultIds && vaultIds.length > 0 ? vaultIds : vaultId ? [vaultId] : [];
+    const normalizedTagIds = normalizeTagIds(tagId, tagIds);
     const normalizedDateFrom = toSqlDateBoundary(dateFrom ?? null, 'start');
     const normalizedDateTo = toSqlDateBoundary(dateTo ?? null, 'end');
-    const ilikePattern = `%${trimmedQuery}%`;
-    const vaultIdListSql = sql.join(effectiveVaultIds.map(id => sql`${id}`), sql`, `);
 
-    if (trimmedQuery.length === 0 || effectiveVaultIds.length === 0) {
+    if (effectiveVaultIds.length === 0) {
+      return createEmptyResponse({
+        query: trimmedQuery,
+        pageIndex,
+        pageSize,
+        vaultId,
+        tagIds: normalizedTagIds,
+        dateFrom,
+        dateTo,
+        sortBy,
+      });
+    }
+
+    const offset = pageIndex * pageSize;
+    const vaultIdListSql = sql.join(effectiveVaultIds.map(id => sql`${id}`), sql`, `);
+    const tagIdListSql =
+      normalizedTagIds.length > 0
+        ? sql.join(normalizedTagIds.map(id => sql`${id}`), sql`, `)
+        : null;
+    const tagFilterSql =
+      normalizedTagIds.length > 0
+        ? sql`EXISTS (
+            SELECT 1
+            FROM document_tags AS dt
+            WHERE dt.document_id = d.id
+              AND dt.tag_id IN (${tagIdListSql})
+          )`
+        : sql`TRUE`;
+
+    if (trimmedQuery.length === 0) {
+      const countResult = await db.execute<CountRow>(sql`
+        SELECT count(*)::int AS results_count
+        FROM documents AS d
+        WHERE d.vault_id IN (${vaultIdListSql})
+          AND d.is_deleted = false
+          AND ${tagFilterSql}
+          AND (${normalizedDateFrom}::timestamptz IS NULL OR d.document_date >= ${normalizedDateFrom})
+          AND (${normalizedDateTo}::timestamptz IS NULL OR d.document_date <= ${normalizedDateTo})
+      `);
+
+      const resultsCount = countResult.rows[0]?.results_count ?? 0;
+
+      if (resultsCount === 0) {
+        return createEmptyResponse({
+          query: trimmedQuery,
+          pageIndex,
+          pageSize,
+          vaultId,
+          tagIds: normalizedTagIds,
+          dateFrom,
+          dateTo,
+          sortBy,
+        });
+      }
+
+      const browseResult = await db.execute<SearchRow>(sql`
+        SELECT
+          d.vault_id,
+          v.name AS vault_name,
+          d.id AS document_id,
+          d.name,
+          d.original_name,
+          d.original_size,
+          d.mime_type,
+          d.document_date,
+          d.created_at,
+          d.updated_at,
+          0::int AS matched_chunks_count,
+          NULL::int AS chunk_index,
+          NULL::text AS chunk_type,
+          NULL::int AS page_number,
+          NULL::text AS chunk_content,
+          NULL::text AS snippet,
+          NULL::float8 AS score,
+          NULL::boolean AS fulltext_match,
+          NULL::int AS substring_position
+        FROM documents AS d
+        INNER JOIN vaults AS v ON v.id = d.vault_id
+        WHERE d.vault_id IN (${vaultIdListSql})
+          AND d.is_deleted = false
+          AND ${tagFilterSql}
+          AND (${normalizedDateFrom}::timestamptz IS NULL OR d.document_date >= ${normalizedDateFrom})
+          AND (${normalizedDateTo}::timestamptz IS NULL OR d.document_date <= ${normalizedDateTo})
+        ORDER BY ${getBrowseOrderSql(sortBy)}
+        LIMIT ${pageSize}
+        OFFSET ${offset}
+      `);
+
+      const results: SearchResultItem[] = browseResult.rows.map(row => ({
+        vaultId: row.vault_id,
+        vaultName: row.vault_name,
+        documentId: row.document_id,
+        name: row.name,
+        originalName: row.original_name,
+        originalSize: row.original_size,
+        mimeType: row.mime_type,
+        documentDate: toIsoString(row.document_date),
+        createdAt: toIsoString(row.created_at)!,
+        updatedAt: toIsoString(row.updated_at)!,
+        matchedChunksCount: 0,
+        bestChunk: null,
+      }));
+
       return {
         query: trimmedQuery,
         pageIndex,
         pageSize,
-        results: [],
-        resultsCount: 0,
+        results,
+        resultsCount,
         filters: {
           vaultId: vaultId ?? null,
-          tagId: normalizedTagId,
+          tagId: normalizedTagIds[0] ?? null,
+          tagIds: normalizedTagIds,
           dateFrom: toIsoString(normalizedDateFrom),
           dateTo: toIsoString(normalizedDateTo),
+          sortBy,
         },
       };
     }
 
-    const offset = pageIndex * pageSize;
+    const ilikePattern = `%${trimmedQuery}%`;
     const headlineOptions =
       'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20, MinWords=5';
 
@@ -111,12 +297,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         WHERE dc.vault_id IN (${vaultIdListSql})
           AND d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
-          AND (${normalizedTagId}::text IS NULL OR EXISTS (
-            SELECT 1
-            FROM document_tags AS dt
-            WHERE dt.document_id = d.id
-              AND dt.tag_id = ${normalizedTagId}
-          ))
+          AND ${tagFilterSql}
           AND (${normalizedDateFrom}::timestamptz IS NULL OR d.document_date >= ${normalizedDateFrom})
           AND (${normalizedDateTo}::timestamptz IS NULL OR d.document_date <= ${normalizedDateTo})
           AND (
@@ -131,19 +312,16 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
     const resultsCount = countResult.rows[0]?.results_count ?? 0;
 
     if (resultsCount === 0) {
-      return {
+      return createEmptyResponse({
         query: trimmedQuery,
         pageIndex,
         pageSize,
-        results: [],
-        resultsCount: 0,
-        filters: {
-          vaultId: vaultId ?? null,
-          tagId: normalizedTagId,
-          dateFrom: toIsoString(normalizedDateFrom),
-          dateTo: toIsoString(normalizedDateTo),
-        },
-      };
+        vaultId,
+        tagIds: normalizedTagIds,
+        dateFrom,
+        dateTo,
+        sortBy,
+      });
     }
 
     const searchResult = await db.execute<SearchRow>(sql`
@@ -214,6 +392,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
           d.id AS document_id,
           d.name,
           d.original_name,
+          d.original_size,
           d.mime_type,
           d.document_date,
           d.created_at,
@@ -236,12 +415,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         INNER JOIN vaults AS v ON v.id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
-          AND (${normalizedTagId}::text IS NULL OR EXISTS (
-            SELECT 1
-            FROM document_tags AS dt
-            WHERE dt.document_id = d.id
-              AND dt.tag_id = ${normalizedTagId}
-          ))
+          AND ${tagFilterSql}
           AND (${normalizedDateFrom}::timestamptz IS NULL OR d.document_date >= ${normalizedDateFrom})
           AND (${normalizedDateTo}::timestamptz IS NULL OR d.document_date <= ${normalizedDateTo})
       )
@@ -251,6 +425,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         document_id,
         name,
         original_name,
+        original_size,
         mime_type,
         document_date,
         created_at,
@@ -266,7 +441,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         substring_position
       FROM ranked_results
       WHERE rank_in_document = 1
-      ORDER BY fulltext_match DESC, score DESC, substring_position ASC NULLS LAST, updated_at DESC
+      ORDER BY ${getSearchOrderSql(sortBy)}
       LIMIT ${pageSize}
       OFFSET ${offset}
     `);
@@ -277,19 +452,23 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
       documentId: row.document_id,
       name: row.name,
       originalName: row.original_name,
+      originalSize: row.original_size,
       mimeType: row.mime_type,
       documentDate: toIsoString(row.document_date),
       createdAt: toIsoString(row.created_at)!,
       updatedAt: toIsoString(row.updated_at)!,
       matchedChunksCount: row.matched_chunks_count,
-      bestChunk: {
-        chunkIndex: row.chunk_index,
-        chunkType: row.chunk_type,
-        pageNumber: row.page_number,
-        content: row.chunk_content,
-        snippet: row.snippet,
-        score: row.score,
-      },
+      bestChunk:
+        row.chunk_index === null || row.chunk_content === null || row.snippet === null || row.score === null
+          ? null
+          : {
+              chunkIndex: row.chunk_index,
+              chunkType: row.chunk_type,
+              pageNumber: row.page_number,
+              content: row.chunk_content,
+              snippet: row.snippet,
+              score: row.score,
+            },
     }));
 
     return {
@@ -300,9 +479,11 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
       resultsCount,
       filters: {
         vaultId: vaultId ?? null,
-        tagId: normalizedTagId,
+        tagId: normalizedTagIds[0] ?? null,
+        tagIds: normalizedTagIds,
         dateFrom: toIsoString(normalizedDateFrom),
         dateTo: toIsoString(normalizedDateTo),
+        sortBy,
       },
     };
   }

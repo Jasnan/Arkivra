@@ -1,6 +1,7 @@
 export type Tag = {
   id: string;
   vaultId: string;
+  vaultName?: string;
   name: string;
   color: string | null;
   documentsCount?: number;
@@ -14,6 +15,7 @@ export type AssignTagResult =
 
 export type TagsServices = {
   listTags: (args: { vaultId: string }) => Promise<Tag[]>;
+  listAccessibleTags: (args: { vaultIds: string[] }) => Promise<Tag[]>;
   createTag: (args: { vaultId: string; name: string; color: string | null }) => Promise<Tag | null>;
   updateTag: (args: {
     tagId: string;

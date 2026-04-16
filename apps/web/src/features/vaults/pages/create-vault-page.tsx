@@ -5,14 +5,17 @@ import { ArrowRight, ShieldCheck, Vault } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
 import { vaultQueryKeys } from '@/features/vaults/vaults.queries';
 
 export function CreateVaultPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const meQuery = useMeQuery();
   const [name, setName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const canCreateVault = meQuery.data?.canCreateVault === true;
 
   const createMutation = useMutation({
     mutationFn: createVault,
@@ -29,6 +32,11 @@ export function CreateVaultPage() {
     event.preventDefault();
     setErrorMessage(null);
 
+    if (!canCreateVault) {
+      setErrorMessage('A global admin must grant vault creation before this account can create a workspace.');
+      return;
+    }
+
     const normalizedName = name.trim();
     if (!normalizedName) {
       setErrorMessage('Vault name is required.');
@@ -43,7 +51,7 @@ export function CreateVaultPage() {
       <PageIntro
         eyebrow="Vault Creation"
         title="Create vault"
-        description="Start a new secure workspace, become its owner, and prepare it for documents, members, and search."
+        description="Start a new secure workspace once a global admin has granted this account permission to create vaults."
         actions={<Link to="/vaults" className="vault-link">Back to vaults</Link>}
       />
 
@@ -74,6 +82,11 @@ export function CreateVaultPage() {
               <Button type="submit" disabled={createMutation.isPending}>
                 {createMutation.isPending ? 'Creating...' : 'Create vault'}
               </Button>
+              {!canCreateVault ? (
+                <p className="text-sm text-muted-foreground">
+                  Vault creation is currently disabled for this account.
+                </p>
+              ) : null}
               <Link to="/vaults" className="vault-link">Cancel</Link>
             </div>
           </form>
@@ -91,7 +104,7 @@ export function CreateVaultPage() {
           <div className="space-y-3 text-sm leading-6 text-primary-foreground/80">
             <p className="inline-flex items-center gap-3">
               <ShieldCheck className="size-4" />
-              You become the initial vault owner.
+              Accounts with vault creation permission become the initial owner.
             </p>
             <p className="inline-flex items-center gap-3">
               <ArrowRight className="size-4" />

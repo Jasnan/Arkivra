@@ -16,6 +16,7 @@ export interface AdminUser {
   updatedAt: string;
   globalRoles: string[];
   isGlobalAdmin: boolean;
+  canCreateVault: boolean;
 }
 
 export interface AdminVault {

@@ -8,7 +8,7 @@ export const userGlobalRolesTable = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => usersTable.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: ['global_admin'] }).notNull(),
+    role: text('role', { enum: ['global_admin', 'vault_creator'] }).notNull(),
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [

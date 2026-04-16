@@ -31,6 +31,18 @@ export async function revokeGlobalAdmin({ userId }: { userId: string }) {
   });
 }
 
+export async function grantVaultCreator({ userId }: { userId: string }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/vault-creator`, {
+    method: 'POST',
+  });
+}
+
+export async function revokeVaultCreator({ userId }: { userId: string }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/vault-creator`, {
+    method: 'DELETE',
+  });
+}
+
 export async function listAdminVaults() {
   return fetchJson<{ vaults: AdminVault[] }>('/api/admin/vaults');
 }

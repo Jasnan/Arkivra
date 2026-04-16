@@ -65,6 +65,7 @@ describe('settings, admin, and about pages', () => {
           userId: 'usr_1',
           sessionId: 'ses_1',
           isGlobalAdmin: true,
+          canCreateVault: true,
         });
       }
 
@@ -103,6 +104,40 @@ describe('settings, admin, and about pages', () => {
     });
   });
 
+  it('allows a regular user to access account settings without admin access', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<SettingsPage />);
+
+    expect(await screen.findByRole('heading', { name: /account settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /open admin panel/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/does not have global admin access/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/current password/i), 'old-secret');
+    await user.type(screen.getByLabelText(/new password/i), 'new-secret');
+    await user.click(screen.getByRole('button', { name: /change password/i }));
+
+    expect(authClientMock.changePassword).toHaveBeenCalledWith({
+      currentPassword: 'old-secret',
+      newPassword: 'new-secret',
+    });
+  });
+
   it('loads admin data and triggers backup and user actions', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -113,6 +148,7 @@ describe('settings, admin, and about pages', () => {
           userId: 'usr_admin',
           sessionId: 'ses_admin',
           isGlobalAdmin: true,
+          canCreateVault: true,
         });
       }
 
@@ -151,6 +187,7 @@ describe('settings, admin, and about pages', () => {
               updatedAt: '2026-04-10T00:00:00.000Z',
               globalRoles: [],
               isGlobalAdmin: false,
+              canCreateVault: false,
             },
           ],
         });
@@ -169,6 +206,7 @@ describe('settings, admin, and about pages', () => {
             updatedAt: '2026-04-14T19:00:00.000Z',
             globalRoles: [],
             isGlobalAdmin: false,
+            canCreateVault: false,
           },
         });
       }
@@ -186,6 +224,7 @@ describe('settings, admin, and about pages', () => {
             updatedAt: '2026-04-14T19:00:00.000Z',
             globalRoles: ['global_admin'],
             isGlobalAdmin: true,
+            canCreateVault: true,
           },
         });
       }

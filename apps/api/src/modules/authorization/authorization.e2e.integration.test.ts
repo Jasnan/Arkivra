@@ -141,11 +141,13 @@ describe.sequential('authorization e2e', () => {
     const firstAdminMeBody = (await firstAdminMeResponse.json()) as {
       userId: string;
       isGlobalAdmin: boolean;
+      canCreateVault: boolean;
     };
     expect(firstAdminMeBody.userId).toBe(firstAdmin.userId);
 
     if (globalAdminRowsBeforeMe.length === 0 && oldestUser?.id === firstAdmin.userId) {
       expect(firstAdminMeBody.isGlobalAdmin).toBe(true);
+      expect(firstAdminMeBody.canCreateVault).toBe(true);
     } else if (db !== null) {
       await db
         .insert(userGlobalRolesTable)
@@ -160,6 +162,7 @@ describe.sequential('authorization e2e', () => {
     expect(await ownerMeResponse.json()).toMatchObject({
       userId: owner.userId,
       isGlobalAdmin: false,
+      canCreateVault: false,
     });
 
     const ownerAdminUsersResponse = await app.request('/api/admin/users', {
@@ -180,8 +183,24 @@ describe.sequential('authorization e2e', () => {
       },
       body: JSON.stringify({ name: 'Owner Vault' }),
     });
-    expect(createVaultResponse.status).toBe(201);
-    const createVaultBody = (await createVaultResponse.json()) as { vault: { id: string } };
+    expect(createVaultResponse.status).toBe(403);
+    if (db !== null) {
+      await db
+        .insert(userGlobalRolesTable)
+        .values({ userId: owner.userId, role: 'vault_creator' })
+        .onConflictDoNothing();
+    }
+
+    const grantedCreateVaultResponse = await app.request('/api/vaults', {
+      method: 'POST',
+      headers: {
+        cookie: owner.cookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'Owner Vault' }),
+    });
+    expect(grantedCreateVaultResponse.status).toBe(201);
+    const createVaultBody = (await grantedCreateVaultResponse.json()) as { vault: { id: string } };
     vaultId = createVaultBody.vault.id;
 
     const adminVaultsResponse = await app.request('/api/admin/vaults', {

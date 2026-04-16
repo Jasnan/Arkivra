@@ -6,8 +6,10 @@ import {
   createBackup,
   getBackupDownloadUrl,
   grantGlobalAdmin,
+  grantVaultCreator,
   restoreBackup,
   revokeGlobalAdmin,
+  revokeVaultCreator,
   updateAdminUser,
 } from '@/features/admin/admin.api';
 import { adminQueryKeys, useAdminBackupsQuery, useAdminUsersQuery, useAdminVaultsQuery } from '@/features/admin/admin.queries';
@@ -49,6 +51,20 @@ export function AdminPage() {
 
   const revokeAdminMutation = useMutation({
     mutationFn: revokeGlobalAdmin,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
+    },
+  });
+
+  const grantVaultCreatorMutation = useMutation({
+    mutationFn: grantVaultCreator,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
+    },
+  });
+
+  const revokeVaultCreatorMutation = useMutation({
+    mutationFn: revokeVaultCreator,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
     },
@@ -190,7 +206,7 @@ export function AdminPage() {
                     <div>
                       <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{user.name ?? 'Unnamed user'}</h3>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        {user.email} • {user.isGlobalAdmin ? 'global admin' : 'user'} • {user.disabledAt ? 'disabled' : 'active'}
+                        {user.email} • {user.isGlobalAdmin ? 'global admin' : user.canCreateVault ? 'vault creator' : 'user'} • {user.disabledAt ? 'disabled' : 'active'}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         2FA {user.twoFactorEnabled ? 'enabled' : 'not enabled'} • created {formatDate(user.createdAt)}
@@ -224,6 +240,26 @@ export function AdminPage() {
                           Grant admin
                         </Button>
                       )}
+                      {user.canCreateVault && !user.isGlobalAdmin ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={revokeVaultCreatorMutation.isPending}
+                          onClick={() => revokeVaultCreatorMutation.mutate({ userId: user.id })}
+                        >
+                          Revoke vault creation
+                        </Button>
+                      ) : null}
+                      {!user.canCreateVault ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={grantVaultCreatorMutation.isPending}
+                          onClick={() => grantVaultCreatorMutation.mutate({ userId: user.id })}
+                        >
+                          Grant vault creation
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </article>
@@ -243,6 +279,16 @@ export function AdminPage() {
             {revokeAdminMutation.isError ? (
               <StatusBanner tone="danger">
                 {revokeAdminMutation.error instanceof Error ? revokeAdminMutation.error.message : 'Could not revoke admin.'}
+              </StatusBanner>
+            ) : null}
+            {grantVaultCreatorMutation.isError ? (
+              <StatusBanner tone="danger">
+                {grantVaultCreatorMutation.error instanceof Error ? grantVaultCreatorMutation.error.message : 'Could not grant vault creation.'}
+              </StatusBanner>
+            ) : null}
+            {revokeVaultCreatorMutation.isError ? (
+              <StatusBanner tone="danger">
+                {revokeVaultCreatorMutation.error instanceof Error ? revokeVaultCreatorMutation.error.message : 'Could not revoke vault creation.'}
               </StatusBanner>
             ) : null}
           </SurfacePanel>

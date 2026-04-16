@@ -83,6 +83,7 @@ export function registerVaultRoutes({
 
   app.post('/api/vaults', async (context) => {
     const userId = context.get('userId');
+    const canCreateVault = context.get('canCreateVault');
 
     if (userId === null) {
       return context.json(
@@ -93,6 +94,18 @@ export function registerVaultRoutes({
           },
         },
         401,
+      );
+    }
+
+    if (!canCreateVault) {
+      return context.json(
+        {
+          error: {
+            code: 'authorization.vault_creator_required',
+            message: 'Vault creation permission required',
+          },
+        },
+        403,
       );
     }
 

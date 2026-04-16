@@ -1,4 +1,4 @@
-export const GLOBAL_ROLES = ['global_admin'] as const;
+export const GLOBAL_ROLES = ['global_admin', 'vault_creator'] as const;
 export type GlobalRole = (typeof GLOBAL_ROLES)[number];
 
 export const VAULT_MEMBER_PERMISSIONS = [

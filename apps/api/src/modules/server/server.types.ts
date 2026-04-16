@@ -13,6 +13,7 @@ export type ServerContext = {
     session: Session | null;
     userDisabled: boolean;
     isGlobalAdmin: boolean;
+    canCreateVault: boolean;
     vaultId: string | null;
     vaultRole: VaultRole | null;
     vaultPermissions: VaultMemberPermission[];

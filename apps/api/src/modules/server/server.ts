@@ -70,6 +70,7 @@ export function createServer({
     context.set('session', null);
     context.set('userDisabled', false);
     context.set('isGlobalAdmin', false);
+    context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
     context.set('vaultPermissions', []);
@@ -146,6 +147,7 @@ export function createServer({
       userId: c.get('userId'),
       sessionId: session.id,
       isGlobalAdmin: c.get('isGlobalAdmin'),
+      canCreateVault: c.get('canCreateVault'),
     });
   });
 

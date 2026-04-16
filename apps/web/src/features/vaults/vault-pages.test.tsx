@@ -20,7 +20,18 @@ describe('vault pages', () => {
 
   it('renders vault links for documents and settings', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      expect(String(input)).toContain('/api/vaults');
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: true,
+        });
+      }
+
+      expect(url).toContain('/api/vaults');
       return jsonResponse({
         vaults: [
           { id: 'vlt_1', name: 'Personal', role: 'owner' },
@@ -37,15 +48,28 @@ describe('vault pages', () => {
 
   it('validates and submits vault creation', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async () => jsonResponse({
-      vault: { id: 'vlt_new', name: 'Home Vault', role: 'owner', permissions: [], isGlobalAdmin: false },
-    }, 201));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: true,
+        });
+      }
+
+      return jsonResponse({
+        vault: { id: 'vlt_new', name: 'Home Vault', role: 'owner', permissions: [], isGlobalAdmin: false },
+      }, 201);
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     renderWithProviders(<CreateVaultPage />);
 
     await user.click(screen.getByRole('button', { name: /create vault/i }));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.anything());
 
     await user.type(screen.getByLabelText(/vault name/i), 'Home Vault');
     await user.click(screen.getByRole('button', { name: /create vault/i }));
@@ -56,6 +80,33 @@ describe('vault pages', () => {
         method: 'POST',
       }));
     });
+  });
+
+  it('blocks create vault submission for users without vault creation permission', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<CreateVaultPage />);
+
+    await user.type(screen.getByLabelText(/vault name/i), 'Blocked Vault');
+    await user.click(screen.getByRole('button', { name: /create vault/i }));
+
+    expect(await screen.findByText(/must grant vault creation/i)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.anything());
   });
 
   it('loads vault settings and invites a member', async () => {
@@ -99,6 +150,15 @@ describe('vault pages', () => {
             permissions: ['documents.read'],
           },
         }, 201);
+      }
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_owner',
+          sessionId: 'ses_owner',
+          isGlobalAdmin: false,
+          canCreateVault: true,
+        });
       }
 
       throw new Error(`Unhandled request ${url}`);

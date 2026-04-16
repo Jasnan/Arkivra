@@ -33,6 +33,7 @@ export function registerAuthRoutes({
         context.set('userId', user.id);
         context.set('session', session);
         context.set('isGlobalAdmin', authorizationState?.isGlobalAdmin ?? false);
+        context.set('canCreateVault', authorizationState?.canCreateVault ?? false);
       }
     }
 

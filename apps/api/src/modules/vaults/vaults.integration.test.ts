@@ -31,7 +31,13 @@ function createMockVaultsServices() {
   return services as unknown as VaultsServices;
 }
 
-function createTestApp({ services }: { services: VaultsServices }) {
+function createTestApp({
+  services,
+  canCreateVault = true,
+}: {
+  services: VaultsServices;
+  canCreateVault?: boolean;
+}) {
   const app = new Hono<ServerContext>();
 
   app.use('*', async (context, next) => {
@@ -39,6 +45,7 @@ function createTestApp({ services }: { services: VaultsServices }) {
     context.set('session', null);
     context.set('userDisabled', false);
     context.set('isGlobalAdmin', false);
+    context.set('canCreateVault', canCreateVault);
     context.set('vaultId', null);
     context.set('vaultRole', null);
     context.set('vaultPermissions', []);
@@ -126,6 +133,23 @@ describe('vaults integration', () => {
       userId: 'usr_1',
       name: 'Finance',
     });
+  });
+
+  test('forbids vault creation when user lacks vault creation permission', async () => {
+    const services = createMockVaultsServices();
+    const app = createTestApp({ services, canCreateVault: false });
+
+    const response = await app.request('/api/vaults', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({ name: 'Finance' }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(services.createVault).not.toHaveBeenCalled();
   });
 
   test('forbids vault detail access when user is not a member', async () => {

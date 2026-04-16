@@ -92,6 +92,25 @@ export function registerAdminUserRoutes({
     return context.json({ user });
   });
 
+  app.post('/api/admin/users/:userId/vault-creator', async (context) => {
+    const userId = context.req.param('userId');
+    const user = await authorizationServices.grantVaultCreator({ userId });
+
+    if (user === null) {
+      return context.json(
+        {
+          error: {
+            code: 'admin.user_not_found',
+            message: 'User not found',
+          },
+        },
+        404,
+      );
+    }
+
+    return context.json({ user });
+  });
+
   app.delete('/api/admin/users/:userId/global-admin', async (context) => {
     const userId = context.req.param('userId');
 
@@ -126,5 +145,24 @@ export function registerAdminUserRoutes({
 
       throw error;
     }
+  });
+
+  app.delete('/api/admin/users/:userId/vault-creator', async (context) => {
+    const userId = context.req.param('userId');
+    const user = await authorizationServices.revokeVaultCreator({ userId });
+
+    if (user === null) {
+      return context.json(
+        {
+          error: {
+            code: 'admin.user_not_found',
+            message: 'User not found',
+          },
+        },
+        404,
+      );
+    }
+
+    return context.json({ user });
   });
 }

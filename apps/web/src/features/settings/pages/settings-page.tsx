@@ -12,6 +12,7 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: sessionData, isPending: sessionPending } = authClient.useSession();
   const meQuery = useMeQuery();
+  const isGlobalAdmin = meQuery.data?.isGlobalAdmin === true;
 
   const [profileName, setProfileName] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
@@ -117,7 +118,7 @@ export function SettingsPage() {
         eyebrow="Identity & Access"
         title="Account settings"
         description="Manage your profile, email, password, and session security without leaving the vault workspace."
-        actions={meQuery.data?.isGlobalAdmin ? <Link to="/admin" className="vault-link">Open admin panel</Link> : undefined}
+        actions={isGlobalAdmin ? <Link to="/admin" className="vault-link">Open admin panel</Link> : undefined}
       />
 
       {(statusMessage || errorMessage) ? (
@@ -282,9 +283,9 @@ export function SettingsPage() {
             </div>
 
             <p className="text-sm leading-6 text-primary-foreground/80">
-              {meQuery.data?.isGlobalAdmin
+              {isGlobalAdmin
                 ? 'This account has global admin access for the Arkivra installation.'
-                : 'This account does not have global admin access.'}
+                : 'This account does not have global admin access, but it can still manage its own profile, email, and password here.'}
             </p>
 
             <Button

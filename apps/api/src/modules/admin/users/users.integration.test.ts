@@ -13,6 +13,13 @@ function createMockAuthorizationServices() {
       id: userId,
       globalRoles: ['global_admin'],
       isGlobalAdmin: true,
+      canCreateVault: true,
+    })),
+    grantVaultCreator: vi.fn(async ({ userId }) => ({
+      id: userId,
+      globalRoles: ['vault_creator'],
+      isGlobalAdmin: false,
+      canCreateVault: true,
     })),
     listGlobalRolesForUser: vi.fn(async () => []),
     listUsers: vi.fn(async () => [
@@ -27,18 +34,27 @@ function createMockAuthorizationServices() {
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
         globalRoles: ['global_admin'],
         isGlobalAdmin: true,
+        canCreateVault: true,
       },
     ]),
     revokeGlobalAdmin: vi.fn(async ({ userId }) => ({
       id: userId,
       globalRoles: [],
       isGlobalAdmin: false,
+      canCreateVault: false,
+    })),
+    revokeVaultCreator: vi.fn(async ({ userId }) => ({
+      id: userId,
+      globalRoles: [],
+      isGlobalAdmin: false,
+      canCreateVault: false,
     })),
     setUserDisabled: vi.fn(async ({ userId, disabled }) => ({
       id: userId,
       disabledAt: disabled ? new Date('2025-01-02T00:00:00.000Z') : null,
       globalRoles: [],
       isGlobalAdmin: false,
+      canCreateVault: false,
     })),
   };
 }
@@ -71,6 +87,7 @@ function createTestApp({
     );
     context.set('userDisabled', false);
     context.set('isGlobalAdmin', isGlobalAdmin);
+    context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
     context.set('vaultPermissions', []);
@@ -147,5 +164,21 @@ describe('admin users routes integration', () => {
     });
     expect(revokeResponse.status).toBe(200);
     expect(authorizationServices.revokeGlobalAdmin).toHaveBeenCalledWith({ userId: 'usr_2' });
+  });
+
+  test('grants and revokes vault creator role', async () => {
+    const { app, authorizationServices } = createTestApp({});
+
+    const grantResponse = await app.request('/api/admin/users/usr_2/vault-creator', {
+      method: 'POST',
+    });
+    expect(grantResponse.status).toBe(200);
+    expect(authorizationServices.grantVaultCreator).toHaveBeenCalledWith({ userId: 'usr_2' });
+
+    const revokeResponse = await app.request('/api/admin/users/usr_2/vault-creator', {
+      method: 'DELETE',
+    });
+    expect(revokeResponse.status).toBe(200);
+    expect(authorizationServices.revokeVaultCreator).toHaveBeenCalledWith({ userId: 'usr_2' });
   });
 });

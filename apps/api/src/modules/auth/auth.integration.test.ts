@@ -47,6 +47,7 @@ const mockAuthorizationServices = {
     disabledAt: null,
     globalRoles: [],
     isGlobalAdmin: false,
+    canCreateVault: false,
   })),
   getUserWithRoles: vi.fn(),
   grantGlobalAdmin: vi.fn(),
@@ -170,6 +171,7 @@ describe('auth integration', () => {
       userId: 'usr_test_1',
       sessionId: 'ses_test_1',
       isGlobalAdmin: false,
+      canCreateVault: false,
     });
   });
 });

@@ -35,7 +35,9 @@ export function AppShell({ children }: PropsWithChildren) {
   const { data: sessionData } = authClient.useSession();
   const [searchValue, setSearchValue] = useState('');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const quickSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const deferredSearchValue = useDeferredValue(searchValue.trim());
 
   useEffect(() => {
@@ -43,6 +45,10 @@ export function AppShell({ children }: PropsWithChildren) {
       setSearchValue('');
     }
   }, [isQuickSearchOpen, location.pathname]);
+
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!isQuickSearchOpen) {
@@ -66,6 +72,34 @@ export function AppShell({ children }: PropsWithChildren) {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isQuickSearchOpen]);
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (profileMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsProfileMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isProfileMenuOpen]);
 
   const navItems = useMemo(() => {
     const baseItems = [
@@ -104,10 +138,12 @@ export function AppShell({ children }: PropsWithChildren) {
               <p className="mt-1 text-sm text-muted-foreground">Secure document management</p>
             </div>
 
-            <Button size="lg" className="w-full justify-start" onClick={() => navigate('/vaults/new')}>
-              <Plus className="size-4" />
-              Create Vault
-            </Button>
+            {meQuery.data?.canCreateVault ? (
+              <Button size="lg" className="w-full justify-start" onClick={() => navigate('/vaults/new')}>
+                <Plus className="size-4" />
+                Create Vault
+              </Button>
+            ) : null}
 
             <nav className="space-y-2">
               {navItems.map(item => {
@@ -152,45 +188,60 @@ export function AppShell({ children }: PropsWithChildren) {
 
                 <ThemeToggle />
 
-                <details className="group relative self-end sm:self-auto">
-                  <summary className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-card text-muted-foreground list-none transition hover:text-foreground">
+                <div ref={profileMenuRef} className="relative self-end sm:self-auto">
+                  <button
+                    type="button"
+                    aria-label="Open account menu"
+                    aria-expanded={isProfileMenuOpen}
+                    aria-haspopup="menu"
+                    className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-card text-muted-foreground transition hover:text-foreground"
+                    onClick={() => setIsProfileMenuOpen(open => !open)}
+                  >
                     <UserCircle2 className="size-5" />
-                  </summary>
-                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-border/70 bg-card p-2 shadow-[0_18px_38px_rgba(19,27,46,0.12)]">
-                    <div className="px-3 py-2 text-sm">
-                      <p className="font-medium text-foreground">{sessionData?.user.email ?? 'Signed in'}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {meQuery.data?.isGlobalAdmin ? 'Admin' : 'Vault member'}
-                      </p>
-                    </div>
-                    <NavLink
-                      to="/settings"
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+                  </button>
+                  {isProfileMenuOpen ? (
+                    <div
+                      role="menu"
+                      className="absolute right-0 mt-2 w-56 rounded-xl border border-border/70 bg-card p-2 shadow-[0_18px_38px_rgba(19,27,46,0.12)]"
                     >
-                      <Settings className="size-4" />
-                      Account settings
-                    </NavLink>
-                    {meQuery.data?.isGlobalAdmin ? (
+                      <div className="px-3 py-2 text-sm">
+                        <p className="font-medium text-foreground">{sessionData?.user.email ?? 'Signed in'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {meQuery.data?.isGlobalAdmin ? 'Admin' : 'Vault member'}
+                        </p>
+                      </div>
                       <NavLink
-                        to="/admin"
+                        to="/settings"
                         className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+                        onClick={() => setIsProfileMenuOpen(false)}
                       >
-                        <ShieldCheck className="size-4" />
-                        Admin
+                        <Settings className="size-4" />
+                        Account settings
                       </NavLink>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
-                      onClick={async () => {
-                        await authClient.signOut();
-                      }}
-                    >
-                      <LogOut className="size-4" />
-                      Sign out
-                    </button>
-                  </div>
-                </details>
+                      {meQuery.data?.isGlobalAdmin ? (
+                        <NavLink
+                          to="/admin"
+                          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        >
+                          <ShieldCheck className="size-4" />
+                          Admin
+                        </NavLink>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+                        onClick={async () => {
+                          setIsProfileMenuOpen(false);
+                          await authClient.signOut();
+                        }}
+                      >
+                        <LogOut className="size-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               <nav className="flex gap-2 overflow-x-auto lg:hidden">

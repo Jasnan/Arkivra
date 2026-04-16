@@ -63,6 +63,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       disabledAt: user.disabledAt,
       globalRoles,
       isGlobalAdmin: globalRoles.includes('global_admin'),
+      canCreateVault: globalRoles.includes('global_admin') || globalRoles.includes('vault_creator'),
     };
   }
 
@@ -119,6 +120,9 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       ...user,
       globalRoles: rolesByUserId.get(user.id) ?? [],
       isGlobalAdmin: (rolesByUserId.get(user.id) ?? []).includes('global_admin'),
+      canCreateVault:
+        (rolesByUserId.get(user.id) ?? []).includes('global_admin')
+        || (rolesByUserId.get(user.id) ?? []).includes('vault_creator'),
     }));
   }
 
@@ -192,15 +196,48 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return getUserWithRoles({ userId });
   }
 
+  async function grantVaultCreator({ userId }: { userId: string }) {
+    const user = await getUserWithRoles({ userId });
+
+    if (user === null) {
+      return null;
+    }
+
+    await db
+      .insert(userGlobalRolesTable)
+      .values({ userId, role: 'vault_creator' })
+      .onConflictDoNothing();
+
+    return getUserWithRoles({ userId });
+  }
+
+  async function revokeVaultCreator({ userId }: { userId: string }) {
+    const user = await getUserWithRoles({ userId });
+
+    if (user === null) {
+      return null;
+    }
+
+    await db
+      .delete(userGlobalRolesTable)
+      .where(
+        and(eq(userGlobalRolesTable.userId, userId), eq(userGlobalRolesTable.role, 'vault_creator')),
+      );
+
+    return getUserWithRoles({ userId });
+  }
+
   return {
     countActiveGlobalAdmins,
     ensureBootstrapGlobalAdmin,
     getUserAuthorizationState,
     getUserWithRoles,
     grantGlobalAdmin,
+    grantVaultCreator,
     listGlobalRolesForUser,
     listUsers,
     revokeGlobalAdmin,
+    revokeVaultCreator,
     setUserDisabled,
   };
 }

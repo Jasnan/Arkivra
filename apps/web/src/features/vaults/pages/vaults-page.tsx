@@ -3,10 +3,12 @@ import { ArrowRight, FolderKanban, ShieldCheck, Vault } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageIntro, SectionTitle, StatCard, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { useMeQuery } from '@/features/me/me.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 export function VaultsPage() {
   const navigate = useNavigate();
+  const meQuery = useMeQuery();
   const vaultsQuery = useVaultsQuery();
   const vaults = vaultsQuery.data?.vaults ?? [];
   const [selectedVaultId, setSelectedVaultId] = useState('');
@@ -23,7 +25,7 @@ export function VaultsPage() {
         eyebrow="Storage Infrastructure"
         title="Vault overview"
         description="Switch between secure workspaces, keep roles visible, and move quickly into the vault that needs attention."
-        actions={<Button onClick={() => navigate('/vaults/new')}>Create vault</Button>}
+        actions={meQuery.data?.canCreateVault ? <Button onClick={() => navigate('/vaults/new')}>Create vault</Button> : undefined}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -56,7 +58,9 @@ export function VaultsPage() {
 
           {!vaultsQuery.isLoading && vaults.length === 0 ? (
             <div className="vault-empty">
-              No vaults yet. Create your first vault to start storing documents.
+              {meQuery.data?.canCreateVault
+                ? 'No vaults yet. Create your first vault to start storing documents.'
+                : 'No vaults available yet. A global admin must grant vault creation before you can open a new workspace.'}
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">

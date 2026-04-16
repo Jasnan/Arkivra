@@ -4,17 +4,22 @@ import {
   CalendarRange,
   Check,
   ChevronDown,
-  FileText,
+  Download,
+  Ellipsis,
+  File,
+  Folder,
+  FolderOpen,
   Search as SearchIcon,
+  Settings2,
   SlidersHorizontal,
   Tags,
-  Vault,
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageIntro, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import { getDocumentDownloadUrl } from '@/features/documents/documents.api';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -154,11 +159,220 @@ function FilterTrigger({
   );
 }
 
-function DocumentIcon() {
+function OverflowMenu({
+  isOpen,
+  onToggle,
+  align = 'right',
+  side = 'bottom',
+  children,
+  label,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  align?: 'left' | 'right';
+  side?: 'top' | 'bottom';
+  children: ReactNode;
+  label: string;
+}) {
   return (
-    <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary ring-1 ring-border/60">
-      <FileText className="size-5" />
+    <div className="relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={label}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
+        onClick={onToggle}
+      >
+        <Ellipsis className="size-5" />
+      </Button>
+
+      {isOpen ? (
+        <div
+          role="menu"
+          className={`absolute z-30 w-56 rounded-[22px] border border-border/70 bg-card p-2 shadow-[0_28px_60px_rgba(16,29,76,0.14)] ${
+            side === 'bottom' ? 'top-[calc(100%+0.75rem)]' : 'bottom-[calc(100%+0.75rem)]'
+          } ${
+            align === 'right' ? 'right-0' : 'left-0'
+          }`}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function MenuLink({
+  to,
+  icon,
+  children,
+  onSelect,
+}: {
+  to: string;
+  icon: ReactNode;
+  children: ReactNode;
+  onSelect: () => void;
+}) {
+  return (
+    <Link
+      to={to}
+      role="menuitem"
+      className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+      onClick={onSelect}
+    >
+      <span className="text-primary">{icon}</span>
+      <span>{children}</span>
+    </Link>
+  );
+}
+
+function MenuAnchor({
+  href,
+  icon,
+  children,
+  onSelect,
+}: {
+  href: string;
+  icon: ReactNode;
+  children: ReactNode;
+  onSelect: () => void;
+}) {
+  return (
+    <a
+      href={href}
+      role="menuitem"
+      className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+      onClick={onSelect}
+    >
+      <span className="text-primary">{icon}</span>
+      <span>{children}</span>
+    </a>
+  );
+}
+
+function TagPill({
+  name,
+  color,
+}: {
+  name: string;
+  color: string | null;
+}) {
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-[0.01em]"
+      style={{
+        backgroundColor: color ? `${color}18` : undefined,
+        color: color ?? undefined,
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
+function getDocumentTypeLabel(document: SearchResultItem) {
+  const extension = document.name.split('.').pop()?.trim().toUpperCase();
+
+  if (extension && extension.length <= 5) {
+    return extension;
+  }
+
+  if (document.mimeType === 'application/pdf') {
+    return 'PDF';
+  }
+
+  if (document.mimeType.startsWith('image/')) {
+    return 'IMG';
+  }
+
+  if (document.mimeType.includes('spreadsheet') || document.mimeType.includes('excel') || document.mimeType.includes('csv')) {
+    return 'XLS';
+  }
+
+  if (document.mimeType.includes('word') || document.mimeType.includes('document')) {
+    return 'DOC';
+  }
+
+  if (document.mimeType.startsWith('text/')) {
+    return 'TXT';
+  }
+
+  return 'FILE';
+}
+
+function getDocumentTypeClasses(label: string) {
+  switch (label) {
+    case 'PDF':
+      return 'bg-rose-50 text-rose-700 ring-rose-200';
+    case 'TXT':
+      return 'bg-sky-50 text-sky-700 ring-sky-200';
+    case 'PNG':
+    case 'JPG':
+    case 'JPEG':
+    case 'WEBP':
+    case 'GIF':
+    case 'IMG':
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+    case 'DOC':
+    case 'DOCX':
+      return 'bg-indigo-50 text-indigo-700 ring-indigo-200';
+    case 'CSV':
+    case 'XLS':
+    case 'XLSX':
+      return 'bg-amber-50 text-amber-700 ring-amber-200';
+    default:
+      return 'bg-secondary text-primary ring-border/60';
+  }
+}
+
+function FileTypeIcon({ document }: { document: SearchResultItem }) {
+  const label = getDocumentTypeLabel(document);
+
+  return (
+    <div
+      className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${getDocumentTypeClasses(label)}`}
+      aria-hidden="true"
+    >
+      <div className="flex flex-col items-center leading-none">
+        <File className="mb-1 size-3.5" />
+        <span className="text-[0.62rem] font-extrabold tracking-[0.12em]">{label}</span>
+      </div>
+    </div>
+  );
+}
+
+function VaultIcon() {
+  return (
+    <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-primary ring-1 ring-border/60">
+      <Folder className="size-5" />
+    </div>
+  );
+}
+
+function VisibleTags({ document }: { document: SearchResultItem }) {
+  const tags = document.tags ?? [];
+
+  if (tags.length === 0) {
+    return <span className="text-sm text-muted-foreground">No tags</span>;
+  }
+
+  const visibleTags = tags.slice(0, 2);
+  const remainingCount = tags.length - visibleTags.length;
+
+  return (
+    <>
+      {visibleTags.map(tag => (
+        <TagPill key={tag.id} name={tag.name} color={tag.color} />
+      ))}
+      {remainingCount > 0 ? (
+        <span className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
+          +{remainingCount} more
+        </span>
+      ) : null}
+    </>
   );
 }
 
@@ -172,8 +386,13 @@ export function AllDocumentsPage() {
   const [customDateTo, setCustomDateTo] = useState('');
   const [isTagsOpen, setIsTagsOpen] = useState(false);
   const [isDateOpen, setIsDateOpen] = useState(false);
+  const [openVaultMenuId, setOpenVaultMenuId] = useState<string | null>(null);
+  const [openDocumentMenuId, setOpenDocumentMenuId] = useState<string | null>(null);
+  const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
   const tagsPanelRef = useRef<HTMLDivElement | null>(null);
   const datePanelRef = useRef<HTMLDivElement | null>(null);
+  const vaultMenuRef = useRef<HTMLDivElement | null>(null);
+  const documentMenuRef = useRef<HTMLDivElement | null>(null);
 
   useDismissableLayer({
     isOpen: isTagsOpen,
@@ -184,6 +403,16 @@ export function AllDocumentsPage() {
     isOpen: isDateOpen,
     onClose: () => setIsDateOpen(false),
     ref: datePanelRef,
+  });
+  useDismissableLayer({
+    isOpen: openVaultMenuId !== null,
+    onClose: () => setOpenVaultMenuId(null),
+    ref: vaultMenuRef,
+  });
+  useDismissableLayer({
+    isOpen: openDocumentMenuId !== null,
+    onClose: () => setOpenDocumentMenuId(null),
+    ref: documentMenuRef,
   });
 
   const debouncedQuery = useDebouncedValue(query.trim(), 280);
@@ -293,6 +522,14 @@ export function AllDocumentsPage() {
     setIsTagsOpen(false);
   }
 
+  function toggleVaultCollapsed(vaultId: string) {
+    setCollapsedVaultIds(current =>
+      current.includes(vaultId)
+        ? current.filter(id => id !== vaultId)
+        : [...current, vaultId],
+    );
+  }
+
   return (
     <section className="space-y-8 pb-8">
       <PageIntro
@@ -315,7 +552,7 @@ export function AllDocumentsPage() {
 
         <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.2fr]">
           <div className="relative">
-            <Vault className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Folder className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <select
               aria-label="Vault filter"
               value={selectedVaultId}
@@ -574,83 +811,167 @@ export function AllDocumentsPage() {
       <div className="space-y-5">
         {groupedDocuments.map(group => {
           const vault = vaultsById.get(group.vaultId);
+          const isCollapsed = collapsedVaultIds.includes(group.vaultId);
 
           return (
-            <SurfacePanel key={group.vaultId} className="overflow-hidden rounded-[26px] p-0">
-              <div className="border-b border-border/70 px-6 py-5">
+            <SurfacePanel key={group.vaultId} className="rounded-[26px] p-0">
+              <div className="border-b border-border/70 px-5 py-5 sm:px-6">
                 <div className="flex items-start gap-4">
-                  <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-primary">
-                    <Vault className="size-5" />
-                  </div>
+                  <VaultIcon />
                   <div className="min-w-0 flex-1">
-                    <h2 className="font-display truncate text-2xl font-bold tracking-[-0.04em] text-foreground">
-                      {group.vaultName}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      role: {vault?.role ?? 'global_admin'} • {group.documents.length} document{group.documents.length === 1 ? '' : 's'}
-                    </p>
+                    <button
+                      type="button"
+                      className="flex w-full items-start justify-between gap-4 text-left"
+                      aria-expanded={!isCollapsed}
+                      onClick={() => toggleVaultCollapsed(group.vaultId)}
+                    >
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-baseline gap-3">
+                          <span className="font-display truncate text-2xl font-bold tracking-[-0.04em] text-foreground">
+                            {group.vaultName}
+                          </span>
+                          <span className="text-base text-muted-foreground">
+                            {group.documents.length} document{group.documents.length === 1 ? '' : 's'}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-sm text-muted-foreground">
+                          {vault?.role ?? 'global_admin'} access
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`mt-1 size-5 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-180'}`}
+                      />
+                    </button>
                   </div>
-                  <div className="hidden items-center gap-4 sm:flex">
-                    <Link to={`/vaults/${group.vaultId}/documents`} className="vault-link">Open vault</Link>
-                    <Link to={`/vaults/${group.vaultId}/settings`} className="vault-link">Settings</Link>
+                  <div ref={openVaultMenuId === group.vaultId ? vaultMenuRef : null}>
+                    <OverflowMenu
+                      isOpen={openVaultMenuId === group.vaultId}
+                      onToggle={() => {
+                        setOpenDocumentMenuId(null);
+                        setOpenVaultMenuId(current => current === group.vaultId ? null : group.vaultId);
+                      }}
+                      label={`Open actions for ${group.vaultName}`}
+                      side="bottom"
+                    >
+                      <MenuLink
+                        to={`/vaults/${group.vaultId}/documents`}
+                        icon={<FolderOpen className="size-4" />}
+                        onSelect={() => setOpenVaultMenuId(null)}
+                      >
+                        Open vault
+                      </MenuLink>
+                      <MenuLink
+                        to={`/vaults/${group.vaultId}/settings`}
+                        icon={<Settings2 className="size-4" />}
+                        onSelect={() => setOpenVaultMenuId(null)}
+                      >
+                        Vault settings
+                      </MenuLink>
+                    </OverflowMenu>
                   </div>
                 </div>
               </div>
 
-              <div className="divide-y divide-border/70">
-                {group.documents.map(document => (
-                  <article
-                    key={document.documentId}
-                    className="grid gap-5 px-6 py-5 xl:grid-cols-[minmax(0,1.25fr)_220px_220px_140px] xl:items-center"
-                  >
-                    <div className="flex items-start gap-4">
-                      <DocumentIcon />
-                      <div className="min-w-0">
-                        <Link
-                          to={`/vaults/${document.vaultId}/documents/${document.documentId}`}
-                          className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary"
-                        >
-                          {document.name}
-                        </Link>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {formatBytes(document.originalSize)} • {document.mimeType} • Uploaded {formatDate(document.createdAt)}
-                        </p>
-                        {debouncedQuery.length > 0 && document.bestChunk ? (
-                          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                            {tokenizeSnippet(document.bestChunk.snippet).map(part =>
-                              part.highlighted
-                                ? (
-                                    <mark key={`${document.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
-                                      {part.text}
-                                    </mark>
-                                  )
-                                : <span key={`${document.documentId}-${part.key}`}>{part.text}</span>,
-                            )}
+              {!isCollapsed ? (
+                <>
+                  <div className="hidden grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] gap-5 border-b border-border/70 px-5 py-4 text-sm text-muted-foreground md:grid sm:px-6">
+                    <span>Name</span>
+                    <span>Updated</span>
+                    <span>Size</span>
+                    <span>Tags</span>
+                    <span className="text-right">Actions</span>
+                  </div>
+
+                  <div className="divide-y divide-border/70">
+                    {group.documents.map(document => (
+                      <article
+                        key={document.documentId}
+                        className="grid gap-5 px-5 py-5 md:grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] md:items-center sm:px-6"
+                      >
+                        <div className="flex items-start gap-4">
+                          <FileTypeIcon document={document} />
+                          <div className="min-w-0">
+                            <Link
+                              to={`/vaults/${document.vaultId}/documents/${document.documentId}`}
+                              className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary"
+                            >
+                              {document.name}
+                            </Link>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {document.originalName !== document.name ? `${document.originalName} • ` : ''}
+                              Uploaded {formatDate(document.createdAt)}
+                            </p>
+                            {debouncedQuery.length > 0 && document.bestChunk ? (
+                              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                                {tokenizeSnippet(document.bestChunk.snippet).map(part =>
+                                  part.highlighted
+                                    ? (
+                                        <mark key={`${document.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
+                                          {part.text}
+                                        </mark>
+                                      )
+                                    : <span key={`${document.documentId}-${part.key}`}>{part.text}</span>,
+                                )}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="text-sm text-muted-foreground">
+                          <p className="vault-label md:hidden">Updated</p>
+                          <p className="mt-2 text-base text-foreground md:mt-0">
+                            {formatDate(document.updatedAt)}
                           </p>
-                        ) : null}
-                      </div>
-                    </div>
+                        </div>
 
-                    <div className="text-sm text-muted-foreground">
-                      <p className="vault-label">Document date</p>
-                      <p className="mt-2 text-base text-foreground">
-                        {document.documentDate ? formatDate(document.documentDate) : 'No date'}
-                      </p>
-                    </div>
+                        <div className="text-sm text-muted-foreground">
+                          <p className="vault-label md:hidden">Size</p>
+                          <p className="mt-2 text-base text-foreground md:mt-0">{formatBytes(document.originalSize)}</p>
+                        </div>
 
-                    <div className="text-sm text-muted-foreground">
-                      <p className="vault-label">Updated</p>
-                      <p className="mt-2 text-base text-foreground">{formatDate(document.updatedAt)}</p>
-                    </div>
+                        <div className="text-sm text-muted-foreground">
+                          <p className="vault-label md:hidden">Tags</p>
+                          <div className="mt-2 flex flex-wrap gap-2 md:mt-0">
+                            <VisibleTags document={document} />
+                          </div>
+                        </div>
 
-                    <div className="flex gap-3 xl:justify-end">
-                      <Link to={`/vaults/${document.vaultId}/documents/${document.documentId}`} className="vault-link">
-                        Open
-                      </Link>
-                    </div>
-                  </article>
-                ))}
-              </div>
+                        <div className="flex justify-start md:justify-end">
+                          <div ref={openDocumentMenuId === document.documentId ? documentMenuRef : null}>
+                            <OverflowMenu
+                              isOpen={openDocumentMenuId === document.documentId}
+                              onToggle={() => {
+                                setOpenVaultMenuId(null);
+                                setOpenDocumentMenuId(current => current === document.documentId ? null : document.documentId);
+                              }}
+                              label={`Open actions for ${document.name}`}
+                              side="bottom"
+                            >
+                              <MenuLink
+                                to={`/vaults/${document.vaultId}/documents/${document.documentId}`}
+                                icon={<FolderOpen className="size-4" />}
+                                onSelect={() => setOpenDocumentMenuId(null)}
+                              >
+                                Open document
+                              </MenuLink>
+                              <MenuAnchor
+                                href={getDocumentDownloadUrl({
+                                  vaultId: document.vaultId,
+                                  documentId: document.documentId,
+                                })}
+                                icon={<Download className="size-4" />}
+                                onSelect={() => setOpenDocumentMenuId(null)}
+                              >
+                                Download
+                              </MenuAnchor>
+                            </OverflowMenu>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </SurfacePanel>
           );
         })}

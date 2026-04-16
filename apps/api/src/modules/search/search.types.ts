@@ -9,6 +9,12 @@ export const SEARCH_SORT_VALUES = [
 
 export type SearchSortBy = (typeof SEARCH_SORT_VALUES)[number];
 
+export type SearchResultTag = {
+  id: string;
+  name: string;
+  color: string | null;
+};
+
 export type SearchResultItem = {
   vaultId: string;
   vaultName: string;
@@ -20,6 +26,7 @@ export type SearchResultItem = {
   documentDate: string | null;
   createdAt: string;
   updatedAt: string;
+  tags: SearchResultTag[];
   matchedChunksCount: number;
   bestChunk: {
     chunkIndex: number;

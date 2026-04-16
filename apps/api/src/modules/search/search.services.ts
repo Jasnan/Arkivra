@@ -1,5 +1,5 @@
 import type { Database } from '../database/database.js';
-import type { DocumentSearchServices, SearchResultItem, SearchSortBy } from './search.types.js';
+import type { DocumentSearchServices, SearchResultItem, SearchResultTag, SearchSortBy } from './search.types.js';
 import { sql } from 'drizzle-orm';
 
 type SearchRow = {
@@ -13,6 +13,7 @@ type SearchRow = {
   document_date: Date | null;
   created_at: Date;
   updated_at: Date;
+  tags_json: string;
   matched_chunks_count: number;
   chunk_index: number | null;
   chunk_type: string | null;
@@ -27,6 +28,40 @@ type SearchRow = {
 type CountRow = {
   results_count: number;
 };
+
+function parseTagsJson(value: string | null | undefined): SearchResultTag[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((item) => {
+      if (
+        typeof item === 'object'
+        && item !== null
+        && typeof item.id === 'string'
+        && typeof item.name === 'string'
+        && (typeof item.color === 'string' || item.color === null)
+      ) {
+        return [{
+          id: item.id,
+          name: item.name,
+          color: item.color,
+        }];
+      }
+
+      return [];
+    });
+  } catch {
+    return [];
+  }
+}
 
 function toIsoString(value: Date | string | null) {
   if (value === null) {
@@ -228,6 +263,22 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
           d.document_date,
           d.created_at,
           d.updated_at,
+          (
+            SELECT COALESCE(
+              json_agg(
+                json_build_object(
+                  'id', t.id,
+                  'name', t.name,
+                  'color', t.color
+                )
+                ORDER BY t.name ASC
+              ),
+              '[]'::json
+            )::text
+            FROM document_tags AS dt_all
+            INNER JOIN tags AS t ON t.id = dt_all.tag_id
+            WHERE dt_all.document_id = d.id
+          ) AS tags_json,
           0::int AS matched_chunks_count,
           NULL::int AS chunk_index,
           NULL::text AS chunk_type,
@@ -260,6 +311,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         documentDate: toIsoString(row.document_date),
         createdAt: toIsoString(row.created_at)!,
         updatedAt: toIsoString(row.updated_at)!,
+        tags: parseTagsJson(row.tags_json),
         matchedChunksCount: 0,
         bestChunk: null,
       }));
@@ -397,6 +449,22 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
           d.document_date,
           d.created_at,
           d.updated_at,
+          (
+            SELECT COALESCE(
+              json_agg(
+                json_build_object(
+                  'id', t.id,
+                  'name', t.name,
+                  'color', t.color
+                )
+                ORDER BY t.name ASC
+              ),
+              '[]'::json
+            )::text
+            FROM document_tags AS dt_all
+            INNER JOIN tags AS t ON t.id = dt_all.tag_id
+            WHERE dt_all.document_id = d.id
+          ) AS tags_json,
           count(*) OVER (PARTITION BY d.id)::int AS matched_chunks_count,
           mc.chunk_index,
           mc.chunk_type,
@@ -430,6 +498,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         document_date,
         created_at,
         updated_at,
+        tags_json,
         matched_chunks_count,
         chunk_index,
         chunk_type,
@@ -457,6 +526,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
       documentDate: toIsoString(row.document_date),
       createdAt: toIsoString(row.created_at)!,
       updatedAt: toIsoString(row.updated_at)!,
+      tags: parseTagsJson(row.tags_json),
       matchedChunksCount: row.matched_chunks_count,
       bestChunk:
         row.chunk_index === null || row.chunk_content === null || row.snippet === null || row.score === null

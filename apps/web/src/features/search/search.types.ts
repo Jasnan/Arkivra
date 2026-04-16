@@ -15,6 +15,12 @@ export type SearchSortBy =
   | 'name_asc'
   | 'name_desc';
 
+export interface SearchResultTag {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 export interface SearchResultItem {
   vaultId: string;
   vaultName: string;
@@ -26,6 +32,7 @@ export interface SearchResultItem {
   documentDate: string | null;
   createdAt: string;
   updatedAt: string;
+  tags?: SearchResultTag[];
   matchedChunksCount: number;
   bestChunk: {
     chunkIndex: number;

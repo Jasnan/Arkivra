@@ -11,6 +11,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Trash2,
   UserCircle2,
   Vault,
   X,
@@ -101,19 +102,25 @@ export function AppShell({ children }: PropsWithChildren) {
     };
   }, [isProfileMenuOpen]);
 
-  const navItems = useMemo(() => {
-    const baseItems = [
+  const { primaryNavItems, footerNavItems } = useMemo(() => {
+    const primaryItems = [
       { to: '/vaults', label: 'Vaults', icon: Vault },
       { to: '/documents', label: 'Documents', icon: FileText },
+      { to: '/documents/trash', label: 'Trash', icon: Trash2 },
+    ];
+    const secondaryItems = [
       { to: '/settings', label: 'Settings', icon: Settings },
       { to: '/about', label: 'About', icon: Compass },
     ];
 
     if (meQuery.data?.isGlobalAdmin) {
-      baseItems.splice(3, 0, { to: '/admin', label: 'Admin', icon: ShieldCheck });
+      secondaryItems.splice(1, 0, { to: '/admin', label: 'Admin', icon: ShieldCheck });
     }
 
-    return baseItems;
+    return {
+      primaryNavItems: primaryItems,
+      footerNavItems: secondaryItems,
+    };
   }, [meQuery.data?.isGlobalAdmin]);
 
   const quickSearchQuery = useGlobalSearchDocumentsQuery({
@@ -147,7 +154,31 @@ export function AppShell({ children }: PropsWithChildren) {
             ) : null}
 
             <nav className="space-y-2">
-              {navItems.map(item => {
+              {primaryNavItems.map(item => {
+                const Icon = item.icon;
+
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/documents'}
+                    className={({ isActive }) =>
+                      cn(
+                        navBaseClassName,
+                        isActive
+                          ? 'bg-card text-foreground ring-1 ring-border/70'
+                          : 'text-muted-foreground hover:bg-card/70 hover:text-foreground',
+                      )}
+                  >
+                    <Icon className="size-4" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </nav>
+
+            <nav className="mt-auto space-y-2 border-t border-border/70 pt-4">
+              {footerNavItems.map(item => {
                 const Icon = item.icon;
 
                 return (
@@ -246,16 +277,17 @@ export function AppShell({ children }: PropsWithChildren) {
               </div>
 
               <nav className="flex gap-2 overflow-x-auto lg:hidden">
-                {navItems.map(item => {
-                  const Icon = item.icon;
+              {[...primaryNavItems, ...footerNavItems].map(item => {
+                const Icon = item.icon;
 
                   return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      className={({ isActive }) =>
-                        cn(
-                          'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition',
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/documents'}
+                    className={({ isActive }) =>
+                      cn(
+                        'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition',
                           isActive
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-card/80 text-muted-foreground hover:text-foreground',

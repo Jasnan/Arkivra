@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { getDocument, listDocuments, listDocumentTags } from './documents.api';
+import { getDocument, listDeletedDocuments, listDocuments, listDocumentTags } from './documents.api';
 
 export const documentQueryKeys = {
   all: ['documents'] as const,
   list: (vaultId: string, options?: { includeDeleted?: boolean; tagId?: string }) =>
     [...documentQueryKeys.all, 'list', vaultId, options?.includeDeleted ?? false, options?.tagId ?? 'all'] as const,
+  deletedList: () => [...documentQueryKeys.all, 'deleted-list'] as const,
   detail: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'detail', vaultId, documentId] as const,
   tags: (vaultId: string, documentId: string) =>
@@ -15,15 +16,25 @@ export function useDocumentsQuery({
   vaultId,
   includeDeleted = false,
   tagId,
+  enabled = true,
 }: {
   vaultId: string;
   includeDeleted?: boolean;
   tagId?: string;
+  enabled?: boolean;
 }) {
   return useQuery({
     queryKey: documentQueryKeys.list(vaultId, { includeDeleted, tagId }),
     queryFn: () => listDocuments({ vaultId, includeDeleted, tagId }),
-    enabled: vaultId.length > 0,
+    enabled: enabled && vaultId.length > 0,
+  });
+}
+
+export function useDeletedDocumentsQuery({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: documentQueryKeys.deletedList(),
+    queryFn: listDeletedDocuments,
+    enabled,
   });
 }
 

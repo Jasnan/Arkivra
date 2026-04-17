@@ -103,7 +103,14 @@ export function createServer({
 
   registerAuthRoutes({ app, auth, authorizationServices: authzServices });
   registerVaultRoutes({ app, db });
-  registerDocumentRoutes({ app, db, storage, encryption, documentQueue });
+  registerDocumentRoutes({
+    app,
+    db,
+    storage,
+    encryption,
+    documentQueue,
+    retentionDays: config.backgroundJobs.documentRetentionDays,
+  });
   registerSearchRoutes({ app, db });
   registerTagRoutes({ app, db });
   registerBackupRoutes({ app, config, backupQueue, backupServices });

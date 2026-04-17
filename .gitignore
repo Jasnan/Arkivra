@@ -33,6 +33,7 @@ coverage/
 /redis-data/
 /docling-data/
 /apps/api/document-storage/
+/apps/api/backups/
 /backups/
 
 # Drizzle

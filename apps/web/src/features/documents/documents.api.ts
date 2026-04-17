@@ -1,12 +1,18 @@
 import { fetchJson } from '@/lib/api';
-import type { DocumentDetail, DocumentSummary, TagSummary } from './documents.types';
+import type { DeletedDocumentSummary, DocumentDetail, DocumentSummary, TagSummary } from './documents.types';
 
 interface DocumentsResponse {
   documents: DocumentSummary[];
+  retentionDays: number;
 }
 
 interface DocumentResponse {
   document: DocumentDetail;
+}
+
+interface DeletedDocumentsResponse {
+  documents: DeletedDocumentSummary[];
+  retentionDays: number;
 }
 
 interface DocumentTagsResponse {
@@ -40,6 +46,10 @@ export async function listDocuments({
 
 export async function getDocument({ vaultId, documentId }: { vaultId: string; documentId: string }) {
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents/${documentId}`);
+}
+
+export async function listDeletedDocuments() {
+  return fetchJson<DeletedDocumentsResponse>('/api/documents/trash');
 }
 
 export async function listDocumentTags({

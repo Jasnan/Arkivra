@@ -70,9 +70,25 @@ function createMockDocumentsServices() {
       documentDate,
       updatedAt: '2025-01-01T00:00:00.000Z',
     })),
+    listDeletedDocuments: vi.fn(async () => [
+      {
+        id: 'doc_deleted_1',
+        vaultId: 'vlt_1',
+        vaultName: 'Vault One',
+        name: 'trashed.pdf',
+        originalName: 'trashed.pdf',
+        originalSize: 1024,
+        mimeType: 'application/pdf',
+        documentDate: null,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-10T00:00:00.000Z',
+        isDeleted: true,
+        deletedAt: '2025-01-10T00:00:00.000Z',
+      },
+    ]),
     softDeleteDocument: vi.fn(async () => ({ id: 'doc_1' })),
     restoreDocument: vi.fn(async () => ({ id: 'doc_1' })),
-    hardDeleteDocument: vi.fn(async () => ({ id: 'doc_1' })),
+    hardDeleteDocument: vi.fn(async () => ({ success: true, id: 'doc_1' })),
   };
 
   return services as unknown as DocumentsServices;
@@ -146,6 +162,8 @@ function createTestApp({
     storage: {} as StorageDriver,
     encryption: {} as EncryptionServices,
     services: docServices,
+    retentionDays: 30,
+    vaultServices: vs,
   });
 
   return app;
@@ -217,6 +235,47 @@ describe('documents integration', () => {
     expect(docServices.listDocuments).toHaveBeenCalledWith({
       vaultId: 'vlt_1',
       includeDeleted: false,
+    });
+  });
+
+  test('lists deleted documents across accessible vaults', async () => {
+    const docServices = createMockDocumentsServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).listUserVaults = vi.fn(async () => [
+      {
+        id: 'vlt_1',
+        name: 'Vault One',
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+        deletedAt: null,
+        role: 'owner',
+        permissions: [],
+        isGlobalAdmin: false,
+      },
+      {
+        id: 'vlt_2',
+        name: 'Vault Two',
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+        deletedAt: null,
+        role: 'member',
+        permissions: ['documents.read'],
+        isGlobalAdmin: false,
+      },
+    ]);
+
+    const app = createTestApp({ docServices, vaultServices });
+
+    const response = await app.request('/api/documents/trash', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.documents).toHaveLength(1);
+    expect(body.retentionDays).toBe(30);
+    expect(docServices.listDeletedDocuments).toHaveBeenCalledWith({
+      vaultIds: ['vlt_1', 'vlt_2'],
     });
   });
 
@@ -472,8 +531,28 @@ describe('documents integration', () => {
     expect(response.status).toBe(204);
     expect(docServices.hardDeleteDocument).toHaveBeenCalledWith({
       documentId: 'doc_1',
+      deletedBeforeOrAt: expect.any(Date),
       vaultId: 'vlt_1',
     });
+  });
+
+  test('blocks permanent deletion before the retention window has elapsed', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).hardDeleteDocument = vi.fn(async () => ({
+      success: false,
+      reason: 'retention_window_active',
+    }));
+
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/permanent', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_owner' },
+    });
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as any;
+    expect(body.error.code).toBe('document.retention_window_active');
   });
 
   test('forbids hard delete for member role', async () => {

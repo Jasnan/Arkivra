@@ -2,11 +2,15 @@ import { createHash } from 'node:crypto';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import { and, desc, eq, exists } from 'drizzle-orm';
-import { documentTagsTable, documentsTable, tagsTable } from '../database/schema/index.js';
+import { and, desc, eq, exists, inArray, lte } from 'drizzle-orm';
+import { documentTagsTable, documentsTable, tagsTable, vaultsTable } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
+
+export type HardDeleteDocumentResult =
+  | { success: true; id: string }
+  | { success: false; reason: 'not_found' | 'retention_window_active' };
 
 export function createDocumentsServices({
   db,
@@ -223,6 +227,37 @@ export function createDocumentsServices({
     return doc ?? null;
   }
 
+  async function listDeletedDocuments({ vaultIds }: { vaultIds: string[] }) {
+    if (vaultIds.length === 0) {
+      return [];
+    }
+
+    return db
+      .select({
+        id: documentsTable.id,
+        vaultId: documentsTable.vaultId,
+        vaultName: vaultsTable.name,
+        name: documentsTable.name,
+        originalName: documentsTable.originalName,
+        originalSize: documentsTable.originalSize,
+        mimeType: documentsTable.mimeType,
+        documentDate: documentsTable.documentDate,
+        createdAt: documentsTable.createdAt,
+        updatedAt: documentsTable.updatedAt,
+        isDeleted: documentsTable.isDeleted,
+        deletedAt: documentsTable.deletedAt,
+      })
+      .from(documentsTable)
+      .innerJoin(vaultsTable, eq(documentsTable.vaultId, vaultsTable.id))
+      .where(
+        and(
+          inArray(documentsTable.vaultId, vaultIds),
+          eq(documentsTable.isDeleted, true),
+        ),
+      )
+      .orderBy(desc(documentsTable.deletedAt), desc(documentsTable.updatedAt));
+  }
+
   async function renameDocument({
     documentId,
     vaultId,
@@ -332,15 +367,18 @@ export function createDocumentsServices({
   async function hardDeleteDocument({
     documentId,
     vaultId,
+    deletedBeforeOrAt,
   }: {
     documentId: string;
     vaultId: string;
-  }) {
+    deletedBeforeOrAt?: Date;
+  }): Promise<HardDeleteDocumentResult> {
     // Get storage key before deleting record
     const [doc] = await db
       .select({
         id: documentsTable.id,
         originalStorageKey: documentsTable.originalStorageKey,
+        deletedAt: documentsTable.deletedAt,
       })
       .from(documentsTable)
       .where(
@@ -353,7 +391,14 @@ export function createDocumentsServices({
       .limit(1);
 
     if (doc === undefined) {
-      return null;
+      return { success: false, reason: 'not_found' };
+    }
+
+    if (
+      deletedBeforeOrAt !== undefined
+      && (doc.deletedAt === null || doc.deletedAt > deletedBeforeOrAt)
+    ) {
+      return { success: false, reason: 'retention_window_active' };
     }
 
     // Remove file from storage
@@ -362,13 +407,14 @@ export function createDocumentsServices({
     // Delete DB record
     await db.delete(documentsTable).where(eq(documentsTable.id, doc.id));
 
-    return { id: doc.id };
+    return { success: true, id: doc.id };
   }
 
   return {
     downloadDocument,
     getDocument,
     hardDeleteDocument,
+    listDeletedDocuments,
     listDocuments,
     renameDocument,
     restoreDocument,

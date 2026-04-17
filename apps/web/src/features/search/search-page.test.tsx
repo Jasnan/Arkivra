@@ -18,7 +18,7 @@ describe('documents library search controls', () => {
 
   it('renders backend search results with highlighted snippets', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith('/api/vaults')) {
@@ -112,7 +112,7 @@ describe('documents library search controls', () => {
 
   it('sends vault, tag, date, and sort filters to the backend', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith('/api/vaults')) {
@@ -184,7 +184,7 @@ describe('documents library search controls', () => {
 
   it('keeps vault group order stable when document sorting changes', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith('/api/vaults')) {

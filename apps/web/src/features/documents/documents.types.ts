@@ -11,6 +11,11 @@ export interface DocumentSummary {
   deletedAt: string | null;
 }
 
+export interface DeletedDocumentSummary extends DocumentSummary {
+  vaultId: string;
+  vaultName: string;
+}
+
 export interface DocumentDetail extends DocumentSummary {
   originalSha256Hash: string;
   content: string;

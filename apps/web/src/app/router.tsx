@@ -79,6 +79,10 @@ export function createAppRouter() {
           element: <AllDocumentsPage />,
         },
         {
+          path: 'documents/trash',
+          element: <DocumentTrashPage />,
+        },
+        {
           path: 'vaults/:vaultId/documents',
           element: <DocumentsPage />,
         },

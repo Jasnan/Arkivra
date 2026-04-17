@@ -5,12 +5,15 @@ import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { DocumentsServices } from './documents.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
+import type { VaultsServices } from '../vaults/vaults.services.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
 };
 import { createDocumentsServices } from './documents.services.js';
+import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireVaultPermission } from '../vaults/vaults.middleware.js';
+import { createVaultsServices } from '../vaults/vaults.services.js';
 
 export function registerDocumentRoutes({
   app,
@@ -19,6 +22,8 @@ export function registerDocumentRoutes({
   encryption,
   services,
   documentQueue,
+  retentionDays = 30,
+  vaultServices,
 }: {
   app: Hono<ServerContext>;
   db: Database;
@@ -26,8 +31,37 @@ export function registerDocumentRoutes({
   encryption: EncryptionServices;
   services?: DocumentsServices;
   documentQueue?: DocumentQueue;
+  retentionDays?: number;
+  vaultServices?: VaultsServices;
 }) {
   const documentsServices = services ?? createDocumentsServices({ db, storage, encryption });
+  const vaultsServices = vaultServices ?? createVaultsServices({ db });
+
+  app.use('/api/documents/trash', requireAuthentication());
+
+  app.get('/api/documents/trash', async (context) => {
+    const userId = context.get('userId');
+
+    if (userId === null) {
+      return context.json(
+        { error: { code: 'auth.unauthorized', message: 'Unauthorized' } },
+        401,
+      );
+    }
+
+    const vaults = await vaultsServices.listUserVaults({ userId });
+    const readableVaultIds = vaults
+      .filter(vault =>
+        vault.isGlobalAdmin
+        || vault.role === 'owner'
+        || vault.permissions.includes('documents.read'),
+      )
+      .map(vault => vault.id);
+
+    const documents = await documentsServices.listDeletedDocuments({ vaultIds: readableVaultIds });
+
+    return context.json({ documents, retentionDays });
+  });
 
   // List documents in vault
   app.get(
@@ -44,7 +78,7 @@ export function registerDocumentRoutes({
       const tagId = context.req.query('tagId');
       const documents = await documentsServices.listDocuments({ vaultId, includeDeleted, tagId });
 
-      return context.json({ documents });
+      return context.json({ documents, retentionDays });
     },
   );
 
@@ -341,9 +375,26 @@ export function registerDocumentRoutes({
       }
 
       const documentId = context.req.param('documentId');
-      const doc = await documentsServices.hardDeleteDocument({ documentId, vaultId });
+      const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+      const result = await documentsServices.hardDeleteDocument({
+        documentId,
+        vaultId,
+        deletedBeforeOrAt: cutoff,
+      });
 
-      if (doc === null) {
+      if (!result.success && result.reason === 'retention_window_active') {
+        return context.json(
+          {
+            error: {
+              code: 'document.retention_window_active',
+              message: `Soft-deleted documents remain in trash for ${retentionDays} days before permanent deletion.`,
+            },
+          },
+          409,
+        );
+      }
+
+      if (!result.success) {
         return context.json(
           {
             error: {

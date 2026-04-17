@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarRange,
@@ -12,14 +12,13 @@ import {
   Search as SearchIcon,
   Settings2,
   SlidersHorizontal,
-  Tags,
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageIntro, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { getDocumentDownloadUrl } from '@/features/documents/documents.api';
+import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -31,10 +30,10 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 100;
 
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
-  { value: 'document_date_desc', label: 'Date (newest first)' },
-  { value: 'document_date_asc', label: 'Date (oldest first)' },
-  { value: 'updated_desc', label: 'Uploaded (newest first)' },
-  { value: 'updated_asc', label: 'Uploaded (oldest first)' },
+  { value: 'document_date_desc', label: 'Newest' },
+  { value: 'document_date_asc', label: 'Oldest' },
+  { value: 'updated_desc', label: 'Recently uploaded' },
+  { value: 'updated_asc', label: 'Oldest upload' },
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
 ];
@@ -65,7 +64,24 @@ function buildPresetRange(preset: Exclude<DatePreset, 'custom'>) {
   };
 }
 
-function getDateTriggerLabel({
+function formatDateRangeLabel(dateFrom?: string, dateTo?: string) {
+  if (!dateFrom && !dateTo) {
+    return 'Any time';
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const fromLabel = dateFrom ? formatter.format(new Date(`${dateFrom}T00:00:00`)) : 'Start';
+  const toLabel = dateTo ? formatter.format(new Date(`${dateTo}T00:00:00`)) : 'Now';
+
+  return `${fromLabel} - ${toLabel}`;
+}
+
+function getDateFilterLabel({
   preset,
   dateFrom,
   dateTo,
@@ -82,8 +98,8 @@ function getDateTriggerLabel({
     return 'Last 30 days';
   }
 
-  if (preset === 'custom' && dateFrom && dateTo) {
-    return `${dateFrom} - ${dateTo}`;
+  if (preset === 'custom') {
+    return formatDateRangeLabel(dateFrom, dateTo);
   }
 
   return 'Any time';
@@ -125,38 +141,6 @@ function useDismissableLayer({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose, ref]);
-}
-
-function FilterTrigger({
-  icon,
-  label,
-  value,
-  onClick,
-  active = false,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  onClick: () => void;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        'flex h-14 w-full items-center gap-3 rounded-[20px] border px-4 text-left transition',
-        active
-          ? 'border-primary/20 bg-secondary text-foreground shadow-[0_16px_30px_rgba(31,48,120,0.08)]'
-          : 'border-border/70 bg-background text-foreground hover:border-primary/15 hover:bg-card',
-      )}
-      onClick={onClick}
-    >
-      <span className="text-muted-foreground">{icon}</span>
-      <span className="min-w-0 flex-1 truncate text-base font-semibold">{label}</span>
-      <span className="truncate text-base text-muted-foreground">{value}</span>
-      <ChevronDown className="size-4 text-muted-foreground" />
-    </button>
-  );
 }
 
 function OverflowMenu({
@@ -273,6 +257,25 @@ function TagPill({
   );
 }
 
+function ActiveFilterChip({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-secondary/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-primary/20 hover:bg-secondary"
+    >
+      <span>{label}</span>
+      <X className="size-4 text-muted-foreground" />
+    </button>
+  );
+}
+
 function getDocumentTypeLabel(document: SearchResultItem) {
   const extension = document.name.split('.').pop()?.trim().toUpperCase();
 
@@ -378,32 +381,26 @@ function VisibleTags({ document }: { document: SearchResultItem }) {
 
 export function AllDocumentsPage() {
   const [query, setQuery] = useState('');
-  const [selectedVaultId, setSelectedVaultId] = useState('');
+  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SearchSortBy>('document_date_desc');
   const [datePreset, setDatePreset] = useState<DatePreset>('any');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
-  const [isTagsOpen, setIsTagsOpen] = useState(false);
-  const [isDateOpen, setIsDateOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [isVaultDropdownOpen, setIsVaultDropdownOpen] = useState(false);
+  const [vaultSearchQuery, setVaultSearchQuery] = useState('');
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [openVaultMenuId, setOpenVaultMenuId] = useState<string | null>(null);
   const [openDocumentMenuId, setOpenDocumentMenuId] = useState<string | null>(null);
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
-  const tagsPanelRef = useRef<HTMLDivElement | null>(null);
-  const datePanelRef = useRef<HTMLDivElement | null>(null);
+  const filtersDialogRef = useRef<HTMLDivElement | null>(null);
+  const vaultDropdownRef = useRef<HTMLDivElement | null>(null);
+  const tagDropdownRef = useRef<HTMLDivElement | null>(null);
   const vaultMenuRef = useRef<HTMLDivElement | null>(null);
   const documentMenuRef = useRef<HTMLDivElement | null>(null);
 
-  useDismissableLayer({
-    isOpen: isTagsOpen,
-    onClose: () => setIsTagsOpen(false),
-    ref: tagsPanelRef,
-  });
-  useDismissableLayer({
-    isOpen: isDateOpen,
-    onClose: () => setIsDateOpen(false),
-    ref: datePanelRef,
-  });
   useDismissableLayer({
     isOpen: openVaultMenuId !== null,
     onClose: () => setOpenVaultMenuId(null),
@@ -415,9 +412,40 @@ export function AllDocumentsPage() {
     ref: documentMenuRef,
   });
 
+  useEffect(() => {
+    if (!isFiltersOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsFiltersOpen(false);
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFiltersOpen]);
+
+  useEffect(() => {
+    if (!isFiltersOpen) {
+      setIsVaultDropdownOpen(false);
+      setVaultSearchQuery('');
+      setIsTagDropdownOpen(false);
+      setTagSearchQuery('');
+    }
+  }, [isFiltersOpen]);
+
   const debouncedQuery = useDebouncedValue(query.trim(), 280);
   const vaultsQuery = useVaultsQuery();
-  const tagsQuery = useAccessibleTagsQuery({ vaultId: selectedVaultId || undefined });
+  const tagScopeVaultId = selectedVaultIds.length === 1 ? selectedVaultIds[0] : undefined;
+  const tagsQuery = useAccessibleTagsQuery({ vaultId: tagScopeVaultId });
 
   const appliedDateRange = useMemo(() => {
     if (datePreset === 'custom') {
@@ -434,7 +462,7 @@ export function AllDocumentsPage() {
     query: debouncedQuery,
     pageIndex: 0,
     pageSize: PAGE_SIZE,
-    vaultId: selectedVaultId || undefined,
+    vaultIds: selectedVaultIds.length > 0 ? selectedVaultIds : undefined,
     tagIds: selectedTagIds,
     dateFrom: appliedDateRange.dateFrom,
     dateTo: appliedDateRange.dateTo,
@@ -460,6 +488,30 @@ export function AllDocumentsPage() {
     [availableTags, selectedTagIds],
   );
 
+  const filteredVaults = useMemo(() => {
+    const normalizedQuery = vaultSearchQuery.trim().toLowerCase();
+    const vaults = vaultsQuery.data?.vaults ?? [];
+
+    if (normalizedQuery.length === 0) {
+      return vaults;
+    }
+
+    return vaults.filter(vault => vault.name.toLowerCase().includes(normalizedQuery));
+  }, [vaultSearchQuery, vaultsQuery.data?.vaults]);
+
+  const filteredTags = useMemo(() => {
+    const normalizedQuery = tagSearchQuery.trim().toLowerCase();
+
+    if (normalizedQuery.length === 0) {
+      return availableTags;
+    }
+
+    return availableTags.filter(tag => {
+      const haystacks = [tag.name, tag.vaultName ?? ''];
+      return haystacks.some(value => value.toLowerCase().includes(normalizedQuery));
+    });
+  }, [availableTags, tagSearchQuery]);
+
   const groupedDocuments = useMemo(() => {
     const groups = new Map<string, { vaultId: string; vaultName: string; documents: SearchResultItem[] }>();
 
@@ -475,8 +527,27 @@ export function AllDocumentsPage() {
       groups.get(result.vaultId)?.documents.push(result);
     }
 
-    return Array.from(groups.values());
-  }, [documentsQuery.data?.results]);
+    const vaultOrder = new Map((vaultsQuery.data?.vaults ?? []).map((vault, index) => [vault.id, index]));
+
+    return Array.from(groups.values()).sort((left, right) => {
+      const leftOrder = vaultOrder.get(left.vaultId);
+      const rightOrder = vaultOrder.get(right.vaultId);
+
+      if (leftOrder !== undefined && rightOrder !== undefined) {
+        return leftOrder - rightOrder;
+      }
+
+      if (leftOrder !== undefined) {
+        return -1;
+      }
+
+      if (rightOrder !== undefined) {
+        return 1;
+      }
+
+      return left.vaultName.localeCompare(right.vaultName);
+    });
+  }, [documentsQuery.data?.results, vaultsQuery.data?.vaults]);
 
   const vaultsById = useMemo(
     () => new Map((vaultsQuery.data?.vaults ?? []).map(vault => [vault.id, vault])),
@@ -495,13 +566,53 @@ export function AllDocumentsPage() {
     return `Showing ${shownDocuments} of ${totalDocuments} documents across ${vaultsShown} vaults`;
   }, [documentsQuery.data?.results.length, documentsQuery.data?.resultsCount, groupedDocuments.length]);
 
-  const hasActiveFilters =
-    selectedVaultId.length > 0
-    || selectedTagIds.length > 0
-    || datePreset !== 'any'
-    || sortBy !== 'document_date_desc';
+  const selectedSortLabel = sortOptions.find(option => option.value === sortBy)?.label ?? 'Newest';
+  const selectedVaults = useMemo(
+    () => (vaultsQuery.data?.vaults ?? []).filter(vault => selectedVaultIds.includes(vault.id)),
+    [selectedVaultIds, vaultsQuery.data?.vaults],
+  );
 
-  const selectedSortLabel = sortOptions.find(option => option.value === sortBy)?.label ?? 'Date (newest first)';
+  const activeFilterCount = selectedVaultIds.length
+    + selectedTagIds.length
+    + (datePreset !== 'any' ? 1 : 0);
+
+  const activeFilters = [
+    ...selectedVaults.map(vault => ({
+      key: `vault-${vault.id}`,
+      label: vault.name,
+      onRemove: () => {
+        setSelectedVaultIds(current => current.filter(item => item !== vault.id));
+      },
+    })),
+    ...selectedTags.map(tag => ({
+      key: `tag-${tag.id}`,
+      label: tag.name,
+      onRemove: () => setSelectedTagIds(current => current.filter(item => item !== tag.id)),
+    })),
+    ...(datePreset !== 'any'
+      ? [{
+          key: `date-${datePreset}`,
+          label: getDateFilterLabel({
+            preset: datePreset,
+            dateFrom: appliedDateRange.dateFrom,
+            dateTo: appliedDateRange.dateTo,
+          }),
+          onRemove: () => {
+            setDatePreset('any');
+            setCustomDateFrom('');
+            setCustomDateTo('');
+          },
+        }]
+      : []),
+  ];
+
+  function toggleVaultSelection(vaultId: string) {
+    setSelectedVaultIds(current =>
+      current.includes(vaultId)
+        ? current.filter(item => item !== vaultId)
+        : [...current, vaultId],
+    );
+  }
 
   function toggleTagSelection(tagId: string) {
     setSelectedTagIds(current =>
@@ -512,14 +623,15 @@ export function AllDocumentsPage() {
   }
 
   function clearFilters() {
-    setSelectedVaultId('');
+    setSelectedVaultIds([]);
     setSelectedTagIds([]);
     setDatePreset('any');
     setCustomDateFrom('');
     setCustomDateTo('');
-    setSortBy('document_date_desc');
-    setIsDateOpen(false);
-    setIsTagsOpen(false);
+    setVaultSearchQuery('');
+    setIsVaultDropdownOpen(false);
+    setTagSearchQuery('');
+    setIsTagDropdownOpen(false);
   }
 
   function toggleVaultCollapsed(vaultId: string) {
@@ -530,6 +642,18 @@ export function AllDocumentsPage() {
     );
   }
 
+  function handleFilterDialogPointerDownCapture(event: ReactPointerEvent<HTMLDivElement>) {
+    const target = event.target as Node;
+
+    if (isVaultDropdownOpen && !vaultDropdownRef.current?.contains(target)) {
+      setIsVaultDropdownOpen(false);
+    }
+
+    if (isTagDropdownOpen && !tagDropdownRef.current?.contains(target)) {
+      setIsTagDropdownOpen(false);
+    }
+  }
+
   return (
     <section className="space-y-8 pb-8">
       <PageIntro
@@ -538,243 +662,420 @@ export function AllDocumentsPage() {
         description="Search and filter the full document library from one backend-powered workspace surface."
       />
 
-      <SurfacePanel className="space-y-5 rounded-[28px] p-5 sm:p-6">
-        <div className="relative">
-          <SearchIcon className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            aria-label="Search documents"
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            placeholder="Search invoices, clauses, names..."
-            className="h-16 w-full rounded-[22px] border border-border/70 bg-background pl-14 pr-4 text-lg text-foreground outline-none transition focus-visible:border-primary/20 focus-visible:ring-2 focus-visible:ring-primary/15"
-          />
-        </div>
-
-        <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.2fr]">
-          <div className="relative">
-            <Folder className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <select
-              aria-label="Vault filter"
-              value={selectedVaultId}
-              onChange={event => setSelectedVaultId(event.target.value)}
-              className={`${vaultInputClassName} h-14 appearance-none rounded-[20px] border-border/70 bg-background pl-11 pr-10 text-base font-semibold`}
-            >
-              <option value="">All vaults</option>
-              {(vaultsQuery.data?.vaults ?? []).map(vault => (
-                <option key={vault.id} value={vault.id}>{vault.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <SurfacePanel className="rounded-[28px] p-3 sm:p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="relative min-w-0 flex-1">
+            <SearchIcon className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              aria-label="Search documents"
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              placeholder="Search invoices, clauses, names..."
+              className="h-16 w-full rounded-[20px] border border-border/70 bg-background pl-14 pr-4 text-lg text-foreground outline-none transition focus-visible:border-primary/20 focus-visible:ring-2 focus-visible:ring-primary/15"
+            />
           </div>
 
-          <div ref={tagsPanelRef} className="relative">
-            <FilterTrigger
-              icon={<Tags className="size-4" />}
-              label={selectedTags.length > 0 ? `${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'}` : 'Select tags'}
-              value={selectedTags.length > 0 ? selectedTags.map(tag => tag.name).join(', ') : 'Any'}
-              onClick={() => {
-                setIsDateOpen(false);
-                setIsTagsOpen(open => !open);
-              }}
-              active={selectedTags.length > 0 || isTagsOpen}
-            />
+          <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => setIsFiltersOpen(true)}
+              className="h-16 min-w-[10rem] justify-center rounded-[20px] border-border/70 px-5 text-base shadow-none"
+            >
+              <SlidersHorizontal className="size-5" />
+              <span>Filter</span>
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-secondary px-2 py-1 text-xs font-bold text-foreground">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </Button>
 
-            {isTagsOpen ? (
-              <div className="absolute left-0 top-[calc(100%+0.75rem)] z-30 w-full min-w-[22rem] rounded-[24px] border border-border/70 bg-card p-4 shadow-[0_28px_60px_rgba(16,29,76,0.14)]">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold text-foreground">Select tags</p>
-                    <p className="text-sm text-muted-foreground">Filter documents by one or more tags.</p>
+            <div className="flex items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 py-2 shadow-none">
+              <label htmlFor="documents-sort" className="text-sm font-semibold text-muted-foreground">
+                Sort by:
+              </label>
+              <div className="relative">
+                <select
+                  id="documents-sort"
+                  aria-label="Sort documents"
+                  value={sortBy}
+                  onChange={event => setSortBy(event.target.value as SearchSortBy)}
+                  className={`${vaultInputClassName} h-11 min-w-[11rem] appearance-none rounded-[16px] border-0 bg-transparent pl-0 pr-8 text-base font-semibold ring-0 focus-visible:ring-0`}
+                >
+                  {sortOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-1 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {activeFilters.length > 0 ? (
+          <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-muted-foreground">Active filters:</span>
+              {activeFilters.map(filter => (
+                <ActiveFilterChip key={filter.key} label={filter.label} onRemove={filter.onRemove} />
+              ))}
+            </div>
+
+            <button type="button" className="vault-link text-left" onClick={clearFilters}>
+              Clear all
+            </button>
+          </div>
+        ) : null}
+      </SurfacePanel>
+
+      {isFiltersOpen ? (
+        <div
+          className="fixed inset-0 z-40 bg-[rgba(17,27,70,0.18)] px-4 py-6 backdrop-blur-[4px] sm:px-6"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsFiltersOpen(false);
+            }
+          }}
+        >
+          <div className="mx-auto flex h-full max-w-6xl items-start justify-end">
+            <div
+              ref={filtersDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Filters"
+              onPointerDownCapture={handleFilterDialogPointerDownCapture}
+              className="max-h-full w-full max-w-2xl overflow-y-auto rounded-[30px] border border-border/70 bg-card p-5 shadow-[0_40px_90px_rgba(13,23,62,0.18)] sm:p-7"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-2xl bg-secondary text-primary">
+                    <SlidersHorizontal className="size-5" />
                   </div>
-                  {selectedTagIds.length > 0 ? (
-                    <button type="button" className="vault-link" onClick={() => setSelectedTagIds([])}>
-                      Clear
-                    </button>
-                  ) : null}
+                  <div>
+                    <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Filters</h2>
+                    <p className="text-sm text-muted-foreground">Refine the library without leaving this page.</p>
+                  </div>
                 </div>
 
-                <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
-                  {tagsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading tags...</p> : null}
-                  {!tagsQuery.isLoading && availableTags.length === 0 ? (
-                    <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                      No tags are available for the current vault scope.
-                    </p>
-                  ) : null}
-                  {availableTags.map(tag => {
-                    const checked = selectedTagIds.includes(tag.id);
+                <div className="flex items-center gap-3">
+                  <button type="button" className="vault-link" onClick={clearFilters}>
+                    Reset
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Close filters"
+                    className="rounded-2xl"
+                    onClick={() => setIsFiltersOpen(false)}
+                  >
+                    <X className="size-5" />
+                  </Button>
+                </div>
+              </div>
 
-                    return (
+              <div className="mt-8 space-y-7">
+                <div className="space-y-3">
+                  <label className="text-lg font-semibold text-foreground">
+                    Vault
+                  </label>
+
+                  {selectedVaults.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedVaults.map(vault => (
+                        <ActiveFilterChip
+                          key={vault.id}
+                          label={vault.name}
+                          onRemove={() => toggleVaultSelection(vault.id)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div ref={vaultDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      aria-label="Vault filter"
+                      aria-expanded={isVaultDropdownOpen}
+                      aria-haspopup="listbox"
+                      onClick={() => setIsVaultDropdownOpen(open => !open)}
+                      className="flex h-14 w-full items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 text-left shadow-[0_12px_30px_rgba(17,27,70,0.04)] transition hover:border-primary/15"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-base font-semibold text-foreground">
+                          {selectedVaults.length > 0 ? `${selectedVaults.length} vault${selectedVaults.length === 1 ? '' : 's'} selected` : 'All vaults'}
+                        </span>
+                        <span className="block truncate text-sm text-muted-foreground">
+                          {selectedVaults.length > 0 ? selectedVaults.map(vault => vault.name).join(', ') : 'Search and choose vaults'}
+                        </span>
+                      </span>
+                      <ChevronDown className={cn('size-4 text-muted-foreground transition', isVaultDropdownOpen ? 'rotate-180' : '')} />
+                    </button>
+
+                    {isVaultDropdownOpen ? (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-20 rounded-[24px] border border-border/70 bg-card p-4 shadow-[0_28px_60px_rgba(16,29,76,0.14)]">
+                        <div className="relative">
+                          <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            aria-label="Search vaults"
+                            value={vaultSearchQuery}
+                            onChange={event => setVaultSearchQuery(event.target.value)}
+                            placeholder="Search vaults"
+                            className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
+                          />
+                        </div>
+
+                        <div role="listbox" aria-label="Available vaults" className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                          {vaultsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading vaults...</p> : null}
+                          {!vaultsQuery.isLoading ? (
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={selectedVaultIds.length === 0}
+                              onClick={() => setSelectedVaultIds([])}
+                              className={cn(
+                                'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
+                                selectedVaultIds.length === 0
+                                  ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
+                                  : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
+                              )}
+                            >
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold text-foreground">All vaults</span>
+                                <span className="block truncate text-xs text-muted-foreground">Results can come from any accessible vault</span>
+                              </span>
+                              {selectedVaultIds.length === 0 ? <Check className="size-4 text-primary" /> : null}
+                            </button>
+                          ) : null}
+                          {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
+                            <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                              No vaults match "{vaultSearchQuery.trim()}".
+                            </p>
+                          ) : null}
+                          {filteredVaults.map(vault => {
+                            const isSelected = selectedVaultIds.includes(vault.id);
+
+                            return (
+                              <button
+                                key={vault.id}
+                                type="button"
+                                role="option"
+                                aria-selected={isSelected}
+                                onClick={() => toggleVaultSelection(vault.id)}
+                                className={cn(
+                                  'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
+                                  isSelected
+                                    ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
+                                    : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
+                                )}
+                              >
+                                <div className="flex size-8 items-center justify-center rounded-xl bg-secondary text-primary">
+                                  <Folder className="size-4" />
+                                </div>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-semibold text-foreground">{vault.name}</span>
+                                  <span className="block truncate text-xs text-muted-foreground">{vault.role} access</span>
+                                </span>
+                                {isSelected ? <Check className="size-4 text-primary" /> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-semibold text-foreground">Tags</h3>
+                    <p className="text-sm text-muted-foreground">Choose one or more tags to narrow the results.</p>
+                  </div>
+
+                  {selectedTags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTags.map(tag => (
+                        <ActiveFilterChip
+                          key={tag.id}
+                          label={tag.name}
+                          onRemove={() => toggleTagSelection(tag.id)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div ref={tagDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      aria-label="Tag filter"
+                      aria-expanded={isTagDropdownOpen}
+                      aria-haspopup="listbox"
+                      onClick={() => setIsTagDropdownOpen(open => !open)}
+                      className="flex h-14 w-full items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 text-left shadow-[0_12px_30px_rgba(17,27,70,0.04)] transition hover:border-primary/15"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-base font-semibold text-foreground">
+                          {selectedTags.length > 0 ? `${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} selected` : 'Select tags'}
+                        </span>
+                        <span className="block truncate text-sm text-muted-foreground">
+                          {selectedTags.length > 0 ? selectedTags.map(tag => tag.name).join(', ') : 'Search and choose tags'}
+                        </span>
+                      </span>
+                      <ChevronDown className={cn('size-4 text-muted-foreground transition', isTagDropdownOpen ? 'rotate-180' : '')} />
+                    </button>
+
+                    {isTagDropdownOpen ? (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-20 rounded-[24px] border border-border/70 bg-card p-4 shadow-[0_28px_60px_rgba(16,29,76,0.14)]">
+                        <div className="relative">
+                          <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            aria-label="Search tags"
+                            value={tagSearchQuery}
+                            onChange={event => setTagSearchQuery(event.target.value)}
+                            placeholder="Search tags"
+                            className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
+                          />
+                        </div>
+
+                        <div role="listbox" aria-label="Available tags" className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                          {tagsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading tags...</p> : null}
+                          {!tagsQuery.isLoading && availableTags.length === 0 ? (
+                            <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                              No tags are available for the current vault scope.
+                            </p>
+                          ) : null}
+                          {!tagsQuery.isLoading && availableTags.length > 0 && filteredTags.length === 0 ? (
+                            <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                              No tags match “{tagSearchQuery.trim()}”.
+                            </p>
+                          ) : null}
+                          {filteredTags.map(tag => {
+                            const isSelected = selectedTagIds.includes(tag.id);
+
+                            return (
+                              <button
+                                key={tag.id}
+                                type="button"
+                                role="option"
+                                aria-selected={isSelected}
+                                onClick={() => toggleTagSelection(tag.id)}
+                                className={cn(
+                                  'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
+                                  isSelected
+                                    ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
+                                    : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
+                                )}
+                              >
+                                <span
+                                  className="size-3 rounded-full"
+                                  style={{ backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))' }}
+                                  aria-hidden="true"
+                                />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-semibold text-foreground">{tag.name}</span>
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {tag.vaultName ?? 'Vault tag'}{typeof tag.documentsCount === 'number' ? ` • ${tag.documentsCount} docs` : ''}
+                                  </span>
+                                </span>
+                                {isSelected ? <Check className="size-4 text-primary" /> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-border/70 bg-background/80 p-5">
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-semibold text-foreground">Date</h3>
+                    <p className="text-sm text-muted-foreground">Pick a preset or enter a custom range.</p>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {[
+                      { value: 'any', label: 'Any time' },
+                      { value: 'last_7_days', label: 'Last 7 days' },
+                      { value: 'last_30_days', label: 'Last 30 days' },
+                      { value: 'custom', label: 'Custom range' },
+                    ].map(option => (
                       <label
-                        key={tag.id}
+                        key={option.value}
                         className={cn(
-                          'flex cursor-pointer items-start gap-3 rounded-[18px] px-3 py-3 transition',
-                          checked ? 'bg-secondary text-foreground' : 'hover:bg-secondary/55',
+                          'flex cursor-pointer items-center gap-3 rounded-[18px] px-4 py-3 transition',
+                          datePreset === option.value ? 'bg-secondary text-foreground' : 'hover:bg-secondary/45',
                         )}
                       >
                         <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleTagSelection(tag.id)}
-                          className="mt-1 size-4 rounded border-border"
+                          type="radio"
+                          name="documents-date-filter"
+                          value={option.value}
+                          checked={datePreset === option.value}
+                          onChange={() => setDatePreset(option.value as DatePreset)}
+                          className="size-4 border-border"
                         />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-foreground">{tag.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {tag.vaultName ?? 'Vault tag'}{typeof tag.documentsCount === 'number' ? ` • ${tag.documentsCount} docs` : ''}
-                          </span>
-                        </span>
-                        {checked ? <Check className="mt-0.5 size-4 text-primary" /> : null}
+                        <span className="text-base font-semibold">{option.label}</span>
                       </label>
-                    );
-                  })}
+                    ))}
+                  </div>
+
+                  {datePreset === 'custom' ? (
+                    <div className="mt-5 grid gap-4 border-l border-border/70 pl-4 sm:grid-cols-2 sm:pl-5">
+                      <div className="space-y-2">
+                        <label htmlFor="documents-custom-date-from" className="text-sm font-semibold text-muted-foreground">
+                          From
+                        </label>
+                        <div className="relative">
+                          <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            id="documents-custom-date-from"
+                            aria-label="From"
+                            type="date"
+                            value={customDateFrom}
+                            onChange={event => setCustomDateFrom(event.target.value)}
+                            className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label htmlFor="documents-custom-date-to" className="text-sm font-semibold text-muted-foreground">
+                          To
+                        </label>
+                        <div className="relative">
+                          <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            id="documents-custom-date-to"
+                            aria-label="To"
+                            type="date"
+                            value={customDateTo}
+                            onChange={event => setCustomDateTo(event.target.value)}
+                            className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
-            ) : null}
-          </div>
 
-          <div ref={datePanelRef} className="relative">
-            <FilterTrigger
-              icon={<CalendarRange className="size-4" />}
-              label="Date"
-              value={getDateTriggerLabel({
-                preset: datePreset,
-                dateFrom: appliedDateRange.dateFrom,
-                dateTo: appliedDateRange.dateTo,
-              })}
-              onClick={() => {
-                setIsTagsOpen(false);
-                setIsDateOpen(open => !open);
-              }}
-              active={datePreset !== 'any' || isDateOpen}
-            />
-
-            {isDateOpen ? (
-              <div className="absolute left-0 top-[calc(100%+0.75rem)] z-30 w-full min-w-[25rem] rounded-[24px] border border-border/70 bg-card p-4 shadow-[0_28px_60px_rgba(16,29,76,0.14)]">
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left transition',
-                      datePreset === 'any' ? 'bg-secondary text-foreground' : 'hover:bg-secondary/55',
-                    )}
-                    onClick={() => {
-                      setDatePreset('any');
-                      setCustomDateFrom('');
-                      setCustomDateTo('');
-                      setIsDateOpen(false);
-                    }}
-                  >
-                    <span className="text-base font-semibold">Any time</span>
-                    {datePreset === 'any' ? <Check className="size-4 text-primary" /> : null}
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left transition',
-                      datePreset === 'last_7_days' ? 'bg-secondary text-foreground' : 'hover:bg-secondary/55',
-                    )}
-                    onClick={() => {
-                      setDatePreset('last_7_days');
-                      setIsDateOpen(false);
-                    }}
-                  >
-                    <span className="text-base font-semibold">Last 7 days</span>
-                    {datePreset === 'last_7_days' ? <Check className="size-4 text-primary" /> : null}
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left transition',
-                      datePreset === 'last_30_days' ? 'bg-secondary text-foreground' : 'hover:bg-secondary/55',
-                    )}
-                    onClick={() => {
-                      setDatePreset('last_30_days');
-                      setIsDateOpen(false);
-                    }}
-                  >
-                    <span className="text-base font-semibold">Last 30 days</span>
-                    {datePreset === 'last_30_days' ? <Check className="size-4 text-primary" /> : null}
-                  </button>
+              <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-5">
+                <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="flex size-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                    <Check className="size-3.5" />
+                  </span>
+                  Results update automatically
                 </div>
-
-                <div className="mt-4 rounded-[20px] border border-border/70 bg-background p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-base font-semibold text-foreground">Custom range</p>
-                      <p className="text-sm text-muted-foreground">Apply an exact document-date window.</p>
-                    </div>
-                    <SlidersHorizontal className="size-4 text-muted-foreground" />
-                  </div>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <label htmlFor="documents-custom-date-from" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        From
-                      </label>
-                      <input
-                        id="documents-custom-date-from"
-                        type="date"
-                        value={customDateFrom}
-                        onChange={event => setCustomDateFrom(event.target.value)}
-                        className={vaultInputClassName}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label htmlFor="documents-custom-date-to" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        To
-                      </label>
-                      <input
-                        id="documents-custom-date-to"
-                        type="date"
-                        value={customDateTo}
-                        onChange={event => setCustomDateTo(event.target.value)}
-                        className={vaultInputClassName}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setCustomDateFrom('');
-                        setCustomDateTo('');
-                        setDatePreset('any');
-                      }}
-                    >
-                      Clear
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setDatePreset('custom');
-                        setIsDateOpen(false);
-                      }}
-                    >
-                      Apply
-                    </Button>
-                  </div>
-                </div>
+                <Button type="button" onClick={() => setIsFiltersOpen(false)} className="rounded-[18px] px-5">
+                  Done
+                </Button>
               </div>
-            ) : null}
-          </div>
-
-          <div className="relative">
-            <select
-              aria-label="Sort documents"
-              value={sortBy}
-              onChange={event => setSortBy(event.target.value as SearchSortBy)}
-              className={`${vaultInputClassName} h-14 appearance-none rounded-[20px] border-border/70 bg-background pl-4 pr-10 text-base font-semibold`}
-            >
-              {sortOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
           </div>
         </div>
-      </SurfacePanel>
+      ) : null}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
@@ -784,15 +1085,7 @@ export function AllDocumentsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {hasActiveFilters ? (
-            <button type="button" className="vault-link inline-flex items-center gap-2" onClick={clearFilters}>
-              <X className="size-4" />
-              Clear filters
-            </button>
-          ) : null}
-          <span className="vault-chip">{selectedSortLabel}</span>
-        </div>
+        <span className="vault-chip">{selectedSortLabel}</span>
       </div>
 
       {vaultsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading vaults...</p> : null}
@@ -898,7 +1191,7 @@ export function AllDocumentsPage() {
                               {document.name}
                             </Link>
                             <p className="mt-1 text-sm text-muted-foreground">
-                              {document.originalName !== document.name ? `${document.originalName} • ` : ''}
+                              {document.originalName !== document.name ? `${document.originalName} - ` : ''}
                               Uploaded {formatDate(document.createdAt)}
                             </p>
                             {debouncedQuery.length > 0 && document.bestChunk ? (

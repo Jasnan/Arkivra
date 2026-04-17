@@ -45,6 +45,15 @@ function parseTagIds(value: string | undefined) {
   return tagIds.length > 0 ? tagIds : undefined;
 }
 
+function parseVaultIds(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const vaultIds = [...new Set(value.split(',').map(part => part.trim()).filter(Boolean))];
+  return vaultIds.length > 0 ? vaultIds : undefined;
+}
+
 function parseSortBy(value: string | undefined) {
   if (value === undefined || value.trim().length === 0) {
     return 'document_date_desc' as const;
@@ -210,6 +219,7 @@ export function registerSearchRoutes({
     }
 
     const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
+    const requestedVaultIds = parseVaultIds(context.req.query('vaultIds'));
     const tagId = context.req.query('tagId')?.trim() || undefined;
     const tagIds = parseTagIds(context.req.query('tagIds'));
     const dateFrom = parseOptionalDate(context.req.query('dateFrom'));
@@ -285,8 +295,18 @@ export function registerSearchRoutes({
       return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
     }
 
+    if (requestedVaultIds && requestedVaultIds.some(vaultId => !allowedVaultIds.includes(vaultId))) {
+      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+    }
+
+    const effectiveRequestedVaultIds = requestedVaultIds && requestedVaultIds.length > 0
+      ? requestedVaultIds
+      : requestedVaultId
+        ? [requestedVaultId]
+        : allowedVaultIds;
+
     const result = await searchServices.searchDocuments({
-      vaultIds: requestedVaultId ? [requestedVaultId] : allowedVaultIds,
+      vaultIds: effectiveRequestedVaultIds,
       vaultId: requestedVaultId,
       query,
       pageIndex,

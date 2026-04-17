@@ -59,6 +59,7 @@ export async function searchAllDocuments({
   pageIndex = 0,
   pageSize = 10,
   vaultId,
+  vaultIds,
   tagId,
   tagIds,
   dateFrom,
@@ -69,6 +70,7 @@ export async function searchAllDocuments({
   pageIndex?: number;
   pageSize?: number;
   vaultId?: string;
+  vaultIds?: string[];
   tagId?: string;
   tagIds?: string[];
   dateFrom?: string;
@@ -86,6 +88,10 @@ export async function searchAllDocuments({
 
   if (vaultId) {
     params.set('vaultId', vaultId);
+  }
+
+  if (vaultIds && vaultIds.length > 0) {
+    params.set('vaultIds', vaultIds.join(','));
   }
 
   if (tagId) {

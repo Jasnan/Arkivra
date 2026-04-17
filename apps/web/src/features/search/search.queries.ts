@@ -4,7 +4,7 @@ import type { SearchSortBy } from './search.types';
 
 export const searchQueryKeys = {
   all: ['search'] as const,
-  results: (vaultId: string, params: {
+  results: (vaultKey: string, params: {
     query: string;
     pageIndex: number;
     pageSize: number;
@@ -15,7 +15,7 @@ export const searchQueryKeys = {
     sortBy?: SearchSortBy;
   }) => [
     ...searchQueryKeys.all,
-    vaultId,
+    vaultKey,
     params.query,
     params.pageIndex,
     params.pageSize,
@@ -64,6 +64,7 @@ export function useGlobalSearchDocumentsQuery({
   pageIndex,
   pageSize,
   vaultId,
+  vaultIds,
   tagId,
   tagIds,
   dateFrom,
@@ -75,6 +76,7 @@ export function useGlobalSearchDocumentsQuery({
   pageIndex: number;
   pageSize: number;
   vaultId?: string;
+  vaultIds?: string[];
   tagId?: string;
   tagIds?: string[];
   dateFrom?: string;
@@ -82,9 +84,11 @@ export function useGlobalSearchDocumentsQuery({
   sortBy?: SearchSortBy;
   enabled?: boolean;
 }) {
+  const vaultKey = vaultIds && vaultIds.length > 0 ? vaultIds.join(',') : vaultId ?? 'all-vaults';
+
   return useQuery({
-    queryKey: searchQueryKeys.results(vaultId ?? 'all-vaults', { query, pageIndex, pageSize, tagId, tagIds, dateFrom, dateTo, sortBy }),
-    queryFn: () => searchAllDocuments({ query, pageIndex, pageSize, vaultId, tagId, tagIds, dateFrom, dateTo, sortBy }),
+    queryKey: searchQueryKeys.results(vaultKey, { query, pageIndex, pageSize, tagId, tagIds, dateFrom, dateTo, sortBy }),
+    queryFn: () => searchAllDocuments({ query, pageIndex, pageSize, vaultId, vaultIds, tagId, tagIds, dateFrom, dateTo, sortBy }),
     enabled,
     staleTime: 30_000,
     placeholderData: previousData => previousData,

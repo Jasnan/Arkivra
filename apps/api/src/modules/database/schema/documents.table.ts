@@ -31,6 +31,7 @@ export const documentsTable = pgTable(
     name: text('name').notNull(),
     mimeType: text('mime_type').notNull(),
     content: text('content').notNull().default(''),
+    processingStatus: text('processing_status').notNull().default('pending'),
     documentDate: timestamp('document_date', { mode: 'date' }),
 
     fileEncryptionKeyWrapped: text('file_encryption_key_wrapped'),
@@ -49,6 +50,7 @@ export const documentsTable = pgTable(
       table.createdAt,
     ),
     index('documents_vault_deleted_idx').on(table.vaultId, table.isDeleted),
+    index('documents_processing_status_idx').on(table.processingStatus),
     index('documents_hash_idx').on(table.originalSha256Hash),
     index('documents_kek_version_idx').on(table.fileEncryptionKekVersion),
   ],

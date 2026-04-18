@@ -4,6 +4,7 @@ export interface DocumentSummary {
   originalName: string;
   originalSize: number;
   mimeType: string;
+  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed';
   documentDate: string | null;
   createdAt: string;
   updatedAt: string;

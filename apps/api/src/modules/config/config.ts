@@ -122,6 +122,32 @@ export const configDefinition = {
       },
     },
   },
+  uploads: {
+    stagingPath: {
+      doc: 'Base path for temporary bulk upload staging files.',
+      schema: z.string(),
+      default: './upload-staging',
+      env: 'ARKIVRA_UPLOAD_STAGING_PATH',
+    },
+    partSizeBytes: {
+      doc: 'Chunk size for multipart uploads handled by the API.',
+      schema: z.coerce.number().int().min(1024 * 1024),
+      default: 5 * 1024 * 1024,
+      env: 'ARKIVRA_UPLOAD_PART_SIZE_BYTES',
+    },
+    maxFileSizeBytes: {
+      doc: 'Maximum accepted file size for upload sessions.',
+      schema: z.coerce.number().int().min(1024 * 1024),
+      default: 500 * 1024 * 1024,
+      env: 'ARKIVRA_UPLOAD_MAX_FILE_SIZE_BYTES',
+    },
+    sessionTtlHours: {
+      doc: 'How long an upload session can remain resumable before it expires.',
+      schema: z.coerce.number().int().min(1).max(168),
+      default: 24,
+      env: 'ARKIVRA_UPLOAD_SESSION_TTL_HOURS',
+    },
+  },
   auth: {
     secret: {
       doc: 'Secret key for Better Auth session signing. MUST be changed in production.',

@@ -26,6 +26,8 @@ import { requireAuthentication } from '../auth/auth.middleware.js';
 import { createAuthorizationServices } from '../authorization/authorization.services.js';
 import { registerVaultRoutes } from '../vaults/vaults.routes.js';
 import { registerDocumentRoutes } from '../documents/documents.routes.js';
+import { createDocumentsServices } from '../documents/documents.services.js';
+import { registerUploadRoutes } from '../uploads/uploads.routes.js';
 import { registerSearchRoutes } from '../search/search.routes.js';
 import { registerTagRoutes } from '../tags/tags.routes.js';
 import { createBackupServices } from '../admin/backups/backups.services.js';
@@ -55,6 +57,7 @@ export function createServer({
   const app = new Hono<ServerContext>({ strict: true });
   const backupServices = createBackupServices({ config });
   const authzServices = authorizationServices ?? createAuthorizationServices({ db });
+  const documentsServices = createDocumentsServices({ db, storage, encryption });
 
   app.use(
     cors({
@@ -108,8 +111,16 @@ export function createServer({
     db,
     storage,
     encryption,
+    services: documentsServices,
     documentQueue,
     retentionDays: config.backgroundJobs.documentRetentionDays,
+  });
+  registerUploadRoutes({
+    app,
+    db,
+    config,
+    documentsServices,
+    documentQueue,
   });
   registerSearchRoutes({ app, db });
   registerTagRoutes({ app, db });

@@ -15,6 +15,13 @@
       "when": 1776506400000,
       "tag": "0001_vault_description",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776536400000,
+      "tag": "0002_bulk_uploads",
+      "breakpoints": true
     }
   ]
 }

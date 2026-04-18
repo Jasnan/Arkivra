@@ -7,6 +7,7 @@ import { documentTagsTable, documentsTable, tagsTable, vaultsTable } from '../da
 import { generateId } from '../database/schema/helpers.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
+export type DocumentProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export type HardDeleteDocumentResult =
   | { success: true; id: string }
@@ -29,7 +30,23 @@ export function createDocumentsServices({
     return `${vaultId}/${docId}`;
   }
 
-  async function uploadDocument({
+  function deriveDisplayName(fileName: string): string {
+    const trimmed = fileName.trim();
+    if (trimmed.length === 0) {
+      return 'untitled';
+    }
+
+    const extensionIndex = trimmed.lastIndexOf('.');
+    const baseName = extensionIndex > 0 ? trimmed.slice(0, extensionIndex) : trimmed;
+    const normalized = baseName
+      .replace(/[_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return normalized.length > 0 ? normalized : baseName || 'untitled';
+  }
+
+  async function finalizeUploadedDocument({
     vaultId,
     userId,
     fileName,
@@ -45,7 +62,6 @@ export function createDocumentsServices({
     const sha256Hash = computeSha256(fileData);
     const fileSize = fileData.length;
 
-    // Deduplication: check if same hash already exists in vault (non-deleted)
     const [existing] = await db
       .select({ id: documentsTable.id })
       .from(documentsTable)
@@ -92,8 +108,9 @@ export function createDocumentsServices({
         originalSize: fileSize,
         originalStorageKey: storageKey,
         originalSha256Hash: sha256Hash,
-        name: fileName,
+        name: deriveDisplayName(fileName),
         mimeType,
+        processingStatus: 'pending',
         fileEncryptionKeyWrapped: wrappedDek,
         fileEncryptionKekVersion: kekVersion,
         fileEncryptionAlgorithm: algorithm,
@@ -105,6 +122,28 @@ export function createDocumentsServices({
     }
 
     return { document, duplicate: false, existingId: null };
+  }
+
+  async function uploadDocument({
+    vaultId,
+    userId,
+    fileName,
+    mimeType,
+    fileData,
+  }: {
+    vaultId: string;
+    userId: string;
+    fileName: string;
+    mimeType: string;
+    fileData: Buffer;
+  }) {
+    return finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName,
+      mimeType,
+      fileData,
+    });
   }
 
   async function downloadDocument({
@@ -192,6 +231,7 @@ export function createDocumentsServices({
         originalName: documentsTable.originalName,
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
+        processingStatus: documentsTable.processingStatus,
         documentDate: documentsTable.documentDate,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -213,6 +253,7 @@ export function createDocumentsServices({
         originalSha256Hash: documentsTable.originalSha256Hash,
         mimeType: documentsTable.mimeType,
         content: documentsTable.content,
+        processingStatus: documentsTable.processingStatus,
         documentDate: documentsTable.documentDate,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -410,8 +451,33 @@ export function createDocumentsServices({
     return { success: true, id: doc.id };
   }
 
+  async function updateDocumentProcessingStatus({
+    documentId,
+    vaultId,
+    processingStatus,
+  }: {
+    documentId: string;
+    vaultId: string;
+    processingStatus: DocumentProcessingStatus;
+  }) {
+    const [doc] = await db
+      .update(documentsTable)
+      .set({
+        processingStatus,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
+      .returning({
+        id: documentsTable.id,
+        processingStatus: documentsTable.processingStatus,
+      });
+
+    return doc ?? null;
+  }
+
   return {
     downloadDocument,
+    finalizeUploadedDocument,
     getDocument,
     hardDeleteDocument,
     listDeletedDocuments,
@@ -419,6 +485,7 @@ export function createDocumentsServices({
     renameDocument,
     restoreDocument,
     softDeleteDocument,
+    updateDocumentProcessingStatus,
     updateDocumentDate,
     uploadDocument,
   };

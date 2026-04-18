@@ -458,4 +458,96 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(listTagsAfterRemovalBody.tags).toHaveLength(0);
   }, 60_000);
+
+  test('uploads a PDF through the chunked upload session flow', async () => {
+    if (app === null || db === null || testContext.vaultId === null) {
+      throw new Error('Test app dependencies were not initialized');
+    }
+
+    const signInResponse = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost:1221',
+      },
+      body: JSON.stringify({
+        email: testContext.email,
+        password: testContext.password,
+      }),
+    });
+
+    expect(signInResponse.status).toBe(200);
+    const sessionCookie = getSessionCookie(signInResponse);
+
+    const fileBuffer = createTestPdfBuffer();
+    const initResponse = await app.request(`/api/vaults/${testContext.vaultId}/uploads/init`, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        fileName: 'arkivra-bulk-e2e.pdf',
+        mimeType: 'application/pdf',
+        totalSize: fileBuffer.length,
+      }),
+    });
+
+    expect(initResponse.status).toBe(201);
+    const initBody = (await initResponse.json()) as {
+      upload: { id: string; partCount: number };
+    };
+    expect(initBody.upload.partCount).toBe(1);
+
+    const partResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/uploads/${initBody.upload.id}/parts/1`,
+      {
+        method: 'PUT',
+        headers: {
+          cookie: sessionCookie,
+          'content-type': 'application/octet-stream',
+        },
+        body: fileBuffer,
+      },
+    );
+
+    expect(partResponse.status).toBe(200);
+
+    const completeResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/uploads/${initBody.upload.id}/complete`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: sessionCookie,
+        },
+      },
+    );
+
+    expect(completeResponse.status).toBe(201);
+    const completeBody = (await completeResponse.json()) as {
+      document: { id: string };
+      upload: { status: string; documentId: string };
+    };
+
+    expect(completeBody.upload.status).toBe('processing');
+    expect(completeBody.upload.documentId).toBe(completeBody.document.id);
+
+    await waitForProcessing({
+      db,
+      documentId: completeBody.document.id,
+      vaultId: testContext.vaultId,
+    });
+
+    const [document] = await db
+      .select({
+        processingStatus: documentsTable.processingStatus,
+        content: documentsTable.content,
+      })
+      .from(documentsTable)
+      .where(eq(documentsTable.id, completeBody.document.id))
+      .limit(1);
+
+    expect(document?.processingStatus).toBe('completed');
+    expect(document?.content).toContain('Arkivra Docling E2E Test PDF');
+  }, 60_000);
 });

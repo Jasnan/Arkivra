@@ -1,5 +1,4 @@
-import type { ChangeEvent } from 'react';
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search as SearchIcon, Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
@@ -8,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import {
   getDocumentDownloadUrl,
   softDeleteDocument,
-  uploadDocument,
 } from '@/features/documents/documents.api';
 import { documentQueryKeys, useDocumentsQuery } from '@/features/documents/documents.queries';
 import { formatBytes, formatDate, sortDocuments } from '@/features/documents/documents.utils';
@@ -29,7 +27,6 @@ function DocumentIcon() {
 export function DocumentsPage() {
   const params = useParams<{ vaultId: string }>();
   const vaultId = params.vaultId ?? '';
-  const uploadInputId = useId();
   const queryClient = useQueryClient();
 
   const [searchText, setSearchText] = useState('');
@@ -55,27 +52,6 @@ export function DocumentsPage() {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     enabled: searchText.trim().length > 0,
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: async (files: File[]) => {
-      const uploads = [];
-
-      for (const file of files) {
-        uploads.push(await uploadDocument({ vaultId, file }));
-      }
-
-      return uploads;
-    },
-    onSuccess: async (documents) => {
-      setStatusMessage(`${documents.length} document${documents.length === 1 ? '' : 's'} uploaded.`);
-      setErrorMessage(null);
-      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
-    },
-    onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Upload failed.');
-      setStatusMessage(null);
-    },
   });
 
   const deleteMutation = useMutation({
@@ -134,18 +110,22 @@ export function DocumentsPage() {
     && !searchQuery.isLoading
     && (usingSearch ? (searchQuery.data?.results.length ?? 0) === 0 : filteredDocuments.length === 0);
 
-  async function handleUploadChange(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
+  useEffect(() => {
+    async function handleUploadCompleted(event: Event) {
+      const detail = (event as CustomEvent<{ vaultId?: string }>).detail;
 
-    if (files.length === 0) {
-      return;
+      if (!detail?.vaultId || detail.vaultId !== vaultId) {
+        return;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
     }
 
-    setStatusMessage(null);
-    setErrorMessage(null);
-    await uploadMutation.mutateAsync(files);
-    event.target.value = '';
-  }
+    window.addEventListener('arkivra:uploads-completed', handleUploadCompleted);
+    return () => {
+      window.removeEventListener('arkivra:uploads-completed', handleUploadCompleted);
+    };
+  }, [queryClient, vaultId]);
 
   return (
     <section className="space-y-6 pb-8">
@@ -157,12 +137,13 @@ export function DocumentsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link to={`/vaults/${vaultId}/documents/trash`} className="vault-link">Deleted documents</Link>
             <Link to={`/vaults/${vaultId}/tags`} className="vault-link">Tags</Link>
-            <label htmlFor={uploadInputId}>
-              <span className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">
-                <Upload className="size-4" />
-                Import document
-              </span>
-            </label>
+            <Link
+              to={`/transfers?vaultId=${vaultId}&locked=true`}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
+            >
+              <Upload className="size-4" />
+              Batch upload
+            </Link>
           </div>
         )}
       />
@@ -358,14 +339,6 @@ export function DocumentsPage() {
           </div>
         </div>
       </SurfacePanel>
-
-      <input
-        id={uploadInputId}
-        type="file"
-        multiple
-        className="sr-only"
-        onChange={handleUploadChange}
-      />
     </section>
   );
 }

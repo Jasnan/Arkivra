@@ -11,14 +11,13 @@ import {
   FolderOpen,
   Search as SearchIcon,
   Settings2,
-  SlidersHorizontal,
   Upload,
-  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageIntro, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { getDocumentDownloadUrl } from '@/features/documents/documents.api';
+import { ActiveFilterChip, DocumentSearchControls } from '@/features/documents/components/document-search-controls';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
@@ -258,25 +257,6 @@ function TagPill({
   );
 }
 
-function ActiveFilterChip({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onRemove}
-      className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-secondary/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-primary/20 hover:bg-secondary"
-    >
-      <span>{label}</span>
-      <X className="size-4 text-muted-foreground" />
-    </button>
-  );
-}
-
 function getDocumentTypeLabel(document: SearchResultItem) {
   const extension = document.name.split('.').pop()?.trim().toUpperCase();
 
@@ -396,7 +376,6 @@ export function AllDocumentsPage() {
   const [openVaultMenuId, setOpenVaultMenuId] = useState<string | null>(null);
   const [openDocumentMenuId, setOpenDocumentMenuId] = useState<string | null>(null);
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
-  const filtersDialogRef = useRef<HTMLDivElement | null>(null);
   const vaultDropdownRef = useRef<HTMLDivElement | null>(null);
   const tagDropdownRef = useRef<HTMLDivElement | null>(null);
   const vaultMenuRef = useRef<HTMLDivElement | null>(null);
@@ -412,27 +391,6 @@ export function AllDocumentsPage() {
     onClose: () => setOpenDocumentMenuId(null),
     ref: documentMenuRef,
   });
-
-  useEffect(() => {
-    if (!isFiltersOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsFiltersOpen(false);
-      }
-    };
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isFiltersOpen]);
 
   useEffect(() => {
     if (!isFiltersOpen) {
@@ -674,121 +632,28 @@ export function AllDocumentsPage() {
         )}
       />
 
-      <SurfacePanel className="rounded-[28px] p-3 sm:p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-          <div className="relative min-w-0 flex-1">
-            <SearchIcon className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              aria-label="Search documents"
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              placeholder="Search invoices, clauses, names..."
-              className="h-16 w-full rounded-[20px] border border-border/70 bg-background pl-14 pr-4 text-lg text-foreground outline-none transition focus-visible:border-primary/20 focus-visible:ring-2 focus-visible:ring-primary/15"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => setIsFiltersOpen(true)}
-              className="h-16 min-w-[10rem] justify-center rounded-[20px] border-border/70 px-5 text-base shadow-none"
-            >
-              <SlidersHorizontal className="size-5" />
-              <span>Filter</span>
-              {activeFilterCount > 0 ? (
-                <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-secondary px-2 py-1 text-xs font-bold text-foreground">
-                  {activeFilterCount}
-                </span>
-              ) : null}
-            </Button>
-
-            <div className="flex items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 py-2 shadow-none">
-              <label htmlFor="documents-sort" className="text-sm font-semibold text-muted-foreground">
-                Sort by:
-              </label>
-              <div className="relative">
-                <select
-                  id="documents-sort"
-                  aria-label="Sort documents"
-                  value={sortBy}
-                  onChange={event => setSortBy(event.target.value as SearchSortBy)}
-                  className={`${vaultInputClassName} h-11 min-w-[11rem] appearance-none rounded-[16px] border-0 bg-transparent pl-0 pr-8 text-base font-semibold ring-0 focus-visible:ring-0`}
-                >
-                  {sortOptions.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-1 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {activeFilters.length > 0 ? (
-          <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-muted-foreground">Active filters:</span>
-              {activeFilters.map(filter => (
-                <ActiveFilterChip key={filter.key} label={filter.label} onRemove={filter.onRemove} />
-              ))}
-            </div>
-
-            <button type="button" className="vault-link text-left" onClick={clearFilters}>
-              Clear all
-            </button>
-          </div>
-        ) : null}
-      </SurfacePanel>
-
-      {isFiltersOpen ? (
-        <div
-          className="fixed inset-0 z-40 bg-[rgba(17,27,70,0.18)] px-4 py-6 backdrop-blur-[4px] sm:px-6"
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setIsFiltersOpen(false);
-            }
-          }}
-        >
-          <div className="mx-auto flex h-full max-w-6xl items-start justify-end">
-            <div
-              ref={filtersDialogRef}
-              role="dialog"
-              aria-modal="true"
-              aria-label="Filters"
-              onPointerDownCapture={handleFilterDialogPointerDownCapture}
-              className="max-h-full w-full max-w-2xl overflow-y-auto rounded-[30px] border border-border/70 bg-card p-5 shadow-[0_40px_90px_rgba(13,23,62,0.18)] sm:p-7"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-11 items-center justify-center rounded-2xl bg-secondary text-primary">
-                    <SlidersHorizontal className="size-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Filters</h2>
-                    <p className="text-sm text-muted-foreground">Refine the library without leaving this page.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button type="button" className="vault-link" onClick={clearFilters}>
-                    Reset
-                  </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Close filters"
-                    className="rounded-2xl"
-                    onClick={() => setIsFiltersOpen(false)}
-                  >
-                    <X className="size-5" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-8 space-y-7">
+      <DocumentSearchControls
+        query={query}
+        onQueryChange={setQuery}
+        searchPlaceholder="Search invoices, clauses, names..."
+        searchAriaLabel="Search documents"
+        isFiltersOpen={isFiltersOpen}
+        onOpenFilters={() => setIsFiltersOpen(true)}
+        onCloseFilters={() => setIsFiltersOpen(false)}
+        onResetFilters={clearFilters}
+        activeFilterCount={activeFilterCount}
+        activeFilters={activeFilters}
+        onClearFilters={clearFilters}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
+        sortOptions={sortOptions}
+        sortSelectId="documents-sort"
+        sortAriaLabel="Sort documents"
+        filtersTitle="Filters"
+        filtersDescription="Refine the library without leaving this page."
+        onDialogPointerDownCapture={handleFilterDialogPointerDownCapture}
+        filtersContent={(
+          <>
                 <div className="space-y-3">
                   <label className="text-lg font-semibold text-foreground">
                     Vault
@@ -1071,23 +936,9 @@ export function AllDocumentsPage() {
                     </div>
                   ) : null}
                 </div>
-              </div>
-
-              <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-5">
-                <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="flex size-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                    <Check className="size-3.5" />
-                  </span>
-                  Results update automatically
-                </div>
-                <Button type="button" onClick={() => setIsFiltersOpen(false)} className="rounded-[18px] px-5">
-                  Done
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+          </>
+        )}
+      />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">

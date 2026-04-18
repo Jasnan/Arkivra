@@ -183,6 +183,8 @@ describe('tags and documents pages', () => {
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
     expect(screen.getByText(/contract/i)).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
     await user.selectOptions(screen.getByLabelText(/tag filter/i), 'tag_1');
 
     await waitFor(() => {
@@ -190,6 +192,75 @@ describe('tags and documents pages', () => {
         credentials: 'include',
       }));
     });
+    expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
+    expect(screen.queryByText(/contract/i)).not.toBeInTheDocument();
+  });
+
+  it('supports preset and custom date filtering on the vault documents page', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/api/vaults/vlt_1/documents')) {
+        return jsonResponse({
+          documents: [
+            {
+              id: 'doc_1',
+              name: 'Invoice April.pdf',
+              originalName: 'invoice.pdf',
+              originalSize: 2048,
+              mimeType: 'application/pdf',
+              documentDate: '2026-04-10T00:00:00.000Z',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-10T10:00:00.000Z',
+              isDeleted: false,
+              deletedAt: null,
+            },
+            {
+              id: 'doc_2',
+              name: 'Contract.pdf',
+              originalName: 'contract.pdf',
+              originalSize: 4096,
+              mimeType: 'application/pdf',
+              documentDate: '2026-02-12T00:00:00.000Z',
+              createdAt: '2026-02-12T10:00:00.000Z',
+              updatedAt: '2026-02-12T10:00:00.000Z',
+              isDeleted: false,
+              deletedAt: null,
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1/documents'],
+      routePath: '/vaults/:vaultId/documents',
+    });
+
+    expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
+    expect(screen.getByText(/contract/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+
+    expect(screen.getByLabelText(/any time/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/last 7 days/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/last 30 days/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/custom range/i)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/custom range/i));
+    await user.type(screen.getByLabelText(/^from$/i), '2026-04-01');
+    await user.type(screen.getByLabelText(/^to$/i), '2026-04-30');
+    await user.click(screen.getByRole('button', { name: /^done$/i }));
+
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
     expect(screen.queryByText(/contract/i)).not.toBeInTheDocument();
   });

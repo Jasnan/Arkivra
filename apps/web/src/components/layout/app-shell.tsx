@@ -3,8 +3,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Compass,
+  File,
   FileSearch,
-  FileText,
   LogOut,
   SearchX,
   Search,
@@ -106,7 +106,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const { primaryNavItems, footerNavItems } = useMemo(() => {
     const primaryItems = [
       { to: '/vaults', label: 'Vaults', icon: Vault },
-      { to: '/documents', label: 'Documents', icon: FileText },
+      { to: '/documents', label: 'Documents', icon: File },
       { to: '/transfers', label: 'Transfers', icon: Upload },
       { to: '/documents/trash', label: 'Trash', icon: Trash2 },
     ];
@@ -165,7 +165,9 @@ export function AppShell({ children }: PropsWithChildren) {
                           : 'text-muted-foreground hover:bg-card/70 hover:text-foreground',
                       )}
                   >
-                    <Icon className="size-4" />
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      <Icon className="size-4" />
+                    </span>
                     <span>{item.label}</span>
                   </NavLink>
                 );
@@ -188,7 +190,9 @@ export function AppShell({ children }: PropsWithChildren) {
                           : 'text-muted-foreground hover:bg-card/70 hover:text-foreground',
                       )}
                   >
-                    <Icon className="size-4" />
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      <Icon className="size-4" />
+                    </span>
                     <span>{item.label}</span>
                   </NavLink>
                 );
@@ -303,7 +307,9 @@ export function AppShell({ children }: PropsWithChildren) {
                             : 'bg-card/80 text-muted-foreground hover:text-foreground',
                         )}
                     >
-                      <Icon className="size-4" />
+                      <span className="flex size-4 shrink-0 items-center justify-center">
+                        <Icon className="size-4" />
+                      </span>
                       {item.label}
                     </NavLink>
                   );

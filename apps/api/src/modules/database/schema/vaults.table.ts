@@ -9,6 +9,7 @@ export const vaultsTable = pgTable(
     ...createTimestampColumns(),
 
     name: text('name').notNull(),
+    description: text('description'),
 
     deletedAt: timestamp('deleted_at', { mode: 'date' }),
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),

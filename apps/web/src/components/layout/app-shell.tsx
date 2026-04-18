@@ -7,7 +7,6 @@ import {
   FileText,
   LogOut,
   SearchX,
-  Plus,
   Search,
   Settings,
   ShieldCheck,
@@ -16,10 +15,9 @@ import {
   Vault,
   X,
 } from 'lucide-react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
-import { Button } from '@/components/ui/button';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
@@ -31,7 +29,6 @@ const navBaseClassName = 'flex items-center gap-3 rounded-xl px-4 py-3 text-sm f
 
 export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation();
-  const navigate = useNavigate();
   const meQuery = useMeQuery();
   const { data: sessionData } = authClient.useSession();
   const [searchValue, setSearchValue] = useState('');
@@ -145,13 +142,6 @@ export function AppShell({ children }: PropsWithChildren) {
               </p>
               <p className="mt-1 text-sm text-muted-foreground">Secure document management</p>
             </div>
-
-            {meQuery.data?.canCreateVault ? (
-              <Button size="lg" className="w-full justify-start" onClick={() => navigate('/vaults/new')}>
-                <Plus className="size-4" />
-                Create Vault
-              </Button>
-            ) : null}
 
             <nav className="space-y-2">
               {primaryNavItems.map(item => {

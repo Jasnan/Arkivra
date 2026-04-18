@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -48,6 +48,7 @@ export function VaultSettingsPage() {
   const members = useMemo(() => membersQuery.data?.members ?? [], [membersQuery.data?.members]);
 
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [inviteUserId, setInviteUserId] = useState('');
   const [invitePermissions, setInvitePermissions] = useState<VaultMemberPermission[]>(defaultInvitePermissions);
   const [transferTargetUserId, setTransferTargetUserId] = useState('');
@@ -66,12 +67,12 @@ export function VaultSettingsPage() {
   const renameMutation = useMutation({
     mutationFn: renameVault,
     onSuccess: async () => {
-      setStatusMessage('Vault name updated.');
+      setStatusMessage('Vault details updated.');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) });
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not update vault name.');
+      setErrorMessage(error instanceof Error ? error.message : 'Could not update vault details.');
     },
   });
 
@@ -134,6 +135,17 @@ export function VaultSettingsPage() {
     },
   });
 
+  useEffect(() => {
+    const vault = vaultQuery.data?.vault;
+
+    if (!vault) {
+      return;
+    }
+
+    setName(vault.name);
+    setDescription(vault.description ?? '');
+  }, [vaultQuery.data?.vault]);
+
   if (!vaultId) {
     return <p className="text-sm text-destructive">Invalid vault id.</p>;
   }
@@ -154,7 +166,11 @@ export function VaultSettingsPage() {
     setErrorMessage(null);
 
     const normalizedName = name.trim() || vault.name;
-    renameMutation.mutate({ vaultId, name: normalizedName });
+    renameMutation.mutate({
+      vaultId,
+      name: normalizedName,
+      description: description.trim() || null,
+    });
   }
 
   async function handleInvite(event: FormEvent<HTMLFormElement>) {
@@ -226,14 +242,27 @@ export function VaultSettingsPage() {
               <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Vault identity</h2>
             </div>
             <form className="space-y-4" onSubmit={handleRename}>
-              <input
-                type="text"
-                defaultValue={vault.name}
-                onChange={event => setName(event.target.value)}
-                className={vaultInputClassName}
-              />
+              <label className="space-y-2 block">
+                <span className="vault-label">Name</span>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={event => setName(event.target.value)}
+                  className={vaultInputClassName}
+                />
+              </label>
+
+              <label className="space-y-2 block">
+                <span className="vault-label">Description</span>
+                <textarea
+                  value={description}
+                  onChange={event => setDescription(event.target.value)}
+                  className={`${vaultInputClassName} min-h-28 resize-y`}
+                  placeholder="What belongs in this vault?"
+                />
+              </label>
               <Button type="submit" disabled={renameMutation.isPending}>
-                {renameMutation.isPending ? 'Saving...' : 'Save name'}
+                {renameMutation.isPending ? 'Saving...' : 'Save details'}
               </Button>
             </form>
           </SurfacePanel>

@@ -1,7 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CreateVaultPage } from '@/features/vaults/pages/create-vault-page';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 import { renderWithProviders } from '@/test/utils';
@@ -19,6 +18,7 @@ describe('vault pages', () => {
   });
 
   it('renders vault links for documents and settings', async () => {
+    const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -34,21 +34,24 @@ describe('vault pages', () => {
       expect(url).toContain('/api/vaults');
       return jsonResponse({
         vaults: [
-          { id: 'vlt_1', name: 'Personal', role: 'owner' },
+          { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner' },
         ],
       });
     }));
 
     renderWithProviders(<VaultsPage />);
 
-    expect(await screen.findAllByText('Personal')).toHaveLength(2);
-    expect(screen.getByRole('link', { name: /open documents/i })).toHaveAttribute('href', '/vaults/vlt_1/documents');
-    expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute('href', '/vaults/vlt_1/settings');
+    expect(await screen.findByRole('heading', { name: 'Personal' })).toBeInTheDocument();
+    expect(screen.getByText('Household records')).toBeInTheDocument();
+    expect(screen.getByText(/3 files/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /vault actions for personal/i }));
+    await user.click(screen.getByRole('button', { name: /settings/i }));
   });
 
-  it('validates and submits vault creation', async () => {
+  it('validates and submits vault creation from the vaults modal', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
@@ -60,30 +63,41 @@ describe('vault pages', () => {
         });
       }
 
+      if (url === '/api/vaults' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner' },
+          ],
+        });
+      }
+
       return jsonResponse({
-        vault: { id: 'vlt_new', name: 'Home Vault', role: 'owner', permissions: [], isGlobalAdmin: false },
+        vault: { id: 'vlt_new', name: 'Home Vault', description: 'Documents for home life', fileCount: 0, totalSize: 0, role: 'owner', permissions: [], isGlobalAdmin: false },
       }, 201);
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<CreateVaultPage />);
+    renderWithProviders(<VaultsPage />);
 
-    await user.click(screen.getByRole('button', { name: /create vault/i }));
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.anything());
+    await user.click(await screen.findByRole('button', { name: /create vault/i }));
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
+      method: 'POST',
+    }));
 
     await user.type(screen.getByLabelText(/vault name/i), 'Home Vault');
-    await user.click(screen.getByRole('button', { name: /create vault/i }));
+    await user.type(screen.getByLabelText(/description/i), 'Documents for home life');
+    await user.click(screen.getAllByRole('button', { name: /create vault/i })[1]);
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
+        body: JSON.stringify({ name: 'Home Vault', description: 'Documents for home life' }),
         credentials: 'include',
         method: 'POST',
       }));
     });
   });
 
-  it('blocks create vault submission for users without vault creation permission', async () => {
-    const user = userEvent.setup();
+  it('hides vault creation actions for users without vault creation permission', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -96,17 +110,23 @@ describe('vault pages', () => {
         });
       }
 
+      if (url === '/api/vaults') {
+        return jsonResponse({
+          vaults: [],
+        });
+      }
+
       throw new Error(`Unhandled request ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<CreateVaultPage />);
-
-    await user.type(screen.getByLabelText(/vault name/i), 'Blocked Vault');
-    await user.click(screen.getByRole('button', { name: /create vault/i }));
+    renderWithProviders(<VaultsPage />);
 
     expect(await screen.findByText(/must grant vault creation/i)).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.anything());
+    expect(screen.queryByRole('button', { name: /create vault/i })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
+      method: 'POST',
+    }));
   });
 
   it('loads vault settings and invites a member', async () => {
@@ -119,6 +139,7 @@ describe('vault pages', () => {
           vault: {
             id: 'vlt_1',
             name: 'Personal',
+            description: 'Household records',
             role: 'owner',
             permissions: [],
             isGlobalAdmin: false,
@@ -171,6 +192,20 @@ describe('vault pages', () => {
     });
 
     expect(await screen.findByText(/personal/i)).toBeInTheDocument();
+    await user.clear(screen.getByLabelText(/name/i));
+    await user.type(screen.getByLabelText(/name/i), 'Personal Vault');
+    await user.clear(screen.getByLabelText(/description/i));
+    await user.type(screen.getByLabelText(/description/i), 'Updated household records');
+    await user.click(screen.getByRole('button', { name: /save details/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({
+        body: JSON.stringify({ name: 'Personal Vault', description: 'Updated household records' }),
+        credentials: 'include',
+        method: 'PATCH',
+      }));
+    });
+
     await user.type(screen.getByPlaceholderText(/usr_/i), 'usr_new');
     await user.click(screen.getByRole('button', { name: /invite member/i }));
 

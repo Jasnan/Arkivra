@@ -6,8 +6,9 @@ import {
   VAULT_MEMBER_PERMISSIONS,
   normalizeVaultMemberPermissions,
 } from '../authorization/authorization.types.js';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
+  documentsTable,
   userGlobalRolesTable,
   usersTable,
   vaultMemberPermissionsTable,
@@ -51,6 +52,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       .select({
         id: vaultsTable.id,
         name: vaultsTable.name,
+        description: vaultsTable.description,
         createdAt: vaultsTable.createdAt,
         updatedAt: vaultsTable.updatedAt,
         deletedAt: vaultsTable.deletedAt,
@@ -66,10 +68,33 @@ export function createVaultsServices({ db }: { db: Database }) {
       db,
       memberIds: vaults.map((vault) => vault.memberId),
     });
+    const fileStatsRows = vaults.length === 0
+      ? []
+      : await db
+          .select({
+            vaultId: documentsTable.vaultId,
+            fileCount: sql<number>`count(*)`.mapWith(Number),
+            totalSize: sql<number>`coalesce(sum(${documentsTable.originalSize}), 0)`.mapWith(Number),
+          })
+          .from(documentsTable)
+          .where(
+            and(
+              inArray(documentsTable.vaultId, vaults.map(vault => vault.id)),
+              eq(documentsTable.isDeleted, false),
+            ),
+          )
+          .groupBy(documentsTable.vaultId);
+
+    const statsByVaultId = new Map(
+      fileStatsRows.map(row => [row.vaultId, { fileCount: row.fileCount, totalSize: row.totalSize }]),
+    );
 
     return vaults.map((vault) => ({
       id: vault.id,
       name: vault.name,
+      description: vault.description,
+      fileCount: statsByVaultId.get(vault.id)?.fileCount ?? 0,
+      totalSize: statsByVaultId.get(vault.id)?.totalSize ?? 0,
       createdAt: vault.createdAt,
       updatedAt: vault.updatedAt,
       deletedAt: vault.deletedAt,
@@ -82,9 +107,17 @@ export function createVaultsServices({ db }: { db: Database }) {
     }));
   }
 
-  async function createVault({ userId, name }: { userId: string; name: string }) {
+  async function createVault({
+    userId,
+    name,
+    description,
+  }: {
+    userId: string;
+    name: string;
+    description: string | null;
+  }) {
     return db.transaction(async (tx) => {
-      const [vault] = await tx.insert(vaultsTable).values({ name }).returning();
+      const [vault] = await tx.insert(vaultsTable).values({ name, description }).returning();
 
       if (vault === undefined) {
         throw new Error('Failed to create vault');
@@ -99,6 +132,8 @@ export function createVaultsServices({ db }: { db: Database }) {
       return {
         ...vault,
         deletedAt: null,
+        fileCount: 0,
+        totalSize: 0,
         role: 'owner' as const,
         permissions: getOwnerFallbackPermissions(),
         isGlobalAdmin: false,
@@ -122,6 +157,7 @@ export function createVaultsServices({ db }: { db: Database }) {
         memberId: vaultMembersTable.id,
         id: vaultsTable.id,
         name: vaultsTable.name,
+        description: vaultsTable.description,
         createdAt: vaultsTable.createdAt,
         updatedAt: vaultsTable.updatedAt,
         deletedAt: vaultsTable.deletedAt,
@@ -147,6 +183,9 @@ export function createVaultsServices({ db }: { db: Database }) {
       return {
         id: member.id,
         name: member.name,
+        description: member.description,
+        fileCount: 0,
+        totalSize: 0,
         createdAt: member.createdAt,
         updatedAt: member.updatedAt,
         deletedAt: member.deletedAt,
@@ -167,6 +206,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       .select({
         id: vaultsTable.id,
         name: vaultsTable.name,
+        description: vaultsTable.description,
         createdAt: vaultsTable.createdAt,
         updatedAt: vaultsTable.updatedAt,
         deletedAt: vaultsTable.deletedAt,
@@ -181,23 +221,35 @@ export function createVaultsServices({ db }: { db: Database }) {
 
     return {
       ...vault,
+      fileCount: 0,
+      totalSize: 0,
       role: null,
       permissions: getOwnerFallbackPermissions(),
       isGlobalAdmin: true,
     };
   }
 
-  async function updateVaultName({ vaultId, name }: { vaultId: string; name: string }) {
+  async function updateVaultIdentity({
+    vaultId,
+    name,
+    description,
+  }: {
+    vaultId: string;
+    name: string;
+    description: string | null;
+  }) {
     const [vault] = await db
       .update(vaultsTable)
       .set({
         name,
+        description,
         updatedAt: new Date(),
       })
       .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
       .returning({
         id: vaultsTable.id,
         name: vaultsTable.name,
+        description: vaultsTable.description,
         createdAt: vaultsTable.createdAt,
         updatedAt: vaultsTable.updatedAt,
       });
@@ -418,7 +470,7 @@ export function createVaultsServices({ db }: { db: Database }) {
     listUserVaults,
     removeMember,
     softDeleteVault,
-    updateVaultName,
+    updateVaultIdentity,
     upsertMember,
   };
 }

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS "vaults" (
   "created_at" timestamp DEFAULT now() NOT NULL,
   "updated_at" timestamp DEFAULT now() NOT NULL,
   "name" text NOT NULL,
+  "description" text,
   "deleted_at" timestamp,
   "deleted_by" text REFERENCES "users"("id") ON DELETE SET NULL
 );

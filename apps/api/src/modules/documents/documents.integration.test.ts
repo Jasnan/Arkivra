@@ -112,7 +112,7 @@ function createMockVaultsServices() {
     listUserVaults: vi.fn(async () => []),
     removeMember: vi.fn(),
     softDeleteVault: vi.fn(),
-    updateVaultName: vi.fn(),
+    updateVaultIdentity: vi.fn(),
     upsertMember: vi.fn(),
   } as unknown as VaultsServices;
 }
@@ -531,28 +531,8 @@ describe('documents integration', () => {
     expect(response.status).toBe(204);
     expect(docServices.hardDeleteDocument).toHaveBeenCalledWith({
       documentId: 'doc_1',
-      deletedBeforeOrAt: expect.any(Date),
       vaultId: 'vlt_1',
     });
-  });
-
-  test('blocks permanent deletion before the retention window has elapsed', async () => {
-    const docServices = createMockDocumentsServices();
-    (docServices as any).hardDeleteDocument = vi.fn(async () => ({
-      success: false,
-      reason: 'retention_window_active',
-    }));
-
-    const app = createTestApp({ docServices });
-
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/permanent', {
-      method: 'DELETE',
-      headers: { 'x-test-user-id': 'usr_owner' },
-    });
-
-    expect(response.status).toBe(409);
-    const body = (await response.json()) as any;
-    expect(body.error.code).toBe('document.retention_window_active');
   });
 
   test('forbids hard delete for member role', async () => {

@@ -16,7 +16,6 @@ import { AdminPage } from '@/features/admin/pages/admin-page';
 import { AboutPage } from '@/features/about/pages/about-page';
 import { SettingsPage } from '@/features/settings/pages/settings-page';
 import { TagsPage } from '@/features/tags/pages/tags-page';
-import { CreateVaultPage } from '@/features/vaults/pages/create-vault-page';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 
@@ -68,7 +67,7 @@ export function createAppRouter() {
         },
         {
           path: 'vaults/new',
-          element: <CreateVaultPage />,
+          element: <Navigate to="/vaults" replace />,
         },
         {
           path: 'vaults/:vaultId/settings',

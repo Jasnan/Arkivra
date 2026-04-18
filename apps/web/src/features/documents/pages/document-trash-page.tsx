@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { RotateCcw, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { PageIntro, StatCard, StatusBanner, SurfacePanel } from '@/components/layout/vault-ui';
+import { PageIntro, StatusBanner, SurfacePanel } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { restoreDocument } from '@/features/documents/documents.api';
+import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
 import { documentQueryKeys, useDeletedDocumentsQuery, useDocumentsQuery } from '@/features/documents/documents.queries';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import type { DeletedDocumentSummary, DocumentSummary } from '@/features/documents/documents.types';
@@ -55,6 +55,41 @@ export function DocumentTrashPage() {
     },
   });
 
+  const permanentDeleteMutation = useMutation({
+    mutationFn: permanentlyDeleteDocument,
+    onSuccess: async () => {
+      setStatusMessage('Document permanently deleted.');
+      setErrorMessage(null);
+      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not permanently delete document.');
+      setStatusMessage(null);
+    },
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all(
+        deletedDocuments.map(document =>
+          permanentlyDeleteDocument({
+            vaultId: getResolvedVaultId(document, vaultId),
+            documentId: document.id,
+          }),
+        ),
+      );
+    },
+    onSuccess: async () => {
+      setStatusMessage('All trashed documents permanently deleted.');
+      setErrorMessage(null);
+      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not permanently delete all documents.');
+      setStatusMessage(null);
+    },
+  });
+
   const deletedDocuments = isVaultScoped
     ? (vaultDocumentsQuery.data?.documents ?? []).filter(document => document.isDeleted)
     : (deletedDocumentsQuery.data?.documents ?? []);
@@ -71,7 +106,7 @@ export function DocumentTrashPage() {
       <PageIntro
         eyebrow="Lifecycle Control"
         title="Trash"
-        description={`Review soft-deleted documents and restore them before Arkivra permanently removes them after ${retentionDays} days.`}
+        description="Restore or permanently delete soft-deleted documents."
         actions={<Link to={backTarget} className="vault-link">{backLabel}</Link>}
       />
 
@@ -82,20 +117,9 @@ export function DocumentTrashPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <StatCard
-          label="Deleted records"
-          value={deletedDocuments.length}
-          meta="Documents currently waiting in the vault trash."
-          icon={<Trash2 className="size-5" />}
-        />
-        <StatCard
-          label="Recovery status"
-          value={deletedDocuments.length > 0 ? 'Available' : 'Clear'}
-          meta={deletedDocuments.length > 0 ? `Items stay recoverable for ${retentionDays} days before automatic removal.` : 'Nothing is waiting in trash right now.'}
-          icon={<RotateCcw className="size-5" />}
-        />
-      </div>
+      <StatusBanner>
+        Trashed documents stay here for {retentionDays} days before Arkivra removes them automatically.
+      </StatusBanner>
 
       <SurfacePanel className="space-y-5">
         {isLoading ? <p className="text-sm text-muted-foreground">Loading deleted documents...</p> : null}
@@ -105,13 +129,28 @@ export function DocumentTrashPage() {
           <div className="vault-empty">Trash is empty.</div>
         ) : (
           <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleteAllMutation.isPending || permanentDeleteMutation.isPending || restoreMutation.isPending}
+                onClick={() => {
+                  setStatusMessage(null);
+                  setErrorMessage(null);
+                  deleteAllMutation.mutate();
+                }}
+              >
+                <Trash2 className="size-4" />
+                {deleteAllMutation.isPending ? 'Deleting...' : 'Delete all'}
+              </Button>
+            </div>
             {deletedDocuments.map(document => (
-              <article key={document.id} className="rounded-[24px] bg-secondary/56 p-5">
+              <article key={document.id} className="rounded-[24px] bg-secondary/56 p-4 sm:p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <Link
                       to={`/vaults/${getResolvedVaultId(document, vaultId)}/documents/${document.id}`}
-                      className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground transition hover:text-primary"
+                      className="font-display text-xl font-bold tracking-[-0.04em] text-foreground transition hover:text-primary sm:text-2xl"
                     >
                       {document.name}
                     </Link>
@@ -133,7 +172,7 @@ export function DocumentTrashPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={restoreMutation.isPending}
+                      disabled={restoreMutation.isPending || permanentDeleteMutation.isPending || deleteAllMutation.isPending}
                       onClick={() => {
                         setStatusMessage(null);
                         setErrorMessage(null);
@@ -141,6 +180,21 @@ export function DocumentTrashPage() {
                       }}
                     >
                       Restore
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={permanentDeleteMutation.isPending || restoreMutation.isPending || deleteAllMutation.isPending}
+                      onClick={() => {
+                        setStatusMessage(null);
+                        setErrorMessage(null);
+                        permanentDeleteMutation.mutate({
+                          vaultId: getResolvedVaultId(document, vaultId),
+                          documentId: document.id,
+                        });
+                      }}
+                    >
+                      Delete
                     </Button>
                   </div>
                 </div>

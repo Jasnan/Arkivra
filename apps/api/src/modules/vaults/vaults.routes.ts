@@ -26,6 +26,19 @@ function getValidName(value: unknown) {
   return name.length > 0 ? name : null;
 }
 
+function getValidDescription(value: unknown) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const description = value.trim();
+  return description.length > 0 ? description : null;
+}
+
 function getValidRole(value: unknown): VaultRole | null {
   return value === 'owner' || value === 'member' ? value : null;
 }
@@ -111,6 +124,7 @@ export function registerVaultRoutes({
 
     const body = await context.req.json();
     const name = getValidName(body.name);
+    const description = getValidDescription(body.description);
 
     if (name === null) {
       return context.json(
@@ -124,7 +138,19 @@ export function registerVaultRoutes({
       );
     }
 
-    const vault = await vaultsServices.createVault({ userId, name });
+    if (body.description !== undefined && description === null && typeof body.description !== 'string') {
+      return context.json(
+        {
+          error: {
+            code: 'vault.invalid_description',
+            message: 'Vault description must be a string',
+          },
+        },
+        400,
+      );
+    }
+
+    const vault = await vaultsServices.createVault({ userId, name, description });
     return context.json({ vault }, 201);
   });
 
@@ -181,6 +207,7 @@ export function registerVaultRoutes({
 
     const body = await context.req.json();
     const name = getValidName(body.name);
+    const description = getValidDescription(body.description);
 
     if (name === null) {
       return context.json(
@@ -194,7 +221,19 @@ export function registerVaultRoutes({
       );
     }
 
-    const vault = await vaultsServices.updateVaultName({ vaultId, name });
+    if (body.description !== undefined && description === null && typeof body.description !== 'string') {
+      return context.json(
+        {
+          error: {
+            code: 'vault.invalid_description',
+            message: 'Vault description must be a string',
+          },
+        },
+        400,
+      );
+    }
+
+    const vault = await vaultsServices.updateVaultIdentity({ vaultId, name, description });
 
     if (vault === null) {
       return context.json(

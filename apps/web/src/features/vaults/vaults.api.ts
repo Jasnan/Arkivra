@@ -17,11 +17,11 @@ export async function listVaults() {
   return fetchJson<VaultsListResponse>('/api/vaults');
 }
 
-export async function createVault({ name }: { name: string }) {
+export async function createVault({ name, description }: { name: string; description: string | null }) {
   return fetchJson<VaultDetailResponse>('/api/vaults', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, description }),
   });
 }
 
@@ -29,11 +29,19 @@ export async function getVault({ vaultId }: { vaultId: string }) {
   return fetchJson<VaultDetailResponse>(`/api/vaults/${vaultId}`);
 }
 
-export async function renameVault({ vaultId, name }: { vaultId: string; name: string }) {
+export async function renameVault({
+  vaultId,
+  name,
+  description,
+}: {
+  vaultId: string;
+  name: string;
+  description: string | null;
+}) {
   return fetchJson<VaultDetailResponse>(`/api/vaults/${vaultId}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, description }),
   });
 }
 

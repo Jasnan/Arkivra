@@ -375,24 +375,7 @@ export function registerDocumentRoutes({
       }
 
       const documentId = context.req.param('documentId');
-      const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-      const result = await documentsServices.hardDeleteDocument({
-        documentId,
-        vaultId,
-        deletedBeforeOrAt: cutoff,
-      });
-
-      if (!result.success && result.reason === 'retention_window_active') {
-        return context.json(
-          {
-            error: {
-              code: 'document.retention_window_active',
-              message: `Soft-deleted documents remain in trash for ${retentionDays} days before permanent deletion.`,
-            },
-          },
-          409,
-        );
-      }
+      const result = await documentsServices.hardDeleteDocument({ documentId, vaultId });
 
       if (!result.success) {
         return context.json(

@@ -14,12 +14,20 @@ export type VaultMemberPermission = (typeof VAULT_MEMBER_PERMISSIONS)[number];
 export interface VaultSummary {
   id: string;
   name: string;
+  description: string | null;
+  fileCount: number;
+  totalSize: number;
+  createdAt: string;
   role: 'owner' | 'member' | null;
 }
 
 export interface VaultDetail {
   id: string;
   name: string;
+  description: string | null;
+  fileCount?: number;
+  totalSize?: number;
+  createdAt?: string;
   role: 'owner' | 'member' | null;
   permissions: VaultMemberPermission[];
   isGlobalAdmin: boolean;

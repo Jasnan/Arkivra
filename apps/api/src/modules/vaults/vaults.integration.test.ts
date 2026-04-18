@@ -7,9 +7,12 @@ import { registerVaultRoutes } from './vaults.routes.js';
 
 function createMockVaultsServices() {
   const services = {
-    createVault: vi.fn(async ({ name, userId }) => ({
+    createVault: vi.fn(async ({ name, description, userId }) => ({
       id: 'vlt_test_1',
       name,
+      description,
+      fileCount: 0,
+      totalSize: 0,
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
@@ -24,7 +27,7 @@ function createMockVaultsServices() {
     listUserVaults: vi.fn(async () => []),
     removeMember: vi.fn(async () => ({ userId: 'usr_member_1' })),
     softDeleteVault: vi.fn(async () => ({ id: 'vlt_test_1' })),
-    updateVaultName: vi.fn(async ({ name }) => ({ id: 'vlt_test_1', name })),
+    updateVaultIdentity: vi.fn(async ({ name, description }) => ({ id: 'vlt_test_1', name, description })),
     upsertMember: vi.fn(async ({ role, userId }) => ({ role, userId })),
   };
 
@@ -92,6 +95,9 @@ describe('vaults integration', () => {
       {
         id: 'vlt_1',
         name: 'Personal Vault',
+        description: 'Household and personal records',
+        fileCount: 3,
+        totalSize: 6144,
         role: 'owner',
       },
     ]);
@@ -109,6 +115,9 @@ describe('vaults integration', () => {
         {
           id: 'vlt_1',
           name: 'Personal Vault',
+          description: 'Household and personal records',
+          fileCount: 3,
+          totalSize: 6144,
           role: 'owner',
         },
       ],
@@ -125,13 +134,49 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_1',
       },
-      body: JSON.stringify({ name: 'Finance' }),
+      body: JSON.stringify({ name: 'Finance', description: 'Bank statements and receipts' }),
     });
 
     expect(response.status).toBe(201);
     expect(services.createVault).toHaveBeenCalledWith({
       userId: 'usr_1',
       name: 'Finance',
+      description: 'Bank statements and receipts',
+    });
+  });
+
+  test('updates vault identity for owner', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      description: 'Old description',
+      fileCount: 2,
+      totalSize: 2048,
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      permissions: [],
+      isGlobalAdmin: false,
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({ name: 'Team Vault', description: 'Updated description' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.updateVaultIdentity).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      name: 'Team Vault',
+      description: 'Updated description',
     });
   });
 
@@ -173,6 +218,9 @@ describe('vaults integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
       role: 'owner',
       permissions: [],
       isGlobalAdmin: false,
@@ -188,6 +236,7 @@ describe('vaults integration', () => {
     const body = (await response.json()) as any;
     expect(body.vault.id).toBe('vlt_1');
     expect(body.vault.name).toBe('Team Vault');
+    expect(body.vault.description).toBe('Shared finance documents');
     expect(body.vault.role).toBe('owner');
   });
 

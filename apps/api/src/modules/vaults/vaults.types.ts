@@ -7,6 +7,9 @@ export type VaultRole = (typeof VAULT_ROLES)[number];
 export type VaultAccess = {
   id: string;
   name: string;
+  description: string | null;
+  fileCount: number;
+  totalSize: number;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

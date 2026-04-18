@@ -15,7 +15,7 @@ function createMockDocumentsServices() {
       document: {
         id: 'doc_test_1',
         vaultId,
-        name: fileName,
+        name: fileName.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' '),
         originalName: fileName,
         originalSize: 100,
         mimeType,
@@ -311,6 +311,8 @@ describe('documents integration', () => {
     expect(response.status).toBe(201);
     const body = (await response.json()) as any;
     expect(body.document.id).toBe('doc_test_1');
+    expect(body.document.name).toBe('test');
+    expect(body.document.originalName).toBe('test.txt');
     expect(docServices.uploadDocument).toHaveBeenCalledTimes(1);
   });
 

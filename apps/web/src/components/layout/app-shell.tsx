@@ -11,17 +11,19 @@ import {
   Settings,
   ShieldCheck,
   Trash2,
+  Upload,
   UserCircle2,
   Vault,
   X,
 } from 'lucide-react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
+import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
 import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 
@@ -29,7 +31,9 @@ const navBaseClassName = 'flex items-center gap-3 rounded-xl px-4 py-3 text-sm f
 
 export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation();
+  const navigate = useNavigate();
   const meQuery = useMeQuery();
+  const uploadState = useUploadManagerState();
   const { data: sessionData } = authClient.useSession();
   const [searchValue, setSearchValue] = useState('');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
@@ -103,6 +107,7 @@ export function AppShell({ children }: PropsWithChildren) {
     const primaryItems = [
       { to: '/vaults', label: 'Vaults', icon: Vault },
       { to: '/documents', label: 'Documents', icon: FileText },
+      { to: '/transfers', label: 'Transfers', icon: Upload },
       { to: '/documents/trash', label: 'Trash', icon: Trash2 },
     ];
     const secondaryItems = [
@@ -195,6 +200,21 @@ export function AppShell({ children }: PropsWithChildren) {
         <div className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
           <header className="sticky top-0 z-40 bg-background/92 py-4 backdrop-blur">
             <div className="flex flex-col gap-4">
+              {(uploadState.activeCount + uploadState.queuedCount + uploadState.processingCount) > 0 ? (
+                <NavLink
+                  to="/transfers"
+                  className="flex items-center justify-between rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground transition hover:bg-secondary/50 hover:text-foreground"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="flex size-9 items-center justify-center rounded-xl bg-secondary text-primary">
+                      <Upload className="size-4" />
+                    </span>
+                    Uploading {uploadState.activeCount + uploadState.queuedCount + uploadState.processingCount} file{uploadState.activeCount + uploadState.queuedCount + uploadState.processingCount === 1 ? '' : 's'}
+                  </span>
+                  <span className="text-xs uppercase tracking-[0.16em]">View queue</span>
+                </NavLink>
+              ) : null}
+
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <div className="relative min-w-0 sm:w-[20rem] lg:w-[30rem]">
                   <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

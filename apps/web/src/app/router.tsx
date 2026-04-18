@@ -16,6 +16,7 @@ import { AdminPage } from '@/features/admin/pages/admin-page';
 import { AboutPage } from '@/features/about/pages/about-page';
 import { SettingsPage } from '@/features/settings/pages/settings-page';
 import { TagsPage } from '@/features/tags/pages/tags-page';
+import { TransfersPage } from '@/features/uploads/pages/transfers-page';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 
@@ -80,6 +81,10 @@ export function createAppRouter() {
         {
           path: 'documents/trash',
           element: <DocumentTrashPage />,
+        },
+        {
+          path: 'transfers',
+          element: <TransfersPage />,
         },
         {
           path: 'vaults/:vaultId/documents',

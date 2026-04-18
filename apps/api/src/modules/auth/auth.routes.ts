@@ -13,7 +13,12 @@ export function registerAuthRoutes({
   authorizationServices: AuthorizationServices;
 }) {
   // Better Auth handles all /api/auth/* routes (signup, login, logout, session, 2FA, etc.)
-  app.on(['POST', 'GET'], '/api/auth/**', async (context) => auth.handler(context.req.raw));
+  const handleAuthRequest = async (context: Parameters<typeof app.on>[2] extends (...args: infer A) => any ? A[0] : never) => {
+    return auth.handler(context.req.raw);
+  };
+
+  app.on(['POST', 'GET'], '/api/auth', handleAuthRequest);
+  app.on(['POST', 'GET'], '/api/auth/*', handleAuthRequest);
 
   // Session extraction middleware — runs on ALL routes after auth routes
   // Extracts user/session from cookie and sets it on context

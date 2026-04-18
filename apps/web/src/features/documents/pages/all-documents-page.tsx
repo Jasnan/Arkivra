@@ -12,6 +12,7 @@ import {
   Search as SearchIcon,
   Settings2,
   SlidersHorizontal,
+  Upload,
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -660,6 +661,17 @@ export function AllDocumentsPage() {
         eyebrow="Documents"
         title="Documents"
         description="Search and filter the full document library from one backend-powered workspace surface."
+        actions={(
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/transfers"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
+            >
+              <Upload className="size-4" />
+              Batch upload
+            </Link>
+          </div>
+        )}
       />
 
       <SurfacePanel className="rounded-[28px] p-3 sm:p-4">

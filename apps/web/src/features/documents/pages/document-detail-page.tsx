@@ -1,6 +1,5 @@
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -10,7 +9,6 @@ import {
   Image as ImageIcon,
   Plus,
   Printer,
-  RefreshCw,
   Trash2,
   X,
 } from 'lucide-react';
@@ -28,11 +26,11 @@ import {
 import { documentQueryKeys, useDocumentQuery, useDocumentTagsQuery } from '@/features/documents/documents.queries';
 import { deriveExtractionStatus, formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
+import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 
 type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata';
-const DEFAULT_TAG_COLORS = ['#D8FF75', '#7FFF7A', '#7AFFCE', '#7AD7FF', '#7A7FFF', '#CE7AFF', '#FF7AD7', '#FF7A7F', '#FFCE7A', '#FFFFFF'];
 
 function getPreviewKind(mimeType: string): PreviewKind {
   if (mimeType === 'application/pdf') {
@@ -72,7 +70,6 @@ export function DocumentDetailPage() {
   const [createTagColorValue, setCreateTagColorValue] = useState('#D8FF75');
   const [createTagDescriptionValue, setCreateTagDescriptionValue] = useState('');
   const tagPickerRef = useRef<HTMLDivElement | null>(null);
-  const customColorInputRef = useRef<HTMLInputElement | null>(null);
 
   const invalidateDocument = async () => {
     await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
@@ -186,24 +183,6 @@ export function DocumentDetailPage() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isTagPickerOpen]);
-
-  useEffect(() => {
-    if (!isCreateTagDialogOpen) {
-      return;
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !createTagMutation.isPending && !assignTagMutation.isPending) {
-        setIsCreateTagDialogOpen(false);
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [assignTagMutation.isPending, createTagMutation.isPending, isCreateTagDialogOpen]);
 
   if (!vaultId || !documentId) {
     return <p className="text-sm text-destructive">Invalid document route.</p>;
@@ -819,123 +798,23 @@ export function DocumentDetailPage() {
         </div>
       </div>
 
-      {isCreateTagDialogOpen && typeof window !== 'undefined' ? createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/65 px-4 py-8 backdrop-blur-sm">
-          <div
-            className="absolute inset-0"
-            aria-hidden="true"
-            onClick={closeCreateTagDialog}
-          />
-          <div className="relative z-10 w-full max-w-3xl overflow-hidden rounded-[28px] border border-border/70 bg-card shadow-[0_32px_80px_rgba(15,23,42,0.18)]">
-            <div className="flex items-start justify-between gap-4 px-6 pt-6 sm:px-8 sm:pt-7">
-              <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Create tag</h2>
-              <button
-                type="button"
-                aria-label="Close create tag dialog"
-                className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-                onClick={closeCreateTagDialog}
-                disabled={createTagMutation.isPending || assignTagMutation.isPending}
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-
-            <form className="space-y-6 px-6 pb-6 pt-5 sm:px-8 sm:pb-8" onSubmit={handleCreateTagSubmit}>
-              <div className="space-y-3">
-                <label htmlFor="create-tag-name" className="text-[1.05rem] font-medium text-foreground">Name</label>
-                <input
-                  id="create-tag-name"
-                  type="text"
-                  required
-                  autoFocus
-                  maxLength={64}
-                  value={createTagNameValue}
-                  onChange={event => setCreateTagNameValue(event.target.value)}
-                  className="h-14 w-full rounded-2xl border border-foreground/20 bg-background px-4 text-lg text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/35"
-                  placeholder="Tag name"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-[1.05rem] font-medium text-foreground">Color</label>
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {DEFAULT_TAG_COLORS.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      aria-label={`Select color ${color}`}
-                      aria-pressed={createTagColorValue === color}
-                      className={`flex size-10 items-center justify-center rounded-xl border transition ${createTagColorValue === color ? 'border-foreground/35 ring-2 ring-foreground/10' : 'border-border/70 hover:border-foreground/20'}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setCreateTagColorValue(color)}
-                    >
-                      {createTagColorValue === color ? (
-                        <span className={`size-2.5 rounded-full ${color === '#FFFFFF' ? 'bg-foreground' : 'bg-black/65'}`} />
-                      ) : null}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    aria-label="Choose custom color"
-                    className="inline-flex size-10 items-center justify-center rounded-xl border border-border/70 bg-background text-foreground transition hover:border-foreground/20"
-                    onClick={() => customColorInputRef.current?.click()}
-                  >
-                    <Plus className="size-5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Reset tag color"
-                    className="inline-flex size-10 items-center justify-center rounded-xl text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-                    onClick={() => setCreateTagColorValue('#D8FF75')}
-                  >
-                    <RefreshCw className="size-5" />
-                  </button>
-                  <input
-                    ref={customColorInputRef}
-                    type="color"
-                    value={createTagColorValue}
-                    className="sr-only"
-                    onChange={event => setCreateTagColorValue(event.target.value.toUpperCase())}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label htmlFor="create-tag-description" className="text-[1.05rem] font-medium text-foreground">
-                  Description <span className="font-normal text-muted-foreground">(optional)</span>
-                </label>
-                <textarea
-                  id="create-tag-description"
-                  maxLength={256}
-                  value={createTagDescriptionValue}
-                  onChange={event => setCreateTagDescriptionValue(event.target.value)}
-                  className="min-h-32 w-full resize-y rounded-2xl border border-border/70 bg-background px-4 py-3 text-lg text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/20"
-                  placeholder="Eg. All the contracts signed by the company"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-                <span className="inline-flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-sm leading-none text-foreground">
-                  <span
-                    aria-hidden="true"
-                    className="size-1.5 rounded-full"
-                    style={{ backgroundColor: createTagColorValue }}
-                  />
-                  {normalizedCreateTagName || 'New tag'}
-                </span>
-                <Button
-                  type="submit"
-                  className="h-12 rounded-2xl px-6 text-base"
-                  disabled={isCreateTagSaveDisabled}
-                >
-                  {createTagMutation.isPending || assignTagMutation.isPending ? 'Creating...' : 'Create tag'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        window.document.body,
-      ) : null}
+      <TagDialog
+        isOpen={isCreateTagDialogOpen}
+        title="Create tag"
+        submitLabel="Create tag"
+        pendingLabel="Creating..."
+        closeLabel="Close create tag dialog"
+        isPending={createTagMutation.isPending || assignTagMutation.isPending}
+        isSubmitDisabled={isCreateTagSaveDisabled}
+        nameValue={createTagNameValue}
+        colorValue={createTagColorValue}
+        descriptionValue={createTagDescriptionValue}
+        onNameChange={setCreateTagNameValue}
+        onColorChange={setCreateTagColorValue}
+        onDescriptionChange={setCreateTagDescriptionValue}
+        onClose={closeCreateTagDialog}
+        onSubmit={handleCreateTagSubmit}
+      />
     </section>
   );
 }

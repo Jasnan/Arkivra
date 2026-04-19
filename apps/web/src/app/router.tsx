@@ -99,6 +99,10 @@ export function createAppRouter() {
           element: <DocumentDetailPage />,
         },
         {
+          path: 'tags',
+          element: <TagsPage />,
+        },
+        {
           path: 'vaults/:vaultId/tags',
           element: <TagsPage />,
         },

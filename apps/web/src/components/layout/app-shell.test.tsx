@@ -69,6 +69,8 @@ describe('AppShell account menu', () => {
       },
     );
 
+    expect(screen.getAllByRole('link', { name: /tags/i })[0]).toHaveAttribute('href', '/tags');
+
     await user.click(screen.getByRole('button', { name: /open account menu/i }));
     expect(await screen.findByRole('menu')).toBeInTheDocument();
     expect(screen.getByText(/account settings/i)).toBeInTheDocument();

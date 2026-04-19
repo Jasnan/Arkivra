@@ -25,15 +25,17 @@ export async function createTag({
   vaultId,
   name,
   color,
+  description,
 }: {
   vaultId: string;
   name: string;
   color: string | null;
+  description?: string | null;
 }) {
   return fetchJson<{ tag: Tag }>(`/api/vaults/${vaultId}/tags`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, color }),
+    body: JSON.stringify({ name, color, description: description ?? null }),
   });
 }
 
@@ -42,16 +44,18 @@ export async function updateTag({
   tagId,
   name,
   color,
+  description,
 }: {
   vaultId: string;
   tagId: string;
   name: string;
   color: string | null;
+  description?: string | null;
 }) {
   return fetchJson<{ tag: Tag }>(`/api/vaults/${vaultId}/tags/${tagId}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, color }),
+    body: JSON.stringify({ name, color, description: description ?? null }),
   });
 }
 

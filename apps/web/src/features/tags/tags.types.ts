@@ -4,5 +4,6 @@ export interface Tag {
   vaultName?: string;
   name: string;
   color: string | null;
+  description?: string | null;
   documentsCount?: number;
 }

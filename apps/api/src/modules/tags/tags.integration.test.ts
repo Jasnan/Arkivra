@@ -15,24 +15,27 @@ function createMockTagsServices() {
         vaultId: 'vlt_1',
         name: 'Important',
         color: '#FF0000',
+        description: 'Flagged for follow-up',
         documentsCount: 2,
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
       },
     ]),
-    createTag: vi.fn(async ({ vaultId, name, color }) => ({
+    createTag: vi.fn(async ({ vaultId, name, color, description }) => ({
       id: 'tag_new',
       vaultId,
       name,
       color,
+      description,
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
     })),
-    updateTag: vi.fn(async ({ tagId, vaultId, name, color }) => ({
+    updateTag: vi.fn(async ({ tagId, vaultId, name, color, description }) => ({
       id: tagId,
       vaultId,
       name,
       color,
+      description,
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-02T00:00:00.000Z'),
     })),
@@ -43,6 +46,7 @@ function createMockTagsServices() {
         vaultId: 'vlt_1',
         name: 'Important',
         color: '#FF0000',
+        description: 'Flagged for follow-up',
         createdAt: new Date('2025-01-01T00:00:00.000Z'),
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       },
@@ -54,6 +58,7 @@ function createMockTagsServices() {
         vaultId: 'vlt_1',
         name: 'Important',
         color: '#FF0000',
+        description: 'Flagged for follow-up',
         createdAt: new Date('2025-01-01T00:00:00.000Z'),
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       },
@@ -156,7 +161,7 @@ describe('tags integration', () => {
         'x-test-user-id': 'usr_1',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ name: 'Important', color: '#FF0000' }),
+      body: JSON.stringify({ name: 'Important', color: '#FF0000', description: 'Flagged for follow-up' }),
     });
 
     expect(response.status).toBe(201);
@@ -164,6 +169,7 @@ describe('tags integration', () => {
       vaultId: 'vlt_1',
       name: 'Important',
       color: '#FF0000',
+      description: 'Flagged for follow-up',
     });
   });
 
@@ -188,7 +194,7 @@ describe('tags integration', () => {
         'x-test-user-id': 'usr_1',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ name: 'Collaborative', color: '#00FF00' }),
+      body: JSON.stringify({ name: 'Collaborative', color: '#00FF00', description: 'Shared work' }),
     });
 
     expect(response.status).toBe(201);
@@ -226,7 +232,7 @@ describe('tags integration', () => {
         'x-test-user-id': 'usr_1',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ name: 'Urgent', color: '#00FF00' }),
+      body: JSON.stringify({ name: 'Urgent', color: '#00FF00', description: 'Needs action today' }),
     });
 
     expect(response.status).toBe(200);
@@ -235,6 +241,7 @@ describe('tags integration', () => {
       vaultId: 'vlt_1',
       name: 'Urgent',
       color: '#00FF00',
+      description: 'Needs action today',
     });
   });
 

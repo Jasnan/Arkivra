@@ -12,6 +12,7 @@ export function createTagsServices({ db }: { db: Database }) {
         vaultId: tagsTable.vaultId,
         name: tagsTable.name,
         color: tagsTable.color,
+        description: tagsTable.description,
         documentsCount,
         createdAt: tagsTable.createdAt,
         updatedAt: tagsTable.updatedAt,
@@ -44,6 +45,7 @@ export function createTagsServices({ db }: { db: Database }) {
         vaultName: vaultsTable.name,
         name: tagsTable.name,
         color: tagsTable.color,
+        description: tagsTable.description,
         documentsCount,
         createdAt: tagsTable.createdAt,
         updatedAt: tagsTable.updatedAt,
@@ -67,12 +69,14 @@ export function createTagsServices({ db }: { db: Database }) {
     vaultId,
     name,
     color,
+    description,
   }: {
     vaultId: string;
     name: string;
     color: string | null;
+    description: string | null;
   }) {
-    const [tag] = await db.insert(tagsTable).values({ vaultId, name, color }).returning();
+    const [tag] = await db.insert(tagsTable).values({ vaultId, name, color, description }).returning();
 
     return tag ?? null;
   }
@@ -82,17 +86,20 @@ export function createTagsServices({ db }: { db: Database }) {
     vaultId,
     name,
     color,
+    description,
   }: {
     tagId: string;
     vaultId: string;
     name: string;
     color: string | null;
+    description: string | null;
   }) {
     const [tag] = await db
       .update(tagsTable)
       .set({
         name,
         color,
+        description,
         updatedAt: new Date(),
       })
       .where(and(eq(tagsTable.id, tagId), eq(tagsTable.vaultId, vaultId)))
@@ -101,6 +108,7 @@ export function createTagsServices({ db }: { db: Database }) {
         vaultId: tagsTable.vaultId,
         name: tagsTable.name,
         color: tagsTable.color,
+        description: tagsTable.description,
         createdAt: tagsTable.createdAt,
         updatedAt: tagsTable.updatedAt,
       });
@@ -148,6 +156,7 @@ export function createTagsServices({ db }: { db: Database }) {
         vaultId: tagsTable.vaultId,
         name: tagsTable.name,
         color: tagsTable.color,
+        description: tagsTable.description,
         createdAt: tagsTable.createdAt,
         updatedAt: tagsTable.updatedAt,
       })
@@ -205,6 +214,7 @@ export function createTagsServices({ db }: { db: Database }) {
         vaultId: tagsTable.vaultId,
         name: tagsTable.name,
         color: tagsTable.color,
+        description: tagsTable.description,
         createdAt: tagsTable.createdAt,
         updatedAt: tagsTable.updatedAt,
       })

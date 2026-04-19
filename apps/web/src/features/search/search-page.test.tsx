@@ -269,4 +269,61 @@ describe('documents library search controls', () => {
     expect(puzzlePalaceIndex).toBeGreaterThanOrEqual(0);
     expect(sherlockIndex).toBeLessThan(puzzlePalaceIndex);
   });
+
+  it('keeps custom date ranges valid in the global documents filters', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'document_date_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+    await user.click(screen.getByLabelText(/custom range/i));
+
+    const fromInput = screen.getByLabelText(/^from$/i);
+    const toInput = screen.getByLabelText(/^to$/i);
+
+    await user.type(fromInput, '2026-04-19');
+    await user.type(toInput, '2026-04-18');
+
+    expect(fromInput).toHaveValue('2026-04-18');
+    expect(toInput).toHaveValue('2026-04-18');
+  });
 });

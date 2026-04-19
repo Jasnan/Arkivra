@@ -1,12 +1,11 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarRange,
   Check,
   ChevronDown,
-  Download,
   Ellipsis,
-  File,
   Folder,
   FolderOpen,
   Search as SearchIcon,
@@ -14,12 +13,14 @@ import {
   Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { PageIntro, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { getDocumentDownloadUrl } from '@/features/documents/documents.api';
+import { softDeleteDocument } from '@/features/documents/documents.api';
+import { DocumentLibraryHeader, DocumentLibraryRow } from '@/features/documents/components/document-library-list';
+import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { ActiveFilterChip, DocumentSearchControls } from '@/features/documents/components/document-search-controls';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
-import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
+import { searchQueryKeys, useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
@@ -257,77 +258,6 @@ function TagPill({
   );
 }
 
-function getDocumentTypeLabel(document: SearchResultItem) {
-  const extension = document.name.split('.').pop()?.trim().toUpperCase();
-
-  if (extension && extension.length <= 5) {
-    return extension;
-  }
-
-  if (document.mimeType === 'application/pdf') {
-    return 'PDF';
-  }
-
-  if (document.mimeType.startsWith('image/')) {
-    return 'IMG';
-  }
-
-  if (document.mimeType.includes('spreadsheet') || document.mimeType.includes('excel') || document.mimeType.includes('csv')) {
-    return 'XLS';
-  }
-
-  if (document.mimeType.includes('word') || document.mimeType.includes('document')) {
-    return 'DOC';
-  }
-
-  if (document.mimeType.startsWith('text/')) {
-    return 'TXT';
-  }
-
-  return 'FILE';
-}
-
-function getDocumentTypeClasses(label: string) {
-  switch (label) {
-    case 'PDF':
-      return 'bg-rose-50 text-rose-700 ring-rose-200';
-    case 'TXT':
-      return 'bg-sky-50 text-sky-700 ring-sky-200';
-    case 'PNG':
-    case 'JPG':
-    case 'JPEG':
-    case 'WEBP':
-    case 'GIF':
-    case 'IMG':
-      return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-    case 'DOC':
-    case 'DOCX':
-      return 'bg-indigo-50 text-indigo-700 ring-indigo-200';
-    case 'CSV':
-    case 'XLS':
-    case 'XLSX':
-      return 'bg-amber-50 text-amber-700 ring-amber-200';
-    default:
-      return 'bg-secondary text-primary ring-border/60';
-  }
-}
-
-function FileTypeIcon({ document }: { document: SearchResultItem }) {
-  const label = getDocumentTypeLabel(document);
-
-  return (
-    <div
-      className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${getDocumentTypeClasses(label)}`}
-      aria-hidden="true"
-    >
-      <div className="flex flex-col items-center leading-none">
-        <File className="mb-1 size-3.5" />
-        <span className="text-[0.62rem] font-extrabold tracking-[0.12em]">{label}</span>
-      </div>
-    </div>
-  );
-}
-
 function VaultIcon() {
   return (
     <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-primary ring-1 ring-border/60">
@@ -336,31 +266,8 @@ function VaultIcon() {
   );
 }
 
-function VisibleTags({ document }: { document: SearchResultItem }) {
-  const tags = document.tags ?? [];
-
-  if (tags.length === 0) {
-    return <span className="text-sm text-muted-foreground">No tags</span>;
-  }
-
-  const visibleTags = tags.slice(0, 2);
-  const remainingCount = tags.length - visibleTags.length;
-
-  return (
-    <>
-      {visibleTags.map(tag => (
-        <TagPill key={tag.id} name={tag.name} color={tag.color} />
-      ))}
-      {remainingCount > 0 ? (
-        <span className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
-          +{remainingCount} more
-        </span>
-      ) : null}
-    </>
-  );
-}
-
 export function AllDocumentsPage() {
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -374,22 +281,17 @@ export function AllDocumentsPage() {
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [openVaultMenuId, setOpenVaultMenuId] = useState<string | null>(null);
-  const [openDocumentMenuId, setOpenDocumentMenuId] = useState<string | null>(null);
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const vaultDropdownRef = useRef<HTMLDivElement | null>(null);
   const tagDropdownRef = useRef<HTMLDivElement | null>(null);
   const vaultMenuRef = useRef<HTMLDivElement | null>(null);
-  const documentMenuRef = useRef<HTMLDivElement | null>(null);
 
   useDismissableLayer({
     isOpen: openVaultMenuId !== null,
     onClose: () => setOpenVaultMenuId(null),
     ref: vaultMenuRef,
-  });
-  useDismissableLayer({
-    isOpen: openDocumentMenuId !== null,
-    onClose: () => setOpenDocumentMenuId(null),
-    ref: documentMenuRef,
   });
 
   useEffect(() => {
@@ -427,6 +329,21 @@ export function AllDocumentsPage() {
     dateTo: appliedDateRange.dateTo,
     sortBy,
     enabled: !vaultsQuery.isLoading,
+  });
+  const deleteMutation = useMutation({
+    mutationFn: softDeleteDocument,
+    onSuccess: async () => {
+      setStatusMessage('Document moved to trash.');
+      setErrorMessage(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+      ]);
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not delete document.');
+      setStatusMessage(null);
+    },
   });
 
   const availableTags = tagsQuery.data?.tags ?? [];
@@ -631,6 +548,13 @@ export function AllDocumentsPage() {
           </div>
         )}
       />
+
+      {(statusMessage || errorMessage) ? (
+        <div className="grid gap-3">
+          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
+          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
+        </div>
+      ) : null}
 
       <DocumentSearchControls
         query={query}
@@ -912,7 +836,15 @@ export function AllDocumentsPage() {
                             aria-label="From"
                             type="date"
                             value={customDateFrom}
-                            onChange={event => setCustomDateFrom(event.target.value)}
+                            max={customDateTo || undefined}
+                            onChange={(event) => {
+                              const nextValue = event.target.value;
+                              setCustomDateFrom(nextValue);
+
+                              if (customDateTo && nextValue && nextValue > customDateTo) {
+                                setCustomDateTo(nextValue);
+                              }
+                            }}
                             className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
                           />
                         </div>
@@ -928,7 +860,15 @@ export function AllDocumentsPage() {
                             aria-label="To"
                             type="date"
                             value={customDateTo}
-                            onChange={event => setCustomDateTo(event.target.value)}
+                            min={customDateFrom || undefined}
+                            onChange={(event) => {
+                              const nextValue = event.target.value;
+                              setCustomDateTo(nextValue);
+
+                              if (customDateFrom && nextValue && nextValue < customDateFrom) {
+                                setCustomDateFrom(nextValue);
+                              }
+                            }}
                             className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
                           />
                         </div>
@@ -1003,7 +943,6 @@ export function AllDocumentsPage() {
                     <OverflowMenu
                       isOpen={openVaultMenuId === group.vaultId}
                       onToggle={() => {
-                        setOpenDocumentMenuId(null);
                         setOpenVaultMenuId(current => current === group.vaultId ? null : group.vaultId);
                       }}
                       label={`Open actions for ${group.vaultName}`}
@@ -1030,100 +969,39 @@ export function AllDocumentsPage() {
 
               {!isCollapsed ? (
                 <>
-                  <div className="hidden grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] gap-5 border-b border-border/70 px-5 py-4 text-sm text-muted-foreground md:grid sm:px-6">
-                    <span>Name</span>
-                    <span>Updated</span>
-                    <span>Size</span>
-                    <span>Tags</span>
-                    <span className="text-right">Actions</span>
-                  </div>
+                  <DocumentLibraryHeader />
 
                   <div className="divide-y divide-border/70">
                     {group.documents.map(document => (
-                      <article
+                      <DocumentLibraryRow
                         key={document.documentId}
-                        className="grid gap-5 px-5 py-5 md:grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] md:items-center sm:px-6"
-                      >
-                        <div className="flex items-start gap-4">
-                          <FileTypeIcon document={document} />
-                          <div className="min-w-0">
-                            <Link
-                              to={`/vaults/${document.vaultId}/documents/${document.documentId}`}
-                              className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary"
-                            >
-                              {document.name}
-                            </Link>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {document.originalName !== document.name ? `${document.originalName} - ` : ''}
-                              Uploaded {formatDate(document.createdAt)}
-                            </p>
-                            {debouncedQuery.length > 0 && document.bestChunk ? (
-                              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                                {tokenizeSnippet(document.bestChunk.snippet).map(part =>
-                                  part.highlighted
-                                    ? (
-                                        <mark key={`${document.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
-                                          {part.text}
-                                        </mark>
-                                      )
-                                    : <span key={`${document.documentId}-${part.key}`}>{part.text}</span>,
-                                )}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="text-sm text-muted-foreground">
-                          <p className="vault-label md:hidden">Updated</p>
-                          <p className="mt-2 text-base text-foreground md:mt-0">
-                            {formatDate(document.updatedAt)}
-                          </p>
-                        </div>
-
-                        <div className="text-sm text-muted-foreground">
-                          <p className="vault-label md:hidden">Size</p>
-                          <p className="mt-2 text-base text-foreground md:mt-0">{formatBytes(document.originalSize)}</p>
-                        </div>
-
-                        <div className="text-sm text-muted-foreground">
-                          <p className="vault-label md:hidden">Tags</p>
-                          <div className="mt-2 flex flex-wrap gap-2 md:mt-0">
-                            <VisibleTags document={document} />
-                          </div>
-                        </div>
-
-                        <div className="flex justify-start md:justify-end">
-                          <div ref={openDocumentMenuId === document.documentId ? documentMenuRef : null}>
-                            <OverflowMenu
-                              isOpen={openDocumentMenuId === document.documentId}
-                              onToggle={() => {
-                                setOpenVaultMenuId(null);
-                                setOpenDocumentMenuId(current => current === document.documentId ? null : document.documentId);
-                              }}
-                              label={`Open actions for ${document.name}`}
-                              side="bottom"
-                            >
-                              <MenuLink
-                                to={`/vaults/${document.vaultId}/documents/${document.documentId}`}
-                                icon={<FolderOpen className="size-4" />}
-                                onSelect={() => setOpenDocumentMenuId(null)}
-                              >
-                                Open document
-                              </MenuLink>
-                              <MenuAnchor
-                                href={getDocumentDownloadUrl({
-                                  vaultId: document.vaultId,
-                                  documentId: document.documentId,
-                                })}
-                                icon={<Download className="size-4" />}
-                                onSelect={() => setOpenDocumentMenuId(null)}
-                              >
-                                Download
-                              </MenuAnchor>
-                            </OverflowMenu>
-                          </div>
-                        </div>
-                      </article>
+                        name={document.name}
+                        mimeType={document.mimeType}
+                        originalName={document.originalName}
+                        originalSize={document.originalSize}
+                        createdAt={document.createdAt}
+                        updatedAt={document.updatedAt}
+                        tags={document.tags}
+                        snippet={debouncedQuery.length > 0 && document.bestChunk
+                          ? tokenizeSnippet(document.bestChunk.snippet).map(part =>
+                              part.highlighted
+                                ? (
+                                    <mark key={`${document.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
+                                      {part.text}
+                                    </mark>
+                                  )
+                                : <span key={`${document.documentId}-${part.key}`}>{part.text}</span>,
+                            )
+                          : undefined}
+                        vaultId={document.vaultId}
+                        documentId={document.documentId}
+                        deleteDisabled={deleteMutation.isPending}
+                        onDelete={() => {
+                          setStatusMessage(null);
+                          setErrorMessage(null);
+                          deleteMutation.mutate({ vaultId: document.vaultId, documentId: document.documentId });
+                        }}
+                      />
                     ))}
                   </div>
                 </>

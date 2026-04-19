@@ -4,14 +4,12 @@ import { CalendarRange, Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import {
-  getDocumentDownloadUrl,
-  softDeleteDocument,
-} from '@/features/documents/documents.api';
+import { softDeleteDocument } from '@/features/documents/documents.api';
+import { DocumentLibraryHeader, DocumentLibraryRow } from '@/features/documents/components/document-library-list';
 import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
 import { documentQueryKeys, useDocumentsQuery } from '@/features/documents/documents.queries';
-import { formatBytes, formatDate, sortDocumentsBySearchSort } from '@/features/documents/documents.utils';
-import { useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
+import { formatDate, sortDocumentsBySearchSort } from '@/features/documents/documents.utils';
+import { searchQueryKeys, useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useTagsQuery } from '@/features/tags/tags.queries';
@@ -93,14 +91,6 @@ function getDateFilterLabel({
   return 'Any time';
 }
 
-function DocumentIcon() {
-  return (
-    <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary ring-1 ring-border/60">
-      <span className="font-display text-xs font-extrabold tracking-[0.12em]">PDF</span>
-    </div>
-  );
-}
-
 export function DocumentsPage() {
   const params = useParams<{ vaultId: string }>();
   const vaultId = params.vaultId ?? '';
@@ -150,7 +140,10 @@ export function DocumentsPage() {
     onSuccess: async () => {
       setStatusMessage('Document moved to trash.');
       setErrorMessage(null);
-      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+      ]);
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not delete document.');
@@ -160,7 +153,11 @@ export function DocumentsPage() {
 
   const filteredDocuments = useMemo(() => sortDocumentsBySearchSort(
     (documentsQuery.data?.documents ?? []).filter((document) => {
-      const documentDateValue = document.documentDate ? new Date(document.documentDate) : null;
+      const documentDateValue = document.documentDate
+        ? new Date(document.documentDate)
+        : document.createdAt
+          ? new Date(document.createdAt)
+          : null;
       const dateFromValue = appliedDateRange.dateFrom ? new Date(appliedDateRange.dateFrom) : null;
       const dateToValue = appliedDateRange.dateTo ? new Date(appliedDateRange.dateTo) : null;
 
@@ -379,8 +376,15 @@ export function DocumentsPage() {
                         aria-label="From"
                         type="date"
                         value={customDateFrom}
+                        max={customDateTo || undefined}
                         onChange={(event) => {
-                          setCustomDateFrom(event.target.value);
+                          const nextValue = event.target.value;
+                          setCustomDateFrom(nextValue);
+
+                          if (customDateTo && nextValue && nextValue > customDateTo) {
+                            setCustomDateTo(nextValue);
+                          }
+
                           setPageIndex(0);
                         }}
                         className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
@@ -399,8 +403,15 @@ export function DocumentsPage() {
                         aria-label="To"
                         type="date"
                         value={customDateTo}
+                        min={customDateFrom || undefined}
                         onChange={(event) => {
-                          setCustomDateTo(event.target.value);
+                          const nextValue = event.target.value;
+                          setCustomDateTo(nextValue);
+
+                          if (customDateFrom && nextValue && nextValue < customDateFrom) {
+                            setCustomDateFrom(nextValue);
+                          }
+
                           setPageIndex(0);
                         }}
                         className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
@@ -421,12 +432,7 @@ export function DocumentsPage() {
       </SurfacePanel>
 
       <SurfacePanel className="overflow-hidden p-0">
-        <div className="hidden grid-cols-[minmax(0,1.4fr)_220px_200px_140px] gap-6 px-6 py-4 text-sm text-muted-foreground md:grid">
-          <span>File name</span>
-          <span>Tags / Match</span>
-          <span>Created</span>
-          <span>Actions</span>
-        </div>
+        <DocumentLibraryHeader />
 
         {documentsQuery.isLoading ? <p className="px-6 py-6 text-sm text-muted-foreground">Loading documents...</p> : null}
         {documentsQuery.isError ? <p className="px-6 py-6 text-sm text-destructive">Unable to load documents.</p> : null}
@@ -439,73 +445,50 @@ export function DocumentsPage() {
           <div className="divide-y divide-border/70">
             {usingSearch
               ? (searchQuery.data?.results ?? []).map(result => (
-                  <article key={result.documentId} className="grid gap-4 px-6 py-5 md:grid-cols-[minmax(0,1.4fr)_220px_200px_140px] md:items-center md:gap-6">
-                    <div className="flex items-start gap-4">
-                      <DocumentIcon />
-                      <div className="min-w-0">
-                        <Link to={`/vaults/${vaultId}/documents/${result.documentId}`} className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary">
-                          {result.name}
-                        </Link>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {result.mimeType} • {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'}
-                        </p>
-                        {result.bestChunk ? (
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            {tokenizeSnippet(result.bestChunk.snippet).slice(0, 6).map(part =>
-                              part.highlighted
-                                ? <mark key={`${result.documentId}-${part.key}`} className="rounded bg-accent px-1 text-accent-foreground">{part.text}</mark>
-                                : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
-                            )}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {result.bestChunk?.pageNumber !== null && result.bestChunk?.pageNumber !== undefined ? `Page ${result.bestChunk.pageNumber}` : 'Text match'}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatDate(result.updatedAt)}
-                    </div>
-                    <div className="flex gap-3">
-                      <Link to={`/vaults/${vaultId}/documents/${result.documentId}`} className="vault-link">Open</Link>
-                    </div>
-                  </article>
+                  <DocumentLibraryRow
+                    key={result.documentId}
+                    name={result.name}
+                    mimeType={result.mimeType}
+                    originalName={result.originalName}
+                    originalSize={result.originalSize}
+                    createdAt={result.createdAt}
+                    updatedAt={result.updatedAt}
+                    tags={result.tags}
+                    snippet={result.bestChunk
+                      ? tokenizeSnippet(result.bestChunk.snippet).map(part =>
+                          part.highlighted
+                            ? <mark key={`${result.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">{part.text}</mark>
+                            : <span key={`${result.documentId}-${part.key}`}>{part.text}</span>,
+                        )
+                      : undefined}
+                    vaultId={vaultId}
+                    documentId={result.documentId}
+                    deleteDisabled={deleteMutation.isPending}
+                    onDelete={() => {
+                      setStatusMessage(null);
+                      setErrorMessage(null);
+                      deleteMutation.mutate({ vaultId, documentId: result.documentId });
+                    }}
+                  />
                 ))
               : visibleDocuments.map(document => (
-                  <article key={document.id} className="grid gap-4 px-6 py-5 md:grid-cols-[minmax(0,1.4fr)_220px_200px_140px] md:items-center md:gap-6">
-                    <div className="flex items-start gap-4">
-                      <DocumentIcon />
-                      <div className="min-w-0">
-                        <Link to={`/vaults/${vaultId}/documents/${document.id}`} className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary">
-                          {document.name}
-                        </Link>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {formatBytes(document.originalSize)} • {document.mimeType}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {document.documentDate ? formatDate(document.documentDate) : 'No date'}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatDate(document.createdAt)}
-                    </div>
-                    <div className="flex gap-3">
-                      <a href={getDocumentDownloadUrl({ vaultId, documentId: document.id })} className="vault-link">Download</a>
-                      <button
-                        type="button"
-                        className="text-sm font-medium text-muted-foreground transition hover:text-foreground"
-                        disabled={deleteMutation.isPending}
-                        onClick={() => {
-                          setStatusMessage(null);
-                          setErrorMessage(null);
-                          deleteMutation.mutate({ vaultId, documentId: document.id });
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
+                  <DocumentLibraryRow
+                    key={document.id}
+                    name={document.name}
+                    mimeType={document.mimeType}
+                    originalName={document.originalName}
+                    originalSize={document.originalSize}
+                    createdAt={document.createdAt}
+                    updatedAt={document.updatedAt}
+                    vaultId={vaultId}
+                    documentId={document.id}
+                    deleteDisabled={deleteMutation.isPending}
+                    onDelete={() => {
+                      setStatusMessage(null);
+                      setErrorMessage(null);
+                      deleteMutation.mutate({ vaultId, documentId: document.id });
+                    }}
+                  />
                 ))}
           </div>
         )}

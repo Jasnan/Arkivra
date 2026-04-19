@@ -181,7 +181,7 @@ describe('tags and documents pages', () => {
     });
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
-    expect(screen.getByText(/contract/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /contract/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
@@ -193,7 +193,7 @@ describe('tags and documents pages', () => {
       }));
     });
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
-    expect(screen.queryByText(/contract/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /contract/i })).not.toBeInTheDocument();
   });
 
   it('supports preset and custom date filtering on the vault documents page', async () => {
@@ -209,7 +209,7 @@ describe('tags and documents pages', () => {
               originalName: 'invoice.pdf',
               originalSize: 2048,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-10T00:00:00.000Z',
+              documentDate: null,
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-10T10:00:00.000Z',
               isDeleted: false,
@@ -246,7 +246,7 @@ describe('tags and documents pages', () => {
     });
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
-    expect(screen.getByText(/contract/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /contract/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
@@ -262,7 +262,59 @@ describe('tags and documents pages', () => {
     await user.click(screen.getByRole('button', { name: /^done$/i }));
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
-    expect(screen.queryByText(/contract/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /contract/i })).not.toBeInTheDocument();
+  });
+
+  it('deletes a document from the vault documents action menu', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.includes('/api/vaults/vlt_1/documents') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          documents: [
+            {
+              id: 'doc_1',
+              name: 'Invoice April.pdf',
+              originalName: 'invoice.pdf',
+              originalSize: 2048,
+              mimeType: 'application/pdf',
+              documentDate: null,
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-10T10:00:00.000Z',
+              isDeleted: false,
+              deletedAt: null,
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && init?.method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1/documents'],
+      routePath: '/vaults/:vaultId/documents',
+    });
+
+    expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
+    await user.click(screen.getByRole('menuitem', { name: /delete/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1', expect.objectContaining({
+      credentials: 'include',
+      method: 'DELETE',
+    })));
   });
 
   it('assigns and removes tags from document detail', async () => {

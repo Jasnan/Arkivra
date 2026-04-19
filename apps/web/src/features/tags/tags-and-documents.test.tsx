@@ -337,7 +337,7 @@ describe('tags and documents pages', () => {
             updatedAt: '2026-04-10T10:00:00.000Z',
             isDeleted: false,
             deletedAt: null,
-            createdBy: 'usr_1',
+            createdBy: 'Jane Doe',
           },
         });
       }
@@ -376,19 +376,95 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
+    await screen.findByRole('button', { name: /extracted text/i });
+    await user.click(screen.getByRole('button', { name: /extracted text/i }));
     expect(await screen.findByText(/parsed text/i)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText(/select a tag/i), 'tag_2');
-    await user.click(screen.getByRole('button', { name: /assign tag/i }));
+    await user.click(screen.getByRole('button', { name: /add tag/i }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: /urgent/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1/tags', expect.objectContaining({
       credentials: 'include',
       method: 'POST',
     })));
 
-    await user.click(screen.getByRole('button', { name: /remove/i }));
+    await user.click(screen.getByRole('button', { name: /remove invoices/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1/tags/tag_1', expect.objectContaining({
       credentials: 'include',
       method: 'DELETE',
+    })));
+  });
+
+  it('creates a new tag from the document detail picker when it does not exist', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: 'Invoice April.pdf',
+            originalName: 'invoice.pdf',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'application/pdf',
+            content: 'Parsed text',
+            documentDate: '2026-04-10T00:00:00.000Z',
+            createdAt: '2026-04-10T10:00:00.000Z',
+            updatedAt: '2026-04-10T10:00:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+            createdBy: 'Jane Doe',
+          },
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          tags: [
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          tags: [
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags') && init?.method === 'POST') {
+        return jsonResponse({ tag: { id: 'tag_2', name: 'Testing', color: '#D8FF75', description: '' } }, 201);
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && init?.method === 'POST') {
+        return jsonResponse({ tag: { id: 'tag_2', name: 'Testing', color: '#D8FF75', description: '' } }, 201);
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/documents/doc_1'],
+      routePath: '/vaults/:vaultId/documents/:documentId',
+    });
+
+    await user.click(await screen.findByRole('button', { name: /add tag/i }));
+    await user.type(screen.getByPlaceholderText(/filter tags/i), 'Testing');
+    await user.click(screen.getByRole('menuitem', { name: /create new tag "testing"/i }));
+    expect(await screen.findByRole('heading', { name: /create tag/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^create tag$/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags', expect.objectContaining({
+      credentials: 'include',
+      method: 'POST',
+    })));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1/tags', expect.objectContaining({
+      credentials: 'include',
+      method: 'POST',
     })));
   });
 });

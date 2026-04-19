@@ -58,7 +58,7 @@ function createMockDocumentsServices() {
       updatedAt: '2025-01-01T00:00:00.000Z',
       isDeleted: false,
       deletedAt: null,
-      createdBy: 'usr_1',
+      createdBy: 'Jane Doe',
     })),
     renameDocument: vi.fn(async ({ name }) => ({
       id: 'doc_1',

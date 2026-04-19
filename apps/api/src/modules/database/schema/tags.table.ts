@@ -15,6 +15,7 @@ export const tagsTable = pgTable(
 
     name: text('name').notNull(),
     color: text('color'),
+    description: text('description'),
   },
   (table) => [unique('tags_vault_name_unique').on(table.vaultId, table.name)],
 );

@@ -35,6 +35,24 @@ function parseTagColor(value: unknown) {
   return color;
 }
 
+function parseTagDescription(value: unknown) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const description = value.trim();
+
+  if (description.length > 256) {
+    return null;
+  }
+
+  return description;
+}
+
 export function registerTagRoutes({
   app,
   db,
@@ -113,6 +131,7 @@ export function registerTagRoutes({
     const body = await context.req.json();
     const name = parseTagName(body.name);
     const color = parseTagColor(body.color);
+    const description = parseTagDescription(body.description);
 
     if (name === null) {
       return context.json(
@@ -133,8 +152,20 @@ export function registerTagRoutes({
       );
     }
 
+    if (body.description !== undefined && body.description !== null && description === null) {
+      return context.json(
+        {
+          error: {
+            code: 'tag.invalid_description',
+            message: 'Tag description must be at most 256 characters',
+          },
+        },
+        400,
+      );
+    }
+
     try {
-      const tag = await tagsServices.createTag({ vaultId, name, color });
+      const tag = await tagsServices.createTag({ vaultId, name, color, description });
       return context.json({ tag }, 201);
     } catch (error) {
       if (error instanceof Error && error.message.includes('tags_vault_name_unique')) {
@@ -167,6 +198,7 @@ export function registerTagRoutes({
       const body = await context.req.json();
       const name = parseTagName(body.name);
       const color = parseTagColor(body.color);
+      const description = parseTagDescription(body.description);
 
       if (name === null) {
         return context.json(
@@ -187,8 +219,20 @@ export function registerTagRoutes({
         );
       }
 
+      if (body.description !== undefined && body.description !== null && description === null) {
+        return context.json(
+          {
+            error: {
+              code: 'tag.invalid_description',
+              message: 'Tag description must be at most 256 characters',
+            },
+          },
+          400,
+        );
+      }
+
       try {
-        const tag = await tagsServices.updateTag({ tagId, vaultId, name, color });
+        const tag = await tagsServices.updateTag({ tagId, vaultId, name, color, description });
 
         if (tag === null) {
           return context.json({ error: { code: 'tag.not_found', message: 'Tag not found' } }, 404);

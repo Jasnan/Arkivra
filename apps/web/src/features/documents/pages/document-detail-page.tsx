@@ -1,9 +1,21 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarRange, Download, FileText, Hash, Tags, Trash2 } from 'lucide-react';
+import {
+  Check,
+  CalendarRange,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Plus,
+  Printer,
+  RefreshCw,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { PageIntro, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   getDocumentDownloadUrl,
@@ -15,8 +27,28 @@ import {
 } from '@/features/documents/documents.api';
 import { documentQueryKeys, useDocumentQuery, useDocumentTagsQuery } from '@/features/documents/documents.queries';
 import { deriveExtractionStatus, formatBytes, formatDate } from '@/features/documents/documents.utils';
-import { assignTagToDocument, removeTagFromDocument } from '@/features/tags/tags.api';
+import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
+
+type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
+type DetailTab = 'preview' | 'content' | 'metadata';
+const DEFAULT_TAG_COLORS = ['#D8FF75', '#7FFF7A', '#7AFFCE', '#7AD7FF', '#7A7FFF', '#CE7AFF', '#FF7AD7', '#FF7A7F', '#FFCE7A', '#FFFFFF'];
+
+function getPreviewKind(mimeType: string): PreviewKind {
+  if (mimeType === 'application/pdf') {
+    return 'pdf';
+  }
+
+  if (mimeType.startsWith('image/')) {
+    return 'image';
+  }
+
+  if (mimeType.startsWith('text/')) {
+    return 'text';
+  }
+
+  return 'unsupported';
+}
 
 export function DocumentDetailPage() {
   const params = useParams<{ vaultId: string; documentId: string }>();
@@ -28,11 +60,19 @@ export function DocumentDetailPage() {
   const documentTagsQuery = useDocumentTagsQuery({ vaultId, documentId });
   const tagsQuery = useTagsQuery({ vaultId });
 
-  const [renameValue, setRenameValue] = useState('');
-  const [documentDateValue, setDocumentDateValue] = useState('');
-  const [selectedTagId, setSelectedTagId] = useState('');
+  const [renameValue, setRenameValue] = useState<string | null>(null);
+  const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<DetailTab>('preview');
+  const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
+  const [tagSearchValue, setTagSearchValue] = useState('');
+  const [isCreateTagDialogOpen, setIsCreateTagDialogOpen] = useState(false);
+  const [createTagNameValue, setCreateTagNameValue] = useState('');
+  const [createTagColorValue, setCreateTagColorValue] = useState('#D8FF75');
+  const [createTagDescriptionValue, setCreateTagDescriptionValue] = useState('');
+  const tagPickerRef = useRef<HTMLDivElement | null>(null);
+  const customColorInputRef = useRef<HTMLInputElement | null>(null);
 
   const invalidateDocument = async () => {
     await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
@@ -41,11 +81,7 @@ export function DocumentDetailPage() {
 
   const renameMutation = useMutation({
     mutationFn: renameDocument,
-    onSuccess: async () => {
-      setStatusMessage('Document renamed.');
-      setErrorMessage(null);
-      await invalidateDocument();
-    },
+    onSuccess: invalidateDocument,
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not rename document.');
       setStatusMessage(null);
@@ -54,11 +90,7 @@ export function DocumentDetailPage() {
 
   const dateMutation = useMutation({
     mutationFn: updateDocumentDate,
-    onSuccess: async () => {
-      setStatusMessage('Document date updated.');
-      setErrorMessage(null);
-      await invalidateDocument();
-    },
+    onSuccess: invalidateDocument,
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not update document date.');
       setStatusMessage(null);
@@ -96,11 +128,18 @@ export function DocumentDetailPage() {
     onSuccess: async () => {
       setStatusMessage('Tag assigned.');
       setErrorMessage(null);
-      setSelectedTagId('');
       await invalidateDocument();
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not assign tag.');
+      setStatusMessage(null);
+    },
+  });
+
+  const createTagMutation = useMutation({
+    mutationFn: createTag,
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not create tag.');
       setStatusMessage(null);
     },
   });
@@ -117,6 +156,54 @@ export function DocumentDetailPage() {
       setStatusMessage(null);
     },
   });
+
+  useEffect(() => {
+    if (!isTagPickerOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (tagPickerRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsTagPickerOpen(false);
+      setTagSearchValue('');
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsTagPickerOpen(false);
+        setTagSearchValue('');
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isTagPickerOpen]);
+
+  useEffect(() => {
+    if (!isCreateTagDialogOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !createTagMutation.isPending && !assignTagMutation.isPending) {
+        setIsCreateTagDialogOpen(false);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [assignTagMutation.isPending, createTagMutation.isPending, isCreateTagDialogOpen]);
 
   if (!vaultId || !documentId) {
     return <p className="text-sm text-destructive">Invalid document route.</p>;
@@ -135,25 +222,182 @@ export function DocumentDetailPage() {
   const availableTags = (tagsQuery.data?.tags ?? []).filter(
     tag => !assignedTags.some(assigned => assigned.id === tag.id),
   );
-  const extractionStatus = deriveExtractionStatus(document);
+  const normalizedTagSearchValue = tagSearchValue.trim().toLowerCase();
+  const filteredAvailableTags = availableTags.filter((tag) => {
+    if (normalizedTagSearchValue.length === 0) {
+      return true;
+    }
 
-  async function handleRename(event: FormEvent<HTMLFormElement>) {
+    return tag.name.toLowerCase().includes(normalizedTagSearchValue);
+  });
+  const sortedFilteredAvailableTags = [...filteredAvailableTags].sort((a, b) => a.name.localeCompare(b.name));
+  const selectedMatchingTags = [...assignedTags]
+    .filter((tag) => {
+      if (normalizedTagSearchValue.length === 0) {
+        return true;
+      }
+
+      return tag.name.toLowerCase().includes(normalizedTagSearchValue);
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const hasExactTagMatch = availableTags.some(
+    tag => tag.name.trim().toLowerCase() === normalizedTagSearchValue,
+  );
+  const extractionStatus = deriveExtractionStatus(document);
+  const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId });
+  const previewKind = getPreviewKind(document.mimeType);
+  const canPreview = !document.isDeleted && previewKind !== 'unsupported';
+  const canPrint = !document.isDeleted && canPreview;
+  const currentName = renameValue ?? document.name;
+  const currentDocumentDate = documentDateValue ?? (document.documentDate ? document.documentDate.slice(0, 10) : '');
+  const hasNameChanged = currentName.trim() !== document.name;
+  const hasDocumentDateChanged = currentDocumentDate !== (document.documentDate ? document.documentDate.slice(0, 10) : '');
+  const isMetadataSaving = renameMutation.isPending || dateMutation.isPending;
+  const normalizedCreateTagName = createTagNameValue.trim();
+  const createTagDescription = createTagDescriptionValue.trim();
+  const isCreateTagSaveDisabled = normalizedCreateTagName.length === 0 || createTagMutation.isPending || assignTagMutation.isPending;
+
+  async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextName = renameValue.trim() || document.name;
     setStatusMessage(null);
     setErrorMessage(null);
-    await renameMutation.mutateAsync({ vaultId, documentId, name: nextName });
+
+    const nextName = currentName.trim() || document.name;
+
+    try {
+      if (hasNameChanged) {
+        await renameMutation.mutateAsync({ vaultId, documentId, name: nextName });
+      }
+
+      if (hasDocumentDateChanged) {
+        await dateMutation.mutateAsync({
+          vaultId,
+          documentId,
+          documentDate: currentDocumentDate ? new Date(currentDocumentDate).toISOString() : null,
+        });
+      }
+
+      if (hasNameChanged || hasDocumentDateChanged) {
+        setStatusMessage('Metadata saved.');
+        setRenameValue(null);
+        setDocumentDateValue(null);
+      }
+    } catch {}
   }
 
-  async function handleDocumentDate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function openCreateTagDialog(initialName: string) {
     setStatusMessage(null);
     setErrorMessage(null);
-    await dateMutation.mutateAsync({
-      vaultId,
-      documentId,
-      documentDate: documentDateValue ? new Date(documentDateValue).toISOString() : null,
-    });
+    setIsTagPickerOpen(false);
+    setCreateTagNameValue(initialName);
+    setCreateTagColorValue('#D8FF75');
+    setCreateTagDescriptionValue('');
+    setIsCreateTagDialogOpen(true);
+  }
+
+  function closeCreateTagDialog() {
+    if (createTagMutation.isPending || assignTagMutation.isPending) {
+      return;
+    }
+
+    setIsCreateTagDialogOpen(false);
+  }
+
+  async function handleCreateTagSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (normalizedCreateTagName.length === 0) {
+      return;
+    }
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const result = await createTagMutation.mutateAsync({
+        vaultId,
+        name: normalizedCreateTagName,
+        color: createTagColorValue,
+        description: createTagDescription.length > 0 ? createTagDescription : null,
+      });
+
+      await assignTagMutation.mutateAsync({
+        vaultId,
+        documentId,
+        tagId: result.tag.id,
+      });
+      setStatusMessage(`Tag "${normalizedCreateTagName}" created and assigned.`);
+      setIsCreateTagDialogOpen(false);
+      setIsTagPickerOpen(false);
+      setTagSearchValue('');
+    } catch {}
+  }
+
+  function handlePrintClick() {
+    if (!canPrint) {
+      return;
+    }
+
+    if (previewKind === 'pdf' || previewKind === 'text') {
+      const frame = window.document.createElement('iframe');
+      frame.style.position = 'fixed';
+      frame.style.right = '0';
+      frame.style.bottom = '0';
+      frame.style.width = '0';
+      frame.style.height = '0';
+      frame.style.border = '0';
+      frame.src = inlineFileUrl;
+      frame.onload = () => {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+      };
+      window.document.body.appendChild(frame);
+      window.setTimeout(() => {
+        frame.remove();
+      }, 60_000);
+      return;
+    }
+
+    if (previewKind === 'image') {
+      const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+
+      if (printWindow === null) {
+        setErrorMessage('Could not open print dialog.');
+        setStatusMessage(null);
+        return;
+      }
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${document.name}</title>
+            <style>
+              body {
+                margin: 0;
+                display: flex;
+                min-height: 100vh;
+                align-items: center;
+                justify-content: center;
+                background: white;
+              }
+              img {
+                max-width: 100%;
+                max-height: 100vh;
+                object-fit: contain;
+              }
+            </style>
+          </head>
+          <body>
+            <img src="${inlineFileUrl}" alt="${document.name}" />
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+      };
+    }
   }
 
   return (
@@ -161,12 +405,18 @@ export function DocumentDetailPage() {
       <PageIntro
         eyebrow="Vault Record"
         title={document.name}
-        description={`${document.originalName} • ${document.id}`}
+        description={`${document.originalName} • ${formatBytes(document.originalSize)} • ${document.id}`}
         actions={(
           <>
             <Link to={document.isDeleted ? `/vaults/${vaultId}/documents/trash` : `/vaults/${vaultId}/documents`} className="vault-link">
               Back to {document.isDeleted ? 'trash' : 'documents'}
             </Link>
+            {canPrint ? (
+              <Button type="button" variant="outline" onClick={handlePrintClick}>
+                <Printer className="size-4" />
+                Print
+              </Button>
+            ) : null}
             <a href={getDocumentDownloadUrl({ vaultId, documentId })} className="vault-link inline-flex items-center gap-2">
               <Download className="size-4" />
               Download original
@@ -182,196 +432,363 @@ export function DocumentDetailPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          label="Extraction status"
-          value={extractionStatus}
-          meta="Derived from the current document processing state."
-          icon={<FileText className="size-5" />}
-        />
-        <StatCard
-          label="File size"
-          value={formatBytes(document.originalSize)}
-          meta={`Uploaded ${formatDate(document.createdAt)}`}
-          icon={<Hash className="size-5" />}
-        />
-        <StatCard
-          label="Tags assigned"
-          value={assignedTags.length}
-          meta={assignedTags.length > 0 ? 'This document already carries labels.' : 'No tags have been assigned yet.'}
-          icon={<Tags className="size-5" />}
-        />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_360px] 2xl:grid-cols-[minmax(0,1.75fr)_380px]">
         <div className="space-y-6">
           <SurfacePanel className="space-y-5">
-            <div>
-              <p className="vault-label">Metadata</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Document profile</h2>
-            </div>
-
-            <dl className="grid gap-4 text-sm sm:grid-cols-2">
-              <div className="rounded-[20px] bg-secondary/55 p-4">
-                <dt className="text-muted-foreground">Extraction status</dt>
-                <dd className="mt-2 font-medium text-foreground">{extractionStatus}</dd>
-              </div>
-              <div className="rounded-[20px] bg-secondary/55 p-4">
-                <dt className="text-muted-foreground">Document date</dt>
-                <dd className="mt-2 font-medium text-foreground">{formatDate(document.documentDate)}</dd>
-              </div>
-              <div className="rounded-[20px] bg-secondary/55 p-4">
-                <dt className="text-muted-foreground">Created by</dt>
-                <dd className="mt-2 font-medium text-foreground">{document.createdBy ?? 'Unknown'}</dd>
-              </div>
-              <div className="rounded-[20px] bg-secondary/55 p-4">
-                <dt className="text-muted-foreground">SHA-256</dt>
-                <dd className="mt-2 truncate font-mono text-xs text-foreground">{document.originalSha256Hash}</dd>
-              </div>
-            </dl>
-          </SurfacePanel>
-
-          <SurfacePanel className="space-y-5">
-            <div>
-              <p className="vault-label">Extracted Content</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">OCR and text</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Shows OCR or extracted text when processing is complete.
-              </p>
-            </div>
-
-            <div className="max-h-96 overflow-auto rounded-[22px] bg-secondary/55 p-4 text-sm whitespace-pre-wrap break-words text-foreground">
-              {document.content.trim().length > 0 ? document.content : 'No extracted text is available yet.'}
-            </div>
-          </SurfacePanel>
-
-          {document.mimeType.includes('pdf') && !document.isDeleted ? (
-            <SurfacePanel className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="vault-label">Preview</p>
-                <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">PDF viewer</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+                    {document.mimeType}
+                  </span>
+                  <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    {extractionStatus}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {canPreview
+                    ? 'Primary reading surface for this document.'
+                    : 'This file can be downloaded, and extracted content will be shown below when available.'}
+                </p>
               </div>
-              <div className="overflow-hidden rounded-[22px] bg-secondary/55 p-2">
-                <iframe
-                  title="PDF viewer"
-                  src={getDocumentInlineFileUrl({ vaultId, documentId })}
-                  className="h-[600px] w-full rounded-[18px] bg-white"
-                />
+              <div className="text-right text-sm text-muted-foreground">
+                <p>Uploaded {formatDate(document.createdAt)}</p>
+                <p>{formatBytes(document.originalSize)}</p>
               </div>
-            </SurfacePanel>
-          ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="vault-label">Workspace</p>
+                <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">
+                  {activeTab === 'preview' ? 'Document preview' : activeTab === 'content' ? 'Extracted text' : 'Metadata'}
+                </h2>
+              </div>
+              <div className="inline-flex rounded-full bg-secondary/70 p-1">
+                <button
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'preview' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setActiveTab('preview')}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'content' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setActiveTab('content')}
+                >
+                  Extracted text
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'metadata' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setActiveTab('metadata')}
+                >
+                  Metadata
+                </button>
+              </div>
+            </div>
+
+            {activeTab === 'preview' ? (
+              <div className="space-y-4">
+                {previewKind === 'pdf' && !document.isDeleted ? (
+                  <div className="overflow-hidden rounded-[22px] bg-secondary/55 p-2">
+                    <iframe
+                      title="Document preview"
+                      src={inlineFileUrl}
+                      className="h-[72vh] min-h-[760px] w-full rounded-[18px] bg-white"
+                    />
+                  </div>
+                ) : null}
+
+                {previewKind === 'image' && !document.isDeleted ? (
+                  <div className="overflow-hidden rounded-[22px] bg-secondary/55 p-4">
+                    <div className="flex min-h-[72vh] items-center justify-center rounded-[18px] bg-white p-8">
+                      <img
+                        src={inlineFileUrl}
+                        alt={document.name}
+                        className="max-h-[78vh] w-auto max-w-full rounded-[12px] object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {previewKind === 'text' && !document.isDeleted ? (
+                  <div className="overflow-hidden rounded-[22px] bg-secondary/55 p-2">
+                    <iframe
+                      title="Text preview"
+                      src={inlineFileUrl}
+                      className="h-[72vh] min-h-[760px] w-full rounded-[18px] bg-white"
+                    />
+                  </div>
+                ) : null}
+
+                {previewKind === 'unsupported' || document.isDeleted ? (
+                  <div className="rounded-[22px] bg-secondary/55 p-6">
+                    <div className="flex min-h-[520px] flex-col items-center justify-center gap-4 rounded-[18px] border border-dashed border-border/70 bg-background/80 px-6 text-center">
+                      <ImageIcon className="size-10 text-muted-foreground" />
+                      <div className="space-y-2">
+                        <p className="text-lg font-semibold text-foreground">Preview unavailable</p>
+                        <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+                          {document.isDeleted
+                            ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
+                            : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {activeTab === 'content' ? (
+              <div className="space-y-3">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  OCR and extracted text appear here once processing completes.
+                </p>
+                <div className="max-h-[72vh] min-h-[520px] overflow-auto rounded-[22px] bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
+                  {document.content.trim().length > 0 ? document.content : 'No extracted text is available yet.'}
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === 'metadata' ? (
+              <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">Display name</dt>
+                  <dd className="mt-2 font-medium text-foreground">{document.name}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">Original file</dt>
+                  <dd className="mt-2 font-medium text-foreground">{document.originalName}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">File size</dt>
+                  <dd className="mt-2 font-medium text-foreground">{formatBytes(document.originalSize)}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">Format</dt>
+                  <dd className="mt-2 font-medium text-foreground">{document.mimeType}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">Document date</dt>
+                  <dd className="mt-2 font-medium text-foreground">{formatDate(document.documentDate)}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">Uploaded by</dt>
+                  <dd className="mt-2 font-medium text-foreground">{document.createdBy ?? 'Unknown'}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">Uploaded at</dt>
+                  <dd className="mt-2 font-medium text-foreground">{formatDate(document.createdAt)}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">Last updated</dt>
+                  <dd className="mt-2 font-medium text-foreground">{formatDate(document.updatedAt)}</dd>
+                </div>
+                <div className="rounded-[20px] bg-secondary/55 p-4">
+                  <dt className="text-muted-foreground">SHA-256</dt>
+                  <dd className="mt-2 break-all font-mono text-xs text-foreground">{document.originalSha256Hash}</dd>
+                </div>
+              </dl>
+            ) : null}
+          </SurfacePanel>
         </div>
 
         <div className="space-y-6">
           <SurfacePanel variant="soft" className="space-y-5">
             <div>
-              <p className="vault-label">Rename</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Display name</h2>
+              <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Edit metadata</h2>
             </div>
-            <form className="space-y-4" onSubmit={handleRename}>
-              <input
-                type="text"
-                defaultValue={document.name}
-                className={vaultInputClassName}
-                onChange={event => setRenameValue(event.target.value)}
-              />
-              <Button type="submit" disabled={renameMutation.isPending}>
-                {renameMutation.isPending ? 'Saving...' : 'Save name'}
-              </Button>
-            </form>
-          </SurfacePanel>
-
-          <SurfacePanel variant="soft" className="space-y-5">
-            <div>
-              <p className="vault-label">Document date</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Temporal metadata</h2>
-            </div>
-            <form className="space-y-4" onSubmit={handleDocumentDate}>
-              <input
-                type="date"
-                defaultValue={document.documentDate ? document.documentDate.slice(0, 10) : ''}
-                className={vaultInputClassName}
-                onChange={event => setDocumentDateValue(event.target.value)}
-              />
-              <Button type="submit" disabled={dateMutation.isPending}>
+            <form className="space-y-5" onSubmit={handleMetadataSave}>
+              <div className="space-y-2">
+                <label htmlFor="document-name" className="vault-label">Display name</label>
+                <input
+                  id="document-name"
+                  type="text"
+                  value={currentName}
+                  className={vaultInputClassName}
+                  onChange={event => setRenameValue(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="document-date" className="vault-label">Document date</label>
+                <input
+                  id="document-date"
+                  type="date"
+                  value={currentDocumentDate}
+                  className={vaultInputClassName}
+                  onChange={event => setDocumentDateValue(event.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}>
                 <CalendarRange className="size-4" />
-                {dateMutation.isPending ? 'Saving...' : 'Save date'}
+                {isMetadataSaving ? 'Saving...' : 'Save'}
               </Button>
             </form>
           </SurfacePanel>
 
           <SurfacePanel variant="soft" className="space-y-5">
-            <div>
-              <p className="vault-label">Tags</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Classification</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Tags</h2>
+              <div ref={tagPickerRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label="Add tag"
+                  aria-expanded={isTagPickerOpen}
+                  aria-haspopup="menu"
+                  className="inline-flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground transition hover:text-foreground"
+                  onClick={() => {
+                    setIsTagPickerOpen((open) => {
+                      const nextOpen = !open;
+                      if (!nextOpen) {
+                        setTagSearchValue('');
+                      }
+                      return nextOpen;
+                    });
+                  }}
+                >
+                  <Plus className="size-4" />
+                </button>
+                {isTagPickerOpen ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-10 mt-3 w-80 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-[0_20px_60px_rgba(15,23,42,0.14)]"
+                  >
+                    <div className="border-b border-border/60 p-2">
+                      <input
+                        type="text"
+                        value={tagSearchValue}
+                        onChange={(event) => setTagSearchValue(event.target.value)}
+                        placeholder="Filter tags..."
+                        className="h-10 w-full rounded-lg border border-transparent bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-72 overflow-auto py-1">
+                      {selectedMatchingTags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          role="menuitemcheckbox"
+                          aria-checked="true"
+                          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-foreground transition hover:bg-accent"
+                          onClick={() => {
+                            setStatusMessage(null);
+                            setErrorMessage(null);
+                            removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                          }}
+                        >
+                          <span className="inline-flex size-5 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground">
+                            <Check className="size-3.5" />
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className="size-2 rounded-full"
+                            style={{ backgroundColor: tag.color ?? '#64748b' }}
+                          />
+                          <span className="flex-1 truncate">{tag.name}</span>
+                        </button>
+                      ))}
+                      {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
+                        <div role="separator" className="px-2 py-1">
+                          <hr className="border-t border-border/60" />
+                        </div>
+                      ) : null}
+                      {sortedFilteredAvailableTags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          role="menuitemcheckbox"
+                          aria-checked="false"
+                          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-foreground transition hover:bg-accent"
+                          onClick={() => {
+                            setStatusMessage(null);
+                            setErrorMessage(null);
+                            assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                          }}
+                        >
+                          <span className="inline-flex size-5 items-center justify-center rounded-sm border border-border bg-background" />
+                          <span
+                            aria-hidden="true"
+                            className="size-2 rounded-full"
+                            style={{ backgroundColor: tag.color ?? '#64748b' }}
+                          />
+                          <span className="flex-1 truncate">{tag.name}</span>
+                        </button>
+                      ))}
+                      {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                          onClick={() => {
+                            openCreateTagDialog(tagSearchValue.trim());
+                          }}
+                        >
+                          <Plus className="size-4" />
+                          <span className="flex-1 truncate">{`Create new tag "${tagSearchValue.trim()}"`}</span>
+                        </button>
+                      ) : null}
+                      {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
+                        normalizedTagSearchValue.length === 0 ? (
+                          <p className="px-4 py-3 text-sm text-muted-foreground">All tags are already assigned.</p>
+                        ) : !hasExactTagMatch ? null : (
+                          <p className="px-4 py-3 text-sm text-muted-foreground">No matching tags.</p>
+                        )
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {assignedTags.length === 0 ? <p className="text-sm text-muted-foreground">No tags assigned.</p> : null}
+              {assignedTags.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No tags assigned.</p>
+              ) : null}
               {assignedTags.map(tag => (
-                <span key={tag.id} className="inline-flex items-center gap-2 rounded-full bg-card/85 px-3 py-1.5 text-sm text-foreground">
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-sm leading-none text-foreground"
+                >
                   <span
                     aria-hidden="true"
-                    className="size-2 rounded-full"
+                    className="size-1.5 rounded-full"
                     style={{ backgroundColor: tag.color ?? '#64748b' }}
                   />
                   {tag.name}
                   <button
                     type="button"
-                    className="text-xs text-muted-foreground transition hover:text-foreground"
+                    aria-label={`Remove ${tag.name}`}
+                    className="inline-flex items-center justify-center text-muted-foreground transition hover:text-foreground"
                     onClick={() => {
                       setStatusMessage(null);
                       setErrorMessage(null);
                       removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
                     }}
                   >
-                    Remove
+                    <X className="size-3.5" />
                   </button>
                 </span>
               ))}
             </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="assign-tag" className="vault-label">Select a tag</label>
-                <select
-                  id="assign-tag"
-                  value={selectedTagId}
-                  onChange={event => setSelectedTagId(event.target.value)}
-                  className={vaultInputClassName}
-                >
-                  <option value="">Select a tag</option>
-                  {availableTags.map(tag => (
-                    <option key={tag.id} value={tag.id}>{tag.name}</option>
-                  ))}
-                </select>
-              </div>
-              <Button
-                type="button"
-                disabled={!selectedTagId || assignTagMutation.isPending}
-                onClick={() => {
-                  setStatusMessage(null);
-                  setErrorMessage(null);
-                  assignTagMutation.mutate({ vaultId, documentId, tagId: selectedTagId });
-                }}
-              >
-                {assignTagMutation.isPending ? 'Assigning...' : 'Assign tag'}
-              </Button>
-              <Link to={`/vaults/${vaultId}/tags`} className="vault-link">Open tag management</Link>
-            </div>
           </SurfacePanel>
 
-          <SurfacePanel variant="strong" className="space-y-5">
+          <SurfacePanel variant="soft" className="space-y-5 border-destructive/20">
             <div>
-              <p className="vault-label text-primary-foreground/70">Lifecycle</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em]">Retention control</h2>
+              <p className="vault-label text-destructive/80">Danger zone</p>
+              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">
+                {document.isDeleted ? 'Restore document' : 'Delete document'}
+              </h2>
             </div>
-            <p className="text-sm leading-6 text-primary-foreground/80">
-              Delete active documents or restore them from trash depending on the current state of this record.
+            <p className="text-sm leading-6 text-muted-foreground">
+              {document.isDeleted
+                ? 'Restore this document to make it available in the vault again.'
+                : 'Move this document to trash. The file remains recoverable until it is permanently removed.'}
             </p>
             {document.isDeleted ? (
               <Button
                 type="button"
-                variant="secondary"
                 className="w-full"
                 disabled={restoreMutation.isPending}
                 onClick={() => {
@@ -385,8 +802,8 @@ export function DocumentDetailPage() {
             ) : (
               <Button
                 type="button"
-                variant="secondary"
-                className="w-full"
+                variant="outline"
+                className="w-full border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive"
                 disabled={deleteMutation.isPending}
                 onClick={() => {
                   setStatusMessage(null);
@@ -401,6 +818,124 @@ export function DocumentDetailPage() {
           </SurfacePanel>
         </div>
       </div>
+
+      {isCreateTagDialogOpen && typeof window !== 'undefined' ? createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/65 px-4 py-8 backdrop-blur-sm">
+          <div
+            className="absolute inset-0"
+            aria-hidden="true"
+            onClick={closeCreateTagDialog}
+          />
+          <div className="relative z-10 w-full max-w-3xl overflow-hidden rounded-[28px] border border-border/70 bg-card shadow-[0_32px_80px_rgba(15,23,42,0.18)]">
+            <div className="flex items-start justify-between gap-4 px-6 pt-6 sm:px-8 sm:pt-7">
+              <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Create tag</h2>
+              <button
+                type="button"
+                aria-label="Close create tag dialog"
+                className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                onClick={closeCreateTagDialog}
+                disabled={createTagMutation.isPending || assignTagMutation.isPending}
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form className="space-y-6 px-6 pb-6 pt-5 sm:px-8 sm:pb-8" onSubmit={handleCreateTagSubmit}>
+              <div className="space-y-3">
+                <label htmlFor="create-tag-name" className="text-[1.05rem] font-medium text-foreground">Name</label>
+                <input
+                  id="create-tag-name"
+                  type="text"
+                  required
+                  autoFocus
+                  maxLength={64}
+                  value={createTagNameValue}
+                  onChange={event => setCreateTagNameValue(event.target.value)}
+                  className="h-14 w-full rounded-2xl border border-foreground/20 bg-background px-4 text-lg text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/35"
+                  placeholder="Tag name"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[1.05rem] font-medium text-foreground">Color</label>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {DEFAULT_TAG_COLORS.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Select color ${color}`}
+                      aria-pressed={createTagColorValue === color}
+                      className={`flex size-10 items-center justify-center rounded-xl border transition ${createTagColorValue === color ? 'border-foreground/35 ring-2 ring-foreground/10' : 'border-border/70 hover:border-foreground/20'}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setCreateTagColorValue(color)}
+                    >
+                      {createTagColorValue === color ? (
+                        <span className={`size-2.5 rounded-full ${color === '#FFFFFF' ? 'bg-foreground' : 'bg-black/65'}`} />
+                      ) : null}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    aria-label="Choose custom color"
+                    className="inline-flex size-10 items-center justify-center rounded-xl border border-border/70 bg-background text-foreground transition hover:border-foreground/20"
+                    onClick={() => customColorInputRef.current?.click()}
+                  >
+                    <Plus className="size-5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Reset tag color"
+                    className="inline-flex size-10 items-center justify-center rounded-xl text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                    onClick={() => setCreateTagColorValue('#D8FF75')}
+                  >
+                    <RefreshCw className="size-5" />
+                  </button>
+                  <input
+                    ref={customColorInputRef}
+                    type="color"
+                    value={createTagColorValue}
+                    className="sr-only"
+                    onChange={event => setCreateTagColorValue(event.target.value.toUpperCase())}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label htmlFor="create-tag-description" className="text-[1.05rem] font-medium text-foreground">
+                  Description <span className="font-normal text-muted-foreground">(optional)</span>
+                </label>
+                <textarea
+                  id="create-tag-description"
+                  maxLength={256}
+                  value={createTagDescriptionValue}
+                  onChange={event => setCreateTagDescriptionValue(event.target.value)}
+                  className="min-h-32 w-full resize-y rounded-2xl border border-border/70 bg-background px-4 py-3 text-lg text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/20"
+                  placeholder="Eg. All the contracts signed by the company"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                <span className="inline-flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-sm leading-none text-foreground">
+                  <span
+                    aria-hidden="true"
+                    className="size-1.5 rounded-full"
+                    style={{ backgroundColor: createTagColorValue }}
+                  />
+                  {normalizedCreateTagName || 'New tag'}
+                </span>
+                <Button
+                  type="submit"
+                  className="h-12 rounded-2xl px-6 text-base"
+                  disabled={isCreateTagSaveDisabled}
+                >
+                  {createTagMutation.isPending || assignTagMutation.isPending ? 'Creating...' : 'Create tag'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        window.document.body,
+      ) : null}
     </section>
   );
 }

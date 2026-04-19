@@ -4,6 +4,7 @@ export type Tag = {
   vaultName?: string;
   name: string;
   color: string | null;
+  description?: string | null;
   documentsCount?: number;
   createdAt: string | Date;
   updatedAt: string | Date;
@@ -16,12 +17,18 @@ export type AssignTagResult =
 export type TagsServices = {
   listTags: (args: { vaultId: string }) => Promise<Tag[]>;
   listAccessibleTags: (args: { vaultIds: string[] }) => Promise<Tag[]>;
-  createTag: (args: { vaultId: string; name: string; color: string | null }) => Promise<Tag | null>;
+  createTag: (args: {
+    vaultId: string;
+    name: string;
+    color: string | null;
+    description: string | null;
+  }) => Promise<Tag | null>;
   updateTag: (args: {
     tagId: string;
     vaultId: string;
     name: string;
     color: string | null;
+    description: string | null;
   }) => Promise<Tag | null>;
   deleteTag: (args: { tagId: string; vaultId: string }) => Promise<{ id: string } | null>;
   listDocumentTags: (args: { vaultId: string; documentId: string }) => Promise<Tag[]>;

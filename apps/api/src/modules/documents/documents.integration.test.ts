@@ -235,6 +235,8 @@ describe('documents integration', () => {
     expect(docServices.listDocuments).toHaveBeenCalledWith({
       vaultId: 'vlt_1',
       includeDeleted: false,
+      tagId: undefined,
+      sortBy: 'created_desc',
     });
   });
 
@@ -292,6 +294,24 @@ describe('documents integration', () => {
       vaultId: 'vlt_1',
       includeDeleted: false,
       tagId: 'tag_1',
+      sortBy: 'created_desc',
+    });
+  });
+
+  test('passes sort by to document listing', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents?sortBy=name_desc', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(docServices.listDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      includeDeleted: false,
+      tagId: undefined,
+      sortBy: 'name_desc',
     });
   });
 

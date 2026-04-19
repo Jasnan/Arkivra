@@ -23,7 +23,7 @@ export const searchQueryKeys = {
     (params.tagIds ?? []).join(','),
     params.dateFrom ?? '',
     params.dateTo ?? '',
-    params.sortBy ?? 'document_date_desc',
+    params.sortBy ?? 'created_desc',
   ] as const,
 };
 

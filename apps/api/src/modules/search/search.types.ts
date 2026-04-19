@@ -1,8 +1,6 @@
 export const SEARCH_SORT_VALUES = [
-  'document_date_desc',
-  'document_date_asc',
-  'updated_desc',
-  'updated_asc',
+  'created_desc',
+  'created_asc',
   'name_asc',
   'name_desc',
 ] as const;

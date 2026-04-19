@@ -84,6 +84,7 @@
 
   html {
     color-scheme: light;
+    scrollbar-gutter: stable;
   }
 
   html.dark {

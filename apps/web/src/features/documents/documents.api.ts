@@ -1,4 +1,5 @@
 import { fetchJson } from '@/lib/api';
+import type { SearchSortBy } from '@/features/search/search.types';
 import type { DeletedDocumentSummary, DocumentDetail, DocumentSummary, TagSummary } from './documents.types';
 
 interface DocumentsResponse {
@@ -23,10 +24,12 @@ export async function listDocuments({
   vaultId,
   includeDeleted = false,
   tagId,
+  sortBy,
 }: {
   vaultId: string;
   includeDeleted?: boolean;
   tagId?: string;
+  sortBy?: SearchSortBy;
 }) {
   const params = new URLSearchParams();
 
@@ -36,6 +39,10 @@ export async function listDocuments({
 
   if (tagId) {
     params.set('tagId', tagId);
+  }
+
+  if (sortBy) {
+    params.set('sortBy', sortBy);
   }
 
   const query = params.toString();

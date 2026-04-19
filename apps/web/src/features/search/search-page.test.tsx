@@ -49,7 +49,7 @@ describe('documents library search controls', () => {
             tagIds: [],
             dateFrom: null,
             dateTo: null,
-            sortBy: 'document_date_desc',
+            sortBy: 'created_desc',
           },
           results: [
             {
@@ -89,7 +89,7 @@ describe('documents library search controls', () => {
             tagIds: [],
             dateFrom: null,
             dateTo: null,
-            sortBy: 'document_date_desc',
+            sortBy: 'created_desc',
           },
           results: [],
         });
@@ -108,6 +108,87 @@ describe('documents library search controls', () => {
 
     expect(await screen.findByText(/receipt for groceries\.txt/i)).toBeInTheDocument();
     expect(screen.getByText('Arkivra', { selector: 'mark' })).toBeInTheDocument();
+  });
+
+  it('renders title-only search matches without OCR snippets', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?') && url.includes('q=contract')) {
+        return jsonResponse({
+          query: 'contract',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 1,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Sherlock',
+              documentId: 'doc_2',
+              name: 'Employment Contract.pdf',
+              originalName: 'employment-contract.pdf',
+              originalSize: 42000,
+              mimeType: 'application/pdf',
+              documentDate: null,
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+              matchedChunksCount: 1,
+              bestChunk: null,
+            },
+          ],
+        });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.type(screen.getByLabelText(/search documents/i), 'contract');
+
+    expect(await screen.findByText(/employment contract\.pdf/i)).toBeInTheDocument();
   });
 
   it('sends vault, tag, date, and sort filters to the backend', async () => {
@@ -268,5 +349,62 @@ describe('documents library search controls', () => {
     expect(sherlockIndex).toBeGreaterThanOrEqual(0);
     expect(puzzlePalaceIndex).toBeGreaterThanOrEqual(0);
     expect(sherlockIndex).toBeLessThan(puzzlePalaceIndex);
+  });
+
+  it('keeps custom date ranges valid in the global documents filters', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+    await user.click(screen.getByLabelText(/custom range/i));
+
+    const fromInput = screen.getByLabelText(/^from$/i);
+    const toInput = screen.getByLabelText(/^to$/i);
+
+    await user.type(fromInput, '2026-04-19');
+    await user.type(toInput, '2026-04-18');
+
+    expect(fromInput).toHaveValue('2026-04-18');
+    expect(toInput).toHaveValue('2026-04-18');
   });
 });

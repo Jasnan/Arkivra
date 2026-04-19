@@ -1,9 +1,9 @@
 import type { ChangeEvent, DragEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ChevronDown,
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   FileUp,
   LoaderCircle,
   MoreHorizontal,
@@ -15,6 +15,8 @@ import {
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { cn } from '@/lib/utils';
@@ -39,12 +41,10 @@ export function TransfersPage() {
   const { data } = useVaultsQuery();
   const state = useUploadManagerState();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const vaultId = searchParams.get('vaultId') ?? data?.vaults[0]?.id ?? '';
   const isVaultLocked = searchParams.get('locked') === 'true' && vaultId.length > 0;
   const activeVaultName = (data?.vaults ?? []).find(vault => vault.id === vaultId)?.name ?? null;
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
-  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
 
   const totalBytes = useMemo(
     () => state.items.reduce((sum, item) => sum + item.size, 0),
@@ -73,34 +73,6 @@ export function TransfersPage() {
     void uploadManager.reconcileVault(vaultId);
   }, [vaultId]);
 
-  useEffect(() => {
-    if (!isActionMenuOpen) {
-      return;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (actionMenuRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      setIsActionMenuOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setIsActionMenuOpen(false);
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isActionMenuOpen]);
-
   function handleFiles(files: File[]) {
     if (!canUpload || files.length === 0) {
       return;
@@ -128,7 +100,6 @@ export function TransfersPage() {
       return;
     }
 
-    setIsActionMenuOpen(false);
     void uploadManager.clearAll();
   }
 
@@ -161,18 +132,21 @@ export function TransfersPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              <label className="vault-label" htmlFor="transfer-vault">Target vault</label>
-              <select
-                id="transfer-vault"
-                value={vaultId}
-                onChange={(event) => setSearchParams(event.target.value ? { vaultId: event.target.value } : {})}
-                className={vaultInputClassName}
+              <span id="transfer-vault-label" className="vault-label">Target vault</span>
+              <Select
+                value={vaultId || '__none__'}
+                onValueChange={value => setSearchParams(value === '__none__' ? {} : { vaultId: value })}
               >
-                <option value="">Select a vault</option>
-                {(data?.vaults ?? []).map(vault => (
-                  <option key={vault.id} value={vault.id}>{vault.name}</option>
-                ))}
-              </select>
+                <SelectTrigger aria-labelledby="transfer-vault-label" className={vaultInputClassName}>
+                  <SelectValue placeholder="Select a vault" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Select a vault</SelectItem>
+                  {(data?.vaults ?? []).map(vault => (
+                    <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -241,88 +215,59 @@ export function TransfersPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <div ref={actionMenuRef} className="relative">
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Transfer actions"
-                aria-expanded={isActionMenuOpen}
-                aria-haspopup="menu"
-                onClick={() => setIsActionMenuOpen(open => !open)}
-              >
-                <MoreHorizontal className="size-4" />
-              </Button>
-
-              {isActionMenuOpen ? (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-60 rounded-[20px] border border-border/70 bg-card p-2 shadow-[0_18px_38px_rgba(19,27,46,0.12)]"
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Transfer actions">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuItem
+                  disabled={!canUpload}
+                  onSelect={() => {
+                    inputRef.current?.click();
+                  }}
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
-                    disabled={!canUpload}
-                    onClick={() => {
-                      setIsActionMenuOpen(false);
-                      inputRef.current?.click();
-                    }}
-                  >
-                    <Plus className="size-4" />
-                    Add files
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                    disabled={state.items.length === 0}
-                    onClick={() => {
-                      setIsActionMenuOpen(false);
-                      uploadManager.pauseAll();
-                    }}
-                  >
-                    <Pause className="size-4" />
-                    Pause all
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                    disabled={state.items.length === 0}
-                    onClick={() => {
-                      setIsActionMenuOpen(false);
-                      uploadManager.resumeAll();
-                    }}
-                  >
-                    <Play className="size-4" />
-                    Resume all
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                    disabled={completedItems.length === 0}
-                    onClick={() => {
-                      setIsActionMenuOpen(false);
-                      uploadManager.clearCompleted();
-                    }}
-                  >
-                    <CheckCircle2 className="size-4" />
-                    Clear completed
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm font-medium text-destructive transition hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
-                    disabled={state.items.length === 0}
-                    onClick={handleClearAll}
-                  >
-                    <Trash2 className="size-4" />
-                    Cancel and clear all
-                  </button>
-                </div>
-              ) : null}
-            </div>
+                  <Plus className="size-4 text-primary" />
+                  Add files
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={state.items.length === 0}
+                  onSelect={() => {
+                    uploadManager.pauseAll();
+                  }}
+                >
+                  <Pause className="size-4 text-primary" />
+                  Pause all
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={state.items.length === 0}
+                  onSelect={() => {
+                    uploadManager.resumeAll();
+                  }}
+                >
+                  <Play className="size-4 text-primary" />
+                  Resume all
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={completedItems.length === 0}
+                  onSelect={() => {
+                    uploadManager.clearCompleted();
+                  }}
+                >
+                  <CheckCircle2 className="size-4 text-primary" />
+                  Clear completed
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={state.items.length === 0}
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onSelect={handleClearAll}
+                >
+                  <Trash2 className="size-4 text-destructive" />
+                  Cancel and clear all
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

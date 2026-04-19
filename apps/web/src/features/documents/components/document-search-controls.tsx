@@ -1,8 +1,14 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { useEffect } from 'react';
-import { Check, ChevronDown, Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
+import { Check, Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { vaultInputClassName } from '@/components/layout/vault-ui';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export interface DocumentSearchControlOption<TValue extends string> {
   value: TValue;
@@ -131,23 +137,25 @@ export function DocumentSearchControls<TSortValue extends string>({
             </Button>
 
             <div className="flex items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 py-2 shadow-none">
-              <label htmlFor={sortSelectId} className="text-sm font-semibold text-muted-foreground">
+              <span id={sortSelectId} className="text-sm font-semibold text-muted-foreground">
                 Sort by:
-              </label>
-              <div className="relative">
-                <select
-                  id={sortSelectId}
+              </span>
+              <Select value={sortBy} onValueChange={value => onSortChange(value as TSortValue)}>
+                <SelectTrigger
                   aria-label={sortAriaLabel}
-                  value={sortBy}
-                  onChange={event => onSortChange(event.target.value as TSortValue)}
-                  className={`${vaultInputClassName} h-11 min-w-[11rem] appearance-none rounded-[16px] border-0 bg-transparent pl-0 pr-8 text-base font-semibold ring-0 focus-visible:ring-0`}
+                  aria-labelledby={sortSelectId}
+                  className="h-11 min-w-[11rem] border-0 bg-transparent px-0 text-base shadow-none focus:ring-0"
                 >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
                   {sortOptions.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
                   ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-1 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

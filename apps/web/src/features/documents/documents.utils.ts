@@ -1,11 +1,6 @@
-import type { SearchSortBy } from '@/features/search/search.types';
 import type { DocumentDetail, DocumentSummary } from './documents.types';
 
 export type DocumentSortValue = 'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'size-desc';
-
-function getComparableDocumentDate(document: DocumentSummary) {
-  return document.documentDate ?? document.createdAt;
-}
 
 export function formatBytes(value: number) {
   if (value < 1024) {
@@ -63,36 +58,6 @@ export function sortDocuments(documents: DocumentSummary[], value: DocumentSortV
     }
 
     return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
-  });
-
-  return items;
-}
-
-export function sortDocumentsBySearchSort(documents: DocumentSummary[], value: SearchSortBy) {
-  const items = [...documents];
-
-  items.sort((left, right) => {
-    if (value === 'name_asc') {
-      return left.name.localeCompare(right.name);
-    }
-
-    if (value === 'name_desc') {
-      return right.name.localeCompare(left.name);
-    }
-
-    if (value === 'document_date_asc') {
-      return new Date(getComparableDocumentDate(left)).getTime() - new Date(getComparableDocumentDate(right)).getTime();
-    }
-
-    if (value === 'updated_desc') {
-      return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
-    }
-
-    if (value === 'updated_asc') {
-      return new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime();
-    }
-
-    return new Date(getComparableDocumentDate(right)).getTime() - new Date(getComparableDocumentDate(left)).getTime();
   });
 
   return items;

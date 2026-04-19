@@ -304,7 +304,7 @@ export function DocumentLibraryHeader() {
   return (
     <div className="hidden grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] gap-5 border-b border-border/70 px-5 py-4 text-sm text-muted-foreground md:grid sm:px-6">
       <span>Name</span>
-      <span>Updated</span>
+      <span>Uploaded At</span>
       <span>Size</span>
       <span>Tags</span>
       <span className="text-right">Actions</span>
@@ -353,10 +353,9 @@ export function DocumentLibraryRow({
           >
             {name}
           </Link>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {originalName && originalName !== name ? `${originalName} - ` : ''}
-            Uploaded {formatDate(createdAt)}
-          </p>
+          {originalName && originalName !== name ? (
+            <p className="mt-1 text-sm text-muted-foreground">{originalName}</p>
+          ) : null}
           {snippet ? (
             <div className="mt-3 text-sm leading-6 text-muted-foreground">
               {snippet}
@@ -366,9 +365,9 @@ export function DocumentLibraryRow({
       </div>
 
       <div className="text-sm text-muted-foreground">
-        <p className="vault-label md:hidden">Updated</p>
+        <p className="vault-label md:hidden">Uploaded At</p>
         <p className="mt-2 text-base text-foreground md:mt-0">
-          {formatDate(updatedAt)}
+          {formatDate(createdAt)}
         </p>
       </div>
 

@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import { and, desc, eq, exists, inArray, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, lte, sql } from 'drizzle-orm';
 import { documentTagsTable, documentsTable, tagsTable, vaultsTable } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
+import type { SearchSortBy } from '../search/search.types.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
 export type DocumentProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -195,10 +196,12 @@ export function createDocumentsServices({
     vaultId,
     includeDeleted = false,
     tagId,
+    sortBy = 'created_desc',
   }: {
     vaultId: string;
     includeDeleted?: boolean;
     tagId?: string;
+    sortBy?: SearchSortBy;
   }) {
     const conditions = [eq(documentsTable.vaultId, vaultId)];
 
@@ -224,6 +227,15 @@ export function createDocumentsServices({
       );
     }
 
+    const orderBy =
+      sortBy === 'created_asc'
+        ? [asc(documentsTable.createdAt), asc(documentsTable.name)]
+        : sortBy === 'name_asc'
+          ? [sql`LOWER(${documentsTable.name}) ASC`, desc(documentsTable.createdAt)]
+          : sortBy === 'name_desc'
+            ? [sql`LOWER(${documentsTable.name}) DESC`, desc(documentsTable.createdAt)]
+            : [desc(documentsTable.createdAt), asc(documentsTable.name)];
+
     return db
       .select({
         id: documentsTable.id,
@@ -240,7 +252,7 @@ export function createDocumentsServices({
       })
       .from(documentsTable)
       .where(and(...conditions))
-      .orderBy(desc(documentsTable.createdAt));
+      .orderBy(...orderBy);
   }
 
   async function getDocument({ documentId, vaultId }: { documentId: string; vaultId: string }) {

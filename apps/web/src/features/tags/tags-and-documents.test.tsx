@@ -188,7 +188,7 @@ describe('tags and documents pages', () => {
     await user.selectOptions(screen.getByLabelText(/tag filter/i), 'tag_1');
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents?tagId=tag_1', expect.objectContaining({
+      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents?tagId=tag_1&sortBy=created_desc', expect.objectContaining({
         credentials: 'include',
       }));
     });

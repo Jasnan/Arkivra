@@ -31,10 +31,8 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 100;
 
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
-  { value: 'document_date_desc', label: 'Newest' },
-  { value: 'document_date_asc', label: 'Oldest' },
-  { value: 'updated_desc', label: 'Recently uploaded' },
-  { value: 'updated_asc', label: 'Oldest upload' },
+  { value: 'created_desc', label: 'Newest upload' },
+  { value: 'created_asc', label: 'Oldest upload' },
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
 ];
@@ -271,7 +269,7 @@ export function AllDocumentsPage() {
   const [query, setQuery] = useState('');
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<SearchSortBy>('document_date_desc');
+  const [sortBy, setSortBy] = useState<SearchSortBy>('created_desc');
   const [datePreset, setDatePreset] = useState<DatePreset>('any');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
@@ -442,7 +440,7 @@ export function AllDocumentsPage() {
     return `Showing ${shownDocuments} of ${totalDocuments} documents across ${vaultsShown} vaults`;
   }, [documentsQuery.data?.results.length, documentsQuery.data?.resultsCount, groupedDocuments.length]);
 
-  const selectedSortLabel = sortOptions.find(option => option.value === sortBy)?.label ?? 'Newest';
+  const selectedSortLabel = sortOptions.find(option => option.value === sortBy)?.label ?? 'Newest upload';
   const selectedVaults = useMemo(
     () => (vaultsQuery.data?.vaults ?? []).filter(vault => selectedVaultIds.includes(vault.id)),
     [selectedVaultIds, vaultsQuery.data?.vaults],

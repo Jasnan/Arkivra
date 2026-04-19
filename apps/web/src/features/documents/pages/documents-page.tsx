@@ -8,7 +8,7 @@ import { softDeleteDocument } from '@/features/documents/documents.api';
 import { DocumentLibraryHeader, DocumentLibraryRow } from '@/features/documents/components/document-library-list';
 import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
 import { documentQueryKeys, useDocumentsQuery } from '@/features/documents/documents.queries';
-import { formatDate, sortDocumentsBySearchSort } from '@/features/documents/documents.utils';
+import { formatDate } from '@/features/documents/documents.utils';
 import { searchQueryKeys, useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -17,10 +17,8 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 
 const PAGE_SIZE = 8;
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
-  { value: 'document_date_desc', label: 'Newest' },
-  { value: 'document_date_asc', label: 'Oldest' },
-  { value: 'updated_desc', label: 'Recently uploaded' },
-  { value: 'updated_asc', label: 'Oldest upload' },
+  { value: 'created_desc', label: 'Newest upload' },
+  { value: 'created_asc', label: 'Oldest upload' },
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
 ];
@@ -97,7 +95,7 @@ export function DocumentsPage() {
   const queryClient = useQueryClient();
 
   const [searchText, setSearchText] = useState('');
-  const [sortBy, setSortBy] = useState<SearchSortBy>('document_date_desc');
+  const [sortBy, setSortBy] = useState<SearchSortBy>('created_desc');
   const [selectedTagId, setSelectedTagId] = useState('');
   const [datePreset, setDatePreset] = useState<DatePreset>('any');
   const [customDateFrom, setCustomDateFrom] = useState('');
@@ -121,6 +119,7 @@ export function DocumentsPage() {
   const documentsQuery = useDocumentsQuery({
     vaultId,
     tagId: selectedTagId || undefined,
+    sortBy,
   });
   const tagsQuery = useTagsQuery({ vaultId });
   const searchQuery = useVaultSearchDocumentsQuery({
@@ -151,7 +150,7 @@ export function DocumentsPage() {
     },
   });
 
-  const filteredDocuments = useMemo(() => sortDocumentsBySearchSort(
+  const filteredDocuments = useMemo(() => (
     (documentsQuery.data?.documents ?? []).filter((document) => {
       const documentDateValue = document.documentDate
         ? new Date(document.documentDate)
@@ -175,9 +174,8 @@ export function DocumentsPage() {
       }
 
       return true;
-    }),
-    sortBy,
-  ), [appliedDateRange.dateFrom, appliedDateRange.dateTo, documentsQuery.data?.documents, sortBy]);
+    })
+  ), [appliedDateRange.dateFrom, appliedDateRange.dateTo, documentsQuery.data?.documents]);
 
   if (!vaultId) {
     return <p className="text-sm text-destructive">Invalid vault id.</p>;

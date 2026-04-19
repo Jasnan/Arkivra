@@ -101,37 +101,31 @@ function getEffectiveDocumentDateSql(alias: string) {
 
 function getBrowseOrderSql(sortBy: SearchSortBy) {
   switch (sortBy) {
-    case 'document_date_asc':
-      return sql`d.document_date ASC NULLS LAST, d.updated_at DESC, d.name ASC`;
-    case 'updated_desc':
-      return sql`d.updated_at DESC, d.document_date DESC NULLS LAST, d.name ASC`;
-    case 'updated_asc':
-      return sql`d.updated_at ASC, d.document_date ASC NULLS LAST, d.name ASC`;
+    case 'created_asc':
+      return sql`d.created_at ASC, d.name ASC`;
+    case 'created_desc':
+      return sql`d.created_at DESC, d.name ASC`;
     case 'name_asc':
-      return sql`d.name ASC, d.updated_at DESC`;
+      return sql`LOWER(d.name) ASC, d.created_at DESC`;
     case 'name_desc':
-      return sql`d.name DESC, d.updated_at DESC`;
-    case 'document_date_desc':
+      return sql`LOWER(d.name) DESC, d.created_at DESC`;
     default:
-      return sql`d.document_date DESC NULLS LAST, d.updated_at DESC, d.name ASC`;
+      return sql`d.created_at DESC, d.name ASC`;
   }
 }
 
 function getSearchOrderSql(sortBy: SearchSortBy) {
   switch (sortBy) {
-    case 'document_date_asc':
-      return sql`title_match DESC NULLS LAST, document_date ASC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
-    case 'updated_desc':
-      return sql`title_match DESC NULLS LAST, updated_at DESC, document_date DESC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
-    case 'updated_asc':
-      return sql`title_match DESC NULLS LAST, updated_at ASC, document_date ASC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+    case 'created_asc':
+      return sql`title_match DESC NULLS LAST, created_at ASC, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+    case 'created_desc':
+      return sql`title_match DESC NULLS LAST, created_at DESC, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
     case 'name_asc':
-      return sql`title_match DESC NULLS LAST, name ASC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
+      return sql`title_match DESC NULLS LAST, LOWER(name) ASC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, created_at DESC`;
     case 'name_desc':
-      return sql`title_match DESC NULLS LAST, name DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
-    case 'document_date_desc':
+      return sql`title_match DESC NULLS LAST, LOWER(name) DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, created_at DESC`;
     default:
-      return sql`title_match DESC NULLS LAST, document_date DESC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+      return sql`title_match DESC NULLS LAST, created_at DESC, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
   }
 }
 
@@ -182,7 +176,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
     tagIds,
     dateFrom,
     dateTo,
-    sortBy = 'document_date_desc',
+    sortBy = 'created_desc',
   }: {
     vaultId?: string;
     vaultIds?: string[];

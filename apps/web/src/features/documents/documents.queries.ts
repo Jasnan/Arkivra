@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import type { SearchSortBy } from '@/features/search/search.types';
 import { getDocument, listDeletedDocuments, listDocuments, listDocumentTags } from './documents.api';
 
 export const documentQueryKeys = {
   all: ['documents'] as const,
-  list: (vaultId: string, options?: { includeDeleted?: boolean; tagId?: string }) =>
-    [...documentQueryKeys.all, 'list', vaultId, options?.includeDeleted ?? false, options?.tagId ?? 'all'] as const,
+  list: (vaultId: string, options?: { includeDeleted?: boolean; tagId?: string; sortBy?: SearchSortBy }) =>
+    [...documentQueryKeys.all, 'list', vaultId, options?.includeDeleted ?? false, options?.tagId ?? 'all', options?.sortBy ?? 'created_desc'] as const,
   deletedList: () => [...documentQueryKeys.all, 'deleted-list'] as const,
   detail: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'detail', vaultId, documentId] as const,
@@ -16,16 +17,18 @@ export function useDocumentsQuery({
   vaultId,
   includeDeleted = false,
   tagId,
+  sortBy = 'created_desc',
   enabled = true,
 }: {
   vaultId: string;
   includeDeleted?: boolean;
   tagId?: string;
+  sortBy?: SearchSortBy;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: documentQueryKeys.list(vaultId, { includeDeleted, tagId }),
-    queryFn: () => listDocuments({ vaultId, includeDeleted, tagId }),
+    queryKey: documentQueryKeys.list(vaultId, { includeDeleted, tagId, sortBy }),
+    queryFn: () => listDocuments({ vaultId, includeDeleted, tagId, sortBy }),
     enabled: enabled && vaultId.length > 0,
   });
 }

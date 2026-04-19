@@ -21,7 +21,7 @@ function createMockSearchServices() {
         tagIds: tagIds ?? (tagId ? [tagId] : []),
         dateFrom: dateFrom?.toISOString() ?? null,
         dateTo: dateTo?.toISOString() ?? null,
-        sortBy: sortBy ?? 'document_date_desc',
+        sortBy: sortBy ?? 'created_desc',
       },
       results: [
         {
@@ -182,7 +182,7 @@ describe('search integration', () => {
       tagIds: undefined,
       dateFrom: undefined,
       dateTo: undefined,
-      sortBy: 'document_date_desc',
+      sortBy: 'created_desc',
     });
   });
 
@@ -250,7 +250,7 @@ describe('search integration', () => {
       tagIds: undefined,
       dateFrom: undefined,
       dateTo: undefined,
-      sortBy: 'document_date_desc',
+      sortBy: 'created_desc',
     });
   });
 
@@ -315,7 +315,7 @@ describe('search integration', () => {
       tagIds: undefined,
       dateFrom: undefined,
       dateTo: undefined,
-      sortBy: 'document_date_desc',
+      sortBy: 'created_desc',
     });
   });
 

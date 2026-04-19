@@ -6,6 +6,7 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { DocumentsServices } from './documents.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
+import { SEARCH_SORT_VALUES } from '../search/search.types.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
@@ -14,6 +15,14 @@ import { createDocumentsServices } from './documents.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireVaultPermission } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
+
+function parseSortBy(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return 'created_desc' as const;
+  }
+
+  return SEARCH_SORT_VALUES.includes(value as any) ? value as (typeof SEARCH_SORT_VALUES)[number] : null;
+}
 
 export function registerDocumentRoutes({
   app,
@@ -76,7 +85,21 @@ export function registerDocumentRoutes({
 
       const includeDeleted = context.req.query('includeDeleted') === 'true';
       const tagId = context.req.query('tagId');
-      const documents = await documentsServices.listDocuments({ vaultId, includeDeleted, tagId });
+      const sortBy = parseSortBy(context.req.query('sortBy'));
+
+      if (sortBy === null) {
+        return context.json(
+          {
+            error: {
+              code: 'document.invalid_sort_by',
+              message: `sortBy must be one of ${SEARCH_SORT_VALUES.join(', ')}`,
+            },
+          },
+          400,
+        );
+      }
+
+      const documents = await documentsServices.listDocuments({ vaultId, includeDeleted, tagId, sortBy });
 
       return context.json({ documents, retentionDays });
     },

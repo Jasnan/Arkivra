@@ -56,7 +56,7 @@ function parseVaultIds(value: string | undefined) {
 
 function parseSortBy(value: string | undefined) {
   if (value === undefined || value.trim().length === 0) {
-    return 'document_date_desc' as const;
+    return 'created_desc' as const;
   }
 
   return SEARCH_SORT_VALUES.includes(value as any) ? value as (typeof SEARCH_SORT_VALUES)[number] : null;

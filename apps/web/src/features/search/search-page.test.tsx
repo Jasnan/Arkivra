@@ -49,7 +49,7 @@ describe('documents library search controls', () => {
             tagIds: [],
             dateFrom: null,
             dateTo: null,
-            sortBy: 'document_date_desc',
+            sortBy: 'created_desc',
           },
           results: [
             {
@@ -89,7 +89,7 @@ describe('documents library search controls', () => {
             tagIds: [],
             dateFrom: null,
             dateTo: null,
-            sortBy: 'document_date_desc',
+            sortBy: 'created_desc',
           },
           results: [],
         });
@@ -139,7 +139,7 @@ describe('documents library search controls', () => {
             tagIds: [],
             dateFrom: null,
             dateTo: null,
-            sortBy: 'document_date_desc',
+            sortBy: 'created_desc',
           },
           results: [
             {
@@ -172,7 +172,7 @@ describe('documents library search controls', () => {
             tagIds: [],
             dateFrom: null,
             dateTo: null,
-            sortBy: 'document_date_desc',
+            sortBy: 'created_desc',
           },
           results: [],
         });
@@ -380,7 +380,7 @@ describe('documents library search controls', () => {
             tagIds: [],
             dateFrom: null,
             dateTo: null,
-            sortBy: 'document_date_desc',
+            sortBy: 'created_desc',
           },
           results: [],
         });

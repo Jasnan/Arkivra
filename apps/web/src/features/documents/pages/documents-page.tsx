@@ -4,6 +4,7 @@ import { CalendarRange, Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { softDeleteDocument } from '@/features/documents/documents.api';
 import { DocumentLibraryHeader, DocumentLibraryRow } from '@/features/documents/components/document-library-list';
 import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
@@ -306,24 +307,30 @@ export function DocumentsPage() {
         filtersContent={(
           <>
             <div className="space-y-3">
-              <label htmlFor="vault-documents-tag-filter" className="text-lg font-semibold text-foreground">
+              <span id="vault-documents-tag-filter-label" className="text-lg font-semibold text-foreground">
                 Tag
-              </label>
-              <select
-                id="vault-documents-tag-filter"
-                aria-label="Tag filter"
-                value={selectedTagId}
-                onChange={(event) => {
-                  setSelectedTagId(event.target.value);
+              </span>
+              <Select
+                value={selectedTagId || '__all__'}
+                onValueChange={(value) => {
+                  setSelectedTagId(value === '__all__' ? '' : value);
                   setPageIndex(0);
                 }}
-                className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-background`}
               >
-                <option value="">All tags</option>
-                {(tagsQuery.data?.tags ?? []).map(tag => (
-                  <option key={tag.id} value={tag.id}>{tag.name}</option>
-                ))}
-              </select>
+                <SelectTrigger
+                  aria-label="Tag filter"
+                  aria-labelledby="vault-documents-tag-filter-label"
+                  className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-background`}
+                >
+                  <SelectValue placeholder="All tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All tags</SelectItem>
+                  {(tagsQuery.data?.tags ?? []).map(tag => (
+                    <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="rounded-[24px] border border-border/70 bg-background/80 p-5">

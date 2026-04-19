@@ -1,5 +1,5 @@
-import type { FormEvent, ReactNode, RefObject } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Ellipsis,
@@ -20,6 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDate } from '@/features/documents/documents.utils';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
@@ -30,113 +32,6 @@ import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 type DialogMode = 'create' | 'edit';
 
 const DEFAULT_TAG_COLOR = '#0EA5E9';
-
-function useDismissableLayer({
-  isOpen,
-  onClose,
-  ref,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  ref: RefObject<HTMLElement | null>;
-}) {
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (ref.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      onClose();
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose, ref]);
-}
-
-function OverflowMenu({
-  isOpen,
-  onToggle,
-  children,
-  label,
-}: {
-  isOpen: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-  label: string;
-}) {
-  return (
-    <div className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={label}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
-        onClick={onToggle}
-      >
-        <Ellipsis className="size-5" />
-      </Button>
-
-      {isOpen ? (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-56 rounded-[22px] border border-border/70 bg-card p-2 shadow-[0_28px_60px_rgba(16,29,76,0.14)]"
-        >
-          {children}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function MenuButton({
-  icon,
-  children,
-  onSelect,
-  tone = 'default',
-  disabled = false,
-}: {
-  icon: ReactNode;
-  children: ReactNode;
-  onSelect: () => void;
-  tone?: 'default' | 'danger';
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      disabled={disabled}
-      className={`flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium transition ${
-        tone === 'danger'
-          ? 'text-destructive hover:bg-destructive/10'
-          : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
-      } disabled:cursor-not-allowed disabled:opacity-50`}
-      onClick={onSelect}
-    >
-      <span className={tone === 'danger' ? 'text-destructive' : 'text-primary'}>{icon}</span>
-      <span>{children}</span>
-    </button>
-  );
-}
 
 function DeleteTagDialog({
   tag,
@@ -221,44 +116,34 @@ function TagActionsMenu({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useDismissableLayer({
-    isOpen,
-    onClose: () => setIsOpen(false),
-    ref: menuRef,
-  });
-
   return (
-    <div ref={menuRef}>
-      <OverflowMenu
-        isOpen={isOpen}
-        onToggle={() => setIsOpen(open => !open)}
-        label={`Open actions for ${tag.name}`}
-      >
-        <MenuButton
-          icon={<Pencil className="size-4" />}
-          onSelect={() => {
-            setIsOpen(false);
-            onEdit();
-          }}
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Open actions for ${tag.name}`}
+          className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
         >
+          <Ellipsis className="size-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onSelect={onEdit}>
+          <Pencil className="size-4 text-primary" />
           Edit
-        </MenuButton>
-        <MenuButton
-          icon={<Trash2 className="size-4" />}
-          tone="danger"
+        </DropdownMenuItem>
+        <DropdownMenuItem
           disabled={deletePending}
-          onSelect={() => {
-            setIsOpen(false);
-            onDelete();
-          }}
+          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          onSelect={onDelete}
         >
+          <Trash2 className="size-4 text-destructive" />
           Delete
-        </MenuButton>
-      </OverflowMenu>
-    </div>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -605,18 +490,21 @@ export function TagsPage() {
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
         extraFields={!isVaultScoped ? (
           <div className="space-y-3">
-            <label htmlFor="tag-dialog-vault" className="text-[1.05rem] font-medium text-foreground">Vault</label>
-            <select
-              id="tag-dialog-vault"
-              value={formVaultId}
-              onChange={event => setFormVaultId(event.target.value)}
-              className={`${vaultInputClassName} h-14 rounded-2xl border-foreground/20 text-base focus:border-foreground/35`}
-            >
-              <option value="">Choose a vault</option>
-              {vaults.map(vault => (
-                <option key={vault.id} value={vault.id}>{vault.name}</option>
-              ))}
-            </select>
+            <span id="tag-dialog-vault-label" className="text-[1.05rem] font-medium text-foreground">Vault</span>
+            <Select value={formVaultId || '__none__'} onValueChange={value => setFormVaultId(value === '__none__' ? '' : value)}>
+              <SelectTrigger
+                aria-labelledby="tag-dialog-vault-label"
+                className={`${vaultInputClassName} h-14 rounded-2xl border-foreground/20 text-base focus:border-foreground/35`}
+              >
+                <SelectValue placeholder="Choose a vault" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Choose a vault</SelectItem>
+                {vaults.map(vault => (
+                  <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         ) : null}
         isPending={isSubmitting}

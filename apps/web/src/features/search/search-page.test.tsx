@@ -11,6 +11,11 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, triggerName: RegExp, optionName: RegExp) {
+  await user.click(screen.getByRole('combobox', { name: triggerName }));
+  await user.click(await screen.findByRole('option', { name: optionName }));
+}
+
 describe('documents library search controls', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -251,7 +256,7 @@ describe('documents library search controls', () => {
     await user.type(screen.getByLabelText(/^from$/i), '2026-04-01');
     await user.type(screen.getByLabelText(/^to$/i), '2026-04-30');
 
-    await user.selectOptions(screen.getByLabelText(/sort documents/i), 'name_asc');
+    await selectRadixOption(user, /sort by/i, /name \(a-z\)/i);
 
     await waitFor(() => {
       expect(
@@ -337,7 +342,7 @@ describe('documents library search controls', () => {
       routePath: '/documents',
     });
 
-    await user.selectOptions(screen.getByLabelText(/sort documents/i), 'name_desc');
+    await selectRadixOption(user, /sort by/i, /name \(z-a\)/i);
 
     expect(await screen.findByText('Sherlock')).toBeInTheDocument();
     expect(screen.getByText('Puzzle Palace')).toBeInTheDocument();

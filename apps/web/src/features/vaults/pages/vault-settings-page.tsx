@@ -5,6 +5,7 @@ import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { PageIntro, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   addVaultMember,
   deleteVault,
@@ -396,17 +397,21 @@ export function VaultSettingsPage() {
               </p>
             </div>
             <div className="space-y-4">
-              <select
-                className={vaultInputClassName}
-                value={transferTargetUserId}
-                onChange={event => setTransferTargetUserId(event.target.value)}
+              <Select
+                value={transferTargetUserId || '__none__'}
+                onValueChange={value => setTransferTargetUserId(value === '__none__' ? '' : value)}
                 disabled={ownerCandidates.length === 0}
               >
-                <option value="">Select member</option>
-                {ownerCandidates.map(member => (
-                  <option key={member.userId} value={member.userId}>{member.name ?? member.email} ({member.userId})</option>
-                ))}
-              </select>
+                <SelectTrigger aria-label="Select member" className={vaultInputClassName}>
+                  <SelectValue placeholder="Select member" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Select member</SelectItem>
+                  {ownerCandidates.map(member => (
+                    <SelectItem key={member.userId} value={member.userId}>{member.name ?? member.email} ({member.userId})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button
                 type="button"
                 disabled={transferTargetUserId.length === 0 || transferMutation.isPending || vault.role !== 'owner'}

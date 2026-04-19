@@ -1,11 +1,18 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ellipsis, FolderKanban, FolderOpen, ShieldCheck, Vault } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageIntro, SectionTitle, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
@@ -19,7 +26,6 @@ export function VaultsPage() {
   const vaultsQuery = useVaultsQuery();
   const vaults = vaultsQuery.data?.vaults ?? [];
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [openMenuVaultId, setOpenMenuVaultId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -45,49 +51,6 @@ export function VaultsPage() {
       setErrorMessage(error instanceof Error ? error.message : 'Could not create vault.');
     },
   });
-
-  useEffect(() => {
-    if (!isCreateModalOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !createMutation.isPending) {
-        setIsCreateModalOpen(false);
-        setErrorMessage(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [createMutation.isPending, isCreateModalOpen]);
-
-  useEffect(() => {
-    if (openMenuVaultId === null) {
-      return;
-    }
-
-    const handlePointerDown = () => {
-      setOpenMenuVaultId(null);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpenMenuVaultId(null);
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [openMenuVaultId]);
 
   function openCreateModal() {
     setErrorMessage(null);
@@ -213,34 +176,22 @@ export function VaultsPage() {
                           onPointerDown={event => event.stopPropagation()}
                           onClick={event => event.stopPropagation()}
                         >
-                          <button
-                            type="button"
-                            aria-label={`Vault actions for ${vault.name}`}
-                            aria-expanded={openMenuVaultId === vault.id}
-                            aria-haspopup="menu"
-                            className="flex size-10 items-center justify-center rounded-xl border border-border/70 bg-card/90 text-muted-foreground transition hover:text-foreground"
-                            onClick={() => setOpenMenuVaultId(current => current === vault.id ? null : vault.id)}
-                          >
-                            <Ellipsis className="size-4" />
-                          </button>
-
-                          {openMenuVaultId === vault.id ? (
-                            <div
-                              role="menu"
-                              className="absolute right-0 top-11 z-10 min-w-36 rounded-xl border border-border/70 bg-card p-2 shadow-[0_18px_38px_rgba(19,27,46,0.12)]"
-                            >
+                          <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
                               <button
                                 type="button"
-                                className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
-                                onClick={() => {
-                                  setOpenMenuVaultId(null);
-                                  navigate(`/vaults/${vault.id}/settings`);
-                                }}
+                                aria-label={`Vault actions for ${vault.name}`}
+                                className="flex size-10 items-center justify-center rounded-xl border border-border/70 bg-card/90 text-muted-foreground transition hover:text-foreground"
                               >
-                                Settings
+                                <Ellipsis className="size-4" />
                               </button>
-                            </div>
-                          ) : null}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-36">
+                              <DropdownMenuItem onSelect={() => navigate(`/vaults/${vault.id}/settings`)}>
+                                Settings
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
@@ -265,67 +216,78 @@ export function VaultsPage() {
         )}
       </SurfacePanel>
 
-      {isCreateModalOpen && typeof document !== 'undefined' ? createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/65 px-4 py-8 backdrop-blur-sm">
-          <div
-            className="absolute inset-0"
-            aria-hidden="true"
-            onClick={closeCreateModal}
-          />
-          <SurfacePanel className="relative z-10 w-full max-w-xl space-y-5 p-5 sm:p-6">
+      <Dialog
+        open={isCreateModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeCreateModal();
+          }
+        }}
+      >
+        <DialogContent
+          className="max-w-xl px-5 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6"
+          onPointerDownOutside={(event) => {
+            if (createMutation.isPending) {
+              event.preventDefault();
+            }
+          }}
+          onEscapeKeyDown={(event) => {
+            if (createMutation.isPending) {
+              event.preventDefault();
+            }
+          }}
+        >
+          <DialogHeader className="space-y-2 pr-10">
+            <p className="vault-label">Vault Creation</p>
+            <DialogTitle className="text-2xl">Create vault</DialogTitle>
+            <DialogDescription>Set a name and continue to vault settings.</DialogDescription>
+          </DialogHeader>
+
+          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
+
+          <form className="space-y-4" onSubmit={handleCreateSubmit}>
             <div className="space-y-2">
-              <p className="vault-label">Vault Creation</p>
-              <h2 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">Create vault</h2>
-              <p className="text-sm text-muted-foreground">Set a name and continue to vault settings.</p>
+              <label htmlFor="create-vault-name" className="vault-label">Vault name</label>
+              <input
+                id="create-vault-name"
+                type="text"
+                required
+                autoFocus
+                value={name}
+                onChange={event => setName(event.target.value)}
+                className={vaultInputClassName}
+                placeholder="Personal Vault"
+              />
             </div>
 
-            {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
+            <div className="space-y-2">
+              <label htmlFor="create-vault-description" className="vault-label">Description</label>
+              <textarea
+                id="create-vault-description"
+                value={description}
+                onChange={event => setDescription(event.target.value)}
+                className={`${vaultInputClassName} min-h-24 resize-y`}
+                placeholder="What belongs in this vault?"
+              />
+            </div>
 
-            <form className="space-y-4" onSubmit={handleCreateSubmit}>
-              <div className="space-y-2">
-                <label htmlFor="create-vault-name" className="vault-label">Vault name</label>
-                <input
-                  id="create-vault-name"
-                  type="text"
-                  required
-                  autoFocus
-                  value={name}
-                  onChange={event => setName(event.target.value)}
-                  className={vaultInputClassName}
-                  placeholder="Personal Vault"
-                />
-              </div>
+            {!canCreateVault ? (
+              <p className="text-sm text-muted-foreground">
+                Vault creation is currently disabled for this account.
+              </p>
+            ) : null}
 
-              <div className="space-y-2">
-                <label htmlFor="create-vault-description" className="vault-label">Description</label>
-                <textarea
-                  id="create-vault-description"
-                  value={description}
-                  onChange={event => setDescription(event.target.value)}
-                  className={`${vaultInputClassName} min-h-24 resize-y`}
-                  placeholder="What belongs in this vault?"
-                />
-              </div>
-
-              {!canCreateVault ? (
-                <p className="text-sm text-muted-foreground">
-                  Vault creation is currently disabled for this account.
-                </p>
-              ) : null}
-
-              <div className="flex flex-wrap items-center justify-end gap-3">
-                <Button type="button" variant="outline" onClick={closeCreateModal} disabled={createMutation.isPending}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating...' : 'Create vault'}
-                </Button>
-              </div>
-            </form>
-          </SurfacePanel>
-        </div>,
-        document.body,
-      ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Button type="button" variant="outline" onClick={closeCreateModal} disabled={createMutation.isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? 'Creating...' : 'Create vault'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

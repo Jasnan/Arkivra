@@ -1,8 +1,13 @@
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
 import { Download, Ellipsis, File, FolderOpen, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import type { SearchResultTag } from '@/features/search/search.types';
 
@@ -131,79 +136,6 @@ function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
   );
 }
 
-function MenuLink({
-  to,
-  icon,
-  children,
-  onSelect,
-}: {
-  to: string;
-  icon: ReactNode;
-  children: ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <Link
-      to={to}
-      role="menuitem"
-      className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
-      onClick={onSelect}
-    >
-      <span className="text-primary">{icon}</span>
-      <span>{children}</span>
-    </Link>
-  );
-}
-
-function MenuAnchor({
-  href,
-  icon,
-  children,
-  onSelect,
-}: {
-  href: string;
-  icon: ReactNode;
-  children: ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <a
-      href={href}
-      role="menuitem"
-      className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
-      onClick={onSelect}
-    >
-      <span className="text-primary">{icon}</span>
-      <span>{children}</span>
-    </a>
-  );
-}
-
-function MenuButton({
-  icon,
-  children,
-  onSelect,
-  disabled = false,
-}: {
-  icon: ReactNode;
-  children: ReactNode;
-  onSelect: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      disabled={disabled}
-      className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-      onClick={onSelect}
-    >
-      <span className="text-primary">{icon}</span>
-      <span>{children}</span>
-    </button>
-  );
-}
-
 function DocumentActionsMenu({
   documentName,
   documentLink,
@@ -217,86 +149,40 @@ function DocumentActionsMenu({
   onDelete?: () => void;
   deleteDisabled?: boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (menuRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      setIsOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen]);
-
   return (
-    <div ref={menuRef} className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`Open actions for ${documentName}`}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
-        onClick={() => setIsOpen(open => !open)}
-      >
-        <Ellipsis className="size-5" />
-      </Button>
-
-      {isOpen ? (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-56 rounded-[22px] border border-border/70 bg-card p-2 shadow-[0_28px_60px_rgba(16,29,76,0.14)]"
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Open actions for ${documentName}`}
+          className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
         >
-          <MenuLink
-            to={documentLink}
-            icon={<FolderOpen className="size-4" />}
-            onSelect={() => setIsOpen(false)}
-          >
+          <Ellipsis className="size-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem asChild>
+          <Link to={documentLink}>
+            <FolderOpen className="size-4 text-primary" />
             Open document
-          </MenuLink>
-          <MenuAnchor
-            href={downloadHref}
-            icon={<Download className="size-4" />}
-            onSelect={() => setIsOpen(false)}
-          >
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href={downloadHref}>
+            <Download className="size-4 text-primary" />
             Download
-          </MenuAnchor>
-          {onDelete ? (
-            <MenuButton
-              icon={<Trash2 className="size-4" />}
-              disabled={deleteDisabled}
-              onSelect={() => {
-                setIsOpen(false);
-                onDelete();
-              }}
-            >
-              Delete
-            </MenuButton>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+          </a>
+        </DropdownMenuItem>
+        {onDelete ? (
+          <DropdownMenuItem disabled={deleteDisabled} onSelect={onDelete}>
+            <Trash2 className="size-4 text-primary" />
+            Delete
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

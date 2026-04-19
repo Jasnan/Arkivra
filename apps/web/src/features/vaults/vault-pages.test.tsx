@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
@@ -46,7 +46,7 @@ describe('vault pages', () => {
     expect(screen.getByText(/3 files/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /vault actions for personal/i }));
-    await user.click(screen.getByRole('button', { name: /settings/i }));
+    await user.click(screen.getByRole('menuitem', { name: /settings/i }));
   });
 
   it('validates and submits vault creation from the vaults modal', async () => {
@@ -80,13 +80,14 @@ describe('vault pages', () => {
     renderWithProviders(<VaultsPage />);
 
     await user.click(await screen.findByRole('button', { name: /create vault/i }));
+    const dialog = await screen.findByRole('dialog', { name: /create vault/i });
     expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
       method: 'POST',
     }));
 
-    await user.type(screen.getByLabelText(/vault name/i), 'Home Vault');
-    await user.type(screen.getByLabelText(/description/i), 'Documents for home life');
-    await user.click(screen.getAllByRole('button', { name: /create vault/i })[1]);
+    await user.type(within(dialog).getByLabelText(/vault name/i), 'Home Vault');
+    await user.type(within(dialog).getByLabelText(/description/i), 'Documents for home life');
+    await user.click(within(dialog).getByRole('button', { name: /create vault/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults', expect.objectContaining({

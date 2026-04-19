@@ -3,6 +3,7 @@ import { Archive, ArrowRight, Search as SearchIcon, Tags, Vault } from 'lucide-r
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageIntro, SectionTitle, StatCard, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { stripSnippetMarkup, tokenizeSnippet } from '@/features/search/search.utils';
@@ -119,40 +120,46 @@ export function SearchPage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="search-vault" className="vault-label">Vault scope</label>
-            <select
-              id="search-vault"
-              value={vaultId}
-              onChange={(event) => {
-                const nextVaultId = event.target.value;
+            <span id="search-vault-label" className="vault-label">Vault scope</span>
+            <Select
+              value={vaultId || '__all__'}
+              onValueChange={(value) => {
+                const nextVaultId = value === '__all__' ? '' : value;
                 updateFilters({
                   vaultId: nextVaultId,
                   tagId: nextVaultId ? tagId : '',
                 });
               }}
-              className={vaultInputClassName}
             >
-              <option value="">All vaults</option>
-              {(vaultsQuery.data?.vaults ?? []).map(vault => (
-                <option key={vault.id} value={vault.id}>{vault.name}</option>
-              ))}
-            </select>
+              <SelectTrigger aria-labelledby="search-vault-label" className={vaultInputClassName}>
+                <SelectValue placeholder="All vaults" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All vaults</SelectItem>
+                {(vaultsQuery.data?.vaults ?? []).map(vault => (
+                  <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="search-tag" className="vault-label">Tag filter</label>
-            <select
-              id="search-tag"
-              value={tagId}
-              onChange={event => updateFilters({ tagId: event.target.value })}
-              className={vaultInputClassName}
+            <span id="search-tag-label" className="vault-label">Tag filter</span>
+            <Select
+              value={tagId || '__all__'}
+              onValueChange={value => updateFilters({ tagId: value === '__all__' ? '' : value })}
               disabled={!vaultId}
             >
-              <option value="">{vaultId ? 'All tags' : 'Choose a vault first'}</option>
-              {(tagsQuery.data?.tags ?? []).map(tag => (
-                <option key={tag.id} value={tag.id}>{tag.name}</option>
-              ))}
-            </select>
+              <SelectTrigger aria-labelledby="search-tag-label" className={vaultInputClassName}>
+                <SelectValue placeholder={vaultId ? 'All tags' : 'Choose a vault first'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">{vaultId ? 'All tags' : 'Choose a vault first'}</SelectItem>
+                {(tagsQuery.data?.tags ?? []).map(tag => (
+                  <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">

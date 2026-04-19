@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -15,6 +15,14 @@ import {
 import { Link, useParams } from 'react-router-dom';
 import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   getDocumentDownloadUrl,
   getDocumentInlineFileUrl,
@@ -69,7 +77,6 @@ export function DocumentDetailPage() {
   const [createTagNameValue, setCreateTagNameValue] = useState('');
   const [createTagColorValue, setCreateTagColorValue] = useState('#D8FF75');
   const [createTagDescriptionValue, setCreateTagDescriptionValue] = useState('');
-  const tagPickerRef = useRef<HTMLDivElement | null>(null);
 
   const invalidateDocument = async () => {
     await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
@@ -153,36 +160,6 @@ export function DocumentDetailPage() {
       setStatusMessage(null);
     },
   });
-
-  useEffect(() => {
-    if (!isTagPickerOpen) {
-      return;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (tagPickerRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      setIsTagPickerOpen(false);
-      setTagSearchValue('');
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setIsTagPickerOpen(false);
-        setTagSearchValue('');
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isTagPickerOpen]);
 
   if (!vaultId || !documentId) {
     return <p className="text-sm text-destructive">Invalid document route.</p>;
@@ -610,116 +587,100 @@ export function DocumentDetailPage() {
           <SurfacePanel variant="soft" className="space-y-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Tags</h2>
-              <div ref={tagPickerRef} className="relative shrink-0">
-                <button
-                  type="button"
-                  aria-label="Add tag"
-                  aria-expanded={isTagPickerOpen}
-                  aria-haspopup="menu"
-                  className="inline-flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground transition hover:text-foreground"
-                  onClick={() => {
-                    setIsTagPickerOpen((open) => {
-                      const nextOpen = !open;
-                      if (!nextOpen) {
-                        setTagSearchValue('');
-                      }
-                      return nextOpen;
-                    });
+              <DropdownMenu
+                modal={false}
+                open={isTagPickerOpen}
+                onOpenChange={(open) => {
+                  setIsTagPickerOpen(open);
+                  if (!open) {
+                    setTagSearchValue('');
+                  }
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Add tag"
+                    className="inline-flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground transition hover:text-foreground"
+                  >
+                    <Plus className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-80 overflow-hidden rounded-xl bg-popover p-0"
+                  onCloseAutoFocus={(event) => {
+                    event.preventDefault();
                   }}
                 >
-                  <Plus className="size-4" />
-                </button>
-                {isTagPickerOpen ? (
-                  <div
-                    role="menu"
-                    className="absolute right-0 z-10 mt-3 w-80 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-[0_20px_60px_rgba(15,23,42,0.14)]"
-                  >
-                    <div className="border-b border-border/60 p-2">
-                      <input
-                        type="text"
-                        value={tagSearchValue}
-                        onChange={(event) => setTagSearchValue(event.target.value)}
-                        placeholder="Filter tags..."
-                        className="h-10 w-full rounded-lg border border-transparent bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
-                        autoFocus
-                      />
-                    </div>
-                    <div className="max-h-72 overflow-auto py-1">
-                      {selectedMatchingTags.map(tag => (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          role="menuitemcheckbox"
-                          aria-checked="true"
-                          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-foreground transition hover:bg-accent"
-                          onClick={() => {
-                            setStatusMessage(null);
-                            setErrorMessage(null);
-                            removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                          }}
-                        >
-                          <span className="inline-flex size-5 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground">
-                            <Check className="size-3.5" />
-                          </span>
-                          <span
-                            aria-hidden="true"
-                            className="size-2 rounded-full"
-                            style={{ backgroundColor: tag.color ?? '#64748b' }}
-                          />
-                          <span className="flex-1 truncate">{tag.name}</span>
-                        </button>
-                      ))}
-                      {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
-                        <div role="separator" className="px-2 py-1">
-                          <hr className="border-t border-border/60" />
-                        </div>
-                      ) : null}
-                      {sortedFilteredAvailableTags.map(tag => (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          role="menuitemcheckbox"
-                          aria-checked="false"
-                          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-foreground transition hover:bg-accent"
-                          onClick={() => {
-                            setStatusMessage(null);
-                            setErrorMessage(null);
-                            assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                          }}
-                        >
-                          <span className="inline-flex size-5 items-center justify-center rounded-sm border border-border bg-background" />
-                          <span
-                            aria-hidden="true"
-                            className="size-2 rounded-full"
-                            style={{ backgroundColor: tag.color ?? '#64748b' }}
-                          />
-                          <span className="flex-1 truncate">{tag.name}</span>
-                        </button>
-                      ))}
-                      {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground"
-                          onClick={() => {
-                            openCreateTagDialog(tagSearchValue.trim());
-                          }}
-                        >
-                          <Plus className="size-4" />
-                          <span className="flex-1 truncate">{`Create new tag "${tagSearchValue.trim()}"`}</span>
-                        </button>
-                      ) : null}
-                      {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
-                        normalizedTagSearchValue.length === 0 ? (
-                          <p className="px-4 py-3 text-sm text-muted-foreground">All tags are already assigned.</p>
-                        ) : !hasExactTagMatch ? null : (
-                          <p className="px-4 py-3 text-sm text-muted-foreground">No matching tags.</p>
-                        )
-                      ) : null}
-                    </div>
+                  <div className="border-b border-border/60 p-2">
+                    <input
+                      type="text"
+                      value={tagSearchValue}
+                      onChange={(event) => setTagSearchValue(event.target.value)}
+                      placeholder="Filter tags..."
+                      className="h-10 w-full rounded-lg border border-transparent bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
+                      autoFocus
+                    />
                   </div>
-                ) : null}
-              </div>
+                  <div className="max-h-72 overflow-auto py-1">
+                    {selectedMatchingTags.map(tag => (
+                      <DropdownMenuCheckboxItem
+                        key={tag.id}
+                        checked
+                        onSelect={event => event.preventDefault()}
+                        onCheckedChange={() => {
+                          setStatusMessage(null);
+                          setErrorMessage(null);
+                          removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: tag.color ?? '#64748b' }}
+                        />
+                        <span className="flex-1 truncate">{tag.name}</span>
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
+                      <DropdownMenuSeparator />
+                    ) : null}
+                    {sortedFilteredAvailableTags.map(tag => (
+                      <DropdownMenuCheckboxItem
+                        key={tag.id}
+                        checked={false}
+                        onSelect={event => event.preventDefault()}
+                        onCheckedChange={() => {
+                          setStatusMessage(null);
+                          setErrorMessage(null);
+                          assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: tag.color ?? '#64748b' }}
+                        />
+                        <span className="flex-1 truncate">{tag.name}</span>
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
+                      <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
+                        <Plus className="size-4" />
+                        <span className="flex-1 truncate">{`Create new tag "${tagSearchValue.trim()}"`}</span>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
+                      normalizedTagSearchValue.length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-muted-foreground">All tags are already assigned.</p>
+                      ) : !hasExactTagMatch ? null : (
+                        <p className="px-4 py-3 text-sm text-muted-foreground">No matching tags.</p>
+                      )
+                    ) : null}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <div className="flex flex-wrap gap-2">
               {assignedTags.length === 0 ? (

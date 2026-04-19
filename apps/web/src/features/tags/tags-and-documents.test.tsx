@@ -13,6 +13,19 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+async function selectRadixOption({
+  user,
+  trigger,
+  optionName,
+}: {
+  user: ReturnType<typeof userEvent.setup>;
+  trigger: HTMLElement;
+  optionName: RegExp;
+}) {
+  await user.click(trigger);
+  await user.click(await screen.findByRole('option', { name: optionName }));
+}
+
 describe('tags and documents pages', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -74,7 +87,11 @@ describe('tags and documents pages', () => {
 
     await user.click(screen.getAllByRole('button', { name: /create tag/i })[0]);
     const createDialog = screen.getByRole('dialog', { name: /create tag/i });
-    await user.selectOptions(within(createDialog).getByLabelText(/^vault$/i), 'vlt_1');
+    await selectRadixOption({
+      user,
+      trigger: within(createDialog).getByLabelText(/^vault$/i),
+      optionName: /personal/i,
+    });
     await user.type(within(createDialog).getByLabelText(/^name$/i), 'Receipts');
     await user.click(within(createDialog).getByRole('button', { name: /^create tag$/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags', expect.objectContaining({
@@ -220,7 +237,11 @@ describe('tags and documents pages', () => {
 
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
-    await user.selectOptions(screen.getByLabelText(/tag filter/i), 'tag_1');
+    await selectRadixOption({
+      user,
+      trigger: screen.getByLabelText(/tag filter/i),
+      optionName: /invoices/i,
+    });
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents?tagId=tag_1&sortBy=created_desc', expect.objectContaining({

@@ -1,8 +1,14 @@
 import type { FormEvent, ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useRef } from 'react';
 import { Plus, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const DEFAULT_TAG_COLORS = ['#D8FF75', '#7FFF7A', '#7AFFCE', '#7AD7FF', '#7A7FFF', '#CE7AFF', '#FF7AD7', '#FF7A7F', '#FFCE7A', '#FFFFFF'];
 
@@ -44,42 +50,34 @@ export function TagDialog({
   const customColorInputRef = useRef<HTMLInputElement | null>(null);
   const normalizedName = nameValue.trim();
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !isPending) {
-        onClose();
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, isPending, onClose]);
-
-  if (!isOpen || typeof window === 'undefined') {
-    return null;
-  }
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/65 px-4 py-8 backdrop-blur-sm">
-      <div
-        className="absolute inset-0"
-        aria-hidden="true"
-        onClick={() => {
-          if (!isPending) {
-            onClose();
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isPending) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent
+        hideCloseButton
+        className="max-w-3xl"
+        onPointerDownOutside={(event) => {
+          if (isPending) {
+            event.preventDefault();
           }
         }}
-      />
-      <div className="relative z-10 w-full max-w-3xl overflow-hidden rounded-[28px] border border-border/70 bg-card shadow-[0_32px_80px_rgba(15,23,42,0.18)]">
+        onEscapeKeyDown={(event) => {
+          if (isPending) {
+            event.preventDefault();
+          }
+        }}
+      >
         <div className="flex items-start justify-between gap-4 px-6 pt-6 sm:px-8 sm:pt-7">
-          <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">{title}</h2>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription className="sr-only">{title}</DialogDescription>
+          </DialogHeader>
           <button
             type="button"
             aria-label={closeLabel}
@@ -185,8 +183,7 @@ export function TagDialog({
             </Button>
           </div>
         </form>
-      </div>
-    </div>,
-    window.document.body,
+      </DialogContent>
+    </Dialog>
   );
 }

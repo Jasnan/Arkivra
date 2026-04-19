@@ -1,6 +1,5 @@
 import type { FormEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Ellipsis,
@@ -13,6 +12,14 @@ import {
 import { Link, useParams } from 'react-router-dom';
 import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { formatDate } from '@/features/documents/documents.utils';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
@@ -143,65 +150,46 @@ function DeleteTagDialog({
   onConfirm: () => void;
 }) {
   const attachedDocuments = tag.documentsCount ?? 0;
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isPending) {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isPending, onClose]);
-
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/65 px-4 py-8 backdrop-blur-sm">
-      <div
-        className="absolute inset-0"
-        aria-hidden="true"
-        onClick={() => {
-          if (!isPending) {
-            onClose();
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !isPending) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent
+        className="max-w-xl px-6 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-7"
+        onPointerDownOutside={(event) => {
+          if (isPending) {
+            event.preventDefault();
           }
         }}
-      />
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-[28px] border border-border/70 bg-card shadow-[0_32px_80px_rgba(15,23,42,0.18)]">
-        <div className="flex items-start justify-between gap-4 px-6 pt-6 sm:px-8 sm:pt-7">
-          <div className="space-y-2">
-            <p className="vault-label text-destructive/80">Delete Tag</p>
-            <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Delete “{tag.name}”?</h2>
-          </div>
-          <button
-            type="button"
-            aria-label="Close delete tag dialog"
-            className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-            onClick={onClose}
-            disabled={isPending}
-          >
-            <X className="size-5" />
-          </button>
-        </div>
-
-        <div className="space-y-5 px-6 pb-6 pt-5 sm:px-8 sm:pb-8">
-          <p className="text-sm leading-6 text-muted-foreground">
+        onEscapeKeyDown={(event) => {
+          if (isPending) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <DialogHeader className="pr-10">
+          <p className="vault-label text-destructive/80">Delete Tag</p>
+          <DialogTitle>{`Delete “${tag.name}”?`}</DialogTitle>
+          <DialogDescription>
             {attachedDocuments > 0
               ? `This tag is currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'}. Deleting it here will remove the tag from all of those documents.`
               : 'This tag is not attached to any documents right now.'}
-          </p>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="mt-5 space-y-5">
           <p className="text-sm leading-6 text-muted-foreground">
             {attachedDocuments > 0
               ? 'This action cannot be undone from the tags page.'
               : 'You can create the tag again later if needed.'}
           </p>
 
-          <div className="flex flex-wrap justify-end gap-3">
+          <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
               Cancel
             </Button>
@@ -215,11 +203,10 @@ function DeleteTagDialog({
               <Trash2 className="size-4" />
               {isPending ? 'Deleting...' : 'Delete tag'}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
-      </div>
-    </div>,
-    window.document.body,
+      </DialogContent>
+    </Dialog>
   );
 }
 

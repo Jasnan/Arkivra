@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
@@ -73,9 +73,10 @@ describe('tags and documents pages', () => {
     expect(screen.getByText(/monthly billing documents/i)).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: /create tag/i })[0]);
-    await user.selectOptions(screen.getByLabelText(/^vault$/i), 'vlt_1');
-    await user.type(screen.getByLabelText(/^name$/i), 'Receipts');
-    await user.click(screen.getAllByRole('button', { name: /^create tag$/i })[1]);
+    const createDialog = screen.getByRole('dialog', { name: /create tag/i });
+    await user.selectOptions(within(createDialog).getByLabelText(/^vault$/i), 'vlt_1');
+    await user.type(within(createDialog).getByLabelText(/^name$/i), 'Receipts');
+    await user.click(within(createDialog).getByRole('button', { name: /^create tag$/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags', expect.objectContaining({
       credentials: 'include',
       method: 'POST',
@@ -83,10 +84,11 @@ describe('tags and documents pages', () => {
 
     await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
     await user.click(screen.getByRole('menuitem', { name: /^edit$/i }));
-    const editInput = screen.getByLabelText(/^name$/i);
+    const editDialog = screen.getByRole('dialog', { name: /edit tag/i });
+    const editInput = within(editDialog).getByLabelText(/^name$/i);
     await user.clear(editInput);
     await user.type(editInput, 'Bills');
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await user.click(within(editDialog).getByRole('button', { name: /save changes/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags/tag_1', expect.objectContaining({
       credentials: 'include',
       method: 'PATCH',

@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Tags,
   Trash2,
   Upload,
   UserCircle2,
@@ -107,6 +108,7 @@ export function AppShell({ children }: PropsWithChildren) {
     const primaryItems = [
       { to: '/vaults', label: 'Vaults', icon: Vault },
       { to: '/documents', label: 'Documents', icon: File },
+      { to: '/tags', label: 'Tags', icon: Tags },
       { to: '/transfers', label: 'Transfers', icon: Upload },
       { to: '/documents/trash', label: 'Trash', icon: Trash2 },
     ];

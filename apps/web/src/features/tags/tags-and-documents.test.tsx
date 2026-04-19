@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
@@ -23,20 +23,37 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+      if (url === '/api/vaults') {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Personal', description: null, fileCount: 3, totalSize: 1024, createdAt: '2026-04-10T10:00:00.000Z', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
         return jsonResponse({
           tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb', documentsCount: 2 },
+            {
+              id: 'tag_1',
+              vaultId: 'vlt_1',
+              vaultName: 'Personal',
+              name: 'Invoices',
+              color: '#2563eb',
+              description: 'Monthly billing documents',
+              documentsCount: 2,
+              createdAt: '2026-04-10T10:00:00.000Z',
+            },
           ],
         });
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags') && init?.method === 'POST') {
-        return jsonResponse({ tag: { id: 'tag_2', name: 'Receipts', color: '#22c55e' } }, 201);
+        return jsonResponse({ tag: { id: 'tag_2', name: 'Receipts', color: '#22c55e', vaultId: 'vlt_1' } }, 201);
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags/tag_1') && init?.method === 'PATCH') {
-        return jsonResponse({ tag: { id: 'tag_1', name: 'Bills', color: '#2563eb' } });
+        return jsonResponse({ tag: { id: 'tag_1', name: 'Bills', color: '#2563eb', vaultId: 'vlt_1' } });
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags/tag_1') && init?.method === 'DELETE') {
@@ -48,29 +65,39 @@ describe('tags and documents pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderWithProviders(<TagsPage />, {
-      initialEntries: ['/vaults/vlt_1/tags'],
-      routePath: '/vaults/:vaultId/tags',
+      initialEntries: ['/tags'],
+      routePath: '/tags',
     });
 
-    expect(await screen.findByDisplayValue('Invoices')).toBeInTheDocument();
-    expect(screen.getByText(/used by 2 documents/i)).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/^name$/i), 'Receipts');
-    await user.click(screen.getByRole('button', { name: /create tag/i }));
+    expect(await screen.findByText('Invoices')).toBeInTheDocument();
+    expect(screen.getByText(/monthly billing documents/i)).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: /create tag/i })[0]);
+    const createDialog = screen.getByRole('dialog', { name: /create tag/i });
+    await user.selectOptions(within(createDialog).getByLabelText(/^vault$/i), 'vlt_1');
+    await user.type(within(createDialog).getByLabelText(/^name$/i), 'Receipts');
+    await user.click(within(createDialog).getByRole('button', { name: /^create tag$/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags', expect.objectContaining({
       credentials: 'include',
       method: 'POST',
     })));
 
-    const editInput = screen.getByLabelText(/tag name for invoices/i);
+    await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
+    await user.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    const editDialog = screen.getByRole('dialog', { name: /edit tag/i });
+    const editInput = within(editDialog).getByLabelText(/^name$/i);
     await user.clear(editInput);
     await user.type(editInput, 'Bills');
-    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await user.click(within(editDialog).getByRole('button', { name: /save changes/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags/tag_1', expect.objectContaining({
       credentials: 'include',
       method: 'PATCH',
     })));
 
-    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+    await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
+    await user.click(screen.getByRole('menuitem', { name: /^delete$/i }));
+    expect(screen.getByText(/currently attached to 2 documents/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^delete tag$/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags/tag_1', expect.objectContaining({
       credentials: 'include',
       method: 'DELETE',
@@ -82,11 +109,19 @@ describe('tags and documents pages', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+      if (url === '/api/vaults') {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Personal', description: null, fileCount: 3, totalSize: 1024, createdAt: '2026-04-10T10:00:00.000Z', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
         return jsonResponse({
           tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb', documentsCount: 2 },
-            { id: 'tag_2', name: 'Legal', color: '#22c55e', documentsCount: 1 },
+            { id: 'tag_1', vaultId: 'vlt_1', vaultName: 'Personal', name: 'Invoices', color: '#2563eb', documentsCount: 2, createdAt: '2026-04-10T10:00:00.000Z' },
+            { id: 'tag_2', vaultId: 'vlt_1', vaultName: 'Personal', name: 'Legal', color: '#22c55e', documentsCount: 1, createdAt: '2026-04-11T10:00:00.000Z' },
           ],
         });
       }
@@ -95,17 +130,17 @@ describe('tags and documents pages', () => {
     }));
 
     renderWithProviders(<TagsPage />, {
-      initialEntries: ['/vaults/vlt_1/tags'],
-      routePath: '/vaults/:vaultId/tags',
+      initialEntries: ['/tags'],
+      routePath: '/tags',
     });
 
-    expect(await screen.findByDisplayValue('Invoices')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Legal')).toBeInTheDocument();
+    expect(await screen.findByText('Invoices')).toBeInTheDocument();
+    expect(screen.getByText('Legal')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/filter tags/i), 'inv');
+    await user.type(screen.getByLabelText(/search tags/i), 'inv');
 
-    expect(screen.getByDisplayValue('Invoices')).toBeInTheDocument();
-    expect(screen.queryByDisplayValue('Legal')).not.toBeInTheDocument();
+    expect(screen.getByText('Invoices')).toBeInTheDocument();
+    expect(screen.queryByText('Legal')).not.toBeInTheDocument();
   });
 
   it('filters the document list by tag', async () => {

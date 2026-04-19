@@ -6,4 +6,6 @@ export interface Tag {
   color: string | null;
   description?: string | null;
   documentsCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }

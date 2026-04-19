@@ -44,4 +44,32 @@ describe('document search services', () => {
 
     expect(queryText).toContain('COALESCE(d.document_date, d.created_at)');
   });
+
+  it('includes document title fields in search matching', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ results_count: 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    await searchServices.searchDocuments({
+      vaultId: 'vlt_1',
+      query: 'contract',
+      pageIndex: 0,
+      pageSize: 20,
+    });
+
+    const firstQuery = execute.mock.calls[0]?.[0];
+    const secondQuery = execute.mock.calls[1]?.[0];
+    const combinedQueryText = [
+      flattenSqlChunks(firstQuery?.queryChunks ?? []),
+      flattenSqlChunks(secondQuery?.queryChunks ?? []),
+    ].join('\n');
+
+    expect(combinedQueryText).toContain('d.name ILIKE');
+    expect(combinedQueryText).toContain('d.original_name ILIKE');
+    expect(combinedQueryText).toContain('ORDER BY title_match DESC NULLS LAST');
+  });
 });

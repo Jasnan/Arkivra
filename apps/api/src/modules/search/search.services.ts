@@ -23,6 +23,7 @@ type SearchRow = {
   score: number | null;
   fulltext_match: boolean | null;
   substring_position: number | null;
+  title_match: boolean | null;
 };
 
 type CountRow = {
@@ -119,18 +120,18 @@ function getBrowseOrderSql(sortBy: SearchSortBy) {
 function getSearchOrderSql(sortBy: SearchSortBy) {
   switch (sortBy) {
     case 'document_date_asc':
-      return sql`document_date ASC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+      return sql`title_match DESC NULLS LAST, document_date ASC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
     case 'updated_desc':
-      return sql`updated_at DESC, document_date DESC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+      return sql`title_match DESC NULLS LAST, updated_at DESC, document_date DESC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
     case 'updated_asc':
-      return sql`updated_at ASC, document_date ASC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+      return sql`title_match DESC NULLS LAST, updated_at ASC, document_date ASC NULLS LAST, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
     case 'name_asc':
-      return sql`name ASC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
+      return sql`title_match DESC NULLS LAST, name ASC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
     case 'name_desc':
-      return sql`name DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
+      return sql`title_match DESC NULLS LAST, name DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, updated_at DESC`;
     case 'document_date_desc':
     default:
-      return sql`document_date DESC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
+      return sql`title_match DESC NULLS LAST, document_date DESC NULLS LAST, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
   }
 }
 
@@ -347,20 +348,38 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
       ),
       matched_documents AS (
-        SELECT DISTINCT dc.document_id
-        FROM document_chunks AS dc
-        CROSS JOIN search_query
-        INNER JOIN documents AS d ON d.id = dc.document_id
-        WHERE dc.vault_id IN (${vaultIdListSql})
-          AND d.vault_id IN (${vaultIdListSql})
-          AND d.is_deleted = false
-          AND ${tagFilterSql}
-          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
-          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
-          AND (
-            dc.tsv @@ search_query.query
-            OR dc.content ILIKE ${ilikePattern}
-          )
+        SELECT DISTINCT document_id
+        FROM (
+          SELECT dc.document_id
+          FROM document_chunks AS dc
+          CROSS JOIN search_query
+          INNER JOIN documents AS d ON d.id = dc.document_id
+          WHERE dc.vault_id IN (${vaultIdListSql})
+            AND d.vault_id IN (${vaultIdListSql})
+            AND d.is_deleted = false
+            AND ${tagFilterSql}
+            AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
+            AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+            AND (
+              dc.tsv @@ search_query.query
+              OR dc.content ILIKE ${ilikePattern}
+            )
+
+          UNION
+
+          SELECT d.id AS document_id
+          FROM documents AS d
+          CROSS JOIN search_query
+          WHERE d.vault_id IN (${vaultIdListSql})
+            AND d.is_deleted = false
+            AND ${tagFilterSql}
+            AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
+            AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+            AND (
+              d.name ILIKE ${ilikePattern}
+              OR d.original_name ILIKE ${ilikePattern}
+            )
+        ) AS matched_sources
       )
       SELECT count(*)::int AS results_count
       FROM matched_documents
@@ -385,7 +404,7 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
       WITH search_query AS (
         SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
       ),
-      matched_chunks AS (
+      matched_sources AS (
         SELECT
           dc.vault_id,
           dc.document_id,
@@ -441,6 +460,63 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
             dc.tsv @@ search_query.query
             OR dc.content ILIKE ${ilikePattern}
           )
+
+        UNION ALL
+
+        SELECT
+          d.vault_id,
+          d.id AS document_id,
+          NULL::int AS chunk_index,
+          'title'::text AS chunk_type,
+          NULL::int AS page_number,
+          d.name AS chunk_content,
+          FALSE AS fulltext_match,
+          nullif(position(lower(${trimmedQuery}) in lower(d.name)), 0)::int AS substring_position,
+          CASE
+            WHEN d.name ILIKE ${ilikePattern}
+              THEN replace(
+                d.name,
+                substring(
+                  d.name
+                  FROM nullif(position(lower(${trimmedQuery}) in lower(d.name)), 0)::int
+                  FOR char_length(${trimmedQuery})
+                ),
+                concat(
+                  '<mark>',
+                  substring(
+                    d.name
+                    FROM nullif(position(lower(${trimmedQuery}) in lower(d.name)), 0)::int
+                    FOR char_length(${trimmedQuery})
+                  ),
+                  '</mark>'
+                )
+              )
+            ELSE replace(
+              d.original_name,
+              substring(
+                d.original_name
+                FROM nullif(position(lower(${trimmedQuery}) in lower(d.original_name)), 0)::int
+                FOR char_length(${trimmedQuery})
+              ),
+              concat(
+                '<mark>',
+                substring(
+                  d.original_name
+                  FROM nullif(position(lower(${trimmedQuery}) in lower(d.original_name)), 0)::int
+                  FOR char_length(${trimmedQuery})
+                ),
+                '</mark>'
+              )
+            )
+          END AS snippet,
+          1.2::float8 AS score
+        FROM documents AS d
+        WHERE d.vault_id IN (${vaultIdListSql})
+          AND d.is_deleted = false
+          AND (
+            d.name ILIKE ${ilikePattern}
+            OR d.original_name ILIKE ${ilikePattern}
+          )
       ),
       ranked_results AS (
         SELECT
@@ -479,11 +555,12 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
           mc.score,
           mc.fulltext_match,
           mc.substring_position,
+          mc.chunk_type = 'title' AS title_match,
           row_number() OVER (
             PARTITION BY d.id
-            ORDER BY mc.fulltext_match DESC, mc.score DESC, mc.substring_position ASC NULLS LAST, mc.chunk_index ASC
+            ORDER BY (mc.chunk_type = 'title') DESC, mc.fulltext_match DESC, mc.score DESC, mc.substring_position ASC NULLS LAST, mc.chunk_index ASC NULLS LAST
           )::int AS rank_in_document
-        FROM matched_chunks AS mc
+        FROM matched_sources AS mc
         INNER JOIN documents AS d ON d.id = mc.document_id
         INNER JOIN vaults AS v ON v.id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
@@ -512,7 +589,8 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
         snippet,
         score,
         fulltext_match,
-        substring_position
+        substring_position,
+        title_match
       FROM ranked_results
       WHERE rank_in_document = 1
       ORDER BY ${getSearchOrderSql(sortBy)}

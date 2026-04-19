@@ -110,6 +110,87 @@ describe('documents library search controls', () => {
     expect(screen.getByText('Arkivra', { selector: 'mark' })).toBeInTheDocument();
   });
 
+  it('renders title-only search matches without OCR snippets', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?') && url.includes('q=contract')) {
+        return jsonResponse({
+          query: 'contract',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 1,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'document_date_desc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Sherlock',
+              documentId: 'doc_2',
+              name: 'Employment Contract.pdf',
+              originalName: 'employment-contract.pdf',
+              originalSize: 42000,
+              mimeType: 'application/pdf',
+              documentDate: null,
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+              matchedChunksCount: 1,
+              bestChunk: null,
+            },
+          ],
+        });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'document_date_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.type(screen.getByLabelText(/search documents/i), 'contract');
+
+    expect(await screen.findByText(/employment contract\.pdf/i)).toBeInTheDocument();
+  });
+
   it('sends vault, tag, date, and sort filters to the backend', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {

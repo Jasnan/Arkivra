@@ -1,5 +1,4 @@
-import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarRange,
@@ -15,6 +14,12 @@ import {
 import { Link } from 'react-router-dom';
 import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { softDeleteDocument } from '@/features/documents/documents.api';
 import { DocumentLibraryHeader, DocumentLibraryRow } from '@/features/documents/components/document-library-list';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
@@ -104,138 +109,6 @@ function getDateFilterLabel({
   return 'Any time';
 }
 
-function useDismissableLayer({
-  isOpen,
-  onClose,
-  ref,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  ref: RefObject<HTMLElement | null>;
-}) {
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (ref.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      onClose();
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose, ref]);
-}
-
-function OverflowMenu({
-  isOpen,
-  onToggle,
-  align = 'right',
-  side = 'bottom',
-  children,
-  label,
-}: {
-  isOpen: boolean;
-  onToggle: () => void;
-  align?: 'left' | 'right';
-  side?: 'top' | 'bottom';
-  children: ReactNode;
-  label: string;
-}) {
-  return (
-    <div className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={label}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
-        onClick={onToggle}
-      >
-        <Ellipsis className="size-5" />
-      </Button>
-
-      {isOpen ? (
-        <div
-          role="menu"
-          className={`absolute z-30 w-56 rounded-[22px] border border-border/70 bg-card p-2 shadow-[0_28px_60px_rgba(16,29,76,0.14)] ${
-            side === 'bottom' ? 'top-[calc(100%+0.75rem)]' : 'bottom-[calc(100%+0.75rem)]'
-          } ${
-            align === 'right' ? 'right-0' : 'left-0'
-          }`}
-        >
-          {children}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function MenuLink({
-  to,
-  icon,
-  children,
-  onSelect,
-}: {
-  to: string;
-  icon: ReactNode;
-  children: ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <Link
-      to={to}
-      role="menuitem"
-      className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
-      onClick={onSelect}
-    >
-      <span className="text-primary">{icon}</span>
-      <span>{children}</span>
-    </Link>
-  );
-}
-
-function MenuAnchor({
-  href,
-  icon,
-  children,
-  onSelect,
-}: {
-  href: string;
-  icon: ReactNode;
-  children: ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <a
-      href={href}
-      role="menuitem"
-      className="flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
-      onClick={onSelect}
-    >
-      <span className="text-primary">{icon}</span>
-      <span>{children}</span>
-    </a>
-  );
-}
-
 function TagPill({
   name,
   color,
@@ -274,29 +147,15 @@ export function AllDocumentsPage() {
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [isVaultDropdownOpen, setIsVaultDropdownOpen] = useState(false);
   const [vaultSearchQuery, setVaultSearchQuery] = useState('');
-  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
-  const [openVaultMenuId, setOpenVaultMenuId] = useState<string | null>(null);
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const vaultDropdownRef = useRef<HTMLDivElement | null>(null);
-  const tagDropdownRef = useRef<HTMLDivElement | null>(null);
-  const vaultMenuRef = useRef<HTMLDivElement | null>(null);
-
-  useDismissableLayer({
-    isOpen: openVaultMenuId !== null,
-    onClose: () => setOpenVaultMenuId(null),
-    ref: vaultMenuRef,
-  });
 
   useEffect(() => {
     if (!isFiltersOpen) {
-      setIsVaultDropdownOpen(false);
       setVaultSearchQuery('');
-      setIsTagDropdownOpen(false);
       setTagSearchQuery('');
     }
   }, [isFiltersOpen]);
@@ -503,9 +362,7 @@ export function AllDocumentsPage() {
     setCustomDateFrom('');
     setCustomDateTo('');
     setVaultSearchQuery('');
-    setIsVaultDropdownOpen(false);
     setTagSearchQuery('');
-    setIsTagDropdownOpen(false);
   }
 
   function toggleVaultCollapsed(vaultId: string) {
@@ -514,18 +371,6 @@ export function AllDocumentsPage() {
         ? current.filter(id => id !== vaultId)
         : [...current, vaultId],
     );
-  }
-
-  function handleFilterDialogPointerDownCapture(event: ReactPointerEvent<HTMLDivElement>) {
-    const target = event.target as Node;
-
-    if (isVaultDropdownOpen && !vaultDropdownRef.current?.contains(target)) {
-      setIsVaultDropdownOpen(false);
-    }
-
-    if (isTagDropdownOpen && !tagDropdownRef.current?.contains(target)) {
-      setIsTagDropdownOpen(false);
-    }
   }
 
   return (
@@ -573,226 +418,177 @@ export function AllDocumentsPage() {
         sortAriaLabel="Sort documents"
         filtersTitle="Filters"
         filtersDescription="Refine the library without leaving this page."
-        onDialogPointerDownCapture={handleFilterDialogPointerDownCapture}
         filtersContent={(
           <>
-                <div className="space-y-3">
-                  <label className="text-lg font-semibold text-foreground">
-                    Vault
-                  </label>
+            <div className="space-y-3">
+              <label htmlFor="documents-vault-search" className="text-lg font-semibold text-foreground">
+                Vault
+              </label>
 
-                  {selectedVaults.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedVaults.map(vault => (
-                        <ActiveFilterChip
-                          key={vault.id}
-                          label={vault.name}
-                          onRemove={() => toggleVaultSelection(vault.id)}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
+              {selectedVaults.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectedVaults.map(vault => (
+                    <ActiveFilterChip
+                      key={vault.id}
+                      label={vault.name}
+                      onRemove={() => toggleVaultSelection(vault.id)}
+                    />
+                  ))}
+                </div>
+              ) : null}
 
-                  <div ref={vaultDropdownRef} className="relative">
-                    <button
-                      type="button"
-                      aria-label="Vault filter"
-                      aria-expanded={isVaultDropdownOpen}
-                      aria-haspopup="listbox"
-                      onClick={() => setIsVaultDropdownOpen(open => !open)}
-                      className="flex h-14 w-full items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 text-left shadow-[0_12px_30px_rgba(17,27,70,0.04)] transition hover:border-primary/15"
+              <div className="relative">
+                <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="documents-vault-search"
+                  aria-label="Search vaults"
+                  value={vaultSearchQuery}
+                  onChange={event => setVaultSearchQuery(event.target.value)}
+                  placeholder="Search vaults"
+                  className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
+                />
+              </div>
+
+              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                {vaultsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading vaults...</p> : null}
+                {!vaultsQuery.isLoading ? (
+                  <button
+                    type="button"
+                    aria-pressed={selectedVaultIds.length === 0}
+                    onClick={() => setSelectedVaultIds([])}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
+                      selectedVaultIds.length === 0
+                        ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
+                        : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
+                    )}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-foreground">All vaults</span>
+                      <span className="block truncate text-xs text-muted-foreground">Results can come from any accessible vault</span>
+                    </span>
+                    {selectedVaultIds.length === 0 ? <Check className="size-4 text-primary" /> : null}
+                  </button>
+                ) : null}
+                {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
+                  <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                    No vaults match "{vaultSearchQuery.trim()}".
+                  </p>
+                ) : null}
+                {filteredVaults.map(vault => {
+                  const isSelected = selectedVaultIds.includes(vault.id);
+
+                  return (
+                    <label
+                      key={vault.id}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-3 rounded-[18px] border px-4 py-3 transition',
+                        isSelected
+                          ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
+                          : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
+                      )}
                     >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleVaultSelection(vault.id)}
+                        className="size-4 border-border"
+                      />
+                      <div className="flex size-8 items-center justify-center rounded-xl bg-secondary text-primary">
+                        <Folder className="size-4" />
+                      </div>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-base font-semibold text-foreground">
-                          {selectedVaults.length > 0 ? `${selectedVaults.length} vault${selectedVaults.length === 1 ? '' : 's'} selected` : 'All vaults'}
-                        </span>
-                        <span className="block truncate text-sm text-muted-foreground">
-                          {selectedVaults.length > 0 ? selectedVaults.map(vault => vault.name).join(', ') : 'Search and choose vaults'}
+                        <span className="block truncate text-sm font-semibold text-foreground">{vault.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{vault.role} access</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold text-foreground">Tags</h3>
+                <p className="text-sm text-muted-foreground">Choose one or more tags to narrow the results.</p>
+              </div>
+
+              {selectedTags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectedTags.map(tag => (
+                    <ActiveFilterChip
+                      key={tag.id}
+                      label={tag.name}
+                      onRemove={() => toggleTagSelection(tag.id)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="relative">
+                <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  aria-label="Search tags"
+                  value={tagSearchQuery}
+                  onChange={event => setTagSearchQuery(event.target.value)}
+                  placeholder="Search tags"
+                  className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
+                />
+              </div>
+
+              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                {tagsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading tags...</p> : null}
+                {!tagsQuery.isLoading && availableTags.length === 0 ? (
+                  <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                    No tags are available for the current vault scope.
+                  </p>
+                ) : null}
+                {!tagsQuery.isLoading && availableTags.length > 0 && filteredTags.length === 0 ? (
+                  <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                    No tags match "{tagSearchQuery.trim()}".
+                  </p>
+                ) : null}
+                {filteredTags.map(tag => {
+                  const isSelected = selectedTagIds.includes(tag.id);
+
+                  return (
+                    <label
+                      key={tag.id}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-3 rounded-[18px] border px-4 py-3 transition',
+                        isSelected
+                          ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
+                          : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleTagSelection(tag.id)}
+                        className="size-4 border-border"
+                      />
+                      <span
+                        className="size-3 rounded-full"
+                        style={{ backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))' }}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-foreground">{tag.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {tag.vaultName ?? 'Vault tag'}{typeof tag.documentsCount === 'number' ? ` • ${tag.documentsCount} docs` : ''}
                         </span>
                       </span>
-                      <ChevronDown className={cn('size-4 text-muted-foreground transition', isVaultDropdownOpen ? 'rotate-180' : '')} />
-                    </button>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
 
-                    {isVaultDropdownOpen ? (
-                      <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-20 rounded-[24px] border border-border/70 bg-card p-4 shadow-[0_28px_60px_rgba(16,29,76,0.14)]">
-                        <div className="relative">
-                          <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                          <input
-                            aria-label="Search vaults"
-                            value={vaultSearchQuery}
-                            onChange={event => setVaultSearchQuery(event.target.value)}
-                            placeholder="Search vaults"
-                            className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
-                          />
-                        </div>
-
-                        <div role="listbox" aria-label="Available vaults" className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-                          {vaultsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading vaults...</p> : null}
-                          {!vaultsQuery.isLoading ? (
-                            <button
-                              type="button"
-                              role="option"
-                              aria-selected={selectedVaultIds.length === 0}
-                              onClick={() => setSelectedVaultIds([])}
-                              className={cn(
-                                'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
-                                selectedVaultIds.length === 0
-                                  ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
-                                  : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
-                              )}
-                            >
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold text-foreground">All vaults</span>
-                                <span className="block truncate text-xs text-muted-foreground">Results can come from any accessible vault</span>
-                              </span>
-                              {selectedVaultIds.length === 0 ? <Check className="size-4 text-primary" /> : null}
-                            </button>
-                          ) : null}
-                          {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
-                            <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                              No vaults match "{vaultSearchQuery.trim()}".
-                            </p>
-                          ) : null}
-                          {filteredVaults.map(vault => {
-                            const isSelected = selectedVaultIds.includes(vault.id);
-
-                            return (
-                              <button
-                                key={vault.id}
-                                type="button"
-                                role="option"
-                                aria-selected={isSelected}
-                                onClick={() => toggleVaultSelection(vault.id)}
-                                className={cn(
-                                  'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
-                                  isSelected
-                                    ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
-                                    : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
-                                )}
-                              >
-                                <div className="flex size-8 items-center justify-center rounded-xl bg-secondary text-primary">
-                                  <Folder className="size-4" />
-                                </div>
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-semibold text-foreground">{vault.name}</span>
-                                  <span className="block truncate text-xs text-muted-foreground">{vault.role} access</span>
-                                </span>
-                                {isSelected ? <Check className="size-4 text-primary" /> : null}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-foreground">Tags</h3>
-                    <p className="text-sm text-muted-foreground">Choose one or more tags to narrow the results.</p>
-                  </div>
-
-                  {selectedTags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedTags.map(tag => (
-                        <ActiveFilterChip
-                          key={tag.id}
-                          label={tag.name}
-                          onRemove={() => toggleTagSelection(tag.id)}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div ref={tagDropdownRef} className="relative">
-                    <button
-                      type="button"
-                      aria-label="Tag filter"
-                      aria-expanded={isTagDropdownOpen}
-                      aria-haspopup="listbox"
-                      onClick={() => setIsTagDropdownOpen(open => !open)}
-                      className="flex h-14 w-full items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 text-left shadow-[0_12px_30px_rgba(17,27,70,0.04)] transition hover:border-primary/15"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-base font-semibold text-foreground">
-                          {selectedTags.length > 0 ? `${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} selected` : 'Select tags'}
-                        </span>
-                        <span className="block truncate text-sm text-muted-foreground">
-                          {selectedTags.length > 0 ? selectedTags.map(tag => tag.name).join(', ') : 'Search and choose tags'}
-                        </span>
-                      </span>
-                      <ChevronDown className={cn('size-4 text-muted-foreground transition', isTagDropdownOpen ? 'rotate-180' : '')} />
-                    </button>
-
-                    {isTagDropdownOpen ? (
-                      <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-20 rounded-[24px] border border-border/70 bg-card p-4 shadow-[0_28px_60px_rgba(16,29,76,0.14)]">
-                        <div className="relative">
-                          <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                          <input
-                            aria-label="Search tags"
-                            value={tagSearchQuery}
-                            onChange={event => setTagSearchQuery(event.target.value)}
-                            placeholder="Search tags"
-                            className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
-                          />
-                        </div>
-
-                        <div role="listbox" aria-label="Available tags" className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-                          {tagsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading tags...</p> : null}
-                          {!tagsQuery.isLoading && availableTags.length === 0 ? (
-                            <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                              No tags are available for the current vault scope.
-                            </p>
-                          ) : null}
-                          {!tagsQuery.isLoading && availableTags.length > 0 && filteredTags.length === 0 ? (
-                            <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                              No tags match “{tagSearchQuery.trim()}”.
-                            </p>
-                          ) : null}
-                          {filteredTags.map(tag => {
-                            const isSelected = selectedTagIds.includes(tag.id);
-
-                            return (
-                              <button
-                                key={tag.id}
-                                type="button"
-                                role="option"
-                                aria-selected={isSelected}
-                                onClick={() => toggleTagSelection(tag.id)}
-                                className={cn(
-                                  'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
-                                  isSelected
-                                    ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
-                                    : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
-                                )}
-                              >
-                                <span
-                                  className="size-3 rounded-full"
-                                  style={{ backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))' }}
-                                  aria-hidden="true"
-                                />
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-semibold text-foreground">{tag.name}</span>
-                                  <span className="block truncate text-xs text-muted-foreground">
-                                    {tag.vaultName ?? 'Vault tag'}{typeof tag.documentsCount === 'number' ? ` • ${tag.documentsCount} docs` : ''}
-                                  </span>
-                                </span>
-                                {isSelected ? <Check className="size-4 text-primary" /> : null}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] border border-border/70 bg-background/80 p-5">
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-foreground">Date</h3>
-                    <p className="text-sm text-muted-foreground">Pick a preset or enter a custom range.</p>
-                  </div>
+            <div className="rounded-[24px] border border-border/70 bg-background/80 p-5">
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold text-foreground">Date</h3>
+                <p className="text-sm text-muted-foreground">Pick a preset or enter a custom range.</p>
+              </div>
 
                   <div className="mt-5 space-y-3">
                     {[
@@ -873,7 +669,7 @@ export function AllDocumentsPage() {
                       </div>
                     </div>
                   ) : null}
-                </div>
+            </div>
           </>
         )}
       />
@@ -937,31 +733,34 @@ export function AllDocumentsPage() {
                       />
                     </button>
                   </div>
-                  <div ref={openVaultMenuId === group.vaultId ? vaultMenuRef : null}>
-                    <OverflowMenu
-                      isOpen={openVaultMenuId === group.vaultId}
-                      onToggle={() => {
-                        setOpenVaultMenuId(current => current === group.vaultId ? null : group.vaultId);
-                      }}
-                      label={`Open actions for ${group.vaultName}`}
-                      side="bottom"
-                    >
-                      <MenuLink
-                        to={`/vaults/${group.vaultId}/documents`}
-                        icon={<FolderOpen className="size-4" />}
-                        onSelect={() => setOpenVaultMenuId(null)}
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Open actions for ${group.vaultName}`}
+                        className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
+                        onClick={(event) => event.stopPropagation()}
                       >
-                        Open vault
-                      </MenuLink>
-                      <MenuLink
-                        to={`/vaults/${group.vaultId}/settings`}
-                        icon={<Settings2 className="size-4" />}
-                        onSelect={() => setOpenVaultMenuId(null)}
-                      >
-                        Vault settings
-                      </MenuLink>
-                    </OverflowMenu>
-                  </div>
+                        <Ellipsis className="size-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem asChild>
+                        <Link to={`/vaults/${group.vaultId}/documents`}>
+                          <FolderOpen className="size-4 text-primary" />
+                          Open vault
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to={`/vaults/${group.vaultId}/settings`}>
+                          <Settings2 className="size-4 text-primary" />
+                          Vault settings
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 

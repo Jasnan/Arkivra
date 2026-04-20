@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Ellipsis,
@@ -113,13 +113,16 @@ function TagActionsMenu({
 }: {
   tag: Tag;
   deletePending: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit: (trigger: HTMLButtonElement | null) => void;
+  onDelete: (trigger: HTMLButtonElement | null) => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
+          ref={triggerRef}
           type="button"
           variant="ghost"
           size="icon"
@@ -130,14 +133,14 @@ function TagActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem onSelect={onEdit}>
+        <DropdownMenuItem onSelect={() => onEdit(triggerRef.current)}>
           <Pencil className="size-4 text-primary" />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={deletePending}
           className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-          onSelect={onDelete}
+          onSelect={() => onDelete(triggerRef.current)}
         >
           <Trash2 className="size-4 text-destructive" />
           Delete
@@ -205,6 +208,8 @@ export function TagsPage() {
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState(DEFAULT_TAG_COLOR);
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const focusRestoreTargetRef = useRef<HTMLElement | null>(null);
 
   const tagsQuery = isVaultScoped ? scopedTagsQuery : accessibleTagsQuery;
   const tags = tagsQuery.data?.tags ?? [];
@@ -230,7 +235,23 @@ export function TagsPage() {
     });
   }, [filterText, tags]);
 
+  function rememberFocusTarget(target?: HTMLElement | null) {
+    focusRestoreTargetRef.current = target ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  }
+
+  function restoreFocusTarget() {
+    const target = focusRestoreTargetRef.current;
+    focusRestoreTargetRef.current = null;
+
+    if (target) {
+      requestAnimationFrame(() => {
+        target.focus();
+      });
+    }
+  }
+
   function openCreateDialog() {
+    rememberFocusTarget(createButtonRef.current);
     setDialogMode('create');
     setEditingTagId(null);
     setFormVaultId(scopedVaultId ?? vaults[0]?.id ?? '');
@@ -242,7 +263,8 @@ export function TagsPage() {
     setIsDialogOpen(true);
   }
 
-  function openEditDialog(tag: Tag) {
+  function openEditDialog(tag: Tag, trigger?: HTMLButtonElement | null) {
+    rememberFocusTarget(trigger);
     setDialogMode('edit');
     setEditingTagId(tag.id);
     setFormVaultId(tag.vaultId ?? scopedVaultId ?? '');
@@ -256,6 +278,7 @@ export function TagsPage() {
 
   function closeDialog() {
     setIsDialogOpen(false);
+    restoreFocusTarget();
   }
 
   async function invalidateTagQueries(targetVaultId?: string) {
@@ -302,6 +325,7 @@ export function TagsPage() {
       setStatusMessage('Tag deleted.');
       setErrorMessage(null);
       setTagPendingDelete(null);
+      restoreFocusTarget();
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not delete tag.');
@@ -360,6 +384,7 @@ export function TagsPage() {
               <Link to={`/vaults/${scopedVaultId}/documents`} className="vault-link">Back to documents</Link>
             ) : null}
             <Button
+              ref={createButtonRef}
               type="button"
               className="bg-primary text-primary-foreground shadow-[0_18px_40px_rgba(0,21,41,0.16)] hover:bg-primary/95"
               onClick={openCreateDialog}
@@ -469,8 +494,9 @@ export function TagsPage() {
                 <TagActionsMenu
                   tag={tag}
                   deletePending={deleteMutation.isPending}
-                  onEdit={() => openEditDialog(tag)}
-                  onDelete={() => {
+                  onEdit={trigger => openEditDialog(tag, trigger)}
+                  onDelete={(trigger) => {
+                    rememberFocusTarget(trigger);
                     setStatusMessage(null);
                     setErrorMessage(null);
                     setTagPendingDelete(tag);
@@ -523,7 +549,10 @@ export function TagsPage() {
         <DeleteTagDialog
           tag={tagPendingDelete}
           isPending={deleteMutation.isPending}
-          onClose={() => setTagPendingDelete(null)}
+          onClose={() => {
+            setTagPendingDelete(null);
+            restoreFocusTarget();
+          }}
           onConfirm={() => {
             deleteMutation.mutate({
               vaultId: tagPendingDelete.vaultId ?? scopedVaultId ?? '',

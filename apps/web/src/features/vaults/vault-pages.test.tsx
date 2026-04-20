@@ -79,13 +79,13 @@ describe('vault pages', () => {
 
     renderWithProviders(<VaultsPage />);
 
-    await user.click(await screen.findByRole('button', { name: /create vault/i }));
-    const dialog = await screen.findByRole('dialog', { name: /create vault/i });
+    await user.click(await screen.findByRole('button', { name: /new vault/i }));
+    const dialog = await screen.findByRole('dialog', { name: /new vault/i });
     expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
       method: 'POST',
     }));
 
-    await user.type(within(dialog).getByLabelText(/vault name/i), 'Home Vault');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Home Vault');
     await user.type(within(dialog).getByLabelText(/description/i), 'Documents for home life');
     await user.click(within(dialog).getByRole('button', { name: /create vault/i }));
 
@@ -98,7 +98,7 @@ describe('vault pages', () => {
     });
   });
 
-  it('returns focus to the create vault button after dismissing the dialog with escape', async () => {
+  it('returns focus to the new vault button after dismissing the dialog with escape', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -123,14 +123,14 @@ describe('vault pages', () => {
 
     renderWithProviders(<VaultsPage />);
 
-    const createButton = await screen.findByRole('button', { name: /create vault/i });
+    const createButton = await screen.findByRole('button', { name: /new vault/i });
     await user.click(createButton);
-    expect(await screen.findByRole('dialog', { name: /create vault/i })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: /new vault/i })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /create vault/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: /new vault/i })).not.toBeInTheDocument();
     });
     await waitFor(() => {
       expect(createButton).toHaveFocus();
@@ -163,7 +163,7 @@ describe('vault pages', () => {
     renderWithProviders(<VaultsPage />);
 
     expect(await screen.findByText(/must grant vault creation/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /create vault/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new vault/i })).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
       method: 'POST',
     }));

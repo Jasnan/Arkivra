@@ -116,7 +116,7 @@ function FileTypeIcon({
 
 function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
   if (tags.length === 0) {
-    return <span className="text-sm text-muted-foreground">No tags</span>;
+    return <span className="text-sm text-muted-foreground">—</span>;
   }
 
   const visibleTags = tags.slice(0, 2);
@@ -129,7 +129,7 @@ function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
       ))}
       {remainingCount > 0 ? (
         <span className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
-          +{remainingCount} more
+          +{remainingCount}
         </span>
       ) : null}
     </>
@@ -190,7 +190,7 @@ export function DocumentLibraryHeader() {
   return (
     <div className="hidden grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] gap-5 border-b border-border/70 px-5 py-4 text-sm text-muted-foreground md:grid sm:px-6">
       <span>Name</span>
-      <span>Uploaded At</span>
+      <span>Uploaded</span>
       <span>Size</span>
       <span>Tags</span>
       <span className="text-right">Actions</span>
@@ -251,7 +251,7 @@ export function DocumentLibraryRow({
       </div>
 
       <div className="text-sm text-muted-foreground">
-        <p className="vault-label md:hidden">Uploaded At</p>
+        <p className="vault-label md:hidden">Uploaded</p>
         <p className="mt-2 text-base text-foreground md:mt-0">
           {formatDate(createdAt)}
         </p>

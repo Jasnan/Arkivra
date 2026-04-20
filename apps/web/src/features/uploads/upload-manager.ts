@@ -5,6 +5,7 @@ import {
   getUploadSession,
   initUploadSession,
   listUploadSessions,
+  retryUploadProcessing,
 } from './uploads.api';
 import { loadPersistedTransfers, savePersistedTransfers } from './upload-persistence';
 import type { TransferItem, TransferState, UploadSessionSummary } from './uploads.types';
@@ -39,6 +40,8 @@ function mapUploadStatusToTransferStatus(status: string): TransferItem['status']
       return 'paused';
     case 'paused':
       return 'paused';
+    case 'pending':
+      return 'pending';
     case 'processing':
       return 'processing';
     case 'completed':
@@ -85,6 +88,7 @@ function createEmptyState(): TransferState {
     queuedCount: 0,
     failedCount: 0,
     completedCount: 0,
+    pendingCount: 0,
     processingCount: 0,
     isPaused: false,
     hydratedFromStorage: false,
@@ -169,26 +173,35 @@ export class UploadManager {
     this.activeTransfers.clear();
   }
 
-  resumeAll() {
-    const nextItems = this.state.items.map(item => {
-      if (item.status === 'paused' || item.status === 'failed') {
-        if (item.uploadId !== null && item.documentId !== null) {
-          return {
-            ...item,
-            status: 'processing' as const,
-            error: null,
-          };
-        }
+  async resumeAll() {
+    this.setState({
+      ...this.state,
+      isPaused: false,
+    });
 
-        const hasFile = this.files.has(item.id);
-        return {
-          ...item,
-          status: (hasFile ? 'queued' : 'failed') as TransferItem['status'],
-          error: hasFile ? null : 'Resume after a full refresh requires selecting the file again.',
-        };
+    const retryableProcessingItems = this.state.items.filter(item =>
+      item.status === 'failed' && item.uploadId !== null && item.documentId !== null,
+    );
+
+    await Promise.allSettled(
+      retryableProcessingItems.map(item => this.retryProcessing(item.id)),
+    );
+
+    const nextItems = this.state.items.map(item => {
+      if (item.status !== 'paused' && item.status !== 'failed') {
+        return item;
       }
 
-      return item;
+      if (item.uploadId !== null && item.documentId !== null) {
+        return item;
+      }
+
+      const hasFile = this.files.has(item.id);
+      return {
+        ...item,
+        status: (hasFile ? 'queued' : 'failed') as TransferItem['status'],
+        error: hasFile ? null : 'Resume after a full refresh requires selecting the file again.',
+      };
     });
 
     this.setState({
@@ -196,16 +209,26 @@ export class UploadManager {
       isPaused: false,
       items: nextItems,
     });
-    void this.kick();
+    await this.kick();
     this.ensureProcessingPoll();
   }
 
   async retryFailed(id: string) {
+    const item = this.state.items.find(entry => entry.id === id);
+    if (!item) {
+      return;
+    }
+
+    if (item.uploadId !== null && item.documentId !== null) {
+      await this.retryProcessing(id);
+      return;
+    }
+
     const hasFile = this.files.has(id);
     this.updateTransfer(id, item => ({
       ...item,
       status: hasFile ? 'queued' : 'failed',
-      error: hasFile ? null : 'Retry requires selecting the file again after refresh.',
+      error: hasFile ? null : 'Retry requires selecting the file again because the browser no longer has access to it.',
       retries: item.retries + 1,
     }));
     await this.kick();
@@ -301,11 +324,15 @@ export class UploadManager {
           ? 'completed'
           : item.status === 'processing'
             ? 'processing'
+            : item.status === 'pending'
+              ? 'pending'
             : 'paused',
         error: item.status === 'completed'
           ? item.error
           : item.status === 'processing'
             ? null
+            : item.status === 'pending'
+              ? null
             : 'Previous upload session found. Select the file again to continue.',
       }));
 
@@ -378,6 +405,7 @@ export class UploadManager {
   private computeSummary(state: TransferState): TransferState {
     const activeCount = state.items.filter(item => item.status === 'uploading').length;
     const queuedCount = state.items.filter(item => item.status === 'queued').length;
+    const pendingCount = state.items.filter(item => item.status === 'pending').length;
     const failedCount = state.items.filter(item => item.status === 'failed').length;
     const completedCount = state.items.filter(item => item.status === 'completed').length;
     const processingCount = state.items.filter(item => item.status === 'processing').length;
@@ -386,6 +414,7 @@ export class UploadManager {
       ...state,
       activeCount,
       queuedCount,
+      pendingCount,
       failedCount,
       completedCount,
       processingCount,
@@ -397,6 +426,36 @@ export class UploadManager {
       ...this.state,
       items: this.state.items.map(item => (item.id === id ? updater(item) : item)),
     });
+  }
+
+  private async retryProcessing(id: string) {
+    const item = this.state.items.find(entry => entry.id === id);
+    if (!item?.uploadId) {
+      return;
+    }
+
+    this.updateTransfer(id, current => ({
+      ...current,
+      status: 'pending',
+      error: null,
+      retries: current.retries + 1,
+      completedAt: null,
+    }));
+
+    try {
+      const response = await retryUploadProcessing({
+        vaultId: item.vaultId,
+        uploadId: item.uploadId,
+      });
+      this.applySessionUpdate(response.upload, id);
+    } catch (error) {
+      this.updateTransfer(id, current => ({
+        ...current,
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Retry failed',
+        completedAt: null,
+      }));
+    }
   }
 
   private applySessionUpdate(upload: UploadSessionSummary, preferredTransferId?: string) {
@@ -632,7 +691,7 @@ export class UploadManager {
   }
 
   private ensureProcessingPoll() {
-    const hasProcessing = this.state.items.some(item => item.status === 'processing');
+    const hasProcessing = this.state.items.some(item => item.status === 'pending' || item.status === 'processing');
 
     if (!hasProcessing) {
       if (this.processingPollTimer !== null) {
@@ -652,7 +711,9 @@ export class UploadManager {
   }
 
   private async pollProcessingSessions() {
-    const processingItems = this.state.items.filter(item => item.status === 'processing' && item.uploadId !== null);
+    const processingItems = this.state.items.filter(
+      item => (item.status === 'pending' || item.status === 'processing') && item.uploadId !== null,
+    );
     await Promise.all(
       processingItems.map(async (item) => {
         try {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarRange,
@@ -16,6 +16,7 @@ import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/co
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -23,8 +24,7 @@ import {
 import { softDeleteDocument } from '@/features/documents/documents.api';
 import { DocumentLibraryHeader, DocumentLibraryRow } from '@/features/documents/components/document-library-list';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
-import { ActiveFilterChip, DocumentSearchControls } from '@/features/documents/components/document-search-controls';
-import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
 import { searchQueryKeys, useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -36,7 +36,7 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 100;
 
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
-  { value: 'created_desc', label: 'Newest upload' },
+  { value: 'created_desc', label: 'Newest' },
   { value: 'created_asc', label: 'Oldest upload' },
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
@@ -109,26 +109,6 @@ function getDateFilterLabel({
   return 'Any time';
 }
 
-function TagPill({
-  name,
-  color,
-}: {
-  name: string;
-  color: string | null;
-}) {
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-[0.01em]"
-      style={{
-        backgroundColor: color ? `${color}18` : undefined,
-        color: color ?? undefined,
-      }}
-    >
-      {name}
-    </span>
-  );
-}
-
 function VaultIcon() {
   return (
     <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-primary ring-1 ring-border/60">
@@ -137,24 +117,68 @@ function VaultIcon() {
   );
 }
 
+function formatVaultRole(role: string | null | undefined) {
+  if (role === 'owner') {
+    return 'Owner';
+  }
+
+  if (role === 'member') {
+    return 'Member';
+  }
+
+  if (role === 'editor') {
+    return 'Editor';
+  }
+
+  if (role === 'global_admin') {
+    return 'Global admin';
+  }
+
+  return 'Access';
+}
+
+function handleFilterSearchKeyDown(
+  event: React.KeyboardEvent<HTMLInputElement>,
+  onArrowDown?: () => void,
+) {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    event.stopPropagation();
+    onArrowDown?.();
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    return;
+  }
+
+  event.stopPropagation();
+}
+
 export function AllDocumentsPage() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
-  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
+  const [selectedVaultId, setSelectedVaultId] = useState('');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SearchSortBy>('created_desc');
   const [datePreset, setDatePreset] = useState<DatePreset>('any');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [isVaultFilterOpen, setIsVaultFilterOpen] = useState(false);
+  const [isTagFilterOpen, setIsTagFilterOpen] = useState(false);
   const [vaultSearchQuery, setVaultSearchQuery] = useState('');
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const vaultFilterContentRef = useRef<HTMLDivElement | null>(null);
+  const tagFilterContentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isFiltersOpen) {
+      setIsVaultFilterOpen(false);
+      setIsTagFilterOpen(false);
       setVaultSearchQuery('');
       setTagSearchQuery('');
     }
@@ -162,7 +186,7 @@ export function AllDocumentsPage() {
 
   const debouncedQuery = useDebouncedValue(query.trim(), 280);
   const vaultsQuery = useVaultsQuery();
-  const tagScopeVaultId = selectedVaultIds.length === 1 ? selectedVaultIds[0] : undefined;
+  const tagScopeVaultId = selectedVaultId || undefined;
   const tagsQuery = useAccessibleTagsQuery({ vaultId: tagScopeVaultId });
 
   const appliedDateRange = useMemo(() => {
@@ -180,7 +204,7 @@ export function AllDocumentsPage() {
     query: debouncedQuery,
     pageIndex: 0,
     pageSize: PAGE_SIZE,
-    vaultIds: selectedVaultIds.length > 0 ? selectedVaultIds : undefined,
+    vaultIds: selectedVaultId ? [selectedVaultId] : undefined,
     tagIds: selectedTagIds,
     dateFrom: appliedDateRange.dateFrom,
     dateTo: appliedDateRange.dateTo,
@@ -288,35 +312,32 @@ export function AllDocumentsPage() {
   );
 
   const summaryLabel = useMemo(() => {
-    const shownDocuments = documentsQuery.data?.results.length ?? 0;
     const totalDocuments = documentsQuery.data?.resultsCount ?? 0;
     const vaultsShown = groupedDocuments.length;
 
-    if (shownDocuments === totalDocuments) {
-      return `Showing ${shownDocuments} document${shownDocuments === 1 ? '' : 's'} across ${vaultsShown} vault${vaultsShown === 1 ? '' : 's'}`;
-    }
+    return `${totalDocuments} document${totalDocuments === 1 ? '' : 's'} in ${vaultsShown} vault${vaultsShown === 1 ? '' : 's'}`;
+  }, [documentsQuery.data?.resultsCount, groupedDocuments.length]);
 
-    return `Showing ${shownDocuments} of ${totalDocuments} documents across ${vaultsShown} vaults`;
-  }, [documentsQuery.data?.results.length, documentsQuery.data?.resultsCount, groupedDocuments.length]);
-
-  const selectedSortLabel = sortOptions.find(option => option.value === sortBy)?.label ?? 'Newest upload';
-  const selectedVaults = useMemo(
-    () => (vaultsQuery.data?.vaults ?? []).filter(vault => selectedVaultIds.includes(vault.id)),
-    [selectedVaultIds, vaultsQuery.data?.vaults],
+  const selectedSortLabel = sortOptions.find(option => option.value === sortBy)?.label ?? 'Newest';
+  const selectedVault = useMemo(
+    () => (vaultsQuery.data?.vaults ?? []).find(vault => vault.id === selectedVaultId) ?? null,
+    [selectedVaultId, vaultsQuery.data?.vaults],
   );
 
-  const activeFilterCount = selectedVaultIds.length
+  const activeFilterCount = (selectedVaultId ? 1 : 0)
     + selectedTagIds.length
     + (datePreset !== 'any' ? 1 : 0);
 
   const activeFilters = [
-    ...selectedVaults.map(vault => ({
-      key: `vault-${vault.id}`,
-      label: vault.name,
-      onRemove: () => {
-        setSelectedVaultIds(current => current.filter(item => item !== vault.id));
-      },
-    })),
+    ...(selectedVault
+      ? [{
+          key: `vault-${selectedVault.id}`,
+          label: selectedVault.name,
+          onRemove: () => {
+            setSelectedVaultId('');
+          },
+        }]
+      : []),
     ...selectedTags.map(tag => ({
       key: `tag-${tag.id}`,
       label: tag.name,
@@ -339,14 +360,6 @@ export function AllDocumentsPage() {
       : []),
   ];
 
-  function toggleVaultSelection(vaultId: string) {
-    setSelectedVaultIds(current =>
-      current.includes(vaultId)
-        ? current.filter(item => item !== vaultId)
-        : [...current, vaultId],
-    );
-  }
-
   function toggleTagSelection(tagId: string) {
     setSelectedTagIds(current =>
       current.includes(tagId)
@@ -356,7 +369,7 @@ export function AllDocumentsPage() {
   }
 
   function clearFilters() {
-    setSelectedVaultIds([]);
+    setSelectedVaultId('');
     setSelectedTagIds([]);
     setDatePreset('any');
     setCustomDateFrom('');
@@ -373,12 +386,27 @@ export function AllDocumentsPage() {
     );
   }
 
+  function focusFirstFilterItem(container: HTMLDivElement | null) {
+    const item = container?.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]');
+    item?.focus();
+  }
+
+  const selectedTagsLabel = useMemo(() => {
+    if (selectedTags.length === 0) {
+      return 'All tags';
+    }
+
+    if (selectedTags.length <= 2) {
+      return selectedTags.map(tag => tag.name).join(', ');
+    }
+
+    return `${selectedTags[0].name}, ${selectedTags[1].name} +${selectedTags.length - 2}`;
+  }, [selectedTags]);
+
   return (
     <section className="space-y-8 pb-8">
       <PageIntro
-        eyebrow="Documents"
         title="Documents"
-        description="Search and filter the full document library from one backend-powered workspace surface."
         actions={(
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -386,7 +414,7 @@ export function AllDocumentsPage() {
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
             >
               <Upload className="size-4" />
-              Batch upload
+              Upload
             </Link>
           </div>
         )}
@@ -402,7 +430,7 @@ export function AllDocumentsPage() {
       <DocumentSearchControls
         query={query}
         onQueryChange={setQuery}
-        searchPlaceholder="Search invoices, clauses, names..."
+        searchPlaceholder="Search documents"
         searchAriaLabel="Search documents"
         isFiltersOpen={isFiltersOpen}
         onOpenFilters={() => setIsFiltersOpen(true)}
@@ -417,180 +445,180 @@ export function AllDocumentsPage() {
         sortSelectId="documents-sort"
         sortAriaLabel="Sort documents"
         filtersTitle="Filters"
-        filtersDescription="Refine the library without leaving this page."
         filtersContent={(
           <>
             <div className="space-y-3">
-              <label htmlFor="documents-vault-search" className="text-lg font-semibold text-foreground">
+              <span className="text-lg font-semibold text-foreground">
                 Vault
-              </label>
-
-              {selectedVaults.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {selectedVaults.map(vault => (
-                    <ActiveFilterChip
-                      key={vault.id}
-                      label={vault.name}
-                      onRemove={() => toggleVaultSelection(vault.id)}
-                    />
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="relative">
-                <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  id="documents-vault-search"
-                  aria-label="Search vaults"
-                  value={vaultSearchQuery}
-                  onChange={event => setVaultSearchQuery(event.target.value)}
-                  placeholder="Search vaults"
-                  className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
-                />
-              </div>
-
-              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                {vaultsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading vaults...</p> : null}
-                {!vaultsQuery.isLoading ? (
+              </span>
+              <DropdownMenu
+                modal={false}
+                open={isVaultFilterOpen}
+                onOpenChange={(open) => {
+                  setIsVaultFilterOpen(open);
+                  if (!open) {
+                    setVaultSearchQuery('');
+                  }
+                }}
+              >
+                <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    aria-pressed={selectedVaultIds.length === 0}
-                    onClick={() => setSelectedVaultIds([])}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition',
-                      selectedVaultIds.length === 0
-                        ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
-                        : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
-                    )}
+                    aria-label="Vault filter"
+                    className={`${vaultInputClassName} flex h-14 w-full items-center justify-between gap-3 rounded-[18px] border-border/70 bg-background px-4 text-left`}
                   >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-foreground">All vaults</span>
-                      <span className="block truncate text-xs text-muted-foreground">Results can come from any accessible vault</span>
-                    </span>
-                    {selectedVaultIds.length === 0 ? <Check className="size-4 text-primary" /> : null}
+                    <span className="truncate text-base text-foreground">{selectedVault?.name ?? 'All vaults'}</span>
+                    <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition ${isVaultFilterOpen ? 'rotate-180' : ''}`} />
                   </button>
-                ) : null}
-                {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
-                  <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                    No vaults match "{vaultSearchQuery.trim()}".
-                  </p>
-                ) : null}
-                {filteredVaults.map(vault => {
-                  const isSelected = selectedVaultIds.includes(vault.id);
-
-                  return (
-                    <label
-                      key={vault.id}
-                      className={cn(
-                        'flex cursor-pointer items-center gap-3 rounded-[18px] border px-4 py-3 transition',
-                        isSelected
-                          ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
-                          : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleVaultSelection(vault.id)}
-                        className="size-4 border-border"
-                      />
-                      <div className="flex size-8 items-center justify-center rounded-xl bg-secondary text-primary">
-                        <Folder className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[min(28rem,calc(100vw-4rem))] p-0"
+                  onCloseAutoFocus={(event) => {
+                    event.preventDefault();
+                  }}
+                >
+                  <div ref={vaultFilterContentRef}>
+                    <div className="border-b border-border/60 p-2">
+                      <div className="relative">
+                        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                          aria-label="Search vaults"
+                          value={vaultSearchQuery}
+                          onChange={event => setVaultSearchQuery(event.target.value)}
+                          onKeyDown={event => handleFilterSearchKeyDown(event, () => focusFirstFilterItem(vaultFilterContentRef.current))}
+                          placeholder="Search vaults"
+                          className="h-10 w-full rounded-xl border border-transparent bg-background pl-10 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
+                          autoFocus
+                        />
                       </div>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-foreground">{vault.name}</span>
-                        <span className="block truncate text-xs text-muted-foreground">{vault.role} access</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+                    </div>
+                    <div className="max-h-72 overflow-auto p-2">
+                      {vaultsQuery.isLoading ? <p className="px-3 py-3 text-sm text-muted-foreground">Loading vaults...</p> : null}
+                      {!vaultsQuery.isLoading ? (
+                        <DropdownMenuItem
+                          className={cn(!selectedVaultId && 'bg-secondary/70 text-foreground')}
+                          onSelect={() => {
+                            setSelectedVaultId('');
+                            setIsVaultFilterOpen(false);
+                          }}
+                        >
+                          <span className="flex-1">All vaults</span>
+                          {!selectedVaultId ? <Check className="size-4 text-primary" /> : null}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
+                        <p className="px-3 py-3 text-sm text-muted-foreground">No vaults found.</p>
+                      ) : null}
+                      {filteredVaults.map(vault => (
+                        <DropdownMenuItem
+                          key={vault.id}
+                          className={cn(selectedVaultId === vault.id && 'bg-secondary/70 text-foreground')}
+                          onSelect={() => {
+                            setSelectedVaultId(vault.id);
+                            setIsVaultFilterOpen(false);
+                          }}
+                        >
+                          <span className="flex-1 truncate">{vault.name}</span>
+                          {selectedVaultId === vault.id ? <Check className="size-4 text-primary" /> : null}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <div className="space-y-4">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold text-foreground">Tags</h3>
-                <p className="text-sm text-muted-foreground">Choose one or more tags to narrow the results.</p>
-              </div>
+              <span className="text-lg font-semibold text-foreground">Tags</span>
+              <DropdownMenu
+                modal={false}
+                open={isTagFilterOpen}
+                onOpenChange={(open) => {
+                  setIsTagFilterOpen(open);
+                  if (!open) {
+                    setTagSearchQuery('');
+                  }
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Tags filter"
+                    className={`${vaultInputClassName} flex h-14 w-full items-center justify-between gap-3 rounded-[18px] border-border/70 bg-background px-4 text-left`}
+                  >
+                    <span className="truncate text-base text-foreground">{selectedTagsLabel}</span>
+                    <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition ${isTagFilterOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[min(28rem,calc(100vw-4rem))] p-0"
+                  onCloseAutoFocus={(event) => {
+                    event.preventDefault();
+                  }}
+                >
+                  <div ref={tagFilterContentRef}>
+                    <div className="border-b border-border/60 p-2">
+                      <div className="relative">
+                        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                          aria-label="Search tags"
+                          value={tagSearchQuery}
+                          onChange={event => setTagSearchQuery(event.target.value)}
+                          onKeyDown={event => handleFilterSearchKeyDown(event, () => focusFirstFilterItem(tagFilterContentRef.current))}
+                          placeholder="Search tags"
+                          className="h-10 w-full rounded-xl border border-transparent bg-background pl-10 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-72 overflow-auto p-2">
+                      {tagsQuery.isLoading ? <p className="px-3 py-3 text-sm text-muted-foreground">Loading tags...</p> : null}
+                      {!tagsQuery.isLoading && availableTags.length === 0 ? (
+                        <p className="px-3 py-3 text-sm text-muted-foreground">No tags found.</p>
+                      ) : null}
+                      {!tagsQuery.isLoading && availableTags.length > 0 && filteredTags.length === 0 ? (
+                        <p className="px-3 py-3 text-sm text-muted-foreground">No tags found.</p>
+                      ) : null}
+                      {filteredTags.map(tag => {
+                        const isSelected = selectedTagIds.includes(tag.id);
 
-              {selectedTags.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {selectedTags.map(tag => (
-                    <ActiveFilterChip
-                      key={tag.id}
-                      label={tag.name}
-                      onRemove={() => toggleTagSelection(tag.id)}
-                    />
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="relative">
-                <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  aria-label="Search tags"
-                  value={tagSearchQuery}
-                  onChange={event => setTagSearchQuery(event.target.value)}
-                  placeholder="Search tags"
-                  className={`${vaultInputClassName} h-12 rounded-[16px] border-border/70 bg-background pl-11`}
-                />
-              </div>
-
-              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                {tagsQuery.isLoading ? <p className="px-2 py-3 text-sm text-muted-foreground">Loading tags...</p> : null}
-                {!tagsQuery.isLoading && availableTags.length === 0 ? (
-                  <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                    No tags are available for the current vault scope.
-                  </p>
-                ) : null}
-                {!tagsQuery.isLoading && availableTags.length > 0 && filteredTags.length === 0 ? (
-                  <p className="rounded-[18px] bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                    No tags match "{tagSearchQuery.trim()}".
-                  </p>
-                ) : null}
-                {filteredTags.map(tag => {
-                  const isSelected = selectedTagIds.includes(tag.id);
-
-                  return (
-                    <label
-                      key={tag.id}
-                      className={cn(
-                        'flex cursor-pointer items-center gap-3 rounded-[18px] border px-4 py-3 transition',
-                        isSelected
-                          ? 'border-primary/15 bg-secondary text-foreground shadow-[0_14px_30px_rgba(19,27,46,0.05)]'
-                          : 'border-border/70 bg-background hover:border-primary/10 hover:bg-secondary/45',
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleTagSelection(tag.id)}
-                        className="size-4 border-border"
-                      />
-                      <span
-                        className="size-3 rounded-full"
-                        style={{ backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))' }}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-foreground">{tag.name}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {tag.vaultName ?? 'Vault tag'}{typeof tag.documentsCount === 'number' ? ` • ${tag.documentsCount} docs` : ''}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={tag.id}
+                            checked={isSelected}
+                            onSelect={event => event.preventDefault()}
+                            onCheckedChange={() => toggleTagSelection(tag.id)}
+                          >
+                            <span className="flex min-w-0 flex-1 items-center gap-3">
+                              <span
+                                className="size-2.5 rounded-full"
+                                style={{ backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))' }}
+                                aria-hidden="true"
+                              />
+                              <span className="truncate">{tag.name}</span>
+                            </span>
+                            {typeof tag.documentsCount === 'number' ? (
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {tag.documentsCount} doc{tag.documentsCount === 1 ? '' : 's'}
+                              </span>
+                            ) : null}
+                          </DropdownMenuCheckboxItem>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
-            <div className="rounded-[24px] border border-border/70 bg-background/80 p-5">
-              <div className="space-y-1">
+            <div className="rounded-[20px] border border-border/70 bg-background/80 p-4">
+              <div>
                 <h3 className="text-lg font-semibold text-foreground">Date</h3>
-                <p className="text-sm text-muted-foreground">Pick a preset or enter a custom range.</p>
               </div>
 
-                  <div className="mt-5 space-y-3">
+                  <div className="mt-3 space-y-2">
                     {[
                       { value: 'any', label: 'Any time' },
                       { value: 'last_7_days', label: 'Last 7 days' },
@@ -600,7 +628,7 @@ export function AllDocumentsPage() {
                       <label
                         key={option.value}
                         className={cn(
-                          'flex cursor-pointer items-center gap-3 rounded-[18px] px-4 py-3 transition',
+                          'flex cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-2.5 transition',
                           datePreset === option.value ? 'bg-secondary text-foreground' : 'hover:bg-secondary/45',
                         )}
                       >
@@ -618,7 +646,7 @@ export function AllDocumentsPage() {
                   </div>
 
                   {datePreset === 'custom' ? (
-                    <div className="mt-5 grid gap-4 border-l border-border/70 pl-4 sm:grid-cols-2 sm:pl-5">
+                    <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
                       <div className="space-y-2">
                         <label htmlFor="documents-custom-date-from" className="text-sm font-semibold text-muted-foreground">
                           From
@@ -639,7 +667,7 @@ export function AllDocumentsPage() {
                                 setCustomDateTo(nextValue);
                               }
                             }}
-                            className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
+                            className={`${vaultInputClassName} h-12 rounded-2xl border-border/70 bg-card pl-11`}
                           />
                         </div>
                       </div>
@@ -663,7 +691,7 @@ export function AllDocumentsPage() {
                                 setCustomDateFrom(nextValue);
                               }
                             }}
-                            className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
+                            className={`${vaultInputClassName} h-12 rounded-2xl border-border/70 bg-card pl-11`}
                           />
                         </div>
                       </div>
@@ -675,11 +703,8 @@ export function AllDocumentsPage() {
       />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
+        <div>
           <p className="text-xl font-medium tracking-[-0.03em] text-foreground">{summaryLabel}</p>
-          <p className="text-sm text-muted-foreground">
-            Search and filters are applied in the backend, with debounced input and cached result sets on the client.
-          </p>
         </div>
 
         <span className="vault-chip">{selectedSortLabel}</span>
@@ -725,7 +750,7 @@ export function AllDocumentsPage() {
                           </span>
                         </span>
                         <span className="mt-1 block text-sm text-muted-foreground">
-                          {vault?.role ?? 'global_admin'} access
+                          {formatVaultRole(vault?.role ?? 'global_admin')}
                         </span>
                       </span>
                       <ChevronDown

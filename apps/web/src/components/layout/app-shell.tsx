@@ -97,7 +97,7 @@ export function AppShell({ children }: PropsWithChildren) {
               <p className="font-display text-2xl font-extrabold tracking-[-0.05em] text-primary">
                 Arkivra
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">Secure document management</p>
+              <p className="mt-1 text-sm text-muted-foreground">Secure document storage</p>
             </div>
 
             <nav className="space-y-2">

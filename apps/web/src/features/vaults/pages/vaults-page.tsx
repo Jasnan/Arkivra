@@ -13,11 +13,49 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import { formatBytes } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
 import { vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
+
+function formatVaultCreatedDate(value: string | null) {
+  if (!value) {
+    return 'Not set';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+  }).format(new Date(value));
+}
+
+function formatVaultRole(role: string | null | undefined) {
+  if (role === 'owner') {
+    return 'Owner';
+  }
+
+  if (role === 'member') {
+    return 'Member';
+  }
+
+  if (role === 'global_admin') {
+    return 'Global admin';
+  }
+
+  return 'Access';
+}
+
+function getVaultDescription(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  if (value === 'Credise default vault') {
+    return 'Default vault';
+  }
+
+  return value;
+}
 
 export function VaultsPage() {
   const navigate = useNavigate();
@@ -111,38 +149,34 @@ export function VaultsPage() {
   return (
     <section className="space-y-8 pb-8">
       <PageIntro
-        eyebrow="Storage Infrastructure"
-        title="Vault overview"
-        description="Open a vault and get to work."
-        actions={meQuery.data?.canCreateVault ? <Button ref={createButtonRef} onClick={openCreateModal}>Create vault</Button> : undefined}
+        title="Vaults"
+        description="Manage and access your vaults."
+        actions={meQuery.data?.canCreateVault ? <Button ref={createButtonRef} onClick={openCreateModal}>New vault</Button> : undefined}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
-          label="Total vaults"
+          label="Vaults"
           value={vaults.length}
-          meta="Available now"
           icon={<Vault className="size-5" />}
           className="gap-3"
         />
         <StatCard
-          label="Owned by you"
+          label="Owned"
           value={ownedVaults}
-          meta="Full control"
           icon={<ShieldCheck className="size-5" />}
           className="gap-3"
         />
         <StatCard
-          label="Shared access"
+          label="Shared"
           value={memberVaults}
-          meta="Member access"
           icon={<FolderKanban className="size-5" />}
           className="gap-3"
         />
       </div>
 
       <SurfacePanel className="space-y-5">
-        <SectionTitle eyebrow="Active Vaults" title={`${vaults.length} ${vaults.length === 1 ? 'vault' : 'vaults'}`} />
+        <SectionTitle eyebrow="Vaults" title={`${vaults.length} ${vaults.length === 1 ? 'vault' : 'vaults'}`} />
 
         {vaultsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading vaults...</p> : null}
         {vaultsQuery.isError ? <p className="text-sm text-destructive">Unable to load vaults.</p> : null}
@@ -180,7 +214,7 @@ export function VaultsPage() {
                       </h2>
                       <div className="flex shrink-0 items-start gap-2">
                         <span className="vault-chip shrink-0">
-                          {vault.role ?? 'global_admin'}
+                          {formatVaultRole(vault.role)}
                         </span>
                         <div
                           className="relative"
@@ -206,9 +240,9 @@ export function VaultsPage() {
                         </div>
                       </div>
                     </div>
-                    {vault.description ? (
+                    {getVaultDescription(vault.description) ? (
                       <p className="mt-2 text-[1rem] leading-7 text-muted-foreground">
-                        {getDescriptionPreview(vault.description)}
+                        {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
                       </p>
                     ) : null}
                     <div className="mt-auto pt-4">
@@ -216,7 +250,7 @@ export function VaultsPage() {
                         {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Created {formatDate(vault.createdAt)}
+                        Created {formatVaultCreatedDate(vault.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -249,16 +283,15 @@ export function VaultsPage() {
           }}
         >
           <DialogHeader className="space-y-2 pr-10">
-            <p className="vault-label">Vault Creation</p>
-            <DialogTitle className="text-2xl">Create vault</DialogTitle>
-            <DialogDescription>Set a name and continue to vault settings.</DialogDescription>
+            <DialogTitle className="text-2xl">New vault</DialogTitle>
+            <DialogDescription className="sr-only">Create a new vault.</DialogDescription>
           </DialogHeader>
 
           {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
 
           <form className="space-y-4" onSubmit={handleCreateSubmit}>
             <div className="space-y-2">
-              <label htmlFor="create-vault-name" className="vault-label">Vault name</label>
+              <label htmlFor="create-vault-name" className="vault-label">Name</label>
               <input
                 id="create-vault-name"
                 type="text"
@@ -278,7 +311,7 @@ export function VaultsPage() {
                 value={description}
                 onChange={event => setDescription(event.target.value)}
                 className={`${vaultInputClassName} min-h-24 resize-y`}
-                placeholder="What belongs in this vault?"
+                placeholder="Optional"
               />
             </div>
 

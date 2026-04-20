@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Check, Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
+import { Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -85,7 +85,7 @@ export function DocumentSearchControls<TSortValue extends string>({
   sortSelectId: string;
   sortAriaLabel: string;
   filtersTitle: string;
-  filtersDescription: string;
+  filtersDescription?: string;
   filtersContent: ReactNode;
 }) {
   return (
@@ -133,7 +133,7 @@ export function DocumentSearchControls<TSortValue extends string>({
 
             <div className="flex items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 py-2 shadow-none">
               <span id={sortSelectId} className="text-sm font-semibold text-muted-foreground">
-                Sort by:
+                Sort
               </span>
               <Select value={sortBy} onValueChange={value => onSortChange(value as TSortValue)}>
                 <SelectTrigger
@@ -182,7 +182,9 @@ export function DocumentSearchControls<TSortValue extends string>({
               </div>
               <DialogHeader>
                 <DialogTitle>{filtersTitle}</DialogTitle>
-                <DialogDescription>{filtersDescription}</DialogDescription>
+                <DialogDescription className={filtersDescription ? undefined : 'sr-only'}>
+                  {filtersDescription ?? 'Adjust filters.'}
+                </DialogDescription>
               </DialogHeader>
             </div>
 
@@ -207,13 +209,7 @@ export function DocumentSearchControls<TSortValue extends string>({
             {filtersContent}
           </div>
 
-          <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-5">
-            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="flex size-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                <Check className="size-3.5" />
-              </span>
-              Results update automatically
-            </div>
+          <div className="mt-7 flex flex-wrap items-center justify-end gap-4 border-t border-border/70 pt-5">
             <Button type="button" onClick={onCloseFilters} className="rounded-[18px] px-5">
               Done
             </Button>

@@ -245,12 +245,15 @@ describe('documents library search controls', () => {
     });
 
     await user.type(screen.getByLabelText(/search documents/i), 'invoice');
-    await selectRadixOption(user, /sort by/i, /name \(a-z\)/i);
+    await selectRadixOption(user, /^sort$/i, /name \(a-z\)/i);
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
+    await user.click(screen.getByRole('button', { name: /vault filter/i }));
     await user.type(screen.getByLabelText(/search vaults/i), 'sher');
-    await user.click(screen.getByRole('checkbox', { name: /sherlock owner access/i }));
-    await user.click(screen.getByRole('checkbox', { name: /invoices sherlock/i }));
+    await user.click(screen.getByRole('menuitem', { name: /^sherlock$/i }));
+    await user.click(screen.getByRole('button', { name: /tags filter/i }));
+    await user.click(screen.getByRole('menuitemcheckbox', { name: /invoices/i }));
+    await user.click(screen.getByRole('button', { name: /tags filter/i }));
     await user.click(screen.getByLabelText(/custom range/i));
     await user.type(screen.getByLabelText(/^from$/i), '2026-04-01');
     await user.type(screen.getByLabelText(/^to$/i), '2026-04-30');
@@ -263,6 +266,71 @@ describe('documents library search controls', () => {
         ),
       ).toBe(true);
     });
+  });
+
+  it('keeps filter search focus in the input while typing', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_2', name: 'Puzzle Palace', role: 'editor' },
+          ],
+        });
+      }
+
+      if (url === '/api/tags' || url === '/api/tags?vaultId=vlt_1') {
+        return jsonResponse({
+          tags: [
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },
+            { id: 'tag_2', name: 'Insurance', color: '#16a34a', vaultId: 'vlt_1', vaultName: 'Sherlock' },
+          ],
+        });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+
+    await user.click(screen.getByRole('button', { name: /vault filter/i }));
+    const vaultSearch = screen.getByLabelText(/search vaults/i);
+    await user.type(vaultSearch, 'sher');
+    expect(vaultSearch).toHaveValue('sher');
+    expect(vaultSearch).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: /tags filter/i }));
+    const tagSearch = screen.getByLabelText(/search tags/i);
+    await user.type(tagSearch, 'ins');
+    expect(tagSearch).toHaveValue('ins');
+    expect(tagSearch).toHaveFocus();
   });
 
   it('keeps vault group order stable when document sorting changes', async () => {
@@ -339,7 +407,7 @@ describe('documents library search controls', () => {
       routePath: '/documents',
     });
 
-    await selectRadixOption(user, /sort by/i, /name \(z-a\)/i);
+    await selectRadixOption(user, /^sort$/i, /name \(z-a\)/i);
 
     expect(await screen.findByText('Sherlock')).toBeInTheDocument();
     expect(screen.getByText('Puzzle Palace')).toBeInTheDocument();

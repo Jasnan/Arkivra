@@ -1,0 +1,3 @@
+#!/bin/sh
+
+pnpm exec node scripts/validate-commit-message.mjs "$1"

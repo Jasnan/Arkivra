@@ -1,0 +1,20 @@
+#!/bin/sh
+
+MESSAGE_FILE="$1"
+COMMIT_SOURCE="$2"
+
+if [ -z "$MESSAGE_FILE" ]; then
+  exit 0
+fi
+
+case "$COMMIT_SOURCE" in
+  merge|squash|commit)
+    exit 0
+    ;;
+esac
+
+if [ -s "$MESSAGE_FILE" ]; then
+  exit 0
+fi
+
+cat .gitmessage.txt > "$MESSAGE_FILE"

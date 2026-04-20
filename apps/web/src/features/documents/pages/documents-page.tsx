@@ -18,7 +18,7 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 
 const PAGE_SIZE = 8;
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
-  { value: 'created_desc', label: 'Newest upload' },
+  { value: 'created_desc', label: 'Newest' },
   { value: 'created_asc', label: 'Oldest upload' },
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
@@ -254,9 +254,7 @@ export function DocumentsPage() {
   return (
     <section className="space-y-6 pb-8">
       <PageIntro
-        eyebrow="Vault Operations"
         title="Documents"
-        description="A focused document index for this vault."
         actions={(
           <div className="flex flex-wrap items-center gap-3">
             <Link to={`/vaults/${vaultId}/documents/trash`} className="vault-link">Deleted documents</Link>
@@ -266,7 +264,7 @@ export function DocumentsPage() {
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
             >
               <Upload className="size-4" />
-              Batch upload
+              Upload
             </Link>
           </div>
         )}
@@ -285,7 +283,7 @@ export function DocumentsPage() {
           setSearchText(value);
           setPageIndex(0);
         }}
-        searchPlaceholder="Search documents..."
+        searchPlaceholder="Search documents"
         searchAriaLabel="Search documents"
         isFiltersOpen={isFiltersOpen}
         onOpenFilters={() => setIsFiltersOpen(true)}
@@ -303,7 +301,6 @@ export function DocumentsPage() {
         sortSelectId="vault-documents-sort"
         sortAriaLabel="Sort documents"
         filtersTitle="Filters"
-        filtersDescription="Refine this vault without leaving the page."
         filtersContent={(
           <>
             <div className="space-y-3">
@@ -333,13 +330,12 @@ export function DocumentsPage() {
               </Select>
             </div>
 
-            <div className="rounded-[24px] border border-border/70 bg-background/80 p-5">
-              <div className="space-y-1">
+            <div className="rounded-[20px] border border-border/70 bg-background/80 p-4">
+              <div>
                 <h3 className="text-lg font-semibold text-foreground">Date</h3>
-                <p className="text-sm text-muted-foreground">Pick a preset or enter a custom range.</p>
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-3 space-y-2">
                 {[
                   { value: 'any', label: 'Any time' },
                   { value: 'last_7_days', label: 'Last 7 days' },
@@ -348,7 +344,7 @@ export function DocumentsPage() {
                 ].map(option => (
                   <label
                     key={option.value}
-                    className={`flex cursor-pointer items-center gap-3 rounded-[18px] px-4 py-3 transition ${
+                    className={`flex cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-2.5 transition ${
                       datePreset === option.value ? 'bg-secondary text-foreground' : 'hover:bg-secondary/45'
                     }`}
                   >
@@ -369,7 +365,7 @@ export function DocumentsPage() {
               </div>
 
               {datePreset === 'custom' ? (
-                <div className="mt-5 grid gap-4 border-l border-border/70 pl-4 sm:grid-cols-2 sm:pl-5">
+                <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
                   <div className="space-y-2">
                     <label htmlFor="vault-documents-date-from" className="text-sm font-semibold text-muted-foreground">
                       From
@@ -392,7 +388,7 @@ export function DocumentsPage() {
 
                           setPageIndex(0);
                         }}
-                        className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
+                        className={`${vaultInputClassName} h-12 rounded-2xl border-border/70 bg-card pl-11`}
                       />
                     </div>
                   </div>
@@ -419,7 +415,7 @@ export function DocumentsPage() {
 
                           setPageIndex(0);
                         }}
-                        className={`${vaultInputClassName} h-14 rounded-[18px] border-border/70 bg-card pl-11`}
+                        className={`${vaultInputClassName} h-12 rounded-2xl border-border/70 bg-card pl-11`}
                       />
                     </div>
                   </div>
@@ -432,7 +428,7 @@ export function DocumentsPage() {
 
       <SurfacePanel className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          {activeResultCount} document{activeResultCount === 1 ? '' : 's'} in total
+          {activeResultCount} document{activeResultCount === 1 ? '' : 's'}
         </p>
       </SurfacePanel>
 

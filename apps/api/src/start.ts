@@ -63,7 +63,11 @@ export async function startApp() {
   const cleanups: Array<() => Promise<void>> = [];
 
   if (isWorkerMode) {
-    const doclingClient = createDoclingClient({ baseUrl: config.docling.url });
+    const doclingClient = createDoclingClient({
+      baseUrl: config.docling.url,
+      pollIntervalMs: config.docling.pollIntervalMs,
+      maxWaitMs: config.docling.maxWaitMs,
+    });
     const documentWorker = createDocumentWorker({
       db,
       storage,

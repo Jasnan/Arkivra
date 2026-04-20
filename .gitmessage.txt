@@ -1,0 +1,5 @@
+type(scope): short summary
+
+Changes:
+- Summarize the most important change
+- Summarize another meaningful change

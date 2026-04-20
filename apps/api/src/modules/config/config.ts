@@ -97,6 +97,18 @@ export const configDefinition = {
       default: 'http://localhost:5001',
       env: 'ARKIVRA_DOCLING_URL',
     },
+    pollIntervalMs: {
+      doc: 'How often Arkivra polls Docling async job status.',
+      schema: z.coerce.number().int().min(100).max(60_000),
+      default: 2_000,
+      env: 'ARKIVRA_DOCLING_POLL_INTERVAL_MS',
+    },
+    maxWaitMs: {
+      doc: 'Maximum time Arkivra waits for a Docling async conversion to finish.',
+      schema: z.coerce.number().int().min(1_000).max(7 * 24 * 60 * 60 * 1000),
+      default: 6 * 60 * 60 * 1000,
+      env: 'ARKIVRA_DOCLING_MAX_WAIT_MS',
+    },
   },
   encryption: {
     keys: {

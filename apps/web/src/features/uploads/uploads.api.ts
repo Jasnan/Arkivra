@@ -76,3 +76,15 @@ export async function abortUploadSession({
     method: 'POST',
   });
 }
+
+export async function retryUploadProcessing({
+  vaultId,
+  uploadId,
+}: {
+  vaultId: string;
+  uploadId: string;
+}) {
+  return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/retry-processing`, {
+    method: 'POST',
+  });
+}

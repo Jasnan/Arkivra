@@ -11,6 +11,7 @@
     "dev": "pnpm --filter @arkivra/api dev",
     "dev:web": "pnpm --filter @arkivra/web dev",
     "build": "pnpm --filter './apps/*' build",
+    "commitmsg:check": "node scripts/validate-commit-message.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm --filter './apps/*' lint",

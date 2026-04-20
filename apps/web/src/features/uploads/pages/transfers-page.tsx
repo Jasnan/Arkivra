@@ -13,7 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import { StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,12 +28,17 @@ function statusLabel(status: string) {
     case 'queued': return 'Queued';
     case 'uploading': return 'Uploading';
     case 'paused': return 'Paused';
-    case 'processing': return 'Processing';
+    case 'pending': return 'Queued for extraction';
+    case 'processing': return 'Extracting text';
     case 'completed': return 'Done';
     case 'failed': return 'Failed';
     case 'canceled': return 'Canceled';
     default: return status;
   }
+}
+
+function retryLabel(item: { uploadId: string | null; documentId: string | null }) {
+  return item.uploadId !== null && item.documentId !== null ? 'Retry extraction' : 'Retry';
 }
 
 export function TransfersPage() {
@@ -104,79 +109,68 @@ export function TransfersPage() {
   }
 
   return (
-    <section className="space-y-6 pb-8">
-      <PageIntro
-        eyebrow="Vault Operations"
-        title="Batch Upload"
-        description={
-          isVaultLocked
-            ? `Manage large transfer queues for ${activeVaultName ?? 'this vault'} without leaving the current workspace.`
-            : 'Manage large transfer queues in one page without losing track of progress.'
-        }
-        actions={(
-          <div className="flex flex-wrap gap-3">
-            <Link to={vaultId ? `/vaults/${vaultId}/documents` : '/documents'} className="vault-link">Back to documents</Link>
-          </div>
-        )}
-      />
+    <section className="space-y-4 pb-8">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="font-display text-3xl font-extrabold tracking-[-0.04em] text-foreground sm:text-4xl">
+          Upload
+        </h1>
+        <Link to={vaultId ? `/vaults/${vaultId}/documents` : '/documents'} className="vault-link">Back</Link>
+      </div>
 
-      <SurfacePanel className="space-y-5">
-        <div className={`grid gap-4 ${isVaultLocked ? '' : 'lg:grid-cols-[280px_minmax(0,1fr)]'}`}>
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <span id="transfer-vault-label" className="text-[1.05rem] font-medium text-muted-foreground">Vault</span>
           {isVaultLocked ? (
-            <div className="rounded-[24px] border border-border/70 bg-secondary/20 px-5 py-4">
-              <p className="vault-label">Target vault</p>
-              <p className="mt-2 text-lg font-semibold text-foreground">{activeVaultName ?? 'Selected vault'}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Files added here will be uploaded directly into this vault.
-              </p>
+            <div className="flex h-12 w-full max-w-[17.5rem] items-center rounded-[18px] border border-border/70 bg-secondary/20 px-4 text-base font-medium text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+              {activeVaultName ?? 'Selected vault'}
             </div>
           ) : (
-            <div className="space-y-2">
-              <span id="transfer-vault-label" className="vault-label">Target vault</span>
-              <Select
-                value={vaultId || '__none__'}
-                onValueChange={value => setSearchParams(value === '__none__' ? {} : { vaultId: value })}
+            <Select
+              value={vaultId || '__none__'}
+              onValueChange={value => setSearchParams(value === '__none__' ? {} : { vaultId: value })}
+            >
+              <SelectTrigger
+                aria-labelledby="transfer-vault-label"
+                className={`${vaultInputClassName} h-12 w-full max-w-[17.5rem] rounded-[18px] bg-secondary/20 px-4 text-base text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]`}
               >
-                <SelectTrigger aria-labelledby="transfer-vault-label" className={vaultInputClassName}>
-                  <SelectValue placeholder="Select a vault" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Select a vault</SelectItem>
-                  {(data?.vaults ?? []).map(vault => (
-                    <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <SelectValue placeholder="Select a vault" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Select a vault</SelectItem>
+                {(data?.vaults ?? []).map(vault => (
+                  <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
+        </div>
 
+        <SurfacePanel className="rounded-[30px] p-5 sm:p-6">
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             onDragOver={event => event.preventDefault()}
             onDrop={handleDrop}
             className={cn(
-              'group flex min-h-[220px] flex-col items-center justify-center rounded-[28px] border border-dashed border-border/70 bg-secondary/20 px-6 text-center transition',
-              canUpload ? 'hover:border-primary/40 hover:bg-secondary/40' : 'cursor-not-allowed opacity-70',
+              'group flex min-h-[300px] w-full flex-col items-center justify-center rounded-[32px] border border-dashed border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(247,248,255,0.88))] px-6 py-12 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition sm:px-10 sm:py-16',
+              canUpload ? 'hover:border-primary/30 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(242,245,255,0.96))]' : 'cursor-not-allowed opacity-70',
             )}
             disabled={!canUpload}
           >
-            <div className="flex size-16 items-center justify-center rounded-2xl bg-card text-primary shadow-[0_18px_36px_rgba(19,27,46,0.08)]">
-              <FileUp className="size-7" />
+            <div className="flex size-[4.8rem] items-center justify-center rounded-[22px] bg-card text-primary shadow-[0_18px_36px_rgba(19,27,46,0.08)]">
+              <FileUp className="size-8" />
             </div>
-            <h2 className="mt-5 font-display text-2xl font-extrabold tracking-[-0.04em] text-foreground">
+            <h2 className="mt-6 font-display text-[2rem] font-extrabold tracking-[-0.05em] text-foreground sm:text-[2.2rem]">
               Drag and drop files here
             </h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              {isVaultLocked
-                ? 'Chunked uploads land in a resumable queue for this vault so you can keep adding files without restarting the workflow.'
-                : 'Choose a target vault, then add files into a resumable queue without restarting the workflow.'}
+            <p className="mt-2 max-w-md text-[1.05rem] leading-7 text-muted-foreground">
+              Select a vault and add files
             </p>
-            <span className="mt-5 inline-flex h-11 items-center rounded-xl bg-card px-4 text-sm font-semibold text-foreground ring-1 ring-border/70">
+            <span className="mt-6 inline-flex h-12 items-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground shadow-[0_16px_30px_rgba(67,98,214,0.28)] transition group-hover:bg-primary/95">
               Browse files
             </span>
           </button>
-        </div>
+        </SurfacePanel>
 
         <input
           ref={inputRef}
@@ -185,7 +179,7 @@ export function TransfersPage() {
           className="hidden"
           onChange={handleInputChange}
         />
-      </SurfacePanel>
+      </div>
 
       {state.hydratedFromStorage && state.items.some(item => item.error?.includes('Previous upload session found')) ? (
         <StatusBanner>
@@ -193,31 +187,40 @@ export function TransfersPage() {
         </StatusBanner>
       ) : null}
 
-      <StatusBanner>
-        Completed uploads remain in Transfers for 24 hours, then are automatically pruned from the queue. Documents remain available in their vaults.
-      </StatusBanner>
-
-      {state.processingCount > 0 ? (
+      {state.pendingCount > 0 ? (
         <StatusBanner>
-          {state.processingCount} file{state.processingCount === 1 ? '' : 's'} uploaded and now being processed by Arkivra. Completion updates are coming from the server.
+          {state.pendingCount} file{state.pendingCount === 1 ? '' : 's'} uploaded and queued for text/OCR extraction.
         </StatusBanner>
       ) : null}
 
-      <SurfacePanel className="space-y-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      {state.processingCount > 0 ? (
+        <StatusBanner>
+          {state.processingCount} file{state.processingCount === 1 ? '' : 's'} currently in text/OCR extraction. Completion updates are coming from the server.
+        </StatusBanner>
+      ) : null}
+
+      <SurfacePanel className="space-y-4 rounded-[30px] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
-            <p className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
-              {state.items.length} files in transfer queue
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {formatBytes(uploadedBytes)} of {formatBytes(totalBytes)} transferred
-            </p>
+            <div className="space-y-1">
+              <h2 className="font-display text-[2rem] font-bold tracking-[-0.05em] text-foreground">
+                Upload queue
+              </h2>
+              <p className="text-[1.02rem] text-muted-foreground">
+                Completed uploads are kept for 24 hours.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-[1.05rem] text-muted-foreground">
+              <span className="font-semibold text-foreground">{state.items.length} files</span>
+              <span className="h-5 w-px bg-border/80" />
+              <span>{formatBytes(uploadedBytes)}</span>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Transfer actions">
+                <Button variant="outline" size="icon" aria-label="Transfer actions" className="rounded-2xl">
                   <MoreHorizontal className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -271,21 +274,21 @@ export function TransfersPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_120px]">
-          <div className="h-3 overflow-hidden rounded-full bg-secondary">
+        <div className="grid items-end gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="h-2.5 overflow-hidden rounded-full bg-secondary/90">
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-300"
               style={{ width: `${percent}%` }}
             />
           </div>
-          <div className="text-right font-display text-4xl font-extrabold tracking-[-0.06em] text-foreground">
+          <div className="text-right font-display text-[3.2rem] font-extrabold leading-none tracking-[-0.08em] text-foreground">
             {percent}%
           </div>
         </div>
       </SurfacePanel>
 
-      <SurfacePanel className="overflow-hidden p-0">
-        <div className="hidden grid-cols-[minmax(0,1.3fr)_140px_160px_160px] gap-4 border-b border-border/70 px-6 py-4 text-sm text-muted-foreground md:grid">
+      <SurfacePanel className="overflow-hidden rounded-[30px] p-0">
+        <div className="hidden grid-cols-[minmax(0,1.3fr)_140px_160px_160px] gap-4 border-b border-border/70 px-7 py-4 text-[1.02rem] text-muted-foreground md:grid">
           <span>File name</span>
           <span>Size</span>
           <span>Status</span>
@@ -293,9 +296,9 @@ export function TransfersPage() {
         </div>
 
         {state.items.length === 0 ? (
-          <p className="px-6 py-10 text-sm text-muted-foreground">No transfers yet. Add files above to start a batch upload.</p>
+          <p className="px-7 py-12 text-center text-[1.1rem] text-muted-foreground">Add files above to start uploading</p>
         ) : nonCompletedItems.map(item => (
-          <div key={item.id} className="border-b border-border/60 px-6 py-4 last:border-b-0">
+          <div key={item.id} className="border-b border-border/60 px-7 py-4 last:border-b-0">
             <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_140px_160px_160px] md:items-center">
               <div className="min-w-0">
                 <p className="truncate font-medium text-foreground">{item.fileName}</p>
@@ -315,14 +318,14 @@ export function TransfersPage() {
               <div className="flex items-center gap-2 text-sm">
                 {item.status === 'completed' ? <CheckCircle2 className="size-4 text-primary" /> : null}
                 {item.status === 'failed' ? <AlertCircle className="size-4 text-destructive" /> : null}
-                {item.status === 'uploading' || item.status === 'processing' ? <LoaderCircle className="size-4 animate-spin text-primary" /> : null}
+                {item.status === 'uploading' || item.status === 'pending' || item.status === 'processing' ? <LoaderCircle className="size-4 animate-spin text-primary" /> : null}
                 <span className={cn(item.status === 'failed' && 'text-destructive')}>{statusLabel(item.status)}</span>
               </div>
 
               <div className="flex items-center justify-end gap-2">
                 {item.status === 'failed' ? (
                   <Button variant="ghost" size="sm" onClick={() => void uploadManager.retryFailed(item.id)}>
-                    Retry
+                    {retryLabel(item)}
                   </Button>
                 ) : null}
                 <Button variant="ghost" size="sm" onClick={() => void uploadManager.remove(item.id)}>
@@ -335,7 +338,11 @@ export function TransfersPage() {
               <p className="mt-2 text-sm text-destructive">{item.error}</p>
             ) : (
               <p className="mt-2 text-sm text-muted-foreground">
-                {formatBytes(item.bytesUploaded)} uploaded • {Math.round(item.progress)}%
+                {item.status === 'pending'
+                  ? `${formatBytes(item.bytesUploaded)} uploaded • waiting for text/OCR extraction to start`
+                  : item.status === 'processing'
+                    ? `${formatBytes(item.bytesUploaded)} uploaded • text/OCR extraction in progress`
+                    : `${formatBytes(item.bytesUploaded)} uploaded • ${Math.round(item.progress)}%`}
               </p>
             )}
           </div>
@@ -345,7 +352,7 @@ export function TransfersPage() {
           <div className={cn(nonCompletedItems.length > 0 && 'border-t border-border/60')}>
             <button
               type="button"
-              className="flex w-full items-center justify-between px-6 py-4 text-left transition hover:bg-secondary/30"
+              className="flex w-full items-center justify-between px-7 py-4 text-left transition hover:bg-secondary/30"
               onClick={() => setIsCompletedExpanded(expanded => !expanded)}
             >
               <div>
@@ -358,7 +365,7 @@ export function TransfersPage() {
             </button>
 
             {isCompletedExpanded ? completedItems.map(item => (
-              <div key={item.id} className="border-t border-border/60 px-6 py-4">
+              <div key={item.id} className="border-t border-border/60 px-7 py-4">
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_140px_160px_160px] md:items-center">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-foreground">{item.fileName}</p>

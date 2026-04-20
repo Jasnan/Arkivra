@@ -10,6 +10,7 @@ export type UploadSessionStatus =
   | 'initialized'
   | 'uploading'
   | 'paused'
+  | 'pending'
   | 'processing'
   | 'completed'
   | 'failed'
@@ -230,7 +231,7 @@ export function createUploadsServices({
       throw new Error('Invalid part number');
     }
 
-    if (row.status === 'completed' || row.status === 'processing' || row.status === 'aborted') {
+    if (row.status === 'completed' || row.status === 'pending' || row.status === 'processing' || row.status === 'aborted') {
       throw new Error('Upload session is no longer writable');
     }
 
@@ -319,7 +320,7 @@ export function createUploadsServices({
       .update(uploadSessionsTable)
       .set({
         documentId: result.existingId ?? result.document?.id ?? null,
-        status: result.duplicate ? 'failed' : 'processing',
+        status: result.duplicate ? 'failed' : 'pending',
         errorCode: result.duplicate ? 'document.duplicate' : null,
         errorMessage: result.duplicate
           ? 'A document with the same content already exists in this vault'
@@ -375,6 +376,44 @@ export function createUploadsServices({
     return updatedRow === undefined ? null : toPublicUploadSession(updatedRow);
   }
 
+  async function markUploadForProcessingRetry({
+    uploadId,
+    vaultId,
+    userId,
+  }: {
+    uploadId: string;
+    vaultId: string;
+    userId: string;
+  }) {
+    const row = await loadOwnedUploadSession({ uploadId, vaultId, userId });
+
+    if (row === null) {
+      return { upload: null, reason: 'not_found' as const };
+    }
+
+    if (row.documentId === null) {
+      return { upload: null, reason: 'missing_document' as const };
+    }
+
+    const [updatedRow] = await db
+      .update(uploadSessionsTable)
+      .set({
+        status: 'pending',
+        errorCode: null,
+        errorMessage: null,
+        completedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(uploadSessionsTable.id, uploadId))
+      .returning();
+
+    if (updatedRow === undefined) {
+      throw new Error('Failed to update upload session');
+    }
+
+    return { upload: toPublicUploadSession(updatedRow), reason: null };
+  }
+
   async function updateUploadSessionProcessingStatus({
     documentId,
     status,
@@ -407,6 +446,7 @@ export function createUploadsServices({
     getUploadSession,
     initUpload,
     listUploadSessions,
+    markUploadForProcessingRetry,
     uploadPart,
     updateUploadSessionProcessingStatus,
   };

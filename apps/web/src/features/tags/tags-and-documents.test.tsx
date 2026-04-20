@@ -85,7 +85,7 @@ describe('tags and documents pages', () => {
     expect(await screen.findByText('Invoices')).toBeInTheDocument();
     expect(screen.getByText(/monthly billing documents/i)).toBeInTheDocument();
 
-    await user.click(screen.getAllByRole('button', { name: /create tag/i })[0]);
+    await user.click(screen.getByRole('button', { name: /new tag/i }));
     const createDialog = screen.getByRole('dialog', { name: /create tag/i });
     await selectRadixOption({
       user,
@@ -163,7 +163,7 @@ describe('tags and documents pages', () => {
     expect(screen.queryByText('Legal')).not.toBeInTheDocument();
   });
 
-  it('returns focus to the create tag button after dismissing the create dialog', async () => {
+  it('returns focus to the new tag button after dismissing the create dialog', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -188,7 +188,7 @@ describe('tags and documents pages', () => {
       routePath: '/tags',
     });
 
-    const createButton = (await screen.findAllByRole('button', { name: /create tag/i }))[0];
+    const createButton = await screen.findByRole('button', { name: /new tag/i });
     await user.click(createButton);
     expect(await screen.findByRole('dialog', { name: /create tag/i })).toBeInTheDocument();
 

@@ -81,6 +81,62 @@ pnpm dev
 pnpm dev:web
 ```
 
+## Commit Style
+
+This repository enforces Conventional Commits through a repo-local `commit-msg` hook.
+
+Examples:
+
+```text
+feat(uploads): add async extraction retry
+
+Changes:
+- Add async Docling submit and poll flow
+- Show clearer extraction status in Transfers
+```
+
+Rules:
+
+- Use `type(scope): subject` or `type: subject`
+- Keep the header to 72 characters or fewer
+- Start the subject with a lowercase verb
+- Do not end the header with a period
+- Add a `Changes:` section in the body
+- Add at least one short, human-readable bullet under `Changes:`
+
+Allowed types:
+
+- `feat`
+- `fix`
+- `refactor`
+- `perf`
+- `test`
+- `docs`
+- `build`
+- `ci`
+- `chore`
+- `revert`
+
+To enable the hook in your local clone, run:
+
+```bash
+git config core.hooksPath .githooks
+chmod +x .githooks/commit-msg
+chmod +x .githooks/prepare-commit-msg
+```
+
+Optional but recommended:
+
+```bash
+git config commit.template .gitmessage.txt
+```
+
+You can also validate a message manually with:
+
+```bash
+pnpm commitmsg:check .git/COMMIT_EDITMSG
+```
+
 ## Docker Compose Services
 
 ```

@@ -39,7 +39,7 @@ describe('document search services', () => {
       dateTo: new Date('2026-04-30'),
     });
 
-    const firstQuery = execute.mock.calls[0]?.[0];
+    const firstQuery = (execute.mock.calls as unknown as any[][])[0]?.[0];
     const queryText = flattenSqlChunks(firstQuery?.queryChunks ?? []);
 
     expect(queryText).toContain('COALESCE(d.document_date, d.created_at)');
@@ -61,8 +61,8 @@ describe('document search services', () => {
       pageSize: 20,
     });
 
-    const firstQuery = execute.mock.calls[0]?.[0];
-    const secondQuery = execute.mock.calls[1]?.[0];
+    const firstQuery = (execute.mock.calls as unknown as any[][])[0]?.[0];
+    const secondQuery = (execute.mock.calls as unknown as any[][])[1]?.[0];
     const combinedQueryText = [
       flattenSqlChunks(firstQuery?.queryChunks ?? []),
       flattenSqlChunks(secondQuery?.queryChunks ?? []),

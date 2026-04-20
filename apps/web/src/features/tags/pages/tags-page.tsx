@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatDate } from '@/features/documents/documents.utils';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useAccessibleTagsQuery, useTagsQuery } from '@/features/tags/tags.queries';
@@ -150,42 +149,19 @@ function TagActionsMenu({
   );
 }
 
-function formatRelativeDate(value?: string) {
+function formatTagCreatedDate(value?: string) {
   if (!value) {
     return 'Unknown date';
   }
 
-  const date = new Date(value);
-  const diffMs = date.getTime() - Date.now();
-  const diffMinutes = Math.round(diffMs / (1000 * 60));
-  const absMinutes = Math.abs(diffMinutes);
-  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-
-  if (absMinutes < 60) {
-    return rtf.format(diffMinutes, 'minute');
-  }
-
-  const diffHours = Math.round(diffMinutes / 60);
-  if (Math.abs(diffHours) < 24) {
-    return rtf.format(diffHours, 'hour');
-  }
-
-  const diffDays = Math.round(diffHours / 24);
-  if (Math.abs(diffDays) < 30) {
-    return rtf.format(diffDays, 'day');
-  }
-
-  const diffMonths = Math.round(diffDays / 30);
-  if (Math.abs(diffMonths) < 12) {
-    return rtf.format(diffMonths, 'month');
-  }
-
-  return rtf.format(Math.round(diffDays / 365), 'year');
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+  }).format(new Date(value));
 }
 
 function getTagDescription(tag: Tag) {
   const description = tag.description?.trim();
-  return description && description.length > 0 ? description : 'No description';
+  return description && description.length > 0 ? description : '—';
 }
 
 export function TagsPage() {
@@ -371,13 +347,7 @@ export function TagsPage() {
   return (
     <section className="space-y-6 pb-8">
       <PageIntro
-        eyebrow={isVaultScoped ? 'Vault Taxonomy' : 'Document Library'}
-        title="Document Tags"
-        description={
-          isVaultScoped
-            ? 'Manage the labels used to organize documents in this vault.'
-            : 'Tags help categorize documents across your workspace so everything stays easier to scan, filter, and retrieve.'
-        }
+        title="Tags"
         actions={(
           <div className="flex flex-wrap items-center gap-3">
             {isVaultScoped ? (
@@ -391,7 +361,7 @@ export function TagsPage() {
               disabled={vaultsQuery.isLoading || vaults.length === 0}
             >
               <Plus className="size-4" />
-              Create tag
+              New tag
             </Button>
           </div>
         )}
@@ -404,29 +374,17 @@ export function TagsPage() {
         </div>
       ) : null}
 
-      <SurfacePanel className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl space-y-1">
-            <h2 className="font-display text-xl font-bold tracking-[-0.03em] text-foreground">
-              Tags overview
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Browse every tag, see where it belongs, and open editing only when you need it.
-            </p>
-          </div>
-
-          <div className="w-full lg:w-[22rem]">
-            <label htmlFor="tag-filter" className="sr-only">Search tags</label>
-            <input
-              id="tag-filter"
-              value={filterText}
-              onChange={event => setFilterText(event.target.value)}
-              className={vaultInputClassName}
-              placeholder="Search by tag, description, or vault"
-            />
-          </div>
+      <SurfacePanel>
+        <div className="w-full lg:w-[22rem]">
+          <label htmlFor="tag-filter" className="sr-only">Search tags</label>
+          <input
+            id="tag-filter"
+            value={filterText}
+            onChange={event => setFilterText(event.target.value)}
+            className={vaultInputClassName}
+            placeholder="Search tags"
+          />
         </div>
-
       </SurfacePanel>
 
       <SurfacePanel className="overflow-hidden p-0">
@@ -483,11 +441,8 @@ export function TagsPage() {
                 {tag.vaultName ?? 'Current vault'}
               </div>
 
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>{formatRelativeDate(tag.createdAt)}</p>
-                {tag.createdAt ? (
-                  <p className="text-xs text-muted-foreground/80">{formatDate(tag.createdAt)}</p>
-                ) : null}
+              <div className="text-sm text-muted-foreground">
+                <p>{formatTagCreatedDate(tag.createdAt)}</p>
               </div>
 
               <div className="flex items-center justify-end gap-2">

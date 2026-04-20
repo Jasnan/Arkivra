@@ -245,18 +245,15 @@ describe('documents library search controls', () => {
     });
 
     await user.type(screen.getByLabelText(/search documents/i), 'invoice');
+    await selectRadixOption(user, /sort by/i, /name \(a-z\)/i);
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
-    await user.click(screen.getByRole('button', { name: /vault filter/i }));
     await user.type(screen.getByLabelText(/search vaults/i), 'sher');
-    await user.click(screen.getByRole('option', { name: /sherlock/i }));
-    await user.click(screen.getByRole('button', { name: /tag filter/i }));
-    await user.click(screen.getByRole('option', { name: /invoices/i }));
+    await user.click(screen.getByRole('checkbox', { name: /sherlock owner access/i }));
+    await user.click(screen.getByRole('checkbox', { name: /invoices sherlock/i }));
     await user.click(screen.getByLabelText(/custom range/i));
     await user.type(screen.getByLabelText(/^from$/i), '2026-04-01');
     await user.type(screen.getByLabelText(/^to$/i), '2026-04-30');
-
-    await selectRadixOption(user, /sort by/i, /name \(a-z\)/i);
 
     await waitFor(() => {
       expect(
@@ -411,5 +408,62 @@ describe('documents library search controls', () => {
 
     expect(fromInput).toHaveValue('2026-04-18');
     expect(toInput).toHaveValue('2026-04-18');
+  });
+
+  it('returns focus to the filter trigger after dismissing the dialog with escape', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    const filterButton = screen.getByRole('button', { name: /filter/i });
+    await user.click(filterButton);
+    expect(await screen.findByRole('dialog', { name: /filters/i })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /filters/i })).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(filterButton).toHaveFocus();
+    });
   });
 });

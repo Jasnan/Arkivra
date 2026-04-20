@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ellipsis, FolderKanban, FolderOpen, ShieldCheck, Vault } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -30,6 +30,7 @@ export function VaultsPage() {
   const [description, setDescription] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const canCreateVault = meQuery.data?.canCreateVault === true;
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const ownedVaults = useMemo(
     () => vaults.filter(vault => vault.role === 'owner').length,
@@ -52,6 +53,15 @@ export function VaultsPage() {
     },
   });
 
+  function restoreCreateButtonFocus() {
+    const button = createButtonRef.current;
+    if (button) {
+      requestAnimationFrame(() => {
+        button.focus();
+      });
+    }
+  }
+
   function openCreateModal() {
     setErrorMessage(null);
     setIsCreateModalOpen(true);
@@ -66,6 +76,7 @@ export function VaultsPage() {
     setErrorMessage(null);
     setName('');
     setDescription('');
+    restoreCreateButtonFocus();
   }
 
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
@@ -103,7 +114,7 @@ export function VaultsPage() {
         eyebrow="Storage Infrastructure"
         title="Vault overview"
         description="Open a vault and get to work."
-        actions={meQuery.data?.canCreateVault ? <Button onClick={openCreateModal}>Create vault</Button> : undefined}
+        actions={meQuery.data?.canCreateVault ? <Button ref={createButtonRef} onClick={openCreateModal}>Create vault</Button> : undefined}
       />
 
       <div className="grid gap-4 md:grid-cols-3">

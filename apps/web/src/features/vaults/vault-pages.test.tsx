@@ -98,6 +98,45 @@ describe('vault pages', () => {
     });
   });
 
+  it('returns focus to the create vault button after dismissing the dialog with escape', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/vaults') {
+        return jsonResponse({
+          vaults: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    renderWithProviders(<VaultsPage />);
+
+    const createButton = await screen.findByRole('button', { name: /create vault/i });
+    await user.click(createButton);
+    expect(await screen.findByRole('dialog', { name: /create vault/i })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /create vault/i })).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(createButton).toHaveFocus();
+    });
+  });
+
   it('hides vault creation actions for users without vault creation permission', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

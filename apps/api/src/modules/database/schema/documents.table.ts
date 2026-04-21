@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -49,7 +50,9 @@ export const documentsTable = pgTable(
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
   (table) => [
-    uniqueIndex('documents_vault_hash_unique').on(table.vaultId, table.originalSha256Hash),
+    uniqueIndex('documents_vault_hash_unique')
+      .on(table.vaultId, table.originalSha256Hash)
+      .where(sql`${table.isDeleted} = false`),
     index('documents_vault_deleted_created_idx').on(
       table.vaultId,
       table.isDeleted,

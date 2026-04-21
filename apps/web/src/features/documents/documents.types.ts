@@ -20,6 +20,7 @@ export interface DeletedDocumentSummary extends DocumentSummary {
 export interface DocumentDetail extends DocumentSummary {
   originalSha256Hash: string;
   content: string;
+  displayContent?: string;
   createdBy: string | null;
 }
 

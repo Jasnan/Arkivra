@@ -574,4 +574,120 @@ describe.sequential('document upload processing e2e', () => {
     expect(document?.processingStatus).toBe('completed');
     expect(document?.content).toContain('Arkivra Docling E2E Test PDF');
   }, 60_000);
+
+  test('allows re-uploading the same file after soft delete', async () => {
+    if (app === null || db === null || testContext.vaultId === null) {
+      throw new Error('Test app dependencies were not initialized');
+    }
+
+    const signInResponse = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost:1221',
+      },
+      body: JSON.stringify({
+        email: testContext.email,
+        password: testContext.password,
+      }),
+    });
+
+    expect(signInResponse.status).toBe(200);
+    const sessionCookie = getSessionCookie(signInResponse);
+
+    const fileBuffer = createTestPdfBuffer();
+    const firstUploadFormData = new FormData();
+    firstUploadFormData.append(
+      'file',
+      new File([fileBuffer], 'arkivra-reupload.pdf', { type: 'application/pdf' }),
+    );
+
+    const firstUploadResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents`, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie,
+      },
+      body: firstUploadFormData,
+    });
+
+    expect(firstUploadResponse.status).toBe(201);
+    const firstUploadBody = (await firstUploadResponse.json()) as {
+      document: { id: string };
+    };
+
+    const firstDocumentId = firstUploadBody.document.id;
+
+    const deleteResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${firstDocumentId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          cookie: sessionCookie,
+        },
+      },
+    );
+
+    expect(deleteResponse.status).toBe(204);
+
+    const secondUploadFormData = new FormData();
+    secondUploadFormData.append(
+      'file',
+      new File([fileBuffer], 'arkivra-reupload.pdf', { type: 'application/pdf' }),
+    );
+
+    const secondUploadResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents`, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie,
+      },
+      body: secondUploadFormData,
+    });
+
+    expect(secondUploadResponse.status).toBe(201);
+    const secondUploadBody = (await secondUploadResponse.json()) as {
+      document: { id: string };
+    };
+
+    expect(secondUploadBody.document.id).not.toBe(firstDocumentId);
+
+    const restoreResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${firstDocumentId}/restore`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: sessionCookie,
+        },
+      },
+    );
+
+    expect(restoreResponse.status).toBe(409);
+    const restoreBody = (await restoreResponse.json()) as {
+      error: { code: string; existingId: string };
+    };
+
+    expect(restoreBody.error.code).toBe('document.duplicate');
+    expect(restoreBody.error.existingId).toBe(secondUploadBody.document.id);
+
+    const [trashedDocument, activeDocument] = await Promise.all([
+      db
+        .select({
+          id: documentsTable.id,
+          isDeleted: documentsTable.isDeleted,
+        })
+        .from(documentsTable)
+        .where(eq(documentsTable.id, firstDocumentId))
+        .limit(1),
+      db
+        .select({
+          id: documentsTable.id,
+          isDeleted: documentsTable.isDeleted,
+        })
+        .from(documentsTable)
+        .where(eq(documentsTable.id, secondUploadBody.document.id))
+        .limit(1),
+    ]);
+
+    expect(trashedDocument[0]?.isDeleted).toBe(true);
+    expect(activeDocument[0]?.isDeleted).toBe(false);
+  }, 60_000);
 });

@@ -10,6 +10,10 @@ import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
+import {
+  createNoopGluedWordNormalizer,
+  createOllamaGluedWordNormalizer,
+} from './modules/parsing/glued-word-normalizer.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
 import {
@@ -94,9 +98,20 @@ export async function startApp() {
       config.parsers.textCleanup === 'deterministic'
         ? createDeterministicTextCleaner()
         : createNoopTextCleaner();
+    const gluedWordNormalizer =
+      config.parsers.gluedWordNormalization === 'ollama'
+        ? createOllamaGluedWordNormalizer({
+            host: config.ollama.host,
+            model: config.ollama.model,
+            minTokenLength: config.ollama.gluedWordMinTokenLength,
+            maxCandidates: config.ollama.gluedWordMaxCandidates,
+            logRequests: config.ollama.logRequests,
+          })
+        : createNoopGluedWordNormalizer();
     const parsePipeline = createParsePipeline({
       parserRegistry,
       cleaner: textCleaner,
+      gluedWordNormalizer,
     });
     const documentWorker = createDocumentWorker({
       db,
@@ -126,6 +141,9 @@ export async function startApp() {
     });
 
     console.info('Document processing worker started');
+    console.info(
+      `OCR whitespace normalization: ${config.parsers.gluedWordNormalization} (${config.ollama.model} @ ${config.ollama.host}, minRun=${config.ollama.gluedWordMinTokenLength}, maxCandidates=${config.ollama.gluedWordMaxCandidates}, logRequests=${config.ollama.logRequests})`,
+    );
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,
     );

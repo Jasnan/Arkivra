@@ -46,6 +46,10 @@ export function useDocumentQuery({ vaultId, documentId }: { vaultId: string; doc
     queryKey: documentQueryKeys.detail(vaultId, documentId),
     queryFn: () => getDocument({ vaultId, documentId }),
     enabled: vaultId.length > 0 && documentId.length > 0,
+    refetchInterval: query => {
+      const status = query.state.data?.document.processingStatus;
+      return status === 'pending' || status === 'processing' ? 2500 : false;
+    },
   });
 }
 

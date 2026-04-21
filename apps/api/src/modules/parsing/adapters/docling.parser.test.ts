@@ -131,6 +131,32 @@ describe('docling parser adapter', () => {
     expect(output.markdown).toBe('');
   });
 
+  test('falls back to markdown-derived text when text_content is empty', async () => {
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(
+        makeDoclingResponse({
+          document: {
+            md_content: '# Title\n\nParagraph one.\n\n- Bullet item',
+            text_content: '',
+            json_content: {},
+            html_content: '',
+            doctags_content: '',
+          },
+        }),
+      ),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_md_only',
+      fileName: 'f.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.markdown).toContain('# Title');
+    expect(output.text).toBe('Title\n\nParagraph one.\n\nBullet item');
+  });
+
   test('reports engine-version from adapter options', async () => {
     const parser = createDoclingParser({
       doclingClient: makeDoclingClient(makeDoclingResponse()),

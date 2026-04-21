@@ -5,6 +5,7 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
 import { documentTagsTable, documentsTable, tagsTable, usersTable, vaultsTable } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
+import { markdownToPlainText } from '../parsing/adapters/docling.text.js';
 import type { SearchSortBy } from '../search/search.types.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
@@ -13,6 +14,11 @@ export type DocumentProcessingStatus = 'pending' | 'processing' | 'completed' | 
 export type HardDeleteDocumentResult =
   | { success: true; id: string }
   | { success: false; reason: 'not_found' | 'retention_window_active' };
+
+export type RestoreDocumentResult =
+  | { success: true; id: string }
+  | { success: false; reason: 'not_found' }
+  | { success: false; reason: 'duplicate'; existingId: string };
 
 export function createDocumentsServices({
   db,
@@ -265,6 +271,7 @@ export function createDocumentsServices({
         originalSha256Hash: documentsTable.originalSha256Hash,
         mimeType: documentsTable.mimeType,
         content: documentsTable.content,
+        markdownContent: documentsTable.markdownContent,
         processingStatus: documentsTable.processingStatus,
         documentDate: documentsTable.documentDate,
         createdAt: documentsTable.createdAt,
@@ -278,7 +285,20 @@ export function createDocumentsServices({
       .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
       .limit(1);
 
-    return doc ?? null;
+    if (doc === undefined) {
+      return null;
+    }
+
+    const { markdownContent, ...rest } = doc;
+    const displayContent = markdownContent.length > 0
+      ? markdownToPlainText(markdownContent)
+      : doc.content;
+
+    return {
+      ...rest,
+      content: displayContent,
+      displayContent,
+    };
   }
 
   async function listDeletedDocuments({ vaultIds }: { vaultIds: string[] }) {
@@ -397,7 +417,48 @@ export function createDocumentsServices({
     return doc ?? null;
   }
 
-  async function restoreDocument({ documentId, vaultId }: { documentId: string; vaultId: string }) {
+  async function restoreDocument({
+    documentId,
+    vaultId,
+  }: {
+    documentId: string;
+    vaultId: string;
+  }): Promise<RestoreDocumentResult> {
+    const [deletedDoc] = await db
+      .select({
+        id: documentsTable.id,
+        originalSha256Hash: documentsTable.originalSha256Hash,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, true),
+        ),
+      )
+      .limit(1);
+
+    if (deletedDoc === undefined) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    const [existing] = await db
+      .select({ id: documentsTable.id })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.originalSha256Hash, deletedDoc.originalSha256Hash),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (existing !== undefined) {
+      return { success: false, reason: 'duplicate', existingId: existing.id };
+    }
+
     const [doc] = await db
       .update(documentsTable)
       .set({
@@ -415,7 +476,11 @@ export function createDocumentsServices({
       )
       .returning({ id: documentsTable.id });
 
-    return doc ?? null;
+    if (doc === undefined) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    return { success: true, id: doc.id };
   }
 
   async function hardDeleteDocument({

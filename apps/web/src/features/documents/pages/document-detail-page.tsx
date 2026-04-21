@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -77,6 +77,25 @@ export function DocumentDetailPage() {
   const [createTagNameValue, setCreateTagNameValue] = useState('');
   const [createTagColorValue, setCreateTagColorValue] = useState('#D8FF75');
   const [createTagDescriptionValue, setCreateTagDescriptionValue] = useState('');
+
+  useEffect(() => {
+    async function handleUploadCompleted(event: Event) {
+      const detail = (event as CustomEvent<{ vaultId?: string; documentId?: string }>).detail;
+
+      if (detail?.vaultId !== vaultId || detail?.documentId !== documentId) {
+        return;
+      }
+
+      await queryClient.invalidateQueries({
+        queryKey: documentQueryKeys.detail(vaultId, documentId),
+      });
+    }
+
+    window.addEventListener('arkivra:uploads-completed', handleUploadCompleted);
+    return () => {
+      window.removeEventListener('arkivra:uploads-completed', handleUploadCompleted);
+    };
+  }, [documentId, queryClient, vaultId]);
 
   const invalidateDocument = async () => {
     await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
@@ -212,6 +231,16 @@ export function DocumentDetailPage() {
   const normalizedCreateTagName = createTagNameValue.trim();
   const createTagDescription = createTagDescriptionValue.trim();
   const isCreateTagSaveDisabled = normalizedCreateTagName.length === 0 || createTagMutation.isPending || assignTagMutation.isPending;
+  const displayContent = document.displayContent ?? document.content;
+  const extractedTextMessage = displayContent.trim().length > 0
+    ? displayContent
+    : document.processingStatus === 'processing'
+      ? 'Text/OCR extraction is still running.'
+      : document.processingStatus === 'failed'
+        ? 'Text/OCR extraction failed for this document.'
+        : document.processingStatus === 'completed'
+          ? 'Extraction completed, but no text content was found.'
+          : 'No extracted text is available yet.';
 
   async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -503,7 +532,7 @@ export function DocumentDetailPage() {
                   OCR and extracted text appear here once processing completes.
                 </p>
                 <div className="max-h-[72vh] min-h-[520px] overflow-auto rounded-[22px] bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
-                  {document.content.trim().length > 0 ? document.content : 'No extracted text is available yet.'}
+                  {extractedTextMessage}
                 </div>
               </div>
             ) : null}

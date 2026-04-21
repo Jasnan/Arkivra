@@ -1,7 +1,9 @@
 import type { DocumentParser, ParseInput } from './parser.types.js';
 import type { ParserOutput } from './parsed-document.schema.js';
+import type { GluedWordNormalizer } from './glued-word-normalizer.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { describe, expect, test, vi } from 'vitest';
+import { createNoopGluedWordNormalizer } from './glued-word-normalizer.js';
 import { createParserRegistry } from './parser.registry.js';
 import { createDeterministicTextCleaner, createNoopTextCleaner } from './text-cleaner.js';
 import { createParsePipeline } from './parse-pipeline.js';
@@ -25,10 +27,11 @@ function makeParser(raw: Partial<ParserOutput> = {}): DocumentParser {
 function makePipeline(
   parserOverrides: Partial<ParserOutput> = {},
   cleaner: TextCleaner = createNoopTextCleaner(),
+  gluedWordNormalizer: GluedWordNormalizer = createNoopGluedWordNormalizer(),
 ) {
   const parser = makeParser(parserOverrides);
   const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'docling' });
-  const pipeline = createParsePipeline({ parserRegistry: registry, cleaner });
+  const pipeline = createParsePipeline({ parserRegistry: registry, cleaner, gluedWordNormalizer });
   return { pipeline, parser };
 }
 
@@ -104,5 +107,34 @@ describe('parse pipeline', () => {
     const { pipeline } = makePipeline({ engine: '' });
 
     await expect(pipeline.run(input)).rejects.toThrow(/invalid ParsedDocument/);
+  });
+
+  test('runs glued-word normalization after cleanup and before chunking', async () => {
+    const normalizer: GluedWordNormalizer = {
+      name: 'mock-ollama',
+      normalize: async (inputText) => ({
+        text: inputText.text.replace('GOVERNMENTOFKERALA', 'GOVERNMENT OF KERALA'),
+        markdown: inputText.markdown.replace('GOVERNMENTOFKERALA', 'GOVERNMENT OF KERALA'),
+        replacements: [{
+          original: 'GOVERNMENTOFKERALA',
+          updated: 'GOVERNMENT OF KERALA',
+        }],
+      }),
+    };
+
+    const { pipeline } = makePipeline(
+      {
+        text: 'GOVERNMENTOFKERALA',
+        markdown: '# GOVERNMENTOFKERALA',
+      },
+      createNoopTextCleaner(),
+      normalizer,
+    );
+
+    const parsed = await pipeline.run(input);
+
+    expect(parsed.text).toBe('GOVERNMENT OF KERALA');
+    expect(parsed.markdown).toBe('# GOVERNMENT OF KERALA');
+    expect(parsed.chunks[0]?.text).toContain('GOVERNMENT OF KERALA');
   });
 });

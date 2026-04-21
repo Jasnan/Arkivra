@@ -159,6 +159,44 @@ export const configDefinition = {
       default: 'deterministic' as const,
       env: 'ARKIVRA_PARSER_TEXT_CLEANUP',
     },
+    gluedWordNormalization: {
+      doc: 'Optional post-cleanup OCR whitespace normalization. `ollama` asks a local model to rewrite suspicious OCR lines using whitespace changes only, fixing glued and split-apart words like `GOVERNMENTOFKERALA`, `thefollowing`, or `GOVERNMEN TOFKERALA`. `none` disables this step.',
+      schema: z.enum(['none', 'ollama']),
+      default: 'none' as const,
+      env: 'ARKIVRA_PARSER_GLUED_WORD_NORMALIZATION',
+    },
+  },
+  ollama: {
+    host: {
+      doc: 'Base URL for the local Ollama server.',
+      schema: z.string().url(),
+      default: 'http://127.0.0.1:11434',
+      env: 'ARKIVRA_OLLAMA_HOST',
+    },
+    model: {
+      doc: 'Ollama model used for glued-word normalization.',
+      schema: z.string().min(1),
+      default: 'gemma3n:e4b',
+      env: 'ARKIVRA_OLLAMA_MODEL',
+    },
+    gluedWordMinTokenLength: {
+      doc: 'Minimum alphabetic run length before a suspicious OCR line is sent to Ollama for whitespace normalization.',
+      schema: z.coerce.number().int().min(4).max(128),
+      default: 12,
+      env: 'ARKIVRA_OLLAMA_GLUED_WORD_MIN_TOKEN_LENGTH',
+    },
+    gluedWordMaxCandidates: {
+      doc: 'Maximum number of glued-word candidates to send to Ollama per document.',
+      schema: z.coerce.number().int().min(1).max(1000),
+      default: 100,
+      env: 'ARKIVRA_OLLAMA_GLUED_WORD_MAX_CANDIDATES',
+    },
+    logRequests: {
+      doc: 'Whether to log Arkivra Ollama normalization requests and responses for debugging.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: false,
+      env: 'ARKIVRA_OLLAMA_LOG_REQUESTS',
+    },
   },
   encryption: {
     keys: {

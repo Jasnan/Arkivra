@@ -1,26 +1,30 @@
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import type { DoclingConvertResponse } from '../docling/docling.client.js';
+import type { DocumentParser, ParseInput } from '../parsing/parser.types.js';
+import type { ParserOutput } from '../parsing/parsed-document.schema.js';
 import type { ProcessDocumentJobData } from './worker.types.js';
 import { describe, expect, test, vi } from 'vitest';
-import { chunkMarkdownContent } from '../docling/docling.chunker.js';
-import { sanitizeDoclingMarkdown, sanitizeDoclingText } from '../docling/docling.text.js';
+import { createParserRegistry } from '../parsing/parser.registry.js';
+import { createParsePipeline } from '../parsing/parse-pipeline.js';
+import { createDeterministicTextCleaner } from '../parsing/text-cleaner.js';
 
-// Test the core processing logic without importing bullmq.
-// We replicate the worker's processDocument pipeline using mocks.
+/**
+ * These tests exercise the engine-agnostic worker pipeline. The worker must
+ * only know about ParsePipeline — never Docling-specific fields. If this
+ * file ever reintroduces `md_content` / `text_content` / `task_status` it
+ * means the worker has regressed into parser coupling.
+ */
 
-const doclingResponse: DoclingConvertResponse = {
-  document: {
-    md_content: '# Title\n\nParagraph one.\n\n## Section\n\nParagraph two.',
-    text_content: 'Title\nParagraph one.\nSection\nParagraph two.',
-    json_content: {},
-    html_content: '',
-    doctags_content: '',
-  },
-  status: 'success',
-  processing_time: 1.5,
-  errors: [],
-};
+function makeParserOutput(overrides: Partial<ParserOutput> = {}): ParserOutput {
+  return {
+    engine: 'docling',
+    engineVersion: 'v1',
+    text: 'Title\nParagraph one.\nSection\nParagraph two.',
+    markdown: '# Title\n\nParagraph one.\n\n## Section\n\nParagraph two.',
+    warnings: [],
+    ...overrides,
+  };
+}
 
 function createMockDeps() {
   const docRow = {
@@ -47,11 +51,24 @@ function createMockDeps() {
     decrypt: vi.fn((_args: unknown) => Buffer.from('decrypted-file')),
   } as unknown as EncryptionServices;
 
-  const doclingClient = {
-    convertFile: vi.fn(
-      async (_args: { fileName: string; mimeType: string; fileData: Buffer }) => doclingResponse,
-    ),
+  const parseMock = vi.fn(async (_input: ParseInput) => makeParserOutput());
+
+  const parser: DocumentParser = {
+    engine: 'docling',
+    engineVersion: 'v1',
+    capabilities: { ocr: true, tables: true, supportedMimeTypes: 'any' },
+    parse: parseMock,
   };
+
+  const parserRegistry = createParserRegistry({
+    parsers: [parser],
+    defaultEngine: 'docling',
+  });
+
+  const pipeline = createParsePipeline({
+    parserRegistry,
+    cleaner: createDeterministicTextCleaner(),
+  });
 
   const progressUpdates: number[] = [];
   const job = {
@@ -61,17 +78,18 @@ function createMockDeps() {
     }),
   };
 
-  return { docRow, storage, encryption, doclingClient, job, progressUpdates };
+  return { docRow, storage, encryption, parser, parseMock, pipeline, job, progressUpdates };
 }
 
-/** Simulate the worker pipeline: read → decrypt? → Docling → chunk → return */
+/**
+ * Replays the worker's orchestration steps without BullMQ, using the real
+ * pipeline + persistence seam the worker uses in production.
+ */
 async function runPipeline(deps: ReturnType<typeof createMockDeps>) {
-  const { docRow, storage, encryption, doclingClient, job } = deps;
+  const { docRow, storage, encryption, pipeline, job } = deps;
 
-  // 1. Read from storage
   const rawData = await storage.read(docRow.originalStorageKey);
 
-  // 2. Decrypt if needed
   let fileData: Buffer;
   if (docRow.fileEncryptionKeyWrapped !== null && docRow.fileEncryptionKekVersion !== null) {
     fileData = encryption.decrypt({
@@ -85,37 +103,51 @@ async function runPipeline(deps: ReturnType<typeof createMockDeps>) {
 
   await job.updateProgress(20);
 
-  // 3. Send to Docling
-  const result = await doclingClient.convertFile({
+  const parsed = await pipeline.run({
+    documentId: docRow.id,
     fileName: docRow.originalName,
     mimeType: docRow.mimeType,
     fileData,
   });
 
   await job.updateProgress(60);
-
-  // 4. Chunk
-  const markdownContent = sanitizeDoclingMarkdown(result.document.md_content || '');
-  const textContent = sanitizeDoclingText(result.document.text_content || '');
-  const chunks = chunkMarkdownContent(markdownContent);
-
   await job.updateProgress(90);
   await job.updateProgress(100);
 
-  return { chunks, textContent };
+  return { parsed };
 }
 
 describe('document worker pipeline', () => {
-  test('calls Docling with file content', async () => {
+  test('runs parser via the pipeline and produces a ParsedDocument with chunks', async () => {
     const deps = createMockDeps();
-    await runPipeline(deps);
+    const { parsed } = await runPipeline(deps);
 
-    expect(deps.doclingClient.convertFile).toHaveBeenCalledTimes(1);
-    expect(deps.doclingClient.convertFile).toHaveBeenCalledWith({
-      fileName: 'test.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('file-bytes'),
-    });
+    expect(deps.parseMock).toHaveBeenCalledTimes(1);
+    expect(parsed.engine).toBe('docling');
+    expect(parsed.engineVersion).toBe('v1');
+    expect(parsed.chunks.length).toBeGreaterThanOrEqual(2);
+    for (const chunk of parsed.chunks) {
+      expect(chunk.id.startsWith('doc_1:')).toBe(true);
+      expect(['heading', 'paragraph', 'table', 'list', 'other']).toContain(chunk.type);
+    }
+  });
+
+  test('preserves raw text alongside cleaned text', async () => {
+    const deps = createMockDeps();
+    // inject a raw output with artifacts the deterministic cleaner will remove.
+    deps.parseMock.mockResolvedValueOnce(
+      makeParserOutput({
+        text: 'Of\uFB01cial  document',
+        markdown: '# Of\uFB01cial  document',
+      }),
+    );
+
+    const { parsed } = await runPipeline(deps);
+
+    expect(parsed.rawText).toContain('\uFB01');
+    expect(parsed.text).toBe('Official document');
+    expect(parsed.rawMarkdown).toContain('\uFB01');
+    expect(parsed.markdown).toContain('Official document');
   });
 
   test('reads file from storage', async () => {
@@ -125,26 +157,7 @@ describe('document worker pipeline', () => {
     expect(deps.storage.read).toHaveBeenCalledWith('vlt_1/doc_1');
   });
 
-  test('chunks markdown content from Docling response', async () => {
-    const deps = createMockDeps();
-    const { chunks } = await runPipeline(deps);
-
-    expect(chunks.length).toBeGreaterThanOrEqual(2);
-    const allContent = chunks.map((c) => c.content).join('\n');
-    expect(allContent).toContain('Title');
-    expect(allContent).toContain('Paragraph');
-  });
-
-  test('extracts text content from Docling response', async () => {
-    const deps = createMockDeps();
-    const { textContent } = await runPipeline(deps);
-
-    expect(textContent).toContain('Title');
-    expect(textContent).toContain('Paragraph one');
-    expect(textContent).toContain('Section');
-  });
-
-  test('reports progress through job', async () => {
+  test('reports progress through the job', async () => {
     const deps = createMockDeps();
     await runPipeline(deps);
 
@@ -167,11 +180,8 @@ describe('document worker pipeline', () => {
       kekVersion: '1',
     });
 
-    // Docling receives the decrypted data
-    expect(deps.doclingClient.convertFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileData: Buffer.from('decrypted-file'),
-      }),
+    expect(deps.parseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ fileData: Buffer.from('decrypted-file') }),
     );
   });
 
@@ -180,26 +190,5 @@ describe('document worker pipeline', () => {
     await runPipeline(deps);
 
     expect(deps.encryption.decrypt).not.toHaveBeenCalled();
-  });
-
-  test('strips markdown images and data URIs from extracted text', async () => {
-    const deps = createMockDeps();
-    deps.doclingClient.convertFile = vi.fn(async () => ({
-      ...doclingResponse,
-      document: {
-        ...doclingResponse.document,
-        md_content: '# Title\n\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\n\nParagraph one.',
-        text_content: 'Title\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\nParagraph one.',
-      },
-    }));
-
-    const { chunks, textContent } = await runPipeline(deps);
-    const combinedChunkText = chunks.map(chunk => chunk.content).join('\n');
-
-    expect(textContent).toContain('Paragraph one.');
-    expect(textContent).not.toContain('data:image');
-    expect(textContent).not.toContain('![Preview]');
-    expect(combinedChunkText).not.toContain('data:image');
-    expect(combinedChunkText).not.toContain('![Preview]');
   });
 });

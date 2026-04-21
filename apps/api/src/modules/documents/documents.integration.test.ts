@@ -15,7 +15,7 @@ function createMockDocumentsServices() {
       document: {
         id: 'doc_test_1',
         vaultId,
-        name: fileName.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' '),
+        name: fileName.replace(/\.[^.]+$/, '').replace(/_+/g, ' '),
         originalName: fileName,
         originalSize: 100,
         mimeType,

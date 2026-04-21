@@ -28,6 +28,9 @@ pnpm-debug.log*
 # Test
 coverage/
 
+# Runtime
+apps/api/upload-staging/
+
 # Docker volumes / local runtime data
 /postgres-data/
 /redis-data/

@@ -3,7 +3,7 @@ function stripDataUris(value: string) {
 }
 
 function stripMarkdownImages(value: string) {
-  return value.replace(/!\[[^\]]*]\([^)]*\)/g, '');
+  return value.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
 }
 
 function normalizeWhitespace(value: string) {

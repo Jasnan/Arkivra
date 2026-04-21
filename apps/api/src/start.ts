@@ -9,6 +9,13 @@ import { setupDatabase } from './modules/database/database.js';
 import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
+import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
+import { createParserRegistry } from './modules/parsing/parser.registry.js';
+import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
+import {
+  createDeterministicTextCleaner,
+  createNoopTextCleaner,
+} from './modules/parsing/text-cleaner.js';
 import { createDocumentWorker } from './modules/worker/document.worker.js';
 import { createMaintenanceQueue } from './modules/worker/maintenance.queue.js';
 import { createMaintenanceWorker } from './modules/worker/maintenance.worker.js';
@@ -67,12 +74,35 @@ export async function startApp() {
       baseUrl: config.docling.url,
       pollIntervalMs: config.docling.pollIntervalMs,
       maxWaitMs: config.docling.maxWaitMs,
+      convertOptions: {
+        toFormats: config.docling.outputFormat,
+        doOcr: config.docling.doOcr,
+        ocrEngine: config.docling.ocrEngine,
+        tableMode: config.docling.tableMode,
+        abortOnError: config.docling.abortOnError,
+      },
+    });
+    const doclingParser = createDoclingParser({
+      doclingClient,
+      engineVersion: config.docling.engineVersion,
+    });
+    const parserRegistry = createParserRegistry({
+      parsers: [doclingParser],
+      defaultEngine: config.parsers.defaultEngine,
+    });
+    const textCleaner =
+      config.parsers.textCleanup === 'deterministic'
+        ? createDeterministicTextCleaner()
+        : createNoopTextCleaner();
+    const parsePipeline = createParsePipeline({
+      parserRegistry,
+      cleaner: textCleaner,
     });
     const documentWorker = createDocumentWorker({
       db,
       storage,
       encryption,
-      doclingClient,
+      parsePipeline,
       connection: redis,
     });
     const maintenanceWorker = createMaintenanceWorker({

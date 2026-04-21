@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import { and, asc, desc, eq, exists, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
 import { documentTagsTable, documentsTable, tagsTable, usersTable, vaultsTable } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
 import type { SearchSortBy } from '../search/search.types.js';
@@ -40,7 +40,7 @@ export function createDocumentsServices({
     const extensionIndex = trimmed.lastIndexOf('.');
     const baseName = extensionIndex > 0 ? trimmed.slice(0, extensionIndex) : trimmed;
     const normalized = baseName
-      .replace(/[_]+/g, ' ')
+      .replace(/_+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 

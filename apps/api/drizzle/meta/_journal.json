@@ -29,6 +29,20 @@
       "when": 1776566400000,
       "tag": "0003_tag_description",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776596400000,
+      "tag": "0004_parser_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776626400000,
+      "tag": "0005_raw_text",
+      "breakpoints": true
     }
   ]
 }

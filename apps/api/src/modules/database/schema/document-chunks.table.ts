@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
 import { createPrimaryKeyField } from './helpers.js';
 import { documentsTable } from './documents.table.js';
 import { vaultsTable } from './vaults.table.js';
@@ -26,10 +26,14 @@ export const documentChunksTable = pgTable(
       .references(() => vaultsTable.id, { onDelete: 'cascade' }),
 
     chunkIndex: integer('chunk_index').notNull(),
+    chunkKey: text('chunk_key').notNull(),
     content: text('content').notNull(),
+    section: text('section'),
     pageNumber: integer('page_number'),
     chunkType: text('chunk_type'),
     tokenCount: integer('token_count'),
+    parserEngine: text('parser_engine'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
 
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   },

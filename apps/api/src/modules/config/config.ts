@@ -109,6 +109,56 @@ export const configDefinition = {
       default: 6 * 60 * 60 * 1000,
       env: 'ARKIVRA_DOCLING_MAX_WAIT_MS',
     },
+    outputFormat: {
+      doc: 'Docling `to_formats` request parameter (comma-separated). Prefer `md` — the markdown serializer preserves word boundaries better than plain text on scanned PDFs.',
+      schema: z.string().min(1),
+      default: 'md',
+      env: 'ARKIVRA_DOCLING_OUTPUT_FORMAT',
+    },
+    doOcr: {
+      doc: 'Whether Docling should perform OCR on the document.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: true,
+      env: 'ARKIVRA_DOCLING_DO_OCR',
+    },
+    ocrEngine: {
+      doc: 'Docling OCR engine name (e.g., "easyocr", "tesseract").',
+      schema: z.string().min(1),
+      default: 'easyocr',
+      env: 'ARKIVRA_DOCLING_OCR_ENGINE',
+    },
+    tableMode: {
+      doc: 'Docling table-extraction mode (e.g., "fast", "accurate").',
+      schema: z.string().min(1),
+      default: 'fast',
+      env: 'ARKIVRA_DOCLING_TABLE_MODE',
+    },
+    abortOnError: {
+      doc: 'Whether Docling should abort conversion on the first error.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: false,
+      env: 'ARKIVRA_DOCLING_ABORT_ON_ERROR',
+    },
+    engineVersion: {
+      doc: 'Docling API/image version recorded on parsed documents for provenance.',
+      schema: z.string().min(1),
+      default: 'v1',
+      env: 'ARKIVRA_DOCLING_ENGINE_VERSION',
+    },
+  },
+  parsers: {
+    defaultEngine: {
+      doc: 'Default parser engine used when a document does not specify one.',
+      schema: z.enum(['docling']),
+      default: 'docling' as const,
+      env: 'ARKIVRA_PARSER_DEFAULT',
+    },
+    textCleanup: {
+      doc: 'Post-parse text cleanup strategy. `deterministic` applies safe formatting-only rules (unicode NFKC, ligature replacement, hyphen-linebreak join, whitespace normalization). `none` disables cleanup. Future: `ollama`.',
+      schema: z.enum(['deterministic', 'none']),
+      default: 'deterministic' as const,
+      env: 'ARKIVRA_PARSER_TEXT_CLEANUP',
+    },
   },
   encryption: {
     keys: {

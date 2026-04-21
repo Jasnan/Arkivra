@@ -88,6 +88,84 @@ describe('docling client', () => {
     })).rejects.toThrow(/Docling async conversion failed.*OCR failed/i);
   });
 
+  test('fails fast when Docling returns an unknown task_status', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_u', task_status: 'queued' }))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_u', task_status: 'warp_drive' }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await expect(client.convertFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    })).rejects.toThrow(/unknown task_status "warp_drive"/);
+  });
+
+  test('accepts null values in optional format fields (to_formats=text only)', async () => {
+    // Regression: when we only request `to_formats=text`, Docling returns
+    // null (not absent) for md_content/html_content/doctags_content. The
+    // wire schema must tolerate nulls and normalize them to empty strings.
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_n', task_status: 'queued' }))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_n', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        document: {
+          md_content: null,
+          text_content: 'Hello world',
+          json_content: null,
+          html_content: null,
+          doctags_content: null,
+        },
+        status: 'success',
+        processing_time: 0.42,
+        errors: [],
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    const result = await client.convertFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    });
+
+    expect(result.document.text_content).toBe('Hello world');
+    expect(result.document.md_content).toBe('');
+    expect(result.document.html_content).toBe('');
+    expect(result.document.doctags_content).toBe('');
+  });
+
+  test('rejects submit payloads that do not match the expected schema', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ unexpected: 'shape' }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await expect(client.convertFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    })).rejects.toThrow(/unrecognized payload/);
+  });
+
   test('throws when async conversion exceeds Arkivra wait limit', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_3', task_status: 'queued' }))

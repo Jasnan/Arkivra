@@ -109,6 +109,94 @@ export const configDefinition = {
       default: 6 * 60 * 60 * 1000,
       env: 'ARKIVRA_DOCLING_MAX_WAIT_MS',
     },
+    outputFormat: {
+      doc: 'Docling `to_formats` request parameter (comma-separated). Prefer `md` — the markdown serializer preserves word boundaries better than plain text on scanned PDFs.',
+      schema: z.string().min(1),
+      default: 'md',
+      env: 'ARKIVRA_DOCLING_OUTPUT_FORMAT',
+    },
+    doOcr: {
+      doc: 'Whether Docling should perform OCR on the document.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: true,
+      env: 'ARKIVRA_DOCLING_DO_OCR',
+    },
+    ocrEngine: {
+      doc: 'Docling OCR engine name (e.g., "easyocr", "tesseract").',
+      schema: z.string().min(1),
+      default: 'easyocr',
+      env: 'ARKIVRA_DOCLING_OCR_ENGINE',
+    },
+    tableMode: {
+      doc: 'Docling table-extraction mode (e.g., "fast", "accurate").',
+      schema: z.string().min(1),
+      default: 'fast',
+      env: 'ARKIVRA_DOCLING_TABLE_MODE',
+    },
+    abortOnError: {
+      doc: 'Whether Docling should abort conversion on the first error.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: false,
+      env: 'ARKIVRA_DOCLING_ABORT_ON_ERROR',
+    },
+    engineVersion: {
+      doc: 'Docling API/image version recorded on parsed documents for provenance.',
+      schema: z.string().min(1),
+      default: 'v1',
+      env: 'ARKIVRA_DOCLING_ENGINE_VERSION',
+    },
+  },
+  parsers: {
+    defaultEngine: {
+      doc: 'Default parser engine used when a document does not specify one.',
+      schema: z.enum(['docling']),
+      default: 'docling' as const,
+      env: 'ARKIVRA_PARSER_DEFAULT',
+    },
+    textCleanup: {
+      doc: 'Post-parse text cleanup strategy. `deterministic` applies safe formatting-only rules (unicode NFKC, ligature replacement, hyphen-linebreak join, whitespace normalization). `none` disables cleanup. Future: `ollama`.',
+      schema: z.enum(['deterministic', 'none']),
+      default: 'deterministic' as const,
+      env: 'ARKIVRA_PARSER_TEXT_CLEANUP',
+    },
+    gluedWordNormalization: {
+      doc: 'Optional post-cleanup OCR whitespace normalization. `ollama` asks a local model to rewrite suspicious OCR lines using whitespace changes only, fixing glued and split-apart words like `GOVERNMENTOFKERALA`, `thefollowing`, or `GOVERNMEN TOFKERALA`. `none` disables this step.',
+      schema: z.enum(['none', 'ollama']),
+      default: 'none' as const,
+      env: 'ARKIVRA_PARSER_GLUED_WORD_NORMALIZATION',
+    },
+  },
+  ollama: {
+    host: {
+      doc: 'Base URL for the local Ollama server.',
+      schema: z.string().url(),
+      default: 'http://127.0.0.1:11434',
+      env: 'ARKIVRA_OLLAMA_HOST',
+    },
+    model: {
+      doc: 'Ollama model used for glued-word normalization.',
+      schema: z.string().min(1),
+      default: 'gemma3n:e4b',
+      env: 'ARKIVRA_OLLAMA_MODEL',
+    },
+    gluedWordMinTokenLength: {
+      doc: 'Minimum alphabetic run length before a suspicious OCR line is sent to Ollama for whitespace normalization.',
+      schema: z.coerce.number().int().min(4).max(128),
+      default: 12,
+      env: 'ARKIVRA_OLLAMA_GLUED_WORD_MIN_TOKEN_LENGTH',
+    },
+    gluedWordMaxCandidates: {
+      doc: 'Maximum number of glued-word candidates to send to Ollama per document.',
+      schema: z.coerce.number().int().min(1).max(1000),
+      default: 100,
+      env: 'ARKIVRA_OLLAMA_GLUED_WORD_MAX_CANDIDATES',
+    },
+    logRequests: {
+      doc: 'Whether to log Arkivra Ollama normalization requests and responses for debugging.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: false,
+      env: 'ARKIVRA_OLLAMA_LOG_REQUESTS',
+    },
   },
   encryption: {
     keys: {

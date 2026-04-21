@@ -9,6 +9,17 @@ import { setupDatabase } from './modules/database/database.js';
 import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
+import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
+import {
+  createNoopGluedWordNormalizer,
+  createOllamaGluedWordNormalizer,
+} from './modules/parsing/glued-word-normalizer.js';
+import { createParserRegistry } from './modules/parsing/parser.registry.js';
+import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
+import {
+  createDeterministicTextCleaner,
+  createNoopTextCleaner,
+} from './modules/parsing/text-cleaner.js';
 import { createDocumentWorker } from './modules/worker/document.worker.js';
 import { createMaintenanceQueue } from './modules/worker/maintenance.queue.js';
 import { createMaintenanceWorker } from './modules/worker/maintenance.worker.js';
@@ -67,12 +78,46 @@ export async function startApp() {
       baseUrl: config.docling.url,
       pollIntervalMs: config.docling.pollIntervalMs,
       maxWaitMs: config.docling.maxWaitMs,
+      convertOptions: {
+        toFormats: config.docling.outputFormat,
+        doOcr: config.docling.doOcr,
+        ocrEngine: config.docling.ocrEngine,
+        tableMode: config.docling.tableMode,
+        abortOnError: config.docling.abortOnError,
+      },
+    });
+    const doclingParser = createDoclingParser({
+      doclingClient,
+      engineVersion: config.docling.engineVersion,
+    });
+    const parserRegistry = createParserRegistry({
+      parsers: [doclingParser],
+      defaultEngine: config.parsers.defaultEngine,
+    });
+    const textCleaner =
+      config.parsers.textCleanup === 'deterministic'
+        ? createDeterministicTextCleaner()
+        : createNoopTextCleaner();
+    const gluedWordNormalizer =
+      config.parsers.gluedWordNormalization === 'ollama'
+        ? createOllamaGluedWordNormalizer({
+            host: config.ollama.host,
+            model: config.ollama.model,
+            minTokenLength: config.ollama.gluedWordMinTokenLength,
+            maxCandidates: config.ollama.gluedWordMaxCandidates,
+            logRequests: config.ollama.logRequests,
+          })
+        : createNoopGluedWordNormalizer();
+    const parsePipeline = createParsePipeline({
+      parserRegistry,
+      cleaner: textCleaner,
+      gluedWordNormalizer,
     });
     const documentWorker = createDocumentWorker({
       db,
       storage,
       encryption,
-      doclingClient,
+      parsePipeline,
       connection: redis,
     });
     const maintenanceWorker = createMaintenanceWorker({
@@ -96,6 +141,9 @@ export async function startApp() {
     });
 
     console.info('Document processing worker started');
+    console.info(
+      `OCR whitespace normalization: ${config.parsers.gluedWordNormalization} (${config.ollama.model} @ ${config.ollama.host}, minRun=${config.ollama.gluedWordMinTokenLength}, maxCandidates=${config.ollama.gluedWordMaxCandidates}, logRequests=${config.ollama.logRequests})`,
+    );
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,
     );

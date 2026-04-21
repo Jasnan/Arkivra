@@ -1,7 +1,9 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -31,6 +33,11 @@ export const documentsTable = pgTable(
     name: text('name').notNull(),
     mimeType: text('mime_type').notNull(),
     content: text('content').notNull().default(''),
+    markdownContent: text('markdown_content').notNull().default(''),
+    rawText: text('raw_text').notNull().default(''),
+    parserEngine: text('parser_engine'),
+    parserEngineVersion: text('parser_engine_version'),
+    parserWarnings: jsonb('parser_warnings').$type<string[]>(),
     processingStatus: text('processing_status').notNull().default('pending'),
     documentDate: timestamp('document_date', { mode: 'date' }),
 
@@ -43,7 +50,9 @@ export const documentsTable = pgTable(
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
   (table) => [
-    uniqueIndex('documents_vault_hash_unique').on(table.vaultId, table.originalSha256Hash),
+    uniqueIndex('documents_vault_hash_unique')
+      .on(table.vaultId, table.originalSha256Hash)
+      .where(sql`${table.isDeleted} = false`),
     index('documents_vault_deleted_created_idx').on(
       table.vaultId,
       table.isDeleted,

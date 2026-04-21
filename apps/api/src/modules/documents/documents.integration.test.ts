@@ -15,7 +15,7 @@ function createMockDocumentsServices() {
       document: {
         id: 'doc_test_1',
         vaultId,
-        name: fileName.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' '),
+        name: fileName.replace(/\.[^.]+$/, '').replace(/_+/g, ' '),
         originalName: fileName,
         originalSize: 100,
         mimeType,
@@ -87,7 +87,7 @@ function createMockDocumentsServices() {
       },
     ]),
     softDeleteDocument: vi.fn(async () => ({ id: 'doc_1' })),
-    restoreDocument: vi.fn(async () => ({ id: 'doc_1' })),
+    restoreDocument: vi.fn(async () => ({ success: true, id: 'doc_1' })),
     hardDeleteDocument: vi.fn(async () => ({ success: true, id: 'doc_1' })),
   };
 
@@ -527,6 +527,27 @@ describe('documents integration', () => {
       documentId: 'doc_1',
       vaultId: 'vlt_1',
     });
+  });
+
+  test('returns 409 when restoring a document that duplicates an active document', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).restoreDocument = vi.fn(async () => ({
+      success: false,
+      reason: 'duplicate',
+      existingId: 'doc_existing_1',
+    }));
+
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/restore', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as any;
+    expect(body.error.code).toBe('document.duplicate');
+    expect(body.error.existingId).toBe('doc_existing_1');
   });
 
   test('hard deletes a soft-deleted document (owner)', async () => {

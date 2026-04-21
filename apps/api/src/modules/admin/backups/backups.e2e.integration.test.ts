@@ -223,6 +223,7 @@ describe.sequential('backups e2e', () => {
       documentId,
       vaultId,
       chunkIndex: 0,
+      chunkKey: `${documentId}:0`,
       content: 'Backed up chunk',
       chunkType: 'paragraph',
       pageNumber: 1,

@@ -618,4 +618,138 @@ describe('tags and documents pages', () => {
       method: 'POST',
     })));
   });
+
+  it('refreshes the document detail when upload extraction completes', async () => {
+    const user = userEvent.setup();
+    let documentFetchCount = 0;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && (!init || init.method === undefined)) {
+        documentFetchCount += 1;
+
+        if (documentFetchCount === 1) {
+          return jsonResponse({
+            document: {
+              id: 'doc_1',
+              name: 'Invoice April.pdf',
+              originalName: 'invoice.pdf',
+              originalSize: 2048,
+              originalSha256Hash: 'abc123',
+              mimeType: 'application/pdf',
+              content: '',
+              processingStatus: 'pending',
+              documentDate: '2026-04-10T00:00:00.000Z',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-10T10:00:00.000Z',
+              isDeleted: false,
+              deletedAt: null,
+              createdBy: 'Jane Doe',
+            },
+          });
+        }
+
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: 'Invoice April.pdf',
+            originalName: 'invoice.pdf',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'application/pdf',
+            content: 'Parsed text',
+            processingStatus: 'completed',
+            documentDate: '2026-04-10T00:00:00.000Z',
+            createdAt: '2026-04-10T10:00:00.000Z',
+            updatedAt: '2026-04-10T10:05:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+            createdBy: 'Jane Doe',
+          },
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/documents/doc_1'],
+      routePath: '/vaults/:vaultId/documents/:documentId',
+    });
+
+    expect(await screen.findByText(/pending extraction/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /extracted text/i }));
+    expect(await screen.findByText(/no extracted text is available yet/i)).toBeInTheDocument();
+
+    window.dispatchEvent(new CustomEvent('arkivra:uploads-completed', {
+      detail: { vaultId: 'vlt_1', documentId: 'doc_1' },
+    }));
+
+    expect(await screen.findByText(/processed/i)).toBeInTheDocument();
+    expect(await screen.findByText('Parsed text')).toBeInTheDocument();
+    expect(documentFetchCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('prefers polished displayContent over raw content on the document detail page', async () => {
+    const user = userEvent.setup();
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: 'Certificate.pdf',
+            originalName: 'certificate.pdf',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'application/pdf',
+            content: 'FORM No. IV [SeeRule11(1)] GOVERNMENTOFKERALA',
+            displayContent: 'FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA',
+            processingStatus: 'completed',
+            documentDate: '2026-04-10T00:00:00.000Z',
+            createdAt: '2026-04-10T10:00:00.000Z',
+            updatedAt: '2026-04-10T10:05:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+            createdBy: 'Jane Doe',
+          },
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/documents/doc_1'],
+      routePath: '/vaults/:vaultId/documents/:documentId',
+    });
+
+    await screen.findByText(/primary reading surface for this document/i);
+    await user.click(screen.getByRole('button', { name: /extracted text/i }));
+
+    expect(await screen.findByText('FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA')).toBeInTheDocument();
+    expect(screen.queryByText('FORM No. IV [SeeRule11(1)] GOVERNMENTOFKERALA')).not.toBeInTheDocument();
+  });
 });

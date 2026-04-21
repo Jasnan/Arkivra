@@ -29,9 +29,23 @@ export function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
-export function deriveExtractionStatus(document: Pick<DocumentDetail, 'content' | 'isDeleted'>) {
+export function deriveExtractionStatus(
+  document: Pick<DocumentDetail, 'content' | 'isDeleted' | 'processingStatus'>,
+) {
   if (document.isDeleted) {
     return 'Deleted';
+  }
+
+  if (document.processingStatus === 'processing') {
+    return 'Extracting text';
+  }
+
+  if (document.processingStatus === 'failed') {
+    return 'Extraction failed';
+  }
+
+  if (document.processingStatus === 'completed') {
+    return 'Processed';
   }
 
   return document.content.trim().length > 0 ? 'Processed' : 'Pending extraction';

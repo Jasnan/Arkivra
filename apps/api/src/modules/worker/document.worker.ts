@@ -3,26 +3,25 @@ import type { Job } from 'bullmq';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import type { DoclingClient } from '../docling/docling.client.js';
+import type { ParsePipeline } from '../parsing/parse-pipeline.js';
 import type { ProcessDocumentJobData } from './queue.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
 import { Worker } from 'bullmq';
 import { eq, and } from 'drizzle-orm';
-import { documentsTable, documentChunksTable, uploadSessionsTable } from '../database/schema/index.js';
-import { chunkMarkdownContent } from '../docling/docling.chunker.js';
-import { sanitizeDoclingMarkdown, sanitizeDoclingText } from '../docling/docling.text.js';
+import { documentsTable, uploadSessionsTable } from '../database/schema/index.js';
+import { persistParsedDocument } from '../parsing/persistence.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 
 export type DocumentWorkerDeps = {
   db: Database;
   storage: StorageDriver;
   encryption: EncryptionServices;
-  doclingClient: DoclingClient;
+  parsePipeline: ParsePipeline;
   connection: Redis;
 };
 
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
-  const { db, storage, encryption, doclingClient, connection } = deps;
+  const { db, storage, encryption, parsePipeline, connection } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
 
   async function updateRelatedUploadSession({
@@ -95,8 +94,10 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
       await job.updateProgress(20);
 
-      // 4. Send to Docling for conversion
-      const result = await doclingClient.convertFile({
+      // 4. Parse → clean → chunk via the engine-agnostic pipeline. The worker
+      //    never touches parser-specific fields; it consumes ParsedDocument.
+      const parsed = await parsePipeline.run({
+        documentId,
         fileName: doc.originalName,
         mimeType: doc.mimeType,
         fileData,
@@ -104,41 +105,11 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
       await job.updateProgress(60);
 
-      // 5. Parse response into chunks
-      const textContent = sanitizeDoclingText(result.document.text_content || '');
-      const markdownContent = sanitizeDoclingMarkdown(result.document.md_content || '');
-      const chunkSource = markdownContent || textContent;
-      const chunks = chunkMarkdownContent(chunkSource);
-
-      // 6. Delete any existing chunks for this document (re-processing)
-      await db.delete(documentChunksTable).where(eq(documentChunksTable.documentId, documentId));
-
-      // 7. Insert chunks
-      if (chunks.length > 0) {
-        await db.insert(documentChunksTable).values(
-          chunks.map((chunk) => ({
-            documentId,
-            vaultId,
-            chunkIndex: chunk.chunkIndex,
-            content: chunk.content,
-            pageNumber: chunk.pageNumber,
-            chunkType: chunk.chunkType,
-            tokenCount: chunk.tokenCount,
-          })),
-        );
-      }
+      // 5. Persist raw + cleaned text + chunks via the parsing-module writer.
+      await persistParsedDocument({ db, documentId, vaultId, parsed });
 
       await job.updateProgress(90);
 
-      // 8. Update documents.content with full text
-      await db
-        .update(documentsTable)
-        .set({
-          content: textContent,
-          processingStatus: 'completed',
-          updatedAt: new Date(),
-        })
-        .where(eq(documentsTable.id, documentId));
       await updateRelatedUploadSession({
         documentId,
         status: 'completed',
@@ -147,7 +118,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       await job.updateProgress(100);
 
       console.info(
-        `Processed document ${documentId}: ${chunks.length} chunks, ${textContent.length} chars of text content`,
+        `Processed document ${documentId} via ${parsed.engine}@${parsed.engineVersion}: ${parsed.chunks.length} chunks, ${parsed.text.length} chars of text content`,
       );
     } catch (error) {
       await documentsServices.updateDocumentProcessingStatus({

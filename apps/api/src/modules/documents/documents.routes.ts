@@ -375,14 +375,27 @@ export function registerDocumentRoutes({
       const documentId = context.req.param('documentId');
       const doc = await documentsServices.restoreDocument({ documentId, vaultId });
 
-      if (doc === null) {
+      if (!doc.success && doc.reason === 'duplicate') {
+        return context.json(
+          {
+            error: {
+              code: 'document.duplicate',
+              message: 'A document with the same content already exists in this vault',
+              existingId: doc.existingId,
+            },
+          },
+          409,
+        );
+      }
+
+      if (!doc.success) {
         return context.json(
           { error: { code: 'document.not_found', message: 'Document not found or not deleted' } },
           404,
         );
       }
 
-      return context.json({ document: doc });
+      return context.json({ document: { id: doc.id } });
     },
   );
 

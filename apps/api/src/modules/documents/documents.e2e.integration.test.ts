@@ -16,6 +16,10 @@ import {
 } from '../database/schema/index.js';
 import { createDoclingClient } from '../docling/docling.client.js';
 import { createEncryptionServices } from '../encryption/encryption.services.js';
+import { createDoclingParser } from '../parsing/adapters/docling.parser.js';
+import { createParserRegistry } from '../parsing/parser.registry.js';
+import { createParsePipeline } from '../parsing/parse-pipeline.js';
+import { createDeterministicTextCleaner } from '../parsing/text-cleaner.js';
 import { createServer } from '../server/server.js';
 import { createStorageDriver } from '../storage/storage.services.js';
 import { createDocumentQueue } from '../worker/queue.js';
@@ -178,11 +182,20 @@ describe.sequential('document upload processing e2e', () => {
     const encryption = createEncryptionServices({ kekKeysRaw: config.encryption.keys });
     const storage = createStorageDriver({ config });
     documentQueue = createDocumentQueue({ connection: redis });
+    const doclingClient = createDoclingClient({ baseUrl: config.docling.url });
+    const parserRegistry = createParserRegistry({
+      parsers: [createDoclingParser({ doclingClient, engineVersion: config.docling.engineVersion })],
+      defaultEngine: config.parsers.defaultEngine,
+    });
+    const parsePipeline = createParsePipeline({
+      parserRegistry,
+      cleaner: createDeterministicTextCleaner(),
+    });
     documentWorker = createDocumentWorker({
       db,
       storage,
       encryption,
-      doclingClient: createDoclingClient({ baseUrl: config.docling.url }),
+      parsePipeline,
       connection: redis,
     });
 
@@ -308,6 +321,8 @@ describe.sequential('document upload processing e2e', () => {
     const [document] = await db
       .select({
         content: documentsTable.content,
+        parserEngine: documentsTable.parserEngine,
+        parserEngineVersion: documentsTable.parserEngineVersion,
       })
       .from(documentsTable)
       .where(eq(documentsTable.id, testContext.documentId))
@@ -316,7 +331,10 @@ describe.sequential('document upload processing e2e', () => {
     const chunks = await db
       .select({
         chunkIndex: documentChunksTable.chunkIndex,
+        chunkKey: documentChunksTable.chunkKey,
         chunkType: documentChunksTable.chunkType,
+        section: documentChunksTable.section,
+        parserEngine: documentChunksTable.parserEngine,
         content: documentChunksTable.content,
       })
       .from(documentChunksTable)
@@ -325,8 +343,14 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(document).toBeDefined();
     expect(document!.content).toContain('Arkivra Docling E2E Test PDF');
+    expect(document!.parserEngine).toBe('docling');
+    expect(document!.parserEngineVersion).toBeTruthy();
     expect(chunks.length).toBeGreaterThan(0);
-    expect(chunks[0]?.chunkType).toBe('heading');
+    expect(chunks[0]?.chunkKey).toBe(`${testContext.documentId}:0`);
+    expect(chunks[0]?.parserEngine).toBe('docling');
+    expect(['heading', 'paragraph', 'table', 'list', 'other']).toContain(
+      chunks[0]?.chunkType ?? 'other',
+    );
     expect(chunks[0]?.content).toContain('Arkivra Docling E2E Test PDF');
 
     const searchResponse = await app.request(
@@ -549,5 +573,121 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(document?.processingStatus).toBe('completed');
     expect(document?.content).toContain('Arkivra Docling E2E Test PDF');
+  }, 60_000);
+
+  test('allows re-uploading the same file after soft delete', async () => {
+    if (app === null || db === null || testContext.vaultId === null) {
+      throw new Error('Test app dependencies were not initialized');
+    }
+
+    const signInResponse = await app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost:1221',
+      },
+      body: JSON.stringify({
+        email: testContext.email,
+        password: testContext.password,
+      }),
+    });
+
+    expect(signInResponse.status).toBe(200);
+    const sessionCookie = getSessionCookie(signInResponse);
+
+    const fileBuffer = createTestPdfBuffer();
+    const firstUploadFormData = new FormData();
+    firstUploadFormData.append(
+      'file',
+      new File([fileBuffer], 'arkivra-reupload.pdf', { type: 'application/pdf' }),
+    );
+
+    const firstUploadResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents`, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie,
+      },
+      body: firstUploadFormData,
+    });
+
+    expect(firstUploadResponse.status).toBe(201);
+    const firstUploadBody = (await firstUploadResponse.json()) as {
+      document: { id: string };
+    };
+
+    const firstDocumentId = firstUploadBody.document.id;
+
+    const deleteResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${firstDocumentId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          cookie: sessionCookie,
+        },
+      },
+    );
+
+    expect(deleteResponse.status).toBe(204);
+
+    const secondUploadFormData = new FormData();
+    secondUploadFormData.append(
+      'file',
+      new File([fileBuffer], 'arkivra-reupload.pdf', { type: 'application/pdf' }),
+    );
+
+    const secondUploadResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents`, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie,
+      },
+      body: secondUploadFormData,
+    });
+
+    expect(secondUploadResponse.status).toBe(201);
+    const secondUploadBody = (await secondUploadResponse.json()) as {
+      document: { id: string };
+    };
+
+    expect(secondUploadBody.document.id).not.toBe(firstDocumentId);
+
+    const restoreResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${firstDocumentId}/restore`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: sessionCookie,
+        },
+      },
+    );
+
+    expect(restoreResponse.status).toBe(409);
+    const restoreBody = (await restoreResponse.json()) as {
+      error: { code: string; existingId: string };
+    };
+
+    expect(restoreBody.error.code).toBe('document.duplicate');
+    expect(restoreBody.error.existingId).toBe(secondUploadBody.document.id);
+
+    const [trashedDocument, activeDocument] = await Promise.all([
+      db
+        .select({
+          id: documentsTable.id,
+          isDeleted: documentsTable.isDeleted,
+        })
+        .from(documentsTable)
+        .where(eq(documentsTable.id, firstDocumentId))
+        .limit(1),
+      db
+        .select({
+          id: documentsTable.id,
+          isDeleted: documentsTable.isDeleted,
+        })
+        .from(documentsTable)
+        .where(eq(documentsTable.id, secondUploadBody.document.id))
+        .limit(1),
+    ]);
+
+    expect(trashedDocument[0]?.isDeleted).toBe(true);
+    expect(activeDocument[0]?.isDeleted).toBe(false);
   }, 60_000);
 });

@@ -7,15 +7,19 @@ import {
 
 const {
   applyReplacements,
+  buildReplacements,
   collectLineCandidates,
+  createSnippetUpdateMap,
   extractDigits,
   extractJsonObject,
   hasLongAllCapsRun,
+  hasSuspiciousLowercaseGlue,
   hasSuspiciousWordBoundaryPattern,
   isSuspiciousLine,
+  parseLooseOutputsArray,
   removeWhitespace,
   splitMarkdownLine,
-  validateDigitPreservingNormalization,
+  validateNormalization,
 } = __testing;
 
 describe('glued-word normalizer helpers', () => {
@@ -52,6 +56,12 @@ describe('glued-word normalizer helpers', () => {
     expect(hasSuspiciousWordBoundaryPattern('clean normal sentence')).toBe(false);
   });
 
+  test('detects suspicious lowercase glued words', () => {
+    expect(hasSuspiciousLowercaseGlue('thehusband', 8)).toBe(true);
+    expect(hasSuspiciousLowercaseGlue('permanentaddress', 8)).toBe(true);
+    expect(hasSuspiciousLowercaseGlue('clean sentence only', 8)).toBe(false);
+  });
+
   test('detects long all-caps OCR runs without flagging normal title case words', () => {
     expect(hasLongAllCapsRun('Issued by GOVERNMENTOFKERALA', 8)).toBe(true);
     expect(hasLongAllCapsRun('Certificate No.6157/2013', 8)).toBe(false);
@@ -61,22 +71,30 @@ describe('glued-word normalizer helpers', () => {
     expect(isSuspiciousLine('This is a clean normal sentence.', 8)).toBe(false);
   });
 
-  test('allows non-numeric OCR corrections when digits stay unchanged', () => {
-    expect(validateDigitPreservingNormalization({
+  test('flags the missed real-world glued word examples as suspicious', () => {
+    expect(isSuspiciousLine('ComputerEngineer', 8)).toBe(true);
+    expect(isSuspiciousLine('PermanentAddress', 8)).toBe(true);
+    expect(isSuspiciousLine('thehusband', 8)).toBe(true);
+    expect(isSuspiciousLine('HOMEDEPARTMENT', 8)).toBe(true);
+    expect(isSuspiciousLine('oMohammedaliKakkamoolakkal', 8)).toBe(true);
+  });
+
+  test('allows OCR corrections when content meaningfully changes', () => {
+    expect(validateNormalization({
       original: 'Thisis tocertify underrule11(1)oftheRules',
       updated: 'This is to certify under rule 11(1) of the Rules',
     })).toBe('This is to certify under rule 11(1) of the Rules');
   });
 
-  test('rejects outputs that change numeric content', () => {
-    expect(validateDigitPreservingNormalization({
+  test('allows outputs that change numeric content during testing', () => {
+    expect(validateNormalization({
       original: 'CertificateNo.6157/2013 dated06/02/2023',
       updated: 'Certificate No. 6157/2018 dated 06/02/2023',
-    })).toBeNull();
+    })).toBe('Certificate No. 6157/2018 dated 06/02/2023');
   });
 
   test('accepts outputs that only rearrange whitespace', () => {
-    expect(validateDigitPreservingNormalization({
+    expect(validateNormalization({
       original: 'Thisis tocertify that thefollowing',
       updated: 'This is to certify that the following',
     })).toBe('This is to certify that the following');
@@ -105,6 +123,61 @@ describe('glued-word normalizer helpers', () => {
   test('extracts a JSON object from fenced model output', () => {
     expect(extractJsonObject('```json\n{"output":"A B"}\n```')).toBe('{"output":"A B"}');
   });
+
+  test('extracts JSON from thinking-model output with extra wrappers', () => {
+    expect(extractJsonObject([
+      '<think>I should preserve numbers.</think>',
+      'Here is the final JSON:',
+      '```json',
+      '{"outputs":["GOVERNMENT OF KERALA"]}',
+      '```',
+    ].join('\n'))).toBe('{"outputs":["GOVERNMENT OF KERALA"]}');
+  });
+
+  test('recovers outputs from malformed JSON when the outputs array is still usable', () => {
+    expect(parseLooseOutputsArray(
+      '{"outputs":["FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA","DEPARTMENT OF PANCHAYAT",]}',
+    )).toEqual([
+      'FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA',
+      'DEPARTMENT OF PANCHAYAT',
+    ]);
+  });
+
+  test('maps shared snippet updates back onto each original line shape', () => {
+    const snippetUpdates = createSnippetUpdateMap({
+      candidates: [
+        { snippet: 'GOVERNMENTOFKERALA' },
+        { snippet: 'HOMEDEPARTMENT' },
+      ],
+      normalizedSnippets: ['GOVERNMENT OF KERALA', 'HOME DEPARTMENT'],
+    });
+    const replacements = buildReplacements({
+      candidates: [
+        {
+          original: 'GOVERNMENTOFKERALA',
+          snippet: 'GOVERNMENTOFKERALA',
+          updated: next => next,
+        },
+        {
+          original: '# GOVERNMENTOFKERALA',
+          snippet: 'GOVERNMENTOFKERALA',
+          updated: next => `# ${next}`,
+        },
+      ],
+      snippetUpdates,
+    });
+
+    expect(replacements).toEqual([
+      {
+        original: 'GOVERNMENTOFKERALA',
+        updated: 'GOVERNMENT OF KERALA',
+      },
+      {
+        original: '# GOVERNMENTOFKERALA',
+        updated: '# GOVERNMENT OF KERALA',
+      },
+    ]);
+  });
 });
 
 describe('glued-word normalizer', () => {
@@ -128,7 +201,7 @@ describe('glued-word normalizer', () => {
     const chat = vi.fn(async () => ({
       message: {
         content: JSON.stringify({
-          output: outputLine,
+          outputs: [outputLine],
         }),
       },
     }));
@@ -149,14 +222,14 @@ describe('glued-word normalizer', () => {
     expect(result.replacements).toEqual([
       { original: inputLine, updated: outputLine },
     ]);
-    expect(chat).toHaveBeenCalledTimes(2);
+    expect(chat).toHaveBeenCalledTimes(1);
   });
 
   test('normalizes markdown heading lines and preserves the heading prefix', async () => {
     const chat = vi.fn(async () => ({
       message: {
         content: JSON.stringify({
-          output: 'FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA',
+          outputs: ['FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA'],
         }),
       },
     }));
@@ -186,10 +259,10 @@ describe('glued-word normalizer', () => {
     ]);
   });
 
-  test('ignores model outputs that alter numeric content', async () => {
+  test('accepts model outputs that alter numeric content during testing', async () => {
     const chat = vi.fn(async () => ({
       message: {
-        content: '{"output":"Certificate No. 6157/2018"}',
+        content: '{"outputs":["Certificate No. 6157/2018"]}',
       },
     }));
 
@@ -204,7 +277,150 @@ describe('glued-word normalizer', () => {
       markdown: '',
     });
 
-    expect(result.text).toBe('CertificateNo.6157/2013');
-    expect(result.replacements).toEqual([]);
+    expect(result.text).toBe('Certificate No. 6157/2018');
+    expect(result.replacements).toEqual([
+      { original: 'CertificateNo.6157/2013', updated: 'Certificate No. 6157/2018' },
+    ]);
+  });
+
+  test('batches multiple suspicious lines into a single Ollama call when they fit in one batch', async () => {
+    const lineOne = 'GOVERNMENTOFKERALA';
+    const lineTwo = 'DEPARTMENTOFPANCHAYAT';
+    const chat = vi
+      .fn()
+      .mockResolvedValueOnce({
+        message: {
+          content: JSON.stringify({
+            outputs: [
+              'GOVERNMENT OF KERALA',
+              'DEPARTMENT OF PANCHAYAT',
+            ],
+          }),
+        },
+      });
+
+    const normalizer = createOllamaGluedWordNormalizer({
+      model: 'gemma4:e2b',
+      minTokenLength: 8,
+      batchSize: 2,
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: [lineOne, lineTwo].join('\n'),
+      markdown: '',
+    });
+
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(result.text).toBe([
+      'GOVERNMENT OF KERALA',
+      'DEPARTMENT OF PANCHAYAT',
+    ].join('\n'));
+    expect(result.replacements).toEqual([
+      { original: lineOne, updated: 'GOVERNMENT OF KERALA' },
+      { original: lineTwo, updated: 'DEPARTMENT OF PANCHAYAT' },
+    ]);
+  });
+
+  test('parses thinking-model responses with <think> wrappers and code fences', async () => {
+    const chat = vi.fn(async () => ({
+      message: {
+        content: [
+          '<think>I will preserve all digits and only fix spaces.</think>',
+          '```json',
+          '{"outputs":["GOVERNMENT OF KERALA HOME DEPARTMENT"]}',
+          '```',
+        ].join('\n'),
+      },
+    }));
+
+    const normalizer = createOllamaGluedWordNormalizer({
+      model: 'gemma4:e2b',
+      minTokenLength: 8,
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: 'GOVFRNMENTOFKERALA HOMEDEPARTMENT',
+      markdown: '',
+    });
+
+    expect(result.text).toBe('GOVERNMENT OF KERALA HOME DEPARTMENT');
+    expect(result.replacements).toEqual([
+      {
+        original: 'GOVFRNMENTOFKERALA HOMEDEPARTMENT',
+        updated: 'GOVERNMENT OF KERALA HOME DEPARTMENT',
+      },
+    ]);
+  });
+
+  test('recovers Gemma-style outputs arrays from malformed batch JSON', async () => {
+    const chat = vi.fn(async () => ({
+      message: {
+        content:
+          '{"outputs":["FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA","DEPARTMENT OF PANCHAYAT",]}',
+      },
+    }));
+
+    const normalizer = createOllamaGluedWordNormalizer({
+      model: 'gemma4:e2b',
+      minTokenLength: 8,
+      batchSize: 2,
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: ['FORM No. IV [SeeRule11(1)] GOVERNMENTOFKERALA', 'DEPARTMENTOFPANCHAYAT'].join('\n'),
+      markdown: '',
+    });
+
+    expect(result.text).toBe([
+      'FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA',
+      'DEPARTMENT OF PANCHAYAT',
+    ].join('\n'));
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  test('normalizes the newly-covered glued word patterns in one batch', async () => {
+    const chat = vi.fn(async () => ({
+      message: {
+        content: JSON.stringify({
+          outputs: [
+            'Computer Engineer',
+            'Permanent Address',
+            'the husband',
+            'HOME DEPARTMENT',
+            'o Mohammedali Kakkamoolakkal',
+          ],
+        }),
+      },
+    }));
+
+    const normalizer = createOllamaGluedWordNormalizer({
+      model: 'gemma4:e2b',
+      minTokenLength: 8,
+      batchSize: 5,
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: [
+        'ComputerEngineer',
+        'PermanentAddress',
+        'thehusband',
+        'HOMEDEPARTMENT',
+        'oMohammedaliKakkamoolakkal',
+      ].join('\n'),
+      markdown: '',
+    });
+
+    expect(result.text).toBe([
+      'Computer Engineer',
+      'Permanent Address',
+      'the husband',
+      'HOME DEPARTMENT',
+      'o Mohammedali Kakkamoolakkal',
+    ].join('\n'));
+    expect(chat).toHaveBeenCalledTimes(1);
   });
 });

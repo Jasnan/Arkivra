@@ -553,7 +553,7 @@ describe.sequential('document upload processing e2e', () => {
       upload: { status: string; documentId: string };
     };
 
-    expect(completeBody.upload.status).toBe('processing');
+    expect(completeBody.upload.status).toBe('completed');
     expect(completeBody.upload.documentId).toBe(completeBody.document.id);
 
     await waitForProcessing({

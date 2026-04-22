@@ -105,6 +105,7 @@ export async function startApp() {
             model: config.ollama.model,
             minTokenLength: config.ollama.gluedWordMinTokenLength,
             maxCandidates: config.ollama.gluedWordMaxCandidates,
+            batchSize: config.ollama.gluedWordBatchSize,
             logRequests: config.ollama.logRequests,
           })
         : createNoopGluedWordNormalizer();
@@ -142,7 +143,7 @@ export async function startApp() {
 
     console.info('Document processing worker started');
     console.info(
-      `OCR whitespace normalization: ${config.parsers.gluedWordNormalization} (${config.ollama.model} @ ${config.ollama.host}, minRun=${config.ollama.gluedWordMinTokenLength}, maxCandidates=${config.ollama.gluedWordMaxCandidates}, logRequests=${config.ollama.logRequests})`,
+      `OCR whitespace normalization: ${config.parsers.gluedWordNormalization} (${config.ollama.model} @ ${config.ollama.host}, minRun=${config.ollama.gluedWordMinTokenLength}, maxCandidates=${config.ollama.gluedWordMaxCandidates}, batchSize=${config.ollama.gluedWordBatchSize}, logRequests=${config.ollama.logRequests})`,
     );
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,

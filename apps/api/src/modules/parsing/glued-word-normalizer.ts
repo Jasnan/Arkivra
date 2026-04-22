@@ -20,24 +20,175 @@ export interface GluedWordNormalizer {
 
 type OllamaChat = (args: {
   model: string;
+  think?: boolean;
   messages: Array<{ role: 'user'; content: string }>;
 }) => Promise<{ message?: { content?: string } }>;
 
-const normalizeDecisionSchema = z.object({
-  output: z.string().min(1),
+const normalizeBatchDecisionSchema = z.object({
+  outputs: z.array(z.string().min(1)),
 });
 
-function extractJsonObject(value: string) {
-  const fenced = value.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced?.[1] ?? value;
-  const start = candidate.indexOf('{');
-  const end = candidate.lastIndexOf('}');
+function normalizeModelResponseEnvelope(value: string) {
+  return value
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+    .replace(/<\/?think>/gi, ' ');
+}
 
-  if (start === -1 || end === -1 || end <= start) {
+function extractJsonObject(value: string) {
+  const normalized = normalizeModelResponseEnvelope(value);
+  const fenced = normalized.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = (fenced?.[1] ?? normalized).trim();
+  const starts: number[] = [];
+
+  for (let index = 0; index < candidate.length; index += 1) {
+    if (candidate[index] === '{') {
+      starts.push(index);
+    }
+  }
+
+  for (const start of starts) {
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+
+    for (let index = start; index < candidate.length; index += 1) {
+      const char = candidate[index];
+
+      if (char === undefined) {
+        continue;
+      }
+
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+          continue;
+        }
+
+        if (char === '\\') {
+          isEscaped = true;
+          continue;
+        }
+
+        if (char === '"') {
+          inString = false;
+        }
+
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (char === '{') {
+        depth += 1;
+        continue;
+      }
+
+      if (char !== '}') {
+        continue;
+      }
+
+      depth -= 1;
+      if (depth !== 0) {
+        continue;
+      }
+
+      const json = candidate.slice(start, index + 1);
+      try {
+        JSON.parse(json);
+        return json;
+      } catch {
+        break;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractJsonArray(value: string, start: number) {
+  let depth = 0;
+  let inString = false;
+  let isEscaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+
+    if (char === undefined) {
+      continue;
+    }
+
+    if (inString) {
+      if (isEscaped) {
+        isEscaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        isEscaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = false;
+      }
+
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '[') {
+      depth += 1;
+      continue;
+    }
+
+    if (char !== ']') {
+      continue;
+    }
+
+    depth -= 1;
+    if (depth === 0) {
+      return value.slice(start, index + 1);
+    }
+  }
+
+  return null;
+}
+
+function parseLooseOutputsArray(value: string) {
+  const normalized = normalizeModelResponseEnvelope(value);
+  const outputsKeyIndex = normalized.search(/["']?outputs["']?\s*:/i);
+
+  if (outputsKeyIndex === -1) {
     return null;
   }
 
-  return candidate.slice(start, end + 1);
+  const arrayStart = normalized.indexOf('[', outputsKeyIndex);
+  if (arrayStart === -1) {
+    return null;
+  }
+
+  const arrayText = extractJsonArray(normalized, arrayStart);
+  if (arrayText === null) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(arrayText);
+    return Array.isArray(parsed) && parsed.every(item => typeof item === 'string') ? parsed : null;
+  } catch {
+    const strings = [...arrayText.matchAll(/"((?:\\.|[^"\\])*)"/g)].map(match =>
+      JSON.parse(`"${match[1] ?? ''}"`),
+    );
+    return strings.length > 0 ? strings : null;
+  }
 }
 
 function previewSnippet(value: string, maxLength = 180) {
@@ -107,6 +258,19 @@ function hasSuspiciousWordBoundaryPattern(line: string) {
     || /[A-Za-z]\.[A-Za-z]/.test(line);
 }
 
+function hasSuspiciousLowercaseGlue(line: string, minTokenLength: number) {
+  const words = line.match(/[a-z]{2,}/g) ?? [];
+
+  return words.some((word) => {
+    if (word.length < minTokenLength + 2) {
+      return false;
+    }
+
+    return /^(the|and|for|with|from|into|upon|that|this|these|those|his|her|their|our|your)[a-z]{4,}$/i.test(word)
+      || /[a-z]{5,}(address|department|engineer|husband|wife|daughter|mother|father|secretary|registrar)$/i.test(word);
+  });
+}
+
 function isSuspiciousLine(line: string, minTokenLength: number) {
   const { content } = splitMarkdownLine(line);
   const trimmed = content.trim();
@@ -115,7 +279,9 @@ function isSuspiciousLine(line: string, minTokenLength: number) {
     return false;
   }
 
-  return hasLongAllCapsRun(trimmed, minTokenLength) || hasSuspiciousWordBoundaryPattern(trimmed);
+  return hasLongAllCapsRun(trimmed, minTokenLength)
+    || hasSuspiciousWordBoundaryPattern(trimmed)
+    || hasSuspiciousLowercaseGlue(trimmed, minTokenLength);
 }
 
 function collectLineCandidates({
@@ -153,7 +319,7 @@ function collectLineCandidates({
   return candidates;
 }
 
-function validateDigitPreservingNormalization({
+function validateNormalization({
   original,
   updated,
 }: {
@@ -164,17 +330,6 @@ function validateDigitPreservingNormalization({
 
   if (trimmed.length === 0) {
     return null;
-  }
-
-  const originalDigits = extractDigits(original);
-  const updatedDigits = extractDigits(trimmed);
-  if (originalDigits.length !== updatedDigits.length) {
-    return null;
-  }
-  for (const [index, group] of originalDigits.entries()) {
-    if (updatedDigits[index] !== group) {
-      return null;
-    }
   }
 
   const collapsedOriginal = collapseWhitespace(original);
@@ -197,6 +352,47 @@ function applyReplacements(value: string, replacements: Array<{ original: string
   return next;
 }
 
+function createSnippetUpdateMap({
+  candidates,
+  normalizedSnippets,
+}: {
+  candidates: Array<{ snippet: string }>;
+  normalizedSnippets: string[];
+}) {
+  const updates = new Map<string, string>();
+
+  for (const [index, candidate] of candidates.entries()) {
+    const updated = normalizedSnippets[index] ?? candidate.snippet;
+    if (!updates.has(candidate.snippet)) {
+      updates.set(candidate.snippet, updated);
+    }
+  }
+
+  return updates;
+}
+
+function buildReplacements({
+  candidates,
+  snippetUpdates,
+}: {
+  candidates: Array<{ original: string; snippet: string; updated: (next: string) => string }>;
+  snippetUpdates: Map<string, string>;
+}) {
+  const replacements: Array<{ original: string; updated: string }> = [];
+
+  for (const candidate of candidates) {
+    const updated = snippetUpdates.get(candidate.snippet) ?? candidate.snippet;
+    if (updated !== candidate.snippet) {
+      replacements.push({
+        original: candidate.original,
+        updated: candidate.updated(updated),
+      });
+    }
+  }
+
+  return replacements;
+}
+
 export function createNoopGluedWordNormalizer(): GluedWordNormalizer {
   return {
     name: 'none',
@@ -213,6 +409,7 @@ export function createOllamaGluedWordNormalizer({
   host,
   minTokenLength = 12,
   maxCandidates = 100,
+  batchSize = 10,
   logRequests = false,
   chat,
 }: {
@@ -220,36 +417,47 @@ export function createOllamaGluedWordNormalizer({
   host?: string;
   minTokenLength?: number;
   maxCandidates?: number;
+  batchSize?: number;
   logRequests?: boolean;
   chat?: OllamaChat;
 }): GluedWordNormalizer {
   const ollamaClient = chat ? null : new Ollama({ host });
   const client = chat ?? ollamaClient!.chat.bind(ollamaClient);
 
-  async function normalizeSnippet(snippet: string) {
+  async function normalizeSnippets(snippets: string[]) {
+    if (snippets.length === 0) {
+      return [];
+    }
+
     const prompt = [
       'You are correcting OCR whitespace and word-boundary errors.',
-      'Rewrite the snippet to improve OCR text quality.',
+      'Rewrite each snippet to improve OCR text quality.',
       'You may insert, remove, or move spaces and line breaks.',
-      'You may correct non-numeric OCR mistakes in letters and punctuation when needed.',
-      'Do not change, add, remove, reorder, split, or merge any digits or digit groups.',
-      'Every number must stay exactly the same and in the same order.',
-      'Prefer meaningful whole words over awkward splits.',
-      'Bad: "GOVERNMEN TOF KERALA"',
-      'Good: "GOVERNMENT OF KERALA"',
-      'Bad: "DEPARTMEN TOF PANCHAYAT"',
-      'Good: "DEPARTMENT OF PANCHAYAT"',
-      'Bad: "underrule11(1)oftheKeralaRegistrationofMarriages"',
-      'Good: "under rule 11(1) of the Kerala Registration of Marriages"',
+      'You may correct OCR mistakes in letters, punctuation, and numbers when needed.',
+      'Your job is to restore likely missing or misplaced spaces created by OCR.',
+      'Prefer meaningful whole words, names, titles, and phrases over awkward fragments.',
+      'Split merged lowercase words when they form common word sequences.',
+      'Split merged CamelCase or TitleCase compounds when they read like separate words.',
+      'Split merged ALLCAPS compounds when they read like multiple words.',
+      'Repair spacing around punctuation, brackets, initials, abbreviations, and rule references when OCR has collapsed them.',
+      'Keep natural names together when possible; do not introduce random breaks inside a likely name.',
+      'If a token could be split in several ways, choose the most natural reading.',
       'If a split would create unnatural fragments, keep the surrounding letters together and try a different whitespace placement.',
-      'If unsure, keep the snippet unchanged.',
-      'Return JSON only: {"output":"..."}',
-      `Snippet: ${snippet}`,
+      'If unsure, keep a snippet unchanged.',
+      'Examples of the kind of fixes you may make:',
+      'Bad: "CITYOFFICE" -> Good: "CITY OFFICE"',
+      'Bad: "ProjectManager" -> Good: "Project Manager"',
+      'Bad: "currentaddress" -> Good: "current address"',
+      'Bad: "underrule7(2)oftheCode" -> Good: "under rule 7(2) of the Code"',
+      'Bad: "A RahmanKhan" -> Good: "A Rahman Khan"',
+      'Return JSON only: {"outputs":["...", "..."]}',
+      'Return exactly one output for each input snippet, in the same order.',
+      `Snippets: ${JSON.stringify(snippets)}`,
     ].join('\n');
 
     if (logRequests) {
       console.info(
-        `[ollama-normalizer] sending request to ${host ?? 'default-host'} with model=${model}: ${previewSnippet(snippet)}`,
+        `[ollama-normalizer] sending batch request to ${host ?? 'default-host'} with model=${model}, size=${snippets.length}: ${previewSnippet(snippets.join(' | '))}`,
       );
     }
 
@@ -265,119 +473,134 @@ export function createOllamaGluedWordNormalizer({
         `[ollama-normalizer] request failed for model=${model}:`,
         error instanceof Error ? error.message : error,
       );
-      return snippet;
+      return snippets;
     }
 
     const content = response.message?.content ?? '';
     const json = extractJsonObject(content);
-    if (json === null) {
+    let outputs: string[] | null = null;
+
+    if (json !== null) {
+      try {
+        const payload = JSON.parse(json);
+        const parsed = normalizeBatchDecisionSchema.safeParse(payload);
+        if (parsed.success) {
+          outputs = parsed.data.outputs;
+        }
+      } catch {
+        outputs = null;
+      }
+    }
+
+    if (outputs === null) {
+      outputs = parseLooseOutputsArray(content);
+    }
+
+    if (outputs === null) {
       if (logRequests) {
         console.warn(
-          `[ollama-normalizer] response was not valid JSON, keeping original: ${previewSnippet(content)}`,
+          `[ollama-normalizer] could not parse outputs array, keeping original: ${previewSnippet(content)}`,
         );
       }
-      return snippet;
+      return snippets;
     }
 
-    let payload: unknown;
-    try {
-      payload = JSON.parse(json);
-    } catch {
+    if (outputs.length !== snippets.length) {
       if (logRequests) {
-        console.warn('[ollama-normalizer] response JSON parsing failed, keeping original snippet');
+        console.warn(
+          `[ollama-normalizer] response length mismatch, expected ${snippets.length} output(s) and got ${outputs.length}; keeping original batch`,
+        );
       }
-      return snippet;
+      return snippets;
     }
 
-    const parsed = normalizeDecisionSchema.safeParse(payload);
-    if (!parsed.success) {
+    return snippets.map((snippet, index) => {
+      const validated = validateNormalization({
+        original: snippet,
+        updated: outputs[index] ?? snippet,
+      });
+
       if (logRequests) {
-        console.warn('[ollama-normalizer] response schema invalid, keeping original snippet');
+        console.info(
+          validated === null
+            ? `[ollama-normalizer] candidate left unchanged by model: ${previewSnippet(snippet)}`
+            : `[ollama-normalizer] accepted normalization: ${previewSnippet(validated)}`,
+        );
       }
-      return snippet;
-    }
 
-    const validated = validateDigitPreservingNormalization({
-      original: snippet,
-      updated: parsed.data.output,
+      return validated ?? snippet;
     });
-
-    if (logRequests) {
-      console.info(
-        validated === null
-          ? `[ollama-normalizer] rejected response because it changed numeric content`
-          : `[ollama-normalizer] accepted normalization: ${previewSnippet(validated)}`,
-      );
-    }
-
-    return validated ?? snippet;
-  }
-
-  async function normalizeValue(value: string) {
-    const candidates = collectLineCandidates({
-      value,
-      minTokenLength,
-      maxCandidates,
-    });
-
-    if (candidates.length === 0) {
-      return {
-        value,
-        replacements: [] as Array<{ original: string; updated: string }>,
-      };
-    }
-
-    console.info(
-      `[ollama-normalizer] found ${candidates.length} suspicious OCR line(s) for model=${model}`,
-    );
-
-    const replacements: Array<{ original: string; updated: string }> = [];
-
-    for (const candidate of candidates) {
-      const updated = await normalizeSnippet(candidate.snippet);
-
-      if (updated !== candidate.snippet) {
-        replacements.push({
-          original: candidate.original,
-          updated: candidate.updated(updated),
-        });
-      }
-    }
-
-    console.info(
-      `[ollama-normalizer] applied ${replacements.length} whitespace normalization replacement(s)`,
-    );
-
-    if (replacements.length === 0) {
-      return {
-        value,
-        replacements,
-      };
-    }
-
-    return {
-      value: applyReplacements(value, replacements),
-      replacements,
-    };
   }
 
   return {
     name: 'ollama',
     normalize: async (input) => {
-      const textResult = await normalizeValue(input.text);
-      const markdownResult = await normalizeValue(input.markdown);
+      const textCandidates = collectLineCandidates({
+        value: input.text,
+        minTokenLength,
+        maxCandidates,
+      });
+      const markdownCandidates = collectLineCandidates({
+        value: input.markdown,
+        minTokenLength,
+        maxCandidates,
+      });
+      const uniqueCandidates = [
+        ...new Map(
+          [...textCandidates, ...markdownCandidates].map(candidate => [candidate.snippet, candidate] as const),
+        ).values(),
+      ];
+
+      if (uniqueCandidates.length === 0) {
+        return {
+          text: input.text,
+          markdown: input.markdown,
+          replacements: [],
+        };
+      }
+
+      console.info(
+        `[ollama-normalizer] found ${textCandidates.length} suspicious text line(s), ${markdownCandidates.length} suspicious markdown line(s), ${uniqueCandidates.length} unique snippet(s) for model=${model}`,
+      );
+
+      const normalizedSnippets: string[] = [];
+      for (let index = 0; index < uniqueCandidates.length; index += batchSize) {
+        const batch = uniqueCandidates.slice(index, index + batchSize);
+        const updatedBatch = await normalizeSnippets(batch.map(candidate => candidate.snippet));
+        normalizedSnippets.push(...updatedBatch);
+      }
+
+      const snippetUpdates = createSnippetUpdateMap({
+        candidates: uniqueCandidates,
+        normalizedSnippets,
+      });
+      const textReplacements = buildReplacements({
+        candidates: textCandidates,
+        snippetUpdates,
+      });
+      const markdownReplacements = buildReplacements({
+        candidates: markdownCandidates,
+        snippetUpdates,
+      });
       const dedupedReplacements = [
-        ...textResult.replacements,
-        ...markdownResult.replacements.filter(markdownReplacement =>
-          !textResult.replacements.some(textReplacement =>
+        ...textReplacements,
+        ...markdownReplacements.filter(markdownReplacement =>
+          !textReplacements.some(textReplacement =>
             textReplacement.original === markdownReplacement.original
             && textReplacement.updated === markdownReplacement.updated,
           )),
       ];
 
+      console.info(
+        `[ollama-normalizer] applied ${textReplacements.length} text replacement(s) and ${markdownReplacements.length} markdown replacement(s)`,
+      );
+
       return {
-        text: textResult.value,
-        markdown: markdownResult.value,
+        text: textReplacements.length === 0 ? input.text : applyReplacements(input.text, textReplacements),
+        markdown:
+          markdownReplacements.length === 0
+            ? input.markdown
+            : applyReplacements(input.markdown, markdownReplacements),
         replacements: dedupedReplacements,
       };
     },
@@ -389,11 +612,17 @@ export const __testing = {
   collectLineCandidates,
   extractJsonObject,
   hasLongAllCapsRun,
+  hasSuspiciousLowercaseGlue,
   hasSuspiciousWordBoundaryPattern,
   isSuspiciousLine,
+  normalizeModelResponseEnvelope,
+  parseLooseOutputsArray,
   previewSnippet,
   extractDigits,
   removeWhitespace,
   splitMarkdownLine,
-  validateDigitPreservingNormalization,
+  validateNormalization,
+  buildReplacements,
+  createSnippetUpdateMap,
+  normalizeBatchDecisionSchema,
 };

@@ -10,8 +10,6 @@ export type UploadSessionStatus =
   | 'initialized'
   | 'uploading'
   | 'paused'
-  | 'pending'
-  | 'processing'
   | 'completed'
   | 'failed'
   | 'aborted';
@@ -231,7 +229,7 @@ export function createUploadsServices({
       throw new Error('Invalid part number');
     }
 
-    if (row.status === 'completed' || row.status === 'pending' || row.status === 'processing' || row.status === 'aborted') {
+    if (row.status === 'completed' || row.status === 'aborted') {
       throw new Error('Upload session is no longer writable');
     }
 
@@ -320,7 +318,7 @@ export function createUploadsServices({
       .update(uploadSessionsTable)
       .set({
         documentId: result.existingId ?? result.document?.id ?? null,
-        status: result.duplicate ? 'failed' : 'pending',
+        status: result.duplicate ? 'failed' : 'completed',
         errorCode: result.duplicate ? 'document.duplicate' : null,
         errorMessage: result.duplicate
           ? 'A document with the same content already exists in this vault'
@@ -376,78 +374,12 @@ export function createUploadsServices({
     return updatedRow === undefined ? null : toPublicUploadSession(updatedRow);
   }
 
-  async function markUploadForProcessingRetry({
-    uploadId,
-    vaultId,
-    userId,
-  }: {
-    uploadId: string;
-    vaultId: string;
-    userId: string;
-  }) {
-    const row = await loadOwnedUploadSession({ uploadId, vaultId, userId });
-
-    if (row === null) {
-      return { upload: null, reason: 'not_found' as const };
-    }
-
-    if (row.documentId === null) {
-      return { upload: null, reason: 'missing_document' as const };
-    }
-
-    const [updatedRow] = await db
-      .update(uploadSessionsTable)
-      .set({
-        status: 'pending',
-        errorCode: null,
-        errorMessage: null,
-        completedAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(uploadSessionsTable.id, uploadId))
-      .returning();
-
-    if (updatedRow === undefined) {
-      throw new Error('Failed to update upload session');
-    }
-
-    return { upload: toPublicUploadSession(updatedRow), reason: null };
-  }
-
-  async function updateUploadSessionProcessingStatus({
-    documentId,
-    status,
-    errorCode = null,
-    errorMessage = null,
-  }: {
-    documentId: string;
-    status: Extract<UploadSessionStatus, 'processing' | 'completed' | 'failed'>;
-    errorCode?: string | null;
-    errorMessage?: string | null;
-  }) {
-    const [updatedRow] = await db
-      .update(uploadSessionsTable)
-      .set({
-        status,
-        errorCode,
-        errorMessage,
-        completedAt: status === 'completed' ? new Date() : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(uploadSessionsTable.documentId, documentId))
-      .returning();
-
-    return updatedRow === undefined ? null : toPublicUploadSession(updatedRow);
-  }
-
   return {
     abortUpload,
     completeUpload,
     getUploadSession,
     initUpload,
     listUploadSessions,
-    markUploadForProcessingRetry,
     uploadPart,
-    updateUploadSessionProcessingStatus,
   };
 }

@@ -191,6 +191,12 @@ export const configDefinition = {
       default: 100,
       env: 'ARKIVRA_OLLAMA_GLUED_WORD_MAX_CANDIDATES',
     },
+    gluedWordBatchSize: {
+      doc: 'Number of suspicious OCR lines to batch into each Ollama normalization request.',
+      schema: z.coerce.number().int().min(1).max(200),
+      default: 10,
+      env: 'ARKIVRA_OLLAMA_GLUED_WORD_BATCH_SIZE',
+    },
     logRequests: {
       doc: 'Whether to log Arkivra Ollama normalization requests and responses for debugging.',
       schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),

@@ -1,13 +1,8 @@
 import { fetchJson } from '@/lib/api';
-import type { DocumentDetail } from '@/features/documents/documents.types';
 import type { UploadSessionSummary } from './uploads.types';
 
 interface UploadResponse {
   upload: UploadSessionSummary;
-}
-
-interface UploadWithDocumentResponse extends UploadResponse {
-  document: DocumentDetail;
 }
 
 interface UploadListResponse {
@@ -39,7 +34,7 @@ export async function completeUploadSession({
   vaultId: string;
   uploadId: string;
 }) {
-  return fetchJson<UploadWithDocumentResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/complete`, {
+  return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/complete`, {
     method: 'POST',
   });
 }
@@ -73,18 +68,6 @@ export async function abortUploadSession({
   uploadId: string;
 }) {
   return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/abort`, {
-    method: 'POST',
-  });
-}
-
-export async function retryUploadProcessing({
-  vaultId,
-  uploadId,
-}: {
-  vaultId: string;
-  uploadId: string;
-}) {
-  return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/retry-processing`, {
     method: 'POST',
   });
 }

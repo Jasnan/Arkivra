@@ -156,7 +156,7 @@ export function AppShell({ children }: PropsWithChildren) {
         <div className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
           <header className="sticky top-0 z-40 bg-background/92 py-4 backdrop-blur">
             <div className="flex flex-col gap-4">
-              {(uploadState.activeCount + uploadState.queuedCount + uploadState.processingCount) > 0 ? (
+              {(uploadState.activeCount + uploadState.queuedCount) > 0 ? (
                 <NavLink
                   to="/transfers"
                   className="flex items-center justify-between rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground transition hover:bg-secondary/50 hover:text-foreground"
@@ -165,7 +165,7 @@ export function AppShell({ children }: PropsWithChildren) {
                     <span className="flex size-9 items-center justify-center rounded-xl bg-secondary text-primary">
                       <Upload className="size-4" />
                     </span>
-                    Uploading {uploadState.activeCount + uploadState.queuedCount + uploadState.processingCount} file{uploadState.activeCount + uploadState.queuedCount + uploadState.processingCount === 1 ? '' : 's'}
+                    Uploading {uploadState.activeCount + uploadState.queuedCount} file{uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
                   </span>
                   <span className="text-xs uppercase tracking-[0.16em]">View queue</span>
                 </NavLink>

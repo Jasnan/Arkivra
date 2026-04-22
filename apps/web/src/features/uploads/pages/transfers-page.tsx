@@ -7,8 +7,6 @@ import {
   FileUp,
   LoaderCircle,
   MoreHorizontal,
-  Pause,
-  Play,
   Plus,
   Trash2,
 } from 'lucide-react';
@@ -28,17 +26,11 @@ function statusLabel(status: string) {
     case 'queued': return 'Queued';
     case 'uploading': return 'Uploading';
     case 'paused': return 'Paused';
-    case 'pending': return 'Queued for extraction';
-    case 'processing': return 'Extracting text';
     case 'completed': return 'Done';
     case 'failed': return 'Failed';
     case 'canceled': return 'Canceled';
     default: return status;
   }
-}
-
-function retryLabel(item: { uploadId: string | null; documentId: string | null }) {
-  return item.uploadId !== null && item.documentId !== null ? 'Retry extraction' : 'Retry';
 }
 
 export function TransfersPage() {
@@ -187,18 +179,6 @@ export function TransfersPage() {
         </StatusBanner>
       ) : null}
 
-      {state.pendingCount > 0 ? (
-        <StatusBanner>
-          {state.pendingCount} file{state.pendingCount === 1 ? '' : 's'} uploaded and queued for text/OCR extraction.
-        </StatusBanner>
-      ) : null}
-
-      {state.processingCount > 0 ? (
-        <StatusBanner>
-          {state.processingCount} file{state.processingCount === 1 ? '' : 's'} currently in text/OCR extraction. Completion updates are coming from the server.
-        </StatusBanner>
-      ) : null}
-
       <SurfacePanel className="space-y-4 rounded-[30px] p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
@@ -207,7 +187,7 @@ export function TransfersPage() {
                 Upload queue
               </h2>
               <p className="text-[1.02rem] text-muted-foreground">
-                Completed uploads are kept for 24 hours.
+                This page only tracks the file upload itself. Completed uploads are kept for 24 hours.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-[1.05rem] text-muted-foreground">
@@ -233,24 +213,6 @@ export function TransfersPage() {
                 >
                   <Plus className="size-4 text-primary" />
                   Add files
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={state.items.length === 0}
-                  onSelect={() => {
-                    uploadManager.pauseAll();
-                  }}
-                >
-                  <Pause className="size-4 text-primary" />
-                  Pause all
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={state.items.length === 0}
-                  onSelect={() => {
-                    uploadManager.resumeAll();
-                  }}
-                >
-                  <Play className="size-4 text-primary" />
-                  Resume all
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={completedItems.length === 0}
@@ -318,16 +280,11 @@ export function TransfersPage() {
               <div className="flex items-center gap-2 text-sm">
                 {item.status === 'completed' ? <CheckCircle2 className="size-4 text-primary" /> : null}
                 {item.status === 'failed' ? <AlertCircle className="size-4 text-destructive" /> : null}
-                {item.status === 'uploading' || item.status === 'pending' || item.status === 'processing' ? <LoaderCircle className="size-4 animate-spin text-primary" /> : null}
+                {item.status === 'uploading' ? <LoaderCircle className="size-4 animate-spin text-primary" /> : null}
                 <span className={cn(item.status === 'failed' && 'text-destructive')}>{statusLabel(item.status)}</span>
               </div>
 
               <div className="flex items-center justify-end gap-2">
-                {item.status === 'failed' ? (
-                  <Button variant="ghost" size="sm" onClick={() => void uploadManager.retryFailed(item.id)}>
-                    {retryLabel(item)}
-                  </Button>
-                ) : null}
                 <Button variant="ghost" size="sm" onClick={() => void uploadManager.remove(item.id)}>
                   <Trash2 className="size-4" />
                 </Button>
@@ -338,11 +295,9 @@ export function TransfersPage() {
               <p className="mt-2 text-sm text-destructive">{item.error}</p>
             ) : (
               <p className="mt-2 text-sm text-muted-foreground">
-                {item.status === 'pending'
-                  ? `${formatBytes(item.bytesUploaded)} uploaded • waiting for text/OCR extraction to start`
-                  : item.status === 'processing'
-                    ? `${formatBytes(item.bytesUploaded)} uploaded • text/OCR extraction in progress`
-                    : `${formatBytes(item.bytesUploaded)} uploaded • ${Math.round(item.progress)}%`}
+                {item.status === 'completed'
+                  ? `${formatBytes(item.bytesUploaded)} uploaded • complete`
+                  : `${formatBytes(item.bytesUploaded)} uploaded • ${Math.round(item.progress)}%`}
               </p>
             )}
           </div>

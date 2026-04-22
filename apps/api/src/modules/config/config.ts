@@ -176,7 +176,7 @@ export const configDefinition = {
     model: {
       doc: 'Ollama model used for glued-word normalization.',
       schema: z.string().min(1),
-      default: 'gemma3n:e4b',
+      default: 'gemma4:e2b',
       env: 'ARKIVRA_OLLAMA_MODEL',
     },
     gluedWordMinTokenLength: {

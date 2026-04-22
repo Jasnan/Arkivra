@@ -2,8 +2,6 @@ export type TransferItemStatus =
   | 'queued'
   | 'uploading'
   | 'paused'
-  | 'pending'
-  | 'processing'
   | 'completed'
   | 'failed'
   | 'canceled';
@@ -53,10 +51,8 @@ export interface TransferState {
   items: TransferItem[];
   activeCount: number;
   queuedCount: number;
-  pendingCount: number;
   failedCount: number;
   completedCount: number;
-  processingCount: number;
   isPaused: boolean;
   hydratedFromStorage: boolean;
 }

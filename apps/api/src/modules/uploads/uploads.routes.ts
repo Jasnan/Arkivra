@@ -90,7 +90,7 @@ export function registerUploadRoutes({
     const uploads = await uploadsServices.listUploadSessions({
       vaultId,
       userId,
-      statuses: activeOnly ? ['initialized', 'uploading', 'paused', 'pending', 'processing', 'failed'] : undefined,
+      statuses: activeOnly ? ['initialized', 'uploading', 'paused', 'failed'] : undefined,
     });
 
     return context.json({ uploads });
@@ -198,117 +198,6 @@ export function registerUploadRoutes({
         400,
       );
     }
-  });
-
-  app.post('/api/vaults/:vaultId/uploads/:uploadId/retry-processing', requireVaultPermission('documents.create'), async (context) => {
-    const vaultId = context.get('vaultId');
-    const userId = context.get('userId');
-
-    if (vaultId === null || userId === null) {
-      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
-    }
-
-    const uploadId = context.req.param('uploadId');
-    const existingUpload = await uploadsServices.getUploadSession({ uploadId, vaultId, userId });
-
-    if (existingUpload === null) {
-      return context.json({ error: { code: 'upload.not_found', message: 'Upload session not found' } }, 404);
-    }
-
-    if (existingUpload.documentId === null) {
-      return context.json(
-        {
-          error: {
-            code: 'upload.retry_unavailable',
-            message: 'This upload must be selected again before it can be retried.',
-          },
-        },
-        409,
-      );
-    }
-
-    const document = await documentsServices.getDocument({
-      documentId: existingUpload.documentId,
-      vaultId,
-    });
-
-    if (document === null || document.isDeleted) {
-      return context.json(
-        {
-          error: {
-            code: 'document.not_found',
-            message: 'Document not found',
-          },
-        },
-        404,
-      );
-    }
-
-    if (document.processingStatus === 'processing') {
-      return context.json(
-        {
-          error: {
-            code: 'upload.retry_in_progress',
-            message: 'Text/OCR extraction is already in progress for this document.',
-          },
-        },
-        409,
-      );
-    }
-
-    if (document.processingStatus === 'completed') {
-      return context.json(
-        {
-          error: {
-            code: 'upload.retry_not_needed',
-            message: 'Text/OCR extraction has already completed for this document.',
-          },
-        },
-        409,
-      );
-    }
-
-    if (documentQueue === undefined) {
-      return context.json(
-        {
-          error: {
-            code: 'upload.retry_unavailable',
-            message: 'Text/OCR extraction retry is not available right now.',
-          },
-        },
-        503,
-      );
-    }
-
-    const uploadResult = await uploadsServices.markUploadForProcessingRetry({
-      uploadId,
-      vaultId,
-      userId,
-    });
-
-    if (uploadResult.upload === null) {
-      return context.json({ error: { code: 'upload.not_found', message: 'Upload session not found' } }, 404);
-    }
-
-    await documentsServices.updateDocumentProcessingStatus({
-      documentId: document.id,
-      vaultId,
-      processingStatus: 'pending',
-    });
-
-    await documentQueue.enqueueProcessDocument({
-      documentId: document.id,
-      vaultId,
-      replaceExisting: true,
-    });
-
-    return context.json({
-      upload: uploadResult.upload,
-      document: {
-        id: document.id,
-        processingStatus: 'pending' as const,
-      },
-    });
   });
 
   app.post('/api/vaults/:vaultId/uploads/:uploadId/abort', requireVaultPermission('documents.create'), async (context) => {

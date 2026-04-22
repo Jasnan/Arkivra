@@ -257,6 +257,7 @@ export function createOllamaGluedWordNormalizer({
     try {
       response = await client({
         model,
+        think: false,
         messages: [{ role: 'user', content: prompt }],
       });
     } catch (error) {

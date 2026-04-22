@@ -134,7 +134,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma3n:e4b',
+      model: 'gemma4:e2b',
       minTokenLength: 8,
       chat,
     });
@@ -162,7 +162,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma3n:e4b',
+      model: 'gemma4:e2b',
       minTokenLength: 8,
       chat,
     });
@@ -194,7 +194,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma3n:e4b',
+      model: 'gemma4:e2b',
       minTokenLength: 8,
       chat,
     });

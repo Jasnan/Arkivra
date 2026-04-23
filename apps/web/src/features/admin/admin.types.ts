@@ -28,3 +28,28 @@ export interface AdminVault {
   ownerEmail: string | null;
   ownerName: string | null;
 }
+
+export interface AdminAiSettings {
+  enabled: boolean;
+  ollamaHost: string;
+  model: string;
+  minTokenLength: number;
+  maxCandidates: number;
+  batchSize: number;
+  logRequests: boolean;
+}
+
+export interface AdminAiModel {
+  name: string;
+  size: number | null;
+  modifiedAt: string | null;
+}
+
+export interface AdminAiAvailability {
+  host: string;
+  model: string;
+  reachable: boolean;
+  modelAvailable: boolean;
+  models: AdminAiModel[];
+  error: string | null;
+}

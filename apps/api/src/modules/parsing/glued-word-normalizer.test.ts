@@ -3,6 +3,7 @@ import {
   __testing,
   createNoopGluedWordNormalizer,
   createOllamaGluedWordNormalizer,
+  createRuntimeConfiguredGluedWordNormalizer,
 } from './glued-word-normalizer.js';
 
 const {
@@ -422,5 +423,52 @@ describe('glued-word normalizer', () => {
       'o Mohammedali Kakkamoolakkal',
     ].join('\n'));
     expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  test('falls back to the original snippets when the Ollama request fails', async () => {
+    const chat = vi.fn(async () => {
+      throw new Error('model not found');
+    });
+
+    const normalizer = createOllamaGluedWordNormalizer({
+      model: 'missing-model',
+      minTokenLength: 8,
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: 'GOVERNMENTOFKERALA',
+      markdown: '',
+    });
+
+    expect(result.text).toBe('GOVERNMENTOFKERALA');
+    expect(result.replacements).toEqual([]);
+  });
+
+  test('re-resolves runtime settings and can disable normalization without restarting', async () => {
+    const settings = {
+      enabled: true,
+      host: 'http://127.0.0.1:11434',
+      model: 'gemma4:e2b',
+      minTokenLength: 8,
+      maxCandidates: 100,
+      batchSize: 10,
+      logRequests: false,
+    };
+    const resolveSettings = vi.fn(async () => settings);
+    const normalizer = createRuntimeConfiguredGluedWordNormalizer({
+      resolveSettings,
+    });
+
+    settings.enabled = false;
+
+    const result = await normalizer.normalize({
+      text: 'GOVERNMENTOFKERALA',
+      markdown: '',
+    });
+
+    expect(resolveSettings).toHaveBeenCalledTimes(1);
+    expect(result.text).toBe('GOVERNMENTOFKERALA');
+    expect(result.replacements).toEqual([]);
   });
 });

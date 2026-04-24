@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/app-shell';
@@ -30,6 +30,7 @@ function jsonResponse(body: unknown) {
 describe('app shell account menu', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    window.localStorage.clear();
     authClientMock.useSession.mockReturnValue({
       data: {
         user: {
@@ -83,5 +84,35 @@ describe('app shell account menu', () => {
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
+  });
+
+  it('collapses the desktop sidebar to icon-only navigation', async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <AppShell>
+        <div>Workspace</div>
+      </AppShell>,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const primaryNav = screen.getByRole('navigation', { name: 'Primary' });
+    const documentsLabel = within(primaryNav).getByText('Documents');
+
+    expect(documentsLabel).not.toHaveClass('hidden');
+
+    await user.click(screen.getByRole('button', { name: /collapse sidebar/i }));
+
+    expect(documentsLabel).toHaveClass('hidden');
+    expect(screen.queryByRole('button', { name: /collapse sidebar/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Documents' })[0]).toHaveAttribute(
+      'href',
+      '/documents',
+    );
+    expect(window.localStorage.getItem('arkivra.sidebarCollapsed')).toBe('true');
   });
 });

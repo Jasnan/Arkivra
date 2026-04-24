@@ -39,7 +39,15 @@ describe('tags and documents pages', () => {
       if (url === '/api/vaults') {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Personal', description: null, fileCount: 3, totalSize: 1024, createdAt: '2026-04-10T10:00:00.000Z', role: 'owner' },
+            {
+              id: 'vlt_1',
+              name: 'Personal',
+              description: null,
+              fileCount: 3,
+              totalSize: 1024,
+              createdAt: '2026-04-10T10:00:00.000Z',
+              role: 'owner',
+            },
           ],
         });
       }
@@ -62,11 +70,16 @@ describe('tags and documents pages', () => {
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags') && init?.method === 'POST') {
-        return jsonResponse({ tag: { id: 'tag_2', name: 'Receipts', color: '#22c55e', vaultId: 'vlt_1' } }, 201);
+        return jsonResponse(
+          { tag: { id: 'tag_2', name: 'Receipts', color: '#22c55e', vaultId: 'vlt_1' } },
+          201,
+        );
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags/tag_1') && init?.method === 'PATCH') {
-        return jsonResponse({ tag: { id: 'tag_1', name: 'Bills', color: '#2563eb', vaultId: 'vlt_1' } });
+        return jsonResponse({
+          tag: { id: 'tag_1', name: 'Bills', color: '#2563eb', vaultId: 'vlt_1' },
+        });
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags/tag_1') && init?.method === 'DELETE') {
@@ -94,10 +107,15 @@ describe('tags and documents pages', () => {
     });
     await user.type(within(createDialog).getByLabelText(/^name$/i), 'Receipts');
     await user.click(within(createDialog).getByRole('button', { name: /^create tag$/i }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags', expect.objectContaining({
-      credentials: 'include',
-      method: 'POST',
-    })));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/tags',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      ),
+    );
 
     await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
     await user.click(screen.getByRole('menuitem', { name: /^edit$/i }));
@@ -106,10 +124,15 @@ describe('tags and documents pages', () => {
     await user.clear(editInput);
     await user.type(editInput, 'Bills');
     await user.click(within(editDialog).getByRole('button', { name: /save changes/i }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags/tag_1', expect.objectContaining({
-      credentials: 'include',
-      method: 'PATCH',
-    })));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/tags/tag_1',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'PATCH',
+        }),
+      ),
+    );
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /edit tag/i })).not.toBeInTheDocument();
     });
@@ -118,36 +141,68 @@ describe('tags and documents pages', () => {
     await user.click(await screen.findByRole('menuitem', { name: /^delete$/i }));
     expect(screen.getByText(/currently attached to 2 documents/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^delete tag$/i }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags/tag_1', expect.objectContaining({
-      credentials: 'include',
-      method: 'DELETE',
-    })));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/tags/tag_1',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'DELETE',
+        }),
+      ),
+    );
   });
 
   it('filters tags on the management page', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
 
-      if (url === '/api/vaults') {
-        return jsonResponse({
-          vaults: [
-            { id: 'vlt_1', name: 'Personal', description: null, fileCount: 3, totalSize: 1024, createdAt: '2026-04-10T10:00:00.000Z', role: 'owner' },
-          ],
-        });
-      }
+        if (url === '/api/vaults') {
+          return jsonResponse({
+            vaults: [
+              {
+                id: 'vlt_1',
+                name: 'Personal',
+                description: null,
+                fileCount: 3,
+                totalSize: 1024,
+                createdAt: '2026-04-10T10:00:00.000Z',
+                role: 'owner',
+              },
+            ],
+          });
+        }
 
-      if (url === '/api/tags') {
-        return jsonResponse({
-          tags: [
-            { id: 'tag_1', vaultId: 'vlt_1', vaultName: 'Personal', name: 'Invoices', color: '#2563eb', documentsCount: 2, createdAt: '2026-04-10T10:00:00.000Z' },
-            { id: 'tag_2', vaultId: 'vlt_1', vaultName: 'Personal', name: 'Legal', color: '#22c55e', documentsCount: 1, createdAt: '2026-04-11T10:00:00.000Z' },
-          ],
-        });
-      }
+        if (url === '/api/tags') {
+          return jsonResponse({
+            tags: [
+              {
+                id: 'tag_1',
+                vaultId: 'vlt_1',
+                vaultName: 'Personal',
+                name: 'Invoices',
+                color: '#2563eb',
+                documentsCount: 2,
+                createdAt: '2026-04-10T10:00:00.000Z',
+              },
+              {
+                id: 'tag_2',
+                vaultId: 'vlt_1',
+                vaultName: 'Personal',
+                name: 'Legal',
+                color: '#22c55e',
+                documentsCount: 1,
+                createdAt: '2026-04-11T10:00:00.000Z',
+              },
+            ],
+          });
+        }
 
-      throw new Error(`Unhandled request ${url}`);
-    }));
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
 
     renderWithProviders(<TagsPage />, {
       initialEntries: ['/tags'],
@@ -165,23 +220,34 @@ describe('tags and documents pages', () => {
 
   it('returns focus to the new tag button after dismissing the create dialog', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
 
-      if (url === '/api/vaults') {
-        return jsonResponse({
-          vaults: [
-            { id: 'vlt_1', name: 'Personal', description: null, fileCount: 3, totalSize: 1024, createdAt: '2026-04-10T10:00:00.000Z', role: 'owner' },
-          ],
-        });
-      }
+        if (url === '/api/vaults') {
+          return jsonResponse({
+            vaults: [
+              {
+                id: 'vlt_1',
+                name: 'Personal',
+                description: null,
+                fileCount: 3,
+                totalSize: 1024,
+                createdAt: '2026-04-10T10:00:00.000Z',
+                role: 'owner',
+              },
+            ],
+          });
+        }
 
-      if (url === '/api/tags') {
-        return jsonResponse({ tags: [] });
-      }
+        if (url === '/api/tags') {
+          return jsonResponse({ tags: [] });
+        }
 
-      throw new Error(`Unhandled request ${url}`);
-    }));
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
 
     renderWithProviders(<TagsPage />, {
       initialEntries: ['/tags'],
@@ -204,36 +270,47 @@ describe('tags and documents pages', () => {
 
   it('returns focus to the tag actions trigger after closing delete confirmation', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
 
-      if (url === '/api/vaults') {
-        return jsonResponse({
-          vaults: [
-            { id: 'vlt_1', name: 'Personal', description: null, fileCount: 3, totalSize: 1024, createdAt: '2026-04-10T10:00:00.000Z', role: 'owner' },
-          ],
-        });
-      }
+        if (url === '/api/vaults') {
+          return jsonResponse({
+            vaults: [
+              {
+                id: 'vlt_1',
+                name: 'Personal',
+                description: null,
+                fileCount: 3,
+                totalSize: 1024,
+                createdAt: '2026-04-10T10:00:00.000Z',
+                role: 'owner',
+              },
+            ],
+          });
+        }
 
-      if (url === '/api/tags') {
-        return jsonResponse({
-          tags: [
-            {
-              id: 'tag_1',
-              vaultId: 'vlt_1',
-              vaultName: 'Personal',
-              name: 'Invoices',
-              color: '#2563eb',
-              description: 'Monthly billing documents',
-              documentsCount: 2,
-              createdAt: '2026-04-10T10:00:00.000Z',
-            },
-          ],
-        });
-      }
+        if (url === '/api/tags') {
+          return jsonResponse({
+            tags: [
+              {
+                id: 'tag_1',
+                vaultId: 'vlt_1',
+                vaultName: 'Personal',
+                name: 'Invoices',
+                color: '#2563eb',
+                description: 'Monthly billing documents',
+                documentsCount: 2,
+                createdAt: '2026-04-10T10:00:00.000Z',
+              },
+            ],
+          });
+        }
 
-      throw new Error(`Unhandled request ${url}`);
-    }));
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
 
     renderWithProviders(<TagsPage />, {
       initialEntries: ['/tags'],
@@ -248,7 +325,9 @@ describe('tags and documents pages', () => {
     await user.keyboard('{Escape}');
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /delete “invoices”\?/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('dialog', { name: /delete “invoices”\?/i }),
+      ).not.toBeInTheDocument();
     });
     await waitFor(() => {
       expect(actionButton).toHaveFocus();
@@ -311,9 +390,7 @@ describe('tags and documents pages', () => {
 
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
         return jsonResponse({
-          tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
-          ],
+          tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
         });
       }
 
@@ -339,9 +416,12 @@ describe('tags and documents pages', () => {
     });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents?tagId=tag_1&sortBy=created_desc', expect.objectContaining({
-        credentials: 'include',
-      }));
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents?tagId=tag_1&sortBy=created_desc',
+        expect.objectContaining({
+          credentials: 'include',
+        }),
+      );
     });
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /contract/i })).not.toBeInTheDocument();
@@ -462,10 +542,15 @@ describe('tags and documents pages', () => {
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     await user.click(screen.getByRole('menuitem', { name: /delete/i }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1', expect.objectContaining({
-      credentials: 'include',
-      method: 'DELETE',
-    })));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents/doc_1',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'DELETE',
+        }),
+      ),
+    );
   });
 
   it('assigns and removes tags from document detail', async () => {
@@ -473,7 +558,10 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
         return jsonResponse({
           document: {
             id: 'doc_1',
@@ -493,11 +581,12 @@ describe('tags and documents pages', () => {
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
         return jsonResponse({
-          tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
-          ],
+          tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
         });
       }
 
@@ -514,7 +603,10 @@ describe('tags and documents pages', () => {
         return jsonResponse({ tag: { id: 'tag_2', name: 'Urgent', color: '#ef4444' } }, 201);
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags/tag_1') && init?.method === 'DELETE') {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags/tag_1') &&
+        init?.method === 'DELETE'
+      ) {
         return new Response(null, { status: 204 });
       }
 
@@ -533,16 +625,26 @@ describe('tags and documents pages', () => {
     await user.click(screen.getByRole('button', { name: /add tag/i }));
     await user.click(await screen.findByRole('menuitemcheckbox', { name: /urgent/i }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1/tags', expect.objectContaining({
-      credentials: 'include',
-      method: 'POST',
-    })));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents/doc_1/tags',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      ),
+    );
 
     await user.click(screen.getByRole('button', { name: /remove invoices/i }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1/tags/tag_1', expect.objectContaining({
-      credentials: 'include',
-      method: 'DELETE',
-    })));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents/doc_1/tags/tag_1',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'DELETE',
+        }),
+      ),
+    );
   });
 
   it('creates a new tag from the document detail picker when it does not exist', async () => {
@@ -550,7 +652,10 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
         return jsonResponse({
           document: {
             id: 'doc_1',
@@ -570,28 +675,33 @@ describe('tags and documents pages', () => {
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
         return jsonResponse({
-          tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
-          ],
+          tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
         });
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
         return jsonResponse({
-          tags: [
-            { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
-          ],
+          tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
         });
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags') && init?.method === 'POST') {
-        return jsonResponse({ tag: { id: 'tag_2', name: 'Testing', color: '#D8FF75', description: '' } }, 201);
+        return jsonResponse(
+          { tag: { id: 'tag_2', name: 'Testing', color: '#D8FF75', description: '' } },
+          201,
+        );
       }
 
       if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && init?.method === 'POST') {
-        return jsonResponse({ tag: { id: 'tag_2', name: 'Testing', color: '#D8FF75', description: '' } }, 201);
+        return jsonResponse(
+          { tag: { id: 'tag_2', name: 'Testing', color: '#D8FF75', description: '' } },
+          201,
+        );
       }
 
       throw new Error(`Unhandled request ${url}`);
@@ -609,14 +719,24 @@ describe('tags and documents pages', () => {
     expect(await screen.findByRole('heading', { name: /create tag/i })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^create tag$/i }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/tags', expect.objectContaining({
-      credentials: 'include',
-      method: 'POST',
-    })));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/documents/doc_1/tags', expect.objectContaining({
-      credentials: 'include',
-      method: 'POST',
-    })));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/tags',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents/doc_1/tags',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      ),
+    );
   });
 
   it('refreshes the document detail when upload extraction completes', async () => {
@@ -626,7 +746,10 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
         documentFetchCount += 1;
 
         if (documentFetchCount === 1) {
@@ -670,7 +793,10 @@ describe('tags and documents pages', () => {
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
         return jsonResponse({ tags: [] });
       }
 
@@ -692,9 +818,11 @@ describe('tags and documents pages', () => {
     await user.click(screen.getByRole('button', { name: /extracted text/i }));
     expect(await screen.findByText(/no extracted text is available yet/i)).toBeInTheDocument();
 
-    window.dispatchEvent(new CustomEvent('arkivra:uploads-completed', {
-      detail: { vaultId: 'vlt_1', documentId: 'doc_1' },
-    }));
+    window.dispatchEvent(
+      new CustomEvent('arkivra:uploads-completed', {
+        detail: { vaultId: 'vlt_1', documentId: 'doc_1' },
+      }),
+    );
 
     expect(await screen.findByText(/processed/i)).toBeInTheDocument();
     expect(await screen.findByText('Parsed text')).toBeInTheDocument();
@@ -707,7 +835,10 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
         return jsonResponse({
           document: {
             id: 'doc_1',
@@ -729,7 +860,10 @@ describe('tags and documents pages', () => {
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') && (!init || init.method === undefined)) {
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
         return jsonResponse({ tags: [] });
       }
 
@@ -749,7 +883,11 @@ describe('tags and documents pages', () => {
     await screen.findByText(/primary reading surface for this document/i);
     await user.click(screen.getByRole('button', { name: /extracted text/i }));
 
-    expect(await screen.findByText('FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA')).toBeInTheDocument();
-    expect(screen.queryByText('FORM No. IV [SeeRule11(1)] GOVERNMENTOFKERALA')).not.toBeInTheDocument();
+    expect(
+      await screen.findByText('FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('FORM No. IV [SeeRule11(1)] GOVERNMENTOFKERALA'),
+    ).not.toBeInTheDocument();
   });
 });

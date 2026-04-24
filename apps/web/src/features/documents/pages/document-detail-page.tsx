@@ -2,10 +2,8 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Check,
   CalendarRange,
   Download,
-  FileText,
   Image as ImageIcon,
   Plus,
   Printer,
@@ -13,7 +11,12 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import {
+  PageIntro,
+  StatusBanner,
+  SurfacePanel,
+  vaultInputClassName,
+} from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -31,8 +34,16 @@ import {
   softDeleteDocument,
   updateDocumentDate,
 } from '@/features/documents/documents.api';
-import { documentQueryKeys, useDocumentQuery, useDocumentTagsQuery } from '@/features/documents/documents.queries';
-import { deriveExtractionStatus, formatBytes, formatDate } from '@/features/documents/documents.utils';
+import {
+  documentQueryKeys,
+  useDocumentQuery,
+  useDocumentTagsQuery,
+} from '@/features/documents/documents.queries';
+import {
+  deriveExtractionStatus,
+  formatBytes,
+  formatDate,
+} from '@/features/documents/documents.utils';
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
@@ -195,7 +206,7 @@ export function DocumentDetailPage() {
   const document = documentQuery.data.document;
   const assignedTags = documentTagsQuery.data?.tags ?? [];
   const availableTags = (tagsQuery.data?.tags ?? []).filter(
-    tag => !assignedTags.some(assigned => assigned.id === tag.id),
+    (tag) => !assignedTags.some((assigned) => assigned.id === tag.id),
   );
   const normalizedTagSearchValue = tagSearchValue.trim().toLowerCase();
   const filteredAvailableTags = availableTags.filter((tag) => {
@@ -205,7 +216,9 @@ export function DocumentDetailPage() {
 
     return tag.name.toLowerCase().includes(normalizedTagSearchValue);
   });
-  const sortedFilteredAvailableTags = [...filteredAvailableTags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedFilteredAvailableTags = [...filteredAvailableTags].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
   const selectedMatchingTags = [...assignedTags]
     .filter((tag) => {
       if (normalizedTagSearchValue.length === 0) {
@@ -216,7 +229,7 @@ export function DocumentDetailPage() {
     })
     .sort((a, b) => a.name.localeCompare(b.name));
   const hasExactTagMatch = availableTags.some(
-    tag => tag.name.trim().toLowerCase() === normalizedTagSearchValue,
+    (tag) => tag.name.trim().toLowerCase() === normalizedTagSearchValue,
   );
   const extractionStatus = deriveExtractionStatus(document);
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId });
@@ -224,23 +237,29 @@ export function DocumentDetailPage() {
   const canPreview = !document.isDeleted && previewKind !== 'unsupported';
   const canPrint = !document.isDeleted && canPreview;
   const currentName = renameValue ?? document.name;
-  const currentDocumentDate = documentDateValue ?? (document.documentDate ? document.documentDate.slice(0, 10) : '');
+  const currentDocumentDate =
+    documentDateValue ?? (document.documentDate ? document.documentDate.slice(0, 10) : '');
   const hasNameChanged = currentName.trim() !== document.name;
-  const hasDocumentDateChanged = currentDocumentDate !== (document.documentDate ? document.documentDate.slice(0, 10) : '');
+  const hasDocumentDateChanged =
+    currentDocumentDate !== (document.documentDate ? document.documentDate.slice(0, 10) : '');
   const isMetadataSaving = renameMutation.isPending || dateMutation.isPending;
   const normalizedCreateTagName = createTagNameValue.trim();
   const createTagDescription = createTagDescriptionValue.trim();
-  const isCreateTagSaveDisabled = normalizedCreateTagName.length === 0 || createTagMutation.isPending || assignTagMutation.isPending;
+  const isCreateTagSaveDisabled =
+    normalizedCreateTagName.length === 0 ||
+    createTagMutation.isPending ||
+    assignTagMutation.isPending;
   const displayContent = document.displayContent ?? document.content;
-  const extractedTextMessage = displayContent.trim().length > 0
-    ? displayContent
-    : document.processingStatus === 'processing'
-      ? 'Text/OCR extraction is still running.'
-      : document.processingStatus === 'failed'
-        ? 'Text/OCR extraction failed for this document.'
-        : document.processingStatus === 'completed'
-          ? 'Extraction completed, but no text content was found.'
-          : 'No extracted text is available yet.';
+  const extractedTextMessage =
+    displayContent.trim().length > 0
+      ? displayContent
+      : document.processingStatus === 'processing'
+        ? 'Text/OCR extraction is still running.'
+        : document.processingStatus === 'failed'
+          ? 'Text/OCR extraction failed for this document.'
+          : document.processingStatus === 'completed'
+            ? 'Extraction completed, but no text content was found.'
+            : 'No extracted text is available yet.';
 
   async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -391,9 +410,16 @@ export function DocumentDetailPage() {
         eyebrow="Vault Record"
         title={document.name}
         description={`${document.originalName} • ${formatBytes(document.originalSize)} • ${document.id}`}
-        actions={(
+        actions={
           <>
-            <Link to={document.isDeleted ? `/vaults/${vaultId}/documents/trash` : `/vaults/${vaultId}/documents`} className="vault-link">
+            <Link
+              to={
+                document.isDeleted
+                  ? `/vaults/${vaultId}/documents/trash`
+                  : `/vaults/${vaultId}/documents`
+              }
+              className="vault-link"
+            >
               Back to {document.isDeleted ? 'trash' : 'documents'}
             </Link>
             {canPrint ? (
@@ -402,15 +428,18 @@ export function DocumentDetailPage() {
                 Print
               </Button>
             ) : null}
-            <a href={getDocumentDownloadUrl({ vaultId, documentId })} className="vault-link inline-flex items-center gap-2">
+            <a
+              href={getDocumentDownloadUrl({ vaultId, documentId })}
+              className="vault-link inline-flex items-center gap-2"
+            >
               <Download className="size-4" />
               Download original
             </a>
           </>
-        )}
+        }
       />
 
-      {(statusMessage || errorMessage) ? (
+      {statusMessage || errorMessage ? (
         <div className="grid gap-3">
           {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
           {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
@@ -445,8 +474,12 @@ export function DocumentDetailPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="vault-label">Workspace</p>
-                <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">
-                  {activeTab === 'preview' ? 'Document preview' : activeTab === 'content' ? 'Extracted text' : 'Metadata'}
+                <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+                  {activeTab === 'preview'
+                    ? 'Document preview'
+                    : activeTab === 'content'
+                      ? 'Extracted text'
+                      : 'Metadata'}
                 </h2>
               </div>
               <div className="inline-flex rounded-full bg-secondary/70 p-1">
@@ -477,18 +510,18 @@ export function DocumentDetailPage() {
             {activeTab === 'preview' ? (
               <div className="space-y-4">
                 {previewKind === 'pdf' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-[22px] bg-secondary/55 p-2">
+                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
                     <iframe
                       title="Document preview"
                       src={inlineFileUrl}
-                      className="h-[72vh] min-h-[760px] w-full rounded-[18px] bg-white"
+                      className="h-[72vh] min-h-[760px] w-full rounded-lg bg-white"
                     />
                   </div>
                 ) : null}
 
                 {previewKind === 'image' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-[22px] bg-secondary/55 p-4">
-                    <div className="flex min-h-[72vh] items-center justify-center rounded-[18px] bg-white p-8">
+                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-4">
+                    <div className="flex min-h-[72vh] items-center justify-center rounded-lg bg-white p-8">
                       <img
                         src={inlineFileUrl}
                         alt={document.name}
@@ -499,21 +532,21 @@ export function DocumentDetailPage() {
                 ) : null}
 
                 {previewKind === 'text' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-[22px] bg-secondary/55 p-2">
+                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
                     <iframe
                       title="Text preview"
                       src={inlineFileUrl}
-                      className="h-[72vh] min-h-[760px] w-full rounded-[18px] bg-white"
+                      className="h-[72vh] min-h-[760px] w-full rounded-lg bg-white"
                     />
                   </div>
                 ) : null}
 
                 {previewKind === 'unsupported' || document.isDeleted ? (
-                  <div className="rounded-[22px] bg-secondary/55 p-6">
-                    <div className="flex min-h-[520px] flex-col items-center justify-center gap-4 rounded-[18px] border border-dashed border-border/70 bg-background/80 px-6 text-center">
+                  <div className="rounded-lg bg-secondary/55 p-6">
+                    <div className="flex min-h-[520px] flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border/70 bg-background/80 px-6 text-center">
                       <ImageIcon className="size-10 text-muted-foreground" />
                       <div className="space-y-2">
-                        <p className="text-lg font-semibold text-foreground">Preview unavailable</p>
+                        <p className="text-sm font-semibold text-foreground">Preview unavailable</p>
                         <p className="max-w-xl text-sm leading-6 text-muted-foreground">
                           {document.isDeleted
                             ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
@@ -531,7 +564,7 @@ export function DocumentDetailPage() {
                 <p className="text-sm leading-6 text-muted-foreground">
                   OCR and extracted text appear here once processing completes.
                 </p>
-                <div className="max-h-[72vh] min-h-[520px] overflow-auto rounded-[22px] bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
+                <div className="max-h-[72vh] min-h-[520px] overflow-auto rounded-lg bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
                   {extractedTextMessage}
                 </div>
               </div>
@@ -539,41 +572,53 @@ export function DocumentDetailPage() {
 
             {activeTab === 'metadata' ? (
               <dl className="grid gap-4 text-sm sm:grid-cols-2">
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">Display name</dt>
                   <dd className="mt-2 font-medium text-foreground">{document.name}</dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">Original file</dt>
                   <dd className="mt-2 font-medium text-foreground">{document.originalName}</dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">File size</dt>
-                  <dd className="mt-2 font-medium text-foreground">{formatBytes(document.originalSize)}</dd>
+                  <dd className="mt-2 font-medium text-foreground">
+                    {formatBytes(document.originalSize)}
+                  </dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">Format</dt>
                   <dd className="mt-2 font-medium text-foreground">{document.mimeType}</dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">Document date</dt>
-                  <dd className="mt-2 font-medium text-foreground">{formatDate(document.documentDate)}</dd>
+                  <dd className="mt-2 font-medium text-foreground">
+                    {formatDate(document.documentDate)}
+                  </dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">Uploaded by</dt>
-                  <dd className="mt-2 font-medium text-foreground">{document.createdBy ?? 'Unknown'}</dd>
+                  <dd className="mt-2 font-medium text-foreground">
+                    {document.createdBy ?? 'Unknown'}
+                  </dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">Uploaded at</dt>
-                  <dd className="mt-2 font-medium text-foreground">{formatDate(document.createdAt)}</dd>
+                  <dd className="mt-2 font-medium text-foreground">
+                    {formatDate(document.createdAt)}
+                  </dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">Last updated</dt>
-                  <dd className="mt-2 font-medium text-foreground">{formatDate(document.updatedAt)}</dd>
+                  <dd className="mt-2 font-medium text-foreground">
+                    {formatDate(document.updatedAt)}
+                  </dd>
                 </div>
-                <div className="rounded-[20px] bg-secondary/55 p-4">
+                <div className="rounded-lg bg-secondary/55 p-4">
                   <dt className="text-muted-foreground">SHA-256</dt>
-                  <dd className="mt-2 break-all font-mono text-xs text-foreground">{document.originalSha256Hash}</dd>
+                  <dd className="mt-2 break-all font-mono text-xs text-foreground">
+                    {document.originalSha256Hash}
+                  </dd>
                 </div>
               </dl>
             ) : null}
@@ -583,30 +628,37 @@ export function DocumentDetailPage() {
         <div className="space-y-6">
           <SurfacePanel variant="soft" className="space-y-5">
             <div>
-              <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Edit metadata</h2>
+              <h2 className="font-display text-xl font-bold  text-foreground">Edit metadata</h2>
             </div>
             <form className="space-y-5" onSubmit={handleMetadataSave}>
               <div className="space-y-2">
-                <label htmlFor="document-name" className="vault-label">Display name</label>
+                <label htmlFor="document-name" className="vault-label">
+                  Display name
+                </label>
                 <input
                   id="document-name"
                   type="text"
                   value={currentName}
                   className={vaultInputClassName}
-                  onChange={event => setRenameValue(event.target.value)}
+                  onChange={(event) => setRenameValue(event.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="document-date" className="vault-label">Document date</label>
+                <label htmlFor="document-date" className="vault-label">
+                  Document date
+                </label>
                 <input
                   id="document-date"
                   type="date"
                   value={currentDocumentDate}
                   className={vaultInputClassName}
-                  onChange={event => setDocumentDateValue(event.target.value)}
+                  onChange={(event) => setDocumentDateValue(event.target.value)}
                 />
               </div>
-              <Button type="submit" disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}>
+              <Button
+                type="submit"
+                disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}
+              >
                 <CalendarRange className="size-4" />
                 {isMetadataSaving ? 'Saving...' : 'Save'}
               </Button>
@@ -615,7 +667,7 @@ export function DocumentDetailPage() {
 
           <SurfacePanel variant="soft" className="space-y-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-foreground">Tags</h2>
+              <h2 className="font-display text-xl font-bold  text-foreground">Tags</h2>
               <DropdownMenu
                 modal={false}
                 open={isTagPickerOpen}
@@ -653,11 +705,11 @@ export function DocumentDetailPage() {
                     />
                   </div>
                   <div className="max-h-72 overflow-auto py-1">
-                    {selectedMatchingTags.map(tag => (
+                    {selectedMatchingTags.map((tag) => (
                       <DropdownMenuCheckboxItem
                         key={tag.id}
                         checked
-                        onSelect={event => event.preventDefault()}
+                        onSelect={(event) => event.preventDefault()}
                         onCheckedChange={() => {
                           setStatusMessage(null);
                           setErrorMessage(null);
@@ -675,11 +727,11 @@ export function DocumentDetailPage() {
                     {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
                       <DropdownMenuSeparator />
                     ) : null}
-                    {sortedFilteredAvailableTags.map(tag => (
+                    {sortedFilteredAvailableTags.map((tag) => (
                       <DropdownMenuCheckboxItem
                         key={tag.id}
                         checked={false}
-                        onSelect={event => event.preventDefault()}
+                        onSelect={(event) => event.preventDefault()}
                         onCheckedChange={() => {
                           setStatusMessage(null);
                           setErrorMessage(null);
@@ -700,9 +752,12 @@ export function DocumentDetailPage() {
                         <span className="flex-1 truncate">{`Create new tag "${tagSearchValue.trim()}"`}</span>
                       </DropdownMenuItem>
                     ) : null}
-                    {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
+                    {selectedMatchingTags.length === 0 &&
+                    sortedFilteredAvailableTags.length === 0 ? (
                       normalizedTagSearchValue.length === 0 ? (
-                        <p className="px-4 py-3 text-sm text-muted-foreground">All tags are already assigned.</p>
+                        <p className="px-4 py-3 text-sm text-muted-foreground">
+                          All tags are already assigned.
+                        </p>
                       ) : !hasExactTagMatch ? null : (
                         <p className="px-4 py-3 text-sm text-muted-foreground">No matching tags.</p>
                       )
@@ -715,7 +770,7 @@ export function DocumentDetailPage() {
               {assignedTags.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tags assigned.</p>
               ) : null}
-              {assignedTags.map(tag => (
+              {assignedTags.map((tag) => (
                 <span
                   key={tag.id}
                   className="inline-flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-sm leading-none text-foreground"
@@ -746,7 +801,7 @@ export function DocumentDetailPage() {
           <SurfacePanel variant="soft" className="space-y-5 border-destructive/20">
             <div>
               <p className="vault-label text-destructive/80">Danger zone</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">
+              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
                 {document.isDeleted ? 'Restore document' : 'Delete document'}
               </h2>
             </div>

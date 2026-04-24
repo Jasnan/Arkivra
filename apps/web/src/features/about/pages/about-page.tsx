@@ -42,11 +42,15 @@ export function AboutPage() {
         <SurfacePanel className="space-y-5">
           <div>
             <p className="vault-label">Instance</p>
-            <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Runtime status</h2>
+            <h2 className="font-display mt-2 text-xl font-bold  text-foreground">Runtime status</h2>
           </div>
 
-          {healthQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading version info...</p> : null}
-          {healthQuery.isError ? <p className="text-sm text-destructive">Unable to load instance metadata.</p> : null}
+          {healthQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading version info...</p>
+          ) : null}
+          {healthQuery.isError ? (
+            <p className="text-sm text-destructive">Unable to load instance metadata.</p>
+          ) : null}
           {healthQuery.data ? (
             <dl className="space-y-4 text-sm">
               <div>
@@ -59,7 +63,9 @@ export function AboutPage() {
               </div>
               <div>
                 <dt className="text-muted-foreground">Reported at</dt>
-                <dd className="font-medium text-foreground">{new Date(healthQuery.data.timestamp).toLocaleString()}</dd>
+                <dd className="font-medium text-foreground">
+                  {new Date(healthQuery.data.timestamp).toLocaleString()}
+                </dd>
               </div>
             </dl>
           ) : null}
@@ -68,7 +74,7 @@ export function AboutPage() {
         <SurfacePanel variant="soft" className="space-y-5">
           <div>
             <p className="vault-label">Project</p>
-            <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Core direction</h2>
+            <h2 className="font-display mt-2 text-xl font-bold  text-foreground">Core direction</h2>
           </div>
 
           <div className="space-y-3 text-sm leading-6 text-muted-foreground">

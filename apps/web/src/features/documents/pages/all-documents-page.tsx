@@ -12,7 +12,12 @@ import {
   Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import {
+  PageIntro,
+  StatusBanner,
+  SurfacePanel,
+  vaultInputClassName,
+} from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -22,7 +27,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { softDeleteDocument } from '@/features/documents/documents.api';
-import { DocumentLibraryHeader, DocumentLibraryRow } from '@/features/documents/components/document-library-list';
+import {
+  DocumentLibraryHeader,
+  DocumentLibraryRow,
+} from '@/features/documents/components/document-library-list';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
 import { searchQueryKeys, useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
@@ -111,7 +119,7 @@ function getDateFilterLabel({
 
 function VaultIcon() {
   return (
-    <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-primary ring-1 ring-border/60">
+    <div className="flex size-12 items-center justify-center rounded-lg bg-secondary text-primary ring-1 ring-border/60">
       <Folder className="size-5" />
     </div>
   );
@@ -229,19 +237,19 @@ export function AllDocumentsPage() {
 
   const availableTags = tagsQuery.data?.tags ?? [];
   const availableTagIds = useMemo(
-    () => new Set(availableTags.map(tag => tag.id)),
+    () => new Set(availableTags.map((tag) => tag.id)),
     [availableTags],
   );
 
   useEffect(() => {
     setSelectedTagIds((current) => {
-      const next = current.filter(tagId => availableTagIds.has(tagId));
+      const next = current.filter((tagId) => availableTagIds.has(tagId));
       return next.length === current.length ? current : next;
     });
   }, [availableTagIds]);
 
   const selectedTags = useMemo(
-    () => availableTags.filter(tag => selectedTagIds.includes(tag.id)),
+    () => availableTags.filter((tag) => selectedTagIds.includes(tag.id)),
     [availableTags, selectedTagIds],
   );
 
@@ -253,7 +261,7 @@ export function AllDocumentsPage() {
       return vaults;
     }
 
-    return vaults.filter(vault => vault.name.toLowerCase().includes(normalizedQuery));
+    return vaults.filter((vault) => vault.name.toLowerCase().includes(normalizedQuery));
   }, [vaultSearchQuery, vaultsQuery.data?.vaults]);
 
   const filteredTags = useMemo(() => {
@@ -263,14 +271,17 @@ export function AllDocumentsPage() {
       return availableTags;
     }
 
-    return availableTags.filter(tag => {
+    return availableTags.filter((tag) => {
       const haystacks = [tag.name, tag.vaultName ?? ''];
-      return haystacks.some(value => value.toLowerCase().includes(normalizedQuery));
+      return haystacks.some((value) => value.toLowerCase().includes(normalizedQuery));
     });
   }, [availableTags, tagSearchQuery]);
 
   const groupedDocuments = useMemo(() => {
-    const groups = new Map<string, { vaultId: string; vaultName: string; documents: SearchResultItem[] }>();
+    const groups = new Map<
+      string,
+      { vaultId: string; vaultName: string; documents: SearchResultItem[] }
+    >();
 
     for (const result of documentsQuery.data?.results ?? []) {
       if (!groups.has(result.vaultId)) {
@@ -284,7 +295,9 @@ export function AllDocumentsPage() {
       groups.get(result.vaultId)?.documents.push(result);
     }
 
-    const vaultOrder = new Map((vaultsQuery.data?.vaults ?? []).map((vault, index) => [vault.id, index]));
+    const vaultOrder = new Map(
+      (vaultsQuery.data?.vaults ?? []).map((vault, index) => [vault.id, index]),
+    );
 
     return Array.from(groups.values()).sort((left, right) => {
       const leftOrder = vaultOrder.get(left.vaultId);
@@ -307,7 +320,7 @@ export function AllDocumentsPage() {
   }, [documentsQuery.data?.results, vaultsQuery.data?.vaults]);
 
   const vaultsById = useMemo(
-    () => new Map((vaultsQuery.data?.vaults ?? []).map(vault => [vault.id, vault])),
+    () => new Map((vaultsQuery.data?.vaults ?? []).map((vault) => [vault.id, vault])),
     [vaultsQuery.data?.vaults],
   );
 
@@ -318,53 +331,55 @@ export function AllDocumentsPage() {
     return `${totalDocuments} document${totalDocuments === 1 ? '' : 's'} in ${vaultsShown} vault${vaultsShown === 1 ? '' : 's'}`;
   }, [documentsQuery.data?.resultsCount, groupedDocuments.length]);
 
-  const selectedSortLabel = sortOptions.find(option => option.value === sortBy)?.label ?? 'Newest';
+  const selectedSortLabel =
+    sortOptions.find((option) => option.value === sortBy)?.label ?? 'Newest';
   const selectedVault = useMemo(
-    () => (vaultsQuery.data?.vaults ?? []).find(vault => vault.id === selectedVaultId) ?? null,
+    () => (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === selectedVaultId) ?? null,
     [selectedVaultId, vaultsQuery.data?.vaults],
   );
 
-  const activeFilterCount = (selectedVaultId ? 1 : 0)
-    + selectedTagIds.length
-    + (datePreset !== 'any' ? 1 : 0);
+  const activeFilterCount =
+    (selectedVaultId ? 1 : 0) + selectedTagIds.length + (datePreset !== 'any' ? 1 : 0);
 
   const activeFilters = [
     ...(selectedVault
-      ? [{
-          key: `vault-${selectedVault.id}`,
-          label: selectedVault.name,
-          onRemove: () => {
-            setSelectedVaultId('');
+      ? [
+          {
+            key: `vault-${selectedVault.id}`,
+            label: selectedVault.name,
+            onRemove: () => {
+              setSelectedVaultId('');
+            },
           },
-        }]
+        ]
       : []),
-    ...selectedTags.map(tag => ({
+    ...selectedTags.map((tag) => ({
       key: `tag-${tag.id}`,
       label: tag.name,
-      onRemove: () => setSelectedTagIds(current => current.filter(item => item !== tag.id)),
+      onRemove: () => setSelectedTagIds((current) => current.filter((item) => item !== tag.id)),
     })),
     ...(datePreset !== 'any'
-      ? [{
-          key: `date-${datePreset}`,
-          label: getDateFilterLabel({
-            preset: datePreset,
-            dateFrom: appliedDateRange.dateFrom,
-            dateTo: appliedDateRange.dateTo,
-          }),
-          onRemove: () => {
-            setDatePreset('any');
-            setCustomDateFrom('');
-            setCustomDateTo('');
+      ? [
+          {
+            key: `date-${datePreset}`,
+            label: getDateFilterLabel({
+              preset: datePreset,
+              dateFrom: appliedDateRange.dateFrom,
+              dateTo: appliedDateRange.dateTo,
+            }),
+            onRemove: () => {
+              setDatePreset('any');
+              setCustomDateFrom('');
+              setCustomDateTo('');
+            },
           },
-        }]
+        ]
       : []),
   ];
 
   function toggleTagSelection(tagId: string) {
-    setSelectedTagIds(current =>
-      current.includes(tagId)
-        ? current.filter(item => item !== tagId)
-        : [...current, tagId],
+    setSelectedTagIds((current) =>
+      current.includes(tagId) ? current.filter((item) => item !== tagId) : [...current, tagId],
     );
   }
 
@@ -379,15 +394,15 @@ export function AllDocumentsPage() {
   }
 
   function toggleVaultCollapsed(vaultId: string) {
-    setCollapsedVaultIds(current =>
-      current.includes(vaultId)
-        ? current.filter(id => id !== vaultId)
-        : [...current, vaultId],
+    setCollapsedVaultIds((current) =>
+      current.includes(vaultId) ? current.filter((id) => id !== vaultId) : [...current, vaultId],
     );
   }
 
   function focusFirstFilterItem(container: HTMLDivElement | null) {
-    const item = container?.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]');
+    const item = container?.querySelector<HTMLElement>(
+      '[role="menuitem"], [role="menuitemcheckbox"]',
+    );
     item?.focus();
   }
 
@@ -397,7 +412,7 @@ export function AllDocumentsPage() {
     }
 
     if (selectedTags.length <= 2) {
-      return selectedTags.map(tag => tag.name).join(', ');
+      return selectedTags.map((tag) => tag.name).join(', ');
     }
 
     return `${selectedTags[0].name}, ${selectedTags[1].name} +${selectedTags.length - 2}`;
@@ -407,7 +422,7 @@ export function AllDocumentsPage() {
     <section className="space-y-8 pb-8">
       <PageIntro
         title="Documents"
-        actions={(
+        actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
               to="/transfers"
@@ -417,10 +432,10 @@ export function AllDocumentsPage() {
               Upload
             </Link>
           </div>
-        )}
+        }
       />
 
-      {(statusMessage || errorMessage) ? (
+      {statusMessage || errorMessage ? (
         <div className="grid gap-3">
           {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
           {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
@@ -445,12 +460,10 @@ export function AllDocumentsPage() {
         sortSelectId="documents-sort"
         sortAriaLabel="Sort documents"
         filtersTitle="Filters"
-        filtersContent={(
+        filtersContent={
           <>
             <div className="space-y-3">
-              <span className="text-lg font-semibold text-foreground">
-                Vault
-              </span>
+              <span className="text-sm font-semibold text-foreground">Vault</span>
               <DropdownMenu
                 modal={false}
                 open={isVaultFilterOpen}
@@ -465,10 +478,14 @@ export function AllDocumentsPage() {
                   <button
                     type="button"
                     aria-label="Vault filter"
-                    className={`${vaultInputClassName} flex h-14 w-full items-center justify-between gap-3 rounded-[18px] border-border/70 bg-background px-4 text-left`}
+                    className={`${vaultInputClassName} flex h-10 w-full items-center justify-between gap-3 rounded-lg border-border/70 bg-background px-4 text-left`}
                   >
-                    <span className="truncate text-base text-foreground">{selectedVault?.name ?? 'All vaults'}</span>
-                    <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition ${isVaultFilterOpen ? 'rotate-180' : ''}`} />
+                    <span className="truncate text-sm text-foreground">
+                      {selectedVault?.name ?? 'All vaults'}
+                    </span>
+                    <ChevronDown
+                      className={`size-4 shrink-0 text-muted-foreground transition ${isVaultFilterOpen ? 'rotate-180' : ''}`}
+                    />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -485,8 +502,12 @@ export function AllDocumentsPage() {
                         <input
                           aria-label="Search vaults"
                           value={vaultSearchQuery}
-                          onChange={event => setVaultSearchQuery(event.target.value)}
-                          onKeyDown={event => handleFilterSearchKeyDown(event, () => focusFirstFilterItem(vaultFilterContentRef.current))}
+                          onChange={(event) => setVaultSearchQuery(event.target.value)}
+                          onKeyDown={(event) =>
+                            handleFilterSearchKeyDown(event, () =>
+                              focusFirstFilterItem(vaultFilterContentRef.current),
+                            )
+                          }
                           placeholder="Search vaults"
                           className="h-10 w-full rounded-xl border border-transparent bg-background pl-10 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
                           autoFocus
@@ -494,7 +515,9 @@ export function AllDocumentsPage() {
                       </div>
                     </div>
                     <div className="max-h-72 overflow-auto p-2">
-                      {vaultsQuery.isLoading ? <p className="px-3 py-3 text-sm text-muted-foreground">Loading vaults...</p> : null}
+                      {vaultsQuery.isLoading ? (
+                        <p className="px-3 py-3 text-sm text-muted-foreground">Loading vaults...</p>
+                      ) : null}
                       {!vaultsQuery.isLoading ? (
                         <DropdownMenuItem
                           className={cn(!selectedVaultId && 'bg-secondary/70 text-foreground')}
@@ -510,17 +533,21 @@ export function AllDocumentsPage() {
                       {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
                         <p className="px-3 py-3 text-sm text-muted-foreground">No vaults found.</p>
                       ) : null}
-                      {filteredVaults.map(vault => (
+                      {filteredVaults.map((vault) => (
                         <DropdownMenuItem
                           key={vault.id}
-                          className={cn(selectedVaultId === vault.id && 'bg-secondary/70 text-foreground')}
+                          className={cn(
+                            selectedVaultId === vault.id && 'bg-secondary/70 text-foreground',
+                          )}
                           onSelect={() => {
                             setSelectedVaultId(vault.id);
                             setIsVaultFilterOpen(false);
                           }}
                         >
                           <span className="flex-1 truncate">{vault.name}</span>
-                          {selectedVaultId === vault.id ? <Check className="size-4 text-primary" /> : null}
+                          {selectedVaultId === vault.id ? (
+                            <Check className="size-4 text-primary" />
+                          ) : null}
                         </DropdownMenuItem>
                       ))}
                     </div>
@@ -530,7 +557,7 @@ export function AllDocumentsPage() {
             </div>
 
             <div className="space-y-4">
-              <span className="text-lg font-semibold text-foreground">Tags</span>
+              <span className="text-sm font-semibold text-foreground">Tags</span>
               <DropdownMenu
                 modal={false}
                 open={isTagFilterOpen}
@@ -545,10 +572,12 @@ export function AllDocumentsPage() {
                   <button
                     type="button"
                     aria-label="Tags filter"
-                    className={`${vaultInputClassName} flex h-14 w-full items-center justify-between gap-3 rounded-[18px] border-border/70 bg-background px-4 text-left`}
+                    className={`${vaultInputClassName} flex h-10 w-full items-center justify-between gap-3 rounded-lg border-border/70 bg-background px-4 text-left`}
                   >
-                    <span className="truncate text-base text-foreground">{selectedTagsLabel}</span>
-                    <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition ${isTagFilterOpen ? 'rotate-180' : ''}`} />
+                    <span className="truncate text-sm text-foreground">{selectedTagsLabel}</span>
+                    <ChevronDown
+                      className={`size-4 shrink-0 text-muted-foreground transition ${isTagFilterOpen ? 'rotate-180' : ''}`}
+                    />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -565,8 +594,12 @@ export function AllDocumentsPage() {
                         <input
                           aria-label="Search tags"
                           value={tagSearchQuery}
-                          onChange={event => setTagSearchQuery(event.target.value)}
-                          onKeyDown={event => handleFilterSearchKeyDown(event, () => focusFirstFilterItem(tagFilterContentRef.current))}
+                          onChange={(event) => setTagSearchQuery(event.target.value)}
+                          onKeyDown={(event) =>
+                            handleFilterSearchKeyDown(event, () =>
+                              focusFirstFilterItem(tagFilterContentRef.current),
+                            )
+                          }
                           placeholder="Search tags"
                           className="h-10 w-full rounded-xl border border-transparent bg-background pl-10 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
                           autoFocus
@@ -574,27 +607,33 @@ export function AllDocumentsPage() {
                       </div>
                     </div>
                     <div className="max-h-72 overflow-auto p-2">
-                      {tagsQuery.isLoading ? <p className="px-3 py-3 text-sm text-muted-foreground">Loading tags...</p> : null}
+                      {tagsQuery.isLoading ? (
+                        <p className="px-3 py-3 text-sm text-muted-foreground">Loading tags...</p>
+                      ) : null}
                       {!tagsQuery.isLoading && availableTags.length === 0 ? (
                         <p className="px-3 py-3 text-sm text-muted-foreground">No tags found.</p>
                       ) : null}
-                      {!tagsQuery.isLoading && availableTags.length > 0 && filteredTags.length === 0 ? (
+                      {!tagsQuery.isLoading &&
+                      availableTags.length > 0 &&
+                      filteredTags.length === 0 ? (
                         <p className="px-3 py-3 text-sm text-muted-foreground">No tags found.</p>
                       ) : null}
-                      {filteredTags.map(tag => {
+                      {filteredTags.map((tag) => {
                         const isSelected = selectedTagIds.includes(tag.id);
 
                         return (
                           <DropdownMenuCheckboxItem
                             key={tag.id}
                             checked={isSelected}
-                            onSelect={event => event.preventDefault()}
+                            onSelect={(event) => event.preventDefault()}
                             onCheckedChange={() => toggleTagSelection(tag.id)}
                           >
                             <span className="flex min-w-0 flex-1 items-center gap-3">
                               <span
                                 className="size-2.5 rounded-full"
-                                style={{ backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))' }}
+                                style={{
+                                  backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))',
+                                }}
                                 aria-hidden="true"
                               />
                               <span className="truncate">{tag.name}</span>
@@ -613,107 +652,123 @@ export function AllDocumentsPage() {
               </DropdownMenu>
             </div>
 
-            <div className="rounded-[20px] border border-border/70 bg-background/80 p-4">
+            <div className="rounded-lg border border-border/70 bg-background/80 p-4">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Date</h3>
+                <h3 className="text-sm font-semibold text-foreground">Date</h3>
               </div>
 
-                  <div className="mt-3 space-y-2">
-                    {[
-                      { value: 'any', label: 'Any time' },
-                      { value: 'last_7_days', label: 'Last 7 days' },
-                      { value: 'last_30_days', label: 'Last 30 days' },
-                      { value: 'custom', label: 'Custom range' },
-                    ].map(option => (
-                      <label
-                        key={option.value}
-                        className={cn(
-                          'flex cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-2.5 transition',
-                          datePreset === option.value ? 'bg-secondary text-foreground' : 'hover:bg-secondary/45',
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          name="documents-date-filter"
-                          value={option.value}
-                          checked={datePreset === option.value}
-                          onChange={() => setDatePreset(option.value as DatePreset)}
-                          className="size-4 border-border"
-                        />
-                        <span className="text-base font-semibold">{option.label}</span>
-                      </label>
-                    ))}
-                  </div>
+              <div className="mt-3 space-y-2">
+                {[
+                  { value: 'any', label: 'Any time' },
+                  { value: 'last_7_days', label: 'Last 7 days' },
+                  { value: 'last_30_days', label: 'Last 30 days' },
+                  { value: 'custom', label: 'Custom range' },
+                ].map((option) => (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-3 rounded-lg px-3.5 py-2.5 transition',
+                      datePreset === option.value
+                        ? 'bg-secondary text-foreground'
+                        : 'hover:bg-secondary/45',
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="documents-date-filter"
+                      value={option.value}
+                      checked={datePreset === option.value}
+                      onChange={() => setDatePreset(option.value as DatePreset)}
+                      className="size-4 border-border"
+                    />
+                    <span className="text-sm font-semibold">{option.label}</span>
+                  </label>
+                ))}
+              </div>
 
-                  {datePreset === 'custom' ? (
-                    <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
-                      <div className="space-y-2">
-                        <label htmlFor="documents-custom-date-from" className="text-sm font-semibold text-muted-foreground">
-                          From
-                        </label>
-                        <div className="relative">
-                          <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                          <input
-                            id="documents-custom-date-from"
-                            aria-label="From"
-                            type="date"
-                            value={customDateFrom}
-                            max={customDateTo || undefined}
-                            onChange={(event) => {
-                              const nextValue = event.target.value;
-                              setCustomDateFrom(nextValue);
+              {datePreset === 'custom' ? (
+                <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="documents-custom-date-from"
+                      className="text-sm font-semibold text-muted-foreground"
+                    >
+                      From
+                    </label>
+                    <div className="relative">
+                      <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        id="documents-custom-date-from"
+                        aria-label="From"
+                        type="date"
+                        value={customDateFrom}
+                        max={customDateTo || undefined}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          setCustomDateFrom(nextValue);
 
-                              if (customDateTo && nextValue && nextValue > customDateTo) {
-                                setCustomDateTo(nextValue);
-                              }
-                            }}
-                            className={`${vaultInputClassName} h-12 rounded-2xl border-border/70 bg-card pl-11`}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label htmlFor="documents-custom-date-to" className="text-sm font-semibold text-muted-foreground">
-                          To
-                        </label>
-                        <div className="relative">
-                          <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                          <input
-                            id="documents-custom-date-to"
-                            aria-label="To"
-                            type="date"
-                            value={customDateTo}
-                            min={customDateFrom || undefined}
-                            onChange={(event) => {
-                              const nextValue = event.target.value;
-                              setCustomDateTo(nextValue);
-
-                              if (customDateFrom && nextValue && nextValue < customDateFrom) {
-                                setCustomDateFrom(nextValue);
-                              }
-                            }}
-                            className={`${vaultInputClassName} h-12 rounded-2xl border-border/70 bg-card pl-11`}
-                          />
-                        </div>
-                      </div>
+                          if (customDateTo && nextValue && nextValue > customDateTo) {
+                            setCustomDateTo(nextValue);
+                          }
+                        }}
+                        className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
+                      />
                     </div>
-                  ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="documents-custom-date-to"
+                      className="text-sm font-semibold text-muted-foreground"
+                    >
+                      To
+                    </label>
+                    <div className="relative">
+                      <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        id="documents-custom-date-to"
+                        aria-label="To"
+                        type="date"
+                        value={customDateTo}
+                        min={customDateFrom || undefined}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          setCustomDateTo(nextValue);
+
+                          if (customDateFrom && nextValue && nextValue < customDateFrom) {
+                            setCustomDateFrom(nextValue);
+                          }
+                        }}
+                        className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </>
-        )}
+        }
       />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xl font-medium tracking-[-0.03em] text-foreground">{summaryLabel}</p>
+          <p className="text-xl font-medium  text-foreground">{summaryLabel}</p>
         </div>
 
         <span className="vault-chip">{selectedSortLabel}</span>
       </div>
 
-      {vaultsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading vaults...</p> : null}
-      {vaultsQuery.isError ? <p className="text-sm text-destructive">Unable to load vaults.</p> : null}
-      {documentsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading documents...</p> : null}
-      {documentsQuery.isError ? <p className="text-sm text-destructive">Unable to load your document library.</p> : null}
+      {vaultsQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading vaults...</p>
+      ) : null}
+      {vaultsQuery.isError ? (
+        <p className="text-sm text-destructive">Unable to load vaults.</p>
+      ) : null}
+      {documentsQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading documents...</p>
+      ) : null}
+      {documentsQuery.isError ? (
+        <p className="text-sm text-destructive">Unable to load your document library.</p>
+      ) : null}
 
       {!documentsQuery.isLoading && (documentsQuery.data?.results.length ?? 0) === 0 ? (
         <SurfacePanel>
@@ -724,12 +779,12 @@ export function AllDocumentsPage() {
       ) : null}
 
       <div className="space-y-5">
-        {groupedDocuments.map(group => {
+        {groupedDocuments.map((group) => {
           const vault = vaultsById.get(group.vaultId);
           const isCollapsed = collapsedVaultIds.includes(group.vaultId);
 
           return (
-            <SurfacePanel key={group.vaultId} className="rounded-[26px] p-0">
+            <SurfacePanel key={group.vaultId} className="rounded-lg p-0">
               <div className="border-b border-border/70 px-5 py-5 sm:px-6">
                 <div className="flex items-start gap-4">
                   <VaultIcon />
@@ -742,11 +797,12 @@ export function AllDocumentsPage() {
                     >
                       <span className="min-w-0">
                         <span className="flex flex-wrap items-baseline gap-3">
-                          <span className="font-display truncate text-2xl font-bold tracking-[-0.04em] text-foreground">
+                          <span className="truncate text-base font-semibold text-foreground">
                             {group.vaultName}
                           </span>
-                          <span className="text-base text-muted-foreground">
-                            {group.documents.length} document{group.documents.length === 1 ? '' : 's'}
+                          <span className="text-sm text-muted-foreground">
+                            {group.documents.length} document
+                            {group.documents.length === 1 ? '' : 's'}
                           </span>
                         </span>
                         <span className="mt-1 block text-sm text-muted-foreground">
@@ -765,7 +821,7 @@ export function AllDocumentsPage() {
                         variant="ghost"
                         size="icon"
                         aria-label={`Open actions for ${group.vaultName}`}
-                        className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
+                        className="h-9 w-9 rounded-lg border border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <Ellipsis className="size-5" />
@@ -794,7 +850,7 @@ export function AllDocumentsPage() {
                   <DocumentLibraryHeader />
 
                   <div className="divide-y divide-border/70">
-                    {group.documents.map(document => (
+                    {group.documents.map((document) => (
                       <DocumentLibraryRow
                         key={document.documentId}
                         name={document.name}
@@ -804,24 +860,34 @@ export function AllDocumentsPage() {
                         createdAt={document.createdAt}
                         updatedAt={document.updatedAt}
                         tags={document.tags}
-                        snippet={debouncedQuery.length > 0 && document.bestChunk
-                          ? tokenizeSnippet(document.bestChunk.snippet).map(part =>
-                              part.highlighted
-                                ? (
-                                    <mark key={`${document.documentId}-${part.key}`} className="rounded-md bg-accent px-1.5 py-0.5 text-foreground">
-                                      {part.text}
-                                    </mark>
-                                  )
-                                : <span key={`${document.documentId}-${part.key}`}>{part.text}</span>,
-                            )
-                          : undefined}
+                        snippet={
+                          debouncedQuery.length > 0 && document.bestChunk
+                            ? tokenizeSnippet(document.bestChunk.snippet).map((part) =>
+                                part.highlighted ? (
+                                  <mark
+                                    key={`${document.documentId}-${part.key}`}
+                                    className="rounded-md bg-accent px-1.5 py-0.5 text-foreground"
+                                  >
+                                    {part.text}
+                                  </mark>
+                                ) : (
+                                  <span key={`${document.documentId}-${part.key}`}>
+                                    {part.text}
+                                  </span>
+                                ),
+                              )
+                            : undefined
+                        }
                         vaultId={document.vaultId}
                         documentId={document.documentId}
                         deleteDisabled={deleteMutation.isPending}
                         onDelete={() => {
                           setStatusMessage(null);
                           setErrorMessage(null);
-                          deleteMutation.mutate({ vaultId: document.vaultId, documentId: document.documentId });
+                          deleteMutation.mutate({
+                            vaultId: document.vaultId,
+                            documentId: document.documentId,
+                          });
                         }}
                       />
                     ))}

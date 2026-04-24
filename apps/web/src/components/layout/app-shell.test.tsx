@@ -27,7 +27,7 @@ function jsonResponse(body: unknown) {
   });
 }
 
-describe('AppShell account menu', () => {
+describe('app shell account menu', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     authClientMock.useSession.mockReturnValue({
@@ -40,20 +40,23 @@ describe('AppShell account menu', () => {
     });
     authClientMock.signOut.mockResolvedValue({ error: null });
 
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
 
-      if (url === '/api/me') {
-        return jsonResponse({
-          userId: 'usr_member',
-          sessionId: 'ses_member',
-          isGlobalAdmin: false,
-          canCreateVault: false,
-        });
-      }
+        if (url === '/api/me') {
+          return jsonResponse({
+            userId: 'usr_member',
+            sessionId: 'ses_member',
+            isGlobalAdmin: false,
+            canCreateVault: false,
+          });
+        }
 
-      throw new Error(`Unhandled request ${url}`);
-    }));
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
   });
 
   it('dismisses the account menu when clicking outside of it', async () => {

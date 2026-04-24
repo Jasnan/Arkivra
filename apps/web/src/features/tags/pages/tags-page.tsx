@@ -1,16 +1,14 @@
 import type { FormEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Ellipsis,
-  FileText,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Ellipsis, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { PageIntro, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import {
+  PageIntro,
+  StatusBanner,
+  SurfacePanel,
+  vaultInputClassName,
+} from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,8 +18,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useAccessibleTagsQuery, useTagsQuery } from '@/features/tags/tags.queries';
@@ -126,7 +135,7 @@ function TagActionsMenu({
           variant="ghost"
           size="icon"
           aria-label={`Open actions for ${tag.name}`}
-          className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
+          className="h-11 w-11 rounded-lg border border-border/60 bg-background/80 text-muted-foreground  hover:bg-secondary/70 hover:text-foreground"
         >
           <Ellipsis className="size-5" />
         </Button>
@@ -191,7 +200,7 @@ export function TagsPage() {
   const tags = tagsQuery.data?.tags ?? [];
   const vaults = vaultsQuery.data?.vaults ?? [];
   const selectedTag = useMemo(
-    () => tags.find(tag => tag.id === editingTagId) ?? null,
+    () => tags.find((tag) => tag.id === editingTagId) ?? null,
     [editingTagId, tags],
   );
 
@@ -203,16 +212,15 @@ export function TagsPage() {
         return true;
       }
 
-      return [
-        tag.name,
-        tag.description ?? '',
-        tag.vaultName ?? '',
-      ].some(value => value.toLowerCase().includes(normalizedFilter));
+      return [tag.name, tag.description ?? '', tag.vaultName ?? ''].some((value) =>
+        value.toLowerCase().includes(normalizedFilter),
+      );
     });
   }, [filterText, tags]);
 
   function rememberFocusTarget(target?: HTMLElement | null) {
-    focusRestoreTargetRef.current = target ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    focusRestoreTargetRef.current =
+      target ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
   }
 
   function restoreFocusTarget() {
@@ -348,15 +356,17 @@ export function TagsPage() {
     <section className="space-y-6 pb-8">
       <PageIntro
         title="Tags"
-        actions={(
+        actions={
           <div className="flex flex-wrap items-center gap-3">
             {isVaultScoped ? (
-              <Link to={`/vaults/${scopedVaultId}/documents`} className="vault-link">Back to documents</Link>
+              <Link to={`/vaults/${scopedVaultId}/documents`} className="vault-link">
+                Back to documents
+              </Link>
             ) : null}
             <Button
               ref={createButtonRef}
               type="button"
-              className="bg-primary text-primary-foreground shadow-[0_18px_40px_rgba(0,21,41,0.16)] hover:bg-primary/95"
+              className="bg-primary text-primary-foreground  hover:bg-primary/95"
               onClick={openCreateDialog}
               disabled={vaultsQuery.isLoading || vaults.length === 0}
             >
@@ -364,10 +374,10 @@ export function TagsPage() {
               New tag
             </Button>
           </div>
-        )}
+        }
       />
 
-      {(statusMessage || errorMessage) ? (
+      {statusMessage || errorMessage ? (
         <div className="grid gap-3">
           {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
           {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
@@ -376,11 +386,13 @@ export function TagsPage() {
 
       <SurfacePanel>
         <div className="w-full lg:w-[22rem]">
-          <label htmlFor="tag-filter" className="sr-only">Search tags</label>
+          <label htmlFor="tag-filter" className="sr-only">
+            Search tags
+          </label>
           <input
             id="tag-filter"
             value={filterText}
-            onChange={event => setFilterText(event.target.value)}
+            onChange={(event) => setFilterText(event.target.value)}
             className={vaultInputClassName}
             placeholder="Search tags"
           />
@@ -397,8 +409,12 @@ export function TagsPage() {
           <span className="text-right">Actions</span>
         </div>
 
-        {tagsQuery.isLoading ? <p className="px-6 py-6 text-sm text-muted-foreground">Loading tags...</p> : null}
-        {tagsQuery.isError ? <p className="px-6 py-6 text-sm text-destructive">Unable to load tags.</p> : null}
+        {tagsQuery.isLoading ? (
+          <p className="px-6 py-6 text-sm text-muted-foreground">Loading tags...</p>
+        ) : null}
+        {tagsQuery.isError ? (
+          <p className="px-6 py-6 text-sm text-destructive">Unable to load tags.</p>
+        ) : null}
         {!tagsQuery.isLoading && tags.length === 0 ? (
           <div className="px-6 py-8 text-sm text-muted-foreground">
             No tags yet. Create the first one to start organizing documents.
@@ -409,7 +425,7 @@ export function TagsPage() {
         ) : null}
 
         <div className="divide-y divide-border/70">
-          {filteredTags.map(tag => (
+          {filteredTags.map((tag) => (
             <article
               key={tag.id}
               className="grid gap-4 px-6 py-5 md:grid-cols-[180px_minmax(0,1.4fr)_140px_170px_150px_130px] md:items-center md:gap-6"
@@ -449,7 +465,7 @@ export function TagsPage() {
                 <TagActionsMenu
                   tag={tag}
                   deletePending={deleteMutation.isPending}
-                  onEdit={trigger => openEditDialog(tag, trigger)}
+                  onEdit={(trigger) => openEditDialog(tag, trigger)}
                   onDelete={(trigger) => {
                     rememberFocusTarget(trigger);
                     setStatusMessage(null);
@@ -469,27 +485,40 @@ export function TagsPage() {
         submitLabel={dialogMode === 'create' ? 'Create tag' : 'Save changes'}
         pendingLabel={dialogMode === 'create' ? 'Creating...' : 'Saving...'}
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
-        extraFields={!isVaultScoped ? (
-          <div className="space-y-3">
-            <span id="tag-dialog-vault-label" className="text-[1.05rem] font-medium text-foreground">Vault</span>
-            <Select value={formVaultId || '__none__'} onValueChange={value => setFormVaultId(value === '__none__' ? '' : value)}>
-              <SelectTrigger
-                aria-labelledby="tag-dialog-vault-label"
-                className={`${vaultInputClassName} h-14 rounded-2xl border-foreground/20 text-base focus:border-foreground/35`}
+        extraFields={
+          !isVaultScoped ? (
+            <div className="space-y-3">
+              <span id="tag-dialog-vault-label" className="text-sm font-medium text-foreground">
+                Vault
+              </span>
+              <Select
+                value={formVaultId || '__none__'}
+                onValueChange={(value) => setFormVaultId(value === '__none__' ? '' : value)}
               >
-                <SelectValue placeholder="Choose a vault" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Choose a vault</SelectItem>
-                {vaults.map(vault => (
-                  <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
+                <SelectTrigger
+                  aria-labelledby="tag-dialog-vault-label"
+                  className={`${vaultInputClassName} h-10 rounded-lg border-foreground/20 text-sm focus:border-foreground/35`}
+                >
+                  <SelectValue placeholder="Choose a vault" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Choose a vault</SelectItem>
+                  {vaults.map((vault) => (
+                    <SelectItem key={vault.id} value={vault.id}>
+                      {vault.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null
+        }
         isPending={isSubmitting}
-        isSubmitDisabled={formName.trim().length === 0 || (!isVaultScoped && formVaultId.trim().length === 0) || isSubmitting}
+        isSubmitDisabled={
+          formName.trim().length === 0 ||
+          (!isVaultScoped && formVaultId.trim().length === 0) ||
+          isSubmitting
+        }
         nameValue={formName}
         colorValue={formColor}
         descriptionValue={formDescription}

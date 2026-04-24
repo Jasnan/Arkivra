@@ -3,9 +3,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { PageIntro, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import {
+  PageIntro,
+  StatCard,
+  StatusBanner,
+  SurfacePanel,
+  vaultInputClassName,
+} from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   addVaultMember,
   deleteVault,
@@ -14,7 +26,11 @@ import {
   transferVaultOwnership,
   updateVaultMember,
 } from '@/features/vaults/vaults.api';
-import { useVaultMembersQuery, useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
+import {
+  useVaultMembersQuery,
+  useVaultQuery,
+  vaultQueryKeys,
+} from '@/features/vaults/vaults.queries';
 import { VAULT_MEMBER_PERMISSIONS } from '@/features/vaults/vaults.types';
 import type { VaultMemberPermission } from '@/features/vaults/vaults.types';
 
@@ -31,7 +47,11 @@ function collectPermissions(form: HTMLFormElement) {
   const data = new FormData(form);
   const permissions = data
     .getAll('permissions')
-    .filter((value): value is VaultMemberPermission => typeof value === 'string' && VAULT_MEMBER_PERMISSIONS.includes(value as VaultMemberPermission));
+    .filter(
+      (value): value is VaultMemberPermission =>
+        typeof value === 'string' &&
+        VAULT_MEMBER_PERMISSIONS.includes(value as VaultMemberPermission),
+    );
 
   return permissions;
 }
@@ -51,19 +71,21 @@ export function VaultSettingsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [inviteUserId, setInviteUserId] = useState('');
-  const [invitePermissions, setInvitePermissions] = useState<VaultMemberPermission[]>(defaultInvitePermissions);
+  const [invitePermissions, setInvitePermissions] =
+    useState<VaultMemberPermission[]>(defaultInvitePermissions);
   const [transferTargetUserId, setTransferTargetUserId] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const ownerCandidates = useMemo(
-    () => members.filter(member => member.role === 'member'),
+    () => members.filter((member) => member.role === 'member'),
     [members],
   );
 
-  const canManageMembers = (vaultQuery.data?.vault.role === 'owner')
-    || vaultQuery.data?.vault.isGlobalAdmin
-    || (vaultQuery.data?.vault.permissions ?? []).includes('members.manage');
+  const canManageMembers =
+    vaultQuery.data?.vault.role === 'owner' ||
+    vaultQuery.data?.vault.isGlobalAdmin ||
+    (vaultQuery.data?.vault.permissions ?? []).includes('members.manage');
 
   const renameMutation = useMutation({
     mutationFn: renameVault,
@@ -199,15 +221,19 @@ export function VaultSettingsPage() {
         eyebrow="Vault Governance"
         title="Vault settings"
         description={`${vault.name} • ${vault.id}`}
-        actions={(
+        actions={
           <>
-            <Link to={`/vaults/${vaultId}/documents`} className="vault-link">Open documents</Link>
-            <Link to="/vaults" className="vault-link">Back to vault list</Link>
+            <Link to={`/vaults/${vaultId}/documents`} className="vault-link">
+              Open documents
+            </Link>
+            <Link to="/vaults" className="vault-link">
+              Back to vault list
+            </Link>
           </>
-        )}
+        }
       />
 
-      {(statusMessage || errorMessage) ? (
+      {statusMessage || errorMessage ? (
         <div className="grid gap-3">
           {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
           {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
@@ -230,7 +256,11 @@ export function VaultSettingsPage() {
         <StatCard
           label="Vault control"
           value={canManageMembers ? 'Managed' : 'Limited'}
-          meta={canManageMembers ? 'You can invite and update members here.' : 'Your current permissions do not allow member management.'}
+          meta={
+            canManageMembers
+              ? 'You can invite and update members here.'
+              : 'Your current permissions do not allow member management.'
+          }
           icon={<Vault className="size-5" />}
         />
       </div>
@@ -240,7 +270,9 @@ export function VaultSettingsPage() {
           <SurfacePanel className="space-y-5">
             <div>
               <p className="vault-label">Rename Vault</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Vault identity</h2>
+              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+                Vault identity
+              </h2>
             </div>
             <form className="space-y-4" onSubmit={handleRename}>
               <label className="space-y-2 block">
@@ -248,7 +280,7 @@ export function VaultSettingsPage() {
                 <input
                   type="text"
                   value={name}
-                  onChange={event => setName(event.target.value)}
+                  onChange={(event) => setName(event.target.value)}
                   className={vaultInputClassName}
                 />
               </label>
@@ -257,7 +289,7 @@ export function VaultSettingsPage() {
                 <span className="vault-label">Description</span>
                 <textarea
                   value={description}
-                  onChange={event => setDescription(event.target.value)}
+                  onChange={(event) => setDescription(event.target.value)}
                   className={`${vaultInputClassName} min-h-28 resize-y`}
                   placeholder="What belongs in this vault?"
                 />
@@ -271,7 +303,9 @@ export function VaultSettingsPage() {
           <SurfacePanel className="space-y-5">
             <div>
               <p className="vault-label">Invite Member</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Access onboarding</h2>
+              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+                Access onboarding
+              </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 Invite by user id and assign initial permissions.
               </p>
@@ -280,24 +314,28 @@ export function VaultSettingsPage() {
               <input
                 type="text"
                 value={inviteUserId}
-                onChange={event => setInviteUserId(event.target.value)}
+                onChange={(event) => setInviteUserId(event.target.value)}
                 placeholder="usr_..."
                 className={vaultInputClassName}
                 disabled={!canManageMembers}
               />
 
               <div className="grid gap-2 sm:grid-cols-2">
-                {VAULT_MEMBER_PERMISSIONS.map(permission => (
-                  <label key={permission} className="flex items-center gap-3 rounded-[18px] bg-secondary/55 px-4 py-3 text-sm text-foreground">
+                {VAULT_MEMBER_PERMISSIONS.map((permission) => (
+                  <label
+                    key={permission}
+                    className="flex items-center gap-3 rounded-lg bg-secondary/55 px-4 py-3 text-sm text-foreground"
+                  >
                     <input
                       type="checkbox"
                       checked={invitePermissions.includes(permission)}
                       onChange={(event) => {
                         if (event.target.checked) {
-                          setInvitePermissions(current => [...new Set([...current, permission])]);
-                        }
-                        else {
-                          setInvitePermissions(current => current.filter(item => item !== permission));
+                          setInvitePermissions((current) => [...new Set([...current, permission])]);
+                        } else {
+                          setInvitePermissions((current) =>
+                            current.filter((item) => item !== permission),
+                          );
                         }
                       }}
                       disabled={!canManageMembers}
@@ -316,26 +354,38 @@ export function VaultSettingsPage() {
           <SurfacePanel className="space-y-5">
             <div>
               <p className="vault-label">Members & Permissions</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Access roster</h2>
+              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+                Access roster
+              </h2>
             </div>
 
-            {membersQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading members...</p> : null}
-            {membersQuery.isError ? <p className="text-sm text-destructive">Unable to load members.</p> : null}
+            {membersQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading members...</p>
+            ) : null}
+            {membersQuery.isError ? (
+              <p className="text-sm text-destructive">Unable to load members.</p>
+            ) : null}
 
             <div className="space-y-4">
-              {members.map(member => (
-                <article key={member.userId} className="rounded-[24px] bg-secondary/56 p-5">
+              {members.map((member) => (
+                <article key={member.userId} className="rounded-lg bg-secondary/56 p-5">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{member.name ?? member.email}</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">{member.userId} • {member.role}</p>
+                      <h3 className="text-base font-semibold text-foreground">
+                        {member.name ?? member.email}
+                      </h3>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {member.userId} • {member.role}
+                      </p>
                     </div>
                     {member.role === 'member' ? (
                       <Button
                         type="button"
                         variant="outline"
                         disabled={!canManageMembers || removeMemberMutation.isPending}
-                        onClick={() => removeMemberMutation.mutate({ vaultId, memberUserId: member.userId })}
+                        onClick={() =>
+                          removeMemberMutation.mutate({ vaultId, memberUserId: member.userId })
+                        }
                       >
                         Remove
                       </Button>
@@ -360,8 +410,11 @@ export function VaultSettingsPage() {
                       }}
                     >
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {VAULT_MEMBER_PERMISSIONS.map(permission => (
-                          <label key={`${member.userId}-${permission}`} className="flex items-center gap-3 rounded-[18px] bg-card/80 px-4 py-3 text-sm text-foreground">
+                        {VAULT_MEMBER_PERMISSIONS.map((permission) => (
+                          <label
+                            key={`${member.userId}-${permission}`}
+                            className="flex items-center gap-3 rounded-lg bg-card/80 px-4 py-3 text-sm text-foreground"
+                          >
                             <input
                               name="permissions"
                               type="checkbox"
@@ -374,7 +427,10 @@ export function VaultSettingsPage() {
                         ))}
                       </div>
 
-                      <Button type="submit" disabled={!canManageMembers || updateMemberMutation.isPending}>
+                      <Button
+                        type="submit"
+                        disabled={!canManageMembers || updateMemberMutation.isPending}
+                      >
                         {updateMemberMutation.isPending ? 'Saving...' : 'Save permissions'}
                       </Button>
                     </form>
@@ -391,7 +447,9 @@ export function VaultSettingsPage() {
           <SurfacePanel variant="soft" className="space-y-5">
             <div>
               <p className="vault-label">Transfer Ownership</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Promote a member</h2>
+              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+                Promote a member
+              </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 Promote an existing member to owner when responsibility needs to change hands.
               </p>
@@ -399,7 +457,9 @@ export function VaultSettingsPage() {
             <div className="space-y-4">
               <Select
                 value={transferTargetUserId || '__none__'}
-                onValueChange={value => setTransferTargetUserId(value === '__none__' ? '' : value)}
+                onValueChange={(value) =>
+                  setTransferTargetUserId(value === '__none__' ? '' : value)
+                }
                 disabled={ownerCandidates.length === 0}
               >
                 <SelectTrigger aria-label="Select member" className={vaultInputClassName}>
@@ -407,14 +467,20 @@ export function VaultSettingsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Select member</SelectItem>
-                  {ownerCandidates.map(member => (
-                    <SelectItem key={member.userId} value={member.userId}>{member.name ?? member.email} ({member.userId})</SelectItem>
+                  {ownerCandidates.map((member) => (
+                    <SelectItem key={member.userId} value={member.userId}>
+                      {member.name ?? member.email} ({member.userId})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Button
                 type="button"
-                disabled={transferTargetUserId.length === 0 || transferMutation.isPending || vault.role !== 'owner'}
+                disabled={
+                  transferTargetUserId.length === 0 ||
+                  transferMutation.isPending ||
+                  vault.role !== 'owner'
+                }
                 onClick={() => {
                   setStatusMessage(null);
                   setErrorMessage(null);
@@ -430,7 +496,7 @@ export function VaultSettingsPage() {
           <SurfacePanel variant="strong" className="space-y-5">
             <div>
               <p className="vault-label text-primary-foreground/70">Danger Zone</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em]">Delete vault</h2>
+              <h2 className="font-display mt-2 text-xl font-bold ">Delete vault</h2>
             </div>
             <p className="text-sm leading-6 text-primary-foreground/80">
               Delete this vault permanently from active view. This action remains owner-only.

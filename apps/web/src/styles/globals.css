@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: 252 71% 98%;
+  --background: 220 33% 98%;
   --foreground: 221 39% 13%;
   --card: 0 0% 100%;
   --card-foreground: 221 39% 13%;
@@ -12,20 +12,20 @@
   --popover-foreground: 221 39% 13%;
   --primary: 218 100% 13%;
   --primary-foreground: 210 40% 98%;
-  --secondary: 228 57% 96%;
+  --secondary: 220 24% 96%;
   --secondary-foreground: 221 39% 13%;
-  --muted: 229 44% 95%;
+  --muted: 220 18% 94%;
   --muted-foreground: 221 16% 44%;
   --accent: 193 80% 90%;
   --accent-foreground: 221 39% 13%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 210 40% 98%;
-  --border: 225 28% 89%;
-  --input: 225 28% 89%;
+  --border: 220 17% 88%;
+  --input: 220 17% 88%;
   --ring: 216 62% 44%;
-  --radius: 1.5rem;
-  --font-sans: "Inter", "Segoe UI", sans-serif;
-  --font-display: "Manrope", "Avenir Next", sans-serif;
+  --radius: 0.625rem;
+  --font-sans: 'Inter', 'Segoe UI', sans-serif;
+  --font-display: 'Inter', 'Segoe UI', sans-serif;
 }
 
 .dark {
@@ -116,26 +116,27 @@
 @layer components {
   .font-display {
     font-family: var(--font-display);
+    letter-spacing: 0 !important;
   }
 
   .vault-label {
-    @apply text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground;
+    @apply text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground;
   }
 
   .vault-panel {
-    @apply rounded-[22px] bg-card p-5 ring-1 ring-border/70;
+    @apply rounded-lg border border-border/80 bg-background/80 p-4;
   }
 
   .vault-panel-soft {
-    @apply rounded-[22px] bg-secondary/45 p-5 ring-1 ring-border/60;
+    @apply rounded-lg border border-border/70 bg-secondary/35 p-4;
   }
 
   .vault-panel-strong {
-    @apply rounded-[22px] bg-primary p-5 text-primary-foreground ring-1 ring-primary/30;
+    @apply rounded-lg bg-primary p-4 text-primary-foreground ring-1 ring-primary/30;
   }
 
   .vault-chip {
-    @apply inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-muted-foreground;
+    @apply inline-flex items-center gap-2 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground;
   }
 
   .vault-link {
@@ -143,10 +144,10 @@
   }
 
   .vault-input {
-    @apply h-11 w-full rounded-xl bg-background px-4 text-sm text-foreground outline-none ring-1 ring-border transition focus-visible:ring-2 focus-visible:ring-primary/30;
+    @apply h-10 w-full rounded-lg bg-background px-3 text-sm text-foreground outline-none ring-1 ring-border transition focus-visible:ring-2 focus-visible:ring-primary/30;
   }
 
   .vault-empty {
-    @apply rounded-[18px] bg-secondary/35 p-5 text-sm text-muted-foreground ring-1 ring-border/50;
+    @apply rounded-lg border border-dashed border-border/70 bg-secondary/25 p-4 text-sm text-muted-foreground;
   }
 }

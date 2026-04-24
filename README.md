@@ -1,6 +1,10 @@
-# Arkivra
+<p align="center">
+  <img src="apps/web/src/assets/arkivra-project-logo.png" alt="Arkivra" width="520">
+</p>
 
-> A self-hosted, AI-ready Document Management System.
+<p align="center">
+  <strong>A self-hosted, AI-ready Document Management System.</strong>
+</p>
 
 Arkivra is a self-hosted document management system designed for individuals and small teams who want to securely store, organize, search, and eventually query their documents using AI. It runs entirely on your own infrastructure via Docker Compose.
 

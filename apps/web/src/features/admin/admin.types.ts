@@ -36,7 +36,6 @@ export interface AdminAiSettings {
   minTokenLength: number;
   maxCandidates: number;
   batchSize: number;
-  logRequests: boolean;
 }
 
 export interface AdminAiModel {

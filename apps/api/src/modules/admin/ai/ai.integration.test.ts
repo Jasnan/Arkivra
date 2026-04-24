@@ -13,7 +13,6 @@ function createMockAiServices() {
       minTokenLength: 8,
       maxCandidates: 100,
       batchSize: 10,
-      logRequests: false,
     })),
     updateSettings: vi.fn(async settings => settings),
     listModels: vi.fn(async () => [
@@ -94,7 +93,6 @@ describe('admin ai routes integration', () => {
         minTokenLength: 10,
         maxCandidates: 50,
         batchSize: 5,
-        logRequests: true,
       }),
     });
 
@@ -106,7 +104,6 @@ describe('admin ai routes integration', () => {
       minTokenLength: 10,
       maxCandidates: 50,
       batchSize: 5,
-      logRequests: true,
     });
   });
 

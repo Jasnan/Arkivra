@@ -7,6 +7,5 @@ CREATE TABLE IF NOT EXISTS "instance_settings" (
   "ollama_model" text DEFAULT 'gemma4:e2b' NOT NULL,
   "ollama_glued_word_min_token_length" integer DEFAULT 12 NOT NULL,
   "ollama_glued_word_max_candidates" integer DEFAULT 100 NOT NULL,
-  "ollama_glued_word_batch_size" integer DEFAULT 10 NOT NULL,
-  "ollama_log_requests" boolean DEFAULT false NOT NULL
+  "ollama_glued_word_batch_size" integer DEFAULT 10 NOT NULL
 );

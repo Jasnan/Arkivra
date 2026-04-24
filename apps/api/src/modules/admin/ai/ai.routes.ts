@@ -12,7 +12,6 @@ const aiSettingsSchema = z.object({
   minTokenLength: z.number().int().min(4).max(128),
   maxCandidates: z.number().int().min(1).max(1000),
   batchSize: z.number().int().min(1).max(200),
-  logRequests: z.boolean(),
 });
 
 const aiHostSchema = z.object({

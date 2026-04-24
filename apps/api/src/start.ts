@@ -110,7 +110,7 @@ export async function startApp() {
           minTokenLength: settings.minTokenLength,
           maxCandidates: settings.maxCandidates,
           batchSize: settings.batchSize,
-          logRequests: settings.logRequests,
+          logRequests: config.ollama.logRequests,
         };
       },
     });

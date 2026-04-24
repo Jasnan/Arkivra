@@ -230,7 +230,6 @@ describe('settings, admin, and about pages', () => {
             minTokenLength: 8,
             maxCandidates: 100,
             batchSize: 10,
-            logRequests: false,
           },
         });
       }
@@ -334,7 +333,7 @@ describe('settings, admin, and about pages', () => {
 
     await user.clear(screen.getByLabelText(/ollama host/i));
     await user.type(screen.getByLabelText(/ollama host/i), 'http://192.168.1.77:11434');
-    await user.click(screen.getByRole('button', { name: /save ai settings/i }));
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/admin/ai/settings', expect.objectContaining({
         credentials: 'include',

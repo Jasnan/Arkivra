@@ -5,7 +5,6 @@ export type AdminAiSettings = {
   minTokenLength: number;
   maxCandidates: number;
   batchSize: number;
-  logRequests: boolean;
 };
 
 export type AdminAiModel = {

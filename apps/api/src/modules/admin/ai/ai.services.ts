@@ -40,7 +40,6 @@ function createDefaultSettings(config: Config): AdminAiSettings {
     minTokenLength: config.ollama.gluedWordMinTokenLength,
     maxCandidates: config.ollama.gluedWordMaxCandidates,
     batchSize: config.ollama.gluedWordBatchSize,
-    logRequests: config.ollama.logRequests,
   };
 }
 
@@ -78,7 +77,6 @@ export function createAdminAiServices({
       minTokenLength: stored.ollamaGluedWordMinTokenLength,
       maxCandidates: stored.ollamaGluedWordMaxCandidates,
       batchSize: stored.ollamaGluedWordBatchSize,
-      logRequests: stored.ollamaLogRequests,
     };
   }
 
@@ -99,7 +97,6 @@ export function createAdminAiServices({
         ollamaGluedWordMinTokenLength: normalized.minTokenLength,
         ollamaGluedWordMaxCandidates: normalized.maxCandidates,
         ollamaGluedWordBatchSize: normalized.batchSize,
-        ollamaLogRequests: normalized.logRequests,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
@@ -111,7 +108,6 @@ export function createAdminAiServices({
           ollamaGluedWordMinTokenLength: normalized.minTokenLength,
           ollamaGluedWordMaxCandidates: normalized.maxCandidates,
           ollamaGluedWordBatchSize: normalized.batchSize,
-          ollamaLogRequests: normalized.logRequests,
           updatedAt: new Date(),
         },
       });

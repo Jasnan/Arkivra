@@ -7,6 +7,8 @@ import {
   File,
   FileSearch,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   SearchX,
   Search,
   Settings,
@@ -19,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import arkivraLogoUrl from '@/assets/arkivra-logo.png';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {
   DropdownMenu,
@@ -40,6 +43,8 @@ import { cn } from '@/lib/utils';
 
 const navBaseClassName =
   'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors';
+
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'arkivra.sidebarCollapsed';
 
 interface BreadcrumbItem {
   label: string;
@@ -148,6 +153,13 @@ export function AppShell({ children }: PropsWithChildren) {
   const { data: sessionData } = authClient.useSession();
   const [searchValue, setSearchValue] = useState('');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
+  });
   const deferredSearchValue = useDeferredValue(searchValue.trim());
   const transferVaultId = useMemo(
     () => new URLSearchParams(location.search).get('vaultId'),
@@ -174,6 +186,13 @@ export function AppShell({ children }: PropsWithChildren) {
       setSearchValue('');
     }
   }, [isQuickSearchOpen, location.pathname]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      SIDEBAR_COLLAPSED_STORAGE_KEY,
+      isSidebarCollapsed ? 'true' : 'false',
+    );
+  }, [isSidebarCollapsed]);
 
   const { primaryNavItems, footerNavItems } = useMemo(() => {
     const primaryItems = [
@@ -212,14 +231,46 @@ export function AppShell({ children }: PropsWithChildren) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-[1760px] gap-0 lg:gap-6">
-        <aside className="hidden w-[14.5rem] shrink-0 border-r border-border/70 px-3 py-4 lg:block">
-          <div className="sticky top-4 flex min-h-[calc(100vh-2rem)] flex-col gap-6">
-            <div className="px-3 py-2">
-              <p className="font-display text-xl font-semibold text-primary">Arkivra</p>
-              <p className="mt-1 text-xs text-muted-foreground">Document vaults</p>
+        <aside
+          className={cn(
+            'relative hidden shrink-0 border-r border-border/70 px-3 py-4 transition-[width] duration-200 lg:block',
+            isSidebarCollapsed ? 'w-[4.75rem]' : 'w-[14.5rem]',
+          )}
+        >
+          <button
+            type="button"
+            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!isSidebarCollapsed}
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="absolute right-0 top-8 z-10 flex size-8 translate-x-1/2 cursor-pointer items-center justify-center rounded-lg border border-border/80 bg-background text-muted-foreground shadow-sm transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+          >
+            {isSidebarCollapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
+          </button>
+
+          <div className="sticky top-4 flex min-h-[calc(100vh-2rem)] flex-col gap-5">
+            <div
+              className={cn(
+                'flex min-h-12 items-center gap-3 px-3 py-2',
+                isSidebarCollapsed && 'justify-center px-0',
+              )}
+            >
+              <img
+                src={arkivraLogoUrl}
+                alt="Arkivra"
+                className="size-10 shrink-0 rounded-lg object-contain"
+              />
+              <div className={cn('min-w-0', isSidebarCollapsed && 'hidden')}>
+                <p className="font-display text-xl font-semibold text-primary">Arkivra</p>
+                <p className="mt-1 text-xs text-muted-foreground">Document vaults</p>
+              </div>
             </div>
 
-            <nav className="space-y-1">
+            <nav className="space-y-1" aria-label="Primary">
               {primaryNavItems.map((item) => {
                 const Icon = item.icon;
 
@@ -228,9 +279,12 @@ export function AppShell({ children }: PropsWithChildren) {
                     key={item.to}
                     to={item.to}
                     end={item.to === '/documents'}
+                    aria-label={isSidebarCollapsed ? item.label : undefined}
+                    title={isSidebarCollapsed ? item.label : undefined}
                     className={({ isActive }) =>
                       cn(
                         navBaseClassName,
+                        isSidebarCollapsed && 'justify-center px-0',
                         isActive
                           ? 'bg-secondary text-foreground'
                           : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
@@ -240,13 +294,16 @@ export function AppShell({ children }: PropsWithChildren) {
                     <span className="flex size-4 shrink-0 items-center justify-center">
                       <Icon className="size-4" />
                     </span>
-                    <span>{item.label}</span>
+                    <span className={cn(isSidebarCollapsed && 'hidden')}>{item.label}</span>
                   </NavLink>
                 );
               })}
             </nav>
 
-            <nav className="mt-auto space-y-1 border-t border-border/70 pt-4">
+            <nav
+              className="mt-auto space-y-1 border-t border-border/70 pt-4"
+              aria-label="Secondary"
+            >
               {footerNavItems.map((item) => {
                 const Icon = item.icon;
 
@@ -254,9 +311,12 @@ export function AppShell({ children }: PropsWithChildren) {
                   <NavLink
                     key={item.to}
                     to={item.to}
+                    aria-label={isSidebarCollapsed ? item.label : undefined}
+                    title={isSidebarCollapsed ? item.label : undefined}
                     className={({ isActive }) =>
                       cn(
                         navBaseClassName,
+                        isSidebarCollapsed && 'justify-center px-0',
                         isActive
                           ? 'bg-secondary text-foreground'
                           : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
@@ -266,7 +326,7 @@ export function AppShell({ children }: PropsWithChildren) {
                     <span className="flex size-4 shrink-0 items-center justify-center">
                       <Icon className="size-4" />
                     </span>
-                    <span>{item.label}</span>
+                    <span className={cn(isSidebarCollapsed && 'hidden')}>{item.label}</span>
                   </NavLink>
                 );
               })}

@@ -3,10 +3,14 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarRange,
+  CircleHelp,
   Download,
+  Ellipsis,
   Image as ImageIcon,
+  Pencil,
   Plus,
   Printer,
+  RotateCcw,
   Trash2,
   X,
 } from 'lucide-react';
@@ -18,6 +22,14 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -39,11 +51,7 @@ import {
   useDocumentQuery,
   useDocumentTagsQuery,
 } from '@/features/documents/documents.queries';
-import {
-  deriveExtractionStatus,
-  formatBytes,
-  formatDate,
-} from '@/features/documents/documents.utils';
+import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
@@ -79,9 +87,12 @@ export function DocumentDetailPage() {
 
   const [renameValue, setRenameValue] = useState<string | null>(null);
   const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
+  const [isNameEditing, setIsNameEditing] = useState(false);
+  const [isDocumentDateEditing, setIsDocumentDateEditing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('preview');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState('');
   const [isCreateTagDialogOpen, setIsCreateTagDialogOpen] = useState(false);
@@ -113,6 +124,16 @@ export function DocumentDetailPage() {
     await queryClient.invalidateQueries({ queryKey: tagQueryKeys.list(vaultId) });
   };
 
+  const invalidateDocumentTags = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: documentQueryKeys.tags(vaultId, documentId),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: [...documentQueryKeys.all, 'list', vaultId],
+    });
+    await queryClient.invalidateQueries({ queryKey: tagQueryKeys.list(vaultId) });
+  };
+
   const renameMutation = useMutation({
     mutationFn: renameDocument,
     onSuccess: invalidateDocument,
@@ -136,6 +157,7 @@ export function DocumentDetailPage() {
     onSuccess: async () => {
       setStatusMessage('Document moved to trash.');
       setErrorMessage(null);
+      setIsDeleteDialogOpen(false);
       await invalidateDocument();
     },
     onError: (error) => {
@@ -160,9 +182,9 @@ export function DocumentDetailPage() {
   const assignTagMutation = useMutation({
     mutationFn: assignTagToDocument,
     onSuccess: async () => {
-      setStatusMessage('Tag assigned.');
+      setStatusMessage(null);
       setErrorMessage(null);
-      await invalidateDocument();
+      await invalidateDocumentTags();
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not assign tag.');
@@ -181,9 +203,9 @@ export function DocumentDetailPage() {
   const removeTagMutation = useMutation({
     mutationFn: removeTagFromDocument,
     onSuccess: async () => {
-      setStatusMessage('Tag removed.');
+      setStatusMessage(null);
       setErrorMessage(null);
-      await invalidateDocument();
+      await invalidateDocumentTags();
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not remove tag.');
@@ -231,7 +253,6 @@ export function DocumentDetailPage() {
   const hasExactTagMatch = availableTags.some(
     (tag) => tag.name.trim().toLowerCase() === normalizedTagSearchValue,
   );
-  const extractionStatus = deriveExtractionStatus(document);
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId });
   const previewKind = getPreviewKind(document.mimeType);
   const canPreview = !document.isDeleted && previewKind !== 'unsupported';
@@ -285,6 +306,8 @@ export function DocumentDetailPage() {
         setStatusMessage('Metadata saved.');
         setRenameValue(null);
         setDocumentDateValue(null);
+        setIsNameEditing(false);
+        setIsDocumentDateEditing(false);
       }
     } catch {}
   }
@@ -330,7 +353,7 @@ export function DocumentDetailPage() {
         documentId,
         tagId: result.tag.id,
       });
-      setStatusMessage(`Tag "${normalizedCreateTagName}" created and assigned.`);
+      setStatusMessage(null);
       setIsCreateTagDialogOpen(false);
       setIsTagPickerOpen(false);
       setTagSearchValue('');
@@ -407,25 +430,58 @@ export function DocumentDetailPage() {
   return (
     <section className="space-y-8 pb-8">
       <PageIntro
-        eyebrow="Vault Record"
         title={document.name}
-        description={`${document.originalName} • ${formatBytes(document.originalSize)} • ${document.id}`}
         actions={
-          <>
-            {canPrint ? (
-              <Button type="button" variant="outline" onClick={handlePrintClick}>
-                <Printer className="size-4" />
-                Print
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Open actions for ${document.name}`}
+                className="h-9 w-9 rounded-lg border border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
+              >
+                <Ellipsis className="size-5" />
               </Button>
-            ) : null}
-            <a
-              href={getDocumentDownloadUrl({ vaultId, documentId })}
-              className="vault-link inline-flex items-center gap-2"
-            >
-              <Download className="size-4" />
-              Download original
-            </a>
-          </>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
+                  <Download className="size-4" />
+                  Download original
+                </a>
+              </DropdownMenuItem>
+              {canPrint ? (
+                <DropdownMenuItem onSelect={handlePrintClick}>
+                  <Printer className="size-4" />
+                  Print
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuSeparator />
+              {document.isDeleted ? (
+                <DropdownMenuItem
+                  disabled={restoreMutation.isPending}
+                  onSelect={() => {
+                    setStatusMessage(null);
+                    setErrorMessage(null);
+                    restoreMutation.mutate({ vaultId, documentId });
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  disabled={deleteMutation.isPending}
+                  onSelect={() => setIsDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                  Move to trash
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
       />
 
@@ -436,228 +492,41 @@ export function DocumentDetailPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_360px] 2xl:grid-cols-[minmax(0,1.75fr)_380px]">
-        <div className="space-y-6">
-          <SurfacePanel className="space-y-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                    {document.mimeType}
-                  </span>
-                  <span className="rounded-full bg-secondary/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
-                    {extractionStatus}
-                  </span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  {canPreview
-                    ? 'Primary reading surface for this document.'
-                    : 'This file can be downloaded, and extracted content will be shown below when available.'}
-                </p>
-              </div>
-              <div className="text-right text-sm text-muted-foreground">
-                <p>Uploaded {formatDate(document.createdAt)}</p>
-                <p>{formatBytes(document.originalSize)}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="vault-label">Workspace</p>
-                <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
-                  {activeTab === 'preview'
-                    ? 'Document preview'
-                    : activeTab === 'content'
-                      ? 'Extracted text'
-                      : 'Metadata'}
-                </h2>
-              </div>
-              <div className="inline-flex rounded-full bg-secondary/70 p-1">
-                <button
-                  type="button"
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'preview' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setActiveTab('preview')}
+      <div className="space-y-6">
+        <SurfacePanel className="space-y-5">
+          <div className="space-y-4">
+            <div className="flex max-h-20 min-h-8 flex-wrap items-center gap-2 overflow-y-auto pr-1">
+              <span className="mr-1 text-sm font-medium text-muted-foreground">Tags</span>
+              {assignedTags.length === 0 ? (
+                <span className="text-sm text-muted-foreground">No tags assigned.</span>
+              ) : null}
+              {assignedTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="inline-flex h-8 items-center gap-2 rounded-full bg-muted px-3 text-sm leading-none text-foreground"
                 >
-                  Preview
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'content' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setActiveTab('content')}
-                >
-                  Extracted text
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'metadata' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setActiveTab('metadata')}
-                >
-                  Metadata
-                </button>
-              </div>
-            </div>
-
-            {activeTab === 'preview' ? (
-              <div className="space-y-4">
-                {previewKind === 'pdf' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
-                    <iframe
-                      title="Document preview"
-                      src={inlineFileUrl}
-                      className="h-[72vh] min-h-[760px] w-full rounded-lg bg-white"
-                    />
-                  </div>
-                ) : null}
-
-                {previewKind === 'image' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-4">
-                    <div className="flex min-h-[72vh] items-center justify-center rounded-lg bg-white p-8">
-                      <img
-                        src={inlineFileUrl}
-                        alt={document.name}
-                        className="max-h-[78vh] w-auto max-w-full rounded-[12px] object-contain"
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                {previewKind === 'text' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
-                    <iframe
-                      title="Text preview"
-                      src={inlineFileUrl}
-                      className="h-[72vh] min-h-[760px] w-full rounded-lg bg-white"
-                    />
-                  </div>
-                ) : null}
-
-                {previewKind === 'unsupported' || document.isDeleted ? (
-                  <div className="rounded-lg bg-secondary/55 p-6">
-                    <div className="flex min-h-[520px] flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border/70 bg-background/80 px-6 text-center">
-                      <ImageIcon className="size-10 text-muted-foreground" />
-                      <div className="space-y-2">
-                        <p className="text-sm font-semibold text-foreground">Preview unavailable</p>
-                        <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-                          {document.isDeleted
-                            ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
-                            : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {activeTab === 'content' ? (
-              <div className="space-y-3">
-                <p className="text-sm leading-6 text-muted-foreground">
-                  OCR and extracted text appear here once processing completes.
-                </p>
-                <div className="max-h-[72vh] min-h-[520px] overflow-auto rounded-lg bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
-                  {extractedTextMessage}
-                </div>
-              </div>
-            ) : null}
-
-            {activeTab === 'metadata' ? (
-              <dl className="grid gap-4 text-sm sm:grid-cols-2">
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">Display name</dt>
-                  <dd className="mt-2 font-medium text-foreground">{document.name}</dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">Original file</dt>
-                  <dd className="mt-2 font-medium text-foreground">{document.originalName}</dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">File size</dt>
-                  <dd className="mt-2 font-medium text-foreground">
-                    {formatBytes(document.originalSize)}
-                  </dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">Format</dt>
-                  <dd className="mt-2 font-medium text-foreground">{document.mimeType}</dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">Document date</dt>
-                  <dd className="mt-2 font-medium text-foreground">
-                    {formatDate(document.documentDate)}
-                  </dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">Uploaded by</dt>
-                  <dd className="mt-2 font-medium text-foreground">
-                    {document.createdBy ?? 'Unknown'}
-                  </dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">Uploaded at</dt>
-                  <dd className="mt-2 font-medium text-foreground">
-                    {formatDate(document.createdAt)}
-                  </dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">Last updated</dt>
-                  <dd className="mt-2 font-medium text-foreground">
-                    {formatDate(document.updatedAt)}
-                  </dd>
-                </div>
-                <div className="rounded-lg bg-secondary/55 p-4">
-                  <dt className="text-muted-foreground">SHA-256</dt>
-                  <dd className="mt-2 break-all font-mono text-xs text-foreground">
-                    {document.originalSha256Hash}
-                  </dd>
-                </div>
-              </dl>
-            ) : null}
-          </SurfacePanel>
-        </div>
-
-        <div className="space-y-6">
-          <SurfacePanel variant="soft" className="space-y-5">
-            <div>
-              <h2 className="font-display text-xl font-bold  text-foreground">Edit metadata</h2>
-            </div>
-            <form className="space-y-5" onSubmit={handleMetadataSave}>
-              <div className="space-y-2">
-                <label htmlFor="document-name" className="vault-label">
-                  Display name
-                </label>
-                <input
-                  id="document-name"
-                  type="text"
-                  value={currentName}
-                  className={vaultInputClassName}
-                  onChange={(event) => setRenameValue(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="document-date" className="vault-label">
-                  Document date
-                </label>
-                <input
-                  id="document-date"
-                  type="date"
-                  value={currentDocumentDate}
-                  className={vaultInputClassName}
-                  onChange={(event) => setDocumentDateValue(event.target.value)}
-                />
-              </div>
-              <Button
-                type="submit"
-                disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}
-              >
-                <CalendarRange className="size-4" />
-                {isMetadataSaving ? 'Saving...' : 'Save'}
-              </Button>
-            </form>
-          </SurfacePanel>
-
-          <SurfacePanel variant="soft" className="space-y-5">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-xl font-bold  text-foreground">Tags</h2>
+                  <span
+                    aria-hidden="true"
+                    className="size-1.5 rounded-full"
+                    style={{ backgroundColor: tag.color ?? '#64748b' }}
+                  />
+                  {tag.name}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove ${tag.name}`}
+                    className="-mr-1 size-6 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                    onClick={() => {
+                      setStatusMessage(null);
+                      setErrorMessage(null);
+                      removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                    }}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </span>
+              ))}
               <DropdownMenu
                 modal={false}
                 open={isTagPickerOpen}
@@ -669,16 +538,18 @@ export function DocumentDetailPage() {
                 }}
               >
                 <DropdownMenuTrigger asChild>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     aria-label="Add tag"
-                    className="inline-flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground transition hover:text-foreground"
+                    className="size-8 rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
                   >
                     <Plus className="size-4" />
-                  </button>
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
-                  align="end"
+                  align="start"
                   className="w-80 overflow-hidden rounded-xl bg-popover p-0"
                   onCloseAutoFocus={(event) => {
                     event.preventDefault();
@@ -756,82 +627,270 @@ export function DocumentDetailPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {assignedTags.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No tags assigned.</p>
-              ) : null}
-              {assignedTags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="inline-flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-sm leading-none text-foreground"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="size-1.5 rounded-full"
-                    style={{ backgroundColor: tag.color ?? '#64748b' }}
-                  />
-                  {tag.name}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${tag.name}`}
-                    className="inline-flex items-center justify-center text-muted-foreground transition hover:text-foreground"
-                    onClick={() => {
-                      setStatusMessage(null);
-                      setErrorMessage(null);
-                      removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                    }}
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          </SurfacePanel>
+          </div>
 
-          <SurfacePanel variant="soft" className="space-y-5 border-destructive/20">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="vault-label text-destructive/80">Danger zone</p>
-              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
-                {document.isDeleted ? 'Restore document' : 'Delete document'}
+              <h2 className="font-display text-xl font-bold  text-foreground">
+                {activeTab === 'preview'
+                  ? 'Document preview'
+                  : activeTab === 'content'
+                    ? 'Extracted text'
+                    : 'Metadata'}
               </h2>
             </div>
-            <p className="text-sm leading-6 text-muted-foreground">
-              {document.isDeleted
-                ? 'Restore this document to make it available in the vault again.'
-                : 'Move this document to trash. The file remains recoverable until it is permanently removed.'}
-            </p>
-            {document.isDeleted ? (
-              <Button
+            <div className="inline-flex rounded-full bg-secondary/70 p-1">
+              <button
                 type="button"
-                className="w-full"
-                disabled={restoreMutation.isPending}
-                onClick={() => {
-                  setStatusMessage(null);
-                  setErrorMessage(null);
-                  restoreMutation.mutate({ vaultId, documentId });
-                }}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'preview' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setActiveTab('preview')}
               >
-                {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
-              </Button>
-            ) : (
-              <Button
+                Preview
+              </button>
+              <button
                 type="button"
-                variant="outline"
-                className="w-full border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  setStatusMessage(null);
-                  setErrorMessage(null);
-                  deleteMutation.mutate({ vaultId, documentId });
-                }}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'content' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setActiveTab('content')}
               >
-                <Trash2 className="size-4" />
-                {deleteMutation.isPending ? 'Deleting...' : 'Move to trash'}
-              </Button>
-            )}
-          </SurfacePanel>
-        </div>
+                Extracted text
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'metadata' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setActiveTab('metadata')}
+              >
+                Metadata
+              </button>
+            </div>
+          </div>
+
+          <div className="min-h-[720px] md:min-h-[860px]">
+            {activeTab === 'preview' ? (
+              <div className="space-y-4">
+                {previewKind === 'pdf' && !document.isDeleted ? (
+                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
+                    <iframe
+                      title="Document preview"
+                      src={inlineFileUrl}
+                      className="h-[82vh] min-h-[860px] w-full rounded-lg bg-white"
+                    />
+                  </div>
+                ) : null}
+
+                {previewKind === 'image' && !document.isDeleted ? (
+                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-4">
+                    <div className="flex h-[82vh] min-h-[860px] items-center justify-center rounded-lg bg-white p-8">
+                      <img
+                        src={inlineFileUrl}
+                        alt={document.name}
+                        className="max-h-[84vh] w-auto max-w-full rounded-[12px] object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {previewKind === 'text' && !document.isDeleted ? (
+                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
+                    <iframe
+                      title="Text preview"
+                      src={inlineFileUrl}
+                      className="h-[82vh] min-h-[860px] w-full rounded-lg bg-white"
+                    />
+                  </div>
+                ) : null}
+
+                {previewKind === 'unsupported' || document.isDeleted ? (
+                  <div className="rounded-lg bg-secondary/55 p-6">
+                    <div className="flex min-h-[820px] flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border/70 bg-background/80 px-6 text-center">
+                      <ImageIcon className="size-10 text-muted-foreground" />
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-foreground">Preview unavailable</p>
+                        <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+                          {document.isDeleted
+                            ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
+                            : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {activeTab === 'content' ? (
+              <div className="space-y-3">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  OCR and extracted text appear here once processing completes.
+                </p>
+                <div className="h-[82vh] min-h-[820px] overflow-auto rounded-lg bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
+                  {extractedTextMessage}
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === 'metadata' ? (
+              <form className="min-h-[820px] space-y-5" onSubmit={handleMetadataSave}>
+                <div className="grid gap-4 text-sm sm:grid-cols-2">
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <p className="text-muted-foreground">Display name</p>
+                    {isNameEditing ? (
+                      <input
+                        id="document-name"
+                        type="text"
+                        value={currentName}
+                        className={`${vaultInputClassName} mt-2`}
+                        onChange={(event) => setRenameValue(event.target.value)}
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <p className="font-medium text-foreground">{document.name}</p>
+                        <button
+                          type="button"
+                          aria-label="Edit display name"
+                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          onClick={() => setIsNameEditing(true)}
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <p>Document date</p>
+                      <span className="group relative inline-flex">
+                        <span
+                          aria-label="More info about document date"
+                          tabIndex={0}
+                          className="inline-flex size-6 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
+                        >
+                          <CircleHelp className="size-3.5" />
+                        </span>
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-border/70 bg-card px-3 py-2 text-xs leading-5 text-muted-foreground shadow-sm group-hover:block group-focus-within:block"
+                        >
+                          The date the document was issued for. For example, an invoice dated
+                          21.01.2026 has that document date even if it was uploaded on 24.04.2026.
+                        </span>
+                      </span>
+                    </div>
+                    {isDocumentDateEditing ? (
+                      <input
+                        id="document-date"
+                        type="date"
+                        value={currentDocumentDate}
+                        className={`${vaultInputClassName} mt-2`}
+                        onChange={(event) => setDocumentDateValue(event.target.value)}
+                        autoFocus
+                      />
+                    ) : (
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <p className="font-medium text-foreground">
+                          {formatDate(document.documentDate)}
+                        </p>
+                        <button
+                          type="button"
+                          aria-label="Edit document date"
+                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          onClick={() => setIsDocumentDateEditing(true)}
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <p className="text-muted-foreground">Original file</p>
+                    <p className="mt-2 font-medium text-foreground">{document.originalName}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <p className="text-muted-foreground">File size</p>
+                    <p className="mt-2 font-medium text-foreground">
+                      {formatBytes(document.originalSize)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <p className="text-muted-foreground">Format</p>
+                    <p className="mt-2 font-medium text-foreground">{document.mimeType}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <p className="text-muted-foreground">Uploaded by</p>
+                    <p className="mt-2 font-medium text-foreground">
+                      {document.createdBy ?? 'Unknown'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <p className="text-muted-foreground">Uploaded at</p>
+                    <p className="mt-2 font-medium text-foreground">
+                      {formatDate(document.createdAt)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/55 p-4">
+                    <p className="text-muted-foreground">Last updated</p>
+                    <p className="mt-2 font-medium text-foreground">
+                      {formatDate(document.updatedAt)}
+                    </p>
+                  </div>
+                </div>
+                {isNameEditing || isDocumentDateEditing ? (
+                  <Button
+                    type="submit"
+                    disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}
+                  >
+                    <CalendarRange className="size-4" />
+                    {isMetadataSaving ? 'Saving...' : 'Save metadata'}
+                  </Button>
+                ) : null}
+              </form>
+            ) : null}
+          </div>
+        </SurfacePanel>
       </div>
+
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!deleteMutation.isPending) {
+            setIsDeleteDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader className="pr-10">
+            <DialogTitle>{`Move "${document.name}" to trash?`}</DialogTitle>
+            <DialogDescription>
+              This document will be removed from the active vault, but it is recoverable from Trash
+              until it is permanently removed manually or automatically after 30 days.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteMutation.isPending}
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                setStatusMessage(null);
+                setErrorMessage(null);
+                deleteMutation.mutate({ vaultId, documentId });
+              }}
+            >
+              <Trash2 className="size-4" />
+              {deleteMutation.isPending ? 'Moving...' : 'Move to trash'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <TagDialog
         isOpen={isCreateTagDialogOpen}

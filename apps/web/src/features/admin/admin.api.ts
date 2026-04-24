@@ -1,5 +1,12 @@
 import { fetchJson } from '@/lib/api';
-import type { AdminUser, AdminVault, BackupListItem } from './admin.types';
+import type {
+  AdminAiAvailability,
+  AdminAiModel,
+  AdminAiSettings,
+  AdminUser,
+  AdminVault,
+  BackupListItem,
+} from './admin.types';
 
 export async function listAdminUsers() {
   return fetchJson<{ users: AdminUser[] }>('/api/admin/users');
@@ -67,4 +74,38 @@ export async function restoreBackup({ backupId }: { backupId: string }) {
 
 export function getBackupDownloadUrl({ backupId }: { backupId: string }) {
   return `/api/admin/backups/${backupId}/download`;
+}
+
+export async function getAdminAiSettings() {
+  return fetchJson<{ settings: AdminAiSettings }>('/api/admin/ai/settings');
+}
+
+export async function updateAdminAiSettings(settings: AdminAiSettings) {
+  return fetchJson<{ settings: AdminAiSettings }>('/api/admin/ai/settings', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+}
+
+export async function listOllamaModels({ host }: { host: string }) {
+  return fetchJson<{ models: AdminAiModel[] }>('/api/admin/ai/models', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ host }),
+  });
+}
+
+export async function checkOllamaModelAvailability({
+  host,
+  model,
+}: {
+  host: string;
+  model: string;
+}) {
+  return fetchJson<{ availability: AdminAiAvailability }>('/api/admin/ai/availability', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ host, model }),
+  });
 }

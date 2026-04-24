@@ -18,9 +18,23 @@ export interface GluedWordNormalizer {
   normalize: (input: GluedWordNormalizerInput) => Promise<GluedWordNormalizerOutput>;
 }
 
+export type RuntimeOllamaNormalizationSettings = {
+  enabled: boolean;
+  host: string;
+  model: string;
+  minTokenLength: number;
+  maxCandidates: number;
+  batchSize: number;
+  logRequests: boolean;
+};
+
 type OllamaChat = (args: {
   model: string;
+  format?: 'json';
   think?: boolean;
+  options?: {
+    temperature?: number;
+  };
   messages: Array<{ role: 'user'; content: string }>;
 }) => Promise<{ message?: { content?: string } }>;
 
@@ -166,11 +180,10 @@ function parseLooseOutputsArray(value: string) {
   const normalized = normalizeModelResponseEnvelope(value);
   const outputsKeyIndex = normalized.search(/["']?outputs["']?\s*:/i);
 
-  if (outputsKeyIndex === -1) {
-    return null;
-  }
+  const arrayStart = outputsKeyIndex === -1
+    ? normalized.indexOf('[')
+    : normalized.indexOf('[', outputsKeyIndex);
 
-  const arrayStart = normalized.indexOf('[', outputsKeyIndex);
   if (arrayStart === -1) {
     return null;
   }
@@ -424,7 +437,7 @@ export function createOllamaGluedWordNormalizer({
   const ollamaClient = chat ? null : new Ollama({ host });
   const client = chat ?? ollamaClient!.chat.bind(ollamaClient);
 
-  async function normalizeSnippets(snippets: string[]) {
+  async function normalizeSnippets(snippets: string[]): Promise<string[]> {
     if (snippets.length === 0) {
       return [];
     }
@@ -450,7 +463,11 @@ export function createOllamaGluedWordNormalizer({
       'Bad: "currentaddress" -> Good: "current address"',
       'Bad: "underrule7(2)oftheCode" -> Good: "under rule 7(2) of the Code"',
       'Bad: "A RahmanKhan" -> Good: "A Rahman Khan"',
-      'Return JSON only: {"outputs":["...", "..."]}',
+      'Return only the JSON object.',
+      'Do not include any explanations, introductions, apologies, markdown, or code fences.',
+      'Do not start with text like "Here are the corrected snippets".',
+      'The JSON schema is exactly: {"outputs":["...", "..."]}',
+      'The outputs array length must exactly match the snippets array length.',
       'Return exactly one output for each input snippet, in the same order.',
       `Snippets: ${JSON.stringify(snippets)}`,
     ].join('\n');
@@ -465,7 +482,11 @@ export function createOllamaGluedWordNormalizer({
     try {
       response = await client({
         model,
+        format: 'json',
         think: false,
+        options: {
+          temperature: 0,
+        },
         messages: [{ role: 'user', content: prompt }],
       });
     } catch (error) {
@@ -502,6 +523,9 @@ export function createOllamaGluedWordNormalizer({
           `[ollama-normalizer] could not parse outputs array, keeping original: ${previewSnippet(content)}`,
         );
       }
+      if (snippets.length > 1) {
+        return (await Promise.all(snippets.map(snippet => normalizeSnippets([snippet])))).flat();
+      }
       return snippets;
     }
 
@@ -510,6 +534,9 @@ export function createOllamaGluedWordNormalizer({
         console.warn(
           `[ollama-normalizer] response length mismatch, expected ${snippets.length} output(s) and got ${outputs.length}; keeping original batch`,
         );
+      }
+      if (snippets.length > 1) {
+        return (await Promise.all(snippets.map(snippet => normalizeSnippets([snippet])))).flat();
       }
       return snippets;
     }
@@ -603,6 +630,53 @@ export function createOllamaGluedWordNormalizer({
             : applyReplacements(input.markdown, markdownReplacements),
         replacements: dedupedReplacements,
       };
+    },
+  };
+}
+
+export function createRuntimeConfiguredGluedWordNormalizer({
+  resolveSettings,
+}: {
+  resolveSettings: () => Promise<RuntimeOllamaNormalizationSettings>;
+}): GluedWordNormalizer {
+  const noopNormalizer = createNoopGluedWordNormalizer();
+  let cachedKey: string | null = null;
+  let cachedNormalizer: GluedWordNormalizer | null = null;
+
+  return {
+    name: 'runtime-configured',
+    normalize: async (input) => {
+      let settings: RuntimeOllamaNormalizationSettings;
+
+      try {
+        settings = await resolveSettings();
+      } catch (error) {
+        console.error(
+          '[ollama-normalizer] could not resolve runtime AI settings, skipping normalization:',
+          error instanceof Error ? error.message : error,
+        );
+        return noopNormalizer.normalize(input);
+      }
+
+      if (!settings.enabled) {
+        return noopNormalizer.normalize(input);
+      }
+
+      const nextKey = JSON.stringify(settings);
+
+      if (cachedNormalizer === null || cachedKey !== nextKey) {
+        cachedKey = nextKey;
+        cachedNormalizer = createOllamaGluedWordNormalizer({
+          host: settings.host,
+          model: settings.model,
+          minTokenLength: settings.minTokenLength,
+          maxCandidates: settings.maxCandidates,
+          batchSize: settings.batchSize,
+          logRequests: settings.logRequests,
+        });
+      }
+
+      return cachedNormalizer.normalize(input);
     },
   };
 }

@@ -78,7 +78,7 @@ describe('settings, admin, and about pages', () => {
     const nameInput = await screen.findByLabelText(/^name$/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Alex Rivers');
-    await user.click(screen.getByRole('button', { name: /save profile/i }));
+    await user.click(screen.getByRole('button', { name: /update profile/i }));
 
     expect(authClientMock.updateUser).toHaveBeenCalledWith({
       name: 'Alex Rivers',
@@ -87,21 +87,17 @@ describe('settings, admin, and about pages', () => {
     const emailInput = screen.getByLabelText(/email/i);
     await user.clear(emailInput);
     await user.type(emailInput, 'alex.rivers@example.com');
-    await user.click(screen.getByRole('button', { name: /change email/i }));
+    await user.click(screen.getByRole('button', { name: /verify now/i }));
 
     expect(authClientMock.changeEmail).toHaveBeenCalledWith({
       newEmail: 'alex.rivers@example.com',
       callbackURL: '/settings',
     });
 
-    await user.type(screen.getByLabelText(/current password/i), 'old-secret');
-    await user.type(screen.getByLabelText(/new password/i), 'new-secret');
-    await user.click(screen.getByRole('button', { name: /change password/i }));
-
-    expect(authClientMock.changePassword).toHaveBeenCalledWith({
-      currentPassword: 'old-secret',
-      newPassword: 'new-secret',
-    });
+    expect(screen.getByRole('link', { name: /change password/i })).toHaveAttribute(
+      'href',
+      '/request-password-reset',
+    );
   });
 
   it('allows a regular user to access account settings without admin access', async () => {
@@ -125,17 +121,13 @@ describe('settings, admin, and about pages', () => {
     renderWithProviders(<SettingsPage />);
 
     expect(await screen.findByRole('heading', { name: /account settings/i })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /open admin panel/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/does not have global admin access/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /admin panel/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/member access/i)).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/current password/i), 'old-secret');
-    await user.type(screen.getByLabelText(/new password/i), 'new-secret');
-    await user.click(screen.getByRole('button', { name: /change password/i }));
-
-    expect(authClientMock.changePassword).toHaveBeenCalledWith({
-      currentPassword: 'old-secret',
-      newPassword: 'new-secret',
-    });
+    expect(screen.getByRole('link', { name: /change password/i })).toHaveAttribute(
+      'href',
+      '/request-password-reset',
+    );
   });
 
   it('loads admin data and triggers backup and user actions', async () => {
@@ -229,6 +221,61 @@ describe('settings, admin, and about pages', () => {
         });
       }
 
+      if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          settings: {
+            enabled: true,
+            ollamaHost: 'http://127.0.0.1:11434',
+            model: 'gemma4:e2b',
+            minTokenLength: 8,
+            maxCandidates: 100,
+            batchSize: 10,
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && init?.method === 'PUT') {
+        return jsonResponse({
+          settings: JSON.parse(String(init.body)),
+        });
+      }
+
+      if (url === '/api/admin/ai/models' && init?.method === 'POST') {
+        return jsonResponse({
+          models: [
+            {
+              name: 'gemma4:e2b',
+              size: 1024,
+              modifiedAt: '2026-04-14T19:00:00.000Z',
+            },
+            {
+              name: 'qwen2.5:7b',
+              size: 2048,
+              modifiedAt: '2026-04-14T19:30:00.000Z',
+            },
+          ],
+        });
+      }
+
+      if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        return jsonResponse({
+          availability: {
+            host: 'http://127.0.0.1:11434',
+            model: 'gemma4:e2b',
+            reachable: true,
+            modelAvailable: true,
+            models: [
+              {
+                name: 'gemma4:e2b',
+                size: 1024,
+                modifiedAt: '2026-04-14T19:00:00.000Z',
+              },
+            ],
+            error: null,
+          },
+        });
+      }
+
       if (url === '/api/admin/vaults') {
         return jsonResponse({
           vaults: [
@@ -281,6 +328,16 @@ describe('settings, admin, and about pages', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/admin/users/usr_1/global-admin', expect.objectContaining({
         credentials: 'include',
         method: 'POST',
+      }));
+    });
+
+    await user.clear(screen.getByLabelText(/ollama host/i));
+    await user.type(screen.getByLabelText(/ollama host/i), 'http://192.168.1.77:11434');
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/admin/ai/settings', expect.objectContaining({
+        credentials: 'include',
+        method: 'PUT',
       }));
     });
   });

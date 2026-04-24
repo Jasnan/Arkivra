@@ -9,6 +9,7 @@ import type {
   RestoreBackupJobResult,
 } from '../admin/backups/backups.types.js';
 import type { AuthorizationServices } from '../authorization/authorization.services.js';
+import type { AdminAiServices } from '../admin/ai/ai.services.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
@@ -34,6 +35,8 @@ import { createBackupServices } from '../admin/backups/backups.services.js';
 import { registerBackupRoutes } from '../admin/backups/backups.routes.js';
 import { registerAdminUserRoutes } from '../admin/users/users.routes.js';
 import { registerAdminVaultRoutes } from '../admin/vaults/vaults.routes.js';
+import { registerAdminAiRoutes } from '../admin/ai/ai.routes.js';
+import { createAdminAiServices } from '../admin/ai/ai.services.js';
 
 export function createServer({
   config,
@@ -44,6 +47,7 @@ export function createServer({
   documentQueue,
   backupQueue,
   authorizationServices,
+  adminAiServices,
 }: {
   config: Config;
   auth: Auth;
@@ -53,10 +57,12 @@ export function createServer({
   documentQueue?: DocumentQueue;
   backupQueue?: BackupQueue;
   authorizationServices?: AuthorizationServices;
+  adminAiServices?: AdminAiServices;
 }) {
   const app = new Hono<ServerContext>({ strict: true });
   const backupServices = createBackupServices({ config });
   const authzServices = authorizationServices ?? createAuthorizationServices({ db });
+  const aiServices = adminAiServices ?? createAdminAiServices({ db, config });
   const documentsServices = createDocumentsServices({ db, storage, encryption });
 
   app.use(
@@ -127,6 +133,7 @@ export function createServer({
   registerBackupRoutes({ app, config, backupQueue, backupServices });
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
+  registerAdminAiRoutes({ app, aiServices });
 
   // Health check endpoint
   app.get('/api/health', (c) => {

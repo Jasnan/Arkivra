@@ -11,8 +11,7 @@ import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
 import {
-  createNoopGluedWordNormalizer,
-  createOllamaGluedWordNormalizer,
+  createRuntimeConfiguredGluedWordNormalizer,
 } from './modules/parsing/glued-word-normalizer.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
@@ -26,6 +25,7 @@ import { createMaintenanceWorker } from './modules/worker/maintenance.worker.js'
 import { createBackupQueue } from './modules/worker/backup.queue.js';
 import { createBackupWorker } from './modules/worker/backup.worker.js';
 import { createBackupServices } from './modules/admin/backups/backups.services.js';
+import { createAdminAiServices } from './modules/admin/ai/ai.services.js';
 
 export async function startApp() {
   const { config } = parseConfig({ env: process.env });
@@ -46,6 +46,7 @@ export async function startApp() {
   const maintenanceQueue = createMaintenanceQueue({ connection: redis });
   const backupQueue = createBackupQueue({ connection: redis });
   const backupServices = createBackupServices({ config });
+  const adminAiServices = createAdminAiServices({ db, config });
 
   if (isWebMode) {
     const { app } = createServer({
@@ -56,6 +57,7 @@ export async function startApp() {
       encryption,
       documentQueue,
       backupQueue,
+      adminAiServices,
     });
 
     serve(
@@ -98,17 +100,20 @@ export async function startApp() {
       config.parsers.textCleanup === 'deterministic'
         ? createDeterministicTextCleaner()
         : createNoopTextCleaner();
-    const gluedWordNormalizer =
-      config.parsers.gluedWordNormalization === 'ollama'
-        ? createOllamaGluedWordNormalizer({
-            host: config.ollama.host,
-            model: config.ollama.model,
-            minTokenLength: config.ollama.gluedWordMinTokenLength,
-            maxCandidates: config.ollama.gluedWordMaxCandidates,
-            batchSize: config.ollama.gluedWordBatchSize,
-            logRequests: config.ollama.logRequests,
-          })
-        : createNoopGluedWordNormalizer();
+    const gluedWordNormalizer = createRuntimeConfiguredGluedWordNormalizer({
+      resolveSettings: async () => {
+        const settings = await adminAiServices.getSettings();
+        return {
+          enabled: settings.enabled,
+          host: settings.ollamaHost,
+          model: settings.model,
+          minTokenLength: settings.minTokenLength,
+          maxCandidates: settings.maxCandidates,
+          batchSize: settings.batchSize,
+          logRequests: config.ollama.logRequests,
+        };
+      },
+    });
     const parsePipeline = createParsePipeline({
       parserRegistry,
       cleaner: textCleaner,
@@ -143,7 +148,7 @@ export async function startApp() {
 
     console.info('Document processing worker started');
     console.info(
-      `OCR whitespace normalization: ${config.parsers.gluedWordNormalization} (${config.ollama.model} @ ${config.ollama.host}, minRun=${config.ollama.gluedWordMinTokenLength}, maxCandidates=${config.ollama.gluedWordMaxCandidates}, batchSize=${config.ollama.gluedWordBatchSize}, logRequests=${config.ollama.logRequests})`,
+      `OCR whitespace normalization: runtime-configured via admin settings (env defaults: ${config.parsers.gluedWordNormalization}, ${config.ollama.model} @ ${config.ollama.host})`,
     );
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,

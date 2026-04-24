@@ -50,6 +50,13 @@
       "when": 1776712800000,
       "tag": "0006_documents_active_hash_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776802800000,
+      "tag": "0007_instance_ai_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ export { documentsTable } from './documents.table.js';
 export { uploadSessionsTable } from './upload-sessions.table.js';
 export { documentChunksTable } from './document-chunks.table.js';
 export { tagsTable, documentTagsTable } from './tags.table.js';
+export { instanceSettingsTable } from './instance-settings.table.js';
 export {
   authSessionsTable,
   authAccountsTable,

@@ -11,16 +11,10 @@ import {
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import type { SearchResultTag } from '@/features/search/search.types';
 
-function TagPill({
-  name,
-  color,
-}: {
-  name: string;
-  color: string | null;
-}) {
+function TagPill({ name, color }: { name: string; color: string | null }) {
   return (
     <span
-      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-[0.01em]"
+      className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium tracking-normal"
       style={{
         backgroundColor: color ? `${color}18` : undefined,
         color: color ?? undefined,
@@ -31,13 +25,7 @@ function TagPill({
   );
 }
 
-function getDocumentTypeLabel({
-  name,
-  mimeType,
-}: {
-  name: string;
-  mimeType: string;
-}) {
+function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
   const extension = name.split('.').pop()?.trim().toUpperCase();
 
   if (extension && extension.length <= 5) {
@@ -92,23 +80,17 @@ function getDocumentTypeClasses(label: string) {
   }
 }
 
-function FileTypeIcon({
-  name,
-  mimeType,
-}: {
-  name: string;
-  mimeType: string;
-}) {
+function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
   const label = getDocumentTypeLabel({ name, mimeType });
 
   return (
     <div
-      className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${getDocumentTypeClasses(label)}`}
+      className={`flex size-10 shrink-0 items-center justify-center rounded-lg ring-1 ${getDocumentTypeClasses(label)}`}
       aria-hidden="true"
     >
       <div className="flex flex-col items-center leading-none">
-        <File className="mb-1 size-3.5" />
-        <span className="text-[0.62rem] font-extrabold tracking-[0.12em]">{label}</span>
+        <File className="mb-0.5 size-3.5" />
+        <span className="text-[0.6rem] font-bold tracking-normal">{label}</span>
       </div>
     </div>
   );
@@ -124,11 +106,11 @@ function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
 
   return (
     <>
-      {visibleTags.map(tag => (
+      {visibleTags.map((tag) => (
         <TagPill key={tag.id} name={tag.name} color={tag.color} />
       ))}
       {remainingCount > 0 ? (
-        <span className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
+        <span className="inline-flex items-center rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground">
           +{remainingCount}
         </span>
       ) : null}
@@ -157,7 +139,7 @@ function DocumentActionsMenu({
           variant="ghost"
           size="icon"
           aria-label={`Open actions for ${documentName}`}
-          className="h-11 w-11 rounded-2xl border border-border/60 bg-background/80 text-muted-foreground shadow-[0_12px_24px_rgba(19,27,46,0.05)] hover:bg-secondary/70 hover:text-foreground"
+          className="h-9 w-9 rounded-lg border border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
         >
           <Ellipsis className="size-5" />
         </Button>
@@ -204,7 +186,7 @@ export function DocumentLibraryRow({
   originalName,
   originalSize,
   createdAt,
-  updatedAt,
+  updatedAt: _updatedAt,
   tags,
   snippet,
   vaultId,
@@ -235,7 +217,7 @@ export function DocumentLibraryRow({
         <div className="min-w-0">
           <Link
             to={documentLink}
-            className="block truncate text-2xl font-semibold tracking-[-0.03em] text-foreground transition hover:text-primary"
+            className="block truncate text-base font-semibold text-foreground transition hover:text-primary"
           >
             {name}
           </Link>
@@ -243,23 +225,19 @@ export function DocumentLibraryRow({
             <p className="mt-1 text-sm text-muted-foreground">{originalName}</p>
           ) : null}
           {snippet ? (
-            <div className="mt-3 text-sm leading-6 text-muted-foreground">
-              {snippet}
-            </div>
+            <div className="mt-3 text-sm leading-6 text-muted-foreground">{snippet}</div>
           ) : null}
         </div>
       </div>
 
       <div className="text-sm text-muted-foreground">
         <p className="vault-label md:hidden">Uploaded</p>
-        <p className="mt-2 text-base text-foreground md:mt-0">
-          {formatDate(createdAt)}
-        </p>
+        <p className="mt-2 text-sm text-foreground md:mt-0">{formatDate(createdAt)}</p>
       </div>
 
       <div className="text-sm text-muted-foreground">
         <p className="vault-label md:hidden">Size</p>
-        <p className="mt-2 text-base text-foreground md:mt-0">{formatBytes(originalSize)}</p>
+        <p className="mt-2 text-sm text-foreground md:mt-0">{formatBytes(originalSize)}</p>
       </div>
 
       <div className="text-sm text-muted-foreground">

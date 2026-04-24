@@ -7,11 +7,15 @@ export function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrim
   return <DropdownMenuPrimitive.Root {...props} />;
 }
 
-export function DropdownMenuTrigger(props: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
+export function DropdownMenuTrigger(
+  props: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>,
+) {
   return <DropdownMenuPrimitive.Trigger {...props} />;
 }
 
-export function DropdownMenuPortal(props: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
+export function DropdownMenuPortal(
+  props: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>,
+) {
   return <DropdownMenuPrimitive.Portal {...props} />;
 }
 
@@ -23,7 +27,9 @@ export function DropdownMenuSub(props: React.ComponentProps<typeof DropdownMenuP
   return <DropdownMenuPrimitive.Sub {...props} />;
 }
 
-export function DropdownMenuRadioGroup(props: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
+export function DropdownMenuRadioGroup(
+  props: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>,
+) {
   return <DropdownMenuPrimitive.RadioGroup {...props} />;
 }
 
@@ -36,7 +42,7 @@ export const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'flex cursor-default items-center gap-2 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[state=open]:bg-secondary/70 data-[state=open]:text-foreground',
+      'flex cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[state=open]:bg-secondary/70 data-[state=open]:text-foreground',
       inset && 'pl-8',
       className,
     )}
@@ -56,7 +62,7 @@ export const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      'z-50 min-w-36 overflow-hidden rounded-[22px] border border-border/70 bg-card p-2 shadow-[0_28px_60px_rgba(16,29,76,0.14)]',
+      'z-50 min-w-36 overflow-hidden rounded-lg border border-border/70 bg-card p-1.5 shadow-lg',
       className,
     )}
     {...props}
@@ -74,7 +80,7 @@ export const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-36 overflow-hidden rounded-[22px] border border-border/70 bg-card p-2 shadow-[0_28px_60px_rgba(16,29,76,0.14)]',
+        'z-50 min-w-36 overflow-hidden rounded-lg border border-border/70 bg-card p-1.5 shadow-lg',
         className,
       )}
       {...props}
@@ -93,7 +99,7 @@ export const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       inset && 'pl-8',
       className,
     )}
@@ -110,7 +116,7 @@ export const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center gap-3 rounded-[16px] py-2.5 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center gap-3 rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,
     )}
     checked={checked}
@@ -134,7 +140,7 @@ export const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center gap-3 rounded-[16px] py-2.5 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center gap-3 rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,
     )}
     {...props}
@@ -182,7 +188,10 @@ export const DropdownMenuShortcut = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) => (
-  <span className={cn('ml-auto text-xs tracking-[0.16em] text-muted-foreground', className)} {...props} />
+  <span
+    className={cn('ml-auto text-xs tracking-[0.16em] text-muted-foreground', className)}
+    {...props}
+  />
 );
 
 DropdownMenuShortcut.displayName = 'DropdownMenuShortcut';

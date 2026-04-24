@@ -101,7 +101,6 @@ describe('settings, admin, and about pages', () => {
   });
 
   it('allows a regular user to access account settings without admin access', async () => {
-    const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -301,61 +300,79 @@ describe('settings, admin, and about pages', () => {
     expect(await screen.findByText(/invoices vault/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /create backup/i }));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/admin/backups', expect.objectContaining({
-        credentials: 'include',
-        method: 'POST',
-      }));
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/backups',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      );
     });
 
     await user.click(screen.getByRole('button', { name: /restore/i }));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/admin/backups/restore', expect.objectContaining({
-        credentials: 'include',
-        method: 'POST',
-      }));
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/backups/restore',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      );
     });
 
     await user.click(screen.getByRole('button', { name: /disable/i }));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/admin/users/usr_1', expect.objectContaining({
-        credentials: 'include',
-        method: 'PATCH',
-      }));
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/users/usr_1',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'PATCH',
+        }),
+      );
     });
 
     await user.click(screen.getByRole('button', { name: /grant admin/i }));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/admin/users/usr_1/global-admin', expect.objectContaining({
-        credentials: 'include',
-        method: 'POST',
-      }));
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/users/usr_1/global-admin',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      );
     });
 
     await user.clear(screen.getByLabelText(/ollama host/i));
     await user.type(screen.getByLabelText(/ollama host/i), 'http://192.168.1.77:11434');
     await user.click(screen.getByRole('button', { name: /save settings/i }));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/admin/ai/settings', expect.objectContaining({
-        credentials: 'include',
-        method: 'PUT',
-      }));
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/ai/settings',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'PUT',
+        }),
+      );
     });
   });
 
   it('shows instance version details on the about page', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
 
-      if (url === '/api/health') {
-        return jsonResponse({
-          status: 'ok',
-          version: '0.1.0',
-          timestamp: '2026-04-14T19:00:00.000Z',
-        });
-      }
+        if (url === '/api/health') {
+          return jsonResponse({
+            status: 'ok',
+            version: '0.1.0',
+            timestamp: '2026-04-14T19:00:00.000Z',
+          });
+        }
 
-      throw new Error(`Unhandled request ${url}`);
-    }));
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
 
     renderWithProviders(<AboutPage />);
 

@@ -22,7 +22,7 @@ export const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex h-11 w-full items-center justify-between gap-2 rounded-[16px] border border-border/70 bg-background px-4 text-left text-sm font-semibold text-foreground outline-none transition focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate',
+      'flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 text-left text-sm font-medium text-foreground outline-none transition focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate',
       className,
     )}
     {...props}
@@ -42,7 +42,10 @@ export const SelectScrollUpButton = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.ScrollUpButton
     ref={ref}
-    className={cn('flex cursor-default items-center justify-center py-2 text-muted-foreground', className)}
+    className={cn(
+      'flex cursor-default items-center justify-center py-2 text-muted-foreground',
+      className,
+    )}
     {...props}
   >
     <ChevronUp className="size-4" />
@@ -57,7 +60,10 @@ export const SelectScrollDownButton = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.ScrollDownButton
     ref={ref}
-    className={cn('flex cursor-default items-center justify-center py-2 text-muted-foreground', className)}
+    className={cn(
+      'flex cursor-default items-center justify-center py-2 text-muted-foreground',
+      className,
+    )}
     {...props}
   >
     <ChevronUp className="size-4 rotate-180" />
@@ -74,8 +80,9 @@ export const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        'z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-[22px] border border-border/70 bg-card text-card-foreground shadow-[0_28px_60px_rgba(16,29,76,0.14)]',
-        position === 'popper' && 'data-[side=bottom]:translate-y-3 data-[side=left]:-translate-x-3 data-[side=right]:translate-x-3 data-[side=top]:-translate-y-3',
+        'z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-lg border border-border/70 bg-card text-card-foreground shadow-lg',
+        position === 'popper' &&
+          'data-[side=bottom]:translate-y-3 data-[side=left]:-translate-x-3 data-[side=right]:translate-x-3 data-[side=top]:-translate-y-3',
         className,
       )}
       position={position}
@@ -85,8 +92,8 @@ export const SelectContent = React.forwardRef<
       <SelectPrimitive.Viewport
         className={cn(
           'p-2',
-          position === 'popper'
-            && 'h-[var(--radix-select-trigger-height)] min-w-[var(--radix-select-trigger-width)]',
+          position === 'popper' &&
+            'h-[var(--radix-select-trigger-height)] min-w-[var(--radix-select-trigger-width)]',
         )}
       >
         {children}
@@ -118,7 +125,7 @@ export const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-default select-none items-center rounded-[16px] py-2.5 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex w-full cursor-default select-none items-center rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,
     )}
     {...props}

@@ -3,7 +3,14 @@ import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ellipsis, FolderKanban, FolderOpen, ShieldCheck, Vault } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { PageIntro, SectionTitle, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import {
+  PageIntro,
+  SectionTitle,
+  StatCard,
+  StatusBanner,
+  SurfacePanel,
+  vaultInputClassName,
+} from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,12 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
-import { vaultQueryKeys } from '@/features/vaults/vaults.queries';
-import { useVaultsQuery } from '@/features/vaults/vaults.queries';
+import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 
 function formatVaultCreatedDate(value: string | null) {
   if (!value) {
@@ -71,7 +82,7 @@ export function VaultsPage() {
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const ownedVaults = useMemo(
-    () => vaults.filter(vault => vault.role === 'owner').length,
+    () => vaults.filter((vault) => vault.role === 'owner').length,
     [vaults],
   );
   const memberVaults = Math.max(0, vaults.length - ownedVaults);
@@ -122,7 +133,9 @@ export function VaultsPage() {
     setErrorMessage(null);
 
     if (!canCreateVault) {
-      setErrorMessage('A global admin must grant vault creation before this account can create a workspace.');
+      setErrorMessage(
+        'A global admin must grant vault creation before this account can create a workspace.',
+      );
       return;
     }
 
@@ -151,7 +164,13 @@ export function VaultsPage() {
       <PageIntro
         title="Vaults"
         description="Manage and access your vaults."
-        actions={meQuery.data?.canCreateVault ? <Button ref={createButtonRef} onClick={openCreateModal}>New vault</Button> : undefined}
+        actions={
+          meQuery.data?.canCreateVault ? (
+            <Button ref={createButtonRef} onClick={openCreateModal}>
+              New vault
+            </Button>
+          ) : undefined
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -176,10 +195,17 @@ export function VaultsPage() {
       </div>
 
       <SurfacePanel className="space-y-5">
-        <SectionTitle eyebrow="Vaults" title={`${vaults.length} ${vaults.length === 1 ? 'vault' : 'vaults'}`} />
+        <SectionTitle
+          eyebrow="Vaults"
+          title={`${vaults.length} ${vaults.length === 1 ? 'vault' : 'vaults'}`}
+        />
 
-        {vaultsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading vaults...</p> : null}
-        {vaultsQuery.isError ? <p className="text-sm text-destructive">Unable to load vaults.</p> : null}
+        {vaultsQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading vaults...</p>
+        ) : null}
+        {vaultsQuery.isError ? (
+          <p className="text-sm text-destructive">Unable to load vaults.</p>
+        ) : null}
 
         {!vaultsQuery.isLoading && vaults.length === 0 ? (
           <div className="vault-empty">
@@ -189,12 +215,12 @@ export function VaultsPage() {
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2">
-            {vaults.map(vault => (
+            {vaults.map((vault) => (
               <article
                 key={vault.id}
                 role="link"
                 tabIndex={0}
-                className="flex h-full cursor-pointer flex-col rounded-[24px] bg-secondary/58 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:bg-card hover:shadow-[0_18px_40px_rgba(19,27,46,0.10)] hover:ring-1 hover:ring-border/80 focus:outline-none focus:ring-2 focus:ring-primary/30 sm:p-6"
+                className="flex h-full cursor-pointer flex-col rounded-lg border border-border/70 bg-background p-4 transition-colors hover:bg-secondary/45 focus:outline-none focus:ring-2 focus:ring-primary/30 sm:p-5"
                 onClick={() => navigate(`/vaults/${vault.id}/documents`)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -203,36 +229,36 @@ export function VaultsPage() {
                   }
                 }}
               >
-                <div className="flex min-h-[14rem] h-full gap-4">
-                  <div className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-2xl bg-card/90 text-primary">
+                <div className="flex h-full min-h-40 gap-4">
+                  <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
                     <FolderOpen className="size-[1.15rem]" />
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex items-start justify-between gap-4">
-                      <h2 className="truncate font-display text-[1.65rem] font-bold leading-none tracking-[-0.04em] text-foreground">
+                      <h2 className="truncate text-base font-semibold leading-tight text-foreground">
                         {vault.name}
                       </h2>
                       <div className="flex shrink-0 items-start gap-2">
-                        <span className="vault-chip shrink-0">
-                          {formatVaultRole(vault.role)}
-                        </span>
+                        <span className="vault-chip shrink-0">{formatVaultRole(vault.role)}</span>
                         <div
                           className="relative"
-                          onPointerDown={event => event.stopPropagation()}
-                          onClick={event => event.stopPropagation()}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => event.stopPropagation()}
                         >
                           <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
                               <button
                                 type="button"
                                 aria-label={`Vault actions for ${vault.name}`}
-                                className="flex size-10 items-center justify-center rounded-xl border border-border/70 bg-card/90 text-muted-foreground transition hover:text-foreground"
+                                className="flex size-9 items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
                               >
                                 <Ellipsis className="size-4" />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-36">
-                              <DropdownMenuItem onSelect={() => navigate(`/vaults/${vault.id}/settings`)}>
+                              <DropdownMenuItem
+                                onSelect={() => navigate(`/vaults/${vault.id}/settings`)}
+                              >
                                 Settings
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -241,13 +267,14 @@ export function VaultsPage() {
                       </div>
                     </div>
                     {getVaultDescription(vault.description) ? (
-                      <p className="mt-2 text-[1rem] leading-7 text-muted-foreground">
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
                         {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
                       </p>
                     ) : null}
                     <div className="mt-auto pt-4">
                       <p className="text-sm font-medium text-muted-foreground">
-                        {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
+                        {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} •{' '}
+                        {formatBytes(vault.totalSize)}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Created {formatVaultCreatedDate(vault.createdAt)}
@@ -283,7 +310,7 @@ export function VaultsPage() {
           }}
         >
           <DialogHeader className="space-y-2 pr-10">
-            <DialogTitle className="text-2xl">New vault</DialogTitle>
+            <DialogTitle className="text-sm">New vault</DialogTitle>
             <DialogDescription className="sr-only">Create a new vault.</DialogDescription>
           </DialogHeader>
 
@@ -291,25 +318,29 @@ export function VaultsPage() {
 
           <form className="space-y-4" onSubmit={handleCreateSubmit}>
             <div className="space-y-2">
-              <label htmlFor="create-vault-name" className="vault-label">Name</label>
+              <label htmlFor="create-vault-name" className="vault-label">
+                Name
+              </label>
               <input
                 id="create-vault-name"
                 type="text"
                 required
                 autoFocus
                 value={name}
-                onChange={event => setName(event.target.value)}
+                onChange={(event) => setName(event.target.value)}
                 className={vaultInputClassName}
                 placeholder="Personal Vault"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="create-vault-description" className="vault-label">Description</label>
+              <label htmlFor="create-vault-description" className="vault-label">
+                Description
+              </label>
               <textarea
                 id="create-vault-description"
                 value={description}
-                onChange={event => setDescription(event.target.value)}
+                onChange={(event) => setDescription(event.target.value)}
                 className={`${vaultInputClassName} min-h-24 resize-y`}
                 placeholder="Optional"
               />
@@ -322,7 +353,12 @@ export function VaultsPage() {
             ) : null}
 
             <div className="flex flex-wrap items-center justify-end gap-3">
-              <Button type="button" variant="outline" onClick={closeCreateModal} disabled={createMutation.isPending}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeCreateModal}
+                disabled={createMutation.isPending}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>

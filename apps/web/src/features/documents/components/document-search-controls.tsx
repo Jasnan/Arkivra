@@ -28,18 +28,12 @@ export interface DocumentSearchControlFilter {
   onRemove: () => void;
 }
 
-export function ActiveFilterChip({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
+export function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <button
       type="button"
       onClick={onRemove}
-      className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-secondary/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-primary/20 hover:bg-secondary"
+      className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-secondary/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-primary/20 hover:bg-secondary"
     >
       <span>{label}</span>
       <X className="size-4 text-muted-foreground" />
@@ -100,16 +94,16 @@ export function DocumentSearchControls<TSortValue extends string>({
         onCloseFilters();
       }}
     >
-      <div className="rounded-[28px] border border-border/70 bg-card p-3 shadow-[0_18px_50px_rgba(13,23,62,0.05)] sm:p-4">
+      <div className="rounded-lg border border-border/70 bg-background/80 p-3 sm:p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
           <div className="relative min-w-0 flex-1">
-            <SearchIcon className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               aria-label={searchAriaLabel}
               value={query}
-              onChange={event => onQueryChange(event.target.value)}
+              onChange={(event) => onQueryChange(event.target.value)}
               placeholder={searchPlaceholder}
-              className="h-16 w-full rounded-[20px] border border-border/70 bg-background pl-14 pr-4 text-lg text-foreground outline-none transition focus-visible:border-primary/20 focus-visible:ring-2 focus-visible:ring-primary/15"
+              className="h-11 w-full rounded-lg border border-border/70 bg-background pl-11 pr-4 text-sm text-foreground outline-none transition focus-visible:border-primary/20 focus-visible:ring-2 focus-visible:ring-primary/15"
             />
           </div>
 
@@ -119,7 +113,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                 type="button"
                 variant="outline"
                 size="lg"
-                className="h-16 min-w-[10rem] justify-center rounded-[20px] border-border/70 px-5 text-base shadow-none"
+                className="h-11 min-w-[9rem] justify-center border-border/70 px-4 shadow-none"
               >
                 <SlidersHorizontal className="size-5" />
                 <span>Filter</span>
@@ -131,20 +125,20 @@ export function DocumentSearchControls<TSortValue extends string>({
               </Button>
             </DialogTrigger>
 
-            <div className="flex items-center gap-3 rounded-[20px] border border-border/70 bg-background px-4 py-2 shadow-none">
+            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-background px-3 py-1.5 shadow-none">
               <span id={sortSelectId} className="text-sm font-semibold text-muted-foreground">
                 Sort
               </span>
-              <Select value={sortBy} onValueChange={value => onSortChange(value as TSortValue)}>
+              <Select value={sortBy} onValueChange={(value) => onSortChange(value as TSortValue)}>
                 <SelectTrigger
                   aria-label={sortAriaLabel}
                   aria-labelledby={sortSelectId}
-                  className="h-11 min-w-[11rem] border-0 bg-transparent px-0 text-base shadow-none focus:ring-0"
+                  className="h-9 min-w-[10rem] border-0 bg-transparent px-0 shadow-none focus:ring-0"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="end">
-                  {sortOptions.map(option => (
+                  {sortOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -159,8 +153,12 @@ export function DocumentSearchControls<TSortValue extends string>({
           <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-muted-foreground">Active filters:</span>
-              {activeFilters.map(filter => (
-                <ActiveFilterChip key={filter.key} label={filter.label} onRemove={filter.onRemove} />
+              {activeFilters.map((filter) => (
+                <ActiveFilterChip
+                  key={filter.key}
+                  label={filter.label}
+                  onRemove={filter.onRemove}
+                />
               ))}
             </div>
 
@@ -171,50 +169,48 @@ export function DocumentSearchControls<TSortValue extends string>({
         ) : null}
       </div>
 
-        <DialogContent
-          hideCloseButton
-          className="max-h-[calc(100vh-3rem)] max-w-2xl overflow-y-auto p-5 sm:p-7"
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-2xl bg-secondary text-primary">
-                <SlidersHorizontal className="size-5" />
-              </div>
-              <DialogHeader>
-                <DialogTitle>{filtersTitle}</DialogTitle>
-                <DialogDescription className={filtersDescription ? undefined : 'sr-only'}>
-                  {filtersDescription ?? 'Adjust filters.'}
-                </DialogDescription>
-              </DialogHeader>
+      <DialogContent
+        hideCloseButton
+        className="max-h-[calc(100vh-3rem)] max-w-2xl overflow-y-auto p-5 sm:p-7"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-secondary text-primary">
+              <SlidersHorizontal className="size-5" />
             </div>
-
-            <div className="flex items-center gap-3">
-              <button type="button" className="vault-link" onClick={onResetFilters}>
-                Reset
-              </button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Close filters"
-                className="rounded-2xl"
-                onClick={onCloseFilters}
-              >
-                <X className="size-5" />
-              </Button>
-            </div>
+            <DialogHeader>
+              <DialogTitle>{filtersTitle}</DialogTitle>
+              <DialogDescription className={filtersDescription ? undefined : 'sr-only'}>
+                {filtersDescription ?? 'Adjust filters.'}
+              </DialogDescription>
+            </DialogHeader>
           </div>
 
-          <div className="mt-8 space-y-7">
-            {filtersContent}
-          </div>
-
-          <div className="mt-7 flex flex-wrap items-center justify-end gap-4 border-t border-border/70 pt-5">
-            <Button type="button" onClick={onCloseFilters} className="rounded-[18px] px-5">
-              Done
+          <div className="flex items-center gap-3">
+            <button type="button" className="vault-link" onClick={onResetFilters}>
+              Reset
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Close filters"
+              className="rounded-lg"
+              onClick={onCloseFilters}
+            >
+              <X className="size-5" />
             </Button>
           </div>
-        </DialogContent>
+        </div>
+
+        <div className="mt-6 space-y-5">{filtersContent}</div>
+
+        <div className="mt-7 flex flex-wrap items-center justify-end gap-4 border-t border-border/70 pt-5">
+          <Button type="button" onClick={onCloseFilters} className="px-5">
+            Done
+          </Button>
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }

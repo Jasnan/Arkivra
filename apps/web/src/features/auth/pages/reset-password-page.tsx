@@ -2,10 +2,11 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
-const inputClassName = 'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const inputClassName =
+  'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -52,8 +53,19 @@ export function ResetPasswordPage() {
         ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
-              <label htmlFor="new-password" className="text-sm font-medium">New password</label>
-              <input id="new-password" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} className={inputClassName} />
+              <label htmlFor="new-password" className="text-sm font-medium">
+                New password
+              </label>
+              <input
+                id="new-password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className={inputClassName}
+              />
             </div>
 
             {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
@@ -64,9 +76,11 @@ export function ResetPasswordPage() {
           </form>
         )}
 
-        <p className="text-sm text-muted-foreground">
-          <Link to="/login" className="font-medium text-foreground hover:underline">Back to sign in</Link>
-        </p>
+        <AuthActions>
+          <Link to="/login" className="font-medium text-foreground hover:underline">
+            Sign in
+          </Link>
+        </AuthActions>
       </AuthCard>
     </AuthLayout>
   );

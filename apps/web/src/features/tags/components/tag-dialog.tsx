@@ -10,7 +10,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const DEFAULT_TAG_COLORS = ['#D8FF75', '#7FFF7A', '#7AFFCE', '#7AD7FF', '#7A7FFF', '#CE7AFF', '#FF7AD7', '#FF7A7F', '#FFCE7A', '#FFFFFF'];
+const DEFAULT_TAG_COLORS = [
+  '#D8FF75',
+  '#7FFF7A',
+  '#7AFFCE',
+  '#7AD7FF',
+  '#7A7FFF',
+  '#CE7AFF',
+  '#FF7AD7',
+  '#FF7A7F',
+  '#FFCE7A',
+  '#FFFFFF',
+];
 
 export function TagDialog({
   isOpen,
@@ -91,7 +102,9 @@ export function TagDialog({
 
         <form className="space-y-6 px-6 pb-6 pt-5 sm:px-8 sm:pb-8" onSubmit={onSubmit}>
           <div className="space-y-3">
-            <label htmlFor="tag-dialog-name" className="text-[1.05rem] font-medium text-foreground">Name</label>
+            <label htmlFor="tag-dialog-name" className="text-sm font-medium text-foreground">
+              Name
+            </label>
             <input
               id="tag-dialog-name"
               type="text"
@@ -99,8 +112,8 @@ export function TagDialog({
               autoFocus
               maxLength={64}
               value={nameValue}
-              onChange={event => onNameChange(event.target.value)}
-              className="h-14 w-full rounded-2xl border border-foreground/20 bg-background px-4 text-lg text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/35"
+              onChange={(event) => onNameChange(event.target.value)}
+              className="h-10 w-full rounded-lg border border-foreground/20 bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/35"
               placeholder="Tag name"
             />
           </div>
@@ -108,9 +121,9 @@ export function TagDialog({
           {extraFields}
 
           <div className="space-y-3">
-            <label className="text-[1.05rem] font-medium text-foreground">Color</label>
+            <label className="text-sm font-medium text-foreground">Color</label>
             <div className="flex flex-wrap items-center gap-2.5">
-              {DEFAULT_TAG_COLORS.map(color => (
+              {DEFAULT_TAG_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
@@ -121,7 +134,9 @@ export function TagDialog({
                   onClick={() => onColorChange(color)}
                 >
                   {colorValue === color ? (
-                    <span className={`size-2.5 rounded-full ${color === '#FFFFFF' ? 'bg-foreground' : 'bg-black/65'}`} />
+                    <span
+                      className={`size-2.5 rounded-full ${color === '#FFFFFF' ? 'bg-foreground' : 'bg-black/65'}`}
+                    />
                   ) : null}
                 </button>
               ))}
@@ -146,21 +161,21 @@ export function TagDialog({
                 type="color"
                 value={colorValue}
                 className="sr-only"
-                onChange={event => onColorChange(event.target.value.toUpperCase())}
+                onChange={(event) => onColorChange(event.target.value.toUpperCase())}
               />
             </div>
           </div>
 
           <div className="space-y-3">
-            <label htmlFor="tag-dialog-description" className="text-[1.05rem] font-medium text-foreground">
+            <label htmlFor="tag-dialog-description" className="text-sm font-medium text-foreground">
               Description <span className="font-normal text-muted-foreground">(optional)</span>
             </label>
             <textarea
               id="tag-dialog-description"
               maxLength={256}
               value={descriptionValue}
-              onChange={event => onDescriptionChange(event.target.value)}
-              className="min-h-32 w-full resize-y rounded-2xl border border-border/70 bg-background px-4 py-3 text-lg text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/20"
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              className="min-h-28 w-full resize-y rounded-lg border border-border/70 bg-background px-3 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/20"
               placeholder="Eg. All the contracts signed by the company"
             />
           </div>
@@ -174,11 +189,7 @@ export function TagDialog({
               />
               {normalizedName || 'New tag'}
             </span>
-            <Button
-              type="submit"
-              className="h-12 rounded-2xl px-6 text-base"
-              disabled={isSubmitDisabled}
-            >
+            <Button type="submit" className="px-5" disabled={isSubmitDisabled}>
               {isPending ? pendingLabel : submitLabel}
             </Button>
           </div>

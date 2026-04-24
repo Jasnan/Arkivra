@@ -25,10 +25,7 @@ export const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'fixed inset-0 z-50 bg-background/65 backdrop-blur-sm',
-      className,
-    )}
+    className={cn('fixed inset-0 z-50 bg-background/65 backdrop-blur-sm', className)}
     {...props}
   />
 ));
@@ -47,7 +44,7 @@ export const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'relative z-50 w-full overflow-hidden rounded-[28px] border border-border/70 bg-card shadow-[0_32px_80px_rgba(15,23,42,0.18)]',
+          'relative z-50 w-full overflow-hidden rounded-lg border border-border/70 bg-card shadow-xl',
           className,
         )}
         {...props}
@@ -66,17 +63,11 @@ export const DialogContent = React.forwardRef<
 
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
-export const DialogHeader = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+export const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={cn('flex flex-col gap-2', className)} {...props} />
 );
 
-export const DialogFooter = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+export const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={cn('flex flex-wrap justify-end gap-3', className)} {...props} />
 );
 
@@ -86,7 +77,7 @@ export const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('font-display text-3xl font-bold tracking-[-0.04em] text-foreground', className)}
+    className={cn('font-display text-xl font-semibold text-foreground', className)}
     {...props}
   />
 ));

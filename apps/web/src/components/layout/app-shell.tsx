@@ -21,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import arkivraLogoUrl from '@/assets/arkivra-logo.png';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {
   DropdownMenu,
@@ -258,9 +259,11 @@ export function AppShell({ children }: PropsWithChildren) {
                 isSidebarCollapsed && 'justify-center px-0',
               )}
             >
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Vault className="size-4" />
-              </div>
+              <img
+                src={arkivraLogoUrl}
+                alt="Arkivra"
+                className="size-10 shrink-0 rounded-lg object-contain"
+              />
               <div className={cn('min-w-0', isSidebarCollapsed && 'hidden')}>
                 <p className="font-display text-xl font-semibold text-primary">Arkivra</p>
                 <p className="mt-1 text-xs text-muted-foreground">Document vaults</p>

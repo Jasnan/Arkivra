@@ -19,6 +19,14 @@ import {
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -65,6 +73,8 @@ export function TransfersPage() {
   const isVaultLocked = searchParams.get('locked') === 'true' && vaultId.length > 0;
   const activeVaultName = (data?.vaults ?? []).find((vault) => vault.id === vaultId)?.name ?? null;
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
+  const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
 
   const totalBytes = useMemo(
     () => state.items.reduce((sum, item) => sum + item.size, 0),
@@ -112,16 +122,17 @@ export function TransfersPage() {
   }
 
   function handleClearAll() {
-    // eslint-disable-next-line no-alert
-    const confirmed = window.confirm(
-      'Cancel active uploads and clear the entire transfer queue? Completed items will also be removed from Transfers, but uploaded documents will remain in their vaults.',
-    );
+    setIsClearAllDialogOpen(true);
+  }
 
-    if (!confirmed) {
-      return;
+  async function handleConfirmClearAll() {
+    setIsClearingAll(true);
+    try {
+      await uploadManager.clearAll();
+      setIsClearAllDialogOpen(false);
+    } finally {
+      setIsClearingAll(false);
     }
-
-    void uploadManager.clearAll();
   }
 
   return (
@@ -417,6 +428,58 @@ export function TransfersPage() {
           </div>
         ) : null}
       </SurfacePanel>
+
+      <Dialog
+        open={isClearAllDialogOpen}
+        onOpenChange={(open) => {
+          if (!isClearingAll) {
+            setIsClearAllDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent
+          className="max-w-lg"
+          onPointerDownOutside={(event) => {
+            if (isClearingAll) {
+              event.preventDefault();
+            }
+          }}
+          onEscapeKeyDown={(event) => {
+            if (isClearingAll) {
+              event.preventDefault();
+            }
+          }}
+        >
+          <div className="space-y-5 px-6 py-6 sm:px-8 sm:py-7">
+            <DialogHeader>
+              <DialogTitle>Cancel and clear transfers?</DialogTitle>
+              <DialogDescription>
+                Active uploads will be canceled and the entire transfer queue will be cleared.
+                Completed items will be removed from Transfers, but uploaded documents will remain
+                in their vaults.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsClearAllDialogOpen(false)}
+                disabled={isClearingAll}
+              >
+                Keep transfers
+              </Button>
+              <Button
+                type="button"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => void handleConfirmClearAll()}
+                disabled={isClearingAll}
+              >
+                {isClearingAll ? 'Clearing...' : 'Cancel and clear all'}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

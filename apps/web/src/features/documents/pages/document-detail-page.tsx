@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   PageIntro,
   StatusBanner,
@@ -412,16 +412,6 @@ export function DocumentDetailPage() {
         description={`${document.originalName} • ${formatBytes(document.originalSize)} • ${document.id}`}
         actions={
           <>
-            <Link
-              to={
-                document.isDeleted
-                  ? `/vaults/${vaultId}/documents/trash`
-                  : `/vaults/${vaultId}/documents`
-              }
-              className="vault-link"
-            >
-              Back to {document.isDeleted ? 'trash' : 'documents'}
-            </Link>
             {canPrint ? (
               <Button type="button" variant="outline" onClick={handlePrintClick}>
                 <Printer className="size-4" />

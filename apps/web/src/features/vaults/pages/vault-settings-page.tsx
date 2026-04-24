@@ -222,14 +222,11 @@ export function VaultSettingsPage() {
         title="Vault settings"
         description={`${vault.name} • ${vault.id}`}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
             <Link to={`/vaults/${vaultId}/documents`} className="vault-link">
               Open documents
             </Link>
-            <Link to="/vaults" className="vault-link">
-              Back to vault list
-            </Link>
-          </>
+          </div>
         }
       />
 

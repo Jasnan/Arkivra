@@ -85,9 +85,6 @@ export function DocumentTrashPage() {
     : (deletedDocumentsQuery.data?.retentionDays ?? 30);
   const isLoading = isVaultScoped ? vaultDocumentsQuery.isLoading : deletedDocumentsQuery.isLoading;
   const isError = isVaultScoped ? vaultDocumentsQuery.isError : deletedDocumentsQuery.isError;
-  const backTarget = isVaultScoped ? `/vaults/${vaultId}/documents` : '/documents';
-  const backLabel = isVaultScoped ? 'Back to documents' : 'Back to library';
-
   const deleteAllMutation = useMutation({
     mutationFn: async () => {
       await Promise.all(
@@ -118,11 +115,6 @@ export function DocumentTrashPage() {
         eyebrow="Lifecycle Control"
         title="Trash"
         description="Restore or permanently delete soft-deleted documents."
-        actions={
-          <Link to={backTarget} className="vault-link">
-            {backLabel}
-          </Link>
-        }
       />
 
       {statusMessage || errorMessage ? (

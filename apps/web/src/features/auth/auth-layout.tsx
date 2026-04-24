@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 
@@ -30,5 +30,13 @@ export function AuthCard({
       {subtitle ? <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p> : null}
       <div className="mt-6 space-y-4">{children}</div>
     </section>
+  );
+}
+
+export function AuthActions({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border/70 pt-4 text-sm">
+      {children}
+    </div>
   );
 }

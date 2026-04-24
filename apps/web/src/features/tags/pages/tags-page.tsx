@@ -2,7 +2,7 @@ import type { FormEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ellipsis, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   PageIntro,
   StatusBanner,
@@ -358,11 +358,6 @@ export function TagsPage() {
         title="Tags"
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            {isVaultScoped ? (
-              <Link to={`/vaults/${scopedVaultId}/documents`} className="vault-link">
-                Back to documents
-              </Link>
-            ) : null}
             <Button
               ref={createButtonRef}
               type="button"

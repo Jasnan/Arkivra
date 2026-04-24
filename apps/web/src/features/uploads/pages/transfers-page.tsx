@@ -10,7 +10,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   PageIntro,
   StatusBanner,
@@ -129,11 +129,6 @@ export function TransfersPage() {
       <PageIntro
         title="Upload"
         description="Add files to a vault and monitor the transfer queue."
-        actions={
-          <Link to={vaultId ? `/vaults/${vaultId}/documents` : '/documents'} className="vault-link">
-            Back
-          </Link>
-        }
       />
 
       <div className="space-y-3">

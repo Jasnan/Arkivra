@@ -2,10 +2,11 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
-const inputClassName = 'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const inputClassName =
+  'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function RequestPasswordResetPage() {
   const [email, setEmail] = useState('');
@@ -41,8 +42,18 @@ export function RequestPasswordResetPage() {
         ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">Email</label>
-              <input id="email" type="email" required autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className={inputClassName} />
+              <label htmlFor="email" className="text-sm font-medium">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className={inputClassName}
+              />
             </div>
 
             {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
@@ -53,9 +64,11 @@ export function RequestPasswordResetPage() {
           </form>
         )}
 
-        <p className="text-sm text-muted-foreground">
-          <Link to="/login" className="font-medium text-foreground hover:underline">Back to sign in</Link>
-        </p>
+        <AuthActions>
+          <Link to="/login" className="font-medium text-foreground hover:underline">
+            Sign in
+          </Link>
+        </AuthActions>
       </AuthCard>
     </AuthLayout>
   );

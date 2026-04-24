@@ -92,11 +92,6 @@ export function SearchPage() {
         eyebrow="Global Discovery"
         title="Search across vaults"
         description="Run full-text discovery across every vault you can access, then narrow results by vault, tag, or document date."
-        actions={
-          <Link to="/vaults" className="vault-link">
-            Back to vaults
-          </Link>
-        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">

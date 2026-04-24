@@ -46,7 +46,15 @@ interface BreadcrumbItem {
   to?: string;
 }
 
-function buildBreadcrumbs(pathname: string, vaultName?: string): BreadcrumbItem[] {
+function buildBreadcrumbs({
+  pathname,
+  transferVaultId,
+  vaultName,
+}: {
+  pathname: string;
+  transferVaultId?: string | null;
+  vaultName?: string;
+}): BreadcrumbItem[] {
   const parts = pathname.split('/').filter(Boolean);
 
   if (parts.length === 0) {
@@ -70,7 +78,19 @@ function buildBreadcrumbs(pathname: string, vaultName?: string): BreadcrumbItem[
   }
 
   if (pathname === '/transfers') {
-    return [{ label: 'Transfers' }];
+    if (transferVaultId) {
+      return [
+        { label: 'Vaults', to: '/vaults' },
+        { label: vaultName ?? 'Vault', to: `/vaults/${transferVaultId}/documents` },
+        { label: 'Upload' },
+      ];
+    }
+
+    return [{ label: 'Documents', to: '/documents' }, { label: 'Upload' }];
+  }
+
+  if (pathname === '/search') {
+    return [{ label: 'Documents', to: '/documents' }, { label: 'Search' }];
   }
 
   if (pathname === '/settings') {
@@ -129,14 +149,24 @@ export function AppShell({ children }: PropsWithChildren) {
   const [searchValue, setSearchValue] = useState('');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
   const deferredSearchValue = useDeferredValue(searchValue.trim());
-  const activeVaultId = location.pathname.split('/').filter(Boolean)[1];
+  const transferVaultId = useMemo(
+    () => new URLSearchParams(location.search).get('vaultId'),
+    [location.search],
+  );
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const activeVaultId = pathParts[0] === 'vaults' ? pathParts[1] : transferVaultId;
   const activeVaultName = useMemo(
     () => (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === activeVaultId)?.name,
     [activeVaultId, vaultsQuery.data?.vaults],
   );
   const breadcrumbs = useMemo(
-    () => buildBreadcrumbs(location.pathname, activeVaultName),
-    [activeVaultName, location.pathname],
+    () =>
+      buildBreadcrumbs({
+        pathname: location.pathname,
+        transferVaultId,
+        vaultName: activeVaultName,
+      }),
+    [activeVaultName, location.pathname, transferVaultId],
   );
 
   useEffect(() => {

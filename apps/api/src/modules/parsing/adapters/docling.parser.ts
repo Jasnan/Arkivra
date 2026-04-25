@@ -3,7 +3,12 @@ import type { DocumentParser, ParseInput, ParserCapabilities } from '../parser.t
 import type { ParserOutput } from '../parsed-document.schema.js';
 import { ParserValidationError } from '../parser.types.js';
 import { parserOutputSchema } from '../parsed-document.schema.js';
-import { deriveDoclingPlainText, sanitizeDoclingMarkdown, sanitizeDoclingText } from './docling.text.js';
+import {
+  deriveDoclingPlainText,
+  extractDataUriImages,
+  sanitizeDoclingMarkdown,
+  sanitizeDoclingText,
+} from './docling.text.js';
 
 const DOCLING_CAPABILITIES: ParserCapabilities = {
   ocr: true,
@@ -37,9 +42,12 @@ export function createDoclingParser({
       fileData: input.fileData,
     });
 
-    const markdown = sanitizeDoclingMarkdown(response.document.md_content ?? '');
+    const rawMarkdown = response.document.md_content ?? '';
+    const rawText = response.document.text_content ?? '';
+    const embeddedImages = extractDataUriImages(rawMarkdown);
+    const markdown = sanitizeDoclingMarkdown(rawMarkdown);
     const text = deriveDoclingPlainText({
-      text: sanitizeDoclingText(response.document.text_content ?? ''),
+      text: sanitizeDoclingText(rawText),
       markdown,
     });
 
@@ -56,6 +64,7 @@ export function createDoclingParser({
       engineVersion,
       text,
       markdown,
+      embeddedImages,
       warnings,
     };
 

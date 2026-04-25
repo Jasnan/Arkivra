@@ -18,6 +18,12 @@ export type DoclingConvertOptions = {
   doOcr: boolean;
   /** Docling OCR engine name. */
   ocrEngine: string;
+  /** OCR languages passed through to Docling. */
+  ocrLang: string[];
+  /** Whether Docling should apply full-page OCR. */
+  forceFullPageOcr: boolean;
+  /** Minimum bitmap area threshold passed to Docling OCR options. */
+  bitmapAreaThreshold: number;
   /** Docling table extraction mode. */
   tableMode: string;
   /** Whether Docling should abort on the first error. */
@@ -27,7 +33,10 @@ export type DoclingConvertOptions = {
 export const DEFAULT_DOCLING_CONVERT_OPTIONS: DoclingConvertOptions = {
   toFormats: 'text',
   doOcr: true,
-  ocrEngine: 'easyocr',
+  ocrEngine: 'tesseract',
+  ocrLang: ['deu', 'eng'],
+  forceFullPageOcr: true,
+  bitmapAreaThreshold: 0.05,
   tableMode: 'fast',
   abortOnError: false,
 };
@@ -93,8 +102,13 @@ export function createDoclingClient({
     const blob = new Blob([fileData], { type: mimeType });
     formData.append('files', blob, fileName);
     formData.append('to_formats', convertOptions.toFormats);
+    formData.append('include_images', 'true');
+    formData.append('image_export_mode', 'embedded');
     formData.append('do_ocr', String(convertOptions.doOcr));
     formData.append('ocr_engine', convertOptions.ocrEngine);
+    for (const language of convertOptions.ocrLang) {
+      formData.append('ocr_lang', language);
+    }
     formData.append('table_mode', convertOptions.tableMode);
     formData.append('abort_on_error', String(convertOptions.abortOnError));
 

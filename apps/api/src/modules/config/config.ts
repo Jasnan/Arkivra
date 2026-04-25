@@ -124,8 +124,31 @@ export const configDefinition = {
     ocrEngine: {
       doc: 'Docling OCR engine name (e.g., "easyocr", "tesseract").',
       schema: z.string().min(1),
-      default: 'easyocr',
+      default: 'tesseract',
       env: 'ARKIVRA_DOCLING_OCR_ENGINE',
+    },
+    ocrLanguages: {
+      doc: 'Comma-separated OCR languages passed to Docling. Use engine-specific values such as `deu,eng` or `auto` when supported by the selected OCR engine.',
+      schema: z.string().transform((value) =>
+        value
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      ),
+      default: 'deu,eng',
+      env: 'ARKIVRA_DOCLING_OCR_LANG',
+    },
+    forceFullPageOcr: {
+      doc: 'Whether Docling should force OCR across the full page instead of relying on hybrid text/layout detection.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: true,
+      env: 'ARKIVRA_DOCLING_FORCE_FULL_PAGE_OCR',
+    },
+    bitmapAreaThreshold: {
+      doc: 'Minimum bitmap area threshold passed to Docling OCR options.',
+      schema: z.coerce.number().min(0).max(1),
+      default: 0.05,
+      env: 'ARKIVRA_DOCLING_BITMAP_AREA_THRESHOLD',
     },
     tableMode: {
       doc: 'Docling table-extraction mode (e.g., "fast", "accurate").',
@@ -164,6 +187,12 @@ export const configDefinition = {
       schema: z.enum(['none', 'ollama']),
       default: 'none' as const,
       env: 'ARKIVRA_PARSER_GLUED_WORD_NORMALIZATION',
+    },
+    emptyTextFallback: {
+      doc: 'Optional recovery path when Docling returns no text. `ollama_vision` sends Docling embedded images to the configured Ollama model and uses the returned transcription; `none` disables this fallback.',
+      schema: z.enum(['none', 'ollama_vision']),
+      default: 'ollama_vision' as const,
+      env: 'ARKIVRA_PARSER_EMPTY_TEXT_FALLBACK',
     },
   },
   ollama: {

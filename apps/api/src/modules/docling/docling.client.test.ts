@@ -46,6 +46,11 @@ describe('docling client', () => {
       'http://docling.local/v1/convert/file/async',
       expect.objectContaining({ method: 'POST' }),
     );
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.get('ocr_engine')).toBe('tesseract');
+    expect(submitBody.getAll('ocr_lang')).toEqual(['deu', 'eng']);
+    expect(submitBody.get('ocr_custom_config')).toBeNull();
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'http://docling.local/v1/status/poll/task_1',
@@ -62,6 +67,52 @@ describe('docling client', () => {
       expect.objectContaining({ method: 'GET' }),
     );
     expect(result.document.text_content).toBe('Title');
+  });
+
+  test('allows overriding OCR language and full-page OCR config', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_cfg', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        document: {
+          md_content: '# Title',
+          text_content: 'Title',
+          json_content: {},
+          html_content: '',
+          doctags_content: '',
+        },
+        status: 'success',
+        processing_time: 1.2,
+        errors: [],
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      convertOptions: {
+        toFormats: 'md',
+        doOcr: true,
+        ocrEngine: 'tesseract',
+        ocrLang: ['auto'],
+        forceFullPageOcr: false,
+        bitmapAreaThreshold: 0.1,
+        tableMode: 'fast',
+        abortOnError: false,
+      },
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.convertFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    });
+
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.getAll('ocr_lang')).toEqual(['auto']);
+    expect(submitBody.get('ocr_custom_config')).toBeNull();
   });
 
   test('throws when async status reaches failure', async () => {

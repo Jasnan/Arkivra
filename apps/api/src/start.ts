@@ -13,6 +13,7 @@ import { createDoclingParser } from './modules/parsing/adapters/docling.parser.j
 import {
   createRuntimeConfiguredGluedWordNormalizer,
 } from './modules/parsing/glued-word-normalizer.js';
+import { createRuntimeConfiguredOllamaVisionTextFallback } from './modules/parsing/ollama-vision-text-fallback.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
 import {
@@ -84,6 +85,9 @@ export async function startApp() {
         toFormats: config.docling.outputFormat,
         doOcr: config.docling.doOcr,
         ocrEngine: config.docling.ocrEngine,
+        ocrLang: config.docling.ocrLanguages,
+        forceFullPageOcr: config.docling.forceFullPageOcr,
+        bitmapAreaThreshold: config.docling.bitmapAreaThreshold,
         tableMode: config.docling.tableMode,
         abortOnError: config.docling.abortOnError,
       },
@@ -114,10 +118,23 @@ export async function startApp() {
         };
       },
     });
+    const emptyTextFallback = config.parsers.emptyTextFallback === 'ollama_vision'
+      ? createRuntimeConfiguredOllamaVisionTextFallback({
+          resolveSettings: async () => {
+            const settings = await adminAiServices.getSettings();
+            return {
+              host: settings.ollamaHost,
+              model: settings.model,
+              logRequests: config.ollama.logRequests,
+            };
+          },
+        })
+      : undefined;
     const parsePipeline = createParsePipeline({
       parserRegistry,
       cleaner: textCleaner,
       gluedWordNormalizer,
+      emptyTextFallback,
     });
     const documentWorker = createDocumentWorker({
       db,
@@ -149,6 +166,12 @@ export async function startApp() {
     console.info('Document processing worker started');
     console.info(
       `OCR whitespace normalization: runtime-configured via admin settings (env defaults: ${config.parsers.gluedWordNormalization}, ${config.ollama.model} @ ${config.ollama.host})`,
+    );
+    console.info(
+      `Empty-text fallback: ${config.parsers.emptyTextFallback === 'ollama_vision' ? `Ollama vision (${config.ollama.model} @ ${config.ollama.host})` : 'disabled'}`,
+    );
+    console.info(
+      `Document parser: ${config.parsers.defaultEngine} via Docling ${config.docling.url} (${config.docling.ocrEngine}, OCR languages ${config.docling.ocrLanguages.join('+')}, full-page OCR ${config.docling.forceFullPageOcr ? 'on' : 'off'})`,
     );
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,

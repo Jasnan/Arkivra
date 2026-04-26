@@ -510,6 +510,14 @@ export class UploadManager {
       });
 
       this.applySessionUpdate(response.upload, id);
+      window.dispatchEvent(
+        new CustomEvent('arkivra:uploads-completed', {
+          detail: {
+            vaultId: response.upload.vaultId,
+            documentId: response.upload.documentId,
+          },
+        }),
+      );
     } catch (error) {
       const isPause = error instanceof Error && error.message === 'Upload paused';
       if (!isPause) {

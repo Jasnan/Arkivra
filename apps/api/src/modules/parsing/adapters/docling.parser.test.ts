@@ -77,6 +77,8 @@ describe('docling parser adapter', () => {
     expect(output.text).not.toContain('![Preview]');
     expect(output.markdown).not.toContain('data:image');
     expect(output.markdown).not.toContain('![Preview]');
+    expect(output.embeddedImages).toHaveLength(1);
+    expect(output.embeddedImages?.[0]?.mimeType).toBe('image/png');
   });
 
   test('collects Docling partial_success into warnings', async () => {

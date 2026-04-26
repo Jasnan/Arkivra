@@ -2,6 +2,7 @@ import type { ParserRegistry } from './parser.registry.js';
 import type { ParseInput, ParserEngine } from './parser.types.js';
 import type { ParsedDocument } from './parsed-document.schema.js';
 import type { GluedWordNormalizer } from './glued-word-normalizer.js';
+import type { EmptyTextFallback } from './ollama-vision-text-fallback.js';
 import type { TextCleaner } from './text-cleaner.js';
 import type { ChunkerOptions } from './chunker.js';
 import { ParserValidationError } from './parser.types.js';
@@ -9,10 +10,15 @@ import { parsedDocumentSchema } from './parsed-document.schema.js';
 import { markdownToPlainText } from './adapters/docling.text.js';
 import { chunkMarkdown } from './chunker.js';
 
+function hasMeaningfulText(value: { text: string; markdown: string }) {
+  return value.text.trim().length > 0 || value.markdown.trim().length > 0;
+}
+
 export type ParsePipelineOptions = {
   parserRegistry: ParserRegistry;
   cleaner: TextCleaner;
   gluedWordNormalizer?: GluedWordNormalizer;
+  emptyTextFallback?: EmptyTextFallback;
   chunkerOptions?: Omit<ChunkerOptions, 'documentId'>;
   /** Explicit engine override; falls back to the registry default. */
   engine?: ParserEngine;
@@ -31,6 +37,7 @@ export function createParsePipeline({
   parserRegistry,
   cleaner,
   gluedWordNormalizer,
+  emptyTextFallback,
   chunkerOptions,
   engine,
 }: ParsePipelineOptions): ParsePipeline {
@@ -40,7 +47,23 @@ export function createParsePipeline({
 
     const raw = await parser.parse(input);
 
-    const cleaned = await cleaner.clean({ text: raw.text, markdown: raw.markdown });
+    let effectiveRaw = raw;
+    if (!hasMeaningfulText(raw) && emptyTextFallback !== undefined) {
+      const fallbackResult = await emptyTextFallback.run(input, raw);
+      effectiveRaw = fallbackResult.output === null
+        ? {
+            ...raw,
+            warnings: [...raw.warnings, ...fallbackResult.warnings],
+          }
+        : {
+            ...raw,
+            text: fallbackResult.output.text,
+            markdown: fallbackResult.output.markdown,
+            warnings: [...raw.warnings, ...fallbackResult.warnings],
+          };
+    }
+
+    const cleaned = await cleaner.clean({ text: effectiveRaw.text, markdown: effectiveRaw.markdown });
     const normalized = await (gluedWordNormalizer?.normalize(cleaned) ?? Promise.resolve({
       text: cleaned.text,
       markdown: cleaned.markdown,
@@ -65,7 +88,7 @@ export function createParsePipeline({
       rawText: raw.text,
       rawMarkdown: raw.markdown,
       chunks,
-      warnings: raw.warnings,
+      warnings: effectiveRaw.warnings,
     };
 
     const validation = parsedDocumentSchema.safeParse(parsed);

@@ -3,6 +3,11 @@ import { z } from 'zod';
 export const PARSED_CHUNK_TYPES = ['heading', 'paragraph', 'table', 'list', 'other'] as const;
 export type ParsedChunkType = (typeof PARSED_CHUNK_TYPES)[number];
 
+export const parserEmbeddedImageSchema = z.object({
+  mimeType: z.string().min(1),
+  data: z.instanceof(Buffer),
+});
+
 export const parsedChunkSchema = z.object({
   id: z.string().min(1),
   text: z.string().min(1),
@@ -26,6 +31,7 @@ export const parserOutputSchema = z.object({
   text: z.string(),
   /** Raw markdown as emitted by the engine, after engine-specific sanitization. */
   markdown: z.string(),
+  embeddedImages: z.array(parserEmbeddedImageSchema).optional(),
   warnings: z.array(z.string()),
 });
 

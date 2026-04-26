@@ -1,6 +1,7 @@
 import type { DocumentParser, ParseInput } from './parser.types.js';
 import type { ParserOutput } from './parsed-document.schema.js';
 import type { GluedWordNormalizer } from './glued-word-normalizer.js';
+import type { EmptyTextFallback } from './ollama-vision-text-fallback.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { describe, expect, test, vi } from 'vitest';
 import { createNoopGluedWordNormalizer } from './glued-word-normalizer.js';
@@ -28,10 +29,16 @@ function makePipeline(
   parserOverrides: Partial<ParserOutput> = {},
   cleaner: TextCleaner = createNoopTextCleaner(),
   gluedWordNormalizer: GluedWordNormalizer = createNoopGluedWordNormalizer(),
+  emptyTextFallback?: EmptyTextFallback,
 ) {
   const parser = makeParser(parserOverrides);
   const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'docling' });
-  const pipeline = createParsePipeline({ parserRegistry: registry, cleaner, gluedWordNormalizer });
+  const pipeline = createParsePipeline({
+    parserRegistry: registry,
+    cleaner,
+    gluedWordNormalizer,
+    emptyTextFallback,
+  });
   return { pipeline, parser };
 }
 
@@ -136,5 +143,37 @@ describe('parse pipeline', () => {
     expect(parsed.text).toBe('GOVERNMENT OF KERALA');
     expect(parsed.markdown).toBe('# GOVERNMENT OF KERALA');
     expect(parsed.chunks[0]?.text).toContain('GOVERNMENT OF KERALA');
+  });
+
+  test('uses empty-text fallback output before chunking and preserves original raw parser text', async () => {
+    const emptyTextFallback: EmptyTextFallback = {
+      name: 'mock-vision',
+      run: async () => ({
+        output: {
+          text: 'Recovered text from image',
+          markdown: '',
+        },
+        warnings: ['ollama_vision_fallback.used:1'],
+      }),
+    };
+
+    const { pipeline } = makePipeline(
+      {
+        text: '',
+        markdown: '',
+        embeddedImages: [{ mimeType: 'image/png', data: Buffer.from('image') }],
+      },
+      createNoopTextCleaner(),
+      createNoopGluedWordNormalizer(),
+      emptyTextFallback,
+    );
+
+    const parsed = await pipeline.run(input);
+
+    expect(parsed.rawText).toBe('');
+    expect(parsed.rawMarkdown).toBe('');
+    expect(parsed.text).toBe('Recovered text from image');
+    expect(parsed.chunks[0]?.text).toContain('Recovered text from image');
+    expect(parsed.warnings).toEqual(['ollama_vision_fallback.used:1']);
   });
 });

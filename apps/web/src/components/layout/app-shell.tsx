@@ -166,11 +166,11 @@ function buildBreadcrumbs({
     }
 
     if (parts[2] === 'documents' && parts[3] === 'trash') {
-      return [...base, { label: 'Documents', to: vaultDocumentsPath }, { label: 'Trash' }];
+      return [...base, { label: 'Trash' }];
     }
 
     if (parts[2] === 'documents' && parts[3]) {
-      return [...base, { label: 'Documents', to: vaultDocumentsPath }, { label: currentDocumentLabel }];
+      return [...base, { label: currentDocumentLabel }];
     }
 
     if (parts[2] === 'documents') {

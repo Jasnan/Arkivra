@@ -178,10 +178,7 @@ describe('app shell account menu', () => {
       'href',
       '/vaults/vlt_1/documents',
     );
-    expect(within(breadcrumbNav).getByRole('link', { name: 'Documents' })).toHaveAttribute(
-      'href',
-      '/vaults/vlt_1/documents',
-    );
+    expect(within(breadcrumbNav).queryByRole('link', { name: 'Documents' })).not.toBeInTheDocument();
     expect(await within(breadcrumbNav).findByText('Quarterly Budget Summary.pdf')).toBeInTheDocument();
   });
 });

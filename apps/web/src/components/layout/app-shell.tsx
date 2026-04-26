@@ -406,38 +406,7 @@ export function AppShell({ children }: PropsWithChildren) {
                 </NavLink>
               ) : null}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <nav aria-label="Breadcrumb" className="min-w-0 overflow-hidden">
-                  <ol className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
-                    {breadcrumbs.map((item, index) => {
-                      const isLast = index === breadcrumbs.length - 1;
-
-                      return (
-                        <li
-                          key={`${item.to ?? item.label}-${item.label}`}
-                          className="flex min-w-0 items-center gap-1"
-                        >
-                          {index > 0 ? <ChevronRight className="size-3.5 shrink-0" /> : null}
-                          {item.to && !isLast ? (
-                            <Link
-                              to={item.to}
-                              className="truncate font-medium transition hover:text-foreground"
-                            >
-                              {item.label}
-                            </Link>
-                          ) : (
-                            <span
-                              className={cn('truncate', isLast && 'font-medium text-foreground')}
-                            >
-                              {item.label}
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </nav>
-
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="relative min-w-0 sm:w-[20rem] lg:w-[30rem]">
                     <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -528,6 +497,35 @@ export function AppShell({ children }: PropsWithChildren) {
               </nav>
             </div>
           </header>
+
+          <nav aria-label="Breadcrumb" className="min-w-0 overflow-hidden pt-2">
+            <ol className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+              {breadcrumbs.map((item, index) => {
+                const isLast = index === breadcrumbs.length - 1;
+
+                return (
+                  <li
+                    key={`${item.to ?? item.label}-${item.label}`}
+                    className="flex min-w-0 items-center gap-1"
+                  >
+                    {index > 0 ? <ChevronRight className="size-3.5 shrink-0" /> : null}
+                    {item.to && !isLast ? (
+                      <Link
+                        to={item.to}
+                        className="truncate font-medium transition hover:text-foreground"
+                      >
+                        {item.label}
+                      </Link>
+                    ) : (
+                      <span className={cn('truncate', isLast && 'font-medium text-foreground')}>
+                        {item.label}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
 
           <main className="flex-1 pb-12">{children}</main>
         </div>

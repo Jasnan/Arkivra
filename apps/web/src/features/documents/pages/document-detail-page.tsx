@@ -14,7 +14,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   PageIntro,
   StatusBanner,
@@ -79,6 +79,7 @@ export function DocumentDetailPage() {
   const params = useParams<{ vaultId: string; documentId: string }>();
   const vaultId = params.vaultId ?? '';
   const documentId = params.documentId ?? '';
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const documentQuery = useDocumentQuery({ vaultId, documentId });
@@ -159,6 +160,7 @@ export function DocumentDetailPage() {
       setErrorMessage(null);
       setIsDeleteDialogOpen(false);
       await invalidateDocument();
+      navigate(`/vaults/${vaultId}/documents`, { replace: true });
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'Could not delete document.');

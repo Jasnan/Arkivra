@@ -174,7 +174,7 @@ function buildBreadcrumbs({
     }
 
     if (parts[2] === 'documents') {
-      return [...base, { label: 'Documents' }];
+      return base;
     }
 
     return base;

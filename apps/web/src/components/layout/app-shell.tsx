@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { formatDate } from '@/features/documents/documents.utils';
+import { useDocumentQuery } from '@/features/documents/documents.queries';
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -46,21 +47,55 @@ const navBaseClassName =
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'arkivra.sidebarCollapsed';
 
+function getStoredSidebarCollapsedValue() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage?.getItem?.(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function persistSidebarCollapsedValue(isCollapsed: boolean) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage?.setItem?.(SIDEBAR_COLLAPSED_STORAGE_KEY, isCollapsed ? 'true' : 'false');
+  } catch {
+  }
+}
+
 interface BreadcrumbItem {
   label: string;
   to?: string;
+}
+
+function truncateBreadcrumbLabel(label: string, maxLength = 36) {
+  if (label.length <= maxLength) {
+    return label;
+  }
+
+  return `${label.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
 function buildBreadcrumbs({
   pathname,
   transferVaultId,
   vaultName,
+  documentName,
 }: {
   pathname: string;
   transferVaultId?: string | null;
   vaultName?: string;
+  documentName?: string;
 }): BreadcrumbItem[] {
   const parts = pathname.split('/').filter(Boolean);
+  const currentDocumentLabel = truncateBreadcrumbLabel(documentName ?? 'Document');
 
   if (parts.length === 0) {
     return [{ label: 'Vaults' }];
@@ -71,11 +106,15 @@ function buildBreadcrumbs({
   }
 
   if (pathname === '/documents') {
-    return [{ label: 'Documents' }];
+    return [{ label: 'All Documents' }];
   }
 
   if (pathname === '/documents/trash') {
-    return [{ label: 'Documents', to: '/documents' }, { label: 'Trash' }];
+    return [{ label: 'All Documents', to: '/documents' }, { label: 'Trash' }];
+  }
+
+  if (parts[0] === 'documents' && parts[1] && parts[2]) {
+    return [{ label: 'All Documents', to: '/documents' }, { label: currentDocumentLabel }];
   }
 
   if (pathname === '/tags') {
@@ -91,11 +130,11 @@ function buildBreadcrumbs({
       ];
     }
 
-    return [{ label: 'Documents', to: '/documents' }, { label: 'Upload' }];
+    return [{ label: 'All Documents', to: '/documents' }, { label: 'Upload' }];
   }
 
   if (pathname === '/search') {
-    return [{ label: 'Documents', to: '/documents' }, { label: 'Search' }];
+    return [{ label: 'All Documents', to: '/documents' }, { label: 'Search' }];
   }
 
   if (pathname === '/settings') {
@@ -131,7 +170,7 @@ function buildBreadcrumbs({
     }
 
     if (parts[2] === 'documents' && parts[3]) {
-      return [...base, { label: 'Documents', to: vaultDocumentsPath }, { label: 'Document' }];
+      return [...base, { label: 'Documents', to: vaultDocumentsPath }, { label: currentDocumentLabel }];
     }
 
     if (parts[2] === 'documents') {
@@ -154,11 +193,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const [searchValue, setSearchValue] = useState('');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
+    return getStoredSidebarCollapsedValue();
   });
   const deferredSearchValue = useDeferredValue(searchValue.trim());
   const transferVaultId = useMemo(
@@ -166,19 +201,40 @@ export function AppShell({ children }: PropsWithChildren) {
     [location.search],
   );
   const pathParts = location.pathname.split('/').filter(Boolean);
-  const activeVaultId = pathParts[0] === 'vaults' ? pathParts[1] : transferVaultId;
+  const activeVaultId =
+    pathParts[0] === 'vaults'
+      ? pathParts[1]
+      : pathParts[0] === 'documents' && pathParts.length >= 3
+        ? pathParts[1]
+        : transferVaultId;
+  const activeDocumentRoute = useMemo(() => {
+    if (pathParts[0] === 'vaults' && pathParts[2] === 'documents' && pathParts[3]) {
+      return { vaultId: pathParts[1] ?? '', documentId: pathParts[3] ?? '' };
+    }
+
+    if (pathParts[0] === 'documents' && pathParts[1] && pathParts[2]) {
+      return { vaultId: pathParts[1], documentId: pathParts[2] };
+    }
+
+    return null;
+  }, [pathParts]);
   const activeVaultName = useMemo(
     () => (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === activeVaultId)?.name,
     [activeVaultId, vaultsQuery.data?.vaults],
   );
+  const activeDocumentQuery = useDocumentQuery({
+    vaultId: activeDocumentRoute?.vaultId ?? '',
+    documentId: activeDocumentRoute?.documentId ?? '',
+  });
   const breadcrumbs = useMemo(
     () =>
       buildBreadcrumbs({
         pathname: location.pathname,
         transferVaultId,
         vaultName: activeVaultName,
+        documentName: activeDocumentQuery.data?.document.name,
       }),
-    [activeVaultName, location.pathname, transferVaultId],
+    [activeDocumentQuery.data?.document.name, activeVaultName, location.pathname, transferVaultId],
   );
 
   useEffect(() => {
@@ -188,16 +244,13 @@ export function AppShell({ children }: PropsWithChildren) {
   }, [isQuickSearchOpen, location.pathname]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      SIDEBAR_COLLAPSED_STORAGE_KEY,
-      isSidebarCollapsed ? 'true' : 'false',
-    );
+    persistSidebarCollapsedValue(isSidebarCollapsed);
   }, [isSidebarCollapsed]);
 
   const { primaryNavItems, footerNavItems } = useMemo(() => {
     const primaryItems = [
       { to: '/vaults', label: 'Vaults', icon: Vault },
-      { to: '/documents', label: 'Documents', icon: File },
+      { to: '/documents', label: 'All Documents', icon: File },
       { to: '/tags', label: 'Tags', icon: Tags },
       { to: '/transfers', label: 'Transfers', icon: Upload },
       { to: '/documents/trash', label: 'Trash', icon: Trash2 },
@@ -557,7 +610,7 @@ export function AppShell({ children }: PropsWithChildren) {
                     className="w-full rounded-lg border border-border/70 bg-background px-4 py-4 text-left transition hover:bg-secondary/45"
                     onClick={() => {
                       closeQuickSearch();
-                      navigate(`/vaults/${result.vaultId}/documents/${result.documentId}`);
+                      navigate(`/documents/${result.vaultId}/${result.documentId}`);
                     }}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

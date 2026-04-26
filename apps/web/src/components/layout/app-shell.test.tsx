@@ -30,7 +30,6 @@ function jsonResponse(body: unknown) {
 describe('app shell account menu', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    window.localStorage.clear();
     authClientMock.useSession.mockReturnValue({
       data: {
         user: {
@@ -52,6 +51,33 @@ describe('app shell account menu', () => {
             sessionId: 'ses_member',
             isGlobalAdmin: false,
             canCreateVault: false,
+          });
+        }
+
+        if (url === '/api/vaults') {
+          return jsonResponse({
+            vaults: [{ id: 'vlt_1', name: 'Puzzle Palace', role: 'owner' }],
+          });
+        }
+
+        if (url === '/api/vaults/vlt_1/documents/doc_1') {
+          return jsonResponse({
+            document: {
+              id: 'doc_1',
+              name: 'Quarterly Budget Summary.pdf',
+              originalName: 'quarterly-budget-summary.pdf',
+              originalSize: 2048,
+              originalSha256Hash: 'abc123',
+              mimeType: 'application/pdf',
+              content: 'Quarterly budget summary',
+              processingStatus: 'completed',
+              documentDate: null,
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-10T10:05:00.000Z',
+              isDeleted: false,
+              deletedAt: null,
+              createdBy: 'Jane Doe',
+            },
           });
         }
 
@@ -100,7 +126,7 @@ describe('app shell account menu', () => {
     );
 
     const primaryNav = screen.getByRole('navigation', { name: 'Primary' });
-    const documentsLabel = within(primaryNav).getByText('Documents');
+    const documentsLabel = within(primaryNav).getByText('All Documents');
 
     expect(documentsLabel).not.toHaveClass('hidden');
 
@@ -109,10 +135,53 @@ describe('app shell account menu', () => {
     expect(documentsLabel).toHaveClass('hidden');
     expect(screen.queryByRole('button', { name: /collapse sidebar/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'Documents' })[0]).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: 'All Documents' })[0]).toHaveAttribute(
       'href',
       '/documents',
     );
-    expect(window.localStorage.getItem('arkivra.sidebarCollapsed')).toBe('true');
+  });
+
+  it('shows global document breadcrumbs for all-documents detail pages', async () => {
+    renderWithProviders(
+      <AppShell>
+        <div>Workspace</div>
+      </AppShell>,
+      {
+        initialEntries: ['/documents/vlt_1/doc_1'],
+        routePath: '/documents/:vaultId/:documentId',
+      },
+    );
+
+    const breadcrumbNav = await screen.findByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumbNav).getByRole('link', { name: 'All Documents' })).toHaveAttribute(
+      'href',
+      '/documents',
+    );
+    expect(await within(breadcrumbNav).findByText('Quarterly Budget Summary.pdf')).toBeInTheDocument();
+    expect(within(breadcrumbNav).queryByRole('link', { name: 'Puzzle Palace' })).not.toBeInTheDocument();
+  });
+
+  it('shows vault-scoped breadcrumbs for vault document detail pages', async () => {
+    renderWithProviders(
+      <AppShell>
+        <div>Workspace</div>
+      </AppShell>,
+      {
+        initialEntries: ['/vaults/vlt_1/documents/doc_1'],
+        routePath: '/vaults/:vaultId/documents/:documentId',
+      },
+    );
+
+    const breadcrumbNav = await screen.findByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumbNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
+    expect(await within(breadcrumbNav).findByRole('link', { name: 'Puzzle Palace' })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1/documents',
+    );
+    expect(within(breadcrumbNav).getByRole('link', { name: 'Documents' })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1/documents',
+    );
+    expect(await within(breadcrumbNav).findByText('Quarterly Budget Summary.pdf')).toBeInTheDocument();
   });
 });

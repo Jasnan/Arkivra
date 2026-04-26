@@ -406,9 +406,8 @@ export function AppShell({ children }: PropsWithChildren) {
                 </NavLink>
               ) : null}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <div className="relative min-w-0 sm:w-[20rem] lg:w-[30rem]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative w-full min-w-0 flex-1">
                     <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input
                       aria-label="Global search"
@@ -418,55 +417,54 @@ export function AppShell({ children }: PropsWithChildren) {
                       onFocus={() => setIsQuickSearchOpen(true)}
                       onClick={() => setIsQuickSearchOpen(true)}
                     />
-                  </div>
+                </div>
 
-                  <ThemeToggle />
+                <ThemeToggle />
 
-                  <DropdownMenu modal={false}>
+                <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label="Open account menu"
-                        className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
-                      >
-                        <UserCircle2 className="size-5" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel className="py-2">
-                        <p className="font-medium text-foreground">
-                          {sessionData?.user.email ?? 'Signed in'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {meQuery.data?.isGlobalAdmin ? 'Admin' : 'Vault member'}
-                        </p>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
+                    <button
+                      type="button"
+                      aria-label="Open account menu"
+                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
+                    >
+                      <UserCircle2 className="size-5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="py-2">
+                      <p className="font-medium text-foreground">
+                        {sessionData?.user.email ?? 'Signed in'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {meQuery.data?.isGlobalAdmin ? 'Admin' : 'Vault member'}
+                      </p>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <NavLink to="/settings">
+                        <Settings className="size-4 text-primary" />
+                        Account settings
+                      </NavLink>
+                    </DropdownMenuItem>
+                    {meQuery.data?.isGlobalAdmin ? (
                       <DropdownMenuItem asChild>
-                        <NavLink to="/settings">
-                          <Settings className="size-4 text-primary" />
-                          Account settings
+                        <NavLink to="/admin">
+                          <ShieldCheck className="size-4 text-primary" />
+                          Admin
                         </NavLink>
                       </DropdownMenuItem>
-                      {meQuery.data?.isGlobalAdmin ? (
-                        <DropdownMenuItem asChild>
-                          <NavLink to="/admin">
-                            <ShieldCheck className="size-4 text-primary" />
-                            Admin
-                          </NavLink>
-                        </DropdownMenuItem>
-                      ) : null}
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          void authClient.signOut();
-                        }}
-                      >
-                        <LogOut className="size-4 text-primary" />
-                        Sign out
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                    ) : null}
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        void authClient.signOut();
+                      }}
+                    >
+                      <LogOut className="size-4 text-primary" />
+                      Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <nav className="flex gap-2 overflow-x-auto lg:hidden">
@@ -498,6 +496,7 @@ export function AppShell({ children }: PropsWithChildren) {
             </div>
           </header>
 
+          {breadcrumbs.length > 1 ? (
           <nav aria-label="Breadcrumb" className="min-w-0 overflow-hidden pt-2">
             <ol className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
               {breadcrumbs.map((item, index) => {
@@ -526,6 +525,7 @@ export function AppShell({ children }: PropsWithChildren) {
               })}
             </ol>
           </nav>
+          ) : null}
 
           <main className="flex-1 pb-12">{children}</main>
         </div>

@@ -191,6 +191,7 @@ export function DocumentLibraryRow({
   snippet,
   vaultId,
   documentId,
+  documentLink,
   onDelete,
   deleteDisabled,
 }: {
@@ -204,10 +205,11 @@ export function DocumentLibraryRow({
   snippet?: ReactNode;
   vaultId: string;
   documentId: string;
+  documentLink?: string;
   onDelete?: () => void;
   deleteDisabled?: boolean;
 }) {
-  const documentLink = `/vaults/${vaultId}/documents/${documentId}`;
+  const detailLink = documentLink ?? `/vaults/${vaultId}/documents/${documentId}`;
   const downloadHref = `/api/vaults/${vaultId}/documents/${documentId}/download`;
 
   return (
@@ -216,7 +218,7 @@ export function DocumentLibraryRow({
         <FileTypeIcon name={name} mimeType={mimeType} />
         <div className="min-w-0">
           <Link
-            to={documentLink}
+            to={detailLink}
             className="block truncate text-base font-semibold text-foreground transition hover:text-primary"
           >
             {name}
@@ -250,7 +252,7 @@ export function DocumentLibraryRow({
       <div className="flex justify-start md:justify-end">
         <DocumentActionsMenu
           documentName={name}
-          documentLink={documentLink}
+          documentLink={detailLink}
           downloadHref={downloadHref}
           onDelete={onDelete}
           deleteDisabled={deleteDisabled}

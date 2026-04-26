@@ -421,7 +421,7 @@ export function AllDocumentsPage() {
   return (
     <section className="space-y-8 pb-8">
       <PageIntro
-        title="Documents"
+        title="All Documents"
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -850,45 +850,46 @@ export function AllDocumentsPage() {
                   <DocumentLibraryHeader />
 
                   <div className="divide-y divide-border/70">
-                    {group.documents.map((document) => (
+                    {group.documents.map((result) => (
                       <DocumentLibraryRow
-                        key={document.documentId}
-                        name={document.name}
-                        mimeType={document.mimeType}
-                        originalName={document.originalName}
-                        originalSize={document.originalSize}
-                        createdAt={document.createdAt}
-                        updatedAt={document.updatedAt}
-                        tags={document.tags}
+                        key={result.documentId}
+                        name={result.name}
+                        originalName={result.originalName}
+                        mimeType={result.mimeType}
+                        originalSize={result.originalSize}
+                        createdAt={result.createdAt}
+                        updatedAt={result.updatedAt}
+                        tags={result.tags}
                         snippet={
-                          debouncedQuery.length > 0 && document.bestChunk
-                            ? tokenizeSnippet(document.bestChunk.snippet).map((part) =>
+                          debouncedQuery.length > 0 && result.bestChunk
+                            ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
                                 part.highlighted ? (
                                   <mark
-                                    key={`${document.documentId}-${part.key}`}
+                                    key={`${result.documentId}-${part.key}`}
                                     className="rounded-md bg-accent px-1.5 py-0.5 text-foreground"
                                   >
                                     {part.text}
                                   </mark>
                                 ) : (
-                                  <span key={`${document.documentId}-${part.key}`}>
+                                  <span key={`${result.documentId}-${part.key}`}>
                                     {part.text}
                                   </span>
                                 ),
                               )
                             : undefined
                         }
-                        vaultId={document.vaultId}
-                        documentId={document.documentId}
-                        deleteDisabled={deleteMutation.isPending}
+                        vaultId={result.vaultId}
+                        documentId={result.documentId}
+                        documentLink={`/documents/${result.vaultId}/${result.documentId}`}
                         onDelete={() => {
                           setStatusMessage(null);
                           setErrorMessage(null);
                           deleteMutation.mutate({
-                            vaultId: document.vaultId,
-                            documentId: document.documentId,
+                            vaultId: result.vaultId,
+                            documentId: result.documentId,
                           });
                         }}
+                        deleteDisabled={deleteMutation.isPending}
                       />
                     ))}
                   </div>

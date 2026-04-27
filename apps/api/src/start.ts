@@ -8,8 +8,9 @@ import { createStorageDriver } from './modules/storage/storage.services.js';
 import { setupDatabase } from './modules/database/database.js';
 import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
-import { createDoclingClient } from './modules/docling/docling.client.js';
-import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
+import { createUnstructuredClient } from './modules/unstructured/unstructured.client.js';
+import { createUnstructuredParser } from './modules/parsing/adapters/unstructured.parser.js';
+import { renderPdfPagesToImages } from './modules/parsing/pdf-page-renderer.js';
 import {
   createRuntimeConfiguredGluedWordNormalizer,
 } from './modules/parsing/glued-word-normalizer.js';
@@ -77,28 +78,27 @@ export async function startApp() {
   const cleanups: Array<() => Promise<void>> = [];
 
   if (isWorkerMode) {
-    const doclingClient = createDoclingClient({
-      baseUrl: config.docling.url,
-      pollIntervalMs: config.docling.pollIntervalMs,
-      maxWaitMs: config.docling.maxWaitMs,
-      convertOptions: {
-        toFormats: config.docling.outputFormat,
-        doOcr: config.docling.doOcr,
-        ocrEngine: config.docling.ocrEngine,
-        ocrLang: config.docling.ocrLanguages,
-        forceFullPageOcr: config.docling.forceFullPageOcr,
-        bitmapAreaThreshold: config.docling.bitmapAreaThreshold,
-        tableMode: config.docling.tableMode,
-        abortOnError: config.docling.abortOnError,
+    const unstructuredClient = createUnstructuredClient({
+      baseUrl: config.unstructured.url,
+      apiKey: config.unstructured.apiKey,
+      partitionOptions: {
+        strategy: config.unstructured.strategy,
+        languages: config.unstructured.languages,
+        inferTableStructure: config.unstructured.inferTableStructure,
+        extractImageBlockTypes: config.unstructured.extractImageBlockTypes,
+        splitPdfPage: config.unstructured.splitPdfPage,
+        splitPdfAllowFailed: config.unstructured.splitPdfAllowFailed,
+        splitPdfConcurrencyLevel: config.unstructured.splitPdfConcurrencyLevel,
+        splitPdfBatchSize: config.unstructured.splitPdfBatchSize,
       },
     });
-    const doclingParser = createDoclingParser({
-      doclingClient,
-      engineVersion: config.docling.engineVersion,
+    const unstructuredParser = createUnstructuredParser({
+      unstructuredClient,
+      engineVersion: config.unstructured.engineVersion,
     });
     const parserRegistry = createParserRegistry({
-      parsers: [doclingParser],
-      defaultEngine: config.parsers.defaultEngine,
+      parsers: [unstructuredParser],
+      defaultEngine: 'unstructured',
     });
     const textCleaner =
       config.parsers.textCleanup === 'deterministic'
@@ -114,6 +114,7 @@ export async function startApp() {
           minTokenLength: settings.minTokenLength,
           maxCandidates: settings.maxCandidates,
           batchSize: settings.batchSize,
+          maxInputChars: config.ollama.aiNormalizationMaxInputChars,
           logRequests: config.ollama.logRequests,
         };
       },
@@ -127,6 +128,18 @@ export async function startApp() {
               model: settings.model,
               logRequests: config.ollama.logRequests,
             };
+          },
+          loadImages: async (input, raw) => {
+            if (raw.engine !== 'unstructured') {
+              return [];
+            }
+
+            return await renderPdfPagesToImages({
+              fileName: input.fileName,
+              mimeType: input.mimeType,
+              fileData: input.fileData,
+              maxPages: 8,
+            });
           },
         })
       : undefined;
@@ -165,13 +178,13 @@ export async function startApp() {
 
     console.info('Document processing worker started');
     console.info(
-      `OCR whitespace normalization: runtime-configured via admin settings (env defaults: ${config.parsers.gluedWordNormalization}, ${config.ollama.model} @ ${config.ollama.host})`,
+      `AI OCR normalization: runtime-configured via admin settings (env defaults: ${config.parsers.gluedWordNormalization}, ${config.ollama.model} @ ${config.ollama.host})`,
     );
     console.info(
       `Empty-text fallback: ${config.parsers.emptyTextFallback === 'ollama_vision' ? `Ollama vision (${config.ollama.model} @ ${config.ollama.host})` : 'disabled'}`,
     );
     console.info(
-      `Document parser: ${config.parsers.defaultEngine} via Docling ${config.docling.url} (${config.docling.ocrEngine}, OCR languages ${config.docling.ocrLanguages.join('+')}, full-page OCR ${config.docling.forceFullPageOcr ? 'on' : 'off'})`,
+      `Document parser: Unstructured ${config.unstructured.url} (${config.unstructured.strategy}, languages ${config.unstructured.languages.join('+')})`,
     );
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,

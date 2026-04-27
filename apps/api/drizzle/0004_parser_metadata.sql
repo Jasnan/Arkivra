@@ -1,5 +1,5 @@
 -- Parser-engine provenance + RAG-ready chunk metadata
--- Phase 1: decoupling ingestion from Docling.
+-- Phase 1: decoupling ingestion from a single parser implementation.
 
 ALTER TABLE "documents"
   ADD COLUMN IF NOT EXISTS "markdown_content" text NOT NULL DEFAULT '',

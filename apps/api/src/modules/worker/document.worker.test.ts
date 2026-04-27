@@ -10,15 +10,15 @@ import { createDeterministicTextCleaner } from '../parsing/text-cleaner.js';
 
 /**
  * These tests exercise the engine-agnostic worker pipeline. The worker must
- * only know about ParsePipeline — never Docling-specific fields. If this
+ * only know about ParsePipeline — never parser-specific fields. If this
  * file ever reintroduces `md_content` / `text_content` / `task_status` it
  * means the worker has regressed into parser coupling.
  */
 
 function makeParserOutput(overrides: Partial<ParserOutput> = {}): ParserOutput {
   return {
-    engine: 'docling',
-    engineVersion: 'v1',
+    engine: 'unstructured',
+    engineVersion: 'api-v1',
     text: 'Title\nParagraph one.\nSection\nParagraph two.',
     markdown: '# Title\n\nParagraph one.\n\n## Section\n\nParagraph two.',
     warnings: [],
@@ -54,15 +54,15 @@ function createMockDeps() {
   const parseMock = vi.fn(async (_input: ParseInput) => makeParserOutput());
 
   const parser: DocumentParser = {
-    engine: 'docling',
-    engineVersion: 'v1',
+    engine: 'unstructured',
+    engineVersion: 'api-v1',
     capabilities: { ocr: true, tables: true, supportedMimeTypes: 'any' },
     parse: parseMock,
   };
 
   const parserRegistry = createParserRegistry({
     parsers: [parser],
-    defaultEngine: 'docling',
+    defaultEngine: 'unstructured',
   });
 
   const pipeline = createParsePipeline({
@@ -123,8 +123,8 @@ describe('document worker pipeline', () => {
     const { parsed } = await runPipeline(deps);
 
     expect(deps.parseMock).toHaveBeenCalledTimes(1);
-    expect(parsed.engine).toBe('docling');
-    expect(parsed.engineVersion).toBe('v1');
+    expect(parsed.engine).toBe('unstructured');
+    expect(parsed.engineVersion).toBe('api-v1');
     expect(parsed.chunks.length).toBeGreaterThanOrEqual(2);
     for (const chunk of parsed.chunks) {
       expect(chunk.id.startsWith('doc_1:')).toBe(true);

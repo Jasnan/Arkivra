@@ -15,6 +15,7 @@ import {
   createRuntimeConfiguredGluedWordNormalizer,
 } from './modules/parsing/glued-word-normalizer.js';
 import { createRuntimeConfiguredOllamaChunkSummariser } from './modules/parsing/ollama-chunk-summariser.js';
+import { createRuntimeConfiguredOllamaEmbedder } from './modules/parsing/ollama-embedder.js';
 import { createRuntimeConfiguredOllamaVisionTextFallback } from './modules/parsing/ollama-vision-text-fallback.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
@@ -163,11 +164,24 @@ export async function startApp() {
       emptyTextFallback,
       chunkSummariser,
     });
+    const chunkEmbedder = createRuntimeConfiguredOllamaEmbedder({
+      resolveSettings: async () => {
+        const settings = await adminAiServices.getIngestionSettings();
+        return {
+          enabled: settings.embeddingEnabled,
+          host: settings.embeddingHost,
+          model: settings.embeddingModel,
+          dimensions: settings.embeddingDimensions,
+          logRequests: config.ollama.logRequests,
+        };
+      },
+    });
     const documentWorker = createDocumentWorker({
       db,
       storage,
       encryption,
       parsePipeline,
+      chunkEmbedder,
       connection: redis,
     });
     const maintenanceWorker = createMaintenanceWorker({

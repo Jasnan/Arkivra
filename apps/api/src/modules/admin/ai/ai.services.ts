@@ -49,6 +49,10 @@ function createDefaultIngestionSettings(config: Config) {
     summarisationHost: config.ollama.host,
     summarisationModel: 'gemma4:e2b',
     summarisationMaxImagesPerChunk: 4,
+    embeddingEnabled: false,
+    embeddingHost: config.ollama.host,
+    embeddingModel: 'nomic-embed-text',
+    embeddingDimensions: 768,
   };
 }
 
@@ -102,6 +106,10 @@ export function createAdminAiServices({
       summarisationHost: stored.ollamaHost,
       summarisationModel: stored.ollamaSummarisationModel,
       summarisationMaxImagesPerChunk: stored.ollamaSummarisationMaxImagesPerChunk,
+      embeddingEnabled: stored.ollamaEmbeddingEnabled,
+      embeddingHost: stored.ollamaHost,
+      embeddingModel: stored.ollamaEmbeddingModel,
+      embeddingDimensions: stored.ollamaEmbeddingDimensions,
     };
   }
 

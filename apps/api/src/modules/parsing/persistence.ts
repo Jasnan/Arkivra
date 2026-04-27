@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { ParsedChunk, ParsedDocument } from './parsed-document.schema.js';
+import type { ChunkEmbedder } from './ollama-embedder.js';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
@@ -57,6 +58,11 @@ function tableStorageKey({
 }
 
 type AssetRow = typeof documentChunkAssetsTable.$inferInsert;
+type DatabaseTransaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+function vectorToSqlLiteral(vector: number[]) {
+  return `[${vector.join(',')}]`;
+}
 
 async function buildImageAssetRow({
   chunk,
@@ -215,6 +221,7 @@ export async function persistParsedDocument({
   db,
   storage,
   encryption,
+  embedder,
   documentId,
   vaultId,
   parsed,
@@ -222,104 +229,149 @@ export async function persistParsedDocument({
   db: Database;
   storage: StorageDriver;
   encryption: EncryptionServices;
+  embedder?: ChunkEmbedder;
   documentId: string;
   vaultId: string;
   parsed: ParsedDocument;
 }) {
-  // Replace all existing chunks + assets for idempotent re-processing.
-  // Asset rows would also cascade-delete via the chunk FK, but explicit
-  // deletes give us a deterministic ordering and let us drop stale rows
-  // even when the chunk count shrinks.
-  await db
-    .delete(documentChunkAssetsTable)
-    .where(eq(documentChunkAssetsTable.documentId, documentId));
-  await db.delete(documentChunksTable).where(eq(documentChunksTable.documentId, documentId));
+  await db.transaction(async (tx) => {
+    // Replace all existing chunks + assets for idempotent re-processing.
+    // Asset rows would also cascade-delete via the chunk FK, but explicit
+    // deletes give us a deterministic ordering and let us drop stale rows
+    // even when the chunk count shrinks.
+    await tx
+      .delete(documentChunkAssetsTable)
+      .where(eq(documentChunkAssetsTable.documentId, documentId));
+    await tx.delete(documentChunksTable).where(eq(documentChunksTable.documentId, documentId));
 
-  if (parsed.chunks.length > 0) {
-    const insertedChunks = await db
-      .insert(documentChunksTable)
-      .values(
-        parsed.chunks.map((chunk, index) => ({
-          documentId,
-          vaultId,
-          chunkIndex: index,
-          chunkKey: chunk.id,
-          // Phase 3 will populate enhancedContent; for now `text`
-          // already equals enhancedContent ?? originalText (the chunker
-          // sets `text = originalText`), so we can persist it directly.
-          content: chunk.text,
-          section: chunk.section,
-          pageNumber: chunk.pageNumber,
-          chunkType: chunk.type,
-          tokenCount:
-            typeof chunk.metadata.tokenCount === 'number' ? chunk.metadata.tokenCount : null,
-          parserEngine: parsed.engine,
-          metadata: chunk.metadata,
-          pageStart: chunk.pageStart,
-          pageEnd: chunk.pageEnd,
-          boundingBoxes: chunk.boundingBoxes,
-          sourceElementIds: chunk.sourceElementIds,
-          parentElementId: chunk.parentElementId,
-          originalText: chunk.originalText,
-          tablesHtml: chunk.tablesHtml,
-          citationPrecision: chunk.citationPrecision,
-        })),
-      )
-      .returning({ id: documentChunksTable.id, chunkKey: documentChunksTable.chunkKey });
-
-    const chunkIdByKey = new Map(insertedChunks.map(row => [row.chunkKey, row.id]));
-
-    const assetRows: AssetRow[] = [];
-    for (const chunk of parsed.chunks) {
-      const chunkId = chunkIdByKey.get(chunk.id);
-      if (chunkId === undefined) {
-        continue;
-      }
-
-      for (let imageIndex = 0; imageIndex < chunk.images.length; imageIndex += 1) {
-        assetRows.push(
-          await buildImageAssetRow({
-            chunk,
-            chunkId,
+    if (parsed.chunks.length > 0) {
+      const insertedChunks = await tx
+        .insert(documentChunksTable)
+        .values(
+          parsed.chunks.map((chunk, index) => ({
             documentId,
             vaultId,
-            imageIndex,
-            storage,
-            encryption,
-          }),
-        );
+            chunkIndex: index,
+            chunkKey: chunk.id,
+            content: chunk.text,
+            section: chunk.section,
+            pageNumber: chunk.pageNumber,
+            chunkType: chunk.type,
+            tokenCount:
+              typeof chunk.metadata.tokenCount === 'number' ? chunk.metadata.tokenCount : null,
+            parserEngine: parsed.engine,
+            metadata: chunk.metadata,
+            pageStart: chunk.pageStart,
+            pageEnd: chunk.pageEnd,
+            boundingBoxes: chunk.boundingBoxes,
+            sourceElementIds: chunk.sourceElementIds,
+            parentElementId: chunk.parentElementId,
+            originalText: chunk.originalText,
+            tablesHtml: chunk.tablesHtml,
+            citationPrecision: chunk.citationPrecision,
+          })),
+        )
+        .returning({ id: documentChunksTable.id, chunkKey: documentChunksTable.chunkKey });
+
+      const chunkIdByKey = new Map(insertedChunks.map(row => [row.chunkKey, row.id]));
+
+      const assetRows: AssetRow[] = [];
+      for (const chunk of parsed.chunks) {
+        const chunkId = chunkIdByKey.get(chunk.id);
+        if (chunkId === undefined) {
+          continue;
+        }
+
+        for (let imageIndex = 0; imageIndex < chunk.images.length; imageIndex += 1) {
+          assetRows.push(
+            await buildImageAssetRow({
+              chunk,
+              chunkId,
+              documentId,
+              vaultId,
+              imageIndex,
+              storage,
+              encryption,
+            }),
+          );
+        }
+
+        for (let tableIndex = 0; tableIndex < chunk.tablesHtml.length; tableIndex += 1) {
+          assetRows.push(
+            await buildTableAssetRow({
+              chunk,
+              chunkId,
+              documentId,
+              vaultId,
+              tableIndex,
+              storage,
+              encryption,
+            }),
+          );
+        }
       }
 
-      for (let tableIndex = 0; tableIndex < chunk.tablesHtml.length; tableIndex += 1) {
-        assetRows.push(
-          await buildTableAssetRow({
-            chunk,
-            chunkId,
-            documentId,
-            vaultId,
-            tableIndex,
-            storage,
-            encryption,
-          }),
-        );
+      if (assetRows.length > 0) {
+        await tx.insert(documentChunkAssetsTable).values(assetRows);
+      }
+
+      if (embedder !== undefined) {
+        const embeddings = await embedder.embed(parsed.chunks.map(chunk => chunk.text));
+        if (embeddings.length > 0) {
+          if (embeddings.length !== parsed.chunks.length) {
+            throw new Error(
+              `Embedder returned ${embeddings.length} vectors for ${parsed.chunks.length} chunks`,
+            );
+          }
+
+          await writeChunkEmbeddings({
+            tx,
+            chunkIds: parsed.chunks.map((chunk) => {
+              const chunkId = chunkIdByKey.get(chunk.id);
+              if (chunkId === undefined) {
+                throw new Error(`Inserted chunk id missing for ${chunk.id}`);
+              }
+
+              return chunkId;
+            }),
+            embeddings,
+          });
+        }
       }
     }
 
-    if (assetRows.length > 0) {
-      await db.insert(documentChunkAssetsTable).values(assetRows);
-    }
+    await tx
+      .update(documentsTable)
+      .set({
+        content: parsed.text,
+        rawText: parsed.rawText,
+        parserEngine: parsed.engine,
+        parserEngineVersion: parsed.engineVersion,
+        parserWarnings: parsed.warnings,
+        processingStatus: 'completed',
+        updatedAt: new Date(),
+      })
+      .where(eq(documentsTable.id, documentId));
+  });
+}
+
+async function writeChunkEmbeddings({
+  tx,
+  chunkIds,
+  embeddings,
+}: {
+  tx: DatabaseTransaction;
+  chunkIds: string[];
+  embeddings: number[][];
+}) {
+  for (let index = 0; index < chunkIds.length; index += 1) {
+    const chunkId = chunkIds[index]!;
+    const embedding = embeddings[index]!;
+
+    await tx.execute(
+      sql`UPDATE document_chunks
+          SET embedding = ${vectorToSqlLiteral(embedding)}::vector
+          WHERE id = ${chunkId}`,
+    );
   }
-
-  await db
-    .update(documentsTable)
-    .set({
-      content: parsed.text,
-      rawText: parsed.rawText,
-      parserEngine: parsed.engine,
-      parserEngineVersion: parsed.engineVersion,
-      parserWarnings: parsed.warnings,
-      processingStatus: 'completed',
-      updatedAt: new Date(),
-    })
-    .where(eq(documentsTable.id, documentId));
 }

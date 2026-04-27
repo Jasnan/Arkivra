@@ -4,6 +4,7 @@ import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ParsePipeline } from '../parsing/parse-pipeline.js';
+import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
 import type { ProcessDocumentJobData } from './queue.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
 import { Worker } from 'bullmq';
@@ -17,11 +18,12 @@ export type DocumentWorkerDeps = {
   storage: StorageDriver;
   encryption: EncryptionServices;
   parsePipeline: ParsePipeline;
+  chunkEmbedder?: ChunkEmbedder;
   connection: Redis;
 };
 
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
-  const { db, storage, encryption, parsePipeline, connection } = deps;
+  const { db, storage, encryption, parsePipeline, chunkEmbedder, connection } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
 
   async function updateRelatedUploadSession({
@@ -113,6 +115,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         db,
         storage,
         encryption,
+        embedder: chunkEmbedder,
         documentId,
         vaultId,
         parsed,

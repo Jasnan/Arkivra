@@ -13,6 +13,10 @@ export type PdfPageRenderOptions = {
   maxDimension?: number;
 };
 
+export type PdfSinglePageRenderOptions = Omit<PdfPageRenderOptions, 'maxPages'> & {
+  pageNumber: number;
+};
+
 function isPdfFile({ mimeType, fileName }: { mimeType: string; fileName: string }) {
   return mimeType.toLowerCase() === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
 }
@@ -76,33 +80,92 @@ export async function renderPdfPagesToImages({
     const images: EmbeddedImage[] = [];
 
     for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
-      const page = await document.getPage(pageNumber);
-      const baseViewport = page.getViewport({ scale: 1 });
-      const effectiveScale = resolveScale({
-        width: baseViewport.width,
-        height: baseViewport.height,
+      const renderedPage = await renderPdfPage({
+        document,
+        pageNumber,
         scale,
-        maxDimension: clampPositiveInteger(maxDimension, 1800),
-      });
-      const viewport = page.getViewport({ scale: effectiveScale });
-      const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-      const context = canvas.getContext('2d');
-
-      await page.render({
-        canvas,
-        canvasContext: context,
-        viewport,
-      } as unknown as Parameters<typeof page.render>[0]).promise;
-
-      images.push({
-        mimeType: 'image/png',
-        data: Buffer.from(await canvas.encode('png')),
+        maxDimension,
       });
 
-      page.cleanup();
+      if (renderedPage !== null) {
+        images.push(renderedPage);
+      }
     }
 
     return images;
+  } finally {
+    await document.destroy();
+  }
+}
+
+async function renderPdfPage({
+  document,
+  pageNumber,
+  scale,
+  maxDimension,
+}: {
+  document: Awaited<ReturnType<typeof getDocument>>['promise'] extends Promise<infer T> ? T : never;
+  pageNumber: number;
+  scale: number;
+  maxDimension: number;
+}) {
+  if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > document.numPages) {
+    return null;
+  }
+
+  const page = await document.getPage(pageNumber);
+  const baseViewport = page.getViewport({ scale: 1 });
+  const effectiveScale = resolveScale({
+    width: baseViewport.width,
+    height: baseViewport.height,
+    scale,
+    maxDimension: clampPositiveInteger(maxDimension, 1800),
+  });
+  const viewport = page.getViewport({ scale: effectiveScale });
+  const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+  const context = canvas.getContext('2d');
+
+  await page.render({
+    canvas,
+    canvasContext: context,
+    viewport,
+  } as unknown as Parameters<typeof page.render>[0]).promise;
+
+  const result = {
+    mimeType: 'image/png',
+    data: Buffer.from(await canvas.encode('png')),
+  } satisfies EmbeddedImage;
+
+  page.cleanup();
+  return result;
+}
+
+export async function renderPdfPageToImage({
+  fileData,
+  fileName,
+  mimeType,
+  pageNumber,
+  scale = 2,
+  maxDimension = 1800,
+}: PdfSinglePageRenderOptions): Promise<EmbeddedImage | null> {
+  if (!isPdfFile({ mimeType, fileName })) {
+    return null;
+  }
+
+  installPdfJsCanvasGlobals();
+
+  const loadingTask = getDocument({
+    data: new Uint8Array(fileData),
+  });
+  const document = await loadingTask.promise;
+
+  try {
+    return await renderPdfPage({
+      document,
+      pageNumber,
+      scale,
+      maxDimension,
+    });
   } finally {
     await document.destroy();
   }

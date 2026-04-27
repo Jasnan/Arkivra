@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { describe, expect, test } from 'vitest';
-import { renderPdfPagesToImages } from './pdf-page-renderer.js';
+import { renderPdfPageToImage, renderPdfPagesToImages } from './pdf-page-renderer.js';
 
 async function createPdf(pageCount: number) {
   const pdf = await PDFDocument.create();
@@ -41,5 +41,18 @@ describe('PDF page renderer', () => {
     });
 
     expect(images).toEqual([]);
+  });
+
+  test('renders a specific PDF page to PNG', async () => {
+    const image = await renderPdfPageToImage({
+      fileName: 'scan.pdf',
+      mimeType: 'application/pdf',
+      fileData: await createPdf(2),
+      pageNumber: 2,
+    });
+
+    expect(image).not.toBeNull();
+    expect(image?.mimeType).toBe('image/png');
+    expect(image?.data.length).toBeGreaterThan(100);
   });
 });

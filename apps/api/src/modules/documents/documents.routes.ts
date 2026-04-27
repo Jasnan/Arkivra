@@ -24,6 +24,27 @@ function parseSortBy(value: string | undefined) {
   return SEARCH_SORT_VALUES.includes(value as any) ? value as (typeof SEARCH_SORT_VALUES)[number] : null;
 }
 
+function parsePageNumber(value: string | undefined) {
+  if (value === undefined) {
+    return null;
+  }
+
+  const normalized = value.endsWith('.png') ? value.slice(0, -4) : value;
+  const parsed = Number.parseInt(normalized, 10);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
+}
+
+function matchesEtag(ifNoneMatch: string | null | undefined, etag: string) {
+  if (ifNoneMatch === null || ifNoneMatch === undefined) {
+    return false;
+  }
+
+  return ifNoneMatch
+    .split(',')
+    .map(value => value.trim())
+    .includes(etag);
+}
+
 export function registerDocumentRoutes({
   app,
   db,
@@ -262,6 +283,134 @@ export function registerDocumentRoutes({
           'content-type': result.mimeType,
           'content-length': String(result.fileData.length),
           'content-disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`,
+        },
+      });
+    },
+  );
+
+  app.get(
+    '/api/vaults/:vaultId/documents/:documentId/page/:pageRef',
+    requireVaultPermission('documents.download'),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const pageNumber = parsePageNumber(context.req.param('pageRef'));
+      if (pageNumber === null) {
+        return context.json(
+          { error: { code: 'document.invalid_page_number', message: 'Page number must be an integer >= 1' } },
+          400,
+        );
+      }
+
+      const documentId = context.req.param('documentId');
+      const result = await documentsServices.renderDocumentPagePreview({
+        documentId,
+        vaultId,
+        pageNumber,
+      });
+
+      if (result === null) {
+        return context.json(
+          { error: { code: 'document.not_found', message: 'Document not found' } },
+          404,
+        );
+      }
+
+      if ('error' in result) {
+        return context.json(
+          {
+            error: {
+              code: result.error === 'invalid_page_number'
+                ? 'document.invalid_page_number'
+                : 'document.page_not_available',
+              message: result.error === 'invalid_page_number'
+                ? 'Page number must be an integer >= 1'
+                : 'Page preview is not available for this document or page',
+            },
+          },
+          result.error === 'invalid_page_number' ? 400 : 404,
+        );
+      }
+
+      if (matchesEtag(context.req.header('if-none-match'), result.etag)) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            etag: result.etag,
+            'cache-control': 'private, max-age=3600',
+          },
+        });
+      }
+
+      return new Response(result.fileData, {
+        status: 200,
+        headers: {
+          'content-type': result.mimeType,
+          'content-length': String(result.fileData.length),
+          'cache-control': 'private, max-age=3600',
+          etag: result.etag,
+        },
+      });
+    },
+  );
+
+  app.get(
+    '/api/vaults/:vaultId/chunks/:chunkId/assets/:assetId',
+    requireVaultPermission('documents.download'),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const result = await documentsServices.getChunkAsset({
+        vaultId,
+        chunkId: context.req.param('chunkId'),
+        assetId: context.req.param('assetId'),
+      });
+
+      if (result === null) {
+        return context.json(
+          { error: { code: 'chunk_asset.not_found', message: 'Chunk asset not found' } },
+          404,
+        );
+      }
+
+      if (matchesEtag(context.req.header('if-none-match'), result.etag)) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            etag: result.etag,
+            'cache-control': 'private, max-age=3600',
+          },
+        });
+      }
+
+      if ('inlinePayload' in result) {
+        const payload = result.inlinePayload ?? '';
+        return new Response(payload, {
+          status: 200,
+          headers: {
+            'content-type': result.mimeType,
+            'content-length': String(Buffer.byteLength(payload, 'utf8')),
+            'cache-control': 'private, max-age=3600',
+            etag: result.etag,
+          },
+        });
+      }
+
+      return new Response(result.fileData, {
+        status: 200,
+        headers: {
+          'content-type': result.mimeType,
+          'content-length': String(result.fileData.length),
+          'cache-control': 'private, max-age=3600',
+          etag: result.etag,
         },
       });
     },

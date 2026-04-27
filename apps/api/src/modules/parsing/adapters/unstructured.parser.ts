@@ -1,6 +1,11 @@
 import type { UnstructuredClient, UnstructuredElement } from '../../unstructured/unstructured.client.js';
 import type { DocumentParser, ParseInput, ParserCapabilities } from '../parser.types.js';
-import type { ParserOutput } from '../parsed-document.schema.js';
+import type {
+  ParserOutput,
+  StructuredElement,
+  StructuredElementBbox,
+  StructuredElementType,
+} from '../parsed-document.schema.js';
 import { ParserValidationError } from '../parser.types.js';
 import { parserOutputSchema } from '../parsed-document.schema.js';
 
@@ -35,6 +40,152 @@ function isListElement(element: UnstructuredElement) {
 
 function isTableElement(element: UnstructuredElement) {
   return element.type === 'Table';
+}
+
+/**
+ * Map an Unstructured element type label onto Arkivra's structured
+ * element taxonomy. Unrecognised types fall back to `'other'` so future
+ * Unstructured releases never crash ingestion.
+ */
+function mapStructuredElementType(type: string): StructuredElementType {
+  switch (type) {
+    case 'Title': {
+      return 'title';
+    }
+    case 'NarrativeText': {
+      return 'narrative';
+    }
+    case 'ListItem': {
+      return 'list';
+    }
+    case 'Table': {
+      return 'table';
+    }
+    case 'Image':
+    case 'Figure':
+    case 'FigureCaption': {
+      return 'image';
+    }
+    default: {
+      return 'other';
+    }
+  }
+}
+
+function normalisePageNumber(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 1) {
+    return null;
+  }
+
+  return Math.trunc(value);
+}
+
+/**
+ * Convert Unstructured's polygon (`points: [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]`)
+ * into an axis-aligned bounding box. Returns `null` when any required
+ * field (points, layout dimensions, system) is missing or malformed so
+ * downstream stages can degrade `citation_precision` to `'page'`.
+ */
+function extractBbox(element: UnstructuredElement): StructuredElementBbox | null {
+  const coordinates = element.metadata.coordinates;
+  if (coordinates === null || coordinates === undefined) {
+    return null;
+  }
+
+  const points = coordinates.points;
+  if (points === undefined || points.length === 0) {
+    return null;
+  }
+
+  const layoutWidth = coordinates.layout_width;
+  const layoutHeight = coordinates.layout_height;
+  const system = coordinates.system;
+  if (
+    typeof layoutWidth !== 'number'
+    || typeof layoutHeight !== 'number'
+    || typeof system !== 'string'
+    || system.length === 0
+  ) {
+    return null;
+  }
+
+  const xs = points.map(point => point[0]);
+  const ys = points.map(point => point[1]);
+
+  return {
+    x0: Math.min(...xs),
+    y0: Math.min(...ys),
+    x1: Math.max(...xs),
+    y1: Math.max(...ys),
+    layoutWidth,
+    layoutHeight,
+    system,
+  };
+}
+
+function extractElementImage(element: UnstructuredElement): StructuredElement['image'] {
+  const imageBase64 = asString(element.metadata.image_base64);
+  if (imageBase64.length === 0) {
+    return null;
+  }
+
+  const data = Buffer.from(imageBase64, 'base64');
+  if (data.length === 0) {
+    return null;
+  }
+
+  return {
+    mimeType: asString(element.metadata.image_mime_type) || 'image/jpeg',
+    data,
+  };
+}
+
+function synthesiseElementId(element: UnstructuredElement, fallbackIndex: number) {
+  const candidate = asString(element.element_id).trim();
+  if (candidate.length > 0) {
+    return candidate;
+  }
+  return `unstructured-${fallbackIndex}`;
+}
+
+/**
+ * Walk Unstructured elements top-to-bottom and emit a provenance-rich
+ * StructuredElement[]. Section heading carry-over is computed here so
+ * the chunker can group elements without re-walking the tree.
+ */
+function buildStructuredElements(elements: UnstructuredElement[]): StructuredElement[] {
+  const result: StructuredElement[] = [];
+  let currentSection: string | null = null;
+
+  for (const [index, element] of elements.entries()) {
+    const text = element.text;
+    const type = mapStructuredElementType(element.type);
+
+    if (type === 'title') {
+      const trimmed = text.trim();
+      currentSection = trimmed.length > 0 ? trimmed : currentSection;
+    }
+
+    const tableHtml = type === 'table'
+      ? (asString(element.metadata.text_as_html).trim() || null)
+      : null;
+
+    const image = type === 'image' ? extractElementImage(element) : null;
+
+    result.push({
+      elementId: synthesiseElementId(element, index),
+      parentId: asString(element.metadata.parent_id) || null,
+      type,
+      text,
+      tableHtml,
+      image,
+      pageNumber: normalisePageNumber(element.metadata.page_number),
+      bbox: extractBbox(element),
+      section: currentSection,
+    });
+  }
+
+  return result;
 }
 
 function buildMarkdownBlock(element: UnstructuredElement) {
@@ -128,6 +279,7 @@ export function createUnstructuredParser({
       text,
       markdown,
       embeddedImages: extractEmbeddedImages(elements),
+      structuredElements: buildStructuredElements(elements),
       warnings: deriveWarnings(elements),
     };
 

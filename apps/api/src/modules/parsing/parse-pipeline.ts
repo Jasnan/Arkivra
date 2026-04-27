@@ -59,6 +59,11 @@ export function createParsePipeline({
             ...raw,
             text: fallbackResult.output.text,
             markdown: fallbackResult.output.markdown,
+            // Prefer the fallback's per-page synthesised elements when
+            // present (they carry the recovered narrative); otherwise
+            // keep whatever the parser already emitted.
+            structuredElements:
+              fallbackResult.output.structuredElements ?? raw.structuredElements,
             warnings: [...raw.warnings, ...fallbackResult.warnings],
           };
     }

@@ -35,10 +35,34 @@ export const documentChunksTable = pgTable(
     parserEngine: text('parser_engine'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
 
+    // Citation-grade provenance (added in 0009_chunk_provenance.sql).
+    pageStart: integer('page_start'),
+    pageEnd: integer('page_end'),
+    boundingBoxes: jsonb('bounding_boxes').$type<ChunkBoundingBox[]>(),
+    sourceElementIds: jsonb('source_element_ids').$type<string[]>(),
+    parentElementId: text('parent_element_id'),
+    originalText: text('original_text'),
+    tablesHtml: jsonb('tables_html').$type<string[]>(),
+    citationPrecision: text('citation_precision').notNull().default('document'),
+
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
     unique('document_chunks_doc_index_unique').on(table.documentId, table.chunkIndex),
     index('document_chunks_vault_doc_idx').on(table.vaultId, table.documentId),
+    index('document_chunks_page_idx').on(table.documentId, table.pageStart, table.pageEnd),
   ],
 );
+
+export type ChunkBoundingBox = {
+  pageNumber: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  layoutWidth: number;
+  layoutHeight: number;
+  system: string;
+};
+
+export type ChunkCitationPrecision = 'box' | 'page' | 'document';

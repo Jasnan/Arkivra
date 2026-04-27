@@ -57,6 +57,34 @@
       "when": 1776802800000,
       "tag": "0007_instance_ai_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776892800000,
+      "tag": "0008_drop_markdown_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776982800000,
+      "tag": "0009_chunk_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777072800000,
+      "tag": "0010_chunk_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777162800000,
+      "tag": "0011_summarisation_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -52,6 +52,44 @@ export type SearchResultPage = {
   };
 };
 
+export type CitationBoundingBox = {
+  pageNumber: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  layoutWidth: number;
+  layoutHeight: number;
+  system: string;
+};
+
+export type CitationAssetType = 'text' | 'table' | 'image';
+
+export type Citation = {
+  chunkId: string;
+  documentId: string;
+  documentName: string;
+  pageStart: number | null;
+  pageEnd: number | null;
+  section: string | null;
+  snippet: string;
+  boundingBoxes: CitationBoundingBox[];
+  citationPrecision: 'box' | 'page' | 'document';
+  assetType: CitationAssetType;
+  tablesHtml: string[];
+  imageAssetIds: string[];
+  score: number;
+};
+
+export type HybridSearchMode = 'hybrid' | 'fts';
+
+export type HybridSearchResult = {
+  query: string;
+  limit: number;
+  mode: HybridSearchMode;
+  citations: Citation[];
+};
+
 export type DocumentSearchServices = {
   name: string;
   searchDocuments: (args: {
@@ -66,4 +104,10 @@ export type DocumentSearchServices = {
     dateTo?: Date | null;
     sortBy?: SearchSortBy;
   }) => Promise<SearchResultPage>;
+  searchHybrid: (args: {
+    vaultId: string;
+    query: string;
+    limit: number;
+    mode?: HybridSearchMode;
+  }) => Promise<HybridSearchResult>;
 };

@@ -37,6 +37,7 @@ import { registerAdminUserRoutes } from '../admin/users/users.routes.js';
 import { registerAdminVaultRoutes } from '../admin/vaults/vaults.routes.js';
 import { registerAdminAiRoutes } from '../admin/ai/ai.routes.js';
 import { createAdminAiServices } from '../admin/ai/ai.services.js';
+import { createRuntimeConfiguredOllamaEmbedder } from '../parsing/ollama-embedder.js';
 
 export function createServer({
   config,
@@ -64,6 +65,18 @@ export function createServer({
   const authzServices = authorizationServices ?? createAuthorizationServices({ db });
   const aiServices = adminAiServices ?? createAdminAiServices({ db, config });
   const documentsServices = createDocumentsServices({ db, storage, encryption });
+  const searchChunkEmbedder = createRuntimeConfiguredOllamaEmbedder({
+    resolveSettings: async () => {
+      const settings = await aiServices.getIngestionSettings();
+      return {
+        enabled: settings.embeddingEnabled,
+        host: settings.embeddingHost,
+        model: settings.embeddingModel,
+        dimensions: settings.embeddingDimensions,
+        logRequests: config.ollama.logRequests,
+      };
+    },
+  });
 
   app.use(
     cors({
@@ -128,7 +141,7 @@ export function createServer({
     documentsServices,
     documentQueue,
   });
-  registerSearchRoutes({ app, db });
+  registerSearchRoutes({ app, db, chunkEmbedder: searchChunkEmbedder });
   registerTagRoutes({ app, db });
   registerBackupRoutes({ app, config, backupQueue, backupServices });
   registerAdminUserRoutes({ app, authorizationServices: authzServices });

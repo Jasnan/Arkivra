@@ -1,5 +1,15 @@
 import type { Database } from '../database/database.js';
-import type { DocumentSearchServices, SearchResultItem, SearchResultTag, SearchSortBy } from './search.types.js';
+import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
+import type {
+  Citation,
+  CitationAssetType,
+  CitationBoundingBox,
+  DocumentSearchServices,
+  HybridSearchMode,
+  SearchResultItem,
+  SearchResultTag,
+  SearchSortBy,
+} from './search.types.js';
 import { sql } from 'drizzle-orm';
 
 type SearchRow = {
@@ -28,6 +38,21 @@ type SearchRow = {
 
 type CountRow = {
   results_count: number;
+};
+
+type HybridSearchRow = {
+  chunk_id: string;
+  document_id: string;
+  document_name: string;
+  page_start: number | null;
+  page_end: number | null;
+  section: string | null;
+  snippet: string | null;
+  bounding_boxes: unknown;
+  citation_precision: string;
+  tables_html: unknown;
+  image_asset_ids: unknown;
+  score: number | string | null;
 };
 
 function parseTagsJson(value: string | null | undefined): SearchResultTag[] {
@@ -165,7 +190,72 @@ function createEmptyResponse({
   };
 }
 
-export function createDocumentSearchServices({ db }: { db: Database }): DocumentSearchServices {
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => typeof item === 'string' ? [item] : []);
+}
+
+function parseBoundingBoxes(value: unknown): CitationBoundingBox[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (
+      typeof item !== 'object'
+      || item === null
+      || typeof (item as { pageNumber?: unknown }).pageNumber !== 'number'
+      || typeof (item as { x0?: unknown }).x0 !== 'number'
+      || typeof (item as { y0?: unknown }).y0 !== 'number'
+      || typeof (item as { x1?: unknown }).x1 !== 'number'
+      || typeof (item as { y1?: unknown }).y1 !== 'number'
+      || typeof (item as { layoutWidth?: unknown }).layoutWidth !== 'number'
+      || typeof (item as { layoutHeight?: unknown }).layoutHeight !== 'number'
+      || typeof (item as { system?: unknown }).system !== 'string'
+    ) {
+      return [];
+    }
+
+    return [item as CitationBoundingBox];
+  });
+}
+
+function parseCitationPrecision(value: string): Citation['citationPrecision'] {
+  return value === 'box' || value === 'page' || value === 'document' ? value : 'document';
+}
+
+function buildVectorLiteral(vector: number[]) {
+  return `[${vector.join(',')}]`;
+}
+
+function inferAssetType({
+  tablesHtml,
+  imageAssetIds,
+}: {
+  tablesHtml: string[];
+  imageAssetIds: string[];
+}): CitationAssetType {
+  if (imageAssetIds.length > 0) {
+    return 'image';
+  }
+
+  if (tablesHtml.length > 0) {
+    return 'table';
+  }
+
+  return 'text';
+}
+
+export function createDocumentSearchServices({
+  db,
+  chunkEmbedder,
+}: {
+  db: Database;
+  chunkEmbedder?: ChunkEmbedder;
+}): DocumentSearchServices {
   async function searchDocuments({
     vaultId,
     vaultIds,
@@ -635,8 +725,209 @@ export function createDocumentSearchServices({ db }: { db: Database }): Document
     };
   }
 
+  async function searchHybrid({
+    vaultId,
+    query,
+    limit,
+    mode = 'hybrid',
+  }: {
+    vaultId: string;
+    query: string;
+    limit: number;
+    mode?: HybridSearchMode;
+  }) {
+    const trimmedQuery = query.trim();
+    const normalizedLimit = Math.min(Math.max(limit, 1), 50);
+
+    if (trimmedQuery.length === 0) {
+      return {
+        query: trimmedQuery,
+        limit: normalizedLimit,
+        mode,
+        citations: [],
+      };
+    }
+
+    let queryEmbedding: number[] | null = null;
+    let effectiveMode: HybridSearchMode = mode;
+
+    if (mode !== 'fts' && chunkEmbedder !== undefined) {
+      try {
+        const vectors = await chunkEmbedder.embed([trimmedQuery]);
+        queryEmbedding = vectors[0] ?? null;
+      } catch {
+        queryEmbedding = null;
+      }
+    }
+
+    if (queryEmbedding === null) {
+      effectiveMode = 'fts';
+    }
+
+    const result =
+      queryEmbedding === null
+        ? await db.execute<HybridSearchRow>(sql`
+            WITH search_query AS (
+              SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+            ),
+            fts_ranked AS (
+              SELECT
+                dc.id,
+                row_number() OVER (
+                  ORDER BY ts_rank_cd(dc.tsv, search_query.query) DESC, dc.chunk_index ASC, dc.id ASC
+                )::int AS fts_rank
+              FROM document_chunks AS dc
+              CROSS JOIN search_query
+              INNER JOIN documents AS d ON d.id = dc.document_id
+              WHERE dc.vault_id = ${vaultId}
+                AND d.vault_id = ${vaultId}
+                AND d.is_deleted = false
+                AND dc.tsv @@ search_query.query
+              ORDER BY ts_rank_cd(dc.tsv, search_query.query) DESC, dc.chunk_index ASC, dc.id ASC
+              LIMIT 50
+            )
+            SELECT
+              dc.id AS chunk_id,
+              dc.document_id,
+              d.name AS document_name,
+              dc.page_start,
+              dc.page_end,
+              dc.section,
+              COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
+              COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
+              dc.citation_precision,
+              COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
+              COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
+              (1.0 / (60 + fts_ranked.fts_rank))::float8 AS score
+            FROM fts_ranked
+            INNER JOIN document_chunks AS dc ON dc.id = fts_ranked.id
+            INNER JOIN documents AS d ON d.id = dc.document_id
+            LEFT JOIN LATERAL (
+              SELECT COALESCE(
+                json_agg(dca.id ORDER BY dca.created_at ASC) FILTER (WHERE dca.asset_type = 'image'),
+                '[]'::json
+              ) AS image_asset_ids
+              FROM document_chunk_assets AS dca
+              WHERE dca.chunk_id = dc.id
+                AND dca.vault_id = ${vaultId}
+            ) AS assets ON true
+            ORDER BY score DESC, dc.chunk_index ASC, dc.id ASC
+            LIMIT ${normalizedLimit}
+          `)
+        : await db.execute<HybridSearchRow>(sql`
+            WITH search_query AS (
+              SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+            ),
+            fts_candidates AS (
+              SELECT
+                dc.id,
+                ts_rank_cd(dc.tsv, search_query.query) AS rank
+              FROM document_chunks AS dc
+              CROSS JOIN search_query
+              INNER JOIN documents AS d ON d.id = dc.document_id
+              WHERE dc.vault_id = ${vaultId}
+                AND d.vault_id = ${vaultId}
+                AND d.is_deleted = false
+                AND dc.tsv @@ search_query.query
+              ORDER BY rank DESC, dc.chunk_index ASC, dc.id ASC
+              LIMIT 50
+            ),
+            fts_ranked AS (
+              SELECT
+                id,
+                row_number() OVER (ORDER BY rank DESC, id ASC)::int AS fts_rank
+              FROM fts_candidates
+            ),
+            vec_candidates AS (
+              SELECT
+                dc.id,
+                1 - (dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector) AS similarity
+              FROM document_chunks AS dc
+              INNER JOIN documents AS d ON d.id = dc.document_id
+              WHERE dc.vault_id = ${vaultId}
+                AND d.vault_id = ${vaultId}
+                AND d.is_deleted = false
+                AND dc.embedding IS NOT NULL
+              ORDER BY dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector ASC, dc.chunk_index ASC, dc.id ASC
+              LIMIT 50
+            ),
+            vec_ranked AS (
+              SELECT
+                id,
+                row_number() OVER (ORDER BY similarity DESC, id ASC)::int AS vec_rank
+              FROM vec_candidates
+            ),
+            ranked AS (
+              SELECT
+                COALESCE(fts_ranked.id, vec_ranked.id) AS id,
+                COALESCE(1.0 / (60 + fts_ranked.fts_rank), 0)
+                + COALESCE(1.0 / (60 + vec_ranked.vec_rank), 0) AS score
+              FROM fts_ranked
+              FULL OUTER JOIN vec_ranked ON vec_ranked.id = fts_ranked.id
+            )
+            SELECT
+              dc.id AS chunk_id,
+              dc.document_id,
+              d.name AS document_name,
+              dc.page_start,
+              dc.page_end,
+              dc.section,
+              COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
+              COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
+              dc.citation_precision,
+              COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
+              COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
+              ranked.score::float8 AS score
+            FROM ranked
+            INNER JOIN document_chunks AS dc ON dc.id = ranked.id
+            INNER JOIN documents AS d ON d.id = dc.document_id
+            LEFT JOIN LATERAL (
+              SELECT COALESCE(
+                json_agg(dca.id ORDER BY dca.created_at ASC) FILTER (WHERE dca.asset_type = 'image'),
+                '[]'::json
+              ) AS image_asset_ids
+              FROM document_chunk_assets AS dca
+              WHERE dca.chunk_id = dc.id
+                AND dca.vault_id = ${vaultId}
+            ) AS assets ON true
+            ORDER BY ranked.score DESC, dc.chunk_index ASC, dc.id ASC
+            LIMIT ${normalizedLimit}
+          `);
+
+    const citations: Citation[] = result.rows.map((row) => {
+      const tablesHtml = parseStringArray(row.tables_html);
+      const imageAssetIds = parseStringArray(row.image_asset_ids);
+
+      return {
+        chunkId: row.chunk_id,
+        documentId: row.document_id,
+        documentName: row.document_name,
+        pageStart: row.page_start,
+        pageEnd: row.page_end,
+        section: row.section,
+        snippet: row.snippet ?? '',
+        boundingBoxes: parseCitationPrecision(row.citation_precision) === 'box'
+          ? parseBoundingBoxes(row.bounding_boxes)
+          : [],
+        citationPrecision: parseCitationPrecision(row.citation_precision),
+        assetType: inferAssetType({ tablesHtml, imageAssetIds }),
+        tablesHtml,
+        imageAssetIds,
+        score: typeof row.score === 'number' ? row.score : Number(row.score ?? 0),
+      };
+    });
+
+    return {
+      query: trimmedQuery,
+      limit: normalizedLimit,
+      mode: effectiveMode,
+      citations,
+    };
+  }
+
   return {
     name: 'database-pg-tsvector',
     searchDocuments,
+    searchHybrid,
   };
 }

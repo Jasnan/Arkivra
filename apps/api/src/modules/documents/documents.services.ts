@@ -5,7 +5,6 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
 import { documentTagsTable, documentsTable, tagsTable, usersTable, vaultsTable } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
-import { markdownToPlainText } from '../parsing/markdown-text.js';
 import type { SearchSortBy } from '../search/search.types.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
@@ -271,7 +270,6 @@ export function createDocumentsServices({
         originalSha256Hash: documentsTable.originalSha256Hash,
         mimeType: documentsTable.mimeType,
         content: documentsTable.content,
-        markdownContent: documentsTable.markdownContent,
         processingStatus: documentsTable.processingStatus,
         documentDate: documentsTable.documentDate,
         createdAt: documentsTable.createdAt,
@@ -289,15 +287,9 @@ export function createDocumentsServices({
       return null;
     }
 
-    const { markdownContent, ...rest } = doc;
-    const displayContent = markdownContent.length > 0
-      ? markdownToPlainText(markdownContent)
-      : doc.content;
-
     return {
-      ...rest,
-      content: displayContent,
-      displayContent,
+      ...doc,
+      displayContent: doc.content,
     };
   }
 

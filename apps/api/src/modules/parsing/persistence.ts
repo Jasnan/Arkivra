@@ -45,7 +45,6 @@ export async function persistParsedDocument({
     .update(documentsTable)
     .set({
       content: parsed.text,
-      markdownContent: parsed.markdown,
       rawText: parsed.rawText,
       parserEngine: parsed.engine,
       parserEngineVersion: parsed.engineVersion,

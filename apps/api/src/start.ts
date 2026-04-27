@@ -14,6 +14,7 @@ import { renderPdfPagesToImages } from './modules/parsing/pdf-page-renderer.js';
 import {
   createRuntimeConfiguredGluedWordNormalizer,
 } from './modules/parsing/glued-word-normalizer.js';
+import { createRuntimeConfiguredOllamaChunkSummariser } from './modules/parsing/ollama-chunk-summariser.js';
 import { createRuntimeConfiguredOllamaVisionTextFallback } from './modules/parsing/ollama-vision-text-fallback.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
@@ -143,11 +144,24 @@ export async function startApp() {
           },
         })
       : undefined;
+    const chunkSummariser = createRuntimeConfiguredOllamaChunkSummariser({
+      resolveSettings: async () => {
+        const settings = await adminAiServices.getIngestionSettings();
+        return {
+          enabled: settings.summarisationEnabled,
+          host: settings.summarisationHost,
+          model: settings.summarisationModel,
+          maxImagesPerChunk: settings.summarisationMaxImagesPerChunk,
+          logRequests: config.ollama.logRequests,
+        };
+      },
+    });
     const parsePipeline = createParsePipeline({
       parserRegistry,
       cleaner: textCleaner,
       gluedWordNormalizer,
       emptyTextFallback,
+      chunkSummariser,
     });
     const documentWorker = createDocumentWorker({
       db,

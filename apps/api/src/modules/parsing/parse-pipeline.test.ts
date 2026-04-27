@@ -1,6 +1,7 @@
 import type { DocumentParser, ParseInput } from './parser.types.js';
 import type { ParserOutput } from './parsed-document.schema.js';
 import type { GluedWordNormalizer } from './glued-word-normalizer.js';
+import type { ChunkSummariser } from './ollama-chunk-summariser.js';
 import type { EmptyTextFallback } from './ollama-vision-text-fallback.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { describe, expect, test, vi } from 'vitest';
@@ -30,6 +31,7 @@ function makePipeline(
   cleaner: TextCleaner = createNoopTextCleaner(),
   gluedWordNormalizer: GluedWordNormalizer = createNoopGluedWordNormalizer(),
   emptyTextFallback?: EmptyTextFallback,
+  chunkSummariser?: ChunkSummariser,
 ) {
   const parser = makeParser(parserOverrides);
   const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'unstructured' });
@@ -38,6 +40,7 @@ function makePipeline(
     cleaner,
     gluedWordNormalizer,
     emptyTextFallback,
+    chunkSummariser,
   });
   return { pipeline, parser };
 }
@@ -273,5 +276,72 @@ describe('parse pipeline', () => {
       expect(chunk.images).toEqual([]);
       expect(chunk.citationPrecision).toBe('document');
     }
+  });
+
+  test('applies chunk summariser output to multimodal chunks while preserving original text', async () => {
+    const chunkSummariser: ChunkSummariser = {
+      name: 'stub',
+      summarise: async (chunk) => ({
+        enhancedContent:
+          chunk.tablesHtml.length > 0 || chunk.images.length > 0
+            ? 'Enhanced searchable description'
+            : null,
+        warnings: ['ollama_chunk_summariser.image_limit:1/2'],
+      }),
+    };
+
+    const { pipeline } = makePipeline(
+      {
+        text: 'Results\n\nRevenue increased to 20.',
+        markdown: '# Results\n\nRevenue increased to 20.',
+        structuredElements: [
+          {
+            elementId: 'el-1',
+            parentId: null,
+            type: 'title',
+            text: 'Results',
+            tableHtml: null,
+            image: null,
+            pageNumber: 1,
+            bbox: null,
+            section: 'Results',
+          },
+          {
+            elementId: 'el-2',
+            parentId: 'el-1',
+            type: 'narrative',
+            text: 'Revenue increased to 20.',
+            tableHtml: null,
+            image: null,
+            pageNumber: 1,
+            bbox: null,
+            section: 'Results',
+          },
+          {
+            elementId: 'el-3',
+            parentId: 'el-1',
+            type: 'image',
+            text: '',
+            tableHtml: null,
+            image: { mimeType: 'image/png', data: Buffer.from('image') },
+            pageNumber: 1,
+            bbox: null,
+            section: 'Results',
+          },
+        ],
+      },
+      createNoopTextCleaner(),
+      createNoopGluedWordNormalizer(),
+      undefined,
+      chunkSummariser,
+    );
+
+    const parsed = await pipeline.run(input);
+    const chunk = parsed.chunks[0]!;
+
+    expect(chunk.originalText).toBe('Revenue increased to 20.');
+    expect(chunk.enhancedContent).toBe('Enhanced searchable description');
+    expect(chunk.text).toBe('Enhanced searchable description');
+    expect(parsed.warnings).toContain('ollama_chunk_summariser.image_limit:1/2');
   });
 });

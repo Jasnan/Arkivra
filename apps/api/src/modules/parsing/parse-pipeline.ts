@@ -2,6 +2,7 @@ import type { ParserRegistry } from './parser.registry.js';
 import type { ParseInput, ParserEngine } from './parser.types.js';
 import type { ParsedDocument } from './parsed-document.schema.js';
 import type { GluedWordNormalizer } from './glued-word-normalizer.js';
+import type { ChunkSummariser } from './ollama-chunk-summariser.js';
 import type { EmptyTextFallback } from './ollama-vision-text-fallback.js';
 import type { TextCleaner } from './text-cleaner.js';
 import type { ChunkerOptions } from './chunker.js';
@@ -19,6 +20,7 @@ export type ParsePipelineOptions = {
   cleaner: TextCleaner;
   gluedWordNormalizer?: GluedWordNormalizer;
   emptyTextFallback?: EmptyTextFallback;
+  chunkSummariser?: ChunkSummariser;
   chunkerOptions?: Omit<ChunkerOptions, 'documentId'>;
   /** Explicit engine override; falls back to the registry default. */
   engine?: ParserEngine;
@@ -38,6 +40,7 @@ export function createParsePipeline({
   cleaner,
   gluedWordNormalizer,
   emptyTextFallback,
+  chunkSummariser,
   chunkerOptions,
   engine,
 }: ParsePipelineOptions): ParsePipeline {
@@ -98,6 +101,17 @@ export function createParsePipeline({
             chunkOptions,
           );
 
+    const pipelineWarnings = [...effectiveRaw.warnings];
+    if (chunkSummariser !== undefined) {
+      for (const chunk of chunks) {
+        const summary = await chunkSummariser.summarise(chunk);
+        chunk.enhancedContent = summary.enhancedContent;
+        chunk.text = summary.enhancedContent ?? chunk.originalText;
+        chunk.metadata.tokenCount = Math.ceil(chunk.text.length / 4);
+        pipelineWarnings.push(...summary.warnings);
+      }
+    }
+
     const parsed: ParsedDocument = {
       documentId: input.documentId,
       engine: raw.engine,
@@ -107,7 +121,7 @@ export function createParsePipeline({
       rawText: raw.text,
       rawMarkdown: raw.markdown,
       chunks,
-      warnings: effectiveRaw.warnings,
+      warnings: pipelineWarnings,
     };
 
     const validation = parsedDocumentSchema.safeParse(parsed);

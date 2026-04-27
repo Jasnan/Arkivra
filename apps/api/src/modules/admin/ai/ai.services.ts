@@ -43,6 +43,15 @@ function createDefaultSettings(config: Config): AdminAiSettings {
   };
 }
 
+function createDefaultIngestionSettings(config: Config) {
+  return {
+    summarisationEnabled: false,
+    summarisationHost: config.ollama.host,
+    summarisationModel: 'gemma4:e2b',
+    summarisationMaxImagesPerChunk: 4,
+  };
+}
+
 export function createAdminAiServices({
   db,
   config,
@@ -77,6 +86,22 @@ export function createAdminAiServices({
       minTokenLength: stored.ollamaGluedWordMinTokenLength,
       maxCandidates: stored.ollamaGluedWordMaxCandidates,
       batchSize: stored.ollamaGluedWordBatchSize,
+    };
+  }
+
+  async function getIngestionSettings() {
+    const defaults = createDefaultIngestionSettings(config);
+    const stored = await getStoredSettings();
+
+    if (stored === undefined) {
+      return defaults;
+    }
+
+    return {
+      summarisationEnabled: stored.aiSummarisationEnabled,
+      summarisationHost: stored.ollamaHost,
+      summarisationModel: stored.ollamaSummarisationModel,
+      summarisationMaxImagesPerChunk: stored.ollamaSummarisationMaxImagesPerChunk,
     };
   }
 
@@ -228,6 +253,7 @@ export function createAdminAiServices({
 
   return {
     getSettings,
+    getIngestionSettings,
     updateSettings,
     listModels,
     checkModelAvailability,

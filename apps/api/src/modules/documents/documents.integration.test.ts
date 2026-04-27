@@ -31,6 +31,19 @@ function createMockDocumentsServices() {
       mimeType: 'application/pdf',
       size: 12,
     })),
+    renderDocumentPagePreview: vi.fn(async ({ pageNumber }) => ({
+      fileData: Buffer.from(`png-page-${pageNumber}`),
+      mimeType: 'image/png',
+      etag: `"page-${pageNumber}"`,
+      pageNumber,
+    })),
+    getChunkAsset: vi.fn(async () => ({
+      assetType: 'image',
+      mimeType: 'image/png',
+      fileData: Buffer.from('asset-bytes'),
+      byteSize: 11,
+      etag: '"asset-1"',
+    })),
     listDocuments: vi.fn(async () => [
       {
         id: 'doc_1',
@@ -451,6 +464,58 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(404);
+  });
+
+  test('serves cached page preview png for previews', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/page/2.png', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+    expect(response.headers.get('etag')).toBe('"page-2"');
+    expect(response.headers.get('cache-control')).toContain('private');
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('png-page-2');
+    expect((docServices as any).renderDocumentPagePreview).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      pageNumber: 2,
+    });
+  });
+
+  test('returns 304 for matching page preview etag', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/page/2.png', {
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'if-none-match': '"page-2"',
+      },
+    });
+
+    expect(response.status).toBe(304);
+    expect(response.headers.get('etag')).toBe('"page-2"');
+  });
+
+  test('returns 400 for invalid page preview number', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/page/0.png', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'document.invalid_page_number',
+        message: 'Page number must be an integer >= 1',
+      },
+    });
   });
 
   test('renames a document', async () => {

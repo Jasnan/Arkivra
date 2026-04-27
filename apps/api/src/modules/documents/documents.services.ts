@@ -3,9 +3,18 @@ import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
-import { documentTagsTable, documentsTable, tagsTable, usersTable, vaultsTable } from '../database/schema/index.js';
+import {
+  documentChunkAssetsTable,
+  documentChunksTable,
+  documentTagsTable,
+  documentsTable,
+  tagsTable,
+  usersTable,
+  vaultsTable,
+} from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
 import type { SearchSortBy } from '../search/search.types.js';
+import { renderPdfPageToImage } from '../parsing/pdf-page-renderer.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
 export type DocumentProcessingStatus =
@@ -26,6 +35,33 @@ export type RestoreDocumentResult =
   | { success: true; id: string }
   | { success: false; reason: 'not_found' }
   | { success: false; reason: 'duplicate'; existingId: string };
+
+type ActiveDocumentRecord = {
+  id: string;
+  vaultId: string;
+  originalName: string;
+  originalSize: number;
+  originalStorageKey: string;
+  originalSha256Hash: string;
+  mimeType: string;
+  fileEncryptionKeyWrapped: string | null;
+  fileEncryptionKekVersion: string | null;
+};
+
+type ChunkAssetRecord = {
+  id: string;
+  chunkId: string;
+  documentId: string;
+  vaultId: string;
+  assetType: 'image' | 'table';
+  mimeType: string | null;
+  storageKey: string | null;
+  inlinePayload: string | null;
+  sha256Hash: string | null;
+  byteSize: number | null;
+  fileEncryptionKeyWrapped: string | null;
+  fileEncryptionKekVersion: string | null;
+};
 
 export function createDocumentsServices({
   db,
@@ -58,6 +94,62 @@ export function createDocumentsServices({
       .trim();
 
     return normalized.length > 0 ? normalized : baseName || 'untitled';
+  }
+
+  async function getActiveDocumentRecord({
+    documentId,
+    vaultId,
+  }: {
+    documentId: string;
+    vaultId: string;
+  }): Promise<ActiveDocumentRecord | null> {
+    const [doc] = await db
+      .select({
+        id: documentsTable.id,
+        vaultId: documentsTable.vaultId,
+        originalName: documentsTable.originalName,
+        originalSize: documentsTable.originalSize,
+        originalStorageKey: documentsTable.originalStorageKey,
+        originalSha256Hash: documentsTable.originalSha256Hash,
+        mimeType: documentsTable.mimeType,
+        fileEncryptionKeyWrapped: documentsTable.fileEncryptionKeyWrapped,
+        fileEncryptionKekVersion: documentsTable.fileEncryptionKekVersion,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    return doc ?? null;
+  }
+
+  async function readDocumentPayload(doc: ActiveDocumentRecord) {
+    const rawData = await storage.read(doc.originalStorageKey);
+
+    if (doc.fileEncryptionKeyWrapped !== null && doc.fileEncryptionKekVersion !== null) {
+      return encryption.decrypt({
+        encryptedData: rawData,
+        wrappedDek: doc.fileEncryptionKeyWrapped,
+        kekVersion: doc.fileEncryptionKekVersion,
+      });
+    }
+
+    return rawData;
+  }
+
+  function documentPagePreviewStorageKey({
+    documentId,
+    pageNumber,
+  }: {
+    documentId: string;
+    pageNumber: number;
+  }) {
+    return `previews/${documentId}/pages/${pageNumber}.png`;
   }
 
   async function finalizeUploadedDocument({
@@ -167,41 +259,150 @@ export function createDocumentsServices({
     documentId: string;
     vaultId: string;
   }) {
-    const [doc] = await db
-      .select()
-      .from(documentsTable)
-      .where(
-        and(
-          eq(documentsTable.id, documentId),
-          eq(documentsTable.vaultId, vaultId),
-          eq(documentsTable.isDeleted, false),
-        ),
-      )
-      .limit(1);
-
-    if (doc === undefined) {
+    const doc = await getActiveDocumentRecord({ documentId, vaultId });
+    if (doc === null) {
       return null;
     }
 
-    const rawData = await storage.read(doc.originalStorageKey);
-
-    let fileData: Buffer;
-
-    if (doc.fileEncryptionKeyWrapped !== null && doc.fileEncryptionKekVersion !== null) {
-      fileData = encryption.decrypt({
-        encryptedData: rawData,
-        wrappedDek: doc.fileEncryptionKeyWrapped,
-        kekVersion: doc.fileEncryptionKekVersion,
-      });
-    } else {
-      fileData = rawData;
-    }
+    const fileData = await readDocumentPayload(doc);
 
     return {
       fileData,
       fileName: doc.originalName,
       mimeType: doc.mimeType,
       size: doc.originalSize,
+    };
+  }
+
+  async function renderDocumentPagePreview({
+    documentId,
+    vaultId,
+    pageNumber,
+  }: {
+    documentId: string;
+    vaultId: string;
+    pageNumber: number;
+  }) {
+    const doc = await getActiveDocumentRecord({ documentId, vaultId });
+    if (doc === null) {
+      return null;
+    }
+
+    if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+      return { error: 'invalid_page_number' as const };
+    }
+
+    const storageKey = documentPagePreviewStorageKey({ documentId, pageNumber });
+    const etag = `"doc-page-${doc.originalSha256Hash}-${pageNumber}"`;
+
+    if (await storage.exists(storageKey)) {
+      return {
+        fileData: await storage.read(storageKey),
+        mimeType: 'image/png',
+        etag,
+        pageNumber,
+      };
+    }
+
+    const sourceFile = await readDocumentPayload(doc);
+    const image = await renderPdfPageToImage({
+      fileData: sourceFile,
+      fileName: doc.originalName,
+      mimeType: doc.mimeType,
+      pageNumber,
+    });
+
+    if (image === null) {
+      return { error: 'page_not_available' as const };
+    }
+
+    await storage.write(storageKey, image.data);
+
+    return {
+      fileData: image.data,
+      mimeType: image.mimeType,
+      etag,
+      pageNumber,
+    };
+  }
+
+  async function getChunkAsset({
+    vaultId,
+    chunkId,
+    assetId,
+  }: {
+    vaultId: string;
+    chunkId: string;
+    assetId: string;
+  }) {
+    const [asset] = await db
+      .select({
+        id: documentChunkAssetsTable.id,
+        chunkId: documentChunkAssetsTable.chunkId,
+        documentId: documentChunkAssetsTable.documentId,
+        vaultId: documentChunkAssetsTable.vaultId,
+        assetType: documentChunkAssetsTable.assetType,
+        mimeType: documentChunkAssetsTable.mimeType,
+        storageKey: documentChunkAssetsTable.storageKey,
+        inlinePayload: documentChunkAssetsTable.inlinePayload,
+        sha256Hash: documentChunkAssetsTable.sha256Hash,
+        byteSize: documentChunkAssetsTable.byteSize,
+        fileEncryptionKeyWrapped: documentChunkAssetsTable.fileEncryptionKeyWrapped,
+        fileEncryptionKekVersion: documentChunkAssetsTable.fileEncryptionKekVersion,
+      })
+      .from(documentChunkAssetsTable)
+      .innerJoin(documentChunksTable, eq(documentChunkAssetsTable.chunkId, documentChunksTable.id))
+      .innerJoin(documentsTable, eq(documentChunkAssetsTable.documentId, documentsTable.id))
+      .where(
+        and(
+          eq(documentChunkAssetsTable.id, assetId),
+          eq(documentChunkAssetsTable.chunkId, chunkId),
+          eq(documentChunkAssetsTable.vaultId, vaultId),
+          eq(documentChunksTable.vaultId, vaultId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .limit(1) as ChunkAssetRecord[];
+
+    if (asset === undefined) {
+      return null;
+    }
+
+    const etag = asset.sha256Hash !== null
+      ? `"chunk-asset-${asset.sha256Hash}"`
+      : `"chunk-asset-${asset.id}"`;
+
+    if (asset.inlinePayload !== null) {
+      return {
+        assetType: asset.assetType,
+        mimeType: asset.mimeType ?? 'text/html; charset=utf-8',
+        inlinePayload: asset.inlinePayload,
+        byteSize: asset.byteSize ?? Buffer.byteLength(asset.inlinePayload, 'utf8'),
+        etag,
+      };
+    }
+
+    if (asset.storageKey === null) {
+      return null;
+    }
+
+    const rawData = await storage.read(asset.storageKey);
+    const fileData =
+      asset.fileEncryptionKeyWrapped !== null && asset.fileEncryptionKekVersion !== null
+        ? encryption.decrypt({
+            encryptedData: rawData,
+            wrappedDek: asset.fileEncryptionKeyWrapped,
+            kekVersion: asset.fileEncryptionKekVersion,
+          })
+        : rawData;
+
+    return {
+      assetType: asset.assetType,
+      mimeType: asset.mimeType ?? 'application/octet-stream',
+      fileData,
+      byteSize: asset.byteSize ?? fileData.length,
+      etag,
     };
   }
 
@@ -557,10 +758,12 @@ export function createDocumentsServices({
     downloadDocument,
     finalizeUploadedDocument,
     getDocument,
+    getChunkAsset,
     hardDeleteDocument,
     listDeletedDocuments,
     listDocuments,
     renameDocument,
+    renderDocumentPagePreview,
     restoreDocument,
     softDeleteDocument,
     updateDocumentProcessingStatus,

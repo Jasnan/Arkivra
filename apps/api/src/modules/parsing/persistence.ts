@@ -59,6 +59,10 @@ function tableStorageKey({
 
 type AssetRow = typeof documentChunkAssetsTable.$inferInsert;
 type DatabaseTransaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+export type PersistParsedDocumentStage = 'vectorising';
+export type PersistParsedDocumentHooks = {
+  onStageChange?: (stage: PersistParsedDocumentStage) => void | Promise<void>;
+};
 
 function vectorToSqlLiteral(vector: number[]) {
   return `[${vector.join(',')}]`;
@@ -222,6 +226,7 @@ export async function persistParsedDocument({
   storage,
   encryption,
   embedder,
+  hooks,
   documentId,
   vaultId,
   parsed,
@@ -230,6 +235,7 @@ export async function persistParsedDocument({
   storage: StorageDriver;
   encryption: EncryptionServices;
   embedder?: ChunkEmbedder;
+  hooks?: PersistParsedDocumentHooks;
   documentId: string;
   vaultId: string;
   parsed: ParsedDocument;
@@ -316,6 +322,7 @@ export async function persistParsedDocument({
       }
 
       if (embedder !== undefined) {
+        await hooks?.onStageChange?.('vectorising');
         const embeddings = await embedder.embed(parsed.chunks.map(chunk => chunk.text));
         if (embeddings.length > 0) {
           if (embeddings.length !== parsed.chunks.length) {

@@ -26,8 +26,14 @@ export type ParsePipelineOptions = {
   engine?: ParserEngine;
 };
 
+export type ParsePipelineStage = 'chunking' | 'summarising';
+
+export type ParsePipelineRunHooks = {
+  onStageChange?: (stage: ParsePipelineStage) => void | Promise<void>;
+};
+
 export type ParsePipeline = {
-  run: (input: ParseInput) => Promise<ParsedDocument>;
+  run: (input: ParseInput, hooks?: ParsePipelineRunHooks) => Promise<ParsedDocument>;
 };
 
 /**
@@ -44,7 +50,7 @@ export function createParsePipeline({
   chunkerOptions,
   engine,
 }: ParsePipelineOptions): ParsePipeline {
-  async function run(input: ParseInput): Promise<ParsedDocument> {
+  async function run(input: ParseInput, hooks?: ParsePipelineRunHooks): Promise<ParsedDocument> {
     const parser =
       engine !== undefined ? parserRegistry.get(engine) : parserRegistry.getDefault();
 
@@ -92,6 +98,8 @@ export function createParsePipeline({
       ...(chunkerOptions ?? {}),
     };
 
+    await hooks?.onStageChange?.('chunking');
+
     const structuredElements = effectiveRaw.structuredElements;
     const chunks =
       structuredElements !== undefined && structuredElements.length > 0
@@ -103,6 +111,7 @@ export function createParsePipeline({
 
     const pipelineWarnings = [...effectiveRaw.warnings];
     if (chunkSummariser !== undefined) {
+      await hooks?.onStageChange?.('summarising');
       for (const chunk of chunks) {
         const summary = await chunkSummariser.summarise(chunk);
         chunk.enhancedContent = summary.enhancedContent;

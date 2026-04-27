@@ -168,6 +168,11 @@ export function registerDocumentRoutes({
           documentId: result.document.id,
           vaultId,
         });
+        await documentsServices.updateDocumentProcessingStatus({
+          documentId: result.document.id,
+          vaultId,
+          processingStatus: 'queued',
+        });
       }
 
       return context.json({ document: result.document }, 201);

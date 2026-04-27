@@ -1,32 +1,68 @@
-import type { StorageDriver } from '../storage/storage.types.js';
+import type { ParseInput } from '../parsing/parser.types.js';
+import type { ParsedDocument } from '../parsing/parsed-document.schema.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import type { DocumentParser, ParseInput } from '../parsing/parser.types.js';
-import type { ParserOutput } from '../parsing/parsed-document.schema.js';
 import type { ProcessDocumentJobData } from './worker.types.js';
-import { describe, expect, test, vi } from 'vitest';
-import { createParserRegistry } from '../parsing/parser.registry.js';
-import { createParsePipeline } from '../parsing/parse-pipeline.js';
-import { createDeterministicTextCleaner } from '../parsing/text-cleaner.js';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-/**
- * These tests exercise the engine-agnostic worker pipeline. The worker must
- * only know about ParsePipeline — never parser-specific fields. If this
- * file ever reintroduces `md_content` / `text_content` / `task_status` it
- * means the worker has regressed into parser coupling.
- */
+const persistParsedDocument = vi.fn();
+const updateDocumentProcessingStatus = vi.fn();
+const workerClose = vi.fn();
 
-function makeParserOutput(overrides: Partial<ParserOutput> = {}): ParserOutput {
+vi.mock('bullmq', () => ({
+  Worker: class {
+    close = workerClose;
+    on = vi.fn();
+  },
+}));
+
+vi.mock('../documents/documents.services.js', () => ({
+  createDocumentsServices: () => ({
+    updateDocumentProcessingStatus,
+  }),
+}));
+
+vi.mock('../parsing/persistence.js', () => ({
+  persistParsedDocument,
+}));
+
+function makeParsedDocument(): ParsedDocument {
   return {
+    documentId: 'doc_1',
     engine: 'unstructured',
     engineVersion: 'api-v1',
-    text: 'Title\nParagraph one.\nSection\nParagraph two.',
-    markdown: '# Title\n\nParagraph one.\n\n## Section\n\nParagraph two.',
+    text: 'Clean text',
+    markdown: '# Title\n\nParagraph one.',
+    rawText: 'Raw text',
+    rawMarkdown: '# Title\n\nParagraph one.',
     warnings: [],
-    ...overrides,
+    chunks: [
+      {
+        id: 'doc_1:0',
+        text: 'Chunk text',
+        section: 'Title',
+        pageNumber: 1,
+        pageStart: 1,
+        pageEnd: 1,
+        boundingBoxes: [],
+        sourceElementIds: ['el-1'],
+        parentElementId: null,
+        originalText: 'Chunk text',
+        tablesHtml: [],
+        images: [],
+        citationPrecision: 'page',
+        enhancedContent: null,
+        type: 'paragraph',
+        metadata: { tokenCount: 3 },
+      },
+    ],
   };
 }
 
-function createMockDeps() {
+function createDb(docOverrides: Partial<{
+  fileEncryptionKeyWrapped: string | null;
+  fileEncryptionKekVersion: string | null;
+  isDeleted: boolean;
+}> = {}) {
   const docRow = {
     id: 'doc_1',
     vaultId: 'vlt_1',
@@ -36,159 +72,175 @@ function createMockDeps() {
     isDeleted: false,
     fileEncryptionKeyWrapped: null as string | null,
     fileEncryptionKekVersion: null as string | null,
+    ...docOverrides,
   };
 
-  const storage: StorageDriver = {
+  const selectLimit = vi.fn(async () => [docRow]);
+  const selectWhere = vi.fn(() => ({ limit: selectLimit }));
+  const selectFrom = vi.fn(() => ({ where: selectWhere }));
+  const select = vi.fn(() => ({ from: selectFrom }));
+
+  const uploadSessionWhere = vi.fn(async () => []);
+  const uploadSessionSet = vi.fn(() => ({ where: uploadSessionWhere }));
+  const update = vi.fn((table) => {
+    if (table === 'upload_sessions') {
+      return { set: uploadSessionSet };
+    }
+
+    return { set: vi.fn(() => ({ where: vi.fn(async () => []) })) };
+  });
+
+  return {
+    db: {
+      select,
+      update,
+    } as never,
+    docRow,
+    uploadSessionSet,
+  };
+}
+
+function createDeps({
+  docOverrides,
+  parseImplementation,
+}: {
+  docOverrides?: Partial<{
+    fileEncryptionKeyWrapped: string | null;
+    fileEncryptionKekVersion: string | null;
+    isDeleted: boolean;
+  }>;
+  parseImplementation?: (
+    input: ParseInput,
+    hooks?: { onStageChange?: (stage: 'chunking' | 'summarising') => void | Promise<void> },
+  ) => Promise<ParsedDocument>;
+} = {}) {
+  const { db } = createDb(docOverrides);
+  const storage = {
     read: vi.fn(async () => Buffer.from('file-bytes')),
     write: vi.fn(),
     remove: vi.fn(),
     exists: vi.fn(async () => true),
   };
-
   const encryption: EncryptionServices = {
     isEnabled: () => false,
     encrypt: vi.fn(),
     decrypt: vi.fn((_args: unknown) => Buffer.from('decrypted-file')),
   } as unknown as EncryptionServices;
-
-  const parseMock = vi.fn(async (_input: ParseInput) => makeParserOutput());
-
-  const parser: DocumentParser = {
-    engine: 'unstructured',
-    engineVersion: 'api-v1',
-    capabilities: { ocr: true, tables: true, supportedMimeTypes: 'any' },
-    parse: parseMock,
+  const parsePipeline = {
+    run: vi.fn(
+      parseImplementation
+        ?? (async (_input, hooks) => {
+          await hooks?.onStageChange?.('chunking');
+          await hooks?.onStageChange?.('summarising');
+          return makeParsedDocument();
+        }),
+    ),
   };
-
-  const parserRegistry = createParserRegistry({
-    parsers: [parser],
-    defaultEngine: 'unstructured',
-  });
-
-  const pipeline = createParsePipeline({
-    parserRegistry,
-    cleaner: createDeterministicTextCleaner(),
-  });
-
-  const progressUpdates: number[] = [];
+  const chunkEmbedder = { name: 'test-embedder', embed: vi.fn(async () => [[0.1, 0.2, 0.3]]) };
+  const connection = {} as never;
   const job = {
     data: { documentId: 'doc_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
-    updateProgress: vi.fn((p: number) => {
-      progressUpdates.push(p);
-    }),
+    updateProgress: vi.fn(async () => undefined),
   };
 
-  return { docRow, storage, encryption, parser, parseMock, pipeline, job, progressUpdates };
+  return {
+    db,
+    storage,
+    encryption,
+    parsePipeline,
+    chunkEmbedder,
+    connection,
+    job,
+  };
 }
 
-/**
- * Replays the worker's orchestration steps without BullMQ, using the real
- * pipeline + persistence seam the worker uses in production.
- */
-async function runPipeline(deps: ReturnType<typeof createMockDeps>) {
-  const { docRow, storage, encryption, pipeline, job } = deps;
-
-  const rawData = await storage.read(docRow.originalStorageKey);
-
-  let fileData: Buffer;
-  if (docRow.fileEncryptionKeyWrapped !== null && docRow.fileEncryptionKekVersion !== null) {
-    fileData = encryption.decrypt({
-      encryptedData: rawData,
-      wrappedDek: docRow.fileEncryptionKeyWrapped,
-      kekVersion: docRow.fileEncryptionKekVersion,
+describe('document worker', () => {
+  beforeEach(() => {
+    persistParsedDocument.mockReset();
+    updateDocumentProcessingStatus.mockReset();
+    workerClose.mockReset();
+    persistParsedDocument.mockImplementation(async ({ hooks }) => {
+      await hooks?.onStageChange?.('vectorising');
     });
-  } else {
-    fileData = rawData;
-  }
-
-  await job.updateProgress(20);
-
-  const parsed = await pipeline.run({
-    documentId: docRow.id,
-    fileName: docRow.originalName,
-    mimeType: docRow.mimeType,
-    fileData,
   });
 
-  await job.updateProgress(60);
-  await job.updateProgress(90);
-  await job.updateProgress(100);
+  test('updates processing status through the phase 5 happy-path sequence', async () => {
+    const deps = createDeps();
+    const { createDocumentWorker } = await import('./document.worker.js');
 
-  return { parsed };
-}
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      chunkEmbedder: deps.chunkEmbedder as never,
+      connection: deps.connection,
+    });
 
-describe('document worker pipeline', () => {
-  test('runs parser via the pipeline and produces a ParsedDocument with chunks', async () => {
-    const deps = createMockDeps();
-    const { parsed } = await runPipeline(deps);
+    await worker.processDocument(deps.job as never);
 
-    expect(deps.parseMock).toHaveBeenCalledTimes(1);
-    expect(parsed.engine).toBe('unstructured');
-    expect(parsed.engineVersion).toBe('api-v1');
-    expect(parsed.chunks.length).toBeGreaterThanOrEqual(2);
-    for (const chunk of parsed.chunks) {
-      expect(chunk.id.startsWith('doc_1:')).toBe(true);
-      expect(['heading', 'paragraph', 'table', 'list', 'other']).toContain(chunk.type);
-    }
-  });
+    expect(updateDocumentProcessingStatus.mock.calls.map(call => call[0]?.processingStatus)).toEqual([
+      'partitioning',
+      'chunking',
+      'summarising',
+      'vectorising',
+      'completed',
+    ]);
+    const progressValues = deps.job.updateProgress.mock.calls
+      .map(call => call.at(0));
 
-  test('preserves raw text alongside cleaned text', async () => {
-    const deps = createMockDeps();
-    // inject a raw output with artifacts the deterministic cleaner will remove.
-    deps.parseMock.mockResolvedValueOnce(
-      makeParserOutput({
-        text: 'Of\uFB01cial  document',
-        markdown: '# Of\uFB01cial  document',
-      }),
-    );
-
-    const { parsed } = await runPipeline(deps);
-
-    expect(parsed.rawText).toContain('\uFB01');
-    expect(parsed.text).toBe('Official document');
-    expect(parsed.rawMarkdown).toContain('\uFB01');
-    expect(parsed.markdown).toContain('Official document');
-  });
-
-  test('reads file from storage', async () => {
-    const deps = createMockDeps();
-    await runPipeline(deps);
-
-    expect(deps.storage.read).toHaveBeenCalledWith('vlt_1/doc_1');
-  });
-
-  test('reports progress through the job', async () => {
-    const deps = createMockDeps();
-    await runPipeline(deps);
-
-    expect(deps.job.updateProgress).toHaveBeenCalledWith(20);
-    expect(deps.job.updateProgress).toHaveBeenCalledWith(60);
-    expect(deps.job.updateProgress).toHaveBeenCalledWith(90);
-    expect(deps.job.updateProgress).toHaveBeenCalledWith(100);
+    expect(progressValues).toEqual([30, 55, 75, 95, 100]);
   });
 
   test('decrypts file when encryption metadata is present', async () => {
-    const deps = createMockDeps();
-    deps.docRow.fileEncryptionKeyWrapped = 'wrapped-key';
-    deps.docRow.fileEncryptionKekVersion = '1';
+    const deps = createDeps({
+      docOverrides: {
+        fileEncryptionKeyWrapped: 'wrapped-key',
+        fileEncryptionKekVersion: '1',
+      },
+    });
+    const { createDocumentWorker } = await import('./document.worker.js');
 
-    await runPipeline(deps);
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      chunkEmbedder: deps.chunkEmbedder as never,
+      connection: deps.connection,
+    });
+
+    await worker.processDocument(deps.job as never);
 
     expect(deps.encryption.decrypt).toHaveBeenCalledWith({
       encryptedData: Buffer.from('file-bytes'),
       wrappedDek: 'wrapped-key',
       kekVersion: '1',
     });
-
-    expect(deps.parseMock).toHaveBeenCalledWith(
+    expect(deps.parsePipeline.run).toHaveBeenCalledWith(
       expect.objectContaining({ fileData: Buffer.from('decrypted-file') }),
+      expect.any(Object),
     );
   });
 
-  test('skips decryption when no encryption metadata', async () => {
-    const deps = createMockDeps();
-    await runPipeline(deps);
+  test('marks the document as failed when processing throws', async () => {
+    const deps = createDeps({
+      parseImplementation: async () => {
+        throw new Error('parse failed');
+      },
+    });
+    const { createDocumentWorker } = await import('./document.worker.js');
 
-    expect(deps.encryption.decrypt).not.toHaveBeenCalled();
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      chunkEmbedder: deps.chunkEmbedder as never,
+      connection: deps.connection,
+    });
+
+    await expect(worker.processDocument(deps.job as never)).rejects.toThrow('parse failed');
+    expect(updateDocumentProcessingStatus.mock.calls.at(-1)?.[0]?.processingStatus).toBe('failed');
   });
 });

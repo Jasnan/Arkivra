@@ -47,12 +47,27 @@ describe('ollama vision text fallback', () => {
 
     const result = await fallback.run(input, makeRaw());
 
-    expect(result.output).toEqual({
-      text: 'Recovered page text',
-      markdown: '',
-    });
+    expect(result.output?.text).toBe('Recovered page text');
+    expect(result.output?.markdown).toBe('');
     expect(result.warnings).toContain('ollama_vision_fallback.used:1');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Phase 1: synthesise one narrative StructuredElement per
+    // transcribed page so the chunker can attribute fallback chunks to
+    // a specific page.
+    expect(result.output?.structuredElements).toEqual([
+      {
+        elementId: 'ollama-vision-page-1',
+        parentId: null,
+        type: 'narrative',
+        text: 'Recovered page text',
+        tableHtml: null,
+        image: null,
+        pageNumber: 1,
+        bbox: null,
+        section: null,
+      },
+    ]);
   });
 
   test('uses the original file bytes when the empty parser output came from an image upload', async () => {
@@ -83,10 +98,9 @@ describe('ollama vision text fallback', () => {
       fileData: Buffer.from('image-file'),
     }, makeRaw({ embeddedImages: [] }));
 
-    expect(result.output).toEqual({
-      text: 'Recovered image upload text',
-      markdown: '',
-    });
+    expect(result.output?.text).toBe('Recovered image upload text');
+    expect(result.output?.markdown).toBe('');
+    expect(result.output?.structuredElements?.[0]?.pageNumber).toBe(1);
     expect(result.warnings).toContain('ollama_vision_fallback.used:1');
   });
 

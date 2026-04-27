@@ -1,11 +1,11 @@
 import type { ParseInput } from './parser.types.js';
-import type { ParserOutput } from './parsed-document.schema.js';
+import type { ParserOutput, StructuredElement } from './parsed-document.schema.js';
 import { z } from 'zod';
 
 type EmbeddedImage = NonNullable<ParserOutput['embeddedImages']>[number];
 
 export type EmptyTextFallbackResult = {
-  output: Pick<ParserOutput, 'text' | 'markdown'> | null;
+  output: Pick<ParserOutput, 'text' | 'markdown' | 'structuredElements'> | null;
   warnings: string[];
 };
 
@@ -145,7 +145,7 @@ export function createRuntimeConfiguredOllamaVisionTextFallback({
       }
 
       const selectedImages = images.slice(0, maxImages);
-      const outputs: string[] = [];
+      const transcripts: Array<{ pageIndex: number; text: string }> = [];
 
       if (images.length > selectedImages.length) {
         warnings.push(`ollama_vision_fallback.image_limit:${selectedImages.length}/${images.length}`);
@@ -169,7 +169,7 @@ export function createRuntimeConfiguredOllamaVisionTextFallback({
           });
 
           if (extractedText.length > 0) {
-            outputs.push(extractedText);
+            transcripts.push({ pageIndex: index, text: extractedText });
             if (settings.logRequests) {
               console.info(
                 `[ollama-vision-fallback] accepted transcription for image ${index + 1}: ${previewSnippet(extractedText)}`,
@@ -185,7 +185,7 @@ export function createRuntimeConfiguredOllamaVisionTextFallback({
         }
       }
 
-      const text = outputs.join('\n\n').trim();
+      const text = transcripts.map(transcript => transcript.text).join('\n\n').trim();
       if (text.length === 0) {
         warnings.push('ollama_vision_fallback.no_text');
         return {
@@ -194,11 +194,28 @@ export function createRuntimeConfiguredOllamaVisionTextFallback({
         };
       }
 
+      // Synthesise one narrative StructuredElement per transcribed page
+      // so downstream chunking can attribute each fallback chunk to a
+      // specific page (citation_precision='page'). The bbox stays null
+      // because the vision model returns plain text only.
+      const structuredElements: StructuredElement[] = transcripts.map(transcript => ({
+        elementId: `ollama-vision-page-${transcript.pageIndex + 1}`,
+        parentId: null,
+        type: 'narrative',
+        text: transcript.text,
+        tableHtml: null,
+        image: null,
+        pageNumber: transcript.pageIndex + 1,
+        bbox: null,
+        section: null,
+      }));
+
       warnings.unshift(`ollama_vision_fallback.used:${selectedImages.length}`);
       return {
         output: {
           text,
           markdown: '',
+          structuredElements,
         },
         warnings,
       };

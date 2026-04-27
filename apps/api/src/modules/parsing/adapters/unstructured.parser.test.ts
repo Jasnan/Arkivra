@@ -124,4 +124,188 @@ describe('unstructured parser adapter', () => {
 
     expect(output.engineVersion).toBe('unstructured-api:0.1.2');
   });
+
+  test('emits provenance-rich structuredElements alongside markdown without changing text/markdown outputs', async () => {
+    const tableHtml =
+      '<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>';
+    const imageBase64 = Buffer.from('image-bytes').toString('base64');
+
+    const parser = createUnstructuredParser({
+      unstructuredClient: makeUnstructuredClient([
+        {
+          type: 'Title',
+          element_id: 'title_1',
+          text: 'Methods',
+          metadata: {
+            page_number: 1,
+            coordinates: {
+              points: [
+                [10, 20],
+                [110, 20],
+                [110, 60],
+                [10, 60],
+              ],
+              system: 'PixelSpace',
+              layout_width: 612,
+              layout_height: 792,
+            },
+          },
+        },
+        {
+          type: 'NarrativeText',
+          element_id: 'para_1',
+          text: 'We trained models on translation tasks.',
+          metadata: {
+            page_number: 1,
+            parent_id: 'title_1',
+            coordinates: {
+              points: [
+                [10, 80],
+                [510, 80],
+                [510, 200],
+                [10, 200],
+              ],
+              system: 'PixelSpace',
+              layout_width: 612,
+              layout_height: 792,
+            },
+          },
+        },
+        {
+          type: 'Table',
+          element_id: 'table_1',
+          text: 'A B 1 2',
+          metadata: {
+            page_number: 2,
+            parent_id: 'title_1',
+            text_as_html: tableHtml,
+          },
+        },
+        {
+          type: 'Image',
+          element_id: 'image_1',
+          text: '',
+          metadata: {
+            page_number: 2,
+            parent_id: 'title_1',
+            image_base64: imageBase64,
+            image_mime_type: 'image/png',
+          },
+        },
+      ]),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_struct',
+      fileName: 'paper.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    // Back-compat snapshot: existing outputs are byte-identical to the
+    // pre-Phase-1 mapping rules.
+    expect(output.markdown).toBe(
+      [
+        '# Methods',
+        'We trained models on translation tasks.',
+        tableHtml,
+      ].join('\n\n'),
+    );
+    expect(output.text).toBe(
+      'Methods\n\nWe trained models on translation tasks.\n\nA B 1 2',
+    );
+    expect(output.embeddedImages).toHaveLength(1);
+    expect(output.embeddedImages?.[0]?.mimeType).toBe('image/png');
+
+    // New: every element surfaces with the page/bbox/parent provenance.
+    expect(output.structuredElements).toHaveLength(4);
+
+    const structuredElements = output.structuredElements ?? [];
+    const [title, narrative, table, image] = structuredElements;
+    if (title === undefined || narrative === undefined || table === undefined || image === undefined) {
+      throw new Error('expected four structured elements');
+    }
+
+    expect(title).toMatchObject({
+      elementId: 'title_1',
+      parentId: null,
+      type: 'title',
+      text: 'Methods',
+      tableHtml: null,
+      image: null,
+      pageNumber: 1,
+      section: 'Methods',
+    });
+    expect(title.bbox).toEqual({
+      x0: 10,
+      y0: 20,
+      x1: 110,
+      y1: 60,
+      layoutWidth: 612,
+      layoutHeight: 792,
+      system: 'PixelSpace',
+    });
+
+    expect(narrative).toMatchObject({
+      elementId: 'para_1',
+      parentId: 'title_1',
+      type: 'narrative',
+      text: 'We trained models on translation tasks.',
+      pageNumber: 1,
+      section: 'Methods',
+    });
+
+    expect(table).toMatchObject({
+      elementId: 'table_1',
+      type: 'table',
+      tableHtml,
+      pageNumber: 2,
+      section: 'Methods',
+      bbox: null,
+    });
+
+    expect(image.type).toBe('image');
+    expect(image.image?.mimeType).toBe('image/png');
+    expect(image.image?.data.toString()).toBe('image-bytes');
+    expect(image.pageNumber).toBe(2);
+    expect(image.section).toBe('Methods');
+  });
+
+  test('synthesises element ids when Unstructured omits element_id', async () => {
+    const parser = createUnstructuredParser({
+      unstructuredClient: makeUnstructuredClient([
+        {
+          type: 'NarrativeText',
+          text: 'No id provided.',
+          metadata: { page_number: 1 },
+        },
+      ]),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_no_id',
+      fileName: 'noid.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.structuredElements).toHaveLength(1);
+    expect(output.structuredElements?.[0]?.elementId).toMatch(/^unstructured-/);
+  });
+
+  test('emits an empty structuredElements array on empty partition results', async () => {
+    const parser = createUnstructuredParser({
+      unstructuredClient: makeUnstructuredClient([]),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_struct_empty',
+      fileName: 'empty.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.structuredElements).toEqual([]);
+    expect(output.warnings).toEqual(['unstructured.no_elements']);
+  });
 });

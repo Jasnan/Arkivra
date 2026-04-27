@@ -1,5 +1,30 @@
+import type { StructuredElement, StructuredElementBbox } from './parsed-document.schema.js';
 import { describe, expect, test } from 'vitest';
-import { chunkMarkdown } from './chunker.js';
+import { chunkMarkdown, chunkStructuredElements } from './chunker.js';
+
+const PIXEL_BBOX: StructuredElementBbox = {
+  x0: 10,
+  y0: 20,
+  x1: 100,
+  y1: 80,
+  layoutWidth: 612,
+  layoutHeight: 792,
+  system: 'PixelSpace',
+};
+
+function makeElement(overrides: Partial<StructuredElement> & { elementId: string }): StructuredElement {
+  return {
+    parentId: null,
+    type: 'narrative',
+    text: '',
+    tableHtml: null,
+    image: null,
+    pageNumber: null,
+    bbox: null,
+    section: null,
+    ...overrides,
+  };
+}
 
 describe('chunkMarkdown', () => {
   test('returns empty array for empty / whitespace-only input', () => {
@@ -122,5 +147,270 @@ That was the code.`;
     expect(chunks.length).toBeGreaterThanOrEqual(1);
     const allContent = chunks.map((c) => c.text).join('\n');
     expect(allContent).toContain('console.log');
+  });
+
+  test('populates new chunk fields with defaults for back-compat', () => {
+    const chunks = chunkMarkdown('# Section\nBody text.', { documentId: 'd' });
+
+    expect(chunks.length).toBeGreaterThan(0);
+    for (const chunk of chunks) {
+      expect(chunk.pageStart).toBeNull();
+      expect(chunk.pageEnd).toBeNull();
+      expect(chunk.boundingBoxes).toEqual([]);
+      expect(chunk.sourceElementIds).toEqual([]);
+      expect(chunk.parentElementId).toBeNull();
+      expect(chunk.tablesHtml).toEqual([]);
+      expect(chunk.images).toEqual([]);
+      expect(chunk.citationPrecision).toBe('document');
+      expect(chunk.enhancedContent).toBeNull();
+      expect(chunk.originalText).toBe(chunk.text);
+    }
+  });
+});
+
+describe('chunkStructuredElements', () => {
+  test('returns empty array for empty input', () => {
+    expect(chunkStructuredElements([], { documentId: 'd' })).toEqual([]);
+  });
+
+  test('groups elements under the most recent title element', () => {
+    const elements: StructuredElement[] = [
+      makeElement({
+        elementId: 'el-1',
+        type: 'title',
+        text: 'Methods',
+        pageNumber: 1,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'narrative',
+        text: 'We trained models on translation tasks.',
+        pageNumber: 1,
+        bbox: PIXEL_BBOX,
+        parentId: 'el-1',
+      }),
+      makeElement({
+        elementId: 'el-3',
+        type: 'title',
+        text: 'Results',
+        pageNumber: 2,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-4',
+        type: 'narrative',
+        text: 'BLEU 28.4 on EN-DE.',
+        pageNumber: 2,
+        bbox: PIXEL_BBOX,
+        parentId: 'el-3',
+      }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]?.section).toBe('Methods');
+    expect(chunks[0]?.text).toContain('translation tasks');
+    expect(chunks[0]?.sourceElementIds).toEqual(['el-2']);
+    expect(chunks[0]?.parentElementId).toBe('el-1');
+
+    expect(chunks[1]?.section).toBe('Results');
+    expect(chunks[1]?.text).toContain('BLEU 28.4');
+    expect(chunks[1]?.sourceElementIds).toEqual(['el-4']);
+  });
+
+  test('rolls page numbers up across multi-page sections', () => {
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'Section', pageNumber: 1, bbox: PIXEL_BBOX }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'narrative',
+        text: 'Page one body.',
+        pageNumber: 1,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-3',
+        type: 'narrative',
+        text: 'Page two body.',
+        pageNumber: 2,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-4',
+        type: 'narrative',
+        text: 'Page three body.',
+        pageNumber: 3,
+        bbox: PIXEL_BBOX,
+      }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.pageStart).toBe(1);
+    expect(chunks[0]?.pageEnd).toBe(3);
+    expect(chunks[0]?.pageNumber).toBe(1);
+    expect(chunks[0]?.boundingBoxes).toHaveLength(3);
+    expect(chunks[0]?.boundingBoxes[0]?.pageNumber).toBe(1);
+    expect(chunks[0]?.boundingBoxes[2]?.pageNumber).toBe(3);
+    expect(chunks[0]?.citationPrecision).toBe('box');
+  });
+
+  test('captures tables inside the section and surfaces their HTML on the chunk', () => {
+    const tableHtml = '<table><tr><td>1</td></tr></table>';
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'Results', pageNumber: 1, bbox: PIXEL_BBOX }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'narrative',
+        text: 'See table below.',
+        pageNumber: 1,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-3',
+        type: 'table',
+        text: 'A 1',
+        tableHtml,
+        pageNumber: 1,
+        bbox: PIXEL_BBOX,
+      }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.tablesHtml).toEqual([tableHtml]);
+    expect(chunks[0]?.type).toBe('table');
+    expect(chunks[0]?.originalText).toContain('See table below.');
+    expect(chunks[0]?.originalText).toContain('A 1');
+  });
+
+  test('captures images inside the section and forwards their bytes', () => {
+    const imageData = Buffer.from('image-bytes');
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'Figure 1', pageNumber: 2, bbox: PIXEL_BBOX }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'narrative',
+        text: 'Diagram caption.',
+        pageNumber: 2,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-3',
+        type: 'image',
+        text: '',
+        image: { mimeType: 'image/png', data: imageData },
+        pageNumber: 2,
+        bbox: PIXEL_BBOX,
+      }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.images).toHaveLength(1);
+    expect(chunks[0]?.images[0]?.data.toString()).toBe('image-bytes');
+    expect(chunks[0]?.images[0]?.mimeType).toBe('image/png');
+    expect(chunks[0]?.section).toBe('Figure 1');
+  });
+
+  test('drops empty sections (trailing title with no body)', () => {
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'Methods', pageNumber: 1 }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'narrative',
+        text: 'Some body.',
+        pageNumber: 1,
+      }),
+      makeElement({ elementId: 'el-3', type: 'title', text: 'Conclusion', pageNumber: 2 }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.section).toBe('Methods');
+  });
+
+  test('downgrades citation precision to "page" when bbox is missing on any element', () => {
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'S', pageNumber: 1 }),
+      makeElement({ elementId: 'el-2', type: 'narrative', text: 'A', pageNumber: 1 }),
+      makeElement({ elementId: 'el-3', type: 'narrative', text: 'B', pageNumber: 1 }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.citationPrecision).toBe('page');
+    expect(chunks[0]?.boundingBoxes).toEqual([]);
+  });
+
+  test('downgrades citation precision to "document" when no element has a page number', () => {
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'S' }),
+      makeElement({ elementId: 'el-2', type: 'narrative', text: 'A' }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.citationPrecision).toBe('document');
+    expect(chunks[0]?.pageStart).toBeNull();
+    expect(chunks[0]?.pageEnd).toBeNull();
+    expect(chunks[0]?.pageNumber).toBeNull();
+  });
+
+  test('splits sections that exceed maxChunkChars into multiple chunks with overlap', () => {
+    const longParagraph = 'Sentence. '.repeat(60);
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'Long', pageNumber: 1 }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'narrative',
+        text: longParagraph,
+        pageNumber: 1,
+      }),
+      makeElement({
+        elementId: 'el-3',
+        type: 'narrative',
+        text: longParagraph,
+        pageNumber: 2,
+      }),
+      makeElement({
+        elementId: 'el-4',
+        type: 'narrative',
+        text: longParagraph,
+        pageNumber: 2,
+      }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, {
+      documentId: 'd',
+      maxChunkChars: 800,
+      overlapChars: 200,
+    });
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.text.length).toBeGreaterThan(0);
+      expect(chunk.section).toBe('Long');
+    }
+  });
+
+  test('emits deterministic ids scoped to documentId', () => {
+    const elements: StructuredElement[] = [
+      makeElement({ elementId: 'el-1', type: 'title', text: 'S', pageNumber: 1 }),
+      makeElement({ elementId: 'el-2', type: 'narrative', text: 'A', pageNumber: 1 }),
+      makeElement({ elementId: 'el-3', type: 'title', text: 'T', pageNumber: 2 }),
+      makeElement({ elementId: 'el-4', type: 'narrative', text: 'B', pageNumber: 2 }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'doc_42' });
+    expect(chunks.map(chunk => chunk.id)).toEqual(['doc_42:0', 'doc_42:1']);
   });
 });

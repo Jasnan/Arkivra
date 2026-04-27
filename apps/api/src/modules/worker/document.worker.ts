@@ -106,7 +106,17 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       await job.updateProgress(60);
 
       // 5. Persist raw + cleaned text + chunks via the parsing-module writer.
-      await persistParsedDocument({ db, documentId, vaultId, parsed });
+      //    `storage` and `encryption` are forwarded so the writer can persist
+      //    chunk-level image / table assets through the same KEK family as
+      //    the source document.
+      await persistParsedDocument({
+        db,
+        storage,
+        encryption,
+        documentId,
+        vaultId,
+        parsed,
+      });
 
       await job.updateProgress(90);
 

@@ -8,7 +8,7 @@ import type { ChunkerOptions } from './chunker.js';
 import { ParserValidationError } from './parser.types.js';
 import { parsedDocumentSchema } from './parsed-document.schema.js';
 import { markdownToPlainText } from './markdown-text.js';
-import { chunkMarkdown } from './chunker.js';
+import { chunkMarkdown, chunkStructuredElements } from './chunker.js';
 
 function hasMeaningfulText(value: { text: string; markdown: string }) {
   return value.text.trim().length > 0 || value.markdown.trim().length > 0;
@@ -78,11 +78,25 @@ export function createParsePipeline({
       ? markdownToPlainText(normalized.markdown)
       : normalized.text;
 
-    const chunkSource = normalized.markdown.length > 0 ? normalized.markdown : normalizedText;
-    const chunks = chunkMarkdown(chunkSource, {
+    // When the parser (or the empty-text fallback) emitted provenance-rich
+    // structured elements, route them through the element-aware chunker so
+    // every chunk carries page numbers, bounding boxes, table HTML and
+    // image bytes. The legacy markdown chunker remains as the fallback for
+    // parsers without provenance and for the rare path where text was
+    // recovered without any elements.
+    const chunkOptions: ChunkerOptions = {
       documentId: input.documentId,
       ...(chunkerOptions ?? {}),
-    });
+    };
+
+    const structuredElements = effectiveRaw.structuredElements;
+    const chunks =
+      structuredElements !== undefined && structuredElements.length > 0
+        ? chunkStructuredElements(structuredElements, chunkOptions)
+        : chunkMarkdown(
+            normalized.markdown.length > 0 ? normalized.markdown : normalizedText,
+            chunkOptions,
+          );
 
     const parsed: ParsedDocument = {
       documentId: input.documentId,

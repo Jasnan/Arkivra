@@ -1,6 +1,8 @@
 import type { DocumentDetail, DocumentSummary } from './documents.types';
 
 export type DocumentSortValue = 'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'size-desc';
+export type DocumentProcessingStage =
+  NonNullable<DocumentSummary['processingStatus']>;
 
 export function formatBytes(value: number) {
   if (value < 1024) {
@@ -36,19 +38,76 @@ export function deriveExtractionStatus(
     return 'Deleted';
   }
 
-  if (document.processingStatus === 'processing') {
-    return 'Extracting text';
+  return getDocumentProcessingStageLabel(document.processingStatus, document.content);
+}
+
+export function isDocumentProcessingActive(status: DocumentSummary['processingStatus']) {
+  return status === 'pending'
+    || status === 'queued'
+    || status === 'partitioning'
+    || status === 'chunking'
+    || status === 'summarising'
+    || status === 'vectorising'
+    || status === 'processing';
+}
+
+export function getDocumentProcessingStageLabel(
+  status: DocumentSummary['processingStatus'],
+  content?: string,
+) {
+  switch (status) {
+    case 'pending':
+      return 'Pending';
+    case 'queued':
+      return 'Queued';
+    case 'partitioning':
+      return 'Parsing';
+    case 'chunking':
+      return 'Chunking';
+    case 'summarising':
+      return 'Summarising';
+    case 'vectorising':
+      return 'Embedding';
+    case 'failed':
+      return 'Processing failed';
+    case 'completed':
+      return 'Processed';
+    case 'processing':
+      return 'Processing';
+    default:
+      return content?.trim().length ? 'Processed' : 'Pending';
+  }
+}
+
+export function getDocumentProcessingStageDescription(
+  status: DocumentSummary['processingStatus'],
+  content: string,
+) {
+  if (content.trim().length > 0) {
+    return content;
   }
 
-  if (document.processingStatus === 'failed') {
-    return 'Extraction failed';
+  switch (status) {
+    case 'pending':
+      return 'This document is waiting to be handed to the worker.';
+    case 'queued':
+      return 'This document is queued for ingestion and will start shortly.';
+    case 'partitioning':
+    case 'processing':
+      return 'Arkivra is parsing the source file and extracting text, layout, tables, and images.';
+    case 'chunking':
+      return 'Arkivra is grouping extracted content into retrieval chunks.';
+    case 'summarising':
+      return 'Arkivra is generating searchable summaries for multimodal chunks.';
+    case 'vectorising':
+      return 'Arkivra is generating embeddings for semantic retrieval.';
+    case 'failed':
+      return 'Document processing failed for this file.';
+    case 'completed':
+      return 'Processing completed, but no extracted text was found.';
+    default:
+      return 'No extracted text is available yet.';
   }
-
-  if (document.processingStatus === 'completed') {
-    return 'Processed';
-  }
-
-  return document.content.trim().length > 0 ? 'Processed' : 'Pending extraction';
 }
 
 export function sortDocuments(documents: DocumentSummary[], value: DocumentSortValue) {

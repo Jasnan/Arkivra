@@ -267,7 +267,7 @@ describe.sequential('migrations smoke', () => {
 
     expect(byName.ai_summarisation_enabled?.data_type).toBe('boolean');
     expect(byName.ai_summarisation_enabled?.is_nullable).toBe('NO');
-    expect(byName.ai_summarisation_enabled?.column_default).toContain('false');
+    expect(byName.ai_summarisation_enabled?.column_default).toContain('true');
 
     expect(byName.ollama_summarisation_model?.data_type).toBe('text');
     expect(byName.ollama_summarisation_model?.column_default).toContain("'gemma4:e2b'");
@@ -276,7 +276,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ollama_summarisation_max_images_per_chunk?.column_default).toContain('4');
 
     expect(byName.ollama_embedding_enabled?.data_type).toBe('boolean');
-    expect(byName.ollama_embedding_enabled?.column_default).toContain('false');
+    expect(byName.ollama_embedding_enabled?.column_default).toContain('true');
 
     expect(byName.ollama_embedding_model?.data_type).toBe('text');
     expect(byName.ollama_embedding_model?.column_default).toContain("'nomic-embed-text'");

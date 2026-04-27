@@ -73,6 +73,38 @@ function createTestApp({
 }
 
 describe('admin ai routes integration', () => {
+  test('defaults ingestion settings to enabled when no instance settings row exists', async () => {
+    const aiServices = createAdminAiServices({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [],
+            }),
+          }),
+        }),
+      } as any,
+      config: {
+        parsers: { gluedWordNormalization: 'ollama' },
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e2b',
+          gluedWordMinTokenLength: 8,
+          gluedWordMaxCandidates: 100,
+          gluedWordBatchSize: 10,
+          logRequests: false,
+        },
+      } as any,
+    });
+
+    const settings = await aiServices.getIngestionSettings();
+
+    expect(settings.summarisationEnabled).toBe(true);
+    expect(settings.embeddingEnabled).toBe(true);
+    expect(settings.embeddingModel).toBe('nomic-embed-text');
+    expect(settings.embeddingDimensions).toBe(768);
+  });
+
   test('returns current AI settings for a global admin', async () => {
     const { app } = createTestApp({});
     const response = await app.request('/api/admin/ai/settings');

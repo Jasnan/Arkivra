@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { SearchSortBy } from '@/features/search/search.types';
+import { isDocumentProcessingActive } from './documents.utils';
 import { getDocument, listDeletedDocuments, listDocuments, listDocumentTags } from './documents.api';
 
 export const documentQueryKeys = {
@@ -48,7 +49,7 @@ export function useDocumentQuery({ vaultId, documentId }: { vaultId: string; doc
     enabled: vaultId.length > 0 && documentId.length > 0,
     refetchInterval: query => {
       const status = query.state.data?.document.processingStatus;
-      return status === 'pending' || status === 'processing' ? 5000 : false;
+      return isDocumentProcessingActive(status) ? 5000 : false;
     },
   });
 }

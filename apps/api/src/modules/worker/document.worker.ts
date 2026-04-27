@@ -120,6 +120,11 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       console.info(
         `Processed document ${documentId} via ${parsed.engine}@${parsed.engineVersion}: ${parsed.chunks.length} chunks, ${parsed.text.length} chars of text content`,
       );
+      if (parsed.warnings.length > 0) {
+        console.info(
+          `Document ${documentId} parser warnings: ${parsed.warnings.join(', ')}`,
+        );
+      }
     } catch (error) {
       await documentsServices.updateDocumentProcessingStatus({
         documentId,

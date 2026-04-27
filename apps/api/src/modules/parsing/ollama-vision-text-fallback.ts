@@ -2,6 +2,8 @@ import type { ParseInput } from './parser.types.js';
 import type { ParserOutput } from './parsed-document.schema.js';
 import { z } from 'zod';
 
+type EmbeddedImage = NonNullable<ParserOutput['embeddedImages']>[number];
+
 export type EmptyTextFallbackResult = {
   output: Pick<ParserOutput, 'text' | 'markdown'> | null;
   warnings: string[];
@@ -31,6 +33,10 @@ function previewSnippet(value: string, maxLength = 180) {
   }
 
   return `${collapsed.slice(0, maxLength)}...`;
+}
+
+function isImageInput(mimeType: string) {
+  return mimeType.toLowerCase().startsWith('image/');
 }
 
 async function readErrorMessage(response: Response) {
@@ -84,19 +90,44 @@ async function transcribeImage({
 
 export function createRuntimeConfiguredOllamaVisionTextFallback({
   resolveSettings,
+  loadImages,
   fetchImpl = fetch,
   maxImages = 8,
 }: {
   resolveSettings: () => Promise<RuntimeOllamaVisionFallbackSettings>;
+  loadImages?: (input: ParseInput, raw: ParserOutput) => Promise<EmbeddedImage[]>;
   fetchImpl?: typeof fetch;
   maxImages?: number;
 }): EmptyTextFallback {
   return {
     name: 'ollama-vision',
-    run: async (_input, raw) => {
-      const images = raw.embeddedImages ?? [];
+    run: async (input, raw) => {
+      const warnings: string[] = [];
+      const embeddedImages = raw.embeddedImages ?? [];
+      let images = embeddedImages.length > 0
+        ? embeddedImages
+        : isImageInput(input.mimeType)
+          ? [{ mimeType: input.mimeType, data: input.fileData }]
+          : [];
+
+      if (images.length === 0 && loadImages !== undefined) {
+        try {
+          images = await loadImages(input, raw);
+          if (images.length > 0) {
+            warnings.push(`ollama_vision_fallback.loaded_images:${images.length}`);
+          }
+        } catch (error) {
+          warnings.push(
+            error instanceof Error
+              ? `ollama_vision_fallback.load_images_failed:${error.message}`
+              : 'ollama_vision_fallback.load_images_failed',
+          );
+        }
+      }
+
       if (images.length === 0) {
-        return { output: null, warnings: [] };
+        warnings.push('ollama_vision_fallback.no_images');
+        return { output: null, warnings };
       }
 
       let settings: RuntimeOllamaVisionFallbackSettings;
@@ -114,7 +145,6 @@ export function createRuntimeConfiguredOllamaVisionTextFallback({
       }
 
       const selectedImages = images.slice(0, maxImages);
-      const warnings: string[] = [];
       const outputs: string[] = [];
 
       if (images.length > selectedImages.length) {

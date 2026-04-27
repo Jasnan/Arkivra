@@ -5,7 +5,7 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
 import { documentTagsTable, documentsTable, tagsTable, usersTable, vaultsTable } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
-import { markdownToPlainText } from '../parsing/adapters/docling.text.js';
+import { markdownToPlainText } from '../parsing/markdown-text.js';
 import type { SearchSortBy } from '../search/search.types.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;

@@ -7,7 +7,7 @@ import type { TextCleaner } from './text-cleaner.js';
 import type { ChunkerOptions } from './chunker.js';
 import { ParserValidationError } from './parser.types.js';
 import { parsedDocumentSchema } from './parsed-document.schema.js';
-import { markdownToPlainText } from './adapters/docling.text.js';
+import { markdownToPlainText } from './markdown-text.js';
 import { chunkMarkdown } from './chunker.js';
 
 function hasMeaningfulText(value: { text: string; markdown: string }) {

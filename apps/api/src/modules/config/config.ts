@@ -90,45 +90,27 @@ export const configDefinition = {
       env: 'ARKIVRA_BACKUPS_MAINTENANCE_FLAG_FILE',
     },
   },
-  docling: {
+  unstructured: {
     url: {
-      doc: 'Docling HTTP API base URL.',
+      doc: 'Unstructured HTTP partition API base URL.',
       schema: z.string().url(),
-      default: 'http://localhost:5001',
-      env: 'ARKIVRA_DOCLING_URL',
+      default: 'http://localhost:8000',
+      env: 'ARKIVRA_UNSTRUCTURED_URL',
     },
-    pollIntervalMs: {
-      doc: 'How often Arkivra polls Docling async job status.',
-      schema: z.coerce.number().int().min(100).max(60_000),
-      default: 2_000,
-      env: 'ARKIVRA_DOCLING_POLL_INTERVAL_MS',
+    apiKey: {
+      doc: 'Optional API key for hosted or self-hosted Unstructured API instances that require request validation.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'ARKIVRA_UNSTRUCTURED_API_KEY',
     },
-    maxWaitMs: {
-      doc: 'Maximum time Arkivra waits for a Docling async conversion to finish.',
-      schema: z.coerce.number().int().min(1_000).max(7 * 24 * 60 * 60 * 1000),
-      default: 6 * 60 * 60 * 1000,
-      env: 'ARKIVRA_DOCLING_MAX_WAIT_MS',
+    strategy: {
+      doc: 'Unstructured partitioning strategy. `hi_res` matches the reference RAG notebook.',
+      schema: z.enum(['fast', 'hi_res', 'auto', 'ocr_only', 'od_only', 'vlm']),
+      default: 'hi_res' as const,
+      env: 'ARKIVRA_UNSTRUCTURED_STRATEGY',
     },
-    outputFormat: {
-      doc: 'Docling `to_formats` request parameter (comma-separated). Prefer `md` — the markdown serializer preserves word boundaries better than plain text on scanned PDFs.',
-      schema: z.string().min(1),
-      default: 'md',
-      env: 'ARKIVRA_DOCLING_OUTPUT_FORMAT',
-    },
-    doOcr: {
-      doc: 'Whether Docling should perform OCR on the document.',
-      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
-      default: true,
-      env: 'ARKIVRA_DOCLING_DO_OCR',
-    },
-    ocrEngine: {
-      doc: 'Docling OCR engine name (e.g., "easyocr", "tesseract").',
-      schema: z.string().min(1),
-      default: 'tesseract',
-      env: 'ARKIVRA_DOCLING_OCR_ENGINE',
-    },
-    ocrLanguages: {
-      doc: 'Comma-separated OCR languages passed to Docling. Use engine-specific values such as `deu,eng` or `auto` when supported by the selected OCR engine.',
+    languages: {
+      doc: 'Comma-separated OCR languages passed to Unstructured.',
       schema: z.string().transform((value) =>
         value
           .split(',')
@@ -136,46 +118,57 @@ export const configDefinition = {
           .filter(Boolean),
       ),
       default: 'deu,eng',
-      env: 'ARKIVRA_DOCLING_OCR_LANG',
+      env: 'ARKIVRA_UNSTRUCTURED_LANGUAGES',
     },
-    forceFullPageOcr: {
-      doc: 'Whether Docling should force OCR across the full page instead of relying on hybrid text/layout detection.',
+    inferTableStructure: {
+      doc: 'Whether Unstructured should infer PDF table structure and return table HTML metadata.',
       schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
       default: true,
-      env: 'ARKIVRA_DOCLING_FORCE_FULL_PAGE_OCR',
+      env: 'ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE',
     },
-    bitmapAreaThreshold: {
-      doc: 'Minimum bitmap area threshold passed to Docling OCR options.',
-      schema: z.coerce.number().min(0).max(1),
-      default: 0.05,
-      env: 'ARKIVRA_DOCLING_BITMAP_AREA_THRESHOLD',
-    },
-    tableMode: {
-      doc: 'Docling table-extraction mode (e.g., "fast", "accurate").',
-      schema: z.string().min(1),
-      default: 'fast',
-      env: 'ARKIVRA_DOCLING_TABLE_MODE',
-    },
-    abortOnError: {
-      doc: 'Whether Docling should abort conversion on the first error.',
-      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
-      default: false,
-      env: 'ARKIVRA_DOCLING_ABORT_ON_ERROR',
+    extractImageBlockTypes: {
+      doc: 'Comma-separated Unstructured element types to extract as base64 image payloads.',
+      schema: z.string().transform((value) =>
+        value
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      ),
+      default: 'Image',
+      env: 'ARKIVRA_UNSTRUCTURED_EXTRACT_IMAGE_BLOCK_TYPES',
     },
     engineVersion: {
-      doc: 'Docling API/image version recorded on parsed documents for provenance.',
+      doc: 'Unstructured API/image version recorded on parsed documents for provenance.',
       schema: z.string().min(1),
-      default: 'v1',
-      env: 'ARKIVRA_DOCLING_ENGINE_VERSION',
+      default: 'api-v1',
+      env: 'ARKIVRA_UNSTRUCTURED_ENGINE_VERSION',
+    },
+    splitPdfPage: {
+      doc: 'Whether Arkivra should split PDF files into smaller page batches before sending them to Unstructured.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: true,
+      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_PAGE',
+    },
+    splitPdfAllowFailed: {
+      doc: 'Whether Arkivra should continue Unstructured PDF processing when an individual page batch fails.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: false,
+      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_ALLOW_FAILED',
+    },
+    splitPdfConcurrencyLevel: {
+      doc: 'Number of Unstructured PDF page batches Arkivra sends concurrently.',
+      schema: z.coerce.number().int().min(1).max(15),
+      default: 5,
+      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_CONCURRENCY',
+    },
+    splitPdfBatchSize: {
+      doc: 'Number of PDF pages Arkivra includes in each Unstructured partition request.',
+      schema: z.coerce.number().int().min(1).max(50),
+      default: 20,
+      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE',
     },
   },
   parsers: {
-    defaultEngine: {
-      doc: 'Default parser engine used when a document does not specify one.',
-      schema: z.enum(['docling']),
-      default: 'docling' as const,
-      env: 'ARKIVRA_PARSER_DEFAULT',
-    },
     textCleanup: {
       doc: 'Post-parse text cleanup strategy. `deterministic` applies safe formatting-only rules (unicode NFKC, ligature replacement, hyphen-linebreak join, whitespace normalization). `none` disables cleanup. Future: `ollama`.',
       schema: z.enum(['deterministic', 'none']),
@@ -183,13 +176,13 @@ export const configDefinition = {
       env: 'ARKIVRA_PARSER_TEXT_CLEANUP',
     },
     gluedWordNormalization: {
-      doc: 'Optional post-cleanup OCR whitespace normalization. `ollama` asks a local model to rewrite suspicious OCR lines using whitespace changes only, fixing glued and split-apart words like `GOVERNMENTOFKERALA`, `thefollowing`, or `GOVERNMEN TOFKERALA`. `none` disables this step.',
+      doc: 'Optional post-cleanup AI normalization. `ollama` asks a local model to rewrite noisy OCR into flat identity-document Markdown. `none` disables this step.',
       schema: z.enum(['none', 'ollama']),
       default: 'none' as const,
       env: 'ARKIVRA_PARSER_GLUED_WORD_NORMALIZATION',
     },
     emptyTextFallback: {
-      doc: 'Optional recovery path when Docling returns no text. `ollama_vision` sends Docling embedded images to the configured Ollama model and uses the returned transcription; `none` disables this fallback.',
+      doc: 'Optional recovery path when Unstructured returns no text. `ollama_vision` sends embedded or rendered page images to the configured Ollama model and uses the returned transcription; `none` disables this fallback.',
       schema: z.enum(['none', 'ollama_vision']),
       default: 'ollama_vision' as const,
       env: 'ARKIVRA_PARSER_EMPTY_TEXT_FALLBACK',
@@ -203,28 +196,34 @@ export const configDefinition = {
       env: 'ARKIVRA_OLLAMA_HOST',
     },
     model: {
-      doc: 'Ollama model used for glued-word normalization.',
+      doc: 'Ollama model used for AI OCR normalization.',
       schema: z.string().min(1),
       default: 'gemma4:e2b',
       env: 'ARKIVRA_OLLAMA_MODEL',
     },
     gluedWordMinTokenLength: {
-      doc: 'Minimum alphabetic run length before a suspicious OCR line is sent to Ollama for whitespace normalization.',
+      doc: 'Legacy setting retained for existing admin settings; whole-document AI normalization ignores this value.',
       schema: z.coerce.number().int().min(4).max(128),
       default: 12,
       env: 'ARKIVRA_OLLAMA_GLUED_WORD_MIN_TOKEN_LENGTH',
     },
     gluedWordMaxCandidates: {
-      doc: 'Maximum number of glued-word candidates to send to Ollama per document.',
+      doc: 'Legacy setting retained for existing admin settings; whole-document AI normalization ignores this value.',
       schema: z.coerce.number().int().min(1).max(1000),
       default: 100,
       env: 'ARKIVRA_OLLAMA_GLUED_WORD_MAX_CANDIDATES',
     },
     gluedWordBatchSize: {
-      doc: 'Number of suspicious OCR lines to batch into each Ollama normalization request.',
+      doc: 'Legacy setting retained for existing admin settings; whole-document AI normalization ignores this value.',
       schema: z.coerce.number().int().min(1).max(200),
       default: 10,
       env: 'ARKIVRA_OLLAMA_GLUED_WORD_BATCH_SIZE',
+    },
+    aiNormalizationMaxInputChars: {
+      doc: 'Maximum cleaned parser text length sent to Ollama identity-document normalization. Set 0 to disable this length guard.',
+      schema: z.coerce.number().int().min(0).max(1_000_000),
+      default: 1000,
+      env: 'ARKIVRA_AI_NORMALIZATION_MAX_INPUT_CHARS',
     },
     logRequests: {
       doc: 'Whether to log Arkivra Ollama normalization requests and responses for debugging.',

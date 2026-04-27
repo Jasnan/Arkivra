@@ -25,6 +25,7 @@ export type RuntimeOllamaNormalizationSettings = {
   minTokenLength: number;
   maxCandidates: number;
   batchSize: number;
+  maxInputChars: number;
   logRequests: boolean;
 };
 
@@ -41,6 +42,59 @@ type OllamaChat = (args: {
 const normalizeBatchDecisionSchema = z.object({
   outputs: z.array(z.string().min(1)),
 });
+
+export const IDENTITY_DOCUMENT_NORMALIZATION_PROMPT_TEMPLATE = `You are an elite Data Normalization Engine specializing in global identity documents (passports, national IDs, visas, etc.). Your task is to read highly unstructured, noisy OCR text from ANY country and transform it into a clean, semantically consistent Markdown document optimized for retrieval and embedding.
+
+-----------------------
+STRICT RULES (MANDATORY)
+-----------------------
+
+1. OUTPUT FORMAT:
+- You MUST output ONLY Markdown.
+- No explanations, no JSON, no commentary.
+- No code fences.
+- No extra text before or after the Markdown.
+- Do not include any preface such as "Here is the extracted text", "Here is the Markdown", or "I could not extract".
+- Your entire response must be the document content itself, and nothing else.
+
+2. STRUCTURE:
+- Use a flat, label-based structure (no nesting, no tables, no bullet lists).
+- Each field must be on its own line using this exact format:
+  Field Name: Value
+- Group fields logically using simple section headers.
+
+3. COMPLETENESS:
+- Extract ALL meaningful fields present in the text.
+- If a field is unclear but likely present, include:
+  Field Name: [uncertain]
+- Never invent a field name or its value
+
+4. NOISE HANDLING:
+- Ignore OCR garbage, broken tokens, or unreadable fragments.
+- DO NOT include meaningless strings in structured fields.
+
+5. FALLBACK:
+- Do NOT append a "Raw OCR Text" section.
+- If you cannot make sense of most of the document, do not spend time trying to infer fields.
+- In that case, return only the cleaned raw OCR text as quickly as possible.
+- The raw fallback must still contain no explanations, no labels, no wrappers, and no extra text before or after.
+
+-----------------------
+GOAL
+-----------------------
+
+Produce a clean, minimal, and semantically consistent Markdown document that:
+- is easy for a human to read
+- is optimized for vector embeddings
+- avoids redundancy and noise
+
+-----------------------
+INPUT
+-----------------------
+
+Here is the OCR text:
+
+{{input_text}}`;
 
 function normalizeModelResponseEnvelope(value: string) {
   return value
@@ -213,8 +267,22 @@ function previewSnippet(value: string, maxLength = 180) {
   return `${collapsed.slice(0, maxLength)}...`;
 }
 
+function getIdentityNormalizationSourceText(input: GluedWordNormalizerInput) {
+  return (input.text.trim().length > 0 ? input.text : input.markdown).trim();
+}
+
 function collapseWhitespace(value: string) {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeMarkdownModelOutput(value: string) {
+  const normalized = normalizeModelResponseEnvelope(value).trim();
+  const fenced = normalized.match(/```(?:markdown|md)?\s*([\s\S]*?)```/i);
+  return (fenced?.[1] ?? normalized).trim();
+}
+
+function buildIdentityDocumentNormalizationPrompt(inputText: string) {
+  return IDENTITY_DOCUMENT_NORMALIZATION_PROMPT_TEMPLATE.replace('{{input_text}}', inputText);
 }
 
 function extractDigits(value: string) {
@@ -634,10 +702,99 @@ export function createOllamaGluedWordNormalizer({
   };
 }
 
+export function createOllamaIdentityDocumentNormalizer({
+  model,
+  host,
+  logRequests = false,
+  chat,
+}: {
+  model: string;
+  host?: string;
+  logRequests?: boolean;
+  chat?: OllamaChat;
+}): GluedWordNormalizer {
+  const ollamaClient = chat ? null : new Ollama({ host });
+  const client = chat ?? ollamaClient!.chat.bind(ollamaClient);
+
+  async function normalizeDocument(input: GluedWordNormalizerInput) {
+    const sourceText = getIdentityNormalizationSourceText(input);
+    if (sourceText.length === 0) {
+      return null;
+    }
+
+    const prompt = buildIdentityDocumentNormalizationPrompt(sourceText);
+
+    if (logRequests) {
+      console.info(
+        `[ollama-identity-normalizer] sending document normalization request to ${host ?? 'default-host'} with model=${model}: ${previewSnippet(sourceText)}`,
+      );
+    }
+
+    let response: Awaited<ReturnType<OllamaChat>>;
+    try {
+      response = await client({
+        model,
+        think: false,
+        options: {
+          temperature: 0,
+        },
+        messages: [{ role: 'user', content: prompt }],
+      });
+    } catch (error) {
+      console.error(
+        `[ollama-identity-normalizer] request failed for model=${model}:`,
+        error instanceof Error ? error.message : error,
+      );
+      return null;
+    }
+
+    const markdown = normalizeMarkdownModelOutput(response.message?.content ?? '');
+    if (markdown.length === 0) {
+      if (logRequests) {
+        console.warn('[ollama-identity-normalizer] empty model response, keeping original parser output');
+      }
+      return null;
+    }
+
+    if (logRequests) {
+      console.info(
+        `[ollama-identity-normalizer] accepted normalized markdown: ${previewSnippet(markdown)}`,
+      );
+    }
+
+    return markdown;
+  }
+
+  return {
+    name: 'ollama-identity-document',
+    normalize: async (input) => {
+      const markdown = await normalizeDocument(input);
+      if (markdown === null) {
+        return {
+          text: input.text,
+          markdown: input.markdown,
+          replacements: [],
+        };
+      }
+
+      return {
+        text: markdown,
+        markdown,
+        replacements: [{
+          original: input.text.trim().length > 0 ? input.text : input.markdown,
+          updated: markdown,
+        }],
+      };
+    },
+  };
+}
+
 export function createRuntimeConfiguredGluedWordNormalizer({
   resolveSettings,
+  chat,
 }: {
   resolveSettings: () => Promise<RuntimeOllamaNormalizationSettings>;
+  chat?: OllamaChat;
 }): GluedWordNormalizer {
   const noopNormalizer = createNoopGluedWordNormalizer();
   let cachedKey: string | null = null;
@@ -662,17 +819,25 @@ export function createRuntimeConfiguredGluedWordNormalizer({
         return noopNormalizer.normalize(input);
       }
 
+      const sourceText = getIdentityNormalizationSourceText(input);
+      if (settings.maxInputChars > 0 && sourceText.length > settings.maxInputChars) {
+        if (settings.logRequests) {
+          console.info(
+            `[ollama-identity-normalizer] skipped input with ${sourceText.length} character(s); limit is ${settings.maxInputChars}`,
+          );
+        }
+        return noopNormalizer.normalize(input);
+      }
+
       const nextKey = JSON.stringify(settings);
 
       if (cachedNormalizer === null || cachedKey !== nextKey) {
         cachedKey = nextKey;
-        cachedNormalizer = createOllamaGluedWordNormalizer({
+        cachedNormalizer = createOllamaIdentityDocumentNormalizer({
           host: settings.host,
           model: settings.model,
-          minTokenLength: settings.minTokenLength,
-          maxCandidates: settings.maxCandidates,
-          batchSize: settings.batchSize,
           logRequests: settings.logRequests,
+          chat,
         });
       }
 
@@ -698,5 +863,7 @@ export const __testing = {
   validateNormalization,
   buildReplacements,
   createSnippetUpdateMap,
+  buildIdentityDocumentNormalizationPrompt,
+  normalizeMarkdownModelOutput,
   normalizeBatchDecisionSchema,
 };

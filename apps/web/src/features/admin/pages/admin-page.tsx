@@ -6,10 +6,8 @@ import {
   CircleHelp,
   DatabaseBackup,
   Globe,
-  Layers3,
   RefreshCw,
   Save,
-  ScanSearch,
   Sparkles,
   Users,
   Vault,
@@ -318,8 +316,8 @@ export function AdminPage() {
                       </span>
                     </div>
                     <p className="max-w-3xl text-[0.96rem] leading-8 text-muted-foreground">
-                      Use locally running Ollama models to clean messy OCR text during ingestion. This can
-                      help repair glued or broken word boundaries from scanned documents.
+                      Use locally running Ollama models to normalize messy OCR text during ingestion into
+                      clean identity-document Markdown for retrieval.
                     </p>
                   </div>
                 </div>
@@ -347,7 +345,7 @@ export function AdminPage() {
                 <label className="space-y-3">
                   <SettingField
                     label="Feature toggle"
-                    tooltip="Turns OCR repair on or off. Example: disable this if you want Arkivra to keep the parser output exactly as extracted without asking Ollama to fix suspicious glued words."
+                    tooltip="Turns whole-document OCR normalization on or off. Disable this if you want Arkivra to keep the parser output exactly as extracted."
                   >
                     <span className="flex min-h-16 items-center gap-4 rounded-[20px] border border-border/70 bg-background px-5 py-4 text-[0.96rem] font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                       <input
@@ -387,7 +385,7 @@ export function AdminPage() {
                 <label className="space-y-3">
                   <SettingField
                     label="Model"
-                    tooltip="The Ollama model used to repair suspicious OCR lines. Example: a smaller model may be faster, while a stronger model may do better with legal forms or messy scans."
+                    tooltip="The Ollama model used to rewrite noisy OCR into clean identity-document Markdown. A stronger model may do better with IDs, passports, visas, and messy scans."
                     icon={<Bot className="size-6" />}
                   >
                     {modelOptions.length > 0 ? (
@@ -426,71 +424,6 @@ export function AdminPage() {
                   </SettingField>
                 </label>
 
-                <label className="space-y-3">
-                  <SettingField
-                    label="Min token length"
-                    tooltip="The minimum glued-looking run before Arkivra treats a line as suspicious. Example: with 12, a line like GOVERNMENTOFKERALA is a candidate, but a shorter token like VATNo may be ignored."
-                    icon={<ScanSearch className="size-6" />}
-                  >
-                    <input
-                      aria-label="Min token length"
-                      type="number"
-                      min={4}
-                      max={128}
-                      value={aiSettings.minTokenLength}
-                      disabled={!aiSettings.enabled}
-                      onChange={event => {
-                        setAiStatusMessage(null);
-                        setAiSettings(current => ({ ...current, minTokenLength: Number(event.target.value) || 4 }));
-                      }}
-                      className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
-                    />
-                  </SettingField>
-                </label>
-
-                <label className="space-y-3">
-                  <SettingField
-                    label="Max candidates"
-                    tooltip="Caps how many suspicious lines from one document are sent to Ollama. Example: if a scan has 300 noisy lines and this is 100, Arkivra will only send the first 100 candidates."
-                    icon={<DatabaseBackup className="size-6" />}
-                  >
-                    <input
-                      aria-label="Max candidates"
-                      type="number"
-                      min={1}
-                      max={1000}
-                      value={aiSettings.maxCandidates}
-                      disabled={!aiSettings.enabled}
-                      onChange={event => {
-                        setAiStatusMessage(null);
-                        setAiSettings(current => ({ ...current, maxCandidates: Number(event.target.value) || 1 }));
-                      }}
-                      className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
-                    />
-                  </SettingField>
-                </label>
-
-                <label className="space-y-3">
-                  <SettingField
-                    label="Batch size"
-                    tooltip="How many suspicious lines Arkivra sends in each Ollama request. Example: batch size 5 means 20 candidate lines will be sent as 4 requests instead of 20 single-line requests."
-                    icon={<Layers3 className="size-6" />}
-                  >
-                    <input
-                      aria-label="Batch size"
-                      type="number"
-                      min={1}
-                      max={200}
-                      value={aiSettings.batchSize}
-                      disabled={!aiSettings.enabled}
-                      onChange={event => {
-                        setAiStatusMessage(null);
-                        setAiSettings(current => ({ ...current, batchSize: Number(event.target.value) || 1 }));
-                      }}
-                      className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
-                    />
-                  </SettingField>
-                </label>
               </div>
             </div>
 

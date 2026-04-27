@@ -1,11 +1,14 @@
 {
   "folders": [
     {
-      "path": ".",
+      "path": "."
     },
     {
-      "path": "../mydms",
+      "path": "../mydms"
     },
+    {
+      "path": "../multi-modal-rag-pipeline"
+    }
   ],
   "settings": {},
 }

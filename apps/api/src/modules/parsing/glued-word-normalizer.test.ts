@@ -3,12 +3,14 @@ import {
   __testing,
   createNoopGluedWordNormalizer,
   createOllamaGluedWordNormalizer,
+  createOllamaIdentityDocumentNormalizer,
   createRuntimeConfiguredGluedWordNormalizer,
 } from './glued-word-normalizer.js';
 
 const {
   applyReplacements,
   buildReplacements,
+  buildIdentityDocumentNormalizationPrompt,
   collectLineCandidates,
   createSnippetUpdateMap,
   extractDigits,
@@ -453,6 +455,7 @@ describe('glued-word normalizer', () => {
       minTokenLength: 8,
       maxCandidates: 100,
       batchSize: 10,
+      maxInputChars: 1000,
       logRequests: false,
     };
     const resolveSettings = vi.fn(async () => settings);
@@ -470,5 +473,137 @@ describe('glued-word normalizer', () => {
     expect(resolveSettings).toHaveBeenCalledTimes(1);
     expect(result.text).toBe('GOVERNMENTOFKERALA');
     expect(result.replacements).toEqual([]);
+  });
+});
+
+describe('identity document normalizer', () => {
+  test('uses the identity-document Markdown prompt over the full parser output', async () => {
+    const normalizedMarkdown = [
+      '# Passport',
+      'Document Type: Passport',
+      'Surname: DOE',
+      'Given Names: JANE',
+      'Passport Number: 123456789',
+    ].join('\n');
+    const chat = vi.fn(async () => ({
+      message: {
+        content: normalizedMarkdown,
+      },
+    }));
+    const normalizer = createOllamaIdentityDocumentNormalizer({
+      model: 'gemma4:e2b',
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: 'P<USADOE<<JANE<<<<<<<< PASSPORT NO 123456789',
+      markdown: '',
+    });
+
+    expect(result.text).toBe(normalizedMarkdown);
+    expect(result.markdown).toBe(normalizedMarkdown);
+    expect(result.replacements).toEqual([{
+      original: 'P<USADOE<<JANE<<<<<<<< PASSPORT NO 123456789',
+      updated: normalizedMarkdown,
+    }]);
+    const request = (chat.mock.calls as unknown as Array<[
+      { format?: 'json'; messages: Array<{ role: 'user'; content: string }> },
+    ]>)[0]?.[0];
+    expect(request).not.toHaveProperty('format');
+    expect(request?.messages[0]?.content).toContain('You are an elite Data Normalization Engine');
+    expect(request?.messages[0]?.content).toContain('P<USADOE<<JANE<<<<<<<< PASSPORT NO 123456789');
+  });
+
+  test('strips accidental markdown code fences from model output', async () => {
+    const chat = vi.fn(async () => ({
+      message: {
+        content: [
+          '```markdown',
+          '# National ID',
+          'Document Number: ABC123',
+          '```',
+        ].join('\n'),
+      },
+    }));
+    const normalizer = createOllamaIdentityDocumentNormalizer({
+      model: 'gemma4:e2b',
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: 'ID ABC123',
+      markdown: '',
+    });
+
+    expect(result.markdown).toBe('# National ID\nDocument Number: ABC123');
+  });
+
+  test('runtime normalizer uses whole-document identity normalization when enabled', async () => {
+    const chat = vi.fn(async () => ({
+      message: {
+        content: '# Visa\nDocument Type: Visa',
+      },
+    }));
+    const normalizer = createRuntimeConfiguredGluedWordNormalizer({
+      resolveSettings: async () => ({
+        enabled: true,
+        host: 'http://127.0.0.1:11434',
+        model: 'gemma4:e2b',
+        minTokenLength: 8,
+        maxCandidates: 100,
+        batchSize: 10,
+        maxInputChars: 1000,
+        logRequests: false,
+      }),
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: 'VISA messy ocr',
+      markdown: '',
+    });
+
+    expect(result.markdown).toBe('# Visa\nDocument Type: Visa');
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  test('runtime normalizer skips identity normalization when parser output exceeds the configured character limit', async () => {
+    const chat = vi.fn(async () => ({
+      message: {
+        content: '# Passport\nDocument Type: Passport',
+      },
+    }));
+    const normalizer = createRuntimeConfiguredGluedWordNormalizer({
+      resolveSettings: async () => ({
+        enabled: true,
+        host: 'http://127.0.0.1:11434',
+        model: 'gemma4:e2b',
+        minTokenLength: 8,
+        maxCandidates: 100,
+        batchSize: 10,
+        maxInputChars: 12,
+        logRequests: false,
+      }),
+      chat,
+    });
+
+    const result = await normalizer.normalize({
+      text: 'PASSPORT NUMBER 123456789',
+      markdown: '',
+    });
+
+    expect(result.text).toBe('PASSPORT NUMBER 123456789');
+    expect(result.markdown).toBe('');
+    expect(result.replacements).toEqual([]);
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  test('prompt template injects OCR text at the requested placeholder', () => {
+    const prompt = buildIdentityDocumentNormalizationPrompt('OCR VALUE');
+
+    expect(prompt).toContain('Here is the OCR text:\n\nOCR VALUE');
+    expect(prompt).toContain('Do NOT append a "Raw OCR Text" section.');
+    expect(prompt).toContain('return only the cleaned raw OCR text as quickly as possible');
+    expect(prompt).not.toContain('{{input_text}}');
   });
 });

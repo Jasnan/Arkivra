@@ -72,4 +72,106 @@ describe('document search services', () => {
     expect(combinedQueryText).toContain('d.original_name ILIKE');
     expect(combinedQueryText).toContain('ORDER BY title_match DESC NULLS LAST');
   });
+
+  it('fuses fts and vector search into citation payloads', async () => {
+    const execute = vi.fn(async () => ({
+      rows: [
+        {
+          chunk_id: 'chk_1',
+          document_id: 'doc_1',
+          document_name: 'Quarterly Report',
+          page_start: 2,
+          page_end: 3,
+          section: 'Revenue',
+          snippet: 'Revenue increased to 42',
+          bounding_boxes: [
+            {
+              pageNumber: 2,
+              x0: 1,
+              y0: 2,
+              x1: 3,
+              y1: 4,
+              layoutWidth: 100,
+              layoutHeight: 200,
+              system: 'pdf',
+            },
+          ],
+          citation_precision: 'box',
+          tables_html: ['<table><tr><td>42</td></tr></table>'],
+          image_asset_ids: ['cas_1'],
+          score: 0.032,
+        },
+      ],
+    }));
+    const embed = vi.fn(async () => [[0.1, 0.2, 0.3]]);
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+      chunkEmbedder: {
+        name: 'test-embedder',
+        embed,
+      },
+    });
+
+    const result = await searchServices.searchHybrid({
+      vaultId: 'vlt_1',
+      query: 'revenue',
+      limit: 5,
+    });
+
+    expect(embed).toHaveBeenCalledWith(['revenue']);
+    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
+    expect(result.mode).toBe('hybrid');
+    expect(result.citations).toEqual([
+      {
+        chunkId: 'chk_1',
+        documentId: 'doc_1',
+        documentName: 'Quarterly Report',
+        pageStart: 2,
+        pageEnd: 3,
+        section: 'Revenue',
+        snippet: 'Revenue increased to 42',
+        boundingBoxes: [
+          {
+            pageNumber: 2,
+            x0: 1,
+            y0: 2,
+            x1: 3,
+            y1: 4,
+            layoutWidth: 100,
+            layoutHeight: 200,
+            system: 'pdf',
+          },
+        ],
+        citationPrecision: 'box',
+        assetType: 'image',
+        tablesHtml: ['<table><tr><td>42</td></tr></table>'],
+        imageAssetIds: ['cas_1'],
+        score: 0.032,
+      },
+    ]);
+  });
+
+  it('degrades hybrid search to fts when embeddings are unavailable', async () => {
+    const execute = vi.fn(async () => ({ rows: [] }));
+    const embed = vi.fn(async () => []);
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+      chunkEmbedder: {
+        name: 'test-embedder',
+        embed,
+      },
+    });
+
+    const result = await searchServices.searchHybrid({
+      vaultId: 'vlt_1',
+      query: 'contract',
+      limit: 10,
+    });
+
+    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    expect(queryText).not.toContain('FULL OUTER JOIN vec_ranked');
+    expect(result.mode).toBe('fts');
+    expect(result.citations).toEqual([]);
+  });
 });

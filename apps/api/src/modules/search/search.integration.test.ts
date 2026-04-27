@@ -48,6 +48,28 @@ function createMockSearchServices() {
       ],
       vaultId,
     })),
+    searchHybrid: vi.fn(async ({ vaultId, query, limit, mode }) => ({
+      query,
+      limit,
+      mode: mode ?? 'hybrid',
+      citations: [
+        {
+          chunkId: 'chk_1',
+          documentId: 'doc_1',
+          documentName: 'arkivra-e2e.pdf',
+          pageStart: 1,
+          pageEnd: 1,
+          section: 'Overview',
+          snippet: 'Arkivra search test content',
+          boundingBoxes: [],
+          citationPrecision: 'page',
+          assetType: 'text',
+          tablesHtml: [],
+          imageAssetIds: [],
+          score: 0.9,
+        },
+      ],
+    })),
   } as unknown as DocumentSearchServices;
 }
 
@@ -219,6 +241,61 @@ describe('search integration', () => {
       error: {
         code: 'search.invalid_date_from',
         message: 'dateFrom must be a valid date',
+      },
+    });
+  });
+
+  test('returns hybrid citations for authenticated vault members', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({
+        query: 'arkivra',
+        limit: 5,
+        mode: 'hybrid',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as any;
+    expect(body.citations).toHaveLength(1);
+    expect(body.citations[0].chunkId).toBe('chk_1');
+    expect((searchServices as any).searchHybrid).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      query: 'arkivra',
+      limit: 5,
+      mode: 'hybrid',
+    });
+  });
+
+  test('returns 400 for invalid hybrid search payload', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({
+        query: '',
+        limit: 0,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'search.invalid_query',
+        message: 'query must be a non-empty string',
       },
     });
   });

@@ -1,7 +1,8 @@
 import type { Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
-import type { DocumentSearchServices } from './search.types.js';
+import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
+import type { DocumentSearchServices, HybridSearchMode } from './search.types.js';
 import { SEARCH_SORT_VALUES } from './search.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import { createDocumentSearchServices } from './search.services.js';
@@ -62,19 +63,38 @@ function parseSortBy(value: string | undefined) {
   return SEARCH_SORT_VALUES.includes(value as any) ? value as (typeof SEARCH_SORT_VALUES)[number] : null;
 }
 
+function parseHybridLimit(value: unknown) {
+  if (value === undefined) {
+    return 10;
+  }
+
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 50 ? parsed : null;
+}
+
+function parseHybridMode(value: unknown) {
+  if (value === undefined) {
+    return 'hybrid' as const;
+  }
+
+  return value === 'hybrid' || value === 'fts' ? value as HybridSearchMode : null;
+}
+
 export function registerSearchRoutes({
   app,
   db,
   services,
+  chunkEmbedder,
   vaultServices,
 }: {
   app: Hono<ServerContext>;
   db: Database;
   services?: DocumentSearchServices;
+  chunkEmbedder?: ChunkEmbedder;
   vaultServices?: VaultsServices;
 }) {
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
-  const searchServices = services ?? createDocumentSearchServices({ db });
+  const searchServices = services ?? createDocumentSearchServices({ db, chunkEmbedder });
 
   app.use('/api/search', requireAuthentication());
 
@@ -173,6 +193,69 @@ export function registerSearchRoutes({
       dateFrom,
       dateTo,
       sortBy,
+    });
+
+    return context.json(result);
+  });
+
+  app.post('/api/vaults/:vaultId/search/hybrid', async (context) => {
+    const vaultId = context.get('vaultId');
+
+    if (vaultId === null) {
+      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+    }
+
+    const body = await context.req.json().catch(() => null) as {
+      query?: unknown;
+      limit?: unknown;
+      mode?: unknown;
+    } | null;
+
+    const query = typeof body?.query === 'string' ? body.query.trim() : '';
+
+    if (query.length === 0) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_query',
+            message: 'query must be a non-empty string',
+          },
+        },
+        400,
+      );
+    }
+
+    const limit = parseHybridLimit(body?.limit);
+    if (limit === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_limit',
+            message: 'limit must be an integer between 1 and 50',
+          },
+        },
+        400,
+      );
+    }
+
+    const mode = parseHybridMode(body?.mode);
+    if (mode === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_mode',
+            message: 'mode must be one of hybrid, fts',
+          },
+        },
+        400,
+      );
+    }
+
+    const result = await searchServices.searchHybrid({
+      vaultId,
+      query,
+      limit,
+      mode,
     });
 
     return context.json(result);

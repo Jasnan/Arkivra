@@ -33,7 +33,6 @@ export const documentsTable = pgTable(
     name: text('name').notNull(),
     mimeType: text('mime_type').notNull(),
     content: text('content').notNull().default(''),
-    markdownContent: text('markdown_content').notNull().default(''),
     rawText: text('raw_text').notNull().default(''),
     parserEngine: text('parser_engine'),
     parserEngineVersion: text('parser_engine_version'),

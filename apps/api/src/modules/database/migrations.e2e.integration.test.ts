@@ -285,6 +285,37 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ollama_embedding_dimensions?.column_default).toContain('768');
   });
 
+  test('0012 adds encryption metadata columns to document_chunk_assets', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'document_chunk_assets'
+          AND column_name IN (
+            'file_encryption_key_wrapped',
+            'file_encryption_kek_version'
+          )
+      `,
+    );
+
+    const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
+
+    expect(byName.file_encryption_key_wrapped?.data_type).toBe('text');
+    expect(byName.file_encryption_key_wrapped?.is_nullable).toBe('YES');
+
+    expect(byName.file_encryption_kek_version?.data_type).toBe('text');
+    expect(byName.file_encryption_kek_version?.is_nullable).toBe('YES');
+  });
+
   test('document_chunks.embedding remains a 768-dim pgvector column', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');

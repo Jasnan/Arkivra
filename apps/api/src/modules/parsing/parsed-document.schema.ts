@@ -60,11 +60,61 @@ export const structuredElementSchema = z.object({
 
 export type StructuredElement = z.infer<typeof structuredElementSchema>;
 
+export const CITATION_PRECISIONS = ['box', 'page', 'document'] as const;
+export type CitationPrecision = (typeof CITATION_PRECISIONS)[number];
+
+/**
+ * Bounding box for a chunk citation. Mirrors {@link structuredElementBboxSchema}
+ * but adds `pageNumber` so a single chunk can carry boxes spanning
+ * multiple pages (e.g. a table that wraps).
+ */
+export const chunkBoundingBoxSchema = z.object({
+  pageNumber: z.number().int().min(1),
+  x0: z.number(),
+  y0: z.number(),
+  x1: z.number(),
+  y1: z.number(),
+  layoutWidth: z.number(),
+  layoutHeight: z.number(),
+  system: z.string(),
+});
+
+export type ChunkBoundingBox = z.infer<typeof chunkBoundingBoxSchema>;
+
 export const parsedChunkSchema = z.object({
   id: z.string().min(1),
-  text: z.string().min(1),
+  /**
+   * Embedded text. Equals `enhancedContent` when the Phase 3 summariser
+   * filled it in; otherwise equals `originalText`. The legacy markdown
+   * chunker keeps this populated for back-compat (= the chunk content).
+   */
+  text: z.string(),
   section: z.string().nullable(),
+  /** Legacy single page number; preserved for back-compat. New chunks
+   *  should also populate `pageStart` / `pageEnd`. */
   pageNumber: z.number().int().min(1).nullable(),
+  /** Lowest page number among the chunk's source elements. */
+  pageStart: z.number().int().min(1).nullable(),
+  /** Highest page number among the chunk's source elements. */
+  pageEnd: z.number().int().min(1).nullable(),
+  /** Per-element bounding boxes carried for citation rendering. */
+  boundingBoxes: z.array(chunkBoundingBoxSchema),
+  /** Element ids the chunk was derived from (verbatim). */
+  sourceElementIds: z.array(z.string()),
+  /** Optional Unstructured `parent_id` carried from the source elements. */
+  parentElementId: z.string().nullable(),
+  /** Verbatim concatenation of every source element's `text`. Citations
+   *  always render this; never `text` (which may be a summary). */
+  originalText: z.string(),
+  /** HTML for every `table` element merged into this chunk. */
+  tablesHtml: z.array(z.string()),
+  /** Image bytes for every `image` element merged into this chunk.
+   *  Persistence writes these into `document_chunk_assets`. */
+  images: z.array(parserEmbeddedImageSchema),
+  /** Best-available citation granularity (see {@link CITATION_PRECISIONS}). */
+  citationPrecision: z.enum(CITATION_PRECISIONS),
+  /** Phase 3 vision-summariser output. `null` until populated. */
+  enhancedContent: z.string().nullable(),
   type: z.enum(PARSED_CHUNK_TYPES),
   metadata: z.record(z.string(), z.unknown()),
 });

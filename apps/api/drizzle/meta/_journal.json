@@ -85,6 +85,13 @@
       "when": 1777162800000,
       "tag": "0011_summarisation_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777252800000,
+      "tag": "0012_chunk_asset_encryption",
+      "breakpoints": true
     }
   ]
 }

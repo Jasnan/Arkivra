@@ -39,6 +39,12 @@ export const documentChunkAssetsTable = pgTable(
     byteSize: integer('byte_size'),
     sha256Hash: text('sha256_hash'),
 
+    // Encryption metadata mirrors documents.{file_encryption_key_wrapped,
+    // file_encryption_kek_version}. Both null when the asset was stored
+    // in the clear (encryption disabled) or as inline_payload (table HTML).
+    fileEncryptionKeyWrapped: text('file_encryption_key_wrapped'),
+    fileEncryptionKekVersion: text('file_encryption_kek_version'),
+
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [

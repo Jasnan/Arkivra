@@ -13,6 +13,14 @@ import { documentsTable, uploadSessionsTable } from '../database/schema/index.js
 import { persistParsedDocument } from '../parsing/persistence.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 
+const WORKER_PROGRESS = {
+  partitioning: 30,
+  chunking: 55,
+  summarising: 75,
+  vectorising: 95,
+  completed: 100,
+} as const;
+
 export type DocumentWorkerDeps = {
   db: Database;
   storage: StorageDriver;
@@ -25,6 +33,27 @@ export type DocumentWorkerDeps = {
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
   const { db, storage, encryption, parsePipeline, chunkEmbedder, connection } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
+
+  async function setProcessingStage({
+    documentId,
+    vaultId,
+    processingStatus,
+    progress,
+    job,
+  }: {
+    documentId: string;
+    vaultId: string;
+    processingStatus: 'partitioning' | 'chunking' | 'summarising' | 'vectorising' | 'completed';
+    progress: number;
+    job: Job<ProcessDocumentJobData>;
+  }) {
+    await documentsServices.updateDocumentProcessingStatus({
+      documentId,
+      vaultId,
+      processingStatus,
+    });
+    await job.updateProgress(progress);
+  }
 
   async function updateRelatedUploadSession({
     documentId,
@@ -51,10 +80,12 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
   async function processDocument(job: Job<ProcessDocumentJobData>) {
     const { documentId, vaultId } = job.data;
-    await documentsServices.updateDocumentProcessingStatus({
+    await setProcessingStage({
       documentId,
       vaultId,
-      processingStatus: 'processing',
+      processingStatus: 'partitioning',
+      progress: WORKER_PROGRESS.partitioning,
+      job,
     });
     await updateRelatedUploadSession({
       documentId,
@@ -94,8 +125,6 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         fileData = rawData;
       }
 
-      await job.updateProgress(20);
-
       // 4. Parse → clean → chunk via the engine-agnostic pipeline. The worker
       //    never touches parser-specific fields; it consumes ParsedDocument.
       const parsed = await parsePipeline.run({
@@ -103,9 +132,29 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         fileName: doc.originalName,
         mimeType: doc.mimeType,
         fileData,
-      });
+      }, {
+        onStageChange: async (stage) => {
+          if (stage === 'chunking') {
+            await setProcessingStage({
+              documentId,
+              vaultId,
+              processingStatus: 'chunking',
+              progress: WORKER_PROGRESS.chunking,
+              job,
+            });
+          }
 
-      await job.updateProgress(60);
+          if (stage === 'summarising') {
+            await setProcessingStage({
+              documentId,
+              vaultId,
+              processingStatus: 'summarising',
+              progress: WORKER_PROGRESS.summarising,
+              job,
+            });
+          }
+        },
+      });
 
       // 5. Persist raw + cleaned text + chunks via the parsing-module writer.
       //    `storage` and `encryption` are forwarded so the writer can persist
@@ -116,19 +165,36 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         storage,
         encryption,
         embedder: chunkEmbedder,
+        hooks: {
+          onStageChange: async (stage) => {
+            if (stage === 'vectorising') {
+              await setProcessingStage({
+                documentId,
+                vaultId,
+                processingStatus: 'vectorising',
+                progress: WORKER_PROGRESS.vectorising,
+                job,
+              });
+            }
+          },
+        },
         documentId,
         vaultId,
         parsed,
       });
-
-      await job.updateProgress(90);
 
       await updateRelatedUploadSession({
         documentId,
         status: 'completed',
       });
 
-      await job.updateProgress(100);
+      await setProcessingStage({
+        documentId,
+        vaultId,
+        processingStatus: 'completed',
+        progress: WORKER_PROGRESS.completed,
+        job,
+      });
 
       console.info(
         `Processed document ${documentId} via ${parsed.engine}@${parsed.engineVersion}: ${parsed.chunks.length} chunks, ${parsed.text.length} chars of text content`,

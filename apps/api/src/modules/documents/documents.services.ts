@@ -8,7 +8,15 @@ import { generateId } from '../database/schema/helpers.js';
 import type { SearchSortBy } from '../search/search.types.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
-export type DocumentProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type DocumentProcessingStatus =
+  | 'pending'
+  | 'queued'
+  | 'partitioning'
+  | 'chunking'
+  | 'summarising'
+  | 'vectorising'
+  | 'completed'
+  | 'failed';
 
 export type HardDeleteDocumentResult =
   | { success: true; id: string }

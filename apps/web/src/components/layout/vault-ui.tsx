@@ -75,25 +75,6 @@ export function SurfacePanel({
   );
 }
 
-export function StatusBanner({
-  children,
-  tone = 'neutral',
-}: PropsWithChildren<{
-  tone?: 'neutral' | 'danger';
-}>) {
-  return (
-    <div
-      className={cn(
-        'rounded-lg px-4 py-3 text-sm',
-        tone === 'neutral' && 'border border-border/70 bg-secondary/35 text-muted-foreground',
-        tone === 'danger' && 'bg-destructive/10 text-destructive ring-1 ring-destructive/20',
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
 export function StatCard({
   label,
   value,

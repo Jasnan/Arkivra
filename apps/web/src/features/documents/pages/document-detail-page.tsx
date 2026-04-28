@@ -15,9 +15,9 @@ import {
   X,
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   PageIntro,
-  StatusBanner,
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
@@ -102,8 +102,6 @@ export function DocumentDetailPage() {
   const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [isDocumentDateEditing, setIsDocumentDateEditing] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('preview');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
@@ -151,8 +149,7 @@ export function DocumentDetailPage() {
     mutationFn: renameDocument,
     onSuccess: invalidateDocument,
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not rename document.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not rename document.');
     },
   });
 
@@ -160,70 +157,58 @@ export function DocumentDetailPage() {
     mutationFn: updateDocumentDate,
     onSuccess: invalidateDocument,
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not update document date.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not update document date.');
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: softDeleteDocument,
     onSuccess: async () => {
-      setStatusMessage('Document moved to trash.');
-      setErrorMessage(null);
+      toast.success('Document moved to trash.');
       setIsDeleteDialogOpen(false);
       await invalidateDocument();
       navigate(parentRoute, { replace: true });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not delete document.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not delete document.');
     },
   });
 
   const restoreMutation = useMutation({
     mutationFn: restoreDocument,
     onSuccess: async () => {
-      setStatusMessage('Document restored.');
-      setErrorMessage(null);
+      toast.success('Document restored.');
       await invalidateDocument();
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not restore document.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not restore document.');
     },
   });
 
   const assignTagMutation = useMutation({
     mutationFn: assignTagToDocument,
     onSuccess: async () => {
-      setStatusMessage(null);
-      setErrorMessage(null);
       await invalidateDocumentTags();
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not assign tag.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not assign tag.');
     },
   });
 
   const createTagMutation = useMutation({
     mutationFn: createTag,
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not create tag.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not create tag.');
     },
   });
 
   const removeTagMutation = useMutation({
     mutationFn: removeTagFromDocument,
     onSuccess: async () => {
-      setStatusMessage(null);
-      setErrorMessage(null);
       await invalidateDocumentTags();
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not remove tag.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not remove tag.');
     },
   });
 
@@ -297,8 +282,6 @@ export function DocumentDetailPage() {
 
   async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     const nextName = currentName.trim() || document.name;
 
@@ -316,7 +299,7 @@ export function DocumentDetailPage() {
       }
 
       if (hasNameChanged || hasDocumentDateChanged) {
-        setStatusMessage('Metadata saved.');
+        toast.success('Metadata saved.');
         setRenameValue(null);
         setDocumentDateValue(null);
         setIsNameEditing(false);
@@ -326,8 +309,6 @@ export function DocumentDetailPage() {
   }
 
   function openCreateTagDialog(initialName: string) {
-    setStatusMessage(null);
-    setErrorMessage(null);
     setIsTagPickerOpen(false);
     setCreateTagNameValue(initialName);
     setCreateTagColorValue('#D8FF75');
@@ -350,9 +331,6 @@ export function DocumentDetailPage() {
       return;
     }
 
-    setStatusMessage(null);
-    setErrorMessage(null);
-
     try {
       const result = await createTagMutation.mutateAsync({
         vaultId,
@@ -366,7 +344,6 @@ export function DocumentDetailPage() {
         documentId,
         tagId: result.tag.id,
       });
-      setStatusMessage(null);
       setIsCreateTagDialogOpen(false);
       setIsTagPickerOpen(false);
       setTagSearchValue('');
@@ -402,8 +379,7 @@ export function DocumentDetailPage() {
       const printWindow = window.open('', '_blank', 'noopener,noreferrer');
 
       if (printWindow === null) {
-        setErrorMessage('Could not open print dialog.');
-        setStatusMessage(null);
+        toast.error('Could not open print dialog.');
         return;
       }
 
@@ -475,8 +451,6 @@ export function DocumentDetailPage() {
                 <DropdownMenuItem
                   disabled={restoreMutation.isPending}
                   onSelect={() => {
-                    setStatusMessage(null);
-                    setErrorMessage(null);
                     restoreMutation.mutate({ vaultId, documentId });
                   }}
                 >
@@ -497,13 +471,6 @@ export function DocumentDetailPage() {
           </DropdownMenu>
         }
       />
-
-      {statusMessage || errorMessage ? (
-        <div className="grid gap-3">
-          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-        </div>
-      ) : null}
 
       <div className="space-y-6">
         <SurfacePanel className="space-y-5">
@@ -531,8 +498,6 @@ export function DocumentDetailPage() {
                     aria-label={`Remove ${tag.name}`}
                     className="-mr-1 size-6 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
                     onClick={() => {
-                      setStatusMessage(null);
-                      setErrorMessage(null);
                       removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
                     }}
                   >
@@ -591,8 +556,6 @@ export function DocumentDetailPage() {
                         checked
                         onSelect={(event) => event.preventDefault()}
                         onCheckedChange={() => {
-                          setStatusMessage(null);
-                          setErrorMessage(null);
                           removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
                         }}
                       >
@@ -613,8 +576,6 @@ export function DocumentDetailPage() {
                         checked={false}
                         onSelect={(event) => event.preventDefault()}
                         onCheckedChange={() => {
-                          setStatusMessage(null);
-                          setErrorMessage(null);
                           assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
                         }}
                       >
@@ -913,8 +874,6 @@ export function DocumentDetailPage() {
               className="border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive"
               disabled={deleteMutation.isPending}
               onClick={() => {
-                setStatusMessage(null);
-                setErrorMessage(null);
                 deleteMutation.mutate({ vaultId, documentId });
               }}
             >

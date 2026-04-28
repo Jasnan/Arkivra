@@ -3,9 +3,9 @@ import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ellipsis, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   PageIntro,
-  StatusBanner,
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
@@ -185,8 +185,6 @@ export function TagsPage() {
   const accessibleTagsQuery = useAccessibleTagsQuery();
 
   const [filterText, setFilterText] = useState('');
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>('create');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
@@ -244,8 +242,6 @@ export function TagsPage() {
     setFormName('');
     setFormDescription('');
     setFormColor(DEFAULT_TAG_COLOR);
-    setStatusMessage(null);
-    setErrorMessage(null);
     setIsDialogOpen(true);
   }
 
@@ -257,8 +253,6 @@ export function TagsPage() {
     setFormName(tag.name);
     setFormDescription(tag.description ?? '');
     setFormColor(tag.color ?? DEFAULT_TAG_COLOR);
-    setStatusMessage(null);
-    setErrorMessage(null);
     setIsDialogOpen(true);
   }
 
@@ -280,13 +274,11 @@ export function TagsPage() {
     mutationFn: createTag,
     onSuccess: async (_, variables) => {
       await invalidateTagQueries(variables.vaultId);
-      setStatusMessage('Tag created.');
-      setErrorMessage(null);
+      toast.success('Tag created.');
       closeDialog();
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not create tag.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not create tag.');
     },
   });
 
@@ -294,13 +286,11 @@ export function TagsPage() {
     mutationFn: updateTag,
     onSuccess: async (_, variables) => {
       await invalidateTagQueries(variables.vaultId);
-      setStatusMessage('Tag updated.');
-      setErrorMessage(null);
+      toast.success('Tag updated.');
       closeDialog();
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not update tag.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not update tag.');
     },
   });
 
@@ -308,25 +298,21 @@ export function TagsPage() {
     mutationFn: deleteTag,
     onSuccess: async (_, variables) => {
       await invalidateTagQueries(variables.vaultId);
-      setStatusMessage('Tag deleted.');
-      setErrorMessage(null);
+      toast.success('Tag deleted.');
       setTagPendingDelete(null);
       restoreFocusTarget();
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not delete tag.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not delete tag.');
     },
   });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     const targetVaultId = (isVaultScoped ? scopedVaultId : formVaultId)?.trim() ?? '';
     if (targetVaultId.length === 0) {
-      setErrorMessage('Choose a vault before saving this tag.');
+      toast.error('Choose a vault before saving this tag.');
       return;
     }
 
@@ -373,13 +359,6 @@ export function TagsPage() {
           </div>
         }
       />
-
-      {statusMessage || errorMessage ? (
-        <div className="grid gap-3">
-          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-        </div>
-      ) : null}
 
       <SurfacePanel>
         <div className="w-full lg:w-[22rem]">
@@ -466,8 +445,6 @@ export function TagsPage() {
                   onEdit={(trigger) => openEditDialog(tag, trigger)}
                   onDelete={(trigger) => {
                     rememberFocusTarget(trigger);
-                    setStatusMessage(null);
-                    setErrorMessage(null);
                     setTagPendingDelete(tag);
                   }}
                 />

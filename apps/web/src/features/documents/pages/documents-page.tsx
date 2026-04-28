@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarRange, Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   PageIntro,
-  StatusBanner,
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
@@ -118,8 +118,6 @@ export function DocumentsPage() {
   const [customDateTo, setCustomDateTo] = useState('');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const debouncedSearchText = useDebouncedValue(searchText.trim(), 280);
   const appliedDateRange = useMemo(() => {
     if (datePreset === 'custom') {
@@ -153,16 +151,14 @@ export function DocumentsPage() {
   const deleteMutation = useMutation({
     mutationFn: softDeleteDocument,
     onSuccess: async () => {
-      setStatusMessage('Document moved to trash.');
-      setErrorMessage(null);
+      toast.success('Document moved to trash.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
       ]);
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not delete document.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not delete document.');
     },
   });
 
@@ -297,14 +293,6 @@ export function DocumentsPage() {
           </div>
         }
       />
-
-      {statusMessage || errorMessage ? (
-        <div className="grid gap-3">
-          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-        </div>
-      ) : null}
-
       <DocumentSearchControls
         query={searchText}
         onQueryChange={(value) => {
@@ -516,8 +504,6 @@ export function DocumentsPage() {
                     documentId={result.documentId}
                     deleteDisabled={deleteMutation.isPending}
                     onDelete={() => {
-                      setStatusMessage(null);
-                      setErrorMessage(null);
                       deleteMutation.mutate({ vaultId, documentId: result.documentId });
                     }}
                   />
@@ -535,8 +521,6 @@ export function DocumentsPage() {
                     documentId={document.id}
                     deleteDisabled={deleteMutation.isPending}
                     onDelete={() => {
-                      setStatusMessage(null);
-                      setErrorMessage(null);
                       deleteMutation.mutate({ vaultId, documentId: document.id });
                     }}
                   />

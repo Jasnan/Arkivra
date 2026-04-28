@@ -1,8 +1,9 @@
-import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { PageIntro, StatusBanner, SurfacePanel } from '@/components/layout/vault-ui';
+import { toast } from 'sonner';
+import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
 import {
@@ -46,34 +47,28 @@ export function DocumentTrashPage() {
     enabled: isVaultScoped,
   });
   const deletedDocumentsQuery = useDeletedDocumentsQuery({ enabled: !isVaultScoped });
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const restoreMutation = useMutation({
     mutationFn: restoreDocument,
     onSuccess: async () => {
-      setStatusMessage('Document restored.');
-      setErrorMessage(null);
+      toast.success('Document restored.');
       await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not restore document.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not restore document.');
     },
   });
 
   const permanentDeleteMutation = useMutation({
     mutationFn: permanentlyDeleteDocument,
     onSuccess: async () => {
-      setStatusMessage('Document permanently deleted.');
-      setErrorMessage(null);
+      toast.success('Document permanently deleted.');
       await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
     },
     onError: (error) => {
-      setErrorMessage(
+      toast.error(
         error instanceof Error ? error.message : 'Could not permanently delete document.',
       );
-      setStatusMessage(null);
     },
   });
 
@@ -97,15 +92,13 @@ export function DocumentTrashPage() {
       );
     },
     onSuccess: async () => {
-      setStatusMessage('All trashed documents permanently deleted.');
-      setErrorMessage(null);
+      toast.success('All trashed documents permanently deleted.');
       await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
     },
     onError: (error) => {
-      setErrorMessage(
+      toast.error(
         error instanceof Error ? error.message : 'Could not permanently delete all documents.',
       );
-      setStatusMessage(null);
     },
   });
 
@@ -116,18 +109,12 @@ export function DocumentTrashPage() {
         title="Trash"
         description="Restore or permanently delete soft-deleted documents."
       />
-
-      {statusMessage || errorMessage ? (
-        <div className="grid gap-3">
-          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-        </div>
-      ) : null}
-
-      <StatusBanner>
-        Trashed documents stay here for {retentionDays} days before Arkivra removes them
-        automatically.
-      </StatusBanner>
+      <Alert>
+        <AlertDescription>
+          Trashed documents stay here for {retentionDays} days before Arkivra removes them
+          automatically.
+        </AlertDescription>
+      </Alert>
 
       <SurfacePanel className="space-y-5">
         {isLoading ? (
@@ -149,8 +136,6 @@ export function DocumentTrashPage() {
                   restoreMutation.isPending
                 }
                 onClick={() => {
-                  setStatusMessage(null);
-                  setErrorMessage(null);
                   deleteAllMutation.mutate();
                 }}
               >
@@ -194,8 +179,6 @@ export function DocumentTrashPage() {
                         deleteAllMutation.isPending
                       }
                       onClick={() => {
-                        setStatusMessage(null);
-                        setErrorMessage(null);
                         restoreMutation.mutate({
                           vaultId: getResolvedVaultId(document, vaultId),
                           documentId: document.id,
@@ -213,8 +196,6 @@ export function DocumentTrashPage() {
                         deleteAllMutation.isPending
                       }
                       onClick={() => {
-                        setStatusMessage(null);
-                        setErrorMessage(null);
                         permanentDeleteMutation.mutate({
                           vaultId: getResolvedVaultId(document, vaultId),
                           documentId: document.id,

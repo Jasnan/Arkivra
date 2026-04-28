@@ -13,7 +13,9 @@ import {
   Users,
   Vault,
 } from 'lucide-react';
-import { PageIntro, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import { toast } from 'sonner';
+import { PageIntro, StatCard, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -117,27 +119,57 @@ function AiStatusBlock({
     | undefined;
 }) {
   if (aiStatusMessage) {
-    return <StatusBanner>{aiStatusMessage}</StatusBanner>;
+    return (
+      <Alert>
+        <AlertDescription>{aiStatusMessage}</AlertDescription>
+      </Alert>
+    );
   }
 
   if (saveError) {
-    return <StatusBanner tone="danger">{saveError.message}</StatusBanner>;
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{saveError.message}</AlertDescription>
+      </Alert>
+    );
   }
 
   if (modelsError) {
-    return <StatusBanner tone="danger">{modelsError.message}</StatusBanner>;
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{modelsError.message}</AlertDescription>
+      </Alert>
+    );
   }
 
   if (!aiSettings.enabled) {
-    return <StatusBanner>AI normalization is off. Arkivra will skip the Ollama repair step during ingestion.</StatusBanner>;
+    return (
+      <Alert>
+        <AlertDescription>
+          AI normalization is off. Arkivra will skip the Ollama repair step during ingestion.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   if (availability?.reachable === false) {
-    return <StatusBanner tone="danger">{availability.error ?? 'Could not reach the configured Ollama host.'}</StatusBanner>;
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          {availability.error ?? 'Could not reach the configured Ollama host.'}
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   if (availability?.modelAvailable === false) {
-    return <StatusBanner tone="danger">{availability.error ?? `Selected model ${aiSettings.model} is not available.`}</StatusBanner>;
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          {availability.error ?? `Selected model ${aiSettings.model} is not available.`}
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   if (availability?.modelAvailable === true) {
@@ -177,47 +209,77 @@ export function AdminPage() {
 
   const createBackupMutation = useMutation({
     mutationFn: createBackup,
-    onSuccess: async () => {
+    onSuccess: async ({ jobId }) => {
+      toast.success(`Backup queued as job ${jobId}.`);
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.backups() });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not queue backup.');
     },
   });
 
   const restoreBackupMutation = useMutation({
     mutationFn: restoreBackup,
+    onSuccess: ({ jobId }) => {
+      toast.success(`Restore queued as job ${jobId}.`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not queue restore.');
+    },
   });
 
   const updateUserMutation = useMutation({
     mutationFn: updateAdminUser,
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
+      toast.success(variables.disabled ? 'User disabled.' : 'User re-enabled.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not update user.');
     },
   });
 
   const grantAdminMutation = useMutation({
     mutationFn: grantGlobalAdmin,
     onSuccess: async () => {
+      toast.success('Global admin granted.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not grant admin.');
     },
   });
 
   const revokeAdminMutation = useMutation({
     mutationFn: revokeGlobalAdmin,
     onSuccess: async () => {
+      toast.success('Global admin revoked.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not revoke admin.');
     },
   });
 
   const grantVaultCreatorMutation = useMutation({
     mutationFn: grantVaultCreator,
     onSuccess: async () => {
+      toast.success('Vault creation granted.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not grant vault creation.');
     },
   });
 
   const revokeVaultCreatorMutation = useMutation({
     mutationFn: revokeVaultCreator,
     onSuccess: async () => {
+      toast.success('Vault creation revoked.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not revoke vault creation.');
     },
   });
 
@@ -257,7 +319,11 @@ export function AdminPage() {
           title="Admin"
           description="Global admin access is required to open this page."
         />
-        <StatusBanner tone="danger">Global admin access is required to open this page.</StatusBanner>
+        <Alert variant="destructive">
+          <AlertDescription>
+            Global admin access is required to open this page.
+          </AlertDescription>
+        </Alert>
       </section>
     );
   }
@@ -461,24 +527,6 @@ export function AdminPage() {
                 {createBackupMutation.isPending ? 'Queueing...' : 'Create backup'}
               </Button>
             </div>
-
-            {createBackupMutation.data ? (
-              <StatusBanner>Backup queued as job `{createBackupMutation.data.jobId}`.</StatusBanner>
-            ) : null}
-            {createBackupMutation.isError ? (
-              <StatusBanner tone="danger">
-                {createBackupMutation.error instanceof Error ? createBackupMutation.error.message : 'Could not queue backup.'}
-              </StatusBanner>
-            ) : null}
-            {restoreBackupMutation.data ? (
-              <StatusBanner>Restore queued as job `{restoreBackupMutation.data.jobId}`.</StatusBanner>
-            ) : null}
-            {restoreBackupMutation.isError ? (
-              <StatusBanner tone="danger">
-                {restoreBackupMutation.error instanceof Error ? restoreBackupMutation.error.message : 'Could not queue restore.'}
-              </StatusBanner>
-            ) : null}
-
             {backupsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading backups...</p> : null}
             {!backupsQuery.isLoading && (backupsQuery.data?.backups.length ?? 0) === 0 ? (
               <div className="vault-empty">No backups available yet.</div>
@@ -591,32 +639,6 @@ export function AdminPage() {
                 </article>
               ))}
             </div>
-
-            {updateUserMutation.isError ? (
-              <StatusBanner tone="danger">
-                {updateUserMutation.error instanceof Error ? updateUserMutation.error.message : 'Could not update user.'}
-              </StatusBanner>
-            ) : null}
-            {grantAdminMutation.isError ? (
-              <StatusBanner tone="danger">
-                {grantAdminMutation.error instanceof Error ? grantAdminMutation.error.message : 'Could not grant admin.'}
-              </StatusBanner>
-            ) : null}
-            {revokeAdminMutation.isError ? (
-              <StatusBanner tone="danger">
-                {revokeAdminMutation.error instanceof Error ? revokeAdminMutation.error.message : 'Could not revoke admin.'}
-              </StatusBanner>
-            ) : null}
-            {grantVaultCreatorMutation.isError ? (
-              <StatusBanner tone="danger">
-                {grantVaultCreatorMutation.error instanceof Error ? grantVaultCreatorMutation.error.message : 'Could not grant vault creation.'}
-              </StatusBanner>
-            ) : null}
-            {revokeVaultCreatorMutation.isError ? (
-              <StatusBanner tone="danger">
-                {revokeVaultCreatorMutation.error instanceof Error ? revokeVaultCreatorMutation.error.message : 'Could not revoke vault creation.'}
-              </StatusBanner>
-            ) : null}
         </SurfacePanel>
 
         <SurfacePanel variant="soft" className="space-y-5">

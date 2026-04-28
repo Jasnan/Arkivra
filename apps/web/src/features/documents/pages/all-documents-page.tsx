@@ -12,9 +12,9 @@ import {
   Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   PageIntro,
-  StatusBanner,
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
@@ -180,8 +180,6 @@ export function AllDocumentsPage() {
   const [vaultSearchQuery, setVaultSearchQuery] = useState('');
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const vaultFilterContentRef = useRef<HTMLDivElement | null>(null);
   const tagFilterContentRef = useRef<HTMLDivElement | null>(null);
 
@@ -224,16 +222,14 @@ export function AllDocumentsPage() {
   const deleteMutation = useMutation({
     mutationFn: softDeleteDocument,
     onSuccess: async () => {
-      setStatusMessage('Document moved to trash.');
-      setErrorMessage(null);
+      toast.success('Document moved to trash.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
       ]);
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not delete document.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not delete document.');
     },
   });
 
@@ -436,14 +432,6 @@ export function AllDocumentsPage() {
           </div>
         }
       />
-
-      {statusMessage || errorMessage ? (
-        <div className="grid gap-3">
-          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-        </div>
-      ) : null}
-
       <DocumentSearchControls
         query={query}
         onQueryChange={setQuery}
@@ -886,8 +874,6 @@ export function AllDocumentsPage() {
                         documentId={result.documentId}
                         documentLink={`/documents/${result.vaultId}/${result.documentId}`}
                         onDelete={() => {
-                          setStatusMessage(null);
-                          setErrorMessage(null);
                           deleteMutation.mutate({
                             vaultId: result.vaultId,
                             documentId: result.documentId,

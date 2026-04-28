@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   PageIntro,
   StatCard,
-  StatusBanner,
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
@@ -77,8 +77,6 @@ export function VaultSettingsPage() {
   const [invitePermissions, setInvitePermissions] =
     useState<VaultMemberPermission[]>(defaultInvitePermissions);
   const [transferTargetUserId, setTransferTargetUserId] = useState('');
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const ownerCandidates = useMemo(
     () => members.filter((member) => member.role === 'member'),
@@ -93,12 +91,12 @@ export function VaultSettingsPage() {
   const renameMutation = useMutation({
     mutationFn: renameVault,
     onSuccess: async () => {
-      setStatusMessage('Vault details updated.');
+      toast.success('Vault details updated.');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) });
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not update vault details.');
+      toast.error(error instanceof Error ? error.message : 'Could not update vault details.');
     },
   });
 
@@ -109,55 +107,55 @@ export function VaultSettingsPage() {
       navigate('/vaults');
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not delete vault.');
+      toast.error(error instanceof Error ? error.message : 'Could not delete vault.');
     },
   });
 
   const inviteMutation = useMutation({
     mutationFn: addVaultMember,
     onSuccess: async () => {
-      setStatusMessage('Member added to vault.');
+      toast.success('Member added to vault.');
       setInviteUserId('');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not add member.');
+      toast.error(error instanceof Error ? error.message : 'Could not add member.');
     },
   });
 
   const updateMemberMutation = useMutation({
     mutationFn: updateVaultMember,
     onSuccess: async () => {
-      setStatusMessage('Member permissions updated.');
+      toast.success('Member permissions updated.');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not update member.');
+      toast.error(error instanceof Error ? error.message : 'Could not update member.');
     },
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: removeVaultMember,
     onSuccess: async () => {
-      setStatusMessage('Member removed from vault.');
+      toast.success('Member removed from vault.');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not remove member.');
+      toast.error(error instanceof Error ? error.message : 'Could not remove member.');
     },
   });
 
   const transferMutation = useMutation({
     mutationFn: transferVaultOwnership,
     onSuccess: async () => {
-      setStatusMessage('Ownership transferred.');
+      toast.success('Ownership transferred.');
       setTransferTargetUserId('');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) });
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not transfer ownership.');
+      toast.error(error instanceof Error ? error.message : 'Could not transfer ownership.');
     },
   });
 
@@ -188,8 +186,6 @@ export function VaultSettingsPage() {
 
   async function handleRename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     const normalizedName = name.trim() || vault.name;
     renameMutation.mutate({
@@ -201,12 +197,10 @@ export function VaultSettingsPage() {
 
   async function handleInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatusMessage(null);
-    setErrorMessage(null);
 
     const userId = inviteUserId.trim();
     if (!userId) {
-      setErrorMessage('User ID is required.');
+      toast.error('User ID is required.');
       return;
     }
 
@@ -232,14 +226,6 @@ export function VaultSettingsPage() {
           </div>
         }
       />
-
-      {statusMessage || errorMessage ? (
-        <div className="grid gap-3">
-          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-        </div>
-      ) : null}
-
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           label="Your role"
@@ -402,9 +388,6 @@ export function VaultSettingsPage() {
                       className="space-y-4"
                       onSubmit={(event) => {
                         event.preventDefault();
-                        setStatusMessage(null);
-                        setErrorMessage(null);
-
                         const permissions = collectPermissions(event.currentTarget);
                         updateMemberMutation.mutate({
                           vaultId,
@@ -487,8 +470,6 @@ export function VaultSettingsPage() {
                   vault.role !== 'owner'
                 }
                 onClick={() => {
-                  setStatusMessage(null);
-                  setErrorMessage(null);
                   transferMutation.mutate({ vaultId, userId: transferTargetUserId });
                 }}
               >
@@ -512,8 +493,6 @@ export function VaultSettingsPage() {
               className="w-full"
               disabled={deleteMutation.isPending || vault.role !== 'owner'}
               onClick={() => {
-                setStatusMessage(null);
-                setErrorMessage(null);
                 deleteMutation.mutate({ vaultId });
               }}
             >

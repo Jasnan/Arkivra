@@ -3,11 +3,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, KeyRound, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import {
-  PageIntro,
-  StatusBanner,
-  SurfacePanel,
-} from '@/components/layout/vault-ui';
+import { toast } from 'sonner';
+import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -22,8 +19,6 @@ export function SettingsPage() {
 
   const [profileName, setProfileName] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setProfileName(sessionData?.user.name ?? '');
@@ -41,16 +36,14 @@ export function SettingsPage() {
       }
     },
     onSuccess: async () => {
-      setStatusMessage('Profile updated.');
-      setErrorMessage(null);
+      toast.success('Profile updated.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: meQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: ['session'] }),
       ]);
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not update your profile.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not update your profile.');
     },
   });
 
@@ -66,12 +59,10 @@ export function SettingsPage() {
       }
     },
     onSuccess: () => {
-      setStatusMessage('Email change started. Check your inbox to confirm the new address.');
-      setErrorMessage(null);
+      toast.success('Email change started. Check your inbox to confirm the new address.');
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not start email change.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not start email change.');
     },
   });
 
@@ -84,8 +75,7 @@ export function SettingsPage() {
       }
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not sign out.');
-      setStatusMessage(null);
+      toast.error(error instanceof Error ? error.message : 'Could not sign out.');
     },
   });
 
@@ -120,14 +110,6 @@ export function SettingsPage() {
           ) : undefined
         }
       />
-
-      {statusMessage || errorMessage ? (
-        <div className="grid gap-3">
-          {statusMessage ? <StatusBanner>{statusMessage}</StatusBanner> : null}
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-        </div>
-      ) : null}
-
       <div className="grid gap-6 xl:grid-cols-[0.8fr_1.3fr] xl:items-stretch">
         <div className="grid gap-6 xl:grid-rows-2 xl:min-h-full">
           <SurfacePanel className={`${panelClassName} xl:min-h-0`}>
@@ -139,8 +121,6 @@ export function SettingsPage() {
               className="flex h-full flex-col gap-5"
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
-                setStatusMessage(null);
-                setErrorMessage(null);
                 profileMutation.mutate();
               }}
             >
@@ -194,8 +174,6 @@ export function SettingsPage() {
                   className="w-full"
                   disabled={signOutMutation.isPending}
                   onClick={() => {
-                    setStatusMessage(null);
-                    setErrorMessage(null);
                     signOutMutation.mutate();
                   }}
                 >
@@ -249,8 +227,6 @@ export function SettingsPage() {
                   className="rounded-lg"
                   disabled={emailMutation.isPending}
                   onClick={() => {
-                    setStatusMessage(null);
-                    setErrorMessage(null);
                     emailMutation.mutate();
                   }}
                 >
@@ -277,8 +253,6 @@ export function SettingsPage() {
                   className="min-w-[260px] rounded-lg"
                   disabled={emailMutation.isPending}
                   onClick={() => {
-                    setStatusMessage(null);
-                    setErrorMessage(null);
                     emailMutation.mutate();
                   }}
                 >

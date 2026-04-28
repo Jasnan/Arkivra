@@ -3,11 +3,11 @@ import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ellipsis, FolderKanban, FolderOpen, ShieldCheck, Vault } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   PageIntro,
   SectionTitle,
   StatCard,
-  StatusBanner,
   SurfacePanel,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,6 @@ export function VaultsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -96,11 +95,11 @@ export function VaultsPage() {
       setIsCreateModalOpen(false);
       setName('');
       setDescription('');
-      setErrorMessage(null);
+      toast.success('Vault created.');
       navigate(`/vaults/${vault.id}/settings`);
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not create vault.');
+      toast.error(error instanceof Error ? error.message : 'Could not create vault.');
     },
   });
 
@@ -114,7 +113,6 @@ export function VaultsPage() {
   }
 
   function openCreateModal() {
-    setErrorMessage(null);
     setIsCreateModalOpen(true);
   }
 
@@ -124,7 +122,6 @@ export function VaultsPage() {
     }
 
     setIsCreateModalOpen(false);
-    setErrorMessage(null);
     setName('');
     setDescription('');
     restoreCreateButtonFocus();
@@ -132,10 +129,9 @@ export function VaultsPage() {
 
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorMessage(null);
 
     if (!canCreateVault) {
-      setErrorMessage(
+      toast.error(
         'A global admin must grant vault creation before this account can create a workspace.',
       );
       return;
@@ -143,7 +139,7 @@ export function VaultsPage() {
 
     const normalizedName = name.trim();
     if (!normalizedName) {
-      setErrorMessage('Vault name is required.');
+      toast.error('Vault name is required.');
       return;
     }
 
@@ -315,9 +311,6 @@ export function VaultsPage() {
             <DialogTitle className="text-sm">New vault</DialogTitle>
             <DialogDescription className="sr-only">Create a new vault.</DialogDescription>
           </DialogHeader>
-
-          {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
-
           <form className="space-y-4" onSubmit={handleCreateSubmit}>
             <Field>
               <FieldLabel htmlFor="create-vault-name">Name</FieldLabel>

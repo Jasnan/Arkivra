@@ -3,6 +3,7 @@ import type { PropsWithChildren, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 
 function TestProviders({
@@ -30,6 +31,7 @@ function TestProviders({
               )
             : children}
         </MemoryRouter>
+        <Toaster position="top-right" richColors />
       </QueryClientProvider>
     </ThemeProvider>
   );

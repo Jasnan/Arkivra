@@ -13,10 +13,10 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import {
   PageIntro,
-  StatusBanner,
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -216,10 +216,12 @@ export function TransfersPage() {
 
       {state.hydratedFromStorage &&
       state.items.some((item) => item.error?.includes('Previous upload session found')) ? (
-        <StatusBanner>
-          Previous upload session found. Route changes keep uploads alive, but after a full refresh
-          the browser requires selecting the original files again before resume.
-        </StatusBanner>
+        <Alert>
+          <AlertDescription>
+            Previous upload session found. Route changes keep uploads alive, but after a full
+            refresh the browser requires selecting the original files again before resume.
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <SurfacePanel className="space-y-4 rounded-lg p-5 sm:p-6">

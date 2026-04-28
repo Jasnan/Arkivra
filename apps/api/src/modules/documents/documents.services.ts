@@ -36,6 +36,8 @@ export type RestoreDocumentResult =
   | { success: false; reason: 'not_found' }
   | { success: false; reason: 'duplicate'; existingId: string };
 
+export type DuplicateDocumentScope = 'active' | 'trash';
+
 type ActiveDocumentRecord = {
   id: string;
   vaultId: string;
@@ -173,19 +175,27 @@ export function createDocumentsServices({
     const fileSize = fileData.length;
 
     const [existing] = await db
-      .select({ id: documentsTable.id })
+      .select({
+        id: documentsTable.id,
+        isDeleted: documentsTable.isDeleted,
+      })
       .from(documentsTable)
       .where(
         and(
           eq(documentsTable.vaultId, vaultId),
           eq(documentsTable.originalSha256Hash, sha256Hash),
-          eq(documentsTable.isDeleted, false),
         ),
       )
+      .orderBy(asc(documentsTable.isDeleted), desc(documentsTable.updatedAt))
       .limit(1);
 
     if (existing !== undefined) {
-      return { document: null, duplicate: true, existingId: existing.id };
+      return {
+        document: null,
+        duplicate: true,
+        existingId: existing.id,
+        duplicateScope: existing.isDeleted ? 'trash' : 'active',
+      };
     }
 
     const docId = generateId({ prefix: 'doc' });
@@ -231,7 +241,7 @@ export function createDocumentsServices({
       throw new Error('Failed to insert document record');
     }
 
-    return { document, duplicate: false, existingId: null };
+    return { document, duplicate: false, existingId: null, duplicateScope: null };
   }
 
   async function uploadDocument({

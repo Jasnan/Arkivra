@@ -11,6 +11,14 @@ type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData & { replaceExisting?: boolean }) => Promise<void>;
 };
 
+function getDuplicateDocumentMessage(scope: string | null | undefined) {
+  if (scope === 'trash') {
+    return 'A document with the same content is already in this vault trash';
+  }
+
+  return 'A document with the same content already exists in this vault';
+}
+
 export function registerUploadRoutes({
   app,
   db,
@@ -175,8 +183,9 @@ export function registerUploadRoutes({
           {
             error: {
               code: 'document.duplicate',
-              message: 'A document with the same content already exists in this vault',
+              message: getDuplicateDocumentMessage(result.duplicateScope),
               existingId: result.existingId,
+              duplicateScope: result.duplicateScope,
             },
             upload: result.upload,
           },

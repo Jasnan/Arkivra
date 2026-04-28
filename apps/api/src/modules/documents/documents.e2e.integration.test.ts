@@ -594,7 +594,7 @@ describe.sequential('document upload processing e2e', () => {
     expect(document?.content).toContain('Arkivra Unstructured E2E Test PDF');
   }, 60_000);
 
-  test('allows re-uploading the same file after soft delete', async () => {
+  test('blocks re-uploading the same file when the original is in trash', async () => {
     if (app === null || db === null || testContext.vaultId === null) {
       throw new Error('Test app dependencies were not initialized');
     }
@@ -662,51 +662,30 @@ describe.sequential('document upload processing e2e', () => {
       body: secondUploadFormData,
     });
 
-    expect(secondUploadResponse.status).toBe(201);
+    expect(secondUploadResponse.status).toBe(409);
     const secondUploadBody = (await secondUploadResponse.json()) as {
-      document: { id: string };
+      error: {
+        code: string;
+        existingId: string;
+        duplicateScope: string;
+        message: string;
+      };
     };
 
-    expect(secondUploadBody.document.id).not.toBe(firstDocumentId);
+    expect(secondUploadBody.error.code).toBe('document.duplicate');
+    expect(secondUploadBody.error.existingId).toBe(firstDocumentId);
+    expect(secondUploadBody.error.duplicateScope).toBe('trash');
+    expect(secondUploadBody.error.message).toContain('trash');
 
-    const restoreResponse = await app.request(
-      `/api/vaults/${testContext.vaultId}/documents/${firstDocumentId}/restore`,
-      {
-        method: 'POST',
-        headers: {
-          cookie: sessionCookie,
-        },
-      },
-    );
+    const [trashedDocument] = await db
+      .select({
+        id: documentsTable.id,
+        isDeleted: documentsTable.isDeleted,
+      })
+      .from(documentsTable)
+      .where(eq(documentsTable.id, firstDocumentId))
+      .limit(1);
 
-    expect(restoreResponse.status).toBe(409);
-    const restoreBody = (await restoreResponse.json()) as {
-      error: { code: string; existingId: string };
-    };
-
-    expect(restoreBody.error.code).toBe('document.duplicate');
-    expect(restoreBody.error.existingId).toBe(secondUploadBody.document.id);
-
-    const [trashedDocument, activeDocument] = await Promise.all([
-      db
-        .select({
-          id: documentsTable.id,
-          isDeleted: documentsTable.isDeleted,
-        })
-        .from(documentsTable)
-        .where(eq(documentsTable.id, firstDocumentId))
-        .limit(1),
-      db
-        .select({
-          id: documentsTable.id,
-          isDeleted: documentsTable.isDeleted,
-        })
-        .from(documentsTable)
-        .where(eq(documentsTable.id, secondUploadBody.document.id))
-        .limit(1),
-    ]);
-
-    expect(trashedDocument[0]?.isDeleted).toBe(true);
-    expect(activeDocument[0]?.isDeleted).toBe(false);
+    expect(trashedDocument?.isDeleted).toBe(true);
   }, 60_000);
 });

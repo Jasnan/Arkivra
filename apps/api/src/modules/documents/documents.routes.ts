@@ -16,6 +16,14 @@ import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireVaultPermission } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 
+function getDuplicateDocumentMessage(scope: string | null | undefined) {
+  if (scope === 'trash') {
+    return 'A document with the same content is already in this vault trash';
+  }
+
+  return 'A document with the same content already exists in this vault';
+}
+
 function parseSortBy(value: string | undefined) {
   if (value === undefined || value.trim().length === 0) {
     return 'created_desc' as const;
@@ -175,8 +183,9 @@ export function registerDocumentRoutes({
           {
             error: {
               code: 'document.duplicate',
-              message: 'A document with the same content already exists in this vault',
+              message: getDuplicateDocumentMessage(result.duplicateScope),
               existingId: result.existingId,
+              duplicateScope: result.duplicateScope,
             },
           },
           409,

@@ -59,6 +59,14 @@ function toPublicUploadSession(row: UploadSessionRow) {
   };
 }
 
+function getDuplicateDocumentMessage(scope: string | null | undefined) {
+  if (scope === 'trash') {
+    return 'A document with the same content is already in this vault trash';
+  }
+
+  return 'A document with the same content already exists in this vault';
+}
+
 export function createUploadsServices({
   db,
   documentsServices,
@@ -321,7 +329,7 @@ export function createUploadsServices({
         status: result.duplicate ? 'failed' : 'completed',
         errorCode: result.duplicate ? 'document.duplicate' : null,
         errorMessage: result.duplicate
-          ? 'A document with the same content already exists in this vault'
+          ? getDuplicateDocumentMessage(result.duplicateScope)
           : null,
         completedAt: result.duplicate ? null : new Date(),
         updatedAt: new Date(),
@@ -339,6 +347,7 @@ export function createUploadsServices({
       upload: toPublicUploadSession(updatedRow),
       duplicate: result.duplicate,
       existingId: result.existingId,
+      duplicateScope: result.duplicateScope,
       document: result.document,
     };
   }

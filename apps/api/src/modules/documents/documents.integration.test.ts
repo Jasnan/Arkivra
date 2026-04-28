@@ -24,6 +24,7 @@ function createMockDocumentsServices() {
       },
       duplicate: false,
       existingId: null,
+      duplicateScope: null,
     })),
     downloadDocument: vi.fn(async () => ({
       fileData: Buffer.from('file-content'),
@@ -355,6 +356,7 @@ describe('documents integration', () => {
       document: null,
       duplicate: true,
       existingId: 'doc_existing_1',
+      duplicateScope: 'active',
     }));
 
     const app = createTestApp({ docServices });
@@ -372,6 +374,35 @@ describe('documents integration', () => {
     const body = (await response.json()) as any;
     expect(body.error.code).toBe('document.duplicate');
     expect(body.error.existingId).toBe('doc_existing_1');
+    expect(body.error.duplicateScope).toBe('active');
+  });
+
+  test('returns 409 with trash-aware messaging for duplicate document upload in trash', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).uploadDocument = vi.fn(async () => ({
+      document: null,
+      duplicate: true,
+      existingId: 'doc_existing_trashed_1',
+      duplicateScope: 'trash',
+    }));
+
+    const app = createTestApp({ docServices });
+
+    const formData = new FormData();
+    formData.append('file', new File(['hello world'], 'test.txt', { type: 'text/plain' }));
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+      body: formData,
+    });
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as any;
+    expect(body.error.code).toBe('document.duplicate');
+    expect(body.error.existingId).toBe('doc_existing_trashed_1');
+    expect(body.error.duplicateScope).toBe('trash');
+    expect(body.error.message).toContain('trash');
   });
 
   test('returns 400 for upload without multipart form data', async () => {

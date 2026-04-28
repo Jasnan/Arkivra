@@ -1,8 +1,7 @@
 import type { PropsWithChildren } from 'react';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  ChevronRight,
   Compass,
   File,
   FileSearch,
@@ -23,6 +22,13 @@ import {
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import arkivraLogoUrl from '@/assets/arkivra-logo.png';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,7 +76,7 @@ function persistSidebarCollapsedValue(isCollapsed: boolean) {
   }
 }
 
-interface BreadcrumbItem {
+interface BreadcrumbEntry {
   label: string;
   to?: string;
 }
@@ -93,7 +99,7 @@ function buildBreadcrumbs({
   transferVaultId?: string | null;
   vaultName?: string;
   documentName?: string;
-}): BreadcrumbItem[] {
+}): BreadcrumbEntry[] {
   const parts = pathname.split('/').filter(Boolean);
   const currentDocumentLabel = truncateBreadcrumbLabel(documentName ?? 'Document');
 
@@ -152,7 +158,7 @@ function buildBreadcrumbs({
   if (parts[0] === 'vaults' && parts[1]) {
     const vaultLabel = vaultName ?? 'Vault';
     const vaultDocumentsPath = `/vaults/${parts[1]}/documents`;
-    const base: BreadcrumbItem[] = [
+    const base: BreadcrumbEntry[] = [
       { label: 'Vaults', to: '/vaults' },
       { label: vaultLabel, to: vaultDocumentsPath },
     ];
@@ -497,34 +503,33 @@ export function AppShell({ children }: PropsWithChildren) {
           </header>
 
           {breadcrumbs.length > 1 ? (
-          <nav aria-label="Breadcrumb" className="min-w-0 overflow-hidden pt-2">
-            <ol className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+          <Breadcrumb className="pt-2">
+            <BreadcrumbList>
               {breadcrumbs.map((item, index) => {
                 const isLast = index === breadcrumbs.length - 1;
 
                 return (
-                  <li
-                    key={`${item.to ?? item.label}-${item.label}`}
-                    className="flex min-w-0 items-center gap-1"
-                  >
-                    {index > 0 ? <ChevronRight className="size-3.5 shrink-0" /> : null}
-                    {item.to && !isLast ? (
-                      <Link
-                        to={item.to}
-                        className="truncate font-medium transition hover:text-foreground"
-                      >
-                        {item.label}
-                      </Link>
-                    ) : (
-                      <span className={cn('truncate', isLast && 'font-medium text-foreground')}>
-                        {item.label}
-                      </span>
-                    )}
-                  </li>
+                  <Fragment key={`${item.to ?? item.label}-${item.label}`}>
+                    {index > 0 ? <BreadcrumbSeparator /> : null}
+                    <BreadcrumbItem>
+                      {item.to && !isLast ? (
+                        <Link
+                          to={item.to}
+                          className="truncate font-medium transition hover:text-foreground"
+                        >
+                          {item.label}
+                        </Link>
+                      ) : (
+                        <BreadcrumbPage className="truncate">
+                          {item.label}
+                        </BreadcrumbPage>
+                      )}
+                    </BreadcrumbItem>
+                  </Fragment>
                 );
               })}
-            </ol>
-          </nav>
+            </BreadcrumbList>
+          </Breadcrumb>
           ) : null}
 
           <main className="flex-1 pb-12">{children}</main>

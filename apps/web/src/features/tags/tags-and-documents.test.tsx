@@ -118,7 +118,7 @@ describe('tags and documents pages', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
-    await user.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    await user.click(await screen.findByRole('menuitem', { name: /^edit$/i }));
     const editDialog = screen.getByRole('dialog', { name: /edit tag/i });
     const editInput = within(editDialog).getByLabelText(/^name$/i);
     await user.clear(editInput);
@@ -137,8 +137,10 @@ describe('tags and documents pages', () => {
       expect(screen.queryByRole('dialog', { name: /edit tag/i })).not.toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
-    await user.click(await screen.findByRole('menuitem', { name: /^delete$/i }));
+    const actionsTrigger = screen.getByRole('button', { name: /open actions for invoices/i });
+    await waitFor(() => expect(actionsTrigger).toHaveAttribute('aria-expanded', 'false'));
+    await user.click(actionsTrigger);
+    await user.click(await screen.findByText(/^Delete$/i));
     expect(screen.getByText(/currently attached to 2 documents/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^delete tag$/i }));
     await waitFor(() =>
@@ -813,10 +815,15 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    expect(await screen.findByText(/pending extraction/i)).toBeInTheDocument();
-
+    await screen.findByRole('heading', { name: /document preview/i });
     await user.click(screen.getByRole('button', { name: /extracted text/i }));
-    expect(await screen.findByText(/no extracted text is available yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^Pending$/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/the document detail view polls the backend while processing is in progress/i),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/this document is waiting to be handed to the worker/i),
+    ).toBeInTheDocument();
 
     window.dispatchEvent(
       new CustomEvent('arkivra:uploads-completed', {
@@ -880,7 +887,7 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await screen.findByText(/primary reading surface for this document/i);
+    await screen.findByRole('heading', { name: /document preview/i });
     await user.click(screen.getByRole('button', { name: /extracted text/i }));
 
     expect(

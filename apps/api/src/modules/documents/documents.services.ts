@@ -152,6 +152,10 @@ export function createDocumentsServices({
     return `previews/${documentId}/pages/${pageNumber}.png`;
   }
 
+  function documentPagePreviewStoragePrefix(documentId: string) {
+    return `previews/${documentId}`;
+  }
+
   async function finalizeUploadedDocument({
     vaultId,
     userId,
@@ -721,7 +725,27 @@ export function createDocumentsServices({
       return { success: false, reason: 'retention_window_active' };
     }
 
-    // Remove file from storage
+    const assetRows = await db
+      .select({
+        storageKey: documentChunkAssetsTable.storageKey,
+      })
+      .from(documentChunkAssetsTable)
+      .where(
+        and(
+          eq(documentChunkAssetsTable.documentId, doc.id),
+          eq(documentChunkAssetsTable.vaultId, vaultId),
+        ),
+      );
+
+    const assetStorageKeys = [...new Set(assetRows
+      .map(row => row.storageKey)
+      .filter((storageKey): storageKey is string => storageKey !== null))];
+
+    for (const storageKey of assetStorageKeys) {
+      await storage.remove(storageKey);
+    }
+
+    await storage.removePrefix?.(documentPagePreviewStoragePrefix(doc.id));
     await storage.remove(doc.originalStorageKey);
 
     // Delete DB record

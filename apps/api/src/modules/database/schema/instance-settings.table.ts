@@ -12,12 +12,12 @@ export const instanceSettingsTable = pgTable('instance_settings', {
   ollamaGluedWordBatchSize: integer('ollama_glued_word_batch_size').notNull().default(10),
 
   // Multimodal RAG ingestion controls (added in 0011_summarisation_settings.sql).
-  aiSummarisationEnabled: boolean('ai_summarisation_enabled').notNull().default(false),
+  aiSummarisationEnabled: boolean('ai_summarisation_enabled').notNull().default(true),
   ollamaSummarisationModel: text('ollama_summarisation_model').notNull().default('gemma4:e2b'),
   ollamaSummarisationMaxImagesPerChunk: integer('ollama_summarisation_max_images_per_chunk')
     .notNull()
     .default(4),
-  ollamaEmbeddingEnabled: boolean('ollama_embedding_enabled').notNull().default(false),
+  ollamaEmbeddingEnabled: boolean('ollama_embedding_enabled').notNull().default(true),
   ollamaEmbeddingModel: text('ollama_embedding_model').notNull().default('nomic-embed-text'),
   ollamaEmbeddingDimensions: integer('ollama_embedding_dimensions').notNull().default(768),
 });

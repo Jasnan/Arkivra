@@ -216,6 +216,11 @@ export function createUnstructuredClient({
     formData.append('files', blob, fileName);
     formData.append('output_format', 'application/json');
     formData.append('strategy', effectivePartitionOptions.strategy);
+    // Box-level citations require element coordinates from Unstructured.
+    // The API defaults this to false, so request it explicitly for every
+    // partition call and let downstream stages degrade gracefully when a
+    // given element still omits coordinates.
+    formData.append('coordinates', 'true');
     formData.append('pdf_infer_table_structure', String(effectivePartitionOptions.inferTableStructure));
 
     for (const language of effectivePartitionOptions.languages) {

@@ -51,7 +51,13 @@ import {
   useDocumentQuery,
   useDocumentTagsQuery,
 } from '@/features/documents/documents.queries';
-import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import {
+  formatBytes,
+  formatDate,
+  getDocumentProcessingStageDescription,
+  getDocumentProcessingStageLabel,
+  isDocumentProcessingActive,
+} from '@/features/documents/documents.utils';
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
@@ -277,16 +283,15 @@ export function DocumentDetailPage() {
     createTagMutation.isPending ||
     assignTagMutation.isPending;
   const displayContent = document.displayContent ?? document.content;
-  const extractedTextMessage =
-    displayContent.trim().length > 0
-      ? displayContent
-      : document.processingStatus === 'processing'
-        ? 'Text/OCR extraction is still running.'
-        : document.processingStatus === 'failed'
-          ? 'Text/OCR extraction failed for this document.'
-          : document.processingStatus === 'completed'
-            ? 'Extraction completed, but no text content was found.'
-            : 'No extracted text is available yet.';
+  const extractionStageLabel = getDocumentProcessingStageLabel(
+    document.processingStatus,
+    displayContent,
+  );
+  const extractedTextMessage = getDocumentProcessingStageDescription(
+    document.processingStatus,
+    displayContent,
+  );
+  const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
 
   async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -725,9 +730,23 @@ export function DocumentDetailPage() {
 
             {activeTab === 'content' ? (
               <div className="space-y-3">
-                <p className="text-sm leading-6 text-muted-foreground">
-                  OCR and extracted text appear here once processing completes.
-                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase ${
+                    document.processingStatus === 'failed'
+                      ? 'bg-destructive/12 text-destructive'
+                      : isExtractionActive
+                        ? 'bg-amber-500/12 text-amber-700'
+                        : 'bg-emerald-500/12 text-emerald-700'
+                  }`}
+                  >
+                    {extractionStageLabel}
+                  </span>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {isExtractionActive
+                      ? 'The document detail view polls the backend while processing is in progress.'
+                      : 'OCR and extracted text appear here after processing completes.'}
+                  </p>
+                </div>
                 <div className="h-[82vh] min-h-[820px] overflow-auto rounded-lg bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
                   {extractedTextMessage}
                 </div>

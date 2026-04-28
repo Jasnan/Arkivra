@@ -4,7 +4,16 @@ export interface DocumentSummary {
   originalName: string;
   originalSize: number;
   mimeType: string;
-  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  processingStatus?:
+    | 'pending'
+    | 'queued'
+    | 'partitioning'
+    | 'chunking'
+    | 'summarising'
+    | 'vectorising'
+    | 'completed'
+    | 'failed'
+    | 'processing';
   documentDate: string | null;
   createdAt: string;
   updatedAt: string;

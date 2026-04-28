@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { parseConfig } from '../config/config.js';
 import { setupDatabase } from '../database/database.js';
 import {
+  documentChunkAssetsTable,
+  documentChunksTable,
   documentsTable,
   usersTable,
   vaultMembersTable,
@@ -24,11 +26,14 @@ describe.sequential('background jobs e2e', () => {
   let maintenanceWorker: ReturnType<typeof createMaintenanceWorker> | null = null;
   let pool: ReturnType<typeof setupDatabase>['pool'] | null = null;
   let db: ReturnType<typeof setupDatabase>['db'] | null = null;
+  let storage: ReturnType<typeof createStorageDriver> | null = null;
   let storagePath = '';
   let documentId: string | null = null;
   let vaultId: string | null = null;
   let userId: string | null = null;
   let storageKey: string | null = null;
+  let assetStorageKey: string | null = null;
+  let previewStorageKey: string | null = null;
 
   beforeAll(async () => {
     storagePath = await mkdtemp(join(tmpdir(), 'arkivra-background-jobs-e2e-'));
@@ -54,7 +59,7 @@ describe.sequential('background jobs e2e', () => {
     db = database.db;
     pool = database.pool;
 
-    const storage = createStorageDriver({ config });
+    storage = createStorageDriver({ config });
     maintenanceQueue = createMaintenanceQueue({ connection: redis });
     maintenanceWorker = createMaintenanceWorker({
       connection: redis,
@@ -67,6 +72,8 @@ describe.sequential('background jobs e2e', () => {
     vaultId = `vlt_bg_${uniqueSuffix}`;
     documentId = `doc_bg_${uniqueSuffix}`;
     storageKey = `${vaultId}/${documentId}`;
+    assetStorageKey = `assets/${documentId}/image-1.png`;
+    previewStorageKey = `previews/${documentId}/pages/1.png`;
 
     await db.insert(usersTable).values({
       id: userId,
@@ -86,7 +93,11 @@ describe.sequential('background jobs e2e', () => {
     });
 
     await mkdir(join(storagePath, vaultId), { recursive: true });
+    await mkdir(join(storagePath, 'assets', documentId), { recursive: true });
+    await mkdir(join(storagePath, 'previews', documentId, 'pages'), { recursive: true });
     await writeFile(join(storagePath, storageKey), Buffer.from('expired soft deleted file'));
+    await writeFile(join(storagePath, assetStorageKey), Buffer.from('expired chunk asset'));
+    await writeFile(join(storagePath, previewStorageKey), Buffer.from('cached page preview'));
 
     await db.insert(documentsTable).values({
       id: documentId,
@@ -101,6 +112,27 @@ describe.sequential('background jobs e2e', () => {
       isDeleted: true,
       deletedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedBy: userId,
+    });
+
+    await db.insert(documentChunksTable).values({
+      id: `chk_bg_${uniqueSuffix}`,
+      documentId,
+      vaultId,
+      chunkIndex: 0,
+      chunkKey: 'chunk-0',
+      content: 'expired chunk',
+      citationPrecision: 'page',
+    });
+
+    await db.insert(documentChunkAssetsTable).values({
+      id: `cas_bg_${uniqueSuffix}`,
+      chunkId: `chk_bg_${uniqueSuffix}`,
+      documentId,
+      vaultId,
+      assetType: 'image',
+      mimeType: 'image/png',
+      storageKey: assetStorageKey,
+      inlinePayload: null,
     });
   });
 
@@ -147,7 +179,10 @@ describe.sequential('background jobs e2e', () => {
     if (
       db === null ||
       maintenanceQueue === null ||
+      storage === null ||
       storageKey === null ||
+      assetStorageKey === null ||
+      previewStorageKey === null ||
       documentId === null ||
       vaultId === null
     ) {
@@ -179,5 +214,8 @@ describe.sequential('background jobs e2e', () => {
       .limit(1);
 
     expect(documentAfterCleanup).toBeUndefined();
+    expect(await storage.exists(storageKey)).toBe(false);
+    expect(await storage.exists(assetStorageKey)).toBe(false);
+    expect(await storage.exists(previewStorageKey)).toBe(false);
   }, 20_000);
 });

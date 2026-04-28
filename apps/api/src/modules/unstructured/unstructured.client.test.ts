@@ -52,6 +52,7 @@ describe('unstructured client', () => {
     const headers = request?.headers as Headers;
 
     expect(body.get('strategy')).toBe('hi_res');
+    expect(body.get('coordinates')).toBe('true');
     expect(body.get('pdf_infer_table_structure')).toBe('true');
     expect(body.getAll('extract_image_block_types')).toEqual(['Image']);
     expect(body.getAll('languages')).toEqual(['deu', 'eng']);
@@ -85,6 +86,7 @@ describe('unstructured client', () => {
     const headers = request?.headers as Headers;
 
     expect(body.get('strategy')).toBe('auto');
+    expect(body.get('coordinates')).toBe('true');
     expect(body.get('pdf_infer_table_structure')).toBe('false');
     expect(body.getAll('languages')).toEqual(['eng']);
     expect(body.getAll('extract_image_block_types')).toEqual(['Image', 'Table']);

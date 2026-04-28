@@ -11,11 +11,18 @@ describe('maintenance worker cleanup', () => {
           { id: 'doc_2', original_storage_key: 'vlt_1/doc_2' },
         ],
       })
+      .mockResolvedValueOnce({
+        rows: [
+          { storage_key: 'assets/doc_1/image-1.png' },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
     const storage = {
       remove: vi.fn(async () => undefined),
+      removePrefix: vi.fn(async () => undefined),
     };
 
     const result = await hardDeleteExpiredDocuments({
@@ -26,15 +33,19 @@ describe('maintenance worker cleanup', () => {
     });
 
     expect(result.deletedCount).toBe(2);
+    expect(storage.remove).toHaveBeenCalledWith('assets/doc_1/image-1.png');
     expect(storage.remove).toHaveBeenCalledWith('vlt_1/doc_1');
     expect(storage.remove).toHaveBeenCalledWith('vlt_1/doc_2');
-    expect(execute).toHaveBeenCalledTimes(3);
+    expect(storage.removePrefix).toHaveBeenCalledWith('previews/doc_1');
+    expect(storage.removePrefix).toHaveBeenCalledWith('previews/doc_2');
+    expect(execute).toHaveBeenCalledTimes(5);
   });
 
   test('does nothing when no expired soft-deleted documents exist', async () => {
     const execute = vi.fn().mockResolvedValueOnce({ rows: [] });
     const storage = {
       remove: vi.fn(async () => undefined),
+      removePrefix: vi.fn(async () => undefined),
     };
 
     const result = await hardDeleteExpiredDocuments({
@@ -45,6 +56,7 @@ describe('maintenance worker cleanup', () => {
 
     expect(result.deletedCount).toBe(0);
     expect(storage.remove).not.toHaveBeenCalled();
+    expect(storage.removePrefix).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledTimes(1);
   });
 });

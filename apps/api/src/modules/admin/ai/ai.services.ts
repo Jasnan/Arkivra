@@ -45,11 +45,11 @@ function createDefaultSettings(config: Config): AdminAiSettings {
 
 function createDefaultIngestionSettings(config: Config) {
   return {
-    summarisationEnabled: false,
+    summarisationEnabled: true,
     summarisationHost: config.ollama.host,
     summarisationModel: 'gemma4:e2b',
     summarisationMaxImagesPerChunk: 4,
-    embeddingEnabled: false,
+    embeddingEnabled: true,
     embeddingHost: config.ollama.host,
     embeddingModel: 'nomic-embed-text',
     embeddingDimensions: 768,

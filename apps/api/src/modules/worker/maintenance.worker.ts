@@ -12,6 +12,10 @@ type ExpiredDocumentRow = {
   original_storage_key: string;
 };
 
+type AssetStorageKeyRow = {
+  storage_key: string;
+};
+
 export type MaintenanceWorkerDeps = {
   connection: Redis;
   db: Database;
@@ -43,6 +47,18 @@ export async function hardDeleteExpiredDocuments({
   let deletedCount = 0;
 
   for (const document of expiredDocuments.rows) {
+    const assetStorageKeys = await db.execute<AssetStorageKeyRow>(sql`
+      SELECT DISTINCT storage_key
+      FROM document_chunk_assets
+      WHERE document_id = ${document.id}
+        AND storage_key IS NOT NULL
+    `);
+
+    for (const asset of assetStorageKeys.rows) {
+      await storage.remove(asset.storage_key);
+    }
+
+    await storage.removePrefix?.(`previews/${document.id}`);
     await storage.remove(document.original_storage_key);
     await db.execute(sql`DELETE FROM documents WHERE id = ${document.id}`);
     deletedCount += 1;

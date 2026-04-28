@@ -24,6 +24,11 @@ export function createFilesystemStorage({ basePath }: { basePath: string }): Sto
       await rm(filePath, { force: true });
     },
 
+    async removePrefix(prefix) {
+      const prefixPath = resolvePath(prefix);
+      await rm(prefixPath, { recursive: true, force: true });
+    },
+
     async exists(key) {
       const filePath = resolvePath(key);
 

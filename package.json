@@ -27,7 +27,8 @@
   },
   "devDependencies": {
     "prettier": "^3.6.2",
-    "vitest": "^4.0.3",
-    "typescript": "^5.9.3"
+    "shadcn": "^4.6.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.3"
   }
 }

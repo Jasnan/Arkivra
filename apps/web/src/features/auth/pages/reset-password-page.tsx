@@ -1,12 +1,12 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
-
-const inputClassName =
-  'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -47,16 +47,14 @@ export function ResetPasswordPage() {
     <AuthLayout>
       <AuthCard title="Set new password" subtitle="Create a new password for your account.">
         {isReset ? (
-          <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">
-            Password updated. Redirecting to sign in...
-          </p>
+          <Alert>
+            <AlertDescription>Password updated. Redirecting to sign in...</AlertDescription>
+          </Alert>
         ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <label htmlFor="new-password" className="text-sm font-medium">
-                New password
-              </label>
-              <input
+            <Field>
+              <FieldLabel htmlFor="new-password">New password</FieldLabel>
+              <Input
                 id="new-password"
                 type="password"
                 required
@@ -64,11 +62,10 @@ export function ResetPasswordPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className={inputClassName}
               />
-            </div>
+            </Field>
 
-            {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+            {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Updating password…' : 'Update password'}

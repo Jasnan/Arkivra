@@ -7,9 +7,10 @@ import {
   PageIntro,
   StatusBanner,
   SurfacePanel,
-  vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import { authClient } from '@/lib/auth-client';
 
@@ -96,7 +97,6 @@ export function SettingsPage() {
     'flex h-full flex-col gap-5 rounded-lg border border-border/70 bg-background p-4 sm:p-5';
   const sectionTitleClassName = 'font-display text-xl font-bold  text-foreground';
   const leftCardTitleClassName = 'font-display text-lg font-semibold text-foreground';
-  const fieldInputClassName = `${vaultInputClassName} bg-background`;
   const primaryActionClassName =
     'inline-flex h-10 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-95 disabled:pointer-events-none disabled:opacity-50';
   const secondaryActionClassName =
@@ -144,31 +144,25 @@ export function SettingsPage() {
                 profileMutation.mutate();
               }}
             >
-              <div className="space-y-2">
-                <label htmlFor="settings-name" className="vault-label">
-                  Name
-                </label>
-                <input
+              <Field>
+                <FieldLabel htmlFor="settings-name">Name</FieldLabel>
+                <Input
                   id="settings-name"
                   value={profileName}
                   onChange={(event) => setProfileName(event.target.value)}
-                  className={fieldInputClassName}
                   placeholder="Your name"
                 />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="settings-email" className="vault-label">
-                  Email
-                </label>
-                <input
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="settings-email">Email</FieldLabel>
+                <Input
                   id="settings-email"
                   type="email"
                   value={profileEmail}
                   onChange={(event) => setProfileEmail(event.target.value)}
-                  className={fieldInputClassName}
                   placeholder="you@example.com"
                 />
-              </div>
+              </Field>
               <div className="mt-auto pt-2">
                 <Button type="submit" disabled={profileMutation.isPending} className="w-full">
                   {profileMutation.isPending ? 'Saving...' : 'Update profile'}

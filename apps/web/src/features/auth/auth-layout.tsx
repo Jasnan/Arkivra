@@ -1,6 +1,13 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export function AuthLayout({ children }: PropsWithChildren) {
   return (
@@ -25,11 +32,13 @@ export function AuthCard({
   children,
 }: PropsWithChildren<{ title: string; subtitle?: string }>) {
   return (
-    <section className="w-full rounded-lg border border-border bg-card p-6 shadow-sm">
-      <h1 className="text-xl font-semibold">{title}</h1>
-      {subtitle ? <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p> : null}
-      <div className="mt-6 space-y-4">{children}</div>
-    </section>
+    <Card className="w-full">
+      <CardHeader className="pb-4">
+        <CardTitle>{title}</CardTitle>
+        {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
+      </CardHeader>
+      <CardContent className="space-y-4">{children}</CardContent>
+    </Card>
   );
 }
 

@@ -9,6 +9,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -96,16 +98,22 @@ export function DocumentSearchControls<TSortValue extends string>({
     >
       <div className="rounded-lg border border-border/70 bg-background/80 p-3 sm:p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-          <div className="relative min-w-0 flex-1">
-            <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              aria-label={searchAriaLabel}
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              className="h-11 w-full rounded-lg border border-border/70 bg-background pl-11 pr-4 text-sm text-foreground outline-none transition focus-visible:border-primary/20 focus-visible:ring-2 focus-visible:ring-primary/15"
-            />
-          </div>
+          <Field className="min-w-0 flex-1">
+            <FieldLabel htmlFor="document-search-query" className="sr-only">
+              {searchAriaLabel}
+            </FieldLabel>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="document-search-query"
+                aria-label={searchAriaLabel}
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+                placeholder={searchPlaceholder}
+                className="h-11 border-border/70 pl-11 pr-4"
+              />
+            </div>
+          </Field>
 
           <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
             <DialogTrigger asChild>

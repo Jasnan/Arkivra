@@ -38,6 +38,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   getDocumentDownloadUrl,
   getDocumentInlineFileUrl,
@@ -567,14 +569,20 @@ export function DocumentDetailPage() {
                   }}
                 >
                   <div className="border-b border-border/60 p-2">
-                    <input
-                      type="text"
-                      value={tagSearchValue}
-                      onChange={(event) => setTagSearchValue(event.target.value)}
-                      placeholder="Filter tags..."
-                      className="h-10 w-full rounded-lg border border-transparent bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
-                      autoFocus
-                    />
+                    <Field>
+                      <FieldLabel htmlFor="document-detail-tag-filter" className="sr-only">
+                        Filter tags
+                      </FieldLabel>
+                      <Input
+                        id="document-detail-tag-filter"
+                        type="text"
+                        value={tagSearchValue}
+                        onChange={(event) => setTagSearchValue(event.target.value)}
+                        placeholder="Filter tags..."
+                        className="h-10 border-transparent px-3 focus-visible:ring-0"
+                        autoFocus
+                      />
+                    </Field>
                   </div>
                   <div className="max-h-72 overflow-auto py-1">
                     {selectedMatchingTags.map((tag) => (
@@ -759,7 +767,7 @@ export function DocumentDetailPage() {
                   <div className="rounded-lg bg-secondary/55 p-4">
                     <p className="text-muted-foreground">Display name</p>
                     {isNameEditing ? (
-                      <input
+                      <Input
                         id="document-name"
                         type="text"
                         value={currentName}
@@ -802,7 +810,7 @@ export function DocumentDetailPage() {
                       </span>
                     </div>
                     {isDocumentDateEditing ? (
-                      <input
+                      <Input
                         id="document-date"
                         type="date"
                         value={currentDocumentDate}

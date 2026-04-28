@@ -1,10 +1,12 @@
 import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { AuthCard, AuthLayout } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
-
-const inputClassName = 'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 const TOTP_SECRET_REGEX = /secret=([^&]+)/;
 
 export function TwoFactorSetupPage() {
@@ -66,30 +68,51 @@ export function TwoFactorSetupPage() {
       <AuthCard title="Set up two-factor auth" subtitle="Protect your account with TOTP verification.">
         {totpUri ? (
           <>
-            <div className="space-y-2 rounded-xl border border-border bg-background p-3 text-sm">
-              <p className="font-medium">Authenticator setup key</p>
-              <p className="break-all text-muted-foreground">{secret ?? 'Unavailable'}</p>
-            </div>
+            <Alert>
+              <AlertDescription className="space-y-2">
+                <p className="font-medium text-foreground">Authenticator setup key</p>
+                <p className="break-all text-muted-foreground">{secret ?? 'Unavailable'}</p>
+              </AlertDescription>
+            </Alert>
 
-            <div className="space-y-2 rounded-xl border border-border bg-background p-3 text-sm">
-              <p className="font-medium">Backup codes</p>
-              <ul className="grid grid-cols-2 gap-2 font-mono text-xs text-muted-foreground">
-                {backupCodes.map(item => <li key={item}>{item}</li>)}
-              </ul>
-            </div>
+            <Alert>
+              <AlertDescription className="space-y-3">
+                <p className="font-medium text-foreground">Backup codes</p>
+                <ul className="grid grid-cols-2 gap-2">
+                  {backupCodes.map((item) => (
+                    <li key={item}>
+                      <Badge variant="secondary" className="w-full justify-center py-1 font-mono">
+                        {item}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
 
             {isCompleted ? (
-              <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">
-                Two-factor authentication is enabled for your account.
-              </p>
+              <Alert>
+                <AlertDescription>
+                  Two-factor authentication is enabled for your account.
+                </AlertDescription>
+              </Alert>
             ) : (
               <form className="space-y-4" onSubmit={handleVerify}>
-                <div className="space-y-1.5">
-                  <label htmlFor="totp-code" className="text-sm font-medium">Enter authenticator code</label>
-                  <input id="totp-code" type="text" required minLength={6} maxLength={6} autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value)} className={inputClassName} />
-                </div>
+                <Field>
+                  <FieldLabel htmlFor="totp-code">Enter authenticator code</FieldLabel>
+                  <Input
+                    id="totp-code"
+                    type="text"
+                    required
+                    minLength={6}
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                  />
+                </Field>
 
-                {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+                {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
                 <Button type="submit" className="w-full" disabled={isVerifying}>
                   {isVerifying ? 'Verifying…' : 'Verify and enable'}
@@ -99,12 +122,19 @@ export function TwoFactorSetupPage() {
           </>
         ) : (
           <form className="space-y-4" onSubmit={handleEnable}>
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium">Current password</label>
-              <input id="password" type="password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} className={inputClassName} />
-            </div>
+            <Field>
+              <FieldLabel htmlFor="password">Current password</FieldLabel>
+              <Input
+                id="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </Field>
 
-            {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+            {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
             <Button type="submit" className="w-full" disabled={isEnabling}>
               {isEnabling ? 'Preparing 2FA…' : 'Generate setup key'}

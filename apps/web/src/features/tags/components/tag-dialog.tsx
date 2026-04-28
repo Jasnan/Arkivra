@@ -1,6 +1,7 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useRef } from 'react';
 import { Plus, RefreshCw, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,6 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 const DEFAULT_TAG_COLORS = [
   '#D8FF75',
@@ -101,11 +105,9 @@ export function TagDialog({
         </div>
 
         <form className="space-y-6 px-6 pb-6 pt-5 sm:px-8 sm:pb-8" onSubmit={onSubmit}>
-          <div className="space-y-3">
-            <label htmlFor="tag-dialog-name" className="text-sm font-medium text-foreground">
-              Name
-            </label>
-            <input
+          <Field className="gap-3">
+            <FieldLabel htmlFor="tag-dialog-name">Name</FieldLabel>
+            <Input
               id="tag-dialog-name"
               type="text"
               required
@@ -113,15 +115,14 @@ export function TagDialog({
               maxLength={64}
               value={nameValue}
               onChange={(event) => onNameChange(event.target.value)}
-              className="h-10 w-full rounded-lg border border-foreground/20 bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/35"
               placeholder="Tag name"
             />
-          </div>
+          </Field>
 
           {extraFields}
 
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-foreground">Color</label>
+          <Field className="gap-3">
+            <FieldLabel>Color</FieldLabel>
             <div className="flex flex-wrap items-center gap-2.5">
               {DEFAULT_TAG_COLORS.map((color) => (
                 <button
@@ -164,31 +165,31 @@ export function TagDialog({
                 onChange={(event) => onColorChange(event.target.value.toUpperCase())}
               />
             </div>
-          </div>
+          </Field>
 
-          <div className="space-y-3">
-            <label htmlFor="tag-dialog-description" className="text-sm font-medium text-foreground">
+          <Field className="gap-3">
+            <FieldLabel htmlFor="tag-dialog-description">
               Description <span className="font-normal text-muted-foreground">(optional)</span>
-            </label>
-            <textarea
+            </FieldLabel>
+            <Textarea
               id="tag-dialog-description"
               maxLength={256}
               value={descriptionValue}
               onChange={(event) => onDescriptionChange(event.target.value)}
-              className="min-h-28 w-full resize-y rounded-lg border border-border/70 bg-background px-3 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-foreground/20"
+              className="min-h-28 resize-y"
               placeholder="Eg. All the contracts signed by the company"
             />
-          </div>
+          </Field>
 
           <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-            <span className="inline-flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-sm leading-none text-foreground">
+            <Badge variant="secondary" className="gap-2 rounded-lg px-2.5 py-1 text-sm leading-none">
               <span
                 aria-hidden="true"
                 className="size-1.5 rounded-full"
                 style={{ backgroundColor: colorValue }}
               />
               {normalizedName || 'New tag'}
-            </span>
+            </Badge>
             <Button type="submit" className="px-5" disabled={isSubmitDisabled}>
               {isPending ? pendingLabel : submitLabel}
             </Button>

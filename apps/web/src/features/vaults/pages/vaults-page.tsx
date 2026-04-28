@@ -9,7 +9,6 @@ import {
   StatCard,
   StatusBanner,
   SurfacePanel,
-  vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +24,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
@@ -317,34 +319,30 @@ export function VaultsPage() {
           {errorMessage ? <StatusBanner tone="danger">{errorMessage}</StatusBanner> : null}
 
           <form className="space-y-4" onSubmit={handleCreateSubmit}>
-            <div className="space-y-2">
-              <label htmlFor="create-vault-name" className="vault-label">
-                Name
-              </label>
-              <input
+            <Field>
+              <FieldLabel htmlFor="create-vault-name">Name</FieldLabel>
+              <Input
                 id="create-vault-name"
                 type="text"
                 required
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className={vaultInputClassName}
                 placeholder="Personal Vault"
               />
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <label htmlFor="create-vault-description" className="vault-label">
-                Description
-              </label>
-              <textarea
+            <Field>
+              <FieldLabel htmlFor="create-vault-description">Description</FieldLabel>
+              <Textarea
                 id="create-vault-description"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                className={`${vaultInputClassName} min-h-24 resize-y`}
+                className="min-h-24 resize-y"
                 placeholder="Optional"
               />
-            </div>
+              <FieldDescription>Optional context to help identify this vault later.</FieldDescription>
+            </Field>
 
             {!canCreateVault ? (
               <p className="text-sm text-muted-foreground">

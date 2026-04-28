@@ -9,6 +9,8 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -399,16 +401,11 @@ export function DocumentsPage() {
 
               {datePreset === 'custom' ? (
                 <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="vault-documents-date-from"
-                      className="text-sm font-semibold text-muted-foreground"
-                    >
-                      From
-                    </label>
+                  <Field>
+                    <FieldLabel htmlFor="vault-documents-date-from">From</FieldLabel>
                     <div className="relative">
                       <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
+                      <Input
                         id="vault-documents-date-from"
                         aria-label="From"
                         type="date"
@@ -427,18 +424,13 @@ export function DocumentsPage() {
                         className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
                       />
                     </div>
-                  </div>
+                  </Field>
 
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="vault-documents-date-to"
-                      className="text-sm font-semibold text-muted-foreground"
-                    >
-                      To
-                    </label>
+                  <Field>
+                    <FieldLabel htmlFor="vault-documents-date-to">To</FieldLabel>
                     <div className="relative">
                       <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
+                      <Input
                         id="vault-documents-date-to"
                         aria-label="To"
                         type="date"
@@ -457,7 +449,7 @@ export function DocumentsPage() {
                         className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
                       />
                     </div>
-                  </div>
+                  </Field>
                 </div>
               ) : null}
             </div>

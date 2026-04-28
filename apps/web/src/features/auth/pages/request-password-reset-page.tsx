@@ -1,12 +1,12 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
-
-const inputClassName =
-  'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function RequestPasswordResetPage() {
   const [email, setEmail] = useState('');
@@ -36,27 +36,26 @@ export function RequestPasswordResetPage() {
     <AuthLayout>
       <AuthCard title="Reset password" subtitle="Request a password reset link by email.">
         {submitted ? (
-          <p className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">
-            If an account exists for {email}, a reset link has been sent.
-          </p>
+          <Alert>
+            <AlertDescription>
+              If an account exists for {email}, a reset link has been sent.
+            </AlertDescription>
+          </Alert>
         ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <input
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input
                 id="email"
                 type="email"
                 required
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className={inputClassName}
               />
-            </div>
+            </Field>
 
-            {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+            {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Sending reset link…' : 'Send reset link'}

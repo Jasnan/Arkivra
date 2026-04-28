@@ -24,6 +24,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -381,16 +383,17 @@ export function TagsPage() {
 
       <SurfacePanel>
         <div className="w-full lg:w-[22rem]">
-          <label htmlFor="tag-filter" className="sr-only">
-            Search tags
-          </label>
-          <input
+          <Field>
+            <FieldLabel htmlFor="tag-filter" className="sr-only">
+              Search tags
+            </FieldLabel>
+            <Input
             id="tag-filter"
             value={filterText}
             onChange={(event) => setFilterText(event.target.value)}
-            className={vaultInputClassName}
             placeholder="Search tags"
-          />
+            />
+          </Field>
         </div>
       </SurfacePanel>
 
@@ -482,10 +485,8 @@ export function TagsPage() {
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
         extraFields={
           !isVaultScoped ? (
-            <div className="space-y-3">
-              <span id="tag-dialog-vault-label" className="text-sm font-medium text-foreground">
-                Vault
-              </span>
+            <Field className="gap-3">
+              <FieldLabel id="tag-dialog-vault-label">Vault</FieldLabel>
               <Select
                 value={formVaultId || '__none__'}
                 onValueChange={(value) => setFormVaultId(value === '__none__' ? '' : value)}
@@ -505,7 +506,7 @@ export function TagsPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           ) : null
         }
         isPending={isSubmitting}

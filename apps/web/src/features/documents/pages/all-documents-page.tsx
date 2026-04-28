@@ -26,6 +26,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { softDeleteDocument } from '@/features/documents/documents.api';
 import {
   DocumentLibraryHeader,
@@ -497,9 +499,14 @@ export function AllDocumentsPage() {
                 >
                   <div ref={vaultFilterContentRef}>
                     <div className="border-b border-border/60 p-2">
-                      <div className="relative">
+                      <Field>
+                        <FieldLabel htmlFor="all-documents-search-vaults" className="sr-only">
+                          Search vaults
+                        </FieldLabel>
+                        <div className="relative">
                         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <input
+                        <Input
+                          id="all-documents-search-vaults"
                           aria-label="Search vaults"
                           value={vaultSearchQuery}
                           onChange={(event) => setVaultSearchQuery(event.target.value)}
@@ -509,10 +516,11 @@ export function AllDocumentsPage() {
                             )
                           }
                           placeholder="Search vaults"
-                          className="h-10 w-full rounded-xl border border-transparent bg-background pl-10 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
+                          className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
                           autoFocus
                         />
-                      </div>
+                        </div>
+                      </Field>
                     </div>
                     <div className="max-h-72 overflow-auto p-2">
                       {vaultsQuery.isLoading ? (
@@ -589,9 +597,14 @@ export function AllDocumentsPage() {
                 >
                   <div ref={tagFilterContentRef}>
                     <div className="border-b border-border/60 p-2">
-                      <div className="relative">
+                      <Field>
+                        <FieldLabel htmlFor="all-documents-search-tags" className="sr-only">
+                          Search tags
+                        </FieldLabel>
+                        <div className="relative">
                         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <input
+                        <Input
+                          id="all-documents-search-tags"
                           aria-label="Search tags"
                           value={tagSearchQuery}
                           onChange={(event) => setTagSearchQuery(event.target.value)}
@@ -601,10 +614,11 @@ export function AllDocumentsPage() {
                             )
                           }
                           placeholder="Search tags"
-                          className="h-10 w-full rounded-xl border border-transparent bg-background pl-10 pr-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-border"
+                          className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
                           autoFocus
                         />
-                      </div>
+                        </div>
+                      </Field>
                     </div>
                     <div className="max-h-72 overflow-auto p-2">
                       {tagsQuery.isLoading ? (
@@ -688,16 +702,11 @@ export function AllDocumentsPage() {
 
               {datePreset === 'custom' ? (
                 <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="documents-custom-date-from"
-                      className="text-sm font-semibold text-muted-foreground"
-                    >
-                      From
-                    </label>
+                  <Field>
+                    <FieldLabel htmlFor="documents-custom-date-from">From</FieldLabel>
                     <div className="relative">
                       <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
+                      <Input
                         id="documents-custom-date-from"
                         aria-label="From"
                         type="date"
@@ -714,17 +723,12 @@ export function AllDocumentsPage() {
                         className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
                       />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="documents-custom-date-to"
-                      className="text-sm font-semibold text-muted-foreground"
-                    >
-                      To
-                    </label>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="documents-custom-date-to">To</FieldLabel>
                     <div className="relative">
                       <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
+                      <Input
                         id="documents-custom-date-to"
                         aria-label="To"
                         type="date"
@@ -741,7 +745,7 @@ export function AllDocumentsPage() {
                         className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
                       />
                     </div>
-                  </div>
+                  </Field>
                 </div>
               ) : null}
             </div>

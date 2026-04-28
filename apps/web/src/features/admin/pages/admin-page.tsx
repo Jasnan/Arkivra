@@ -1,4 +1,5 @@
-import { type ReactNode, useDeferredValue, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useDeferredValue, useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveRestore,
@@ -14,6 +15,8 @@ import {
 } from 'lucide-react';
 import { PageIntro, StatCard, StatusBanner, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   createBackup,
@@ -64,7 +67,7 @@ function SettingField({
   return (
     <div className={`space-y-3 ${className}`}>
       <div className="flex items-center gap-2">
-        <span className="text-[0.95rem] font-semibold text-foreground">{label}</span>
+        <FieldLabel className="text-[0.95rem] font-semibold text-foreground">{label}</FieldLabel>
         {tooltip ? (
           <span className="group relative inline-flex">
             <span
@@ -368,7 +371,7 @@ export function AdminPage() {
                     tooltip="The HTTP address Arkivra uses to talk to Ollama. Example: use http://127.0.0.1:11434 for a local install, or http://192.168.1.50:11434 if Ollama runs on another machine in your LAN."
                     icon={<Globe className="size-6" />}
                   >
-                    <input
+                    <Input
                       aria-label="Ollama host"
                       value={aiSettings.ollamaHost}
                       disabled={!aiSettings.enabled}
@@ -409,7 +412,7 @@ export function AdminPage() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <input
+                      <Input
                         aria-label="Ollama model"
                         value={aiSettings.model}
                         disabled={!aiSettings.enabled}

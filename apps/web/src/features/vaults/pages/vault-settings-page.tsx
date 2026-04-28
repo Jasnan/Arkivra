@@ -11,6 +11,8 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -18,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import {
   addVaultMember,
   deleteVault,
@@ -272,25 +275,26 @@ export function VaultSettingsPage() {
               </h2>
             </div>
             <form className="space-y-4" onSubmit={handleRename}>
-              <label className="space-y-2 block">
-                <span className="vault-label">Name</span>
-                <input
+              <Field>
+                <FieldLabel htmlFor="vault-settings-name">Name</FieldLabel>
+                <Input
+                  id="vault-settings-name"
                   type="text"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  className={vaultInputClassName}
                 />
-              </label>
+              </Field>
 
-              <label className="space-y-2 block">
-                <span className="vault-label">Description</span>
-                <textarea
+              <Field>
+                <FieldLabel htmlFor="vault-settings-description">Description</FieldLabel>
+                <Textarea
+                  id="vault-settings-description"
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
-                  className={`${vaultInputClassName} min-h-28 resize-y`}
+                  className="min-h-28 resize-y"
                   placeholder="What belongs in this vault?"
                 />
-              </label>
+              </Field>
               <Button type="submit" disabled={renameMutation.isPending}>
                 {renameMutation.isPending ? 'Saving...' : 'Save details'}
               </Button>
@@ -308,14 +312,18 @@ export function VaultSettingsPage() {
               </p>
             </div>
             <form className="space-y-4" onSubmit={handleInvite}>
-              <input
-                type="text"
-                value={inviteUserId}
-                onChange={(event) => setInviteUserId(event.target.value)}
-                placeholder="usr_..."
-                className={vaultInputClassName}
-                disabled={!canManageMembers}
-              />
+              <Field>
+                <FieldLabel htmlFor="vault-invite-user-id">User ID</FieldLabel>
+                <Input
+                  id="vault-invite-user-id"
+                  type="text"
+                  value={inviteUserId}
+                  onChange={(event) => setInviteUserId(event.target.value)}
+                  placeholder="usr_..."
+                  disabled={!canManageMembers}
+                />
+                <FieldDescription>Invite an existing Arkivra user by their user id.</FieldDescription>
+              </Field>
 
               <div className="grid gap-2 sm:grid-cols-2">
                 {VAULT_MEMBER_PERMISSIONS.map((permission) => (

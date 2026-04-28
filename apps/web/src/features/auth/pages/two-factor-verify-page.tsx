@@ -2,11 +2,10 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
-
-const inputClassName =
-  'h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function TwoFactorVerifyPage() {
   const navigate = useNavigate();
@@ -59,11 +58,9 @@ export function TwoFactorVerifyPage() {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           {mode === 'totp' ? (
-            <div className="space-y-1.5">
-              <label htmlFor="totp-code" className="text-sm font-medium">
-                6-digit code
-              </label>
-              <input
+            <Field>
+              <FieldLabel htmlFor="totp-code">6-digit code</FieldLabel>
+              <Input
                 id="totp-code"
                 type="text"
                 required
@@ -72,27 +69,23 @@ export function TwoFactorVerifyPage() {
                 autoComplete="one-time-code"
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
-                className={inputClassName}
               />
-            </div>
+            </Field>
           ) : (
-            <div className="space-y-1.5">
-              <label htmlFor="backup-code" className="text-sm font-medium">
-                Backup code
-              </label>
-              <input
+            <Field>
+              <FieldLabel htmlFor="backup-code">Backup code</FieldLabel>
+              <Input
                 id="backup-code"
                 type="text"
                 required
                 autoComplete="off"
                 value={backupCode}
                 onChange={(event) => setBackupCode(event.target.value)}
-                className={inputClassName}
               />
-            </div>
+            </Field>
           )}
 
-          {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+          {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Verifying…' : 'Verify'}

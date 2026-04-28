@@ -9,6 +9,8 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -127,13 +129,11 @@ export function SearchPage() {
         <SectionTitle eyebrow="Search Controls" title="Query and refine" />
 
         <div className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr_1fr]">
-          <div className="space-y-2">
-            <label htmlFor="global-search" className="vault-label">
-              Search text
-            </label>
+          <Field>
+            <FieldLabel htmlFor="global-search">Search text</FieldLabel>
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <Input
                 id="global-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -141,12 +141,10 @@ export function SearchPage() {
                 className={`${vaultInputClassName} pl-11`}
               />
             </div>
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <span id="search-vault-label" className="vault-label">
-              Vault scope
-            </span>
+          <Field>
+            <FieldLabel id="search-vault-label">Vault scope</FieldLabel>
             <Select
               value={vaultId || '__all__'}
               onValueChange={(value) => {
@@ -169,12 +167,10 @@ export function SearchPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <span id="search-tag-label" className="vault-label">
-              Tag filter
-            </span>
+          <Field>
+            <FieldLabel id="search-tag-label">Tag filter</FieldLabel>
             <Select
               value={tagId || '__all__'}
               onValueChange={(value) => updateFilters({ tagId: value === '__all__' ? '' : value })}
@@ -194,33 +190,29 @@ export function SearchPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <div className="space-y-2">
-              <label htmlFor="date-from" className="vault-label">
-                Date from
-              </label>
-              <input
+            <Field>
+              <FieldLabel htmlFor="date-from">Date from</FieldLabel>
+              <Input
                 id="date-from"
                 type="date"
                 value={dateFrom}
                 onChange={(event) => updateFilters({ dateFrom: event.target.value })}
                 className={vaultInputClassName}
               />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="date-to" className="vault-label">
-                Date to
-              </label>
-              <input
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="date-to">Date to</FieldLabel>
+              <Input
                 id="date-to"
                 type="date"
                 value={dateTo}
                 onChange={(event) => updateFilters({ dateTo: event.target.value })}
                 className={vaultInputClassName}
               />
-            </div>
+            </Field>
           </div>
         </div>
       </SurfacePanel>

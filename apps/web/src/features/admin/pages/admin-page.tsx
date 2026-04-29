@@ -20,6 +20,12 @@ import { Button } from '@/components/ui/button';
 import { FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   createBackup,
@@ -72,18 +78,22 @@ function SettingField({
       <div className="flex items-center gap-2">
         <FieldLabel className="text-[0.95rem] font-semibold text-foreground">{label}</FieldLabel>
         {tooltip ? (
-          <span className="group relative inline-flex">
-            <span
-              aria-label="More info"
-              tabIndex={0}
-              className="inline-flex size-6 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
-            >
-              <CircleHelp className="size-3.5" />
-            </span>
-            <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-64 -translate-x-1/2 rounded-[16px] border border-border/70 bg-card px-3 py-2 text-xs leading-5 text-muted-foreground shadow-[0_18px_45px_rgba(18,29,66,0.16)] group-hover:block group-focus-within:block">
-              {tooltip}
-            </span>
-          </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Show help tooltip"
+                  className="inline-flex size-6 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
+                >
+                  <CircleHelp className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {tooltip}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null}
       </div>
       <div className="relative">
@@ -434,7 +444,7 @@ export function AdminPage() {
                   </SettingField>
                 </div>
 
-                <label className="space-y-3">
+                <div className="space-y-3">
                   <SettingField
                     label="Ollama host"
                     tooltip="The HTTP address Arkivra uses to talk to Ollama. Example: use http://127.0.0.1:11434 for a local install, or http://192.168.1.50:11434 if Ollama runs on another machine in your LAN."
@@ -452,9 +462,9 @@ export function AdminPage() {
                       placeholder="http://127.0.0.1:11434"
                     />
                   </SettingField>
-                </label>
+                </div>
 
-                <label className="space-y-3">
+                <div className="space-y-3">
                   <SettingField
                     label="Model"
                     tooltip="The Ollama model used to rewrite noisy OCR into clean identity-document Markdown. A stronger model may do better with IDs, passports, visas, and messy scans."
@@ -494,7 +504,7 @@ export function AdminPage() {
                       />
                     )}
                   </SettingField>
-                </label>
+                </div>
 
               </div>
             </div>

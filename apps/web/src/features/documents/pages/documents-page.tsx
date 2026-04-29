@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarRange, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -9,10 +9,6 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
@@ -25,7 +21,11 @@ import {
   DocumentLibraryHeader,
   DocumentLibraryRow,
 } from '@/features/documents/components/document-library-list';
-import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
+import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
+import type { DatePreset } from '@/features/documents/components/date-preset-selector';
+import {
+  DocumentSearchControls,
+} from '@/features/documents/components/document-search-controls';
 import { documentQueryKeys, useDocumentsQuery } from '@/features/documents/documents.queries';
 import { searchQueryKeys, useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchSortBy } from '@/features/search/search.types';
@@ -40,8 +40,6 @@ const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
 ];
-type DatePreset = 'any' | 'last_7_days' | 'last_30_days' | 'custom';
-
 function toInputDateValue(value: Date) {
   const year = value.getFullYear();
   const month = `${value.getMonth() + 1}`.padStart(2, '0');
@@ -358,91 +356,35 @@ export function DocumentsPage() {
                 <h3 className="text-sm font-semibold text-foreground">Date</h3>
               </div>
 
-              <RadioGroup
+              <DatePresetSelector
+                idPrefix="vault-documents-date-filter"
                 value={datePreset}
                 onValueChange={(value) => {
-                  setDatePreset(value as DatePreset);
+                  setDatePreset(value);
                   setPageIndex(0);
                 }}
-                className="mt-3"
-              >
-                {[
-                  { value: 'any', label: 'Any time' },
-                  { value: 'last_7_days', label: 'Last 7 days' },
-                  { value: 'last_30_days', label: 'Last 30 days' },
-                  { value: 'custom', label: 'Custom range' },
-                ].map((option) => (
-                  <Label
-                    key={option.value}
-                    htmlFor={`vault-documents-date-filter-${option.value}`}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg px-3.5 py-2.5 font-semibold transition ${
-                      datePreset === option.value
-                        ? 'bg-secondary text-foreground'
-                        : 'hover:bg-secondary/45'
-                    }`}
-                  >
-                    <RadioGroupItem
-                      id={`vault-documents-date-filter-${option.value}`}
-                      value={option.value}
-                    />
-                    <span className="text-sm">{option.label}</span>
-                  </Label>
-                ))}
-              </RadioGroup>
+                customDateFrom={customDateFrom}
+                customDateTo={customDateTo}
+                onCustomDateFromChange={(nextValue) => {
+                  setCustomDateFrom(nextValue);
 
-              {datePreset === 'custom' ? (
-                <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
-                  <Field>
-                    <FieldLabel htmlFor="vault-documents-date-from">From</FieldLabel>
-                    <div className="relative">
-                      <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="vault-documents-date-from"
-                        aria-label="From"
-                        type="date"
-                        value={customDateFrom}
-                        max={customDateTo || undefined}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setCustomDateFrom(nextValue);
+                  if (customDateTo && nextValue && nextValue > customDateTo) {
+                    setCustomDateTo(nextValue);
+                  }
 
-                          if (customDateTo && nextValue && nextValue > customDateTo) {
-                            setCustomDateTo(nextValue);
-                          }
+                  setPageIndex(0);
+                }}
+                onCustomDateToChange={(nextValue) => {
+                  setCustomDateTo(nextValue);
 
-                          setPageIndex(0);
-                        }}
-                        className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
-                      />
-                    </div>
-                  </Field>
+                  if (customDateFrom && nextValue && nextValue < customDateFrom) {
+                    setCustomDateFrom(nextValue);
+                  }
 
-                  <Field>
-                    <FieldLabel htmlFor="vault-documents-date-to">To</FieldLabel>
-                    <div className="relative">
-                      <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="vault-documents-date-to"
-                        aria-label="To"
-                        type="date"
-                        value={customDateTo}
-                        min={customDateFrom || undefined}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setCustomDateTo(nextValue);
-
-                          if (customDateFrom && nextValue && nextValue < customDateFrom) {
-                            setCustomDateFrom(nextValue);
-                          }
-
-                          setPageIndex(0);
-                        }}
-                        className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
-                      />
-                    </div>
-                  </Field>
-                </div>
-              ) : null}
+                  setPageIndex(0);
+                }}
+                inputClassName={vaultInputClassName}
+              />
             </div>
           </>
         }

@@ -19,6 +19,11 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -369,12 +374,12 @@ export function TransfersPage() {
         )}
 
         {completedItems.length > 0 ? (
-          <div className={cn(nonCompletedItems.length > 0 && 'border-t border-border/60')}>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between px-7 py-4 text-left transition hover:bg-secondary/30"
-              onClick={() => setIsCompletedExpanded((expanded) => !expanded)}
-            >
+          <Collapsible
+            open={isCompletedExpanded}
+            onOpenChange={setIsCompletedExpanded}
+            className={cn(nonCompletedItems.length > 0 && 'border-t border-border/60')}
+          >
+            <CollapsibleTrigger className="flex w-full items-center justify-between px-7 py-4 text-left transition hover:bg-secondary/30">
               <div>
                 <p className="font-medium text-foreground">Completed ({completedItems.length})</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -387,47 +392,44 @@ export function TransfersPage() {
                   isCompletedExpanded && 'rotate-180',
                 )}
               />
-            </button>
+            </CollapsibleTrigger>
 
-            {isCompletedExpanded
-              ? completedItems.map((item) => (
-                  <div key={item.id} className="border-t border-border/60 px-7 py-4">
-                    <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_140px_160px_160px] md:items-center">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground">{item.fileName}</p>
-                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
-                          <div
-                            className="h-full rounded-full bg-primary"
-                            style={{ width: '100%' }}
-                          />
-                        </div>
-                      </div>
-
-                      <p className="text-sm text-muted-foreground">{formatBytes(item.size)}</p>
-
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle2 className="size-4 text-primary" />
-                        <span>Done</span>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void uploadManager.remove(item.id)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+            <CollapsibleContent>
+              {completedItems.map((item) => (
+                <div key={item.id} className="border-t border-border/60 px-7 py-4">
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_140px_160px_160px] md:items-center">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{item.fileName}</p>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
+                        <div className="h-full rounded-full bg-primary" style={{ width: '100%' }} />
                       </div>
                     </div>
 
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {formatBytes(item.bytesUploaded)} uploaded • 100%
-                    </p>
+                    <p className="text-sm text-muted-foreground">{formatBytes(item.size)}</p>
+
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="size-4 text-primary" />
+                      <span>Done</span>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void uploadManager.remove(item.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
-                ))
-              : null}
-          </div>
+
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {formatBytes(item.bytesUploaded)} uploaded • 100%
+                  </p>
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
         ) : null}
       </SurfacePanel>
 

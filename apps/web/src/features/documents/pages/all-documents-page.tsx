@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  CalendarRange,
   Check,
   ChevronDown,
   Ellipsis,
@@ -28,9 +27,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { softDeleteDocument } from '@/features/documents/documents.api';
+import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
+import type { DatePreset } from '@/features/documents/components/date-preset-selector';
 import {
   DocumentLibraryHeader,
   DocumentLibraryRow,
@@ -53,8 +52,6 @@ const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
 ];
-
-type DatePreset = 'any' | 'last_7_days' | 'last_30_days' | 'custom';
 
 function toInputDateValue(value: Date) {
   const year = value.getFullYear();
@@ -661,84 +658,28 @@ export function AllDocumentsPage() {
                 <h3 className="text-sm font-semibold text-foreground">Date</h3>
               </div>
 
-              <RadioGroup
+              <DatePresetSelector
+                idPrefix="documents-date-filter"
                 value={datePreset}
-                onValueChange={(value) => setDatePreset(value as DatePreset)}
-                className="mt-3"
-              >
-                {[
-                  { value: 'any', label: 'Any time' },
-                  { value: 'last_7_days', label: 'Last 7 days' },
-                  { value: 'last_30_days', label: 'Last 30 days' },
-                  { value: 'custom', label: 'Custom range' },
-                ].map((option) => (
-                  <Label
-                    key={option.value}
-                    htmlFor={`documents-date-filter-${option.value}`}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-3 rounded-lg px-3.5 py-2.5 font-semibold transition',
-                      datePreset === option.value
-                        ? 'bg-secondary text-foreground'
-                        : 'hover:bg-secondary/45',
-                    )}
-                  >
-                    <RadioGroupItem
-                      id={`documents-date-filter-${option.value}`}
-                      value={option.value}
-                    />
-                    <span className="text-sm">{option.label}</span>
-                  </Label>
-                ))}
-              </RadioGroup>
+                onValueChange={setDatePreset}
+                customDateFrom={customDateFrom}
+                customDateTo={customDateTo}
+                onCustomDateFromChange={(nextValue) => {
+                  setCustomDateFrom(nextValue);
 
-              {datePreset === 'custom' ? (
-                <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
-                  <Field>
-                    <FieldLabel htmlFor="documents-custom-date-from">From</FieldLabel>
-                    <div className="relative">
-                      <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="documents-custom-date-from"
-                        aria-label="From"
-                        type="date"
-                        value={customDateFrom}
-                        max={customDateTo || undefined}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setCustomDateFrom(nextValue);
+                  if (customDateTo && nextValue && nextValue > customDateTo) {
+                    setCustomDateTo(nextValue);
+                  }
+                }}
+                onCustomDateToChange={(nextValue) => {
+                  setCustomDateTo(nextValue);
 
-                          if (customDateTo && nextValue && nextValue > customDateTo) {
-                            setCustomDateTo(nextValue);
-                          }
-                        }}
-                        className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
-                      />
-                    </div>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="documents-custom-date-to">To</FieldLabel>
-                    <div className="relative">
-                      <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="documents-custom-date-to"
-                        aria-label="To"
-                        type="date"
-                        value={customDateTo}
-                        min={customDateFrom || undefined}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setCustomDateTo(nextValue);
-
-                          if (customDateFrom && nextValue && nextValue < customDateFrom) {
-                            setCustomDateFrom(nextValue);
-                          }
-                        }}
-                        className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-card pl-11`}
-                      />
-                    </div>
-                  </Field>
-                </div>
-              ) : null}
+                  if (customDateFrom && nextValue && nextValue < customDateFrom) {
+                    setCustomDateFrom(nextValue);
+                  }
+                }}
+                inputClassName={vaultInputClassName}
+              />
             </div>
           </>
         }

@@ -11,10 +11,8 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -31,6 +29,7 @@ import {
   transferVaultOwnership,
   updateVaultMember,
 } from '@/features/vaults/vaults.api';
+import { PermissionCheckboxGrid } from '@/features/vaults/components/permission-checkbox-grid';
 import {
   useVaultMembersQuery,
   useVaultQuery,
@@ -313,31 +312,13 @@ export function VaultSettingsPage() {
                 <FieldDescription>Invite an existing Arkivra user by their user id.</FieldDescription>
               </Field>
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                {VAULT_MEMBER_PERMISSIONS.map((permission) => (
-                  <Label
-                    key={permission}
-                    htmlFor={`vault-invite-permission-${permission}`}
-                    className="flex items-center gap-3 rounded-lg bg-secondary/55 px-4 py-3 text-sm font-normal text-foreground"
-                  >
-                    <Checkbox
-                      id={`vault-invite-permission-${permission}`}
-                      checked={invitePermissions.includes(permission)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setInvitePermissions((current) => [...new Set([...current, permission])]);
-                        } else {
-                          setInvitePermissions((current) =>
-                            current.filter((item) => item !== permission),
-                          );
-                        }
-                      }}
-                      disabled={!canManageMembers}
-                    />
-                    <span>{permission}</span>
-                  </Label>
-                ))}
-              </div>
+              <PermissionCheckboxGrid
+                idPrefix="vault-invite-permission"
+                selectedPermissions={invitePermissions}
+                onSelectedPermissionsChange={setInvitePermissions}
+                disabled={!canManageMembers}
+                cardClassName="bg-secondary/55"
+              />
 
               <Button type="submit" disabled={!canManageMembers || inviteMutation.isPending}>
                 {inviteMutation.isPending ? 'Inviting...' : 'Invite member'}
@@ -400,24 +381,13 @@ export function VaultSettingsPage() {
                         });
                       }}
                     >
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {VAULT_MEMBER_PERMISSIONS.map((permission) => (
-                          <Label
-                            key={`${member.userId}-${permission}`}
-                            htmlFor={`${member.userId}-${permission}`}
-                            className="flex items-center gap-3 rounded-lg bg-card/80 px-4 py-3 text-sm font-normal text-foreground"
-                          >
-                            <Checkbox
-                              id={`${member.userId}-${permission}`}
-                              name="permissions"
-                              value={permission}
-                              defaultChecked={member.permissions.includes(permission)}
-                              disabled={!canManageMembers}
-                            />
-                            <span>{permission}</span>
-                          </Label>
-                        ))}
-                      </div>
+                      <PermissionCheckboxGrid
+                        idPrefix={member.userId}
+                        inputName="permissions"
+                        defaultSelectedPermissions={member.permissions}
+                        disabled={!canManageMembers}
+                        cardClassName="bg-card/80"
+                      />
 
                       <Button
                         type="submit"

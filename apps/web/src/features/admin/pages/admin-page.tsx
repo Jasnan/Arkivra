@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   createBackup,
@@ -411,25 +412,27 @@ export function AdminPage() {
               />
 
               <div className="grid gap-8 md:grid-cols-2">
-                <label className="space-y-3">
+                <div className="space-y-3">
                   <SettingField
                     label="Feature toggle"
                     tooltip="Turns whole-document OCR normalization on or off. Disable this if you want Arkivra to keep the parser output exactly as extracted."
                   >
-                    <span className="flex min-h-16 items-center gap-4 rounded-[20px] border border-border/70 bg-background px-5 py-4 text-[0.96rem] font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                      <input
-                        type="checkbox"
+                    <label
+                      htmlFor="ai-normalization-enabled"
+                      className="flex min-h-16 items-center gap-4 rounded-[20px] border border-border/70 bg-background px-5 py-4 text-[0.96rem] font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                    >
+                      <Switch
+                        id="ai-normalization-enabled"
                         checked={aiSettings.enabled}
-                        onChange={event => {
+                        onCheckedChange={(checked) => {
                           setAiStatusMessage(null);
-                          setAiSettings(current => ({ ...current, enabled: event.target.checked }));
+                          setAiSettings((current) => ({ ...current, enabled: checked }));
                         }}
-                        className="size-6 accent-[#5f57f5]"
                       />
                       <span>Enable AI OCR normalization</span>
-                    </span>
+                    </label>
                   </SettingField>
-                </label>
+                </div>
 
                 <label className="space-y-3">
                   <SettingField

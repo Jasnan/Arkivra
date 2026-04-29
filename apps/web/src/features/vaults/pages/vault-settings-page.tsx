@@ -11,8 +11,10 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -313,15 +315,16 @@ export function VaultSettingsPage() {
 
               <div className="grid gap-2 sm:grid-cols-2">
                 {VAULT_MEMBER_PERMISSIONS.map((permission) => (
-                  <label
+                  <Label
                     key={permission}
-                    className="flex items-center gap-3 rounded-lg bg-secondary/55 px-4 py-3 text-sm text-foreground"
+                    htmlFor={`vault-invite-permission-${permission}`}
+                    className="flex items-center gap-3 rounded-lg bg-secondary/55 px-4 py-3 text-sm font-normal text-foreground"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
+                      id={`vault-invite-permission-${permission}`}
                       checked={invitePermissions.includes(permission)}
-                      onChange={(event) => {
-                        if (event.target.checked) {
+                      onCheckedChange={(checked) => {
+                        if (checked) {
                           setInvitePermissions((current) => [...new Set([...current, permission])]);
                         } else {
                           setInvitePermissions((current) =>
@@ -332,7 +335,7 @@ export function VaultSettingsPage() {
                       disabled={!canManageMembers}
                     />
                     <span>{permission}</span>
-                  </label>
+                  </Label>
                 ))}
               </div>
 
@@ -399,19 +402,20 @@ export function VaultSettingsPage() {
                     >
                       <div className="grid gap-2 sm:grid-cols-2">
                         {VAULT_MEMBER_PERMISSIONS.map((permission) => (
-                          <label
+                          <Label
                             key={`${member.userId}-${permission}`}
-                            className="flex items-center gap-3 rounded-lg bg-card/80 px-4 py-3 text-sm text-foreground"
+                            htmlFor={`${member.userId}-${permission}`}
+                            className="flex items-center gap-3 rounded-lg bg-card/80 px-4 py-3 text-sm font-normal text-foreground"
                           >
-                            <input
+                            <Checkbox
+                              id={`${member.userId}-${permission}`}
                               name="permissions"
-                              type="checkbox"
                               value={permission}
                               defaultChecked={member.permissions.includes(permission)}
                               disabled={!canManageMembers}
                             />
                             <span>{permission}</span>
-                          </label>
+                          </Label>
                         ))}
                       </div>
 

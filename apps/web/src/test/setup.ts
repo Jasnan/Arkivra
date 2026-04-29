@@ -29,3 +29,16 @@ if (!Element.prototype.releasePointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+if (!window.ResizeObserver) {
+  class ResizeObserverMock {
+    observe() {}
+
+    unobserve() {}
+
+    disconnect() {}
+  }
+
+  window.ResizeObserver = ResizeObserverMock as typeof ResizeObserver;
+  globalThis.ResizeObserver = ResizeObserverMock as typeof ResizeObserver;
+}

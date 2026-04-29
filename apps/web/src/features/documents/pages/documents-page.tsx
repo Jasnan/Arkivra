@@ -11,6 +11,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
@@ -356,36 +358,37 @@ export function DocumentsPage() {
                 <h3 className="text-sm font-semibold text-foreground">Date</h3>
               </div>
 
-              <div className="mt-3 space-y-2">
+              <RadioGroup
+                value={datePreset}
+                onValueChange={(value) => {
+                  setDatePreset(value as DatePreset);
+                  setPageIndex(0);
+                }}
+                className="mt-3"
+              >
                 {[
                   { value: 'any', label: 'Any time' },
                   { value: 'last_7_days', label: 'Last 7 days' },
                   { value: 'last_30_days', label: 'Last 30 days' },
                   { value: 'custom', label: 'Custom range' },
                 ].map((option) => (
-                  <label
+                  <Label
                     key={option.value}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg px-3.5 py-2.5 transition ${
+                    htmlFor={`vault-documents-date-filter-${option.value}`}
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg px-3.5 py-2.5 font-semibold transition ${
                       datePreset === option.value
                         ? 'bg-secondary text-foreground'
                         : 'hover:bg-secondary/45'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="vault-documents-date-filter"
+                    <RadioGroupItem
+                      id={`vault-documents-date-filter-${option.value}`}
                       value={option.value}
-                      checked={datePreset === option.value}
-                      onChange={() => {
-                        setDatePreset(option.value as DatePreset);
-                        setPageIndex(0);
-                      }}
-                      className="size-4 border-border"
                     />
-                    <span className="text-sm font-semibold">{option.label}</span>
-                  </label>
+                    <span className="text-sm">{option.label}</span>
+                  </Label>
                 ))}
-              </div>
+              </RadioGroup>
 
               {datePreset === 'custom' ? (
                 <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">

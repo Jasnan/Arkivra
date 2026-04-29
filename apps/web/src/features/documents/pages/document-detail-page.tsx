@@ -2,9 +2,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  CalendarRange,
   Download,
-  Ellipsis,
   Image as ImageIcon,
   Pencil,
   Plus,
@@ -20,6 +18,8 @@ import {
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
+import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
+import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -423,26 +423,18 @@ export function DocumentDetailPage() {
         actions={
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Open actions for ${document.name}`}
-                className="h-9 w-9 rounded-lg border border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
-              >
-                <Ellipsis className="size-5" />
-              </Button>
+              <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem asChild>
                 <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
-                  <Download className="size-4" />
+                  <ActionMenuItemIcon icon={Download} />
                   Download original
                 </a>
               </DropdownMenuItem>
               {canPrint ? (
                 <DropdownMenuItem onSelect={handlePrintClick}>
-                  <Printer className="size-4" />
+                  <ActionMenuItemIcon icon={Printer} />
                   Print
                 </DropdownMenuItem>
               ) : null}
@@ -454,7 +446,7 @@ export function DocumentDetailPage() {
                     restoreMutation.mutate({ vaultId, documentId });
                   }}
                 >
-                  <RotateCcw className="size-4" />
+                  <ActionMenuItemIcon icon={RotateCcw} />
                   {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
                 </DropdownMenuItem>
               ) : (
@@ -463,7 +455,7 @@ export function DocumentDetailPage() {
                   disabled={deleteMutation.isPending}
                   onSelect={() => setIsDeleteDialogOpen(true)}
                 >
-                  <Trash2 className="size-4" />
+                  <ActionMenuItemIcon icon={Trash2} tone="destructive" />
                   Move to trash
                 </DropdownMenuItem>
               )}
@@ -818,13 +810,12 @@ export function DocumentDetailPage() {
                   </div>
                 </div>
                 {isNameEditing || isDocumentDateEditing ? (
-                  <Button
+                  <SaveButton
                     type="submit"
                     disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}
                   >
-                    <CalendarRange className="size-4" />
-                    {isMetadataSaving ? 'Saving...' : 'Save metadata'}
-                  </Button>
+                    {isMetadataSaving ? 'Saving...' : 'Save changes'}
+                  </SaveButton>
                 ) : null}
               </form>
             ) : null}
@@ -857,18 +848,15 @@ export function DocumentDetailPage() {
             >
               Cancel
             </Button>
-            <Button
+            <DeleteButton
               type="button"
-              variant="outline"
-              className="border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive"
               disabled={deleteMutation.isPending}
               onClick={() => {
                 deleteMutation.mutate({ vaultId, documentId });
               }}
             >
-              <Trash2 className="size-4" />
               {deleteMutation.isPending ? 'Moving...' : 'Move to trash'}
-            </Button>
+            </DeleteButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

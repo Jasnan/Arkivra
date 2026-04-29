@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ellipsis, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
+import { FileText, Pencil, Trash2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -9,6 +9,8 @@ import {
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
+import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
+import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -98,16 +100,13 @@ function DeleteTagDialog({
             <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
               Cancel
             </Button>
-            <Button
+            <DeleteButton
               type="button"
-              variant="outline"
-              className="border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive"
               onClick={onConfirm}
               disabled={isPending}
             >
-              <Trash2 className="size-4" />
               {isPending ? 'Deleting...' : 'Delete tag'}
-            </Button>
+            </DeleteButton>
           </DialogFooter>
         </div>
       </DialogContent>
@@ -131,20 +130,14 @@ function TagActionsMenu({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button
+        <ActionMenuTriggerButton
           ref={triggerRef}
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={`Open actions for ${tag.name}`}
-          className="h-11 w-11 rounded-lg border border-border/60 bg-background/80 text-muted-foreground  hover:bg-secondary/70 hover:text-foreground"
-        >
-          <Ellipsis className="size-5" />
-        </Button>
+          label={`Open actions for ${tag.name}`}
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem onSelect={() => onEdit(triggerRef.current)}>
-          <Pencil className="size-4 text-primary" />
+          <ActionMenuItemIcon icon={Pencil} />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -152,7 +145,7 @@ function TagActionsMenu({
           className="text-destructive focus:bg-destructive/10 focus:text-destructive"
           onSelect={() => onDelete(triggerRef.current)}
         >
-          <Trash2 className="size-4 text-destructive" />
+          <ActionMenuItemIcon icon={Trash2} tone="destructive" />
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -346,16 +339,14 @@ export function TagsPage() {
         title="Tags"
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <Button
+            <CreateButton
               ref={createButtonRef}
               type="button"
-              className="bg-primary text-primary-foreground  hover:bg-primary/95"
               onClick={openCreateDialog}
               disabled={vaultsQuery.isLoading || vaults.length === 0}
             >
-              <Plus className="size-4" />
-              New tag
-            </Button>
+              Create tag
+            </CreateButton>
           </div>
         }
       />

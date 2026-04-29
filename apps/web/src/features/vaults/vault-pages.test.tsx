@@ -79,7 +79,7 @@ describe('vault pages', () => {
 
     renderWithProviders(<VaultsPage />);
 
-    await user.click(await screen.findByRole('button', { name: /new vault/i }));
+    await user.click(await screen.findByRole('button', { name: /create vault/i }));
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
     expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
       method: 'POST',
@@ -98,7 +98,7 @@ describe('vault pages', () => {
     });
   });
 
-  it('returns focus to the new vault button after dismissing the dialog with escape', async () => {
+  it('returns focus to the create vault button after dismissing the dialog with escape', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -123,7 +123,7 @@ describe('vault pages', () => {
 
     renderWithProviders(<VaultsPage />);
 
-    const createButton = await screen.findByRole('button', { name: /new vault/i });
+    const createButton = await screen.findByRole('button', { name: /create vault/i });
     await user.click(createButton);
     expect(await screen.findByRole('dialog', { name: /new vault/i })).toBeInTheDocument();
 
@@ -163,7 +163,7 @@ describe('vault pages', () => {
     renderWithProviders(<VaultsPage />);
 
     expect(await screen.findByText(/must grant vault creation/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /new vault/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /create vault/i })).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
       method: 'POST',
     }));
@@ -236,7 +236,7 @@ describe('vault pages', () => {
     await user.type(screen.getByLabelText(/name/i), 'Personal Vault');
     await user.clear(screen.getByLabelText(/description/i));
     await user.type(screen.getByLabelText(/description/i), 'Updated household records');
-    await user.click(screen.getByRole('button', { name: /save details/i }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({

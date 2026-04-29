@@ -78,7 +78,7 @@ describe('settings, admin, and about pages', () => {
     const nameInput = await screen.findByLabelText(/^name$/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Alex Rivers');
-    await user.click(screen.getByRole('button', { name: /update profile/i }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     expect(authClientMock.updateUser).toHaveBeenCalledWith({
       name: 'Alex Rivers',
@@ -344,7 +344,7 @@ describe('settings, admin, and about pages', () => {
 
     await user.clear(screen.getByLabelText(/ollama host/i));
     await user.type(screen.getByLabelText(/ollama host/i), 'http://192.168.1.77:11434');
-    await user.click(screen.getByRole('button', { name: /save settings/i }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/ai/settings',

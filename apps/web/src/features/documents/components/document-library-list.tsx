@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { Download, Ellipsis, File, FolderOpen, Trash2 } from 'lucide-react';
+import { Download, File, FolderOpen, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -134,33 +134,25 @@ function DocumentActionsMenu({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={`Open actions for ${documentName}`}
-          className="h-9 w-9 rounded-lg border border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
-        >
-          <Ellipsis className="size-5" />
-        </Button>
+        <ActionMenuTriggerButton label={`Open actions for ${documentName}`} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem asChild>
           <Link to={documentLink}>
-            <FolderOpen className="size-4 text-primary" />
+            <ActionMenuItemIcon icon={FolderOpen} />
             Open document
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <a href={downloadHref}>
-            <Download className="size-4 text-primary" />
+            <ActionMenuItemIcon icon={Download} />
             Download
           </a>
         </DropdownMenuItem>
         {onDelete ? (
           <DropdownMenuItem disabled={deleteDisabled} onSelect={onDelete}>
-            <Trash2 className="size-4 text-primary" />
-            Delete
+            <ActionMenuItemIcon icon={Trash2} tone="destructive" />
+            Move to trash
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

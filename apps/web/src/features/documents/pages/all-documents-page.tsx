@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   ChevronDown,
-  Ellipsis,
   Folder,
   FolderOpen,
   Search as SearchIcon,
@@ -17,6 +16,8 @@ import {
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
+import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import { softDeleteDocument } from '@/features/documents/documents.api';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
@@ -464,10 +466,11 @@ export function AllDocumentsPage() {
                 }}
               >
                 <DropdownMenuTrigger asChild>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     aria-label="Vault filter"
-                    className={`${vaultInputClassName} flex h-10 w-full items-center justify-between gap-3 rounded-lg border-border/70 bg-background px-4 text-left`}
+                    className={`${vaultInputClassName} h-10 w-full justify-between px-4 text-left font-medium shadow-none`}
                   >
                     <span className="truncate text-sm text-foreground">
                       {selectedVault?.name ?? 'All vaults'}
@@ -475,7 +478,7 @@ export function AllDocumentsPage() {
                     <ChevronDown
                       className={`size-4 shrink-0 text-muted-foreground transition ${isVaultFilterOpen ? 'rotate-180' : ''}`}
                     />
-                  </button>
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
@@ -485,30 +488,31 @@ export function AllDocumentsPage() {
                   }}
                 >
                   <div ref={vaultFilterContentRef}>
-                    <div className="border-b border-border/60 p-2">
+                    <div className="p-2">
                       <Field>
                         <FieldLabel htmlFor="all-documents-search-vaults" className="sr-only">
                           Search vaults
                         </FieldLabel>
                         <div className="relative">
-                        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          id="all-documents-search-vaults"
-                          aria-label="Search vaults"
-                          value={vaultSearchQuery}
-                          onChange={(event) => setVaultSearchQuery(event.target.value)}
-                          onKeyDown={(event) =>
-                            handleFilterSearchKeyDown(event, () =>
-                              focusFirstFilterItem(vaultFilterContentRef.current),
-                            )
-                          }
-                          placeholder="Search vaults"
-                          className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
-                          autoFocus
-                        />
+                          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="all-documents-search-vaults"
+                            aria-label="Search vaults"
+                            value={vaultSearchQuery}
+                            onChange={(event) => setVaultSearchQuery(event.target.value)}
+                            onKeyDown={(event) =>
+                              handleFilterSearchKeyDown(event, () =>
+                                focusFirstFilterItem(vaultFilterContentRef.current),
+                              )
+                            }
+                            placeholder="Search vaults"
+                            className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
+                            autoFocus
+                          />
                         </div>
                       </Field>
                     </div>
+                    <Separator />
                     <div className="max-h-72 overflow-auto p-2">
                       {vaultsQuery.isLoading ? (
                         <p className="px-3 py-3 text-sm text-muted-foreground">Loading vaults...</p>
@@ -564,16 +568,17 @@ export function AllDocumentsPage() {
                 }}
               >
                 <DropdownMenuTrigger asChild>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     aria-label="Tags filter"
-                    className={`${vaultInputClassName} flex h-10 w-full items-center justify-between gap-3 rounded-lg border-border/70 bg-background px-4 text-left`}
+                    className={`${vaultInputClassName} h-10 w-full justify-between px-4 text-left font-medium shadow-none`}
                   >
                     <span className="truncate text-sm text-foreground">{selectedTagsLabel}</span>
                     <ChevronDown
                       className={`size-4 shrink-0 text-muted-foreground transition ${isTagFilterOpen ? 'rotate-180' : ''}`}
                     />
-                  </button>
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
@@ -583,30 +588,31 @@ export function AllDocumentsPage() {
                   }}
                 >
                   <div ref={tagFilterContentRef}>
-                    <div className="border-b border-border/60 p-2">
+                    <div className="p-2">
                       <Field>
                         <FieldLabel htmlFor="all-documents-search-tags" className="sr-only">
                           Search tags
                         </FieldLabel>
                         <div className="relative">
-                        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          id="all-documents-search-tags"
-                          aria-label="Search tags"
-                          value={tagSearchQuery}
-                          onChange={(event) => setTagSearchQuery(event.target.value)}
-                          onKeyDown={(event) =>
-                            handleFilterSearchKeyDown(event, () =>
-                              focusFirstFilterItem(tagFilterContentRef.current),
-                            )
-                          }
-                          placeholder="Search tags"
-                          className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
-                          autoFocus
-                        />
+                          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="all-documents-search-tags"
+                            aria-label="Search tags"
+                            value={tagSearchQuery}
+                            onChange={(event) => setTagSearchQuery(event.target.value)}
+                            onKeyDown={(event) =>
+                              handleFilterSearchKeyDown(event, () =>
+                                focusFirstFilterItem(tagFilterContentRef.current),
+                              )
+                            }
+                            placeholder="Search tags"
+                            className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
+                            autoFocus
+                          />
                         </div>
                       </Field>
                     </div>
+                    <Separator />
                     <div className="max-h-72 overflow-auto p-2">
                       {tagsQuery.isLoading ? (
                         <p className="px-3 py-3 text-sm text-muted-foreground">Loading tags...</p>
@@ -687,10 +693,12 @@ export function AllDocumentsPage() {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xl font-medium  text-foreground">{summaryLabel}</p>
+          <p className="text-lg font-semibold text-foreground">{summaryLabel}</p>
         </div>
 
-        <span className="vault-chip">{selectedSortLabel}</span>
+        <Badge variant="secondary" className="rounded-lg px-3 py-1.5 text-sm font-medium">
+          {selectedSortLabel}
+        </Badge>
       </div>
 
       {vaultsQuery.isLoading ? (
@@ -752,27 +760,21 @@ export function AllDocumentsPage() {
                   </div>
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Open actions for ${group.vaultName}`}
-                        className="h-9 w-9 rounded-lg border border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
+                      <ActionMenuTriggerButton
+                        label={`Open actions for ${group.vaultName}`}
                         onClick={(event) => event.stopPropagation()}
-                      >
-                        <Ellipsis className="size-5" />
-                      </Button>
+                      />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
                       <DropdownMenuItem asChild>
                         <Link to={`/vaults/${group.vaultId}/documents`}>
-                          <FolderOpen className="size-4 text-primary" />
+                          <ActionMenuItemIcon icon={FolderOpen} />
                           Open vault
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link to={`/vaults/${group.vaultId}/settings`}>
-                          <Settings2 className="size-4 text-primary" />
+                          <ActionMenuItemIcon icon={Settings2} />
                           Vault settings
                         </Link>
                       </DropdownMenuItem>

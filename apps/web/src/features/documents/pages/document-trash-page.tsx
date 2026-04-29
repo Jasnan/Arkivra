@@ -1,10 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { DeleteButton, RestoreButton } from '@/components/ui/action-buttons';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
 import {
   documentQueryKeys,
@@ -127,9 +126,8 @@ export function DocumentTrashPage() {
         ) : (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <Button
+              <DeleteButton
                 type="button"
-                variant="outline"
                 disabled={
                   deleteAllMutation.isPending ||
                   permanentDeleteMutation.isPending ||
@@ -139,9 +137,8 @@ export function DocumentTrashPage() {
                   deleteAllMutation.mutate();
                 }}
               >
-                <Trash2 className="size-4" />
-                {deleteAllMutation.isPending ? 'Deleting...' : 'Delete all'}
-              </Button>
+                {deleteAllMutation.isPending ? 'Deleting...' : 'Delete all permanently'}
+              </DeleteButton>
             </div>
             {deletedDocuments.map((document) => (
               <article key={document.id} className="rounded-lg bg-secondary/56 p-4 sm:p-5">
@@ -170,9 +167,8 @@ export function DocumentTrashPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-3">
-                    <Button
+                    <RestoreButton
                       type="button"
-                      variant="outline"
                       disabled={
                         restoreMutation.isPending ||
                         permanentDeleteMutation.isPending ||
@@ -186,10 +182,9 @@ export function DocumentTrashPage() {
                       }}
                     >
                       Restore
-                    </Button>
-                    <Button
+                    </RestoreButton>
+                    <DeleteButton
                       type="button"
-                      variant="outline"
                       disabled={
                         permanentDeleteMutation.isPending ||
                         restoreMutation.isPending ||
@@ -202,8 +197,8 @@ export function DocumentTrashPage() {
                         });
                       }}
                     >
-                      Delete
-                    </Button>
+                      Delete permanently
+                    </DeleteButton>
                   </div>
                 </div>
               </article>

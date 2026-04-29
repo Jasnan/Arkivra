@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ellipsis, FolderKanban, FolderOpen, ShieldCheck, Vault } from 'lucide-react';
+import { FolderKanban, FolderOpen, Settings2, ShieldCheck, Vault } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -10,6 +10,8 @@ import {
   StatCard,
   SurfacePanel,
 } from '@/components/layout/vault-ui';
+import { CreateButton } from '@/components/ui/action-buttons';
+import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -164,9 +166,9 @@ export function VaultsPage() {
         description="Manage and access your vaults."
         actions={
           meQuery.data?.canCreateVault ? (
-            <Button ref={createButtonRef} onClick={openCreateModal}>
-              New vault
-            </Button>
+            <CreateButton ref={createButtonRef} onClick={openCreateModal}>
+              Create vault
+            </CreateButton>
           ) : undefined
         }
       />
@@ -245,18 +247,13 @@ export function VaultsPage() {
                         >
                           <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
-                              <button
-                                type="button"
-                                aria-label={`Vault actions for ${vault.name}`}
-                                className="flex size-9 items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
-                              >
-                                <Ellipsis className="size-4" />
-                              </button>
+                              <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-36">
                               <DropdownMenuItem
                                 onSelect={() => navigate(`/vaults/${vault.id}/settings`)}
                               >
+                                <ActionMenuItemIcon icon={Settings2} />
                                 Settings
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -352,9 +349,9 @@ export function VaultsPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
+              <CreateButton type="submit" disabled={createMutation.isPending}>
                 {createMutation.isPending ? 'Creating...' : 'Create vault'}
-              </Button>
+              </CreateButton>
             </div>
           </form>
         </DialogContent>

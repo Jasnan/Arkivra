@@ -1,8 +1,8 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useRef } from 'react';
 import { Plus, RefreshCw, X } from 'lucide-react';
+import { CreateButton, SaveButton } from '@/components/ui/action-buttons';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -190,9 +190,15 @@ export function TagDialog({
               />
               {normalizedName || 'New tag'}
             </Badge>
-            <Button type="submit" className="px-5" disabled={isSubmitDisabled}>
-              {isPending ? pendingLabel : submitLabel}
-            </Button>
+            {submitLabel.toLowerCase().includes('create') ? (
+              <CreateButton type="submit" className="px-5" disabled={isSubmitDisabled}>
+                {isPending ? pendingLabel : submitLabel}
+              </CreateButton>
+            ) : (
+              <SaveButton type="submit" className="px-5" disabled={isSubmitDisabled}>
+                {isPending ? pendingLabel : submitLabel}
+              </SaveButton>
+            )}
           </div>
         </form>
       </DialogContent>

@@ -6,7 +6,6 @@ import {
   ChevronDown,
   FileUp,
   LoaderCircle,
-  MoreHorizontal,
   Plus,
   Trash2,
 } from 'lucide-react';
@@ -17,6 +16,7 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import {
   Collapsible,
@@ -250,14 +250,7 @@ export function TransfersPage() {
           <div className="flex flex-wrap gap-3">
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="Transfer actions"
-                  className="rounded-lg"
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
+                <ActionMenuTriggerButton label="Transfer actions" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuItem
@@ -266,7 +259,7 @@ export function TransfersPage() {
                     inputRef.current?.click();
                   }}
                 >
-                  <Plus className="size-4 text-primary" />
+                  <ActionMenuItemIcon icon={Plus} />
                   Add files
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -275,7 +268,7 @@ export function TransfersPage() {
                     uploadManager.clearCompleted();
                   }}
                 >
-                  <CheckCircle2 className="size-4 text-primary" />
+                  <ActionMenuItemIcon icon={CheckCircle2} />
                   Clear completed
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -283,7 +276,7 @@ export function TransfersPage() {
                   className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                   onSelect={handleClearAll}
                 >
-                  <Trash2 className="size-4 text-destructive" />
+                  <ActionMenuItemIcon icon={Trash2} tone="destructive" />
                   Cancel and clear all
                 </DropdownMenuItem>
               </DropdownMenuContent>

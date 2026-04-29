@@ -10,6 +10,10 @@ import {
   SurfacePanel,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
+import {
+  DeleteButton,
+  SaveButton,
+} from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -282,9 +286,9 @@ export function VaultSettingsPage() {
                   placeholder="What belongs in this vault?"
                 />
               </Field>
-              <Button type="submit" disabled={renameMutation.isPending}>
-                {renameMutation.isPending ? 'Saving...' : 'Save details'}
-              </Button>
+              <SaveButton type="submit" disabled={renameMutation.isPending}>
+                {renameMutation.isPending ? 'Saving...' : 'Save changes'}
+              </SaveButton>
             </form>
           </SurfacePanel>
 
@@ -389,12 +393,12 @@ export function VaultSettingsPage() {
                         cardClassName="bg-card/80"
                       />
 
-                      <Button
+                      <SaveButton
                         type="submit"
                         disabled={!canManageMembers || updateMemberMutation.isPending}
                       >
-                        {updateMemberMutation.isPending ? 'Saving...' : 'Save permissions'}
-                      </Button>
+                        {updateMemberMutation.isPending ? 'Saving...' : 'Save changes'}
+                      </SaveButton>
                     </form>
                   ) : (
                     <p className="text-sm text-muted-foreground">Owner has full permissions.</p>
@@ -461,9 +465,8 @@ export function VaultSettingsPage() {
             <p className="text-sm leading-6 text-primary-foreground/80">
               Delete this vault permanently from active view. This action remains owner-only.
             </p>
-            <Button
+            <DeleteButton
               type="button"
-              variant="secondary"
               className="w-full"
               disabled={deleteMutation.isPending || vault.role !== 'owner'}
               onClick={() => {
@@ -471,7 +474,7 @@ export function VaultSettingsPage() {
               }}
             >
               {deleteMutation.isPending ? 'Deleting...' : 'Delete vault'}
-            </Button>
+            </DeleteButton>
           </SurfacePanel>
         </div>
       </div>

@@ -98,7 +98,7 @@ describe('tags and documents pages', () => {
     expect(await screen.findByText('Invoices')).toBeInTheDocument();
     expect(screen.getByText(/monthly billing documents/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /new tag/i }));
+    await user.click(screen.getByRole('button', { name: /create tag/i }));
     const createDialog = screen.getByRole('dialog', { name: /create tag/i });
     await selectRadixOption({
       user,
@@ -220,7 +220,7 @@ describe('tags and documents pages', () => {
     expect(screen.queryByText('Legal')).not.toBeInTheDocument();
   });
 
-  it('returns focus to the new tag button after dismissing the create dialog', async () => {
+  it('returns focus to the create tag button after dismissing the create dialog', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
@@ -256,7 +256,7 @@ describe('tags and documents pages', () => {
       routePath: '/tags',
     });
 
-    const createButton = await screen.findByRole('button', { name: /new tag/i });
+    const createButton = await screen.findByRole('button', { name: /create tag/i });
     await user.click(createButton);
     expect(await screen.findByRole('dialog', { name: /create tag/i })).toBeInTheDocument();
 
@@ -542,7 +542,7 @@ describe('tags and documents pages', () => {
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
-    await user.click(screen.getByRole('menuitem', { name: /delete/i }));
+    await user.click(screen.getByRole('menuitem', { name: /move to trash/i }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(

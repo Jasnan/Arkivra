@@ -2,12 +2,10 @@ import type { ReactNode } from 'react';
 import { useDeferredValue, useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ArchiveRestore,
   Bot,
   DatabaseBackup,
   Globe,
   RefreshCw,
-  Save,
   Sparkles,
   Users,
   Vault,
@@ -15,6 +13,11 @@ import {
 import { toast } from 'sonner';
 import { PageIntro, StatCard, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  CreateButton,
+  RestoreArchiveButton,
+  SaveButton,
+} from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
 import { FieldLabel } from '@/components/ui/field';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
@@ -489,15 +492,14 @@ export function AdminPage() {
             </div>
 
             <div className="flex flex-col gap-5 border-t border-border/70 px-8 py-7 lg:flex-row lg:items-center lg:justify-between">
-              <Button
+              <SaveButton
                 type="button"
-                className="h-14 rounded-[22px] px-7 text-[0.96rem]"
+                className="px-7"
                 disabled={updateAiSettingsMutation.isPending || aiSettingsQuery.isLoading}
                 onClick={() => updateAiSettingsMutation.mutate(aiSettings)}
               >
-                <Save className="size-5" />
-                {updateAiSettingsMutation.isPending ? 'Saving...' : 'Save settings'}
-              </Button>
+                {updateAiSettingsMutation.isPending ? 'Saving...' : 'Save changes'}
+              </SaveButton>
               <p className="text-[0.94rem] text-muted-foreground">Changes are applied to new ingestion jobs.</p>
             </div>
         </SurfacePanel>
@@ -511,13 +513,13 @@ export function AdminPage() {
                   Create a new archive or restore one already stored on the server.
                 </p>
               </div>
-              <Button
+              <CreateButton
                 type="button"
                 disabled={createBackupMutation.isPending}
                 onClick={() => createBackupMutation.mutate()}
               >
                 {createBackupMutation.isPending ? 'Queueing...' : 'Create backup'}
-              </Button>
+              </CreateButton>
             </div>
             {backupsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading backups...</p> : null}
             {!backupsQuery.isLoading && (backupsQuery.data?.backups.length ?? 0) === 0 ? (
@@ -538,15 +540,14 @@ export function AdminPage() {
                       <a href={getBackupDownloadUrl({ backupId: backup.id })} className="vault-link">
                         Download
                       </a>
-                      <Button
+                      <RestoreArchiveButton
                         type="button"
                         variant="outline"
                         disabled={restoreBackupMutation.isPending}
                         onClick={() => restoreBackupMutation.mutate({ backupId: backup.id })}
                       >
-                        <ArchiveRestore className="size-4" />
                         {restoreBackupMutation.isPending ? 'Queueing...' : 'Restore'}
-                      </Button>
+                      </RestoreArchiveButton>
                     </div>
                   </div>
                 </article>

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -158,22 +159,25 @@ export function DocumentSearchControls<TSortValue extends string>({
         </div>
 
         {activeFilters.length > 0 ? (
-          <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-muted-foreground">Active filters:</span>
-              {activeFilters.map((filter) => (
-                <ActiveFilterChip
-                  key={filter.key}
-                  label={filter.label}
-                  onRemove={filter.onRemove}
-                />
-              ))}
-            </div>
+          <>
+            <Separator className="mt-4" />
+            <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-muted-foreground">Active filters:</span>
+                {activeFilters.map((filter) => (
+                  <ActiveFilterChip
+                    key={filter.key}
+                    label={filter.label}
+                    onRemove={filter.onRemove}
+                  />
+                ))}
+              </div>
 
-            <button type="button" className="vault-link text-left" onClick={onClearFilters}>
-              Clear all
-            </button>
-          </div>
+              <button type="button" className="vault-link text-left" onClick={onClearFilters}>
+                Clear all
+              </button>
+            </div>
+          </>
         ) : null}
       </div>
 
@@ -213,7 +217,8 @@ export function DocumentSearchControls<TSortValue extends string>({
 
         <div className="mt-6 space-y-5">{filtersContent}</div>
 
-        <div className="mt-7 flex flex-wrap items-center justify-end gap-4 border-t border-border/70 pt-5">
+        <Separator className="mt-7" />
+        <div className="flex flex-wrap items-center justify-end gap-4 pt-5">
           <Button type="button" onClick={onCloseFilters} className="px-5">
             Done
           </Button>

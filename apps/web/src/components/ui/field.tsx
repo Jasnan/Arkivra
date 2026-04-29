@@ -2,6 +2,7 @@ import * as React from 'react';
 import type { VariantProps } from 'class-variance-authority';
 import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
+import { Separator } from './separator';
 
 const fieldVariants = cva('flex gap-2', {
   variants: {
@@ -43,8 +44,11 @@ export function FieldGroup({ className, ...props }: React.ComponentProps<'div'>)
   return <div className={cn('flex flex-col gap-4', className)} {...props} />;
 }
 
-export function FieldSeparator({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('h-px bg-border', className)} {...props} />;
+export function FieldSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof Separator>) {
+  return <Separator className={className} {...props} />;
 }
 
 export function FieldContent({ className, ...props }: React.ComponentProps<'div'>) {

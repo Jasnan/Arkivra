@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveRestore,
   Bot,
-  CircleHelp,
   DatabaseBackup,
   Globe,
   RefreshCw,
@@ -18,14 +17,9 @@ import { PageIntro, StatCard, SurfacePanel, vaultInputClassName } from '@/compon
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { FieldLabel } from '@/components/ui/field';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   createBackup,
@@ -78,22 +72,7 @@ function SettingField({
       <div className="flex items-center gap-2">
         <FieldLabel className="text-[0.95rem] font-semibold text-foreground">{label}</FieldLabel>
         {tooltip ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Show help tooltip"
-                  className="inline-flex size-6 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
-                >
-                  <CircleHelp className="size-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {tooltip}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <InfoTooltip content={tooltip} />
         ) : null}
       </div>
       <div className="relative">

@@ -77,7 +77,7 @@ export function VaultsPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
   const vaultsQuery = useVaultsQuery();
-  const vaults = vaultsQuery.data?.vaults ?? [];
+  const vaults = useMemo(() => vaultsQuery.data?.vaults ?? [], [vaultsQuery.data?.vaults]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

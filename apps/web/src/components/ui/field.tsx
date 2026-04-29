@@ -83,28 +83,40 @@ export function FieldError({
   return <div className={cn('text-sm text-destructive', className)} {...props} />;
 }
 
-export const Field = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentProps<'div'> & VariantProps<typeof fieldVariants>
->(({ className, orientation, ...props }, ref) => (
-  <div
-    ref={ref}
-    role="group"
-    className={cn(fieldVariants({ orientation }), '[&[data-invalid]_*]:text-destructive', className)}
-    {...props}
-  />
-));
+type FieldProps = React.ComponentProps<'div'> &
+  VariantProps<typeof fieldVariants> & {
+    ref?: React.Ref<HTMLDivElement>;
+  };
+
+export function Field({ className, orientation, ref, ...props }: FieldProps) {
+  return (
+    <div
+      ref={ref}
+      role="group"
+      className={cn(
+        fieldVariants({ orientation }),
+        '[&[data-invalid]_*]:text-destructive',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
 
 Field.displayName = 'Field';
 
-export const FieldLabel = React.forwardRef<HTMLLabelElement, React.ComponentProps<'label'>>(
-  ({ className, ...props }, ref) => (
+type FieldLabelProps = React.ComponentProps<'label'> & {
+  ref?: React.Ref<HTMLLabelElement>;
+};
+
+export function FieldLabel({ className, ref, ...props }: FieldLabelProps) {
+  return (
     <label
       ref={ref}
       className={cn('text-sm font-medium leading-none text-foreground', className)}
       {...props}
     />
-  ),
-);
+  );
+}
 
 FieldLabel.displayName = 'FieldLabel';

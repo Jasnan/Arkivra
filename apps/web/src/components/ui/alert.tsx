@@ -16,17 +16,21 @@ const alertVariants = cva('relative w-full rounded-lg border px-4 py-3 text-sm',
   },
 });
 
-export const Alert = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
->(({ className, variant, ...props }, ref) => (
-  <div
-    ref={ref}
-    role="alert"
-    className={cn(alertVariants({ className, variant }), className)}
-    {...props}
-  />
-));
+type AlertProps = React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof alertVariants> & {
+    ref?: React.Ref<HTMLDivElement>;
+  };
+
+export function Alert({ className, variant, ref, ...props }: AlertProps) {
+  return (
+    <div
+      ref={ref}
+      role="alert"
+      className={cn(alertVariants({ className, variant }), className)}
+      {...props}
+    />
+  );
+}
 
 Alert.displayName = 'Alert';
 

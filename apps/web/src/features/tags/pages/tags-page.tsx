@@ -190,7 +190,7 @@ export function TagsPage() {
   const focusRestoreTargetRef = useRef<HTMLElement | null>(null);
 
   const tagsQuery = isVaultScoped ? scopedTagsQuery : accessibleTagsQuery;
-  const tags = tagsQuery.data?.tags ?? [];
+  const tags = useMemo(() => tagsQuery.data?.tags ?? [], [tagsQuery.data?.tags]);
   const vaults = vaultsQuery.data?.vaults ?? [];
   const selectedTag = useMemo(
     () => tags.find((tag) => tag.id === editingTagId) ?? null,

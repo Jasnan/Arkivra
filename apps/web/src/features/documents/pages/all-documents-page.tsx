@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -184,19 +184,11 @@ export function AllDocumentsPage() {
   const vaultFilterContentRef = useRef<HTMLDivElement | null>(null);
   const tagFilterContentRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!isFiltersOpen) {
-      setIsVaultFilterOpen(false);
-      setIsTagFilterOpen(false);
-      setVaultSearchQuery('');
-      setTagSearchQuery('');
-    }
-  }, [isFiltersOpen]);
-
   const debouncedQuery = useDebouncedValue(query.trim(), 280);
   const vaultsQuery = useVaultsQuery();
   const tagScopeVaultId = selectedVaultId || undefined;
   const tagsQuery = useAccessibleTagsQuery({ vaultId: tagScopeVaultId });
+  const availableTags = useMemo(() => tagsQuery.data?.tags ?? [], [tagsQuery.data?.tags]);
 
   const appliedDateRange = useMemo(() => {
     if (datePreset === 'custom') {
@@ -209,12 +201,26 @@ export function AllDocumentsPage() {
     return buildPresetRange(datePreset);
   }, [customDateFrom, customDateTo, datePreset]);
 
+  const availableTagIds = useMemo(
+    () => new Set(availableTags.map((tag) => tag.id)),
+    [availableTags],
+  );
+  const visibleSelectedTagIds = useMemo(
+    () => selectedTagIds.filter((tagId) => availableTagIds.has(tagId)),
+    [availableTagIds, selectedTagIds],
+  );
+
+  const selectedTags = useMemo(
+    () => availableTags.filter((tag) => visibleSelectedTagIds.includes(tag.id)),
+    [availableTags, visibleSelectedTagIds],
+  );
+
   const documentsQuery = useGlobalSearchDocumentsQuery({
     query: debouncedQuery,
     pageIndex: 0,
     pageSize: PAGE_SIZE,
     vaultIds: selectedVaultId ? [selectedVaultId] : undefined,
-    tagIds: selectedTagIds,
+    tagIds: visibleSelectedTagIds,
     dateFrom: appliedDateRange.dateFrom,
     dateTo: appliedDateRange.dateTo,
     sortBy,
@@ -233,24 +239,6 @@ export function AllDocumentsPage() {
       toast.error(error instanceof Error ? error.message : 'Could not delete document.');
     },
   });
-
-  const availableTags = tagsQuery.data?.tags ?? [];
-  const availableTagIds = useMemo(
-    () => new Set(availableTags.map((tag) => tag.id)),
-    [availableTags],
-  );
-
-  useEffect(() => {
-    setSelectedTagIds((current) => {
-      const next = current.filter((tagId) => availableTagIds.has(tagId));
-      return next.length === current.length ? current : next;
-    });
-  }, [availableTagIds]);
-
-  const selectedTags = useMemo(
-    () => availableTags.filter((tag) => selectedTagIds.includes(tag.id)),
-    [availableTags, selectedTagIds],
-  );
 
   const filteredVaults = useMemo(() => {
     const normalizedQuery = vaultSearchQuery.trim().toLowerCase();
@@ -338,7 +326,7 @@ export function AllDocumentsPage() {
   );
 
   const activeFilterCount =
-    (selectedVaultId ? 1 : 0) + selectedTagIds.length + (datePreset !== 'any' ? 1 : 0);
+    (selectedVaultId ? 1 : 0) + visibleSelectedTagIds.length + (datePreset !== 'any' ? 1 : 0);
 
   const activeFilters = [
     ...(selectedVault
@@ -380,6 +368,14 @@ export function AllDocumentsPage() {
     setSelectedTagIds((current) =>
       current.includes(tagId) ? current.filter((item) => item !== tagId) : [...current, tagId],
     );
+  }
+
+  function closeFilters() {
+    setIsFiltersOpen(false);
+    setIsVaultFilterOpen(false);
+    setIsTagFilterOpen(false);
+    setVaultSearchQuery('');
+    setTagSearchQuery('');
   }
 
   function clearFilters() {
@@ -440,7 +436,7 @@ export function AllDocumentsPage() {
         searchAriaLabel="Search documents"
         isFiltersOpen={isFiltersOpen}
         onOpenFilters={() => setIsFiltersOpen(true)}
-        onCloseFilters={() => setIsFiltersOpen(false)}
+        onCloseFilters={closeFilters}
         onResetFilters={clearFilters}
         activeFilterCount={activeFilterCount}
         activeFilters={activeFilters}

@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { cn } from '@/lib/utils';
@@ -241,7 +242,7 @@ export function TransfersPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="font-semibold text-foreground">{state.items.length} files</span>
-              <span className="h-5 w-px bg-border/80" />
+              <Separator orientation="vertical" className="h-5 bg-border/80" />
               <span>{formatBytes(uploadedBytes)}</span>
             </div>
           </div>

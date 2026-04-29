@@ -9,6 +9,7 @@ import {
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -473,7 +474,8 @@ export function DocumentsPage() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 border-t border-border/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <Separator />
+        <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             Page {activePageIndex + 1} of {activePageCount}
           </p>

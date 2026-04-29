@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarRange,
-  CircleHelp,
   Download,
   Ellipsis,
   Image as ImageIcon,
@@ -39,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
 import {
   getDocumentDownloadUrl,
@@ -753,22 +753,11 @@ export function DocumentDetailPage() {
                   <div className="rounded-lg bg-secondary/55 p-4">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <p>Document date</p>
-                      <span className="group relative inline-flex">
-                        <span
-                          aria-label="More info about document date"
-                          tabIndex={0}
-                          className="inline-flex size-6 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
-                        >
-                          <CircleHelp className="size-3.5" />
-                        </span>
-                        <span
-                          role="tooltip"
-                          className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border border-border/70 bg-card px-3 py-2 text-xs leading-5 text-muted-foreground shadow-sm group-hover:block group-focus-within:block"
-                        >
-                          The date the document was issued for. For example, an invoice dated
-                          21.01.2026 has that document date even if it was uploaded on 24.04.2026.
-                        </span>
-                      </span>
+                      <InfoTooltip
+                        label="More info about document date"
+                        contentClassName="max-w-72"
+                        content="The date the document was issued for. For example, an invoice dated 21.01.2026 has that document date even if it was uploaded on 24.04.2026."
+                      />
                     </div>
                     {isDocumentDateEditing ? (
                       <Input

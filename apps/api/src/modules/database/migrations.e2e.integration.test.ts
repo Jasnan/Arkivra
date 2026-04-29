@@ -316,6 +316,84 @@ describe.sequential('migrations smoke', () => {
     expect(byName.file_encryption_kek_version?.is_nullable).toBe('YES');
   });
 
+  test('0015 creates chat conversation and message tables', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columns } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT table_name, column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name IN ('chat_conversations', 'chat_messages')
+      `,
+    );
+
+    const columnKeys = new Set(columns.map(row => `${row.table_name}.${row.column_name}`));
+
+    expect(columnKeys).toContain('chat_conversations.vault_id');
+    expect(columnKeys).toContain('chat_conversations.created_by');
+    expect(columnKeys).toContain('chat_conversations.title');
+    expect(columnKeys).toContain('chat_conversations.deleted_at');
+    expect(columnKeys).toContain('chat_messages.conversation_id');
+    expect(columnKeys).toContain('chat_messages.content');
+    expect(columnKeys).toContain('chat_messages.citations');
+    expect(columnKeys).toContain('chat_messages.generation_status');
+    expect(columnKeys).toContain('chat_messages.generation_error');
+
+    const { rows: indexes } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename IN ('chat_conversations', 'chat_messages')
+      `,
+    );
+
+    const indexNames = indexes.map(row => row.indexname);
+    expect(indexNames).toContain('chat_conversations_vault_created_idx');
+    expect(indexNames).toContain('chat_conversations_created_by_vault_idx');
+    expect(indexNames).toContain('chat_messages_conversation_created_idx');
+    expect(indexNames).toContain('chat_messages_vault_created_idx');
+  });
+
+  test('0016 adds chat scopes for global and document conversations', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columns } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT table_name, column_name, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name IN ('chat_conversations', 'chat_messages')
+          AND column_name IN ('vault_id', 'scope', 'document_id')
+      `,
+    );
+
+    const byKey = Object.fromEntries(
+      columns.map(row => [`${row.table_name}.${row.column_name}`, row]),
+    );
+
+    expect(byKey['chat_conversations.vault_id']?.is_nullable).toBe('YES');
+    expect(byKey['chat_messages.vault_id']?.is_nullable).toBe('YES');
+    expect(byKey['chat_conversations.scope']?.is_nullable).toBe('NO');
+    expect(byKey['chat_messages.scope']?.is_nullable).toBe('NO');
+    expect(byKey['chat_conversations.document_id']?.is_nullable).toBe('YES');
+    expect(byKey['chat_messages.document_id']?.is_nullable).toBe('YES');
+  });
+
   test('document_chunks.embedding remains a 768-dim pgvector column', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');

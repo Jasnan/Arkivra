@@ -38,6 +38,9 @@ import { registerAdminVaultRoutes } from '../admin/vaults/vaults.routes.js';
 import { registerAdminAiRoutes } from '../admin/ai/ai.routes.js';
 import { createAdminAiServices } from '../admin/ai/ai.services.js';
 import { createRuntimeConfiguredOllamaEmbedder } from '../parsing/ollama-embedder.js';
+import { createDocumentSearchServices } from '../search/search.services.js';
+import { createChatServices } from '../chat/chat.services.js';
+import { registerChatRoutes } from '../chat/chat.routes.js';
 
 export function createServer({
   config,
@@ -74,6 +77,24 @@ export function createServer({
         model: settings.embeddingModel,
         dimensions: settings.embeddingDimensions,
         logRequests: config.ollama.logRequests,
+      };
+    },
+  });
+  const searchServices = createDocumentSearchServices({ db, chunkEmbedder: searchChunkEmbedder });
+  const chatServices = createChatServices({
+    db,
+    searchServices,
+    documentsServices,
+    resolveAiSettings: async () => {
+      const [settings, ingestionSettings] = await Promise.all([
+        aiServices.getSettings(),
+        aiServices.getIngestionSettings(),
+      ]);
+
+      return {
+        host: settings.ollamaHost,
+        model: settings.model,
+        maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
       };
     },
   });
@@ -141,7 +162,8 @@ export function createServer({
     documentsServices,
     documentQueue,
   });
-  registerSearchRoutes({ app, db, chunkEmbedder: searchChunkEmbedder });
+  registerSearchRoutes({ app, db, services: searchServices });
+  registerChatRoutes({ app, db, services: chatServices });
   registerTagRoutes({ app, db });
   registerBackupRoutes({ app, config, backupQueue, backupServices });
   registerAdminUserRoutes({ app, authorizationServices: authzServices });

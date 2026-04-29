@@ -6,6 +6,7 @@ import {
   File,
   FileSearch,
   LogOut,
+  MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   SearchX,
@@ -115,6 +116,10 @@ function buildBreadcrumbs({
     return [{ label: 'All Documents' }];
   }
 
+  if (pathname === '/chat') {
+    return [{ label: 'Chat' }];
+  }
+
   if (pathname === '/documents/trash') {
     return [{ label: 'All Documents', to: '/documents' }, { label: 'Trash' }];
   }
@@ -171,8 +176,16 @@ function buildBreadcrumbs({
       return [...base, { label: 'Tags' }];
     }
 
+    if (parts[2] === 'chat') {
+      return [...base, { label: 'Chat' }];
+    }
+
     if (parts[2] === 'documents' && parts[3] === 'trash') {
       return [...base, { label: 'Trash' }];
+    }
+
+    if (parts[2] === 'documents' && parts[3] && parts[4] === 'chat') {
+      return [...base, { label: currentDocumentLabel }, { label: 'Chat' }];
     }
 
     if (parts[2] === 'documents' && parts[3]) {
@@ -250,6 +263,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const { primaryNavItems, footerNavItems } = useMemo(() => {
     const primaryItems = [
       { to: '/vaults', label: 'Vaults', icon: Vault },
+      { to: '/chat', label: 'Chat', icon: MessageSquare },
       { to: '/documents', label: 'All Documents', icon: File },
       { to: '/tags', label: 'Tags', icon: Tags },
       { to: '/transfers', label: 'Transfers', icon: Upload },

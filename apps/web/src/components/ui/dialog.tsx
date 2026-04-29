@@ -19,47 +19,55 @@ export function DialogClose(props: React.ComponentProps<typeof DialogPrimitive.C
   return <DialogPrimitive.Close {...props} />;
 }
 
-export const DialogOverlay = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Overlay
-    ref={ref}
-    className={cn('fixed inset-0 z-50 bg-background/65 backdrop-blur-sm', className)}
-    {...props}
-  />
-));
+type DialogOverlayProps = React.ComponentPropsWithRef<typeof DialogPrimitive.Overlay>;
+
+export function DialogOverlay({ className, ref, ...props }: DialogOverlayProps) {
+  return (
+    <DialogPrimitive.Overlay
+      ref={ref}
+      className={cn('fixed inset-0 z-50 bg-background/65 backdrop-blur-sm', className)}
+      {...props}
+    />
+  );
+}
 
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-export const DialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    hideCloseButton?: boolean;
-  }
->(({ className, children, hideCloseButton = false, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          'relative z-50 w-full overflow-hidden rounded-lg border border-border/70 bg-card shadow-xl',
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        {hideCloseButton ? null : (
-          <DialogPrimitive.Close className="absolute right-6 top-6 inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <X className="size-5" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
-    </div>
-  </DialogPortal>
-));
+type DialogContentProps = React.ComponentPropsWithRef<typeof DialogPrimitive.Content> & {
+  hideCloseButton?: boolean;
+};
+
+export function DialogContent({
+  className,
+  children,
+  hideCloseButton = false,
+  ref,
+  ...props
+}: DialogContentProps) {
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            'relative z-50 w-full overflow-hidden rounded-lg border border-border/70 bg-card shadow-xl',
+            className,
+          )}
+          {...props}
+        >
+          {children}
+          {hideCloseButton ? null : (
+            <DialogPrimitive.Close className="absolute right-6 top-6 inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <X className="size-5" />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Content>
+      </div>
+    </DialogPortal>
+  );
+}
 
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
@@ -71,28 +79,30 @@ export const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLD
   <div className={cn('flex flex-wrap justify-end gap-3', className)} {...props} />
 );
 
-export const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title
-    ref={ref}
-    className={cn('font-display text-xl font-semibold text-foreground', className)}
-    {...props}
-  />
-));
+type DialogTitleProps = React.ComponentPropsWithRef<typeof DialogPrimitive.Title>;
+
+export function DialogTitle({ className, ref, ...props }: DialogTitleProps) {
+  return (
+    <DialogPrimitive.Title
+      ref={ref}
+      className={cn('font-display text-xl font-semibold text-foreground', className)}
+      {...props}
+    />
+  );
+}
 
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
-export const DialogDescription = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    className={cn('text-sm leading-6 text-muted-foreground', className)}
-    {...props}
-  />
-));
+type DialogDescriptionProps = React.ComponentPropsWithRef<typeof DialogPrimitive.Description>;
+
+export function DialogDescription({ className, ref, ...props }: DialogDescriptionProps) {
+  return (
+    <DialogPrimitive.Description
+      ref={ref}
+      className={cn('text-sm leading-6 text-muted-foreground', className)}
+      {...props}
+    />
+  );
+}
 
 DialogDescription.displayName = DialogPrimitive.Description.displayName;

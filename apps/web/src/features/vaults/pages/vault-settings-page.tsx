@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -76,12 +76,20 @@ export function VaultSettingsPage() {
 
   const members = useMemo(() => membersQuery.data?.members ?? [], [membersQuery.data?.members]);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [detailsDraft, setDetailsDraft] = useState<{
+    vaultId: string;
+    name: string;
+    description: string;
+  } | null>(null);
   const [inviteUserId, setInviteUserId] = useState('');
   const [invitePermissions, setInvitePermissions] =
     useState<VaultMemberPermission[]>(defaultInvitePermissions);
   const [transferTargetUserId, setTransferTargetUserId] = useState('');
+  const draftMatchesVault = detailsDraft?.vaultId === vaultId;
+  const name = draftMatchesVault ? detailsDraft.name : vaultQuery.data?.vault.name ?? '';
+  const description = draftMatchesVault
+    ? detailsDraft.description
+    : vaultQuery.data?.vault.description ?? '';
 
   const ownerCandidates = useMemo(
     () => members.filter((member) => member.role === 'member'),
@@ -163,17 +171,6 @@ export function VaultSettingsPage() {
       toast.error(error instanceof Error ? error.message : 'Could not transfer ownership.');
     },
   });
-
-  useEffect(() => {
-    const vault = vaultQuery.data?.vault;
-
-    if (!vault) {
-      return;
-    }
-
-    setName(vault.name);
-    setDescription(vault.description ?? '');
-  }, [vaultQuery.data?.vault]);
 
   if (!vaultId) {
     return <p className="text-sm text-destructive">Invalid vault id.</p>;
@@ -272,7 +269,13 @@ export function VaultSettingsPage() {
                   id="vault-settings-name"
                   type="text"
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) =>
+                    setDetailsDraft({
+                      vaultId,
+                      name: event.target.value,
+                      description,
+                    })
+                  }
                 />
               </Field>
 
@@ -281,7 +284,13 @@ export function VaultSettingsPage() {
                 <Textarea
                   id="vault-settings-description"
                   value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  onChange={(event) =>
+                    setDetailsDraft({
+                      vaultId,
+                      name,
+                      description: event.target.value,
+                    })
+                  }
                   className="min-h-28 resize-y"
                   placeholder="What belongs in this vault?"
                 />

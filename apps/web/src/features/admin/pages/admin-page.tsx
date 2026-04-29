@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
@@ -180,8 +180,9 @@ export function AdminPage() {
   const backupsQuery = useAdminBackupsQuery({ enabled: isEnabled });
   const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
   const aiSettingsQuery = useAdminAiSettingsQuery({ enabled: isEnabled });
-  const [aiSettings, setAiSettings] = useState<AdminAiSettings>(defaultAiSettings);
+  const [aiSettingsDraft, setAiSettingsDraft] = useState<AdminAiSettings | null>(null);
   const [aiStatusMessage, setAiStatusMessage] = useState<string | null>(null);
+  const aiSettings = aiSettingsDraft ?? aiSettingsQuery.data?.settings ?? defaultAiSettings;
   const deferredHost = useDeferredValue(aiSettings.ollamaHost.trim());
   const deferredModel = useDeferredValue(aiSettings.model.trim());
   const modelsQuery = useAdminOllamaModelsQuery({
@@ -193,12 +194,6 @@ export function AdminPage() {
     model: deferredModel,
     enabled: isEnabled && aiSettings.enabled && deferredHost.length > 0 && deferredModel.length > 0,
   });
-
-  useEffect(() => {
-    if (aiSettingsQuery.data?.settings !== undefined) {
-      setAiSettings(aiSettingsQuery.data.settings);
-    }
-  }, [aiSettingsQuery.data?.settings]);
 
   const createBackupMutation = useMutation({
     mutationFn: createBackup,
@@ -279,7 +274,7 @@ export function AdminPage() {
   const updateAiSettingsMutation = useMutation({
     mutationFn: updateAdminAiSettings,
     onSuccess: async ({ settings }) => {
-      setAiSettings(settings);
+      setAiSettingsDraft(settings);
       setAiStatusMessage('AI settings saved.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: adminQueryKeys.ai() }),
@@ -418,7 +413,10 @@ export function AdminPage() {
                         checked={aiSettings.enabled}
                         onCheckedChange={(checked) => {
                           setAiStatusMessage(null);
-                          setAiSettings((current) => ({ ...current, enabled: checked }));
+                          setAiSettingsDraft((current) => ({
+                            ...(current ?? aiSettings),
+                            enabled: checked,
+                          }));
                         }}
                       />
                       <span>Enable AI OCR normalization</span>
@@ -438,7 +436,10 @@ export function AdminPage() {
                       disabled={!aiSettings.enabled}
                       onChange={(event) => {
                         setAiStatusMessage(null);
-                        setAiSettings(current => ({ ...current, ollamaHost: event.target.value }));
+                        setAiSettingsDraft((current) => ({
+                          ...(current ?? aiSettings),
+                          ollamaHost: event.target.value,
+                        }));
                       }}
                       className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
                       placeholder="http://127.0.0.1:11434"
@@ -458,7 +459,10 @@ export function AdminPage() {
                         disabled={!aiSettings.enabled}
                         onValueChange={(value) => {
                           setAiStatusMessage(null);
-                          setAiSettings(current => ({ ...current, model: value }));
+                          setAiSettingsDraft((current) => ({
+                            ...(current ?? aiSettings),
+                            model: value,
+                          }));
                         }}
                       >
                         <SelectTrigger aria-label="Ollama model" className="h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40">
@@ -478,9 +482,12 @@ export function AdminPage() {
                         value={aiSettings.model}
                         disabled={!aiSettings.enabled}
                         onChange={(event) => {
-                          setAiStatusMessage(null);
-                          setAiSettings(current => ({ ...current, model: event.target.value }));
-                        }}
+                        setAiStatusMessage(null);
+                        setAiSettingsDraft((current) => ({
+                          ...(current ?? aiSettings),
+                          model: event.target.value,
+                        }));
+                      }}
                         className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
                         placeholder="gemma4:e2b"
                       />

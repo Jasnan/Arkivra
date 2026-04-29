@@ -1,5 +1,5 @@
 import type { FormEvent, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, KeyRound, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -43,13 +43,12 @@ export function SettingsPage() {
   const meQuery = useMeQuery();
   const isGlobalAdmin = meQuery.data?.isGlobalAdmin === true;
 
-  const [profileName, setProfileName] = useState('');
-  const [profileEmail, setProfileEmail] = useState('');
-
-  useEffect(() => {
-    setProfileName(sessionData?.user.name ?? '');
-    setProfileEmail(sessionData?.user.email ?? '');
-  }, [sessionData?.user.email, sessionData?.user.name]);
+  const [profileDraft, setProfileDraft] = useState<{
+    name: string;
+    email: string;
+  } | null>(null);
+  const profileName = profileDraft?.name ?? sessionData?.user.name ?? '';
+  const profileEmail = profileDraft?.email ?? sessionData?.user.email ?? '';
 
   const profileMutation = useMutation({
     mutationFn: async () => {
@@ -151,7 +150,12 @@ export function SettingsPage() {
                 <Input
                   id="settings-name"
                   value={profileName}
-                  onChange={(event) => setProfileName(event.target.value)}
+                  onChange={(event) =>
+                    setProfileDraft((current) => ({
+                      name: event.target.value,
+                      email: current?.email ?? sessionData?.user.email ?? '',
+                    }))
+                  }
                   placeholder="Your name"
                 />
               </Field>
@@ -161,7 +165,12 @@ export function SettingsPage() {
                   id="settings-email"
                   type="email"
                   value={profileEmail}
-                  onChange={(event) => setProfileEmail(event.target.value)}
+                  onChange={(event) =>
+                    setProfileDraft((current) => ({
+                      name: current?.name ?? sessionData?.user.name ?? '',
+                      email: event.target.value,
+                    }))
+                  }
                   placeholder="you@example.com"
                 />
               </Field>

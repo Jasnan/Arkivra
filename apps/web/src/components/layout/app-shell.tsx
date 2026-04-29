@@ -244,12 +244,6 @@ export function AppShell({ children }: PropsWithChildren) {
   );
 
   useEffect(() => {
-    if (!isQuickSearchOpen) {
-      setSearchValue('');
-    }
-  }, [isQuickSearchOpen, location.pathname]);
-
-  useEffect(() => {
     persistSidebarCollapsedValue(isSidebarCollapsed);
   }, [isSidebarCollapsed]);
 
@@ -284,7 +278,12 @@ export function AppShell({ children }: PropsWithChildren) {
   });
 
   function closeQuickSearch() {
+    setSearchValue('');
     setIsQuickSearchOpen(false);
+  }
+
+  function openQuickSearch() {
+    setIsQuickSearchOpen(true);
   }
 
   return (
@@ -420,8 +419,8 @@ export function AppShell({ children }: PropsWithChildren) {
                       placeholder="Quick search"
                       className="vault-input pl-11"
                       readOnly
-                      onFocus={() => setIsQuickSearchOpen(true)}
-                      onClick={() => setIsQuickSearchOpen(true)}
+                      onFocus={openQuickSearch}
+                      onClick={openQuickSearch}
                     />
                 </div>
 
@@ -535,7 +534,17 @@ export function AppShell({ children }: PropsWithChildren) {
           <main className="flex-1 pb-12">{children}</main>
         </div>
       </div>
-      <Dialog open={isQuickSearchOpen} onOpenChange={setIsQuickSearchOpen}>
+      <Dialog
+        open={isQuickSearchOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            openQuickSearch();
+            return;
+          }
+
+          closeQuickSearch();
+        }}
+      >
         <DialogContent
           hideCloseButton
           className="max-w-4xl overflow-hidden bg-background p-0"

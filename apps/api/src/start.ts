@@ -1,6 +1,5 @@
 import process from 'node:process';
 import { serve } from '@hono/node-server';
-import Redis from 'ioredis';
 import { parseConfig } from './modules/config/config.js';
 import { createAuth } from './modules/auth/auth.services.js';
 import { createEncryptionServices } from './modules/encryption/encryption.services.js';
@@ -45,10 +44,9 @@ export async function startApp() {
   const encryption = createEncryptionServices({ kekKeysRaw: config.encryption.keys });
   const storage = createStorageDriver({ config });
 
-  const redis = new Redis(config.redis.url, { maxRetriesPerRequest: null });
-  const documentQueue = createDocumentQueue({ connection: redis });
-  const maintenanceQueue = createMaintenanceQueue({ connection: redis });
-  const backupQueue = createBackupQueue({ connection: redis });
+  const documentQueue = createDocumentQueue({ db });
+  const maintenanceQueue = createMaintenanceQueue({ db });
+  const backupQueue = createBackupQueue({ db });
   const backupServices = createBackupServices({ config });
   const adminAiServices = createAdminAiServices({ db, config });
 
@@ -182,17 +180,15 @@ export async function startApp() {
       encryption,
       parsePipeline,
       chunkEmbedder,
-      connection: redis,
     });
     const maintenanceWorker = createMaintenanceWorker({
-      connection: redis,
       db,
       defaultRetentionDays: config.backgroundJobs.documentRetentionDays,
       storage,
     });
     const backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
-      connection: redis,
+      db,
       maintenanceFlagPath: backupServices.maintenanceFlagPath,
       pool,
       storageBasePath: config.storage.filesystem.basePath,
@@ -231,7 +227,6 @@ export async function startApp() {
     await documentQueue.close();
     await maintenanceQueue.close();
     await backupQueue.close();
-    await redis.quit();
     await pool.end();
     process.exit(0);
   };

@@ -1,5 +1,5 @@
-import type { Redis } from 'ioredis';
-import { Queue } from 'bullmq';
+import type { Database } from '../database/database.js';
+import { createPostgresQueue } from './postgres-jobs.js';
 
 export const MAINTENANCE_QUEUE = 'maintenance';
 export const HARD_DELETE_EXPIRED_DOCUMENTS_JOB = 'hard-delete-expired-documents';
@@ -8,17 +8,16 @@ export type HardDeleteExpiredDocumentsJobData = {
   retentionDays?: number;
 };
 
-export function createMaintenanceQueue({ connection }: { connection: Redis }) {
-  const queue = new Queue<HardDeleteExpiredDocumentsJobData>(MAINTENANCE_QUEUE, {
-    connection,
+export function createMaintenanceQueue({ db }: { db: Database }) {
+  const queue = createPostgresQueue<HardDeleteExpiredDocumentsJobData>({
+    db,
+    queueName: MAINTENANCE_QUEUE,
     defaultJobOptions: {
       attempts: 3,
       backoff: {
         type: 'exponential',
         delay: 5000,
       },
-      removeOnComplete: { count: 1000 },
-      removeOnFail: { count: 5000 },
     },
   });
 

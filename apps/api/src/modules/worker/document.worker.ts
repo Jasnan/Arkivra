@@ -1,5 +1,3 @@
-import type { Redis } from 'ioredis';
-import type { Job } from 'bullmq';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
@@ -7,11 +5,11 @@ import type { ParsePipeline } from '../parsing/parse-pipeline.js';
 import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
 import type { ProcessDocumentJobData } from './queue.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
-import { Worker } from 'bullmq';
 import { eq, and } from 'drizzle-orm';
 import { documentsTable, uploadSessionsTable } from '../database/schema/index.js';
 import { persistParsedDocument } from '../parsing/persistence.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
+import { AsyncJob, createPostgresWorker } from './postgres-jobs.js';
 
 const WORKER_PROGRESS = {
   partitioning: 30,
@@ -27,11 +25,11 @@ export type DocumentWorkerDeps = {
   encryption: EncryptionServices;
   parsePipeline: ParsePipeline;
   chunkEmbedder?: ChunkEmbedder;
-  connection: Redis;
+  startPolling?: boolean;
 };
 
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
-  const { db, storage, encryption, parsePipeline, chunkEmbedder, connection } = deps;
+  const { db, storage, encryption, parsePipeline, chunkEmbedder, startPolling = true } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
 
   async function setProcessingStage({
@@ -45,7 +43,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     vaultId: string;
     processingStatus: 'partitioning' | 'chunking' | 'summarising' | 'vectorising' | 'completed';
     progress: number;
-    job: Job<ProcessDocumentJobData>;
+    job: AsyncJob<ProcessDocumentJobData>;
   }) {
     await documentsServices.updateDocumentProcessingStatus({
       documentId,
@@ -78,7 +76,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       .where(eq(uploadSessionsTable.documentId, documentId));
   }
 
-  async function processDocument(job: Job<ProcessDocumentJobData>) {
+  async function processDocument(job: AsyncJob<ProcessDocumentJobData>) {
     const { documentId, vaultId } = job.data;
     await setProcessingStage({
       documentId,
@@ -220,16 +218,15 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     }
   }
 
-  const worker = new Worker<ProcessDocumentJobData>(
-    PROCESS_DOCUMENT_QUEUE,
-    async (job) => {
+  const worker = createPostgresWorker<ProcessDocumentJobData>({
+    db,
+    queueName: PROCESS_DOCUMENT_QUEUE,
+    concurrency: 2,
+    autorun: startPolling,
+    handler: async (job) => {
       await processDocument(job);
     },
-    {
-      connection,
-      concurrency: 2,
-    },
-  );
+  });
 
   worker.on('failed', (job, error) => {
     console.error(`Document processing failed for job ${job?.id ?? 'unknown'}:`, error.message);

@@ -1,7 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Redis from 'ioredis';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { parseConfig } from '../config/config.js';
@@ -21,7 +20,6 @@ import { createMaintenanceWorker } from './maintenance.worker.js';
 describe.sequential('background jobs e2e', () => {
   const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  let redis: Redis | null = null;
   let maintenanceQueue: ReturnType<typeof createMaintenanceQueue> | null = null;
   let maintenanceWorker: ReturnType<typeof createMaintenanceWorker> | null = null;
   let pool: ReturnType<typeof setupDatabase>['pool'] | null = null;
@@ -44,25 +42,17 @@ describe.sequential('background jobs e2e', () => {
         NODE_ENV: 'test',
         ARKIVRA_DATABASE_URL:
           process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
-        ARKIVRA_REDIS_URL: process.env.ARKIVRA_REDIS_URL ?? 'redis://127.0.0.1:6379/2',
         ARKIVRA_STORAGE_FS_PATH: storagePath,
       },
     });
-
-    redis = new Redis(config.redis.url, {
-      maxRetriesPerRequest: null,
-    });
-
-    expect(await redis.ping()).toBe('PONG');
 
     const database = setupDatabase({ config });
     db = database.db;
     pool = database.pool;
 
     storage = createStorageDriver({ config });
-    maintenanceQueue = createMaintenanceQueue({ connection: redis });
+    maintenanceQueue = createMaintenanceQueue({ db });
     maintenanceWorker = createMaintenanceWorker({
-      connection: redis,
       db,
       defaultRetentionDays: 30,
       storage,
@@ -171,7 +161,6 @@ describe.sequential('background jobs e2e', () => {
       await pool.end();
     }
 
-    await redis?.quit().catch(() => undefined);
     await rm(storagePath, { recursive: true, force: true }).catch(() => undefined);
   });
 

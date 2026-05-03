@@ -99,6 +99,13 @@
       "when": 1777339200000,
       "tag": "0013_enable_ingestion_ai_by_default",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777425600000,
+      "tag": "0014_background_jobs",
+      "breakpoints": true
     }
   ]
 }

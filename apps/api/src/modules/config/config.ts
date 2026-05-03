@@ -54,14 +54,6 @@ export const configDefinition = {
       env: 'ARKIVRA_DATABASE_URL',
     },
   },
-  redis: {
-    url: {
-      doc: 'Redis connection URL for BullMQ.',
-      schema: z.string(),
-      default: 'redis://localhost:6379',
-      env: 'ARKIVRA_REDIS_URL',
-    },
-  },
   backgroundJobs: {
     hardDeleteExpiredDocumentsCron: {
       doc: 'Cron pattern for scheduling the expired soft-deleted document cleanup job.',

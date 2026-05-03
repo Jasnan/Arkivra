@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Redis from 'ioredis';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createAuth } from '../auth/auth.services.js';
@@ -136,7 +135,6 @@ describe.sequential('document upload processing e2e', () => {
     tagId: null,
   };
 
-  let redis: Redis | null = null;
   let documentQueue: ReturnType<typeof createDocumentQueue> | null = null;
   let documentWorker: ReturnType<typeof createDocumentWorker> | null = null;
   let pool: ReturnType<typeof setupDatabase>['pool'] | null = null;
@@ -153,7 +151,6 @@ describe.sequential('document upload processing e2e', () => {
         PROCESS_MODE: 'all',
         ARKIVRA_DATABASE_URL:
           process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
-        ARKIVRA_REDIS_URL: process.env.ARKIVRA_REDIS_URL ?? 'redis://127.0.0.1:6379/1',
         ARKIVRA_UNSTRUCTURED_URL: process.env.ARKIVRA_UNSTRUCTURED_URL ?? 'http://127.0.0.1:8000',
         ARKIVRA_UNSTRUCTURED_STRATEGY: process.env.ARKIVRA_UNSTRUCTURED_STRATEGY ?? 'fast',
         ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE: process.env.ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE ?? 'false',
@@ -165,17 +162,8 @@ describe.sequential('document upload processing e2e', () => {
       },
     });
 
-    redis = new Redis(config.redis.url, {
-      maxRetriesPerRequest: null,
-    });
-
-    const dependenciesReady = await Promise.all([
-      fetch(`${config.unstructured.url}/docs`),
-      redis.ping(),
-    ]);
-
-    expect(dependenciesReady[0].ok).toBe(true);
-    expect(dependenciesReady[1]).toBe('PONG');
+    const unstructuredDocsResponse = await fetch(`${config.unstructured.url}/docs`);
+    expect(unstructuredDocsResponse.ok).toBe(true);
 
     const database = setupDatabase({ config });
     db = database.db;
@@ -184,7 +172,7 @@ describe.sequential('document upload processing e2e', () => {
     const { auth } = createAuth({ db, config });
     const encryption = createEncryptionServices({ kekKeysRaw: config.encryption.keys });
     const storage = createStorageDriver({ config });
-    documentQueue = createDocumentQueue({ connection: redis });
+    documentQueue = createDocumentQueue({ db });
     const unstructuredClient = createUnstructuredClient({
       baseUrl: config.unstructured.url,
       apiKey: config.unstructured.apiKey,
@@ -215,7 +203,6 @@ describe.sequential('document upload processing e2e', () => {
       storage,
       encryption,
       parsePipeline,
-      connection: redis,
     });
 
     app = createServer({
@@ -262,7 +249,6 @@ describe.sequential('document upload processing e2e', () => {
       await pool.end();
     }
 
-    await redis?.quit().catch(() => undefined);
     await rm(testContext.storagePath, { recursive: true, force: true }).catch(() => undefined);
   });
 

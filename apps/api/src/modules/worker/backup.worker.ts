@@ -3,11 +3,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { Redis } from 'ioredis';
+import type { Database } from '../database/database.js';
 import type { Pool } from 'pg';
-import type { Job } from 'bullmq';
-import { Worker } from 'bullmq';
 import { BACKUP_QUEUE, CREATE_BACKUP_JOB, RESTORE_BACKUP_JOB } from './backup.queue.js';
+import { AsyncJob, createPostgresWorker } from './postgres-jobs.js';
 
 const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
@@ -27,11 +26,12 @@ const PUBLIC_TABLES_IN_RESTORE_ORDER = [
 
 type BackupWorkerDeps = {
   backupDirectory: string;
-  connection: Redis;
+  db: Database;
   maintenanceFlagPath: string;
   pool: Pool;
   storageBasePath: string;
   version: string;
+  startPolling?: boolean;
 };
 
 type RestoreBackupJobData = {
@@ -278,13 +278,14 @@ export async function restoreBackupArchive({
 
 export function createBackupWorker({
   backupDirectory,
-  connection,
+  db,
   maintenanceFlagPath,
   pool,
   storageBasePath,
   version,
+  startPolling = true,
 }: BackupWorkerDeps) {
-  async function processBackupJob(job: Job<Record<string, never> | RestoreBackupJobData>) {
+  async function processBackupJob(job: AsyncJob<Record<string, never> | RestoreBackupJobData>) {
     if (job.name === CREATE_BACKUP_JOB) {
       const result = await createBackupArchive({
         backupDirectory,
@@ -314,9 +315,12 @@ export function createBackupWorker({
     throw new Error(`Unknown backup job: ${job.name}`);
   }
 
-  const worker = new Worker(BACKUP_QUEUE, async (job) => processBackupJob(job), {
-    connection,
+  const worker = createPostgresWorker<Record<string, never> | RestoreBackupJobData>({
+    db,
+    queueName: BACKUP_QUEUE,
     concurrency: 1,
+    autorun: startPolling,
+    handler: async (job) => processBackupJob(job),
   });
 
   worker.on('failed', (job, error) => {

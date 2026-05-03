@@ -1,19 +1,17 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const queueAdd = vi.fn();
-const queueClose = vi.fn();
 
-vi.mock('bullmq', () => ({
-  Queue: class {
-    add = queueAdd;
-    close = queueClose;
-  },
+vi.mock('./postgres-jobs.js', () => ({
+  createPostgresQueue: () => ({
+    add: queueAdd,
+    close: vi.fn(),
+  }),
 }));
 
 describe('backup queue', () => {
   beforeEach(() => {
     queueAdd.mockReset();
-    queueClose.mockReset();
   });
 
   test('enqueues create-backup jobs', async () => {
@@ -21,7 +19,7 @@ describe('backup queue', () => {
 
     queueAdd.mockResolvedValueOnce({ id: 'job_1' });
 
-    const queue = createBackupQueue({ connection: {} as never });
+    const queue = createBackupQueue({ db: {} as never });
     const result = await queue.enqueueCreateBackup();
 
     expect(result).toEqual({ jobId: 'job_1' });
@@ -33,7 +31,7 @@ describe('backup queue', () => {
 
     queueAdd.mockResolvedValueOnce({ id: 'job_2' });
 
-    const queue = createBackupQueue({ connection: {} as never });
+    const queue = createBackupQueue({ db: {} as never });
     const result = await queue.enqueueRestoreBackup({ backupId: 'arkivra-backup-test.tar.gz' });
 
     expect(result).toEqual({ jobId: 'job_2' });

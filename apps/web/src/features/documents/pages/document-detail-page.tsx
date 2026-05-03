@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Download,
   Image as ImageIcon,
+  MessageSquare,
   Pencil,
   Plus,
   Printer,
@@ -426,6 +427,17 @@ export function DocumentDetailPage() {
               <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/vaults/${vaultId}/documents/${documentId}/chat`);
+                  }}
+                >
+                  <ActionMenuItemIcon icon={MessageSquare} />
+                  Chat with document
+                </button>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
                   <ActionMenuItemIcon icon={Download} />

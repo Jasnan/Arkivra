@@ -43,6 +43,8 @@ type CountRow = {
 type HybridSearchRow = {
   chunk_id: string;
   document_id: string;
+  vault_id: string;
+  vault_name: string;
   document_name: string;
   page_start: number | null;
   page_end: number | null;
@@ -727,19 +729,30 @@ export function createDocumentSearchServices({
 
   async function searchHybrid({
     vaultId,
+    vaultIds,
+    documentId,
     query,
     limit,
     mode = 'hybrid',
   }: {
-    vaultId: string;
+    vaultId?: string;
+    vaultIds?: string[];
+    documentId?: string;
     query: string;
     limit: number;
     mode?: HybridSearchMode;
   }) {
     const trimmedQuery = query.trim();
     const normalizedLimit = Math.min(Math.max(limit, 1), 50);
+    const scopedVaultIds = [
+      ...new Set([
+        ...(vaultId ? [vaultId] : []),
+        ...(vaultIds ?? []),
+      ].map(item => item.trim()).filter(Boolean)),
+    ];
+    const scopedVaultIdList = sql.join(scopedVaultIds.map(id => sql`${id}`), sql`, `);
 
-    if (trimmedQuery.length === 0) {
+    if (trimmedQuery.length === 0 || scopedVaultIds.length === 0) {
       return {
         query: trimmedQuery,
         limit: normalizedLimit,
@@ -779,9 +792,10 @@ export function createDocumentSearchServices({
               FROM document_chunks AS dc
               CROSS JOIN search_query
               INNER JOIN documents AS d ON d.id = dc.document_id
-              WHERE dc.vault_id = ${vaultId}
-                AND d.vault_id = ${vaultId}
+              WHERE dc.vault_id IN (${scopedVaultIdList})
+                AND d.vault_id IN (${scopedVaultIdList})
                 AND d.is_deleted = false
+                AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
                 AND dc.tsv @@ search_query.query
               ORDER BY ts_rank_cd(dc.tsv, search_query.query) DESC, dc.chunk_index ASC, dc.id ASC
               LIMIT 50
@@ -789,6 +803,8 @@ export function createDocumentSearchServices({
             SELECT
               dc.id AS chunk_id,
               dc.document_id,
+              dc.vault_id,
+              v.name AS vault_name,
               d.name AS document_name,
               dc.page_start,
               dc.page_end,
@@ -802,6 +818,7 @@ export function createDocumentSearchServices({
             FROM fts_ranked
             INNER JOIN document_chunks AS dc ON dc.id = fts_ranked.id
             INNER JOIN documents AS d ON d.id = dc.document_id
+            INNER JOIN vaults AS v ON v.id = dc.vault_id
             LEFT JOIN LATERAL (
               SELECT COALESCE(
                 json_agg(dca.id ORDER BY dca.created_at ASC) FILTER (WHERE dca.asset_type = 'image'),
@@ -809,7 +826,7 @@ export function createDocumentSearchServices({
               ) AS image_asset_ids
               FROM document_chunk_assets AS dca
               WHERE dca.chunk_id = dc.id
-                AND dca.vault_id = ${vaultId}
+                AND dca.vault_id = dc.vault_id
             ) AS assets ON true
             ORDER BY score DESC, dc.chunk_index ASC, dc.id ASC
             LIMIT ${normalizedLimit}
@@ -825,9 +842,10 @@ export function createDocumentSearchServices({
               FROM document_chunks AS dc
               CROSS JOIN search_query
               INNER JOIN documents AS d ON d.id = dc.document_id
-              WHERE dc.vault_id = ${vaultId}
-                AND d.vault_id = ${vaultId}
+              WHERE dc.vault_id IN (${scopedVaultIdList})
+                AND d.vault_id IN (${scopedVaultIdList})
                 AND d.is_deleted = false
+                AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
                 AND dc.tsv @@ search_query.query
               ORDER BY rank DESC, dc.chunk_index ASC, dc.id ASC
               LIMIT 50
@@ -844,9 +862,10 @@ export function createDocumentSearchServices({
                 1 - (dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector) AS similarity
               FROM document_chunks AS dc
               INNER JOIN documents AS d ON d.id = dc.document_id
-              WHERE dc.vault_id = ${vaultId}
-                AND d.vault_id = ${vaultId}
+              WHERE dc.vault_id IN (${scopedVaultIdList})
+                AND d.vault_id IN (${scopedVaultIdList})
                 AND d.is_deleted = false
+                AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
                 AND dc.embedding IS NOT NULL
               ORDER BY dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector ASC, dc.chunk_index ASC, dc.id ASC
               LIMIT 50
@@ -868,6 +887,8 @@ export function createDocumentSearchServices({
             SELECT
               dc.id AS chunk_id,
               dc.document_id,
+              dc.vault_id,
+              v.name AS vault_name,
               d.name AS document_name,
               dc.page_start,
               dc.page_end,
@@ -881,6 +902,7 @@ export function createDocumentSearchServices({
             FROM ranked
             INNER JOIN document_chunks AS dc ON dc.id = ranked.id
             INNER JOIN documents AS d ON d.id = dc.document_id
+            INNER JOIN vaults AS v ON v.id = dc.vault_id
             LEFT JOIN LATERAL (
               SELECT COALESCE(
                 json_agg(dca.id ORDER BY dca.created_at ASC) FILTER (WHERE dca.asset_type = 'image'),
@@ -888,7 +910,7 @@ export function createDocumentSearchServices({
               ) AS image_asset_ids
               FROM document_chunk_assets AS dca
               WHERE dca.chunk_id = dc.id
-                AND dca.vault_id = ${vaultId}
+                AND dca.vault_id = dc.vault_id
             ) AS assets ON true
             ORDER BY ranked.score DESC, dc.chunk_index ASC, dc.id ASC
             LIMIT ${normalizedLimit}
@@ -901,6 +923,8 @@ export function createDocumentSearchServices({
       return {
         chunkId: row.chunk_id,
         documentId: row.document_id,
+        vaultId: row.vault_id,
+        vaultName: row.vault_name,
         documentName: row.document_name,
         pageStart: row.page_start,
         pageEnd: row.page_end,

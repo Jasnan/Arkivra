@@ -68,6 +68,8 @@ export type CitationAssetType = 'text' | 'table' | 'image';
 export type Citation = {
   chunkId: string;
   documentId: string;
+  vaultId: string;
+  vaultName: string;
   documentName: string;
   pageStart: number | null;
   pageEnd: number | null;
@@ -105,7 +107,9 @@ export type DocumentSearchServices = {
     sortBy?: SearchSortBy;
   }) => Promise<SearchResultPage>;
   searchHybrid: (args: {
-    vaultId: string;
+    vaultId?: string;
+    vaultIds?: string[];
+    documentId?: string;
     query: string;
     limit: number;
     mode?: HybridSearchMode;

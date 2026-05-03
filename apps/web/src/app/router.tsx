@@ -9,6 +9,7 @@ import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
 import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
 import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
+import { ChatPage } from '@/features/chat/pages/chat-page';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page';
@@ -67,6 +68,10 @@ export function createAppRouter() {
           element: <VaultsPage />,
         },
         {
+          path: 'chat',
+          element: <ChatPage />,
+        },
+        {
           path: 'vaults/new',
           element: <Navigate to="/vaults" replace />,
         },
@@ -95,12 +100,20 @@ export function createAppRouter() {
           element: <DocumentsPage />,
         },
         {
+          path: 'vaults/:vaultId/chat',
+          element: <ChatPage />,
+        },
+        {
           path: 'vaults/:vaultId/documents/trash',
           element: <DocumentTrashPage />,
         },
         {
           path: 'vaults/:vaultId/documents/:documentId',
           element: <DocumentDetailPage />,
+        },
+        {
+          path: 'vaults/:vaultId/documents/:documentId/chat',
+          element: <ChatPage />,
         },
         {
           path: 'tags',

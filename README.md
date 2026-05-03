@@ -30,7 +30,7 @@ Arkivra is a self-hosted document management system designed for individuals and
 | ORM        | Drizzle ORM (pg-core)                                |
 | Database   | PostgreSQL 16 + pgvector                             |
 | Auth       | Better Auth                                          |
-| Queue      | BullMQ + Redis                                       |
+| Jobs       | PostgreSQL-backed async workers                      |
 | Extraction | Unstructured.io                                      |
 | Deployment | Docker Compose                                       |
 
@@ -69,8 +69,8 @@ docker compose up -d
 # Install dependencies
 pnpm install
 
-# Start infrastructure (PostgreSQL, Redis, Unstructured)
-docker compose up postgres redis unstructured -d
+# Start infrastructure (PostgreSQL, Unstructured)
+docker compose up postgres unstructured -d
 
 # Copy environment configuration
 cp .env.example .env
@@ -144,11 +144,11 @@ pnpm commitmsg:check .git/COMMIT_EDITMSG
 ## Docker Compose Services
 
 ```
-┌─────────┐  ┌────────┐  ┌──────────┐  ┌────────┐  ┌──────────────┐
-│   api   │  │ worker │  │ postgres │  │ redis  │  │ unstructured │
-│ (Hono)  │  │(BullMQ)│  │+pgvector │  │        │  │              │
-│ :1221   │  │        │  │  :5432   │  │ :6379  │  │    :8000     │
-└─────────┘  └────────┘  └──────────┘  └────────┘  └──────────────┘
+┌─────────┐  ┌────────┐  ┌──────────┐  ┌──────────────┐
+│   api   │  │ worker │  │ postgres │  │ unstructured │
+│ (Hono)  │  │(async) │  │+pgvector │  │              │
+│ :1221   │  │        │  │  :5432   │  │    :8000     │
+└─────────┘  └────────┘  └──────────┘  └──────────────┘
 ```
 
 ## Configuration
@@ -158,7 +158,6 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 | Variable                  | Description                                             | Default                                             |
 | ------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
 | `ARKIVRA_DATABASE_URL`    | PostgreSQL connection string                            | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
-| `ARKIVRA_REDIS_URL`       | Redis connection string                                 | `redis://localhost:6379`                            |
 | `ARKIVRA_UNSTRUCTURED_URL` | Unstructured partition API URL                         | `http://localhost:8000`                             |
 | `ARKIVRA_AUTH_SECRET`     | Session signing secret (**change in production**)       | dev default                                         |
 | `ARKIVRA_ENCRYPTION_KEYS` | KEK for envelope encryption (format: `version:hex-key`) | —                                                   |
@@ -187,7 +186,8 @@ arkivra/
 │   │   │   ├── modules/
 │   │   │   │   ├── config/     # figue + Zod configuration
 │   │   │   │   ├── database/   # Drizzle ORM + schema
-│   │   │   │   └── server/     # Hono server + routes
+│   │   │   │   ├── server/     # Hono server + routes
+│   │   │   │   └── worker/     # PostgreSQL-backed async jobs
 │   │   │   ├── scripts/        # Migration scripts
 │   │   │   ├── index.ts        # Entry point
 │   │   │   └── start.ts        # App bootstrap

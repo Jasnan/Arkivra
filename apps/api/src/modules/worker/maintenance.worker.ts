@@ -1,11 +1,9 @@
-import type { Redis } from 'ioredis';
-import type { Job } from 'bullmq';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { HardDeleteExpiredDocumentsJobData } from './maintenance.queue.js';
-import { Worker } from 'bullmq';
 import { sql } from 'drizzle-orm';
 import { HARD_DELETE_EXPIRED_DOCUMENTS_JOB, MAINTENANCE_QUEUE } from './maintenance.queue.js';
+import { AsyncJob, createPostgresWorker } from './postgres-jobs.js';
 
 type ExpiredDocumentRow = {
   id: string;
@@ -17,10 +15,10 @@ type AssetStorageKeyRow = {
 };
 
 export type MaintenanceWorkerDeps = {
-  connection: Redis;
   db: Database;
   defaultRetentionDays: number;
   storage: StorageDriver;
+  startPolling?: boolean;
 };
 
 export async function hardDeleteExpiredDocuments({
@@ -71,12 +69,12 @@ export async function hardDeleteExpiredDocuments({
 }
 
 export function createMaintenanceWorker({
-  connection,
   db,
   defaultRetentionDays,
   storage,
+  startPolling = true,
 }: MaintenanceWorkerDeps) {
-  async function processMaintenanceJob(job: Job<HardDeleteExpiredDocumentsJobData>) {
+  async function processMaintenanceJob(job: AsyncJob<HardDeleteExpiredDocumentsJobData>) {
     if (job.name !== HARD_DELETE_EXPIRED_DOCUMENTS_JOB) {
       throw new Error(`Unknown maintenance job: ${job.name}`);
     }
@@ -95,14 +93,13 @@ export function createMaintenanceWorker({
     return result;
   }
 
-  const worker = new Worker<HardDeleteExpiredDocumentsJobData>(
-    MAINTENANCE_QUEUE,
-    async (job) => processMaintenanceJob(job),
-    {
-      connection,
-      concurrency: 1,
-    },
-  );
+  const worker = createPostgresWorker<HardDeleteExpiredDocumentsJobData>({
+    db,
+    queueName: MAINTENANCE_QUEUE,
+    concurrency: 1,
+    autorun: startPolling,
+    handler: async (job) => processMaintenanceJob(job),
+  });
 
   worker.on('failed', (job, error) => {
     console.error(

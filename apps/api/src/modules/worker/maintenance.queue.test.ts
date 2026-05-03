@@ -1,26 +1,24 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const queueAdd = vi.fn();
-const queueClose = vi.fn();
 
-vi.mock('bullmq', () => ({
-  Queue: class {
-    add = queueAdd;
-    close = queueClose;
-  },
+vi.mock('./postgres-jobs.js', () => ({
+  createPostgresQueue: () => ({
+    add: queueAdd,
+    close: vi.fn(),
+  }),
 }));
 
 describe('maintenance queue', () => {
   beforeEach(() => {
     queueAdd.mockReset();
-    queueClose.mockReset();
   });
 
   test('enqueues a hard-delete-expired-documents job', async () => {
     const { createMaintenanceQueue, HARD_DELETE_EXPIRED_DOCUMENTS_JOB } =
       await import('./maintenance.queue.js');
 
-    const queue = createMaintenanceQueue({ connection: {} as never });
+    const queue = createMaintenanceQueue({ db: {} as never });
     await queue.enqueueHardDeleteExpiredDocuments({ retentionDays: 7 });
 
     expect(queueAdd).toHaveBeenCalledWith(HARD_DELETE_EXPIRED_DOCUMENTS_JOB, { retentionDays: 7 });
@@ -30,7 +28,7 @@ describe('maintenance queue', () => {
     const { createMaintenanceQueue, HARD_DELETE_EXPIRED_DOCUMENTS_JOB } =
       await import('./maintenance.queue.js');
 
-    const queue = createMaintenanceQueue({ connection: {} as never });
+    const queue = createMaintenanceQueue({ db: {} as never });
     await queue.scheduleHardDeleteExpiredDocuments({
       cronPattern: '0 3 * * *',
       retentionDays: 30,

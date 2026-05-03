@@ -1,5 +1,5 @@
-import type { Redis } from 'ioredis';
-import { Queue } from 'bullmq';
+import type { Database } from '../database/database.js';
+import { createPostgresQueue } from './postgres-jobs.js';
 
 export const BACKUP_QUEUE = 'backups';
 export const CREATE_BACKUP_JOB = 'create-backup';
@@ -11,13 +11,12 @@ export type RestoreBackupJobData = {
   backupId: string;
 };
 
-export function createBackupQueue({ connection }: { connection: Redis }) {
-  const queue = new Queue<CreateBackupJobData | RestoreBackupJobData>(BACKUP_QUEUE, {
-    connection,
+export function createBackupQueue({ db }: { db: Database }) {
+  const queue = createPostgresQueue<CreateBackupJobData | RestoreBackupJobData>({
+    db,
+    queueName: BACKUP_QUEUE,
     defaultJobOptions: {
       attempts: 1,
-      removeOnComplete: { count: 1000 },
-      removeOnFail: { count: 5000 },
     },
   });
 

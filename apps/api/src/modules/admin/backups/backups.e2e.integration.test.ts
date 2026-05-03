@@ -2,7 +2,6 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
-import Redis from 'ioredis';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -26,7 +25,6 @@ describe.sequential('backups e2e', () => {
 
   let backupDirectory = '';
   let storagePath = '';
-  let redis: Redis | null = null;
   let backupQueue: ReturnType<typeof createBackupQueue> | null = null;
   let backupWorker: ReturnType<typeof createBackupWorker> | null = null;
   let pool: ReturnType<typeof setupDatabase>['pool'] | null = null;
@@ -79,7 +77,6 @@ describe.sequential('backups e2e', () => {
         NODE_ENV: 'test',
         PROCESS_MODE: 'all',
         ARKIVRA_DATABASE_URL: isolatedDatabaseUrl,
-        ARKIVRA_REDIS_URL: process.env.ARKIVRA_REDIS_URL ?? 'redis://127.0.0.1:6379/4',
         ARKIVRA_STORAGE_FS_PATH: storagePath,
         ARKIVRA_BACKUPS_PATH: backupDirectory,
         ARKIVRA_SERVER_BASE_URL: 'http://localhost:1221',
@@ -87,9 +84,6 @@ describe.sequential('backups e2e', () => {
         ARKIVRA_AUTH_TRUSTED_ORIGINS: 'http://localhost:1221',
       },
     });
-
-    redis = new Redis(config.redis.url, { maxRetriesPerRequest: null });
-    expect(await redis.ping()).toBe('PONG');
 
     const database = setupDatabase({ config });
     db = database.db;
@@ -100,10 +94,10 @@ describe.sequential('backups e2e', () => {
     const storage = createStorageDriver({ config });
     const backupServices = createBackupServices({ config });
 
-    backupQueue = createBackupQueue({ connection: redis });
+    backupQueue = createBackupQueue({ db });
     backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
-      connection: redis,
+      db,
       maintenanceFlagPath: backupServices.maintenanceFlagPath,
       pool,
       storageBasePath: config.storage.filesystem.basePath,
@@ -160,7 +154,6 @@ describe.sequential('backups e2e', () => {
       await adminPool.end();
     }
 
-    await redis?.quit().catch(() => undefined);
     await rm(backupDirectory, { recursive: true, force: true }).catch(() => undefined);
     await rm(storagePath, { recursive: true, force: true }).catch(() => undefined);
   });

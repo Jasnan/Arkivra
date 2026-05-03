@@ -6,14 +6,6 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const persistParsedDocument = vi.fn();
 const updateDocumentProcessingStatus = vi.fn();
-const workerClose = vi.fn();
-
-vi.mock('bullmq', () => ({
-  Worker: class {
-    close = workerClose;
-    on = vi.fn();
-  },
-}));
 
 vi.mock('../documents/documents.services.js', () => ({
   createDocumentsServices: () => ({
@@ -137,7 +129,6 @@ function createDeps({
     ),
   };
   const chunkEmbedder = { name: 'test-embedder', embed: vi.fn(async () => [[0.1, 0.2, 0.3]]) };
-  const connection = {} as never;
   const job = {
     data: { documentId: 'doc_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
     updateProgress: vi.fn(async () => undefined),
@@ -149,7 +140,6 @@ function createDeps({
     encryption,
     parsePipeline,
     chunkEmbedder,
-    connection,
     job,
   };
 }
@@ -158,7 +148,6 @@ describe('document worker', () => {
   beforeEach(() => {
     persistParsedDocument.mockReset();
     updateDocumentProcessingStatus.mockReset();
-    workerClose.mockReset();
     persistParsedDocument.mockImplementation(async ({ hooks }) => {
       await hooks?.onStageChange?.('vectorising');
     });
@@ -174,7 +163,7 @@ describe('document worker', () => {
       encryption: deps.encryption,
       parsePipeline: deps.parsePipeline as never,
       chunkEmbedder: deps.chunkEmbedder as never,
-      connection: deps.connection,
+      startPolling: false,
     });
 
     await worker.processDocument(deps.job as never);
@@ -207,7 +196,7 @@ describe('document worker', () => {
       encryption: deps.encryption,
       parsePipeline: deps.parsePipeline as never,
       chunkEmbedder: deps.chunkEmbedder as never,
-      connection: deps.connection,
+      startPolling: false,
     });
 
     await worker.processDocument(deps.job as never);
@@ -237,7 +226,7 @@ describe('document worker', () => {
       encryption: deps.encryption,
       parsePipeline: deps.parsePipeline as never,
       chunkEmbedder: deps.chunkEmbedder as never,
-      connection: deps.connection,
+      startPolling: false,
     });
 
     await expect(worker.processDocument(deps.job as never)).rejects.toThrow('parse failed');

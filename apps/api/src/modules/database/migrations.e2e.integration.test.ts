@@ -338,4 +338,53 @@ describe.sequential('migrations smoke', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.format_type).toBe('vector(768)');
   });
+
+  test('0014 creates the background_jobs table used by async workers', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'background_jobs'
+      `,
+    );
+
+    const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
+
+    expect(byName.id?.data_type).toBe('text');
+    expect(byName.queue_name?.data_type).toBe('text');
+    expect(byName.name?.data_type).toBe('text');
+    expect(byName.payload?.data_type).toBe('jsonb');
+    expect(byName.status?.column_default).toContain("'pending'");
+    expect(byName.progress?.column_default).toContain('0');
+    expect(byName.attempts?.column_default).toContain('0');
+    expect(byName.max_attempts?.column_default).toContain('1');
+    expect(byName.run_at?.column_default).toContain('now()');
+
+    const { rows: indexRows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'background_jobs'
+      `,
+    );
+
+    expect(indexRows.map(row => row.indexname)).toEqual(
+      expect.arrayContaining([
+        'background_jobs_queue_status_run_idx',
+        'background_jobs_status_run_idx',
+        'background_jobs_locked_at_idx',
+      ]),
+    );
+  });
 });

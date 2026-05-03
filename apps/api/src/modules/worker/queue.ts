@@ -1,22 +1,21 @@
-import type { Redis } from 'ioredis';
-import { Queue } from 'bullmq';
+import type { Database } from '../database/database.js';
+import { createPostgresQueue } from './postgres-jobs.js';
 
 export type { ProcessDocumentJobData } from './worker.types.js';
 export const PROCESS_DOCUMENT_QUEUE = 'process-document';
 
-export function createDocumentQueue({ connection }: { connection: Redis }) {
+export function createDocumentQueue({ db }: { db: Database }) {
   type JobData = { documentId: string; vaultId: string };
   type EnqueueOptions = JobData & { replaceExisting?: boolean };
-  const queue = new Queue<JobData>(PROCESS_DOCUMENT_QUEUE, {
-    connection,
+  const queue = createPostgresQueue<JobData>({
+    db,
+    queueName: PROCESS_DOCUMENT_QUEUE,
     defaultJobOptions: {
       attempts: 3,
       backoff: {
         type: 'exponential',
         delay: 5000,
       },
-      removeOnComplete: { count: 1000 },
-      removeOnFail: { count: 5000 },
     },
   });
 
@@ -30,10 +29,10 @@ export function createDocumentQueue({ connection }: { connection: Redis }) {
     if (replaceExisting) {
       const existingJob = await queue.getJob(jobId);
 
-      if (existingJob !== undefined && existingJob !== null) {
+      if (existingJob !== undefined) {
         const state = await existingJob.getState();
 
-        if (state === 'active' || state === 'waiting' || state === 'delayed' || state === 'prioritized') {
+        if (state === 'active' || state === 'waiting' || state === 'delayed') {
           return;
         }
 

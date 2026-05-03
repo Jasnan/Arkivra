@@ -47,12 +47,12 @@ function createDefaultIngestionSettings(config: Config) {
   return {
     summarisationEnabled: true,
     summarisationHost: config.ollama.host,
-    summarisationModel: 'gemma4:e2b',
+    summarisationModel: 'gemma4:e4b',
     summarisationMaxImagesPerChunk: 4,
     embeddingEnabled: true,
     embeddingHost: config.ollama.host,
-    embeddingModel: 'nomic-embed-text',
-    embeddingDimensions: 768,
+    embeddingModel: 'bge-m3',
+    embeddingDimensions: 1024,
   };
 }
 

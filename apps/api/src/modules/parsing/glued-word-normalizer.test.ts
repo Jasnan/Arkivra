@@ -210,7 +210,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       chat,
     });
@@ -238,7 +238,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       chat,
     });
@@ -270,7 +270,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       chat,
     });
@@ -303,7 +303,7 @@ describe('glued-word normalizer', () => {
       });
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       batchSize: 2,
       chat,
@@ -338,7 +338,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       chat,
     });
@@ -366,7 +366,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       batchSize: 2,
       chat,
@@ -400,7 +400,7 @@ describe('glued-word normalizer', () => {
     }));
 
     const normalizer = createOllamaGluedWordNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       batchSize: 5,
       chat,
@@ -451,7 +451,7 @@ describe('glued-word normalizer', () => {
     const settings = {
       enabled: true,
       host: 'http://127.0.0.1:11434',
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       maxCandidates: 100,
       batchSize: 10,
@@ -491,7 +491,7 @@ describe('identity document normalizer', () => {
       },
     }));
     const normalizer = createOllamaIdentityDocumentNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       chat,
     });
 
@@ -526,7 +526,7 @@ describe('identity document normalizer', () => {
       },
     }));
     const normalizer = createOllamaIdentityDocumentNormalizer({
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       chat,
     });
 
@@ -548,7 +548,7 @@ describe('identity document normalizer', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         minTokenLength: 8,
         maxCandidates: 100,
         batchSize: 10,
@@ -577,7 +577,7 @@ describe('identity document normalizer', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         minTokenLength: 8,
         maxCandidates: 100,
         batchSize: 10,

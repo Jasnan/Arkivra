@@ -124,7 +124,7 @@ CREATE TABLE public.document_chunks (
     page_number integer,
     chunk_type text,
     token_count integer,
-    embedding public.vector(768),
+    embedding public.vector(1024),
     tsv tsvector GENERATED ALWAYS AS (to_tsvector('english'::regconfig, content)) STORED,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     chunk_key text NOT NULL,
@@ -179,16 +179,16 @@ CREATE TABLE public.instance_settings (
     updated_at timestamp without time zone DEFAULT now() NOT NULL,
     ai_normalization_enabled boolean DEFAULT false NOT NULL,
     ollama_host text DEFAULT 'http://127.0.0.1:11434'::text NOT NULL,
-    ollama_model text DEFAULT 'gemma4:e2b'::text NOT NULL,
+    ollama_model text DEFAULT 'gemma4:e4b'::text NOT NULL,
     ollama_glued_word_min_token_length integer DEFAULT 12 NOT NULL,
     ollama_glued_word_max_candidates integer DEFAULT 100 NOT NULL,
     ollama_glued_word_batch_size integer DEFAULT 10 NOT NULL,
     ai_summarisation_enabled boolean DEFAULT true NOT NULL,
-    ollama_summarisation_model text DEFAULT 'gemma4:e2b'::text NOT NULL,
+    ollama_summarisation_model text DEFAULT 'gemma4:e4b'::text NOT NULL,
     ollama_summarisation_max_images_per_chunk integer DEFAULT 4 NOT NULL,
     ollama_embedding_enabled boolean DEFAULT true NOT NULL,
-    ollama_embedding_model text DEFAULT 'nomic-embed-text'::text NOT NULL,
-    ollama_embedding_dimensions integer DEFAULT 768 NOT NULL
+    ollama_embedding_model text DEFAULT 'bge-m3'::text NOT NULL,
+    ollama_embedding_dimensions integer DEFAULT 1024 NOT NULL
 );
 
 CREATE TABLE public.tags (

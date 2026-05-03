@@ -43,7 +43,7 @@ describe('ollama chunk summariser', () => {
   test('sends multimodal Ollama chat request with prompt, tables, and capped images', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
-      expect(body.model).toBe('gemma4:e2b');
+      expect(body.model).toBe('gemma4:e4b');
       expect(body.messages[0]?.content).toContain('TEXT CONTENT:\nRevenue increased to 20.');
       expect(body.messages[0]?.content).toContain('TABLES:\n1. <table><tr><td>20</td></tr></table>');
       expect(body.messages[0]?.images).toEqual([
@@ -62,7 +62,7 @@ describe('ollama chunk summariser', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         maxImagesPerChunk: 1,
         logRequests: false,
       }),
@@ -89,7 +89,7 @@ describe('ollama chunk summariser', () => {
       resolveSettings: async () => ({
         enabled: false,
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         maxImagesPerChunk: 4,
         logRequests: false,
       }),
@@ -128,7 +128,7 @@ describe('ollama chunk summariser', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         maxImagesPerChunk: 4,
         logRequests: false,
       }),

@@ -26,7 +26,7 @@ describe('ollama vision text fallback', () => {
   test('transcribes embedded images through Ollama chat image input', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
-      expect(body.model).toBe('gemma4:e2b');
+      expect(body.model).toBe('gemma4:e4b');
       expect(body.messages[0]?.images).toEqual([Buffer.from('image-bytes').toString('base64')]);
       return new Response(JSON.stringify({
         message: { content: 'Recovered page text' },
@@ -39,7 +39,7 @@ describe('ollama vision text fallback', () => {
     const fallback = createRuntimeConfiguredOllamaVisionTextFallback({
       resolveSettings: async () => ({
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         logRequests: false,
       }),
       fetchImpl: fetchMock as typeof fetch,
@@ -85,7 +85,7 @@ describe('ollama vision text fallback', () => {
     const fallback = createRuntimeConfiguredOllamaVisionTextFallback({
       resolveSettings: async () => ({
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         logRequests: false,
       }),
       fetchImpl: fetchMock as typeof fetch,
@@ -123,7 +123,7 @@ describe('ollama vision text fallback', () => {
     const fallback = createRuntimeConfiguredOllamaVisionTextFallback({
       resolveSettings: async () => ({
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         logRequests: false,
       }),
       loadImages,
@@ -145,7 +145,7 @@ describe('ollama vision text fallback', () => {
     const fallback = createRuntimeConfiguredOllamaVisionTextFallback({
       resolveSettings: async () => ({
         host: 'http://127.0.0.1:11434',
-        model: 'gemma4:e2b',
+        model: 'gemma4:e4b',
         logRequests: false,
       }),
     });

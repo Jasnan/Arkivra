@@ -8,7 +8,7 @@ describe('ollama embedder', () => {
       resolveSettings: async () => ({
         enabled: false,
         host: 'http://ollama.local',
-        model: 'nomic-embed-text',
+        model: 'bge-m3',
         dimensions: 3,
         logRequests: false,
       }),
@@ -33,7 +33,7 @@ describe('ollama embedder', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://ollama.local/',
-        model: 'nomic-embed-text',
+        model: 'bge-m3',
         dimensions: 3,
         logRequests: false,
       }),
@@ -56,11 +56,11 @@ describe('ollama embedder', () => {
     const firstCallBody = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body));
     const secondCallBody = JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body));
     expect(firstCallBody).toEqual({
-      model: 'nomic-embed-text',
+      model: 'bge-m3',
       input: ['alpha', 'beta'],
     });
     expect(secondCallBody).toEqual({
-      model: 'nomic-embed-text',
+      model: 'bge-m3',
       input: ['gamma'],
     });
   });
@@ -83,7 +83,7 @@ describe('ollama embedder', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://ollama.local',
-        model: 'nomic-embed-text',
+        model: 'bge-m3',
         dimensions: 3,
         logRequests: false,
       }),
@@ -121,7 +121,7 @@ describe('ollama embedder', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://ollama.local',
-        model: 'nomic-embed-text',
+        model: 'bge-m3',
         dimensions: 3,
         logRequests: false,
       }),
@@ -138,7 +138,7 @@ describe('ollama embedder', () => {
       resolveSettings: async () => ({
         enabled: true,
         host: 'http://ollama.local',
-        model: 'nomic-embed-text',
+        model: 'bge-m3',
         dimensions: 3,
         logRequests: false,
       }),

@@ -9,21 +9,21 @@ function createMockAiServices() {
     getSettings: vi.fn(async () => ({
       enabled: true,
       ollamaHost: 'http://127.0.0.1:11434',
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       minTokenLength: 8,
       maxCandidates: 100,
       batchSize: 10,
     })),
     updateSettings: vi.fn(async settings => settings),
     listModels: vi.fn(async () => [
-      { name: 'gemma4:e2b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' },
+      { name: 'gemma4:e4b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' },
     ]),
     checkModelAvailability: vi.fn(async () => ({
       host: 'http://127.0.0.1:11434',
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
       reachable: true,
       modelAvailable: true,
-      models: [{ name: 'gemma4:e2b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' }],
+      models: [{ name: 'gemma4:e4b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' }],
       error: null,
     })),
   };
@@ -88,7 +88,7 @@ describe('admin ai routes integration', () => {
         parsers: { gluedWordNormalization: 'ollama' },
         ollama: {
           host: 'http://127.0.0.1:11434',
-          model: 'gemma4:e2b',
+          model: 'gemma4:e4b',
           gluedWordMinTokenLength: 8,
           gluedWordMaxCandidates: 100,
           gluedWordBatchSize: 10,
@@ -101,8 +101,8 @@ describe('admin ai routes integration', () => {
 
     expect(settings.summarisationEnabled).toBe(true);
     expect(settings.embeddingEnabled).toBe(true);
-    expect(settings.embeddingModel).toBe('nomic-embed-text');
-    expect(settings.embeddingDimensions).toBe(768);
+    expect(settings.embeddingModel).toBe('bge-m3');
+    expect(settings.embeddingDimensions).toBe(1024);
   });
 
   test('returns current AI settings for a global admin', async () => {
@@ -110,7 +110,7 @@ describe('admin ai routes integration', () => {
     const response = await app.request('/api/admin/ai/settings');
     expect(response.status).toBe(200);
     const body = await response.json() as any;
-    expect(body.settings.model).toBe('gemma4:e2b');
+    expect(body.settings.model).toBe('gemma4:e4b');
   });
 
   test('updates AI settings', async () => {
@@ -180,7 +180,7 @@ describe('admin ai routes integration', () => {
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         models: [
-          { name: 'gemma4:e2b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
+          { name: 'gemma4:e4b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
         ],
       }), {
         status: 200,
@@ -207,7 +207,7 @@ describe('admin ai routes integration', () => {
         parsers: { gluedWordNormalization: 'ollama' },
         ollama: {
           host: 'http://127.0.0.1:11434',
-          model: 'gemma4:e2b',
+          model: 'gemma4:e4b',
           gluedWordMinTokenLength: 8,
           gluedWordMaxCandidates: 100,
           gluedWordBatchSize: 10,
@@ -219,7 +219,7 @@ describe('admin ai routes integration', () => {
 
     const availability = await aiServices.checkModelAvailability({
       host: 'http://127.0.0.1:11434',
-      model: 'gemma4:e2b',
+      model: 'gemma4:e4b',
     });
 
     expect(availability.reachable).toBe(true);

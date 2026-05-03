@@ -8,6 +8,13 @@
       "when": 1777766400000,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777852800000,
+      "tag": "0001_bge_m3_embeddings",
+      "breakpoints": true
     }
   ]
 }

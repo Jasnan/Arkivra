@@ -48,6 +48,7 @@ import { Separator } from '@/components/ui/separator';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { cn } from '@/lib/utils';
+import { getDroppedFiles } from '../dropped-files';
 import { uploadManager } from '../upload-manager';
 import { useUploadManagerState } from '../use-upload-manager';
 
@@ -122,9 +123,9 @@ export function TransfersPage() {
     event.target.value = '';
   }
 
-  function handleDrop(event: DragEvent<HTMLButtonElement>) {
+  async function handleDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
-    handleFiles(Array.from(event.dataTransfer.files ?? []));
+    handleFiles(await getDroppedFiles(event.dataTransfer));
   }
 
   function handleClearAll() {
@@ -200,10 +201,10 @@ export function TransfersPage() {
               <FileUp className="size-8" />
             </div>
             <h2 className="mt-6 font-display text-xl font-extrabold  text-foreground sm:text-xl">
-              Drag and drop files here
+              Drag and drop files or folders here
             </h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Select a vault and add files
+              Select a vault and add files. Dropped folders are uploaded as individual files.
             </p>
             <span className="mt-6 inline-flex h-10 items-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground  transition group-hover:bg-primary/95">
               Browse files

@@ -489,7 +489,7 @@ export function AdminPage() {
                         }));
                       }}
                         className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
-                        placeholder="gemma4:e2b"
+                        placeholder="gemma4:e4b"
                       />
                     )}
                   </SettingField>

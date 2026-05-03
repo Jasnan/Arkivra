@@ -190,7 +190,7 @@ export const configDefinition = {
     model: {
       doc: 'Ollama model used for AI OCR normalization.',
       schema: z.string().min(1),
-      default: 'gemma4:e2b',
+      default: 'gemma4:e4b',
       env: 'ARKIVRA_OLLAMA_MODEL',
     },
     gluedWordMinTokenLength: {

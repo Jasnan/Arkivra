@@ -270,7 +270,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ai_summarisation_enabled?.column_default).toContain('true');
 
     expect(byName.ollama_summarisation_model?.data_type).toBe('text');
-    expect(byName.ollama_summarisation_model?.column_default).toContain("'gemma4:e2b'");
+    expect(byName.ollama_summarisation_model?.column_default).toContain("'gemma4:e4b'");
 
     expect(byName.ollama_summarisation_max_images_per_chunk?.data_type).toBe('integer');
     expect(byName.ollama_summarisation_max_images_per_chunk?.column_default).toContain('4');
@@ -279,10 +279,10 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ollama_embedding_enabled?.column_default).toContain('true');
 
     expect(byName.ollama_embedding_model?.data_type).toBe('text');
-    expect(byName.ollama_embedding_model?.column_default).toContain("'nomic-embed-text'");
+    expect(byName.ollama_embedding_model?.column_default).toContain("'bge-m3'");
 
     expect(byName.ollama_embedding_dimensions?.data_type).toBe('integer');
-    expect(byName.ollama_embedding_dimensions?.column_default).toContain('768');
+    expect(byName.ollama_embedding_dimensions?.column_default).toContain('1024');
   });
 
   test('0012 adds encryption metadata columns to document_chunk_assets', async () => {
@@ -394,7 +394,7 @@ describe.sequential('migrations smoke', () => {
     expect(byKey['chat_messages.document_id']?.is_nullable).toBe('YES');
   });
 
-  test('document_chunks.embedding remains a 768-dim pgvector column', async () => {
+  test('document_chunks.embedding remains a 1024-dim pgvector column', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -414,7 +414,7 @@ describe.sequential('migrations smoke', () => {
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.format_type).toBe('vector(768)');
+    expect(rows[0]?.format_type).toBe('vector(1024)');
   });
 
   test('0014 creates the background_jobs table used by async workers', async () => {

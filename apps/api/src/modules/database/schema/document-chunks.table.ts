@@ -7,7 +7,7 @@ import { vaultsTable } from './vaults.table.js';
 // because drizzle-orm/pg-core doesn't have native pgvector/tsvector support.
 // The Drizzle schema here defines all non-vector/tsvector columns.
 // The migration SQL will add:
-//   - embedding vector(768) (nullable, for V2 AI)
+//   - embedding vector(1024) (nullable, for V2 AI)
 //   - tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
 //   - GIN index on tsv
 //   - HNSW index on embedding

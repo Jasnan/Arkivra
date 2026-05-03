@@ -164,11 +164,11 @@ with the same KEK family** as the source document. Reuse
 ```sql
 ALTER TABLE "instance_settings"
   ADD COLUMN IF NOT EXISTS "ai_summarisation_enabled" boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS "ollama_summarisation_model" text NOT NULL DEFAULT 'gemma4:e2b',
+  ADD COLUMN IF NOT EXISTS "ollama_summarisation_model" text NOT NULL DEFAULT 'gemma4:e4b',
   ADD COLUMN IF NOT EXISTS "ollama_summarisation_max_images_per_chunk" integer NOT NULL DEFAULT 4,
   ADD COLUMN IF NOT EXISTS "ollama_embedding_enabled" boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS "ollama_embedding_model" text NOT NULL DEFAULT 'nomic-embed-text',
-  ADD COLUMN IF NOT EXISTS "ollama_embedding_dimensions" integer NOT NULL DEFAULT 768;
+  ADD COLUMN IF NOT EXISTS "ollama_embedding_model" text NOT NULL DEFAULT 'bge-m3',
+  ADD COLUMN IF NOT EXISTS "ollama_embedding_dimensions" integer NOT NULL DEFAULT 1024;
 ```
 
 If you choose an embedding model whose native dimension is not 768, also
@@ -627,10 +627,10 @@ Extend `apps/api/src/modules/config/config.ts` with env-overridable defaults:
 | Key | Env | Default | Notes |
 |---|---|---|---|
 | `ollama.summarisation.enabled` | `ARKIVRA_OLLAMA_SUMMARISATION_ENABLED` | `false` | Feature flag; admin can override per instance via `instance_settings` |
-| `ollama.summarisation.model` | `ARKIVRA_OLLAMA_SUMMARISATION_MODEL` | `gemma4:e2b` | Vision-capable model |
+| `ollama.summarisation.model` | `ARKIVRA_OLLAMA_SUMMARISATION_MODEL` | `gemma4:e4b` | Vision-capable model |
 | `ollama.summarisation.maxImagesPerChunk` | `ARKIVRA_OLLAMA_SUMMARISATION_MAX_IMAGES` | `4` | |
 | `ollama.embedding.enabled` | `ARKIVRA_OLLAMA_EMBEDDING_ENABLED` | `false` | Until enabled retrieval is FTS-only |
-| `ollama.embedding.model` | `ARKIVRA_OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Must produce 768-dim vectors |
+| `ollama.embedding.model` | `ARKIVRA_OLLAMA_EMBEDDING_MODEL` | `bge-m3` | Must produce 1024-dim vectors |
 | `ollama.embedding.dimensions` | `ARKIVRA_OLLAMA_EMBEDDING_DIMENSIONS` | `768` | Validated against Ollama response |
 
 Admin UI surfaces (`apps/api/src/modules/admin/`): extend the existing
@@ -647,8 +647,8 @@ required for this plan — JSON PUT is enough for the agent to wire up.
   `http://127.0.0.1:11434`); the API connects to it via the configured host.
   Document this in `README.md` only — no compose edits.
 - Pull the embedding + vision models once on the host:
-  - `ollama pull nomic-embed-text`
-  - `ollama pull gemma4:e2b` (already used by existing fallback)
+  - `ollama pull bge-m3`
+  - `ollama pull gemma4:e4b` (already used by existing fallback)
 
 ## 7. Testing strategy
 

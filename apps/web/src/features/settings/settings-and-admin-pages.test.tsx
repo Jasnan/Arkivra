@@ -225,7 +225,7 @@ describe('settings, admin, and about pages', () => {
           settings: {
             enabled: true,
             ollamaHost: 'http://127.0.0.1:11434',
-            model: 'gemma4:e2b',
+            model: 'gemma4:e4b',
             minTokenLength: 8,
             maxCandidates: 100,
             batchSize: 10,
@@ -243,7 +243,7 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           models: [
             {
-              name: 'gemma4:e2b',
+              name: 'gemma4:e4b',
               size: 1024,
               modifiedAt: '2026-04-14T19:00:00.000Z',
             },
@@ -260,12 +260,12 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           availability: {
             host: 'http://127.0.0.1:11434',
-            model: 'gemma4:e2b',
+            model: 'gemma4:e4b',
             reachable: true,
             modelAvailable: true,
             models: [
               {
-                name: 'gemma4:e2b',
+                name: 'gemma4:e4b',
                 size: 1024,
                 modifiedAt: '2026-04-14T19:00:00.000Z',
               },

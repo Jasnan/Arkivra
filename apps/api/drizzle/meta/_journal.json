@@ -15,6 +15,13 @@
       "when": 1777852800000,
       "tag": "0001_bge_m3_embeddings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777939200000,
+      "tag": "0002_chat_message_metrics",
+      "breakpoints": true
     }
   ]
 }

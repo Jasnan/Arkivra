@@ -30,6 +30,7 @@ describe('chat service helpers', () => {
     const prompt = buildAnswerPrompt({
       question: 'How long are records kept?',
       citations: [citation],
+      includeInlineCitations: true,
     });
 
     expect(prompt).toContain('How long are records kept?');
@@ -68,8 +69,10 @@ describe('chat service helpers', () => {
     });
 
     const tokens: string[] = [];
-    for await (const token of parseOllamaChatStream(new Response(body))) {
-      tokens.push(token);
+    for await (const chunk of parseOllamaChatStream(new Response(body))) {
+      if (chunk.token) {
+        tokens.push(chunk.token);
+      }
     }
 
     expect(tokens).toEqual(['Hel', 'lo']);

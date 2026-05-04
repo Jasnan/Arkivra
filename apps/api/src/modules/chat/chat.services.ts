@@ -4,6 +4,7 @@ import type { Citation, DocumentSearchServices } from '../search/search.types.js
 import type {
   ChatConversation,
   ChatConversationDetail,
+  ChatGenerationMetrics,
   ChatMessage,
   ChatStreamEvent,
 } from './chat.types.js';
@@ -16,6 +17,7 @@ import {
 
 const DEFAULT_CHAT_TITLE = 'New chat';
 const MAX_CONTEXT_CITATIONS = 8;
+const TEXT_ONLY_CONTEXT_CITATIONS = 4;
 const MAX_RECENT_MESSAGES = 8;
 
 type AiRuntimeSettings = {
@@ -38,7 +40,56 @@ const ollamaChatChunkSchema = z.object({
   response: z.string().optional(),
   done: z.boolean().optional(),
   error: z.string().optional(),
+  prompt_eval_count: z.number().optional(),
+  prompt_eval_duration: z.number().optional(),
+  eval_count: z.number().optional(),
+  eval_duration: z.number().optional(),
+  total_duration: z.number().optional(),
+  load_duration: z.number().optional(),
 });
+
+type OllamaChatMetrics = {
+  promptEvalCount: number | null;
+  promptEvalDurationNs: number | null;
+  evalCount: number | null;
+  evalDurationNs: number | null;
+  totalDurationNs: number | null;
+  loadDurationNs: number | null;
+};
+
+function nsToMs(value: number | null) {
+  return value === null ? null : Math.round((value / 1_000_000) * 10) / 10;
+}
+
+function buildChatGenerationMetrics({
+  ollama,
+  timeToFirstTokenMs,
+}: {
+  ollama: OllamaChatMetrics | null;
+  timeToFirstTokenMs: number | null;
+}): ChatGenerationMetrics | null {
+  if (ollama === null && timeToFirstTokenMs === null) {
+    return null;
+  }
+
+  const tokensPerSecond = ollama?.evalCount !== null
+    && ollama?.evalCount !== undefined
+    && ollama.evalDurationNs !== null
+    && ollama.evalDurationNs > 0
+    ? Math.round(((ollama.evalCount / (ollama.evalDurationNs / 1_000_000_000)) * 10)) / 10
+    : null;
+
+  return {
+    promptEvalCount: ollama?.promptEvalCount ?? null,
+    promptEvalDurationMs: nsToMs(ollama?.promptEvalDurationNs ?? null),
+    evalCount: ollama?.evalCount ?? null,
+    evalDurationMs: nsToMs(ollama?.evalDurationNs ?? null),
+    totalDurationMs: nsToMs(ollama?.totalDurationNs ?? null),
+    loadDurationMs: nsToMs(ollama?.loadDurationNs ?? null),
+    tokensPerSecond,
+    timeToFirstTokenMs,
+  };
+}
 
 function toIso(value: Date | string) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -68,6 +119,7 @@ function toMessage(row: ChatMessageRow): ChatMessage {
     role: row.role,
     content: row.content,
     citations: row.citations ?? [],
+    generationMetrics: row.generationMetrics ?? null,
     generationStatus: row.generationStatus === 'completed' || row.generationStatus === 'failed'
       ? row.generationStatus
       : null,
@@ -182,18 +234,30 @@ export function buildCitationContext(citations: Citation[]) {
 export function buildAnswerPrompt({
   question,
   citations,
+  includeInlineCitations,
 }: {
   question: string;
   citations: Citation[];
+  includeInlineCitations: boolean;
 }) {
   return [
     'Answer the user question using only the retrieved Arkivra vault context below.',
     'Write the answer in clear markdown with short paragraphs and lists when helpful.',
-    'Use inline citation markers that refer to the numbered sources below.',
-    'When a statement is supported by Source 1, append [1]. When it is supported by multiple sources, append multiple markers like [1][2].',
-    'Prefer placing citation markers at the end of the sentence or paragraph they support.',
-    'Only use citation numbers that exist in the retrieved context. Do not invent citation markers.',
-    'Do not add a separate "Sources" section in the answer; the UI renders the source list.',
+    includeInlineCitations
+      ? 'Use inline citation markers that refer to the numbered sources below.'
+      : 'Do not include citation markers, source footnotes, or a separate sources section in the answer.',
+    includeInlineCitations
+      ? 'When a statement is supported by Source 1, append [1]. When it is supported by multiple sources, append multiple markers like [1][2].'
+      : 'Focus on a plain, readable answer that stays grounded in the supplied context.',
+    includeInlineCitations
+      ? 'Prefer placing citation markers at the end of the sentence or paragraph they support.'
+      : 'Do not mention source numbers or bracketed references.',
+    includeInlineCitations
+      ? 'Only use citation numbers that exist in the retrieved context. Do not invent citation markers.'
+      : 'Do not add a separate "Sources" section in the answer.',
+    includeInlineCitations
+      ? 'Do not add a separate "Sources" section in the answer; the UI renders the source list.'
+      : 'Keep the answer concise and direct.',
     'Never mention internal IDs such as document IDs, chunk IDs, asset IDs, or database identifiers.',
     'If the retrieved context is insufficient, say that you do not have enough information in the vault context.',
     'Do not invent facts, document names, pages, dates, or citations.',
@@ -209,7 +273,9 @@ export function encodeSseEvent(event: ChatStreamEvent) {
   return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function* parseOllamaChatStream(response: Response): AsyncGenerator<string> {
+export async function* parseOllamaChatStream(
+  response: Response,
+): AsyncGenerator<{ token?: string; metrics?: OllamaChatMetrics }> {
   if (!response.ok) {
     throw new Error(`Ollama returned status ${response.status}`);
   }
@@ -218,7 +284,19 @@ export async function* parseOllamaChatStream(response: Response): AsyncGenerator
     const body = ollamaChatChunkSchema.parse(await response.json());
     const token = body.message?.content ?? body.response ?? '';
     if (token.length > 0) {
-      yield token;
+      yield { token };
+    }
+    if (body.done) {
+      yield {
+        metrics: {
+          promptEvalCount: body.prompt_eval_count ?? null,
+          promptEvalDurationNs: body.prompt_eval_duration ?? null,
+          evalCount: body.eval_count ?? null,
+          evalDurationNs: body.eval_duration ?? null,
+          totalDurationNs: body.total_duration ?? null,
+          loadDurationNs: body.load_duration ?? null,
+        },
+      };
     }
     return;
   }
@@ -246,7 +324,20 @@ export async function* parseOllamaChatStream(response: Response): AsyncGenerator
 
       const token = parsed.message?.content ?? parsed.response ?? '';
       if (token.length > 0) {
-        yield token;
+        yield { token };
+      }
+
+      if (parsed.done) {
+        yield {
+          metrics: {
+            promptEvalCount: parsed.prompt_eval_count ?? null,
+            promptEvalDurationNs: parsed.prompt_eval_duration ?? null,
+            evalCount: parsed.eval_count ?? null,
+            evalDurationNs: parsed.eval_duration ?? null,
+            totalDurationNs: parsed.total_duration ?? null,
+            loadDurationNs: parsed.load_duration ?? null,
+          },
+        };
       }
     }
 
@@ -264,7 +355,20 @@ export async function* parseOllamaChatStream(response: Response): AsyncGenerator
 
     const token = parsed.message?.content ?? parsed.response ?? '';
     if (token.length > 0) {
-      yield token;
+      yield { token };
+    }
+
+    if (parsed.done) {
+      yield {
+        metrics: {
+          promptEvalCount: parsed.prompt_eval_count ?? null,
+          promptEvalDurationNs: parsed.prompt_eval_duration ?? null,
+          evalCount: parsed.eval_count ?? null,
+          evalDurationNs: parsed.eval_duration ?? null,
+          totalDurationNs: parsed.total_duration ?? null,
+          loadDurationNs: parsed.load_duration ?? null,
+        },
+      };
     }
   }
 }
@@ -422,11 +526,13 @@ export function createChatServices({
     userId,
     chatId,
     content,
+    responseMode,
   }: {
     scope: ChatScopeInput;
     userId: string;
     chatId: string;
     content: string;
+    responseMode: 'text' | 'multimodal';
   }) {
     const conversation = await getConversation({ scope, userId, chatId });
 
@@ -445,6 +551,7 @@ export function createChatServices({
       role: 'user',
       content,
       citations: [],
+      generationMetrics: null,
       updatedAt: now,
     }).returning();
 
@@ -471,18 +578,28 @@ export function createChatServices({
 
         void (async () => {
           let citations: Citation[] = [];
+          let citationsForPersistence: Citation[] = [];
           let generatedContent = '';
           let generationStarted = false;
+          let generationMetrics: ChatGenerationMetrics | null = null;
+          let generationStartMs: number | null = null;
+          let firstTokenAtMs: number | null = null;
+          const includeImages = responseMode === 'multimodal';
+          const includeInlineCitations = responseMode === 'multimodal';
+          const citationLimit = responseMode === 'multimodal'
+            ? MAX_CONTEXT_CITATIONS
+            : TEXT_ONLY_CONTEXT_CITATIONS;
 
           try {
             send({ type: 'status', label: 'retrieval' });
             const result = await searchServices.searchHybrid({
               ...getSearchScope(scope),
               query: content,
-              limit: MAX_CONTEXT_CITATIONS,
+              limit: citationLimit,
               mode: 'hybrid',
             });
             citations = result.citations;
+            citationsForPersistence = includeInlineCitations ? citations : [];
 
             send({ type: 'status', label: 'generation' });
 
@@ -491,11 +608,13 @@ export function createChatServices({
               send({ type: 'token', token: generatedContent });
             } else {
               const settings = await resolveAiSettings();
-              const images = await collectCitationImages({
-                citations,
-                documentsServices,
-                maxImages: settings.maxImagesPerRequest,
-              });
+              const images = includeImages
+                ? await collectCitationImages({
+                    citations,
+                    documentsServices,
+                    maxImages: settings.maxImagesPerRequest,
+                  })
+                : [];
               generationStarted = true;
               const response = await fetchImpl(`${settings.host.replace(/\/+$/, '')}/api/chat`, {
                 method: 'POST',
@@ -506,7 +625,9 @@ export function createChatServices({
                   messages: [
                     {
                       role: 'system',
-                      content: 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and cite the source document details in prose. If context is insufficient, say so.',
+                      content: includeInlineCitations
+                        ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
+                        : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
                     },
                     ...previousMessages.map(message => ({
                       role: message.role,
@@ -514,7 +635,11 @@ export function createChatServices({
                     })),
                     {
                       role: 'user',
-                      content: buildAnswerPrompt({ question: content, citations }),
+                      content: buildAnswerPrompt({
+                        question: content,
+                        citations,
+                        includeInlineCitations,
+                      }),
                       ...(images.length > 0 ? { images } : {}),
                     },
                   ],
@@ -523,10 +648,25 @@ export function createChatServices({
                   },
                 }),
               });
+              generationStartMs = Date.now();
 
-              for await (const token of parseOllamaChatStream(response)) {
-                generatedContent += token;
-                send({ type: 'token', token });
+              for await (const chunk of parseOllamaChatStream(response)) {
+                if (chunk.token) {
+                  if (firstTokenAtMs === null && generationStartMs !== null) {
+                    firstTokenAtMs = Date.now();
+                  }
+                  generatedContent += chunk.token;
+                  send({ type: 'token', token: chunk.token });
+                }
+
+                if (chunk.metrics) {
+                  generationMetrics = buildChatGenerationMetrics({
+                    ollama: chunk.metrics,
+                    timeToFirstTokenMs: generationStartMs !== null && firstTokenAtMs !== null
+                      ? firstTokenAtMs - generationStartMs
+                      : null,
+                  });
+                }
               }
             }
 
@@ -539,7 +679,8 @@ export function createChatServices({
               createdBy: userId,
               role: 'assistant',
               content: generatedContent,
-              citations,
+              citations: citationsForPersistence,
+              generationMetrics,
               generationStatus: 'completed',
               updatedAt: new Date(),
             }).returning();
@@ -557,6 +698,7 @@ export function createChatServices({
               type: 'done',
               userMessage,
               assistantMessage: toMessage(assistantMessageRow),
+              metrics: generationMetrics,
             });
             controller.close();
           } catch (error) {
@@ -571,7 +713,8 @@ export function createChatServices({
                 createdBy: userId,
                 role: 'assistant',
                 content: generatedContent,
-                citations,
+                citations: citationsForPersistence,
+                generationMetrics,
                 generationStatus: 'failed',
                 generationError: message,
                 updatedAt: new Date(),

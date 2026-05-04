@@ -24,6 +24,7 @@ export type ChatMessage = {
   role: ChatMessageRole;
   content: string;
   citations: Citation[];
+  generationMetrics: ChatGenerationMetrics | null;
   generationStatus: ChatGenerationStatus;
   generationError: string | null;
   createdAt: string;
@@ -39,6 +40,17 @@ export type ChatStatusEvent = {
   label: 'retrieval' | 'generation' | 'saving';
 };
 
+export type ChatGenerationMetrics = {
+  promptEvalCount: number | null;
+  promptEvalDurationMs: number | null;
+  evalCount: number | null;
+  evalDurationMs: number | null;
+  totalDurationMs: number | null;
+  loadDurationMs: number | null;
+  tokensPerSecond: number | null;
+  timeToFirstTokenMs: number | null;
+};
+
 export type ChatTokenEvent = {
   type: 'token';
   token: string;
@@ -48,6 +60,7 @@ export type ChatDoneEvent = {
   type: 'done';
   userMessage: ChatMessage;
   assistantMessage: ChatMessage;
+  metrics: ChatGenerationMetrics | null;
 };
 
 export type ChatErrorEvent = {

@@ -48,6 +48,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   citations: Citation[];
+  generationMetrics: ChatGenerationMetrics | null;
   generationStatus: 'completed' | 'failed' | null;
   generationError: string | null;
   createdAt: string;
@@ -60,7 +61,19 @@ export interface ChatConversationDetail extends ChatConversation {
 
 export type ChatStreamStatus = 'retrieval' | 'generation' | 'saving';
 
+export interface ChatGenerationMetrics {
+  promptEvalCount: number | null;
+  promptEvalDurationMs: number | null;
+  evalCount: number | null;
+  evalDurationMs: number | null;
+  totalDurationMs: number | null;
+  loadDurationMs: number | null;
+  tokensPerSecond: number | null;
+  timeToFirstTokenMs: number | null;
+}
+
 export interface ChatStreamDonePayload {
   userMessage: ChatMessage;
   assistantMessage: ChatMessage;
+  metrics: ChatGenerationMetrics | null;
 }

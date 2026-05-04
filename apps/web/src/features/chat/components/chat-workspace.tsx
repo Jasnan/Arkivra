@@ -28,11 +28,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Field, FieldContent, FieldDescription, FieldTitle } from '@/components/ui/field';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { getDocumentPagePreviewUrl } from '@/features/documents/documents.api';
 import { cn } from '@/lib/utils';
 import { streamChatMessage } from '../chat.api';
-import type { ChatApiScope } from '../chat.api';
+import type { ChatApiScope, ChatResponseMode } from '../chat.api';
 import {
   chatQueryKeys,
   useChatConversationQuery,
@@ -40,7 +42,7 @@ import {
   useCreateChatConversationMutation,
   useDeleteChatConversationMutation,
 } from '../chat.queries';
-import type { ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
+import type { ChatGenerationMetrics, ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
 
 interface ChatWorkspaceProps {
   scope: ChatApiScope;
@@ -55,6 +57,8 @@ interface ChatWorkspaceProps {
 interface LocalMessage extends ChatMessage {
   localOnly?: boolean;
 }
+
+type ChatMetricsByMessageId = Record<string, ChatGenerationMetrics | undefined>;
 
 type InlineToken =
   | { type: 'text'; content: string }
@@ -74,6 +78,32 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function formatDurationMs(value: number | null) {
+  if (value === null) {
+    return null;
+  }
+
+  if (value < 1000) {
+    return `${Math.round(value)} ms`;
+  }
+
+  return `${(value / 1000).toFixed(1)} s`;
+}
+
+function renderMetricsSummary(metrics: ChatGenerationMetrics | null | undefined) {
+  if (!metrics) {
+    return null;
+  }
+
+  const parts = [
+    metrics.tokensPerSecond !== null ? `${metrics.tokensPerSecond} tok/s` : null,
+    metrics.timeToFirstTokenMs !== null ? `TTFT ${formatDurationMs(metrics.timeToFirstTokenMs)}` : null,
+    metrics.totalDurationMs !== null ? `Total ${formatDurationMs(metrics.totalDurationMs)}` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(' • ') : null;
 }
 
 function pageRange(citation: Citation) {
@@ -199,14 +229,7 @@ function renderInlineMarkdown({
         );
       }
 
-      return (
-        <span
-          key={key}
-          className="mx-0.5 inline-flex items-center rounded-full border border-border/80 bg-secondary/65 px-2 py-0.5 align-baseline text-[0.78rem] font-semibold text-muted-foreground"
-        >
-          {`[${token.index}]`}
-        </span>
-      );
+      return <Fragment key={key}>{`[${token.index}]`}</Fragment>;
     }
 
     return <Fragment key={key}>{token.content}</Fragment>;
@@ -741,11 +764,13 @@ function MessageBubble({
   currentVaultId,
   scope,
   activeStatus,
+  metrics,
 }: {
   message: LocalMessage;
   currentVaultId?: string;
   scope: ChatApiScope;
   activeStatus: ChatStreamStatus | null;
+  metrics?: ChatGenerationMetrics;
 }) {
   const isUser = message.role === 'user';
   const pendingStatusLabel = statusLabel(activeStatus, scope);
@@ -783,6 +808,11 @@ function MessageBubble({
             <span className="ml-2 text-destructive">{message.generationError}</span>
           ) : null}
         </div>
+        {!isUser && renderMetricsSummary(metrics) ? (
+          <div className="mt-1 text-xs text-muted-foreground">
+            {renderMetricsSummary(metrics)}
+          </div>
+        ) : null}
         {!isUser ? (
           <CitationPanel currentVaultId={currentVaultId} citations={message.citations} />
         ) : null}
@@ -811,13 +841,18 @@ function MessageBubble({
 function ChatInput({
   disabled,
   placeholder,
+  responseMode,
+  onResponseModeChange,
   onSubmit,
 }: {
   disabled: boolean;
   placeholder: string;
+  responseMode: ChatResponseMode;
+  onResponseModeChange: (nextValue: ChatResponseMode) => void;
   onSubmit: (content: string) => void;
 }) {
   const [value, setValue] = useState('');
+  const isMultimodal = responseMode === 'multimodal';
 
   function submit() {
     const content = value.trim();
@@ -830,7 +865,24 @@ function ChatInput({
 
   return (
     <div className="border-t border-border/70 bg-background p-4">
-      <div className="flex items-end gap-2">
+      <div className="space-y-3">
+        <Field orientation="horizontal" className="items-start justify-between rounded-xl border border-border/70 bg-secondary/20 p-3">
+          <FieldContent className="max-w-xl">
+            <FieldTitle>Use multimodal mode</FieldTitle>
+            <FieldDescription>
+              {isMultimodal
+                ? 'Multimodal mode: includes inline citations, source previews, and cited document images when available. More reliable for scans, layouts, and visual fields, but noticeably slower.'
+                : 'Text-only mode: gives a plain markdown answer without citations or source previews and skips cited images. Faster, but it may miss visual clues from scans or image-heavy documents.'}
+            </FieldDescription>
+          </FieldContent>
+          <Switch
+            checked={isMultimodal}
+            onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
+            aria-label="Toggle multimodal chat mode"
+          />
+        </Field>
+
+        <div className="flex items-end gap-2">
         <Textarea
           aria-label="Chat message"
           value={value}
@@ -855,6 +907,7 @@ function ChatInput({
         >
           <Send className="size-4" />
         </Button>
+        </div>
       </div>
     </div>
   );
@@ -881,6 +934,8 @@ export function ChatWorkspace({
   const [streamingText, setStreamingText] = useState('');
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
+  const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = streamStatus !== null;
   const effectiveSelectedChatId
@@ -908,6 +963,7 @@ export function ChatWorkspace({
     setLocalMessages([]);
     setStreamingText('');
     setStreamError(null);
+    setMetricsByMessageId({});
     await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
   }
 
@@ -941,6 +997,7 @@ export function ChatWorkspace({
       role: 'user',
       content,
       citations: [],
+      generationMetrics: null,
       generationStatus: null,
       generationError: null,
       createdAt: new Date().toISOString(),
@@ -955,6 +1012,7 @@ export function ChatWorkspace({
         ...scope,
         chatId,
         content,
+        responseMode,
         onStatus: setStreamStatus,
         onToken: token => setStreamingText(current => `${current}${token}`),
         onError: (message) => {
@@ -966,7 +1024,11 @@ export function ChatWorkspace({
             queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(scope, chatId) }),
           ]);
         },
-        onDone: () => {
+        onDone: (payload) => {
+          setMetricsByMessageId(current => ({
+            ...current,
+            [payload.assistantMessage.id]: payload.metrics ?? undefined,
+          }));
           setLocalMessages([]);
           setStreamingText('');
           setStreamStatus(null);
@@ -1033,6 +1095,7 @@ export function ChatWorkspace({
                       setLocalMessages([]);
                       setStreamingText('');
                       setStreamError(null);
+                      setMetricsByMessageId({});
                     }}
                   >
                     <span className="block truncate font-medium">{conversation.title}</span>
@@ -1095,6 +1158,7 @@ export function ChatWorkspace({
                     currentVaultId={vaultId}
                     scope={scope}
                     activeStatus={streamStatus}
+                    metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
                   />
                 ))}
                 {streamingText.length > 0 || isStreaming ? (
@@ -1129,6 +1193,8 @@ export function ChatWorkspace({
           <ChatInput
             disabled={isStreaming || createConversation.isPending}
             placeholder={inputPlaceholder}
+            responseMode={responseMode}
+            onResponseModeChange={setResponseMode}
             onSubmit={handleSend}
           />
         </SurfacePanel>

@@ -26,6 +26,11 @@ type AiRuntimeSettings = {
   maxImagesPerRequest: number;
 };
 
+type ChatModelOptions = {
+  defaultModel: string;
+  models: string[];
+};
+
 type ChatConversationRow = typeof chatConversationsTable.$inferSelect;
 type ChatMessageRow = typeof chatMessagesTable.$inferSelect;
 export type ChatScopeInput =
@@ -132,6 +137,19 @@ function toMessage(row: ChatMessageRow): ChatMessage {
 function truncate(value: string, maxLength: number) {
   const compact = value.replace(/\s+/g, ' ').trim();
   return compact.length <= maxLength ? compact : `${compact.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+export function normalizeChatGenerationError(error: unknown) {
+  const message = error instanceof Error ? error.message : 'Chat generation failed';
+
+  if (
+    message.includes('Controller is already closed')
+    || message.includes('ERR_INVALID_STATE')
+  ) {
+    return 'The chat response was interrupted before it finished. Please try again.';
+  }
+
+  return message;
 }
 
 function getScopeValues(scope: ChatScopeInput) {
@@ -419,12 +437,14 @@ export function createChatServices({
   searchServices,
   documentsServices,
   resolveAiSettings,
+  listAvailableModels,
   fetchImpl = fetch,
 }: {
   db: Database;
   searchServices: DocumentSearchServices;
   documentsServices?: DocumentsServices;
   resolveAiSettings: () => Promise<AiRuntimeSettings>;
+  listAvailableModels: (args: { host: string }) => Promise<string[]>;
   fetchImpl?: typeof fetch;
 }) {
   async function listConversations({
@@ -521,18 +541,33 @@ export function createChatServices({
     return row !== undefined;
   }
 
+  async function getModelOptions(): Promise<ChatModelOptions> {
+    const settings = await resolveAiSettings();
+    const models = await listAvailableModels({ host: settings.host });
+    const uniqueModels = models.includes(settings.model)
+      ? models
+      : [settings.model, ...models];
+
+    return {
+      defaultModel: settings.model,
+      models: uniqueModels,
+    };
+  }
+
   async function createMessageStream({
     scope,
     userId,
     chatId,
     content,
     responseMode,
+    model,
   }: {
     scope: ChatScopeInput;
     userId: string;
     chatId: string;
     content: string;
     responseMode: 'text' | 'multimodal';
+    model?: string;
   }) {
     const conversation = await getConversation({ scope, userId, chatId });
 
@@ -572,8 +607,32 @@ export function createChatServices({
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
+        let controllerClosed = false;
         const send = (event: ChatStreamEvent) => {
-          controller.enqueue(encoder.encode(encodeSseEvent(event)));
+          if (controllerClosed) {
+            return false;
+          }
+
+          try {
+            controller.enqueue(encoder.encode(encodeSseEvent(event)));
+            return true;
+          } catch {
+            controllerClosed = true;
+            return false;
+          }
+        };
+
+        const close = () => {
+          if (controllerClosed) {
+            return;
+          }
+
+          try {
+            controller.close();
+          } catch {
+          } finally {
+            controllerClosed = true;
+          }
         };
 
         void (async () => {
@@ -608,6 +667,16 @@ export function createChatServices({
               send({ type: 'token', token: generatedContent });
             } else {
               const settings = await resolveAiSettings();
+              const requestedModel = model?.trim();
+              const effectiveModel = requestedModel && requestedModel.length > 0
+                ? requestedModel
+                : settings.model;
+              if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
+                const availableModels = await listAvailableModels({ host: settings.host });
+                if (!availableModels.includes(requestedModel)) {
+                  throw new Error(`Model "${requestedModel}" is not available from Ollama.`);
+                }
+              }
               const images = includeImages
                 ? await collectCitationImages({
                     citations,
@@ -620,8 +689,9 @@ export function createChatServices({
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
-                  model: settings.model,
+                  model: effectiveModel,
                   stream: true,
+                  think: false,
                   messages: [
                     {
                       role: 'system',
@@ -700,9 +770,9 @@ export function createChatServices({
               assistantMessage: toMessage(assistantMessageRow),
               metrics: generationMetrics,
             });
-            controller.close();
+            close();
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Chat generation failed';
+            const message = normalizeChatGenerationError(error);
 
             if (generationStarted || generatedContent.length > 0 || citations.length > 0) {
               await db.insert(chatMessagesTable).values({
@@ -722,7 +792,7 @@ export function createChatServices({
             }
 
             send({ type: 'error', message });
-            controller.close();
+            close();
           }
         })();
       },
@@ -736,6 +806,7 @@ export function createChatServices({
     createConversation,
     getConversation,
     deleteConversation,
+    getModelOptions,
     createMessageStream,
   };
 }

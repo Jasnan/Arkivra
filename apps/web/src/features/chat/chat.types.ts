@@ -77,3 +77,8 @@ export interface ChatStreamDonePayload {
   assistantMessage: ChatMessage;
   metrics: ChatGenerationMetrics | null;
 }
+
+export interface ChatModelOptions {
+  defaultModel: string;
+  models: string[];
+}

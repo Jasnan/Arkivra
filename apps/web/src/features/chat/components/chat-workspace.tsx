@@ -3,24 +3,27 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
+  CalendarDays,
   Bot,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
-  ImageIcon,
   Loader2,
   MessageSquare,
   Plus,
+  Search,
   Send,
-  Table2,
+  Sparkles,
   Trash2,
   User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SurfacePanel } from '@/components/layout/vault-ui';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +32,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Field, FieldContent, FieldDescription, FieldTitle } from '@/components/ui/field';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { getDocumentPagePreviewUrl } from '@/features/documents/documents.api';
@@ -41,11 +48,13 @@ import {
   useChatConversationsQuery,
   useCreateChatConversationMutation,
   useDeleteChatConversationMutation,
+  useChatModelOptionsQuery,
 } from '../chat.queries';
 import type { ChatGenerationMetrics, ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
 
 interface ChatWorkspaceProps {
   scope: ChatApiScope;
+  documentName?: string;
   title?: string;
   description?: string;
   inputPlaceholder: string;
@@ -70,6 +79,24 @@ type InlineToken =
 const INLINE_MARKDOWN_PATTERN = /(\[\d+\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
 const WINDOWS_NEWLINE_PATTERN = /\r\n/g;
 const ORDERED_LIST_PREFIX_PATTERN = /^\d+$/;
+const DOCUMENT_PROMPT_SUGGESTIONS = [
+  {
+    label: 'What is this document about?',
+    icon: Search,
+  },
+  {
+    label: 'Extract key information',
+    icon: FileText,
+  },
+  {
+    label: 'Summarize in simple terms',
+    icon: Sparkles,
+  },
+  {
+    label: 'Find important dates',
+    icon: CalendarDays,
+  },
+] as const;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -409,18 +436,6 @@ function MarkdownMessage({
   return <div className="space-y-4">{blocks}</div>;
 }
 
-function CitationIcon({ citation }: { citation: Citation }) {
-  if (citation.assetType === 'image') {
-    return <ImageIcon className="size-4" />;
-  }
-
-  if (citation.assetType === 'table') {
-    return <Table2 className="size-4" />;
-  }
-
-  return <FileText className="size-4" />;
-}
-
 interface CitationPreviewModalProps {
   citation: Citation | null;
   open: boolean;
@@ -678,7 +693,7 @@ function CitationPreviewModal({
   );
 }
 
-function CitationPanel({
+function SourcesAccordion({
   currentVaultId,
   citations,
 }: {
@@ -694,56 +709,49 @@ function CitationPanel({
 
   return (
     <>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <div className="mt-4">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1.5 text-sm font-medium text-foreground shadow-sm transition hover:bg-card"
-            >
+      <Accordion
+        type="single"
+        collapsible
+        value={isOpen ? 'sources' : undefined}
+        onValueChange={(value) => setIsOpen(value === 'sources')}
+        className="mt-4 rounded-lg border border-border/70 bg-background/80 px-4"
+      >
+        <AccordionItem value="sources" className="border-b-0">
+          <AccordionTrigger className="py-3">
+            <div className="flex items-center gap-2">
               <FileText className="size-4 text-muted-foreground" />
               <span>{`Sources (${citations.length})`}</span>
-              <ChevronDown
-                className={cn(
-                  'size-4 text-muted-foreground transition-transform',
-                  isOpen && 'rotate-180',
-                )}
-              />
-            </button>
-          </CollapsibleTrigger>
-
-          <CollapsibleContent className="pt-3">
-            <div className="space-y-3 rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm">
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3">
               {citations.map((citation, index) => (
                 <button
                   key={citation.chunkId}
                   type="button"
                   onClick={() => setSelectedCitation(citation)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-border/80 bg-background/40 px-4 py-4 text-left transition hover:border-primary/30 hover:bg-background"
+                  className="flex w-full items-start gap-3 rounded-lg border border-border/70 bg-card px-4 py-3 text-left shadow-sm transition hover:border-primary/30 hover:bg-accent/40"
                 >
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground">
                     {index + 1}
                   </div>
-                  <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-background text-muted-foreground">
-                    <CitationIcon citation={citation} />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-base font-semibold text-foreground">
-                      {citation.documentName}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-                      {currentVaultId !== citation.vaultId ? <span>{citation.vaultName}</span> : null}
-                      {currentVaultId !== citation.vaultId ? <span>/</span> : null}
-                      <span>{pageRange(citation)}</span>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-medium text-foreground">{pageRange(citation)}</span>
+                      {currentVaultId !== citation.vaultId ? (
+                        <span className="text-muted-foreground">{citation.vaultName}</span>
+                      ) : null}
                     </div>
+                    <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
+                      {citation.snippet}
+                    </p>
                   </div>
                 </button>
               ))}
             </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <CitationPreviewModal
         key={selectedCitation?.chunkId ?? 'no-citation'}
@@ -813,9 +821,7 @@ function MessageBubble({
             {renderMetricsSummary(metrics)}
           </div>
         ) : null}
-        {!isUser ? (
-          <CitationPanel currentVaultId={currentVaultId} citations={message.citations} />
-        ) : null}
+        {!isUser ? <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} /> : null}
         {!isUser ? (
           <CitationPreviewModal
             key={selectedCitation?.chunkId ?? 'no-inline-citation'}
@@ -838,21 +844,32 @@ function MessageBubble({
   );
 }
 
-function ChatInput({
+function GenericChatInput({
   disabled,
   placeholder,
   responseMode,
+  modelOptions,
+  selectedModel,
+  isLoadingModels,
+  modelOptionsError,
+  onSelectedModelChange,
   onResponseModeChange,
   onSubmit,
 }: {
   disabled: boolean;
   placeholder: string;
   responseMode: ChatResponseMode;
+  modelOptions?: string[];
+  selectedModel: string;
+  isLoadingModels?: boolean;
+  modelOptionsError?: string | null;
+  onSelectedModelChange?: (nextValue: string) => void;
   onResponseModeChange: (nextValue: ChatResponseMode) => void;
   onSubmit: (content: string) => void;
 }) {
   const [value, setValue] = useState('');
   const isMultimodal = responseMode === 'multimodal';
+  const hasModelPicker = Boolean(onSelectedModelChange);
 
   function submit() {
     const content = value.trim();
@@ -866,6 +883,38 @@ function ChatInput({
   return (
     <div className="border-t border-border/70 bg-background p-4">
       <div className="space-y-3">
+        {hasModelPicker ? (
+          <Field orientation="horizontal" className="items-start justify-between rounded-xl border border-border/70 bg-secondary/20 p-3">
+            <FieldContent className="max-w-xl">
+              <FieldTitle>Chat model</FieldTitle>
+              <FieldDescription>
+                Choose which installed Ollama model answers this document chat. The configured default stays selected unless you switch it.
+              </FieldDescription>
+              {modelOptionsError ? (
+                <p className="mt-2 text-xs text-destructive">{modelOptionsError}</p>
+              ) : null}
+            </FieldContent>
+            <div className="w-full max-w-xs">
+              <Select
+                value={selectedModel}
+                onValueChange={onSelectedModelChange}
+                disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
+              >
+                <SelectTrigger aria-label="Document chat model">
+                  <SelectValue placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(modelOptions ?? []).map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Field>
+        ) : null}
+
         <Field orientation="horizontal" className="items-start justify-between rounded-xl border border-border/70 bg-secondary/20 p-3">
           <FieldContent className="max-w-xl">
             <FieldTitle>Use multimodal mode</FieldTitle>
@@ -883,38 +932,254 @@ function ChatInput({
         </Field>
 
         <div className="flex items-end gap-2">
-        <Textarea
-          aria-label="Chat message"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="min-h-11 resize-none py-3"
-        />
-        <Button
-          type="button"
-          size="icon"
-          aria-label="Send message"
-          disabled={disabled || value.trim().length === 0}
-          onClick={submit}
-          className="h-11 w-11 shrink-0"
-        >
-          <Send className="size-4" />
-        </Button>
+          <Textarea
+            aria-label="Chat message"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="min-h-11 resize-none py-3"
+          />
+          <Button
+            type="button"
+            size="icon"
+            aria-label="Send message"
+            disabled={disabled || value.trim().length === 0}
+            onClick={submit}
+            className="h-11 w-11 shrink-0"
+          >
+            <Send className="size-4" />
+          </Button>
         </div>
       </div>
     </div>
   );
 }
 
+function DocumentChatContextHeader({ documentName }: { documentName?: string }) {
+  const resolvedDocumentName = documentName?.trim() || 'Current document';
+
+  return (
+    <div className="px-6 pt-6">
+      <div className="rounded-lg border border-border/60 bg-background/80 px-4 py-4 shadow-sm">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-secondary text-foreground">
+              <FileText className="size-4" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                {`Context: ${resolvedDocumentName}`}
+              </p>
+              <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[0.7rem] uppercase tracking-[0.14em]">
+                Locked
+              </Badge>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            You are chatting with this document only.
+          </p>
+        </div>
+      </div>
+      <Separator className="mt-4" />
+    </div>
+  );
+}
+
+function DocumentChatEmptyState({
+  onPromptSelect,
+}: {
+  onPromptSelect: (prompt: string) => void;
+}) {
+  return (
+    <div className="flex min-h-full items-center justify-center px-6 py-10">
+      <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
+        <div className="flex size-16 items-center justify-center rounded-2xl bg-secondary text-primary shadow-sm">
+          <MessageSquare className="size-7" />
+        </div>
+        <div className="mt-6 space-y-3">
+          <h3 className="text-3xl font-semibold tracking-tight text-foreground">
+            Ask anything about this document
+          </h3>
+          <p className="mx-auto max-w-2xl text-sm leading-6 text-muted-foreground">
+            Arkivra will search this document and answer with relevant information and exact references.
+          </p>
+        </div>
+
+        <div className="mt-8 grid w-full max-w-2xl gap-3 sm:grid-cols-2">
+          {DOCUMENT_PROMPT_SUGGESTIONS.map(({ label, icon: Icon }) => (
+            <Button
+              key={label}
+              type="button"
+              variant="outline"
+              className="h-auto justify-start rounded-lg px-4 py-4 text-left text-sm font-medium whitespace-normal"
+              onClick={() => onPromptSelect(label)}
+            >
+              <span className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-md bg-secondary text-primary">
+                  <Icon className="size-4" />
+                </span>
+                <span>{label}</span>
+              </span>
+            </Button>
+          ))}
+        </div>
+
+        <div className="mt-8 flex w-full max-w-md items-center gap-4">
+          <Separator className="flex-1" />
+          <span className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+            Or
+          </span>
+          <Separator className="flex-1" />
+        </div>
+
+        <p className="mt-4 text-sm text-muted-foreground">
+          Start typing your question below
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DocumentChatInput({
+  disabled,
+  placeholder,
+  responseMode,
+  modelOptions,
+  selectedModel,
+  isLoadingModels,
+  modelOptionsError,
+  onSelectedModelChange,
+  onResponseModeChange,
+  onSubmit,
+}: {
+  disabled: boolean;
+  placeholder: string;
+  responseMode: ChatResponseMode;
+  modelOptions?: string[];
+  selectedModel: string;
+  isLoadingModels?: boolean;
+  modelOptionsError?: string | null;
+  onSelectedModelChange?: (nextValue: string) => void;
+  onResponseModeChange: (nextValue: ChatResponseMode) => void;
+  onSubmit: (content: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const showSources = responseMode === 'multimodal';
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = '0px';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 224)}px`;
+  }, [value]);
+
+  function submit() {
+    const content = value.trim();
+    if (content.length === 0 || disabled) {
+      return;
+    }
+
+    setValue('');
+    onSubmit(content);
+  }
+
+  return (
+    <div className="sticky bottom-0 border-t border-border/60 bg-background/95 px-6 pb-6 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+      <Card className="border-border/60 p-4 shadow-sm">
+        <div className="space-y-4">
+          <div className="flex items-end gap-3">
+            <Textarea
+              ref={textareaRef}
+              aria-label="Chat message"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+              placeholder={placeholder}
+              disabled={disabled}
+              className="min-h-11 max-h-56 flex-1 resize-none overflow-y-auto rounded-lg border-border/60 py-3"
+            />
+            <Button
+              type="button"
+              size="icon"
+              aria-label="Send message"
+              disabled={disabled || value.trim().length === 0}
+              onClick={submit}
+              className="size-11 rounded-lg"
+            >
+              <Send className="size-4" />
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="document-chat-show-sources"
+                checked={showSources}
+                onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
+                disabled={disabled}
+                className="mt-1"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="document-chat-show-sources">Show sources</Label>
+                <p className="text-sm text-muted-foreground">
+                  Citations and page references will be shown in responses
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-end gap-3 self-end sm:self-auto">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Model
+                </Label>
+                <Select
+                  value={selectedModel}
+                  onValueChange={onSelectedModelChange}
+                  disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
+                >
+                  <SelectTrigger aria-label="Document chat model" className="h-10 min-w-52 border-border/60 bg-muted/20 text-sm shadow-none">
+                    <SelectValue placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(modelOptions ?? []).map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {modelOptionsError ? (
+            <p className="text-xs text-destructive">{modelOptionsError}</p>
+          ) : null}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export function ChatWorkspace({
   scope,
+  documentName,
   title,
   description,
   inputPlaceholder,
@@ -927,6 +1192,7 @@ export function ChatWorkspace({
   const isGlobalChat = !vaultId;
   const queryClient = useQueryClient();
   const conversationsQuery = useChatConversationsQuery(scope);
+  const modelOptionsQuery = useChatModelOptionsQuery(scope, { enabled: isDocumentChat });
   const createConversation = useCreateChatConversationMutation();
   const deleteConversation = useDeleteChatConversationMutation();
   const [selectedChatId, setSelectedChatId] = useState('');
@@ -934,7 +1200,8 @@ export function ChatWorkspace({
   const [streamingText, setStreamingText] = useState('');
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
+  const [responseMode, setResponseMode] = useState<ChatResponseMode>(isDocumentChat ? 'multimodal' : 'text');
+  const [selectedModel, setSelectedModel] = useState('');
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = streamStatus !== null;
@@ -949,6 +1216,12 @@ export function ChatWorkspace({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [selectedChatQuery.data?.conversation.messages, localMessages, streamingText]);
 
+  const availableModels = modelOptionsQuery.data?.options.models ?? [];
+  const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
+  const resolvedSelectedModel = selectedModel && (availableModels.length === 0 || availableModels.includes(selectedModel))
+    ? selectedModel
+    : defaultModel || availableModels[0] || '';
+
   const messages = useMemo(
     () => [
       ...(selectedChatQuery.data?.conversation.messages ?? []),
@@ -956,6 +1229,7 @@ export function ChatWorkspace({
     ],
     [effectiveSelectedChatId, localMessages, selectedChatQuery.data?.conversation.messages],
   );
+  const shouldShowDocumentEmptyState = messages.length === 0 && !isStreaming;
 
   async function handleCreateConversation() {
     const result = await createConversation.mutateAsync(scope);
@@ -964,6 +1238,12 @@ export function ChatWorkspace({
     setStreamingText('');
     setStreamError(null);
     setMetricsByMessageId({});
+    queryClient.setQueryData(chatQueryKeys.conversation(scope, result.conversation.id), {
+      conversation: {
+        ...result.conversation,
+        messages: [],
+      },
+    });
     await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
   }
 
@@ -984,6 +1264,12 @@ export function ChatWorkspace({
       const result = await createConversation.mutateAsync({ ...scope, title: content });
       chatId = result.conversation.id;
       setSelectedChatId(chatId);
+      queryClient.setQueryData(chatQueryKeys.conversation(scope, chatId), {
+        conversation: {
+          ...result.conversation,
+          messages: [],
+        },
+      });
       await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
     }
 
@@ -1012,6 +1298,7 @@ export function ChatWorkspace({
         ...scope,
         chatId,
         content,
+        model: isDocumentChat ? resolvedSelectedModel : undefined,
         responseMode,
         onStatus: setStreamStatus,
         onToken: token => setStreamingText(current => `${current}${token}`),
@@ -1044,6 +1331,153 @@ export function ChatWorkspace({
       toast.error(message);
       setStreamStatus(null);
     }
+  }
+
+  if (isDocumentChat) {
+    return (
+      <div className={cn('grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]', minHeightClassName)}>
+        <SurfacePanel className="flex min-h-0 flex-col p-3">
+          <div className="flex items-center gap-2 px-2 py-2 text-sm font-semibold text-foreground">
+            <MessageSquare className="size-4 text-primary" />
+            Conversations
+          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              void handleCreateConversation();
+            }}
+            disabled={createConversation.isPending}
+            className="mx-2 mt-2"
+          >
+            <Plus className="size-4" />
+            New chat
+          </Button>
+          <div className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto">
+            {conversationsQuery.isLoading ? (
+              <div className="flex items-center gap-2 px-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Loading chats
+              </div>
+            ) : (conversationsQuery.data?.conversations.length ?? 0) === 0 ? (
+              <p className="px-2 py-4 text-sm text-muted-foreground">No conversations yet.</p>
+            ) : (
+              conversationsQuery.data?.conversations.map(conversation => (
+                <div key={conversation.id} className="group flex items-center gap-1">
+                  <button
+                    type="button"
+                    className={cn(
+                      'min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-sm transition',
+                      effectiveSelectedChatId === conversation.id
+                        ? 'bg-secondary text-foreground'
+                        : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
+                    )}
+                    onClick={() => {
+                      setSelectedChatId(conversation.id);
+                      setLocalMessages([]);
+                      setStreamingText('');
+                      setStreamError(null);
+                      setMetricsByMessageId({});
+                    }}
+                  >
+                    <span className="block truncate font-medium">{conversation.title}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {formatDate(conversation.updatedAt)}
+                    </span>
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete ${conversation.title}`}
+                    className="h-8 w-8 shrink-0 opacity-70 group-hover:opacity-100"
+                    onClick={() => {
+                      void handleDeleteConversation(conversation.id);
+                    }}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </SurfacePanel>
+
+        <SurfacePanel className="flex min-h-0 flex-col overflow-hidden p-0">
+          {streamError ? (
+            <div className="flex items-center gap-2 border-b border-border/70 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <AlertCircle className="size-4" />
+              {streamError}
+            </div>
+          ) : null}
+
+          <DocumentChatContextHeader documentName={documentName} />
+
+          <div className="min-h-0 flex-1">
+            <ScrollArea className="h-full">
+              {shouldShowDocumentEmptyState ? (
+                <DocumentChatEmptyState onPromptSelect={(prompt) => { void handleSend(prompt); }} />
+              ) : selectedChatQuery.isLoading && messages.length === 0 ? (
+                <div className="flex min-h-[24rem] items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  Loading conversation
+                </div>
+              ) : (
+                <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-6">
+                  {messages.map(message => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      currentVaultId={vaultId}
+                      scope={scope}
+                      activeStatus={streamStatus}
+                      metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
+                    />
+                  ))}
+                  {streamingText.length > 0 || isStreaming ? (
+                    <div className="flex gap-3">
+                      <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <Sparkles className="size-4" />
+                      </div>
+                      <div className="max-w-[min(44rem,100%)]">
+                        <div className="rounded-lg border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-card-foreground shadow-sm">
+                          {streamingText.length > 0 ? (
+                            <MarkdownMessage content={streamingText} citations={[]} />
+                          ) : (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="size-4 animate-spin" />
+                              {statusLabel(streamStatus, scope)}
+                            </div>
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {statusLabel(streamStatus, scope)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+
+          <DocumentChatInput
+            disabled={isStreaming || createConversation.isPending}
+            placeholder={inputPlaceholder}
+            responseMode={responseMode}
+            modelOptions={modelOptionsQuery.data?.options.models}
+            selectedModel={resolvedSelectedModel}
+            isLoadingModels={modelOptionsQuery.isLoading}
+            modelOptionsError={modelOptionsQuery.isError
+              ? 'Could not load available Ollama models for this document chat.'
+              : null}
+            onSelectedModelChange={setSelectedModel}
+            onResponseModeChange={setResponseMode}
+            onSubmit={handleSend}
+          />
+        </SurfacePanel>
+      </div>
+    );
   }
 
   return (
@@ -1190,10 +1624,17 @@ export function ChatWorkspace({
             )}
           </div>
 
-          <ChatInput
+          <GenericChatInput
             disabled={isStreaming || createConversation.isPending}
             placeholder={inputPlaceholder}
             responseMode={responseMode}
+            modelOptions={isDocumentChat ? modelOptionsQuery.data?.options.models : undefined}
+            selectedModel={resolvedSelectedModel}
+            isLoadingModels={modelOptionsQuery.isLoading}
+            modelOptionsError={isDocumentChat && modelOptionsQuery.isError
+              ? 'Could not load available Ollama models for this document chat.'
+              : null}
+            onSelectedModelChange={isDocumentChat ? setSelectedModel : undefined}
             onResponseModeChange={setResponseMode}
             onSubmit={handleSend}
           />

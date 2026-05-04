@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createChatConversation, streamChatMessage } from './chat.api';
+import { createChatConversation, getChatModelOptions, streamChatMessage } from './chat.api';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -35,6 +35,24 @@ describe('chat api helpers', () => {
     }));
   });
 
+  it('loads chat model options for a document scope', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({
+      options: {
+        defaultModel: 'gemma4:e4b',
+        models: ['gemma4:e4b', 'qwen2.5:7b'],
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await getChatModelOptions({ vaultId: 'vlt_1', documentId: 'doc_1' });
+
+    expect(result.options.models).toEqual(['gemma4:e4b', 'qwen2.5:7b']);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/vaults/vlt_1/documents/doc_1/chats/options',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
   it('parses streaming status, token, done, and error events', async () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
@@ -55,8 +73,10 @@ describe('chat api helpers', () => {
 
     await streamChatMessage({
       vaultId: 'vlt_1',
+      documentId: 'doc_1',
       chatId: 'cht_1',
       content: 'Hello',
+      model: 'qwen2.5:7b',
       onStatus: status => statuses.push(status),
       onToken: token => tokens.push(token),
       onDone: payload => {
@@ -67,5 +87,15 @@ describe('chat api helpers', () => {
     expect(statuses).toEqual(['retrieval']);
     expect(tokens).toEqual(['Hi']);
     expect(doneIds).toEqual(['msg_1', 'msg_2']);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/vaults/vlt_1/documents/doc_1/chats/cht_1/messages/stream',
+      expect.objectContaining({
+        body: JSON.stringify({
+          content: 'Hello',
+          responseMode: 'multimodal',
+          model: 'qwen2.5:7b',
+        }),
+      }),
+    );
   });
 });

@@ -3,6 +3,7 @@ import type { ChatApiScope } from './chat.api';
 import {
   createChatConversation,
   deleteChatConversation,
+  getChatModelOptions,
   getChatConversation,
   listChatConversations,
 } from './chat.api';
@@ -11,11 +12,22 @@ export const chatQueryKeys = {
   all: ['chat'] as const,
   scope: ({ vaultId, documentId }: ChatApiScope) =>
     [vaultId ?? 'global', documentId ?? 'all-documents'] as const,
+  modelOptions: (scope: ChatApiScope) =>
+    [...chatQueryKeys.all, ...chatQueryKeys.scope(scope), 'model-options'] as const,
   conversations: (scope: ChatApiScope) =>
     [...chatQueryKeys.all, ...chatQueryKeys.scope(scope), 'conversations'] as const,
   conversation: (scope: ChatApiScope, chatId: string) =>
     [...chatQueryKeys.all, ...chatQueryKeys.scope(scope), 'conversation', chatId] as const,
 };
+
+export function useChatModelOptionsQuery(scope: ChatApiScope, { enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: chatQueryKeys.modelOptions(scope),
+    queryFn: () => getChatModelOptions(scope),
+    enabled,
+    staleTime: 30_000,
+  });
+}
 
 export function useChatConversationsQuery(scope: ChatApiScope) {
   return useQuery({

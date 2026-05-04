@@ -23,6 +23,19 @@ function parseResponseMode(value: unknown) {
   return value === 'text' || value === 'multimodal' ? value : null;
 }
 
+function parseModel(value: unknown) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function getUserId(context: Context<ServerContext>) {
   return context.get('userId');
 }
@@ -104,6 +117,28 @@ function createScopedChatHandlers({
     return context.json(await services.listConversations(resolved));
   });
 
+  app.get(`${basePath}/options`, async (context) => {
+    const resolved = await getScopeAndUser(context);
+    if (resolved === null) {
+      return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
+    }
+
+    try {
+      const options = await services.getModelOptions();
+      return context.json({ options });
+    } catch (error) {
+      return context.json(
+        {
+          error: {
+            code: 'chat.model_options_unavailable',
+            message: error instanceof Error ? error.message : 'Could not load chat model options.',
+          },
+        },
+        502,
+      );
+    }
+  });
+
   app.post(basePath, async (context) => {
     const resolved = await getScopeAndUser(context);
     if (resolved === null) {
@@ -168,9 +203,11 @@ function createScopedChatHandlers({
     const body = await context.req.json().catch(() => null) as {
       content?: unknown;
       responseMode?: unknown;
+      model?: unknown;
     } | null;
     const content = typeof body?.content === 'string' ? body.content.trim() : '';
     const responseMode = parseResponseMode(body?.responseMode);
+    const model = parseModel(body?.model);
 
     if (content.length === 0) {
       return context.json(
@@ -186,11 +223,19 @@ function createScopedChatHandlers({
       );
     }
 
+    if (model === null) {
+      return context.json(
+        { error: { code: 'chat.invalid_model', message: 'model must be a non-empty string' } },
+        400,
+      );
+    }
+
     const stream = await services.createMessageStream({
       ...resolved,
       chatId: context.req.param('chatId'),
       content,
       responseMode,
+      model,
     });
 
     if (stream === null) {

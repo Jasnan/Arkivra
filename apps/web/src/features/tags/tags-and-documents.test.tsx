@@ -621,8 +621,8 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await screen.findByRole('button', { name: /extracted text/i });
-    await user.click(screen.getByRole('button', { name: /extracted text/i }));
+    await screen.findByRole('tab', { name: /extracted text/i });
+    await user.click(screen.getByRole('tab', { name: /extracted text/i }));
     expect(await screen.findByText(/parsed text/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /add tag/i }));
     await user.click(await screen.findByRole('menuitemcheckbox', { name: /urgent/i }));
@@ -815,8 +815,8 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await screen.findByRole('heading', { name: /document preview/i });
-    await user.click(screen.getByRole('button', { name: /extracted text/i }));
+    await screen.findByRole('tab', { name: /preview/i });
+    await user.click(screen.getByRole('tab', { name: /extracted text/i }));
     expect(await screen.findByText(/^Pending$/i)).toBeInTheDocument();
     expect(
       await screen.findByText(/the document detail view polls the backend while processing is in progress/i),
@@ -887,8 +887,8 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await screen.findByRole('heading', { name: /document preview/i });
-    await user.click(screen.getByRole('button', { name: /extracted text/i }));
+    await screen.findByRole('tab', { name: /preview/i });
+    await user.click(screen.getByRole('tab', { name: /extracted text/i }));
 
     expect(
       await screen.findByText('FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA'),
@@ -954,15 +954,15 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await screen.findByRole('heading', { name: /document preview/i });
+    await screen.findByRole('tab', { name: /preview/i });
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^chat$/i }));
+    await user.click(screen.getByRole('tab', { name: /^chat$/i }));
 
-    expect(await screen.findByRole('heading', { name: /chat with this document/i })).toBeInTheDocument();
-    expect(await screen.findByText(/ask grounded questions about this document/i)).toBeInTheDocument();
+    expect(await screen.findByText(/context: invoice april\.pdf/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /ask anything about this document/i })).toBeInTheDocument();
     expect(await screen.findByText(/no conversations yet/i)).toBeInTheDocument();
   });
 });

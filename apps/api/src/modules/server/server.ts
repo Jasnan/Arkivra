@@ -42,6 +42,26 @@ import { createDocumentSearchServices } from '../search/search.services.js';
 import { createChatServices } from '../chat/chat.services.js';
 import { registerChatRoutes } from '../chat/chat.routes.js';
 
+const OLLAMA_EMBEDDING_MODEL_PATTERNS = [
+  /^bge[-:]/i,
+  /^e5[-:]/i,
+  /^gte[-:]/i,
+  /^mxbai[-:]/i,
+  /^nomic-embed/i,
+  /^snowflake-arctic-embed/i,
+  /^all-minilm/i,
+  /^jina-embeddings/i,
+  /^qwen\d+(?:\.\d+)?-embedding/i,
+  /^granite-embedding/i,
+  /^embeddinggemma/i,
+  /(?:^|[-:])embed(?:$|[-:])/i,
+  /(?:^|[-:])embedding(?:$|[-:])/i,
+] as const;
+
+function isLikelyEmbeddingModelName(modelName: string) {
+  return OLLAMA_EMBEDDING_MODEL_PATTERNS.some(pattern => pattern.test(modelName));
+}
+
 export function createServer({
   config,
   auth,
@@ -96,6 +116,18 @@ export function createServer({
         model: settings.model,
         maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
       };
+    },
+    listAvailableModels: async ({ host }) => {
+      const [models, ingestionSettings] = await Promise.all([
+        aiServices.listModels({ host }),
+        aiServices.getIngestionSettings(),
+      ]);
+      return models
+        .map(model => model.name)
+        .filter(modelName =>
+          modelName !== ingestionSettings.embeddingModel
+          && !isLikelyEmbeddingModelName(modelName),
+        );
     },
   });
 

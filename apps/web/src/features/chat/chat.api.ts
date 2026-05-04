@@ -2,6 +2,7 @@ import { fetchJson } from '@/lib/api';
 import type {
   ChatConversation,
   ChatConversationDetail,
+  ChatModelOptions,
   ChatStreamDonePayload,
   ChatStreamStatus,
 } from './chat.types';
@@ -30,6 +31,10 @@ function getChatBasePath({ vaultId, documentId }: ChatApiScope) {
 
 export async function listChatConversations(scope: ChatApiScope) {
   return fetchJson<{ conversations: ChatConversation[] }>(getChatBasePath(scope));
+}
+
+export async function getChatModelOptions(scope: ChatApiScope) {
+  return fetchJson<{ options: ChatModelOptions }>(`${getChatBasePath(scope)}/options`);
 }
 
 export async function createChatConversation({
@@ -101,12 +106,14 @@ export async function streamChatMessage({
   documentId,
   chatId,
   content,
+  model,
   responseMode = 'multimodal',
   signal,
   ...callbacks
 }: ChatApiScope & {
   chatId: string;
   content: string;
+  model?: string;
   responseMode?: ChatResponseMode;
   signal?: AbortSignal;
 } & StreamCallbacks) {
@@ -114,7 +121,7 @@ export async function streamChatMessage({
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content, responseMode }),
+    body: JSON.stringify({ content, responseMode, model }),
     signal,
   });
 

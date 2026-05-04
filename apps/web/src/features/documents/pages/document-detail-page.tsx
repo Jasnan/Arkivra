@@ -4,7 +4,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Download,
   Image as ImageIcon,
+  MessageSquare,
   Pencil,
+  ScanText,
+  Tags,
   Plus,
   Printer,
   RotateCcw,
@@ -40,6 +43,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import {
   getDocumentDownloadUrl,
@@ -604,48 +608,30 @@ export function DocumentDetailPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-xl font-bold  text-foreground">
-                {activeTab === 'preview'
-                  ? 'Document preview'
-                  : activeTab === 'content'
-                    ? 'Extracted text'
-                    : activeTab === 'metadata'
-                      ? 'Metadata'
-                      : 'Document chat'}
-              </h2>
-            </div>
-            <div className="inline-flex rounded-full bg-secondary/70 p-1">
-              <button
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'preview' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => setActiveTab('preview')}
-              >
-                Preview
-              </button>
-              <button
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'content' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => setActiveTab('content')}
-              >
-                Extracted text
-              </button>
-              <button
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'metadata' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => setActiveTab('metadata')}
-              >
-                Metadata
-              </button>
-              <button
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'chat' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => setActiveTab('chat')}
-              >
-                Chat
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center justify-start gap-3">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as DetailTab)}
+            >
+              <TabsList className="justify-start">
+                <TabsTrigger value="preview">
+                  <ImageIcon className="size-4" />
+                  Preview
+                </TabsTrigger>
+                <TabsTrigger value="content">
+                  <ScanText className="size-4" />
+                  Extracted text
+                </TabsTrigger>
+                <TabsTrigger value="metadata">
+                  <Tags className="size-4" />
+                  Metadata
+                </TabsTrigger>
+                <TabsTrigger value="chat">
+                  <MessageSquare className="size-4" />
+                  Chat
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           <div className="min-h-[720px] md:min-h-[860px]">
@@ -835,6 +821,7 @@ export function DocumentDetailPage() {
             {activeTab === 'chat' ? (
               <ChatWorkspace
                 scope={{ vaultId, documentId }}
+                documentName={document.name}
                 title="Chat with this document"
                 description="Ask grounded questions about this document and inspect the exact sources used for each answer."
                 inputPlaceholder="Ask about this document..."

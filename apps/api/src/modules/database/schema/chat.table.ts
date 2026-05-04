@@ -5,6 +5,17 @@ import { usersTable } from './users.table.js';
 import { vaultsTable } from './vaults.table.js';
 import type { Citation } from '../../search/search.types.js';
 
+export type ChatMessageGenerationMetrics = {
+  promptEvalCount: number | null;
+  promptEvalDurationMs: number | null;
+  evalCount: number | null;
+  evalDurationMs: number | null;
+  totalDurationMs: number | null;
+  loadDurationMs: number | null;
+  tokensPerSecond: number | null;
+  timeToFirstTokenMs: number | null;
+};
+
 export const chatConversationsTable = pgTable(
   'chat_conversations',
   {
@@ -42,6 +53,7 @@ export const chatMessagesTable = pgTable(
     role: text('role', { enum: ['user', 'assistant'] }).notNull(),
     content: text('content').notNull(),
     citations: jsonb('citations').$type<Citation[]>(),
+    generationMetrics: jsonb('generation_metrics').$type<ChatMessageGenerationMetrics>(),
     generationStatus: text('generation_status'),
     generationError: text('generation_error'),
   },

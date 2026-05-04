@@ -14,6 +14,8 @@ export interface ChatApiScope {
   documentId?: string;
 }
 
+export type ChatResponseMode = 'text' | 'multimodal';
+
 function getChatBasePath({ vaultId, documentId }: ChatApiScope) {
   if (vaultId && documentId) {
     return `/api/vaults/${vaultId}/documents/${documentId}/chats`;
@@ -99,18 +101,20 @@ export async function streamChatMessage({
   documentId,
   chatId,
   content,
+  responseMode = 'multimodal',
   signal,
   ...callbacks
 }: ChatApiScope & {
   chatId: string;
   content: string;
+  responseMode?: ChatResponseMode;
   signal?: AbortSignal;
 } & StreamCallbacks) {
   const response = await fetch(`${getChatBasePath({ vaultId, documentId })}/${chatId}/messages/stream`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, responseMode }),
     signal,
   });
 

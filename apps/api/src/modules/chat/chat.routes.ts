@@ -15,6 +15,14 @@ function parseTitle(value: unknown) {
   return typeof value === 'string' ? value.trim() : null;
 }
 
+function parseResponseMode(value: unknown) {
+  if (value === undefined) {
+    return 'multimodal' as const;
+  }
+
+  return value === 'text' || value === 'multimodal' ? value : null;
+}
+
 function getUserId(context: Context<ServerContext>) {
   return context.get('userId');
 }
@@ -157,8 +165,12 @@ function createScopedChatHandlers({
       return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
     }
 
-    const body = await context.req.json().catch(() => null) as { content?: unknown } | null;
+    const body = await context.req.json().catch(() => null) as {
+      content?: unknown;
+      responseMode?: unknown;
+    } | null;
     const content = typeof body?.content === 'string' ? body.content.trim() : '';
+    const responseMode = parseResponseMode(body?.responseMode);
 
     if (content.length === 0) {
       return context.json(
@@ -167,10 +179,18 @@ function createScopedChatHandlers({
       );
     }
 
+    if (responseMode === null) {
+      return context.json(
+        { error: { code: 'chat.invalid_response_mode', message: 'responseMode must be "text" or "multimodal"' } },
+        400,
+      );
+    }
+
     const stream = await services.createMessageStream({
       ...resolved,
       chatId: context.req.param('chatId'),
       content,
+      responseMode,
     });
 
     if (stream === null) {

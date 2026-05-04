@@ -113,7 +113,7 @@ export function createAppRouter() {
         },
         {
           path: 'vaults/:vaultId/documents/:documentId/chat',
-          element: <ChatPage />,
+          element: <DocumentDetailPage />,
         },
         {
           path: 'tags',

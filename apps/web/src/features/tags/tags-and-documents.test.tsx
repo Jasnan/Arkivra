@@ -897,4 +897,72 @@ describe('tags and documents pages', () => {
       screen.queryByText('FORM No. IV [SeeRule11(1)] GOVERNMENTOFKERALA'),
     ).not.toBeInTheDocument();
   });
+
+  it('shows document chat as a tab and removes the legacy action item', async () => {
+    const user = userEvent.setup();
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: 'Invoice April.pdf',
+            originalName: 'invoice.pdf',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'application/pdf',
+            content: 'Parsed text',
+            documentDate: '2026-04-10T00:00:00.000Z',
+            createdAt: '2026-04-10T10:00:00.000Z',
+            updatedAt: '2026-04-10T10:00:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+            createdBy: 'Jane Doe',
+          },
+        });
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/chats') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({ conversations: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/documents/doc_1'],
+      routePath: '/vaults/:vaultId/documents/:documentId',
+    });
+
+    await screen.findByRole('heading', { name: /document preview/i });
+
+    await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
+    expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^chat$/i }));
+
+    expect(await screen.findByRole('heading', { name: /chat with this document/i })).toBeInTheDocument();
+    expect(await screen.findByText(/ask grounded questions about this document/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no conversations yet/i)).toBeInTheDocument();
+  });
 });

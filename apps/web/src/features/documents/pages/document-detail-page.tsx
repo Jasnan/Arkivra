@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Download,
   Image as ImageIcon,
-  MessageSquare,
   Pencil,
   Plus,
   Printer,
@@ -41,6 +40,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
+import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import {
   getDocumentDownloadUrl,
   getDocumentInlineFileUrl,
@@ -66,7 +66,7 @@ import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 
 type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
-type DetailTab = 'preview' | 'content' | 'metadata';
+type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
 
 function getPreviewKind(mimeType: string): PreviewKind {
   if (mimeType === 'application/pdf') {
@@ -103,7 +103,9 @@ export function DocumentDetailPage() {
   const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [isDocumentDateEditing, setIsDocumentDateEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<DetailTab>('preview');
+  const [activeTab, setActiveTab] = useState<DetailTab>(
+    location.pathname.endsWith('/chat') ? 'chat' : 'preview',
+  );
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState('');
@@ -428,17 +430,6 @@ export function DocumentDetailPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem asChild>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigate(`/vaults/${vaultId}/documents/${documentId}/chat`);
-                  }}
-                >
-                  <ActionMenuItemIcon icon={MessageSquare} />
-                  Chat with document
-                </button>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
                 <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
                   <ActionMenuItemIcon icon={Download} />
                   Download original
@@ -620,7 +611,9 @@ export function DocumentDetailPage() {
                   ? 'Document preview'
                   : activeTab === 'content'
                     ? 'Extracted text'
-                    : 'Metadata'}
+                    : activeTab === 'metadata'
+                      ? 'Metadata'
+                      : 'Document chat'}
               </h2>
             </div>
             <div className="inline-flex rounded-full bg-secondary/70 p-1">
@@ -644,6 +637,13 @@ export function DocumentDetailPage() {
                 onClick={() => setActiveTab('metadata')}
               >
                 Metadata
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === 'chat' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setActiveTab('chat')}
+              >
+                Chat
               </button>
             </div>
           </div>
@@ -830,6 +830,18 @@ export function DocumentDetailPage() {
                   </SaveButton>
                 ) : null}
               </form>
+            ) : null}
+
+            {activeTab === 'chat' ? (
+              <ChatWorkspace
+                scope={{ vaultId, documentId }}
+                title="Chat with this document"
+                description="Ask grounded questions about this document and inspect the exact sources used for each answer."
+                inputPlaceholder="Ask about this document..."
+                emptyTitle="Start a document conversation"
+                emptyDescription="Ask a question and Arkivra will retrieve the best matching passages from this document before answering."
+                minHeightClassName="min-h-[820px]"
+              />
             ) : null}
           </div>
         </SurfacePanel>

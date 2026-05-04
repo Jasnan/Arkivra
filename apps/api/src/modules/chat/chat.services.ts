@@ -188,7 +188,12 @@ export function buildAnswerPrompt({
 }) {
   return [
     'Answer the user question using only the retrieved Arkivra vault context below.',
-    'Cite evidence naturally by referring to document names, page ranges, sections, and table/image context when relevant.',
+    'Write the answer in clear markdown with short paragraphs and lists when helpful.',
+    'Use inline citation markers that refer to the numbered sources below.',
+    'When a statement is supported by Source 1, append [1]. When it is supported by multiple sources, append multiple markers like [1][2].',
+    'Prefer placing citation markers at the end of the sentence or paragraph they support.',
+    'Only use citation numbers that exist in the retrieved context. Do not invent citation markers.',
+    'Do not add a separate "Sources" section in the answer; the UI renders the source list.',
     'Never mention internal IDs such as document IDs, chunk IDs, asset IDs, or database identifiers.',
     'If the retrieved context is insufficient, say that you do not have enough information in the vault context.',
     'Do not invent facts, document names, pages, dates, or citations.',

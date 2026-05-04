@@ -166,3 +166,15 @@ export function getDocumentDownloadUrl({ vaultId, documentId }: { vaultId: strin
 export function getDocumentInlineFileUrl({ vaultId, documentId }: { vaultId: string; documentId: string }) {
   return `/api/vaults/${vaultId}/documents/${documentId}/file`;
 }
+
+export function getDocumentPagePreviewUrl({
+  vaultId,
+  documentId,
+  pageNumber,
+}: {
+  vaultId: string;
+  documentId: string;
+  pageNumber: number;
+}) {
+  return `/api/vaults/${vaultId}/documents/${documentId}/page/${pageNumber}`;
+}

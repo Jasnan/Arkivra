@@ -32,7 +32,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Field, FieldContent, FieldDescription, FieldTitle } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -1072,7 +1071,18 @@ function DocumentChatInput({
   onSubmit: (content: string) => void;
 }) {
   const [value, setValue] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const showSources = responseMode === 'multimodal';
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = '0px';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 224)}px`;
+  }, [value]);
 
   function submit() {
     const content = value.trim();
@@ -1088,20 +1098,21 @@ function DocumentChatInput({
     <div className="sticky bottom-0 border-t border-border/60 bg-background/95 px-6 pb-6 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/90">
       <Card className="border-border/60 p-4 shadow-sm">
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Input
+          <div className="flex items-end gap-3">
+            <Textarea
+              ref={textareaRef}
               aria-label="Chat message"
               value={value}
               onChange={(event) => setValue(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') {
+                if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
                   submit();
                 }
               }}
               placeholder={placeholder}
               disabled={disabled}
-              className="h-11 flex-1 rounded-lg border-border/60"
+              className="min-h-11 max-h-56 flex-1 resize-none overflow-y-auto rounded-lg border-border/60 py-3"
             />
             <Button
               type="button"

@@ -4,6 +4,7 @@ import {
   buildAnswerPrompt,
   buildCitationContext,
   encodeSseEvent,
+  normalizeChatGenerationError,
   parseOllamaChatStream,
 } from './chat.services.js';
 
@@ -76,5 +77,14 @@ describe('chat service helpers', () => {
     }
 
     expect(tokens).toEqual(['Hel', 'lo']);
+  });
+
+  test('normalizes invalid stream-controller errors to a user-friendly retry message', () => {
+    expect(
+      normalizeChatGenerationError(new Error("Invalid state: Controller is already closed")),
+    ).toBe('The chat response was interrupted before it finished. Please try again.');
+    expect(
+      normalizeChatGenerationError(new TypeError('ERR_INVALID_STATE')),
+    ).toBe('The chat response was interrupted before it finished. Please try again.');
   });
 });

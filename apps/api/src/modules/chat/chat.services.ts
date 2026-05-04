@@ -139,6 +139,19 @@ function truncate(value: string, maxLength: number) {
   return compact.length <= maxLength ? compact : `${compact.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
+export function normalizeChatGenerationError(error: unknown) {
+  const message = error instanceof Error ? error.message : 'Chat generation failed';
+
+  if (
+    message.includes('Controller is already closed')
+    || message.includes('ERR_INVALID_STATE')
+  ) {
+    return 'The chat response was interrupted before it finished. Please try again.';
+  }
+
+  return message;
+}
+
 function getScopeValues(scope: ChatScopeInput) {
   if (scope.type === 'global') {
     return {
@@ -594,8 +607,32 @@ export function createChatServices({
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
+        let controllerClosed = false;
         const send = (event: ChatStreamEvent) => {
-          controller.enqueue(encoder.encode(encodeSseEvent(event)));
+          if (controllerClosed) {
+            return false;
+          }
+
+          try {
+            controller.enqueue(encoder.encode(encodeSseEvent(event)));
+            return true;
+          } catch {
+            controllerClosed = true;
+            return false;
+          }
+        };
+
+        const close = () => {
+          if (controllerClosed) {
+            return;
+          }
+
+          try {
+            controller.close();
+          } catch {
+          } finally {
+            controllerClosed = true;
+          }
         };
 
         void (async () => {
@@ -733,9 +770,9 @@ export function createChatServices({
               assistantMessage: toMessage(assistantMessageRow),
               metrics: generationMetrics,
             });
-            controller.close();
+            close();
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Chat generation failed';
+            const message = normalizeChatGenerationError(error);
 
             if (generationStarted || generatedContent.length > 0 || citations.length > 0) {
               await db.insert(chatMessagesTable).values({
@@ -755,7 +792,7 @@ export function createChatServices({
             }
 
             send({ type: 'error', message });
-            controller.close();
+            close();
           }
         })();
       },

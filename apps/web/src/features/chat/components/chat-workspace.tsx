@@ -50,7 +50,14 @@ import {
   useDeleteChatConversationMutation,
   useChatModelOptionsQuery,
 } from '../chat.queries';
-import type { ChatGenerationMetrics, ChatIntent, ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
+import type {
+  ChatConversation,
+  ChatGenerationMetrics,
+  ChatIntent,
+  ChatMessage,
+  ChatStreamStatus,
+  Citation,
+} from '../chat.types';
 
 interface ChatWorkspaceProps {
   scope: ChatApiScope;
@@ -147,6 +154,8 @@ const GLOBAL_GUIDED_PROMPTS = [
     icon: ScanText,
   },
 ] as const;
+
+const NEW_CHAT_DRAFT_ID = '__new_chat_draft__';
 
 interface ChatExperienceConfig {
   contextLabel: string;
@@ -1271,8 +1280,9 @@ export function ChatWorkspace({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = streamStatus !== null;
+  const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId
-    = selectedChatId || conversationsQuery.data?.conversations[0]?.id || '';
+    = isDraftConversation ? '' : selectedChatId || conversationsQuery.data?.conversations[0]?.id || '';
   const selectedChatQuery = useChatConversationQuery({
     ...scope,
     chatId: effectiveSelectedChatId,
@@ -1298,6 +1308,27 @@ export function ChatWorkspace({
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
   const effectiveIntent = currentIntent ?? activeConversationIntent;
   const shouldShowEmptyState = messages.length === 0 && !isStreaming;
+  const visibleConversations = useMemo<ChatConversation[]>(() => {
+    const conversations = conversationsQuery.data?.conversations ?? [];
+
+    if (!isDraftConversation) {
+      return conversations;
+    }
+
+    return [
+      {
+        id: NEW_CHAT_DRAFT_ID,
+        title: 'New chat',
+        scope: isDocumentChat ? 'document' : isGlobalChat ? 'global' : 'vault',
+        vaultId: vaultId ?? null,
+        documentId: documentId ?? null,
+        createdBy: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      ...conversations,
+    ];
+  }, [conversationsQuery.data?.conversations, documentId, isDocumentChat, isDraftConversation, isGlobalChat, vaultId]);
 
   function focusComposer() {
     requestAnimationFrame(() => {
@@ -1312,22 +1343,18 @@ export function ChatWorkspace({
     });
   }
 
-  async function handleCreateConversation() {
-    const result = await createConversation.mutateAsync(scope);
-    setSelectedChatId(result.conversation.id);
+  function resetComposerState() {
     setLocalMessages([]);
     setStreamingText('');
     setStreamError(null);
     setComposerValue('');
     setCurrentIntent(null);
     setMetricsByMessageId({});
-    queryClient.setQueryData(chatQueryKeys.conversation(scope, result.conversation.id), {
-      conversation: {
-        ...result.conversation,
-        messages: [],
-      },
-    });
-    await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
+  }
+
+  function handleCreateConversation() {
+    setSelectedChatId(NEW_CHAT_DRAFT_ID);
+    resetComposerState();
   }
 
   async function handleDeleteConversation(chatId: string) {
@@ -1450,26 +1477,22 @@ export function ChatWorkspace({
                 <Loader2 className="size-4 animate-spin" />
                 Loading chats
               </div>
-            ) : (conversationsQuery.data?.conversations.length ?? 0) === 0 ? (
+            ) : visibleConversations.length === 0 ? (
               <p className="px-2 py-4 text-sm text-muted-foreground">No conversations yet.</p>
             ) : (
-              conversationsQuery.data?.conversations.map(conversation => (
+              visibleConversations.map(conversation => (
                 <div key={conversation.id} className="group flex items-center gap-1">
                   <button
                     type="button"
                     className={cn(
                       'min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-sm transition',
-                      effectiveSelectedChatId === conversation.id
+                      selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id
                         ? 'bg-secondary text-foreground'
                         : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
                     )}
                     onClick={() => {
                       setSelectedChatId(conversation.id);
-                      setLocalMessages([]);
-                      setStreamingText('');
-                      setStreamError(null);
-                      setComposerValue('');
-                      setMetricsByMessageId({});
+                      resetComposerState();
                     }}
                   >
                     <span className="block truncate font-medium">{conversation.title}</span>
@@ -1477,18 +1500,20 @@ export function ChatWorkspace({
                       {formatDate(conversation.updatedAt)}
                     </span>
                   </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete ${conversation.title}`}
-                    className="h-8 w-8 shrink-0 opacity-70 group-hover:opacity-100"
-                    onClick={() => {
-                      void handleDeleteConversation(conversation.id);
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete ${conversation.title}`}
+                      className="h-8 w-8 shrink-0 opacity-70 group-hover:opacity-100"
+                      onClick={() => {
+                        void handleDeleteConversation(conversation.id);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
                 </div>
               ))
             )}

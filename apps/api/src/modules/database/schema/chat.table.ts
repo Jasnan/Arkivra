@@ -4,6 +4,7 @@ import { documentsTable } from './documents.table.js';
 import { usersTable } from './users.table.js';
 import { vaultsTable } from './vaults.table.js';
 import type { Citation } from '../../search/search.types.js';
+import type { ChatIntent } from '../../chat/chat.types.js';
 
 export type ChatMessageGenerationMetrics = {
   promptEvalCount: number | null;
@@ -14,6 +15,12 @@ export type ChatMessageGenerationMetrics = {
   loadDurationMs: number | null;
   tokensPerSecond: number | null;
   timeToFirstTokenMs: number | null;
+};
+
+export type ChatMessageMetadata = {
+  intent?: ChatIntent;
+  quickReplies?: string[];
+  followUpQuestion?: boolean;
 };
 
 export const chatConversationsTable = pgTable(
@@ -52,6 +59,7 @@ export const chatMessagesTable = pgTable(
     documentId: text('document_id').references(() => documentsTable.id, { onDelete: 'cascade' }),
     role: text('role', { enum: ['user', 'assistant'] }).notNull(),
     content: text('content').notNull(),
+    metadata: jsonb('metadata').$type<ChatMessageMetadata>(),
     citations: jsonb('citations').$type<Citation[]>(),
     generationMetrics: jsonb('generation_metrics').$type<ChatMessageGenerationMetrics>(),
     generationStatus: text('generation_status'),

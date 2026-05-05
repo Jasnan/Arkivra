@@ -3,7 +3,9 @@ import type { Citation } from '../search/search.types.js';
 import {
   buildAnswerPrompt,
   buildCitationContext,
+  buildGlobalIntentSystemPrompt,
   encodeSseEvent,
+  formatFollowUpAssistantMessage,
   normalizeChatGenerationError,
   parseOllamaChatStream,
 } from './chat.services.js';
@@ -40,6 +42,22 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('Records are retained for seven years.');
     expect(prompt).toContain('<table>');
     expect(prompt).toContain('If the retrieved context is insufficient');
+  });
+
+  test('builds compare intent system prompts for guided follow-ups', () => {
+    const prompt = buildGlobalIntentSystemPrompt('compare');
+
+    expect(prompt).toContain('You are Arkivra, an AI assistant');
+    expect(prompt).toContain('User intent: compare documents.');
+    expect(prompt).toContain('Do not proceed until comparison targets are clear.');
+  });
+
+  test('formats follow-up assistant questions as two short lines with examples', () => {
+    expect(formatFollowUpAssistantMessage({
+      intent: 'extract',
+      question: 'What kind of information should I extract?',
+      examples: ['tax IDs', 'invoice numbers'],
+    })).toBe('What kind of information should I extract?\nExamples: tax IDs or invoice numbers');
   });
 
   test('renders an explicit empty retrieval context', () => {

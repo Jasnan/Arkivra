@@ -2,6 +2,7 @@ import { fetchJson } from '@/lib/api';
 import type {
   ChatConversation,
   ChatConversationDetail,
+  ChatIntent,
   ChatModelOptions,
   ChatStreamDonePayload,
   ChatStreamStatus,
@@ -106,6 +107,7 @@ export async function streamChatMessage({
   documentId,
   chatId,
   content,
+  intent,
   model,
   responseMode = 'multimodal',
   signal,
@@ -113,6 +115,7 @@ export async function streamChatMessage({
 }: ChatApiScope & {
   chatId: string;
   content: string;
+  intent?: ChatIntent;
   model?: string;
   responseMode?: ChatResponseMode;
   signal?: AbortSignal;
@@ -121,7 +124,7 @@ export async function streamChatMessage({
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content, responseMode, model }),
+    body: JSON.stringify({ content, intent, responseMode, model }),
     signal,
   });
 

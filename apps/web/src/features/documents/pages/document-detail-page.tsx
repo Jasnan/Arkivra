@@ -822,11 +822,7 @@ export function DocumentDetailPage() {
               <ChatWorkspace
                 scope={{ vaultId, documentId }}
                 documentName={document.name}
-                title="Chat with this document"
-                description="Ask grounded questions about this document and inspect the exact sources used for each answer."
                 inputPlaceholder="Ask about this document..."
-                emptyTitle="Start a document conversation"
-                emptyDescription="Ask a question and Arkivra will retrieve the best matching passages from this document before answering."
                 minHeightClassName="min-h-[820px]"
               />
             ) : null}

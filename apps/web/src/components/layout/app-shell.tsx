@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { CSSProperties, PropsWithChildren } from 'react';
 import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
@@ -7,8 +7,6 @@ import {
   FileSearch,
   LogOut,
   MessageSquare,
-  PanelLeftClose,
-  PanelLeftOpen,
   SearchX,
   Search,
   Settings,
@@ -21,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import arkivraLogoUrl from '@/assets/arkivra-logo.png';
+import { AppSidebar } from '@/components/layout/app-sidebar';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {
   Breadcrumb,
@@ -39,6 +37,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useDocumentQuery } from '@/features/documents/documents.queries';
 import { useMeQuery } from '@/features/me/me.queries';
@@ -48,9 +48,6 @@ import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
-
-const navBaseClassName =
-  'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors';
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'arkivra.sidebarCollapsed';
 
@@ -301,153 +298,84 @@ export function AppShell({ children }: PropsWithChildren) {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1760px] gap-0 lg:gap-6">
-        <aside
-          className={cn(
-            'relative hidden shrink-0 border-r border-border/70 px-3 py-4 transition-[width] duration-200 lg:block',
-            isSidebarCollapsed ? 'w-[4.75rem]' : 'w-[14.5rem]',
-          )}
-        >
-          <button
-            type="button"
-            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!isSidebarCollapsed}
-            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="absolute right-0 top-8 z-10 flex size-8 translate-x-1/2 cursor-pointer items-center justify-center rounded-lg border border-border/80 bg-background text-muted-foreground shadow-sm transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
-          >
-            {isSidebarCollapsed ? (
-              <PanelLeftOpen className="size-4" />
-            ) : (
-              <PanelLeftClose className="size-4" />
-            )}
-          </button>
+    <div className="min-h-screen bg-[#f4f4f2] text-foreground dark:bg-[#161616]">
+      <SidebarProvider
+        open={!isSidebarCollapsed}
+        onOpenChange={(open) => setIsSidebarCollapsed(!open)}
+        className="w-full"
+        style={
+          {
+            '--sidebar-width': '17rem',
+            '--sidebar-width-icon': '4.75rem',
+            '--header-height': '3.5rem',
+          } as CSSProperties
+        }
+      >
+        <AppSidebar
+          variant="default"
+          primaryNavItems={primaryNavItems}
+          footerNavItems={footerNavItems}
+        />
 
-          <div className="sticky top-4 flex min-h-[calc(100vh-2rem)] flex-col gap-5">
-            <div
-              className={cn(
-                'flex min-h-12 items-center gap-3 px-3 py-2',
-                isSidebarCollapsed && 'justify-center px-0',
-              )}
-            >
-              <img
-                src={arkivraLogoUrl}
-                alt="Arkivra"
-                className="size-10 shrink-0 rounded-lg object-contain"
+        <SidebarInset className="min-h-screen bg-background lg:m-2 lg:overflow-hidden lg:rounded-[1.9rem] lg:border lg:border-border/80 lg:shadow-[0_1px_2px_rgba(15,23,42,0.05),0_18px_48px_rgba(15,23,42,0.1)] dark:lg:border-white/10 dark:lg:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_18px_48px_rgba(0,0,0,0.28)]">
+          <header className="sticky top-0 z-40 flex h-(--header-height) shrink-0 items-center border-b border-border/60 bg-background/95 backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-background/85">
+            <div className="flex w-full items-center gap-2 px-4 lg:px-6">
+              <SidebarTrigger className="-ml-1 hidden lg:inline-flex" />
+              <Separator
+                orientation="vertical"
+                className="mx-2 hidden data-[orientation=vertical]:h-4 lg:block"
               />
-              <div className={cn('min-w-0', isSidebarCollapsed && 'hidden')}>
-                <p className="font-display text-xl font-semibold text-primary">Arkivra</p>
-                <p className="mt-1 text-xs text-muted-foreground">Document vaults</p>
-              </div>
-            </div>
+              <Breadcrumb className="min-w-0">
+                <BreadcrumbList className="flex-nowrap">
+                  {breadcrumbs.map((item, index) => {
+                    const isLast = index === breadcrumbs.length - 1;
 
-            <nav className="space-y-1" aria-label="Primary">
-              {primaryNavItems.map((item) => {
-                const Icon = item.icon;
+                    return (
+                      <Fragment key={`${item.to ?? item.label}-${item.label}`}>
+                        {index > 0 ? <BreadcrumbSeparator /> : null}
+                        <BreadcrumbItem className="min-w-0">
+                          {item.to && !isLast ? (
+                            <Link
+                              to={item.to}
+                              className="truncate font-medium transition hover:text-foreground"
+                            >
+                              {item.label}
+                            </Link>
+                          ) : (
+                            <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
+                          )}
+                        </BreadcrumbItem>
+                      </Fragment>
+                    );
+                  })}
+                </BreadcrumbList>
+              </Breadcrumb>
 
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === '/documents'}
-                    aria-label={isSidebarCollapsed ? item.label : undefined}
-                    title={isSidebarCollapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      cn(
-                        navBaseClassName,
-                        isSidebarCollapsed && 'justify-center px-0',
-                        isActive
-                          ? 'bg-secondary text-foreground'
-                          : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                      )
-                    }
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center">
-                      <Icon className="size-4" />
-                    </span>
-                    <span className={cn(isSidebarCollapsed && 'hidden')}>{item.label}</span>
-                  </NavLink>
-                );
-              })}
-            </nav>
-
-            <nav
-              className="mt-auto space-y-1 border-t border-border/70 pt-4"
-              aria-label="Secondary"
-            >
-              {footerNavItems.map((item) => {
-                const Icon = item.icon;
-
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    aria-label={isSidebarCollapsed ? item.label : undefined}
-                    title={isSidebarCollapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      cn(
-                        navBaseClassName,
-                        isSidebarCollapsed && 'justify-center px-0',
-                        isActive
-                          ? 'bg-secondary text-foreground'
-                          : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                      )
-                    }
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center">
-                      <Icon className="size-4" />
-                    </span>
-                    <span className={cn(isSidebarCollapsed && 'hidden')}>{item.label}</span>
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </div>
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-5 px-4 py-4 sm:px-6 lg:px-7">
-          <header className="sticky top-0 z-40 border-b border-border/60 bg-background/92 py-3 backdrop-blur">
-            <div className="flex flex-col gap-4">
-              {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                <NavLink
-                  to="/transfers"
-                  className="flex items-center justify-between rounded-lg border border-border/70 bg-background px-4 py-3 text-sm text-muted-foreground transition hover:bg-secondary/50 hover:text-foreground"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="flex size-9 items-center justify-center rounded-lg bg-secondary text-primary">
-                      <Upload className="size-4" />
-                    </span>
-                    Uploading {uploadState.activeCount + uploadState.queuedCount} file
-                    {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
-                  </span>
-                  <span className="text-xs uppercase tracking-[0.16em]">View queue</span>
-                </NavLink>
-              ) : null}
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="relative w-full min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      aria-label="Global search"
-                      placeholder="Quick search"
-                      className="vault-input pl-11"
-                      readOnly
-                      onFocus={openQuickSearch}
-                      onClick={openQuickSearch}
-                    />
+              <div className="ml-auto hidden w-full max-w-sm items-center gap-2 md:flex">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    aria-label="Global search"
+                    placeholder="Quick search"
+                    className="vault-input h-9 rounded-md bg-muted/40 pl-9"
+                    readOnly
+                    onFocus={openQuickSearch}
+                    onClick={openQuickSearch}
+                  />
                 </div>
+              </div>
 
+              <div className="ml-auto flex items-center gap-2 md:ml-0">
                 <ThemeToggle />
 
                 <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
+                  <DropdownMenuTrigger asChild>
                     <button
                       type="button"
                       aria-label="Open account menu"
-                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
+                      className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
                     >
-                      <UserCircle2 className="size-5" />
+                      <UserCircle2 className="size-[18px]" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
@@ -485,69 +413,77 @@ export function AppShell({ children }: PropsWithChildren) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-
-              <nav className="flex gap-2 overflow-x-auto lg:hidden">
-                {[...primaryNavItems, ...footerNavItems].map((item) => {
-                  const Icon = item.icon;
-
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      end={item.to === '/documents'}
-                      className={({ isActive }) =>
-                        cn(
-                          'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition',
-                          isActive
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-card/80 text-muted-foreground hover:text-foreground',
-                        )
-                      }
-                    >
-                      <span className="flex size-4 shrink-0 items-center justify-center">
-                        <Icon className="size-4" />
-                      </span>
-                      {item.label}
-                    </NavLink>
-                  );
-                })}
-              </nav>
             </div>
           </header>
 
-          {breadcrumbs.length > 1 ? (
-          <Breadcrumb className="pt-2">
-            <BreadcrumbList>
-              {breadcrumbs.map((item, index) => {
-                const isLast = index === breadcrumbs.length - 1;
+          <div className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-2">
+              <div className="flex flex-1 flex-col gap-4 py-4 md:gap-6 md:py-6">
+                {uploadState.activeCount + uploadState.queuedCount > 0 ? (
+                  <div className="px-4 lg:px-6">
+                    <NavLink
+                      to="/transfers"
+                      className="flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm transition hover:bg-muted/50 hover:text-foreground"
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
+                          <Upload className="size-4" />
+                        </span>
+                        Uploading {uploadState.activeCount + uploadState.queuedCount} file
+                        {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
+                      </span>
+                      <span className="text-xs uppercase tracking-[0.16em]">View queue</span>
+                    </NavLink>
+                  </div>
+                ) : null}
 
-                return (
-                  <Fragment key={`${item.to ?? item.label}-${item.label}`}>
-                    {index > 0 ? <BreadcrumbSeparator /> : null}
-                    <BreadcrumbItem>
-                      {item.to && !isLast ? (
-                        <Link
+                <div className="space-y-3 px-4 lg:hidden">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      aria-label="Global search"
+                      placeholder="Quick search"
+                      className="vault-input pl-11"
+                      readOnly
+                      onFocus={openQuickSearch}
+                      onClick={openQuickSearch}
+                    />
+                  </div>
+
+                  <nav className="flex gap-2 overflow-x-auto">
+                    {[...primaryNavItems, ...footerNavItems].map((item) => {
+                      const Icon = item.icon;
+
+                      return (
+                        <NavLink
+                          key={item.to}
                           to={item.to}
-                          className="truncate font-medium transition hover:text-foreground"
+                          end={item.to === '/documents'}
+                          className={({ isActive }) =>
+                            cn(
+                              'inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 text-sm font-medium whitespace-nowrap transition',
+                              isActive
+                                ? 'bg-muted text-foreground'
+                                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                            )
+                          }
                         >
+                          <span className="flex size-4 shrink-0 items-center justify-center">
+                            <Icon className="size-4" />
+                          </span>
                           {item.label}
-                        </Link>
-                      ) : (
-                        <BreadcrumbPage className="truncate">
-                          {item.label}
-                        </BreadcrumbPage>
-                      )}
-                    </BreadcrumbItem>
-                  </Fragment>
-                );
-              })}
-            </BreadcrumbList>
-          </Breadcrumb>
-          ) : null}
+                        </NavLink>
+                      );
+                    })}
+                  </nav>
+                </div>
 
-          <main className="flex-1 pb-12">{children}</main>
-        </div>
-      </div>
+                <main className="flex-1 px-4 pb-4 lg:px-6 lg:pb-6">{children}</main>
+              </div>
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
       <Dialog
         open={isQuickSearchOpen}
         onOpenChange={(open) => {

@@ -5,7 +5,9 @@ import type {
   ChatConversation,
   ChatConversationDetail,
   ChatGenerationMetrics,
+  ChatIntent,
   ChatMessage,
+  ChatMessageMetadata,
   ChatStreamEvent,
 } from './chat.types.js';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
@@ -19,6 +21,84 @@ const DEFAULT_CHAT_TITLE = 'New chat';
 const MAX_CONTEXT_CITATIONS = 8;
 const TEXT_ONLY_CONTEXT_CITATIONS = 4;
 const MAX_RECENT_MESSAGES = 8;
+const MAX_FOLLOW_UP_EXAMPLES = 2;
+const GLOBAL_CHAT_BASE_SYSTEM_PROMPT = [
+  'You are Arkivra, an AI assistant that helps users search, analyze, and extract insights from their documents.',
+  'You operate over multiple documents and may combine information from different sources.',
+  'Keep responses:',
+  '- concise',
+  '- structured',
+  '- grounded in documents',
+  'If the user\'s request is incomplete, ask a short follow-up question before answering. Always provide 1–2 concrete examples in follow-ups. Never ask multiple questions at once.',
+].join('\n');
+
+const GLOBAL_CHAT_INTENT_PROMPTS: Record<ChatIntent, string> = {
+  search: [
+    'User intent: search documents.',
+    'If the query contains a topic or keyword:',
+    '-> proceed with search and return relevant documents.',
+    'If the query is vague or empty:',
+    '-> ask a short clarification:',
+    'Example: "What topic should I search for?" Provide examples like:',
+    '- VAT',
+    '- invoices',
+    '- tax filings',
+    'Do not over-ask. One question only.',
+  ].join('\n'),
+  summarize: [
+    'User intent: summarize documents.',
+    'If the user specifies a topic or document group:',
+    '-> summarize across relevant documents.',
+    'If missing:',
+    '-> ask a short follow-up:',
+    '"What would you like me to summarize?"',
+    'Provide examples:',
+    '- tax filings',
+    '- invoices',
+    '- contracts',
+    'Keep it concise. One question only.',
+  ].join('\n'),
+  compare: [
+    'User intent: compare documents.',
+    'A valid comparison requires:',
+    '- two documents OR',
+    '- two versions (e.g. time-based)',
+    'If the user does NOT specify both:',
+    '-> ask a follow-up:',
+    '"Which documents should I compare?"',
+    'Provide examples:',
+    '- 2023 vs 2024 tax filings',
+    '- January vs February invoices',
+    'Do not proceed until comparison targets are clear. Keep the question short and focused.',
+  ].join('\n'),
+  extract: [
+    'User intent: extract key information.',
+    'If the user specifies what to extract:',
+    '-> proceed.',
+    'If missing:',
+    '-> ask:',
+    '"What kind of information should I extract?"',
+    'Provide examples:',
+    '- tax IDs',
+    '- names',
+    '- invoice numbers',
+    'Only ask one question.',
+  ].join('\n'),
+};
+
+const DEFAULT_INTENT_FOLLOW_UP_QUESTIONS: Record<ChatIntent, string> = {
+  search: 'What topic should I search for?',
+  summarize: 'What would you like me to summarize?',
+  compare: 'Which documents should I compare?',
+  extract: 'What kind of information should I extract?',
+};
+
+const DEFAULT_INTENT_EXAMPLES: Record<ChatIntent, string[]> = {
+  search: ['VAT', 'invoices'],
+  summarize: ['tax filings', 'contracts'],
+  compare: ['2023 vs 2024 tax filings', 'January vs February invoices'],
+  extract: ['tax IDs', 'invoice numbers'],
+};
 
 type AiRuntimeSettings = {
   host: string;
@@ -61,6 +141,22 @@ type OllamaChatMetrics = {
   totalDurationNs: number | null;
   loadDurationNs: number | null;
 };
+
+const ollamaTextResponseSchema = z.object({
+  message: z.object({
+    content: z.string().optional(),
+  }).optional(),
+  response: z.string().optional(),
+  error: z.string().optional(),
+});
+
+const intentResolutionSchema = z.object({
+  action: z.enum(['proceed', 'follow_up']),
+  question: z.string().optional(),
+  examples: z.array(z.string()).optional(),
+});
+
+type IntentResolution = z.infer<typeof intentResolutionSchema>;
 
 function nsToMs(value: number | null) {
   return value === null ? null : Math.round((value / 1_000_000) * 10) / 10;
@@ -123,6 +219,7 @@ function toMessage(row: ChatMessageRow): ChatMessage {
     createdBy: row.createdBy,
     role: row.role,
     content: row.content,
+    metadata: row.metadata ?? null,
     citations: row.citations ?? [],
     generationMetrics: row.generationMetrics ?? null,
     generationStatus: row.generationStatus === 'completed' || row.generationStatus === 'failed'
@@ -132,6 +229,106 @@ function toMessage(row: ChatMessageRow): ChatMessage {
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   };
+}
+
+function isGlobalScope(scope: ChatScopeInput) {
+  return scope.type === 'global';
+}
+
+export function buildGlobalIntentSystemPrompt(intent: ChatIntent) {
+  return [GLOBAL_CHAT_BASE_SYSTEM_PROMPT, GLOBAL_CHAT_INTENT_PROMPTS[intent]].join('\n\n');
+}
+
+function buildGlobalAnswerSystemPrompt({
+  intent,
+  includeInlineCitations,
+}: {
+  intent?: ChatIntent;
+  includeInlineCitations: boolean;
+}) {
+  const parts = [
+    GLOBAL_CHAT_BASE_SYSTEM_PROMPT,
+    intent ? GLOBAL_CHAT_INTENT_PROMPTS[intent] : null,
+    includeInlineCitations
+      ? 'Support grounded claims with the inline source markers requested by the user prompt.'
+      : 'Answer in plain markdown without source markers.',
+  ].filter(Boolean);
+
+  return parts.join('\n\n');
+}
+
+function buildGuidedFollowUpUserPrompt({
+  previousMessages,
+  content,
+}: {
+  previousMessages: ChatMessage[];
+  content: string;
+}) {
+  const transcript = previousMessages.length > 0
+    ? previousMessages.map(message => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.content}`).join('\n')
+    : '(no prior messages)';
+
+  return [
+    'Decide whether the latest user message is specific enough to continue.',
+    'Return JSON only using this shape:',
+    '{"action":"proceed"}',
+    'or',
+    '{"action":"follow_up","question":"...","examples":["...","..."]}',
+    'Rules:',
+    '- Ask at most one short question.',
+    '- Include 1-2 concrete examples only when action is "follow_up".',
+    '- If the latest user message answers the earlier clarification, choose "proceed".',
+    '',
+    `Conversation so far:\n${transcript}`,
+    '',
+    `Latest user message:\n${content}`,
+  ].join('\n');
+}
+
+function sanitizeFollowUpExamples(intent: ChatIntent, examples: string[] | undefined) {
+  const fallback = DEFAULT_INTENT_EXAMPLES[intent];
+  const sanitized = (examples ?? [])
+    .map(example => example.trim())
+    .filter(example => example.length > 0)
+    .filter((example, index, values) => values.indexOf(example) === index)
+    .slice(0, MAX_FOLLOW_UP_EXAMPLES);
+
+  return sanitized.length > 0 ? sanitized : fallback.slice(0, MAX_FOLLOW_UP_EXAMPLES);
+}
+
+export function formatFollowUpAssistantMessage({
+  intent,
+  question,
+  examples,
+}: {
+  intent: ChatIntent;
+  question?: string;
+  examples?: string[];
+}) {
+  const resolvedQuestion = question?.trim().length
+    ? question.trim()
+    : DEFAULT_INTENT_FOLLOW_UP_QUESTIONS[intent];
+  const resolvedExamples = sanitizeFollowUpExamples(intent, examples);
+
+  return `${resolvedQuestion}\nExamples: ${resolvedExamples.join(' or ')}`;
+}
+
+async function readOllamaTextResponse(response: Response) {
+  if (!response.ok) {
+    throw new Error(`Ollama returned status ${response.status}`);
+  }
+
+  const payload = ollamaTextResponseSchema.parse(await response.json());
+  if (payload.error) {
+    throw new Error(payload.error);
+  }
+
+  const content = payload.message?.content ?? payload.response ?? '';
+  if (content.trim().length === 0) {
+    throw new Error('Ollama returned an empty response.');
+  }
+
+  return content;
 }
 
 function truncate(value: string, maxLength: number) {
@@ -432,6 +629,52 @@ async function collectCitationImages({
   return images;
 }
 
+async function resolveIntentFollowUp({
+  host,
+  model,
+  intent,
+  previousMessages,
+  content,
+  fetchImpl,
+}: {
+  host: string;
+  model: string;
+  intent: ChatIntent;
+  previousMessages: ChatMessage[];
+  content: string;
+  fetchImpl: typeof fetch;
+}): Promise<IntentResolution> {
+  const response = await fetchImpl(`${host.replace(/\/+$/, '')}/api/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      think: false,
+      format: 'json',
+      messages: [
+        {
+          role: 'system',
+          content: buildGlobalIntentSystemPrompt(intent),
+        },
+        {
+          role: 'user',
+          content: buildGuidedFollowUpUserPrompt({
+            previousMessages,
+            content,
+          }),
+        },
+      ],
+      options: {
+        temperature: 0.1,
+      },
+    }),
+  });
+
+  const rawContent = await readOllamaTextResponse(response);
+  return intentResolutionSchema.parse(JSON.parse(rawContent));
+}
+
 export function createChatServices({
   db,
   searchServices,
@@ -559,6 +802,7 @@ export function createChatServices({
     userId,
     chatId,
     content,
+    intent,
     responseMode,
     model,
   }: {
@@ -566,6 +810,7 @@ export function createChatServices({
     userId: string;
     chatId: string;
     content: string;
+    intent?: ChatIntent;
     responseMode: 'text' | 'multimodal';
     model?: string;
   }) {
@@ -585,6 +830,7 @@ export function createChatServices({
       createdBy: userId,
       role: 'user',
       content,
+      metadata: intent ? { intent } satisfies ChatMessageMetadata : null,
       citations: [],
       generationMetrics: null,
       updatedAt: now,
@@ -639,6 +885,7 @@ export function createChatServices({
           let citations: Citation[] = [];
           let citationsForPersistence: Citation[] = [];
           let generatedContent = '';
+          let assistantMetadata: ChatMessageMetadata | null = null;
           let generationStarted = false;
           let generationMetrics: ChatGenerationMetrics | null = null;
           let generationStartMs: number | null = null;
@@ -650,6 +897,79 @@ export function createChatServices({
             : TEXT_ONLY_CONTEXT_CITATIONS;
 
           try {
+            const settings = await resolveAiSettings();
+            const requestedModel = model?.trim();
+            const effectiveModel = requestedModel && requestedModel.length > 0
+              ? requestedModel
+              : settings.model;
+            if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
+              const availableModels = await listAvailableModels({ host: settings.host });
+              if (!availableModels.includes(requestedModel)) {
+                throw new Error(`Model "${requestedModel}" is not available from Ollama.`);
+              }
+            }
+
+            if (isGlobalScope(scope) && intent) {
+              send({ type: 'status', label: 'generation' });
+              generationStarted = true;
+              const resolution = await resolveIntentFollowUp({
+                host: settings.host,
+                model: effectiveModel,
+                intent,
+                previousMessages,
+                content,
+                fetchImpl,
+              });
+
+              if (resolution.action === 'follow_up') {
+                const quickReplies = sanitizeFollowUpExamples(intent, resolution.examples);
+                generatedContent = formatFollowUpAssistantMessage({
+                  intent,
+                  question: resolution.question,
+                  examples: quickReplies,
+                });
+                assistantMetadata = {
+                  quickReplies,
+                  followUpQuestion: true,
+                };
+
+                send({ type: 'token', token: generatedContent });
+                send({ type: 'status', label: 'saving' });
+                const [assistantFollowUpRow] = await db.insert(chatMessagesTable).values({
+                  conversationId: chatId,
+                  vaultId: scopeValues.vaultId,
+                  documentId: scopeValues.documentId,
+                  scope: scopeValues.scope,
+                  createdBy: userId,
+                  role: 'assistant',
+                  content: generatedContent,
+                  metadata: assistantMetadata,
+                  citations: [],
+                  generationMetrics: null,
+                  generationStatus: 'completed',
+                  updatedAt: new Date(),
+                }).returning();
+
+                if (assistantFollowUpRow === undefined) {
+                  throw new Error('Failed to persist assistant follow-up message');
+                }
+
+                await db
+                  .update(chatConversationsTable)
+                  .set({ updatedAt: new Date() })
+                  .where(eq(chatConversationsTable.id, chatId));
+
+                send({
+                  type: 'done',
+                  userMessage,
+                  assistantMessage: toMessage(assistantFollowUpRow),
+                  metrics: null,
+                });
+                close();
+                return;
+              }
+            }
+
             send({ type: 'status', label: 'retrieval' });
             const result = await searchServices.searchHybrid({
               ...getSearchScope(scope),
@@ -666,17 +986,6 @@ export function createChatServices({
               generatedContent = 'I do not have enough information in the retrieved vault context to answer that.';
               send({ type: 'token', token: generatedContent });
             } else {
-              const settings = await resolveAiSettings();
-              const requestedModel = model?.trim();
-              const effectiveModel = requestedModel && requestedModel.length > 0
-                ? requestedModel
-                : settings.model;
-              if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
-                const availableModels = await listAvailableModels({ host: settings.host });
-                if (!availableModels.includes(requestedModel)) {
-                  throw new Error(`Model "${requestedModel}" is not available from Ollama.`);
-                }
-              }
               const images = includeImages
                 ? await collectCitationImages({
                     citations,
@@ -695,9 +1004,14 @@ export function createChatServices({
                   messages: [
                     {
                       role: 'system',
-                      content: includeInlineCitations
-                        ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
-                        : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
+                      content: isGlobalScope(scope)
+                        ? buildGlobalAnswerSystemPrompt({
+                            intent,
+                            includeInlineCitations,
+                          })
+                        : includeInlineCitations
+                            ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
+                            : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
                     },
                     ...previousMessages.map(message => ({
                       role: message.role,
@@ -749,6 +1063,7 @@ export function createChatServices({
               createdBy: userId,
               role: 'assistant',
               content: generatedContent,
+              metadata: assistantMetadata,
               citations: citationsForPersistence,
               generationMetrics,
               generationStatus: 'completed',
@@ -783,6 +1098,7 @@ export function createChatServices({
                 createdBy: userId,
                 role: 'assistant',
                 content: generatedContent,
+                metadata: assistantMetadata,
                 citations: citationsForPersistence,
                 generationMetrics,
                 generationStatus: 'failed',

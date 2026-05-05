@@ -38,6 +38,14 @@ export interface ChatConversation {
   updatedAt: string;
 }
 
+export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
+
+export interface ChatMessageMetadata {
+  intent?: ChatIntent;
+  quickReplies?: string[];
+  followUpQuestion?: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -47,6 +55,7 @@ export interface ChatMessage {
   createdBy: string | null;
   role: 'user' | 'assistant';
   content: string;
+  metadata: ChatMessageMetadata | null;
   citations: Citation[];
   generationMetrics: ChatGenerationMetrics | null;
   generationStatus: 'completed' | 'failed' | null;

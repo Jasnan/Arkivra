@@ -2,6 +2,7 @@ import type { Context, Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
+import type { ChatIntent } from './chat.types.js';
 import type { ChatScopeInput, ChatServices } from './chat.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireVaultAccess, requireVaultPermission } from '../vaults/vaults.middleware.js';
@@ -34,6 +35,16 @@ function parseModel(value: unknown) {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function parseIntent(value: unknown): ChatIntent | undefined | null {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  return value === 'search' || value === 'summarize' || value === 'compare' || value === 'extract'
+    ? value
+    : null;
 }
 
 function getUserId(context: Context<ServerContext>) {
@@ -202,10 +213,12 @@ function createScopedChatHandlers({
 
     const body = await context.req.json().catch(() => null) as {
       content?: unknown;
+      intent?: unknown;
       responseMode?: unknown;
       model?: unknown;
     } | null;
     const content = typeof body?.content === 'string' ? body.content.trim() : '';
+    const intent = parseIntent(body?.intent);
     const responseMode = parseResponseMode(body?.responseMode);
     const model = parseModel(body?.model);
 
@@ -223,6 +236,13 @@ function createScopedChatHandlers({
       );
     }
 
+    if (intent === null) {
+      return context.json(
+        { error: { code: 'chat.invalid_intent', message: 'intent must be "search", "summarize", "compare", or "extract"' } },
+        400,
+      );
+    }
+
     if (model === null) {
       return context.json(
         { error: { code: 'chat.invalid_model', message: 'model must be a non-empty string' } },
@@ -234,6 +254,7 @@ function createScopedChatHandlers({
       ...resolved,
       chatId: context.req.param('chatId'),
       content,
+      intent,
       responseMode,
       model,
     });

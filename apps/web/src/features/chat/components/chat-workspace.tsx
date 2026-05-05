@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -11,6 +11,8 @@ import {
   Loader2,
   MessageSquare,
   Plus,
+  Scale,
+  ScanText,
   Search,
   Send,
   Sparkles,
@@ -31,12 +33,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldContent, FieldDescription, FieldTitle } from '@/components/ui/field';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { getDocumentPagePreviewUrl } from '@/features/documents/documents.api';
 import { cn } from '@/lib/utils';
@@ -50,16 +50,12 @@ import {
   useDeleteChatConversationMutation,
   useChatModelOptionsQuery,
 } from '../chat.queries';
-import type { ChatGenerationMetrics, ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
+import type { ChatGenerationMetrics, ChatIntent, ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
 
 interface ChatWorkspaceProps {
   scope: ChatApiScope;
   documentName?: string;
-  title?: string;
-  description?: string;
   inputPlaceholder: string;
-  emptyTitle: string;
-  emptyDescription: string;
   minHeightClassName?: string;
 }
 
@@ -97,6 +93,74 @@ const DOCUMENT_PROMPT_SUGGESTIONS = [
     icon: CalendarDays,
   },
 ] as const;
+
+const VAULT_PROMPT_SUGGESTIONS = [
+  {
+    label: 'What is in this vault?',
+    icon: Search,
+  },
+  {
+    label: 'Summarize the main themes',
+    icon: FileText,
+  },
+  {
+    label: 'Extract key details',
+    icon: Sparkles,
+  },
+  {
+    label: 'Find important dates',
+    icon: CalendarDays,
+  },
+] as const;
+
+const GLOBAL_GUIDED_PROMPTS = [
+  {
+    id: 'search',
+    title: 'Find documents about a topic or keyword',
+    description: 'Search across your documents for relevant matches.',
+    example: 'e.g. "Find invoices for 2024"',
+    prefill: 'Find documents about: ',
+    icon: Search,
+  },
+  {
+    id: 'summarize',
+    title: 'Summarize documents about a topic',
+    description: 'Combine information from multiple documents into a clear summary.',
+    example: 'e.g. "Summarise all my tax filings"',
+    prefill: 'Summarise documents about: ',
+    icon: FileText,
+  },
+  {
+    id: 'compare',
+    title: 'Compare documents or versions',
+    description: 'Compare two documents or time-based versions.',
+    example: 'e.g. "Compare my 2023 tax filing with 2024"',
+    prefill: 'Compare: ',
+    icon: Scale,
+  },
+  {
+    id: 'extract',
+    title: 'Extract key information from documents',
+    description: 'Find names, organizations, IDs, and important details.',
+    example: 'e.g. "Extract all tax IDs from my documents"',
+    prefill: 'Extract key information about: ',
+    icon: ScanText,
+  },
+] as const;
+
+interface ChatExperienceConfig {
+  contextLabel: string;
+  contextBadge: string;
+  contextDescription: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  promptSuggestions: readonly {
+    label: string;
+    icon: typeof Search;
+  }[];
+}
+
+type GlobalGuidedPrompt = typeof GLOBAL_GUIDED_PROMPTS[number];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -168,6 +232,57 @@ function statusLabel(status: ChatStreamStatus | null, scope: ChatApiScope) {
     default:
       return 'Sending your question';
   }
+}
+
+function getChatExperienceConfig({
+  scope,
+  documentName,
+}: {
+  scope: ChatApiScope;
+  documentName?: string;
+}): ChatExperienceConfig {
+  if (scope.documentId) {
+    const resolvedDocumentName = documentName?.trim() || 'Current document';
+    return {
+      contextLabel: resolvedDocumentName,
+      contextBadge: 'Locked',
+      contextDescription: 'You are chatting with this document only.',
+      emptyTitle: 'Ask anything about this document',
+      emptyDescription: 'Arkivra will search this document and answer with relevant information and exact references.',
+      promptSuggestions: DOCUMENT_PROMPT_SUGGESTIONS,
+    };
+  }
+
+  if (scope.vaultId) {
+    return {
+      contextLabel: 'This vault',
+      contextBadge: 'Vault-wide',
+      contextDescription: 'You are chatting across every document in this vault.',
+      emptyTitle: 'Ask anything about this vault',
+      emptyDescription: 'Arkivra will search documents in this vault and answer with relevant information and exact references.',
+      promptSuggestions: VAULT_PROMPT_SUGGESTIONS,
+    };
+  }
+
+  return {
+    contextLabel: 'All accessible documents',
+    contextBadge: 'Cross-vault',
+    contextDescription: 'You are chatting across documents from every vault you can access.',
+    emptyTitle: 'Ask anything across your documents',
+    emptyDescription: 'Arkivra will search across your accessible documents and answer with relevant information and exact references.',
+    promptSuggestions: [],
+  };
+}
+
+function getLatestIntent(messages: ChatMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === 'user' && message.metadata?.intent) {
+      return message.metadata.intent;
+    }
+  }
+
+  return null;
 }
 
 function parseInlineMarkdown(text: string): InlineToken[] {
@@ -773,12 +888,14 @@ function MessageBubble({
   scope,
   activeStatus,
   metrics,
+  onQuickReplySelect,
 }: {
   message: LocalMessage;
   currentVaultId?: string;
   scope: ChatApiScope;
   activeStatus: ChatStreamStatus | null;
   metrics?: ChatGenerationMetrics;
+  onQuickReplySelect?: (reply: string) => void;
 }) {
   const isUser = message.role === 'user';
   const pendingStatusLabel = statusLabel(activeStatus, scope);
@@ -821,6 +938,22 @@ function MessageBubble({
             {renderMetricsSummary(metrics)}
           </div>
         ) : null}
+        {!isUser && message.metadata?.quickReplies?.length && onQuickReplySelect ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {message.metadata.quickReplies.map(reply => (
+              <Button
+                key={reply}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-auto rounded-full px-3 py-1.5 text-xs"
+                onClick={() => onQuickReplySelect(reply)}
+              >
+                {reply}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         {!isUser ? <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} /> : null}
         {!isUser ? (
           <CitationPreviewModal
@@ -844,7 +977,7 @@ function MessageBubble({
   );
 }
 
-function GenericChatInput({
+function ChatInputPanel({
   disabled,
   placeholder,
   responseMode,
@@ -854,6 +987,9 @@ function GenericChatInput({
   modelOptionsError,
   onSelectedModelChange,
   onResponseModeChange,
+  value,
+  onValueChange,
+  textareaRef,
   onSubmit,
 }: {
   disabled: boolean;
@@ -865,214 +1001,13 @@ function GenericChatInput({
   modelOptionsError?: string | null;
   onSelectedModelChange?: (nextValue: string) => void;
   onResponseModeChange: (nextValue: ChatResponseMode) => void;
+  value: string;
+  onValueChange: (nextValue: string) => void;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   onSubmit: (content: string) => void;
 }) {
-  const [value, setValue] = useState('');
-  const isMultimodal = responseMode === 'multimodal';
-  const hasModelPicker = Boolean(onSelectedModelChange);
-
-  function submit() {
-    const content = value.trim();
-    if (content.length === 0 || disabled) {
-      return;
-    }
-    setValue('');
-    onSubmit(content);
-  }
-
-  return (
-    <div className="border-t border-border/70 bg-background p-4">
-      <div className="space-y-3">
-        {hasModelPicker ? (
-          <Field orientation="horizontal" className="items-start justify-between rounded-xl border border-border/70 bg-secondary/20 p-3">
-            <FieldContent className="max-w-xl">
-              <FieldTitle>Chat model</FieldTitle>
-              <FieldDescription>
-                Choose which installed Ollama model answers this document chat. The configured default stays selected unless you switch it.
-              </FieldDescription>
-              {modelOptionsError ? (
-                <p className="mt-2 text-xs text-destructive">{modelOptionsError}</p>
-              ) : null}
-            </FieldContent>
-            <div className="w-full max-w-xs">
-              <Select
-                value={selectedModel}
-                onValueChange={onSelectedModelChange}
-                disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
-              >
-                <SelectTrigger aria-label="Document chat model">
-                  <SelectValue placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(modelOptions ?? []).map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </Field>
-        ) : null}
-
-        <Field orientation="horizontal" className="items-start justify-between rounded-xl border border-border/70 bg-secondary/20 p-3">
-          <FieldContent className="max-w-xl">
-            <FieldTitle>Use multimodal mode</FieldTitle>
-            <FieldDescription>
-              {isMultimodal
-                ? 'Multimodal mode: includes inline citations, source previews, and cited document images when available. More reliable for scans, layouts, and visual fields, but noticeably slower.'
-                : 'Text-only mode: gives a plain markdown answer without citations or source previews and skips cited images. Faster, but it may miss visual clues from scans or image-heavy documents.'}
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={isMultimodal}
-            onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
-            aria-label="Toggle multimodal chat mode"
-          />
-        </Field>
-
-        <div className="flex items-end gap-2">
-          <Textarea
-            aria-label="Chat message"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                submit();
-              }
-            }}
-            placeholder={placeholder}
-            disabled={disabled}
-            className="min-h-11 resize-none py-3"
-          />
-          <Button
-            type="button"
-            size="icon"
-            aria-label="Send message"
-            disabled={disabled || value.trim().length === 0}
-            onClick={submit}
-            className="h-11 w-11 shrink-0"
-          >
-            <Send className="size-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DocumentChatContextHeader({ documentName }: { documentName?: string }) {
-  const resolvedDocumentName = documentName?.trim() || 'Current document';
-
-  return (
-    <div className="px-6 pt-6">
-      <div className="rounded-lg border border-border/60 bg-background/80 px-4 py-4 shadow-sm">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-secondary text-foreground">
-              <FileText className="size-4" />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-foreground">
-                {`Context: ${resolvedDocumentName}`}
-              </p>
-              <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[0.7rem] uppercase tracking-[0.14em]">
-                Locked
-              </Badge>
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            You are chatting with this document only.
-          </p>
-        </div>
-      </div>
-      <Separator className="mt-4" />
-    </div>
-  );
-}
-
-function DocumentChatEmptyState({
-  onPromptSelect,
-}: {
-  onPromptSelect: (prompt: string) => void;
-}) {
-  return (
-    <div className="flex min-h-full items-center justify-center px-6 py-10">
-      <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl bg-secondary text-primary shadow-sm">
-          <MessageSquare className="size-7" />
-        </div>
-        <div className="mt-6 space-y-3">
-          <h3 className="text-3xl font-semibold tracking-tight text-foreground">
-            Ask anything about this document
-          </h3>
-          <p className="mx-auto max-w-2xl text-sm leading-6 text-muted-foreground">
-            Arkivra will search this document and answer with relevant information and exact references.
-          </p>
-        </div>
-
-        <div className="mt-8 grid w-full max-w-2xl gap-3 sm:grid-cols-2">
-          {DOCUMENT_PROMPT_SUGGESTIONS.map(({ label, icon: Icon }) => (
-            <Button
-              key={label}
-              type="button"
-              variant="outline"
-              className="h-auto justify-start rounded-lg px-4 py-4 text-left text-sm font-medium whitespace-normal"
-              onClick={() => onPromptSelect(label)}
-            >
-              <span className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3">
-                <span className="flex size-10 items-center justify-center rounded-md bg-secondary text-primary">
-                  <Icon className="size-4" />
-                </span>
-                <span>{label}</span>
-              </span>
-            </Button>
-          ))}
-        </div>
-
-        <div className="mt-8 flex w-full max-w-md items-center gap-4">
-          <Separator className="flex-1" />
-          <span className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-            Or
-          </span>
-          <Separator className="flex-1" />
-        </div>
-
-        <p className="mt-4 text-sm text-muted-foreground">
-          Start typing your question below
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function DocumentChatInput({
-  disabled,
-  placeholder,
-  responseMode,
-  modelOptions,
-  selectedModel,
-  isLoadingModels,
-  modelOptionsError,
-  onSelectedModelChange,
-  onResponseModeChange,
-  onSubmit,
-}: {
-  disabled: boolean;
-  placeholder: string;
-  responseMode: ChatResponseMode;
-  modelOptions?: string[];
-  selectedModel: string;
-  isLoadingModels?: boolean;
-  modelOptionsError?: string | null;
-  onSelectedModelChange?: (nextValue: string) => void;
-  onResponseModeChange: (nextValue: ChatResponseMode) => void;
-  onSubmit: (content: string) => void;
-}) {
-  const [value, setValue] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const showSources = responseMode === 'multimodal';
+  const hasModelPicker = Boolean(onSelectedModelChange);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -1082,7 +1017,7 @@ function DocumentChatInput({
 
     textarea.style.height = '0px';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 224)}px`;
-  }, [value]);
+  }, [textareaRef, value]);
 
   function submit() {
     const content = value.trim();
@@ -1090,7 +1025,7 @@ function DocumentChatInput({
       return;
     }
 
-    setValue('');
+    onValueChange('');
     onSubmit(content);
   }
 
@@ -1103,7 +1038,7 @@ function DocumentChatInput({
               ref={textareaRef}
               aria-label="Chat message"
               value={value}
-              onChange={(event) => setValue(event.target.value)}
+              onChange={(event) => onValueChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
@@ -1129,43 +1064,45 @@ function DocumentChatInput({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-start gap-3">
               <Checkbox
-                id="document-chat-show-sources"
+                id="chat-show-sources"
                 checked={showSources}
                 onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
                 disabled={disabled}
                 className="mt-1"
               />
               <div className="space-y-1">
-                <Label htmlFor="document-chat-show-sources">Show sources</Label>
+                <Label htmlFor="chat-show-sources">Show sources</Label>
                 <p className="text-sm text-muted-foreground">
                   Citations and page references will be shown in responses
                 </p>
               </div>
             </div>
 
-            <div className="flex items-end gap-3 self-end sm:self-auto">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  Model
-                </Label>
-                <Select
-                  value={selectedModel}
-                  onValueChange={onSelectedModelChange}
-                  disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
-                >
-                  <SelectTrigger aria-label="Document chat model" className="h-10 min-w-52 border-border/60 bg-muted/20 text-sm shadow-none">
-                    <SelectValue placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(modelOptions ?? []).map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {hasModelPicker ? (
+              <div className="flex items-end gap-3 self-end sm:self-auto">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Model
+                  </Label>
+                  <Select
+                    value={selectedModel}
+                    onValueChange={onSelectedModelChange}
+                    disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
+                  >
+                    <SelectTrigger aria-label="Document chat model" className="h-10 min-w-52 border-border/60 bg-muted/20 text-sm shadow-none">
+                      <SelectValue placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(modelOptions ?? []).map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
 
           {modelOptionsError ? (
@@ -1177,19 +1114,150 @@ function DocumentChatInput({
   );
 }
 
+function ChatContextHeader({
+  contextLabel,
+  contextBadge,
+  contextDescription,
+}: {
+  contextLabel: string;
+  contextBadge: string;
+  contextDescription: string;
+}) {
+  return (
+    <div className="px-6 pt-6">
+      <div className="rounded-lg border border-border/60 bg-background/80 px-4 py-4 shadow-sm">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-secondary text-foreground">
+              <FileText className="size-4" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                {`Context: ${contextLabel}`}
+              </p>
+              <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[0.7rem] uppercase tracking-[0.14em]">
+                {contextBadge}
+              </Badge>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {contextDescription}
+          </p>
+        </div>
+      </div>
+      <Separator className="mt-4" />
+    </div>
+  );
+}
+
+function ChatEmptyState({
+  title,
+  description,
+  promptSuggestions,
+  guidedPrompts,
+  onPromptSelect,
+  onGuidedPromptSelect,
+}: {
+  title: string;
+  description: string;
+  promptSuggestions: readonly {
+    label: string;
+    icon: typeof Search;
+  }[];
+  guidedPrompts?: readonly GlobalGuidedPrompt[];
+  onPromptSelect: (prompt: string) => void;
+  onGuidedPromptSelect?: (prompt: GlobalGuidedPrompt) => void;
+}) {
+  const hasGuidedPrompts = Boolean(guidedPrompts?.length && onGuidedPromptSelect);
+
+  return (
+    <div className="flex min-h-full items-center justify-center px-6 py-10">
+      <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
+        <div className="flex size-16 items-center justify-center rounded-2xl bg-secondary text-primary shadow-sm">
+          <MessageSquare className="size-7" />
+        </div>
+        <div className="mt-6 space-y-3">
+          <h3 className="text-3xl font-semibold tracking-tight text-foreground">
+            {title}
+          </h3>
+          <p className="mx-auto max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
+        </div>
+
+        {hasGuidedPrompts ? (
+          <div className="mt-8 grid w-full max-w-4xl gap-3 sm:grid-cols-2">
+            {guidedPrompts?.map((prompt) => {
+              const Icon = prompt.icon;
+
+              return (
+                <button
+                  key={prompt.id}
+                  type="button"
+                  className="rounded-2xl border border-border/70 bg-card p-5 text-left shadow-sm transition hover:border-primary/35 hover:bg-accent/30"
+                  onClick={() => onGuidedPromptSelect?.(prompt)}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                      <Icon className="size-5" />
+                    </div>
+                    <div className="min-w-0 space-y-2">
+                      <p className="text-sm font-semibold text-foreground">{prompt.title}</p>
+                      <p className="text-sm leading-6 text-muted-foreground">{prompt.description}</p>
+                      <p className="text-xs text-muted-foreground">{prompt.example}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-8 grid w-full max-w-2xl gap-3 sm:grid-cols-2">
+            {promptSuggestions.map(({ label, icon: Icon }) => (
+              <Button
+                key={label}
+                type="button"
+                variant="outline"
+                className="h-auto justify-start rounded-lg px-4 py-4 text-left text-sm font-medium whitespace-normal"
+                onClick={() => onPromptSelect(label)}
+              >
+                <span className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-md bg-secondary text-primary">
+                    <Icon className="size-4" />
+                  </span>
+                  <span>{label}</span>
+                </span>
+              </Button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-8 flex w-full max-w-md items-center gap-4">
+          <Separator className="flex-1" />
+          <span className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+            Or
+          </span>
+          <Separator className="flex-1" />
+        </div>
+
+        <p className="mt-4 text-sm text-muted-foreground">
+          Start typing your question below
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ChatWorkspace({
   scope,
   documentName,
-  title,
-  description,
   inputPlaceholder,
-  emptyTitle,
-  emptyDescription,
   minHeightClassName = 'min-h-[calc(100vh-14rem)]',
 }: ChatWorkspaceProps) {
   const { vaultId, documentId } = scope;
   const isDocumentChat = Boolean(vaultId && documentId);
   const isGlobalChat = !vaultId;
+  const experience = getChatExperienceConfig({ scope, documentName });
   const queryClient = useQueryClient();
   const conversationsQuery = useChatConversationsQuery(scope);
   const modelOptionsQuery = useChatModelOptionsQuery(scope, { enabled: isDocumentChat });
@@ -1200,9 +1268,12 @@ export function ChatWorkspace({
   const [streamingText, setStreamingText] = useState('');
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [responseMode, setResponseMode] = useState<ChatResponseMode>(isDocumentChat ? 'multimodal' : 'text');
+  const [responseMode, setResponseMode] = useState<ChatResponseMode>('multimodal');
   const [selectedModel, setSelectedModel] = useState('');
+  const [composerValue, setComposerValue] = useState('');
+  const [currentIntent, setCurrentIntent] = useState<ChatIntent | null>(null);
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = streamStatus !== null;
   const effectiveSelectedChatId
@@ -1229,7 +1300,22 @@ export function ChatWorkspace({
     ],
     [effectiveSelectedChatId, localMessages, selectedChatQuery.data?.conversation.messages],
   );
-  const shouldShowDocumentEmptyState = messages.length === 0 && !isStreaming;
+  const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
+  const effectiveIntent = currentIntent ?? activeConversationIntent;
+  const shouldShowEmptyState = messages.length === 0 && !isStreaming;
+
+  function focusComposer() {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        return;
+      }
+
+      textarea.focus();
+      const end = textarea.value.length;
+      textarea.setSelectionRange(end, end);
+    });
+  }
 
   async function handleCreateConversation() {
     const result = await createConversation.mutateAsync(scope);
@@ -1237,6 +1323,8 @@ export function ChatWorkspace({
     setLocalMessages([]);
     setStreamingText('');
     setStreamError(null);
+    setComposerValue('');
+    setCurrentIntent(null);
     setMetricsByMessageId({});
     queryClient.setQueryData(chatQueryKeys.conversation(scope, result.conversation.id), {
       conversation: {
@@ -1255,9 +1343,16 @@ export function ChatWorkspace({
     await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
   }
 
-  async function handleSend(content: string) {
+  function handleGuidedPromptSelect(prompt: GlobalGuidedPrompt) {
+    setCurrentIntent(prompt.id);
+    setComposerValue(prompt.prefill);
+    focusComposer();
+  }
+
+  async function handleSend(content: string, intentOverride?: ChatIntent | null) {
     setStreamError(null);
     setStreamingText('');
+    const resolvedIntent = isGlobalChat ? (intentOverride ?? effectiveIntent) : null;
 
     let chatId = effectiveSelectedChatId;
     if (!chatId) {
@@ -1282,6 +1377,7 @@ export function ChatWorkspace({
       createdBy: null,
       role: 'user',
       content,
+      metadata: resolvedIntent ? { intent: resolvedIntent } : null,
       citations: [],
       generationMetrics: null,
       generationStatus: null,
@@ -1298,6 +1394,7 @@ export function ChatWorkspace({
         ...scope,
         chatId,
         content,
+        intent: resolvedIntent ?? undefined,
         model: isDocumentChat ? resolvedSelectedModel : undefined,
         responseMode,
         onStatus: setStreamStatus,
@@ -1333,8 +1430,8 @@ export function ChatWorkspace({
     }
   }
 
-  if (isDocumentChat) {
-    return (
+  return (
+    <div className="space-y-5">
       <div className={cn('grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]', minHeightClassName)}>
         <SurfacePanel className="flex min-h-0 flex-col p-3">
           <div className="flex items-center gap-2 px-2 py-2 text-sm font-semibold text-foreground">
@@ -1376,6 +1473,7 @@ export function ChatWorkspace({
                       setLocalMessages([]);
                       setStreamingText('');
                       setStreamError(null);
+                      setComposerValue('');
                       setMetricsByMessageId({});
                     }}
                   >
@@ -1410,12 +1508,23 @@ export function ChatWorkspace({
             </div>
           ) : null}
 
-          <DocumentChatContextHeader documentName={documentName} />
+          <ChatContextHeader
+            contextLabel={experience.contextLabel}
+            contextBadge={experience.contextBadge}
+            contextDescription={experience.contextDescription}
+          />
 
           <div className="min-h-0 flex-1">
             <ScrollArea className="h-full">
-              {shouldShowDocumentEmptyState ? (
-                <DocumentChatEmptyState onPromptSelect={(prompt) => { void handleSend(prompt); }} />
+              {shouldShowEmptyState ? (
+                <ChatEmptyState
+                  title={experience.emptyTitle}
+                  description={experience.emptyDescription}
+                  promptSuggestions={experience.promptSuggestions}
+                  guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
+                  onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
+                  onPromptSelect={(prompt) => { void handleSend(prompt); }}
+                />
               ) : selectedChatQuery.isLoading && messages.length === 0 ? (
                 <div className="flex min-h-[24rem] items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" />
@@ -1431,6 +1540,11 @@ export function ChatWorkspace({
                       scope={scope}
                       activeStatus={streamStatus}
                       metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
+                      onQuickReplySelect={isGlobalChat
+                        ? (reply) => {
+                            void handleSend(reply, effectiveIntent);
+                          }
+                        : undefined}
                     />
                   ))}
                   {streamingText.length > 0 || isStreaming ? (
@@ -1461,170 +1575,7 @@ export function ChatWorkspace({
             </ScrollArea>
           </div>
 
-          <DocumentChatInput
-            disabled={isStreaming || createConversation.isPending}
-            placeholder={inputPlaceholder}
-            responseMode={responseMode}
-            modelOptions={modelOptionsQuery.data?.options.models}
-            selectedModel={resolvedSelectedModel}
-            isLoadingModels={modelOptionsQuery.isLoading}
-            modelOptionsError={modelOptionsQuery.isError
-              ? 'Could not load available Ollama models for this document chat.'
-              : null}
-            onSelectedModelChange={setSelectedModel}
-            onResponseModeChange={setResponseMode}
-            onSubmit={handleSend}
-          />
-        </SurfacePanel>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          {title ? <h2 className="font-display text-xl font-bold text-foreground">{title}</h2> : null}
-          {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
-          ) : null}
-        </div>
-        <Button
-          type="button"
-          onClick={handleCreateConversation}
-          disabled={createConversation.isPending}
-        >
-          <Plus className="size-4" />
-          New chat
-        </Button>
-      </div>
-
-      <div className={cn('grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]', minHeightClassName)}>
-        <SurfacePanel className="flex min-h-0 flex-col p-3">
-          <div className="flex items-center gap-2 px-2 py-2 text-sm font-semibold text-foreground">
-            <MessageSquare className="size-4 text-primary" />
-            Conversations
-          </div>
-          <div className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto">
-            {conversationsQuery.isLoading ? (
-              <div className="flex items-center gap-2 px-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading chats
-              </div>
-            ) : (conversationsQuery.data?.conversations.length ?? 0) === 0 ? (
-              <p className="px-2 py-4 text-sm text-muted-foreground">No conversations yet.</p>
-            ) : (
-              conversationsQuery.data?.conversations.map(conversation => (
-                <div key={conversation.id} className="group flex items-center gap-1">
-                  <button
-                    type="button"
-                    className={cn(
-                      'min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-sm transition',
-                      effectiveSelectedChatId === conversation.id
-                        ? 'bg-secondary text-foreground'
-                        : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                    )}
-                    onClick={() => {
-                      setSelectedChatId(conversation.id);
-                      setLocalMessages([]);
-                      setStreamingText('');
-                      setStreamError(null);
-                      setMetricsByMessageId({});
-                    }}
-                  >
-                    <span className="block truncate font-medium">{conversation.title}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {formatDate(conversation.updatedAt)}
-                    </span>
-                  </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete ${conversation.title}`}
-                    className="h-8 w-8 shrink-0 opacity-70 group-hover:opacity-100"
-                    onClick={() => {
-                      void handleDeleteConversation(conversation.id);
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
-        </SurfacePanel>
-
-        <SurfacePanel className="flex min-h-0 flex-col overflow-hidden p-0">
-          {streamError ? (
-            <div className="flex items-center gap-2 border-b border-border/70 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              <AlertCircle className="size-4" />
-              {streamError}
-            </div>
-          ) : null}
-
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-            {!effectiveSelectedChatId && messages.length === 0 ? (
-              <div className="flex h-full min-h-80 items-center justify-center text-center">
-                <div className="max-w-sm space-y-4">
-                  <div className="mx-auto flex size-12 items-center justify-center rounded-lg bg-secondary text-primary">
-                    <MessageSquare className="size-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-display text-xl font-semibold text-foreground">{emptyTitle}</h3>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {emptyDescription}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : selectedChatQuery.isLoading && messages.length === 0 ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading conversation
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {messages.map(message => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    currentVaultId={vaultId}
-                    scope={scope}
-                    activeStatus={streamStatus}
-                    metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
-                  />
-                ))}
-                {streamingText.length > 0 || isStreaming ? (
-                  <div className="flex gap-3">
-                    <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                      <Bot className="size-4" />
-                    </div>
-                    <div className="max-w-[min(46rem,100%)]">
-                      <div className="rounded-lg border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-card-foreground shadow-sm">
-                        {streamingText.length > 0 ? (
-                          <MarkdownMessage content={streamingText} citations={[]} />
-                        ) : (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="size-4 animate-spin" />
-                            {statusLabel(streamStatus, scope)}
-                          </div>
-                        )}
-                      </div>
-                      {streamingText.length > 0 ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {statusLabel(streamStatus, scope)}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </div>
-
-          <GenericChatInput
+          <ChatInputPanel
             disabled={isStreaming || createConversation.isPending}
             placeholder={inputPlaceholder}
             responseMode={responseMode}
@@ -1636,6 +1587,9 @@ export function ChatWorkspace({
               : null}
             onSelectedModelChange={isDocumentChat ? setSelectedModel : undefined}
             onResponseModeChange={setResponseMode}
+            value={composerValue}
+            onValueChange={setComposerValue}
+            textareaRef={textareaRef}
             onSubmit={handleSend}
           />
         </SurfacePanel>

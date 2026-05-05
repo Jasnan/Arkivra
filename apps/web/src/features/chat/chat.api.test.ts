@@ -53,7 +53,7 @@ describe('chat api helpers', () => {
     );
   });
 
-  it('parses streaming status, token, done, and error events', async () => {
+  it('sends intent metadata with streaming requests', async () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -76,6 +76,7 @@ describe('chat api helpers', () => {
       documentId: 'doc_1',
       chatId: 'cht_1',
       content: 'Hello',
+      intent: 'compare',
       model: 'qwen2.5:7b',
       onStatus: status => statuses.push(status),
       onToken: token => tokens.push(token),
@@ -92,6 +93,7 @@ describe('chat api helpers', () => {
       expect.objectContaining({
         body: JSON.stringify({
           content: 'Hello',
+          intent: 'compare',
           responseMode: 'multimodal',
           model: 'qwen2.5:7b',
         }),

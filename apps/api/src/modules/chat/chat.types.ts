@@ -11,6 +11,13 @@ export type ChatConversation = {
   updatedAt: string;
 };
 
+export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
+export type ChatMessageMetadata = {
+  intent?: ChatIntent;
+  quickReplies?: string[];
+  followUpQuestion?: boolean;
+};
+
 export type ChatMessageRole = 'user' | 'assistant';
 export type ChatGenerationStatus = 'completed' | 'failed' | null;
 
@@ -23,6 +30,7 @@ export type ChatMessage = {
   createdBy: string | null;
   role: ChatMessageRole;
   content: string;
+  metadata: ChatMessageMetadata | null;
   citations: Citation[];
   generationMetrics: ChatGenerationMetrics | null;
   generationStatus: ChatGenerationStatus;

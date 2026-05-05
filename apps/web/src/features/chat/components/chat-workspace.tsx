@@ -829,10 +829,10 @@ function SourcesAccordion({
         collapsible
         value={isOpen ? 'sources' : undefined}
         onValueChange={(value) => setIsOpen(value === 'sources')}
-        className="mt-4 rounded-lg border border-border/70 bg-background/80 px-4"
+        className="mt-4 border-t border-border/70 pt-2"
       >
         <AccordionItem value="sources" className="border-b-0">
-          <AccordionTrigger className="py-3">
+          <AccordionTrigger className="rounded-md px-1 py-3 hover:no-underline">
             <div className="flex items-center gap-2">
               <FileText className="size-4 text-muted-foreground" />
               <span>{`Sources (${citations.length})`}</span>
@@ -908,53 +908,48 @@ function MessageBubble({
           <Bot className="size-4" />
         </div>
       ) : null}
-      <div className={cn('max-w-[min(46rem,100%)]', isUser && 'flex flex-col items-end')}>
-        <div
-          className={cn(
-            'rounded-lg px-4 py-3 text-sm leading-6 shadow-sm',
-            isUser
-              ? 'bg-primary text-primary-foreground'
-              : 'border border-border/70 bg-card text-card-foreground',
-          )}
-        >
-          {isUser ? (
+      <div className={cn('max-w-[min(46rem,100%)]', isUser ? 'flex flex-col items-end' : 'w-full')}>
+        {isUser ? (
+          <div className="rounded-lg bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground shadow-sm">
             <p className="whitespace-pre-wrap">{message.content}</p>
-          ) : (
+          </div>
+        ) : (
+          <div className="w-full rounded-lg border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-card-foreground shadow-sm">
             <MarkdownMessage
               content={message.content}
               citations={message.citations}
               onCitationClick={(citation) => setSelectedCitation(citation)}
             />
-          )}
-        </div>
+            {renderMetricsSummary(metrics) ? (
+              <div className="mt-3 text-xs text-muted-foreground">
+                {renderMetricsSummary(metrics)}
+              </div>
+            ) : null}
+            {message.metadata?.quickReplies?.length && onQuickReplySelect ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {message.metadata.quickReplies.map(reply => (
+                  <Button
+                    key={reply}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-auto rounded-full px-3 py-1.5 text-xs"
+                    onClick={() => onQuickReplySelect(reply)}
+                  >
+                    {reply}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} />
+          </div>
+        )}
         <div className="mt-1 text-xs text-muted-foreground">
           {message.localOnly ? `${pendingStatusLabel}...` : formatDate(message.createdAt)}
           {message.generationStatus === 'failed' && message.generationError ? (
             <span className="ml-2 text-destructive">{message.generationError}</span>
           ) : null}
         </div>
-        {!isUser && renderMetricsSummary(metrics) ? (
-          <div className="mt-1 text-xs text-muted-foreground">
-            {renderMetricsSummary(metrics)}
-          </div>
-        ) : null}
-        {!isUser && message.metadata?.quickReplies?.length && onQuickReplySelect ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {message.metadata.quickReplies.map(reply => (
-              <Button
-                key={reply}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-auto rounded-full px-3 py-1.5 text-xs"
-                onClick={() => onQuickReplySelect(reply)}
-              >
-                {reply}
-              </Button>
-            ))}
-          </div>
-        ) : null}
-        {!isUser ? <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} /> : null}
         {!isUser ? (
           <CitationPreviewModal
             key={selectedCitation?.chunkId ?? 'no-inline-citation'}

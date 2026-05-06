@@ -106,6 +106,7 @@ CREATE TABLE public.document_chunk_assets (
     mime_type text,
     storage_key text,
     inline_payload text,
+    source_element_id text,
     page_number integer,
     bbox jsonb,
     byte_size integer,
@@ -129,6 +130,7 @@ CREATE TABLE public.document_chunks (
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     chunk_key text NOT NULL,
     section text,
+    section_path jsonb,
     parser_engine text,
     metadata jsonb,
     page_start integer,
@@ -159,6 +161,9 @@ CREATE TABLE public.documents (
     name text NOT NULL,
     mime_type text NOT NULL,
     content text DEFAULT ''::text NOT NULL,
+    raw_text text DEFAULT ''::text NOT NULL,
+    raw_markdown text DEFAULT ''::text NOT NULL,
+    parser_structured_output jsonb,
     document_date timestamp without time zone,
     file_encryption_key_wrapped text,
     file_encryption_kek_version text,
@@ -169,8 +174,7 @@ CREATE TABLE public.documents (
     processing_status text DEFAULT 'pending'::text NOT NULL,
     parser_engine text,
     parser_engine_version text,
-    parser_warnings jsonb,
-    raw_text text DEFAULT ''::text NOT NULL
+    parser_warnings jsonb
 );
 
 CREATE TABLE public.instance_settings (

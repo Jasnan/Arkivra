@@ -48,6 +48,7 @@ describe('docling client', () => {
     );
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.getAll('to_formats')).toEqual(['json', 'md']);
     expect(submitBody.get('ocr_engine')).toBe('tesseract');
     expect(submitBody.getAll('ocr_lang')).toEqual(['deu', 'eng']);
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -103,7 +104,7 @@ describe('docling client', () => {
 
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
-    expect(submitBody.get('to_formats')).toBe('md');
+    expect(submitBody.getAll('to_formats')).toEqual(['json', 'md']);
     expect(submitBody.getAll('ocr_lang')).toEqual(['auto']);
   });
 

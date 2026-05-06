@@ -166,6 +166,7 @@ export function chunkMarkdown(
         id: `${documentId}:${index}`,
         text: piece,
         section: section.heading,
+        sectionPath: section.heading !== null ? [section.heading] : [],
         pageNumber: null,
         pageStart: null,
         pageEnd: null,
@@ -225,15 +226,28 @@ export function chunkStructuredElements(
 
   type Pending = {
     section: string | null;
+    sectionPath: string[];
     items: StructuredElement[];
   };
+
+  function deriveSectionPath(element: StructuredElement, headingText: string): string[] {
+    if (Array.isArray(element.sectionPath) && element.sectionPath.length > 0) {
+      return element.sectionPath;
+    }
+
+    if (element.section !== null && element.section.trim().length > 0) {
+      return element.section.split(' > ').map(part => part.trim()).filter(part => part.length > 0);
+    }
+
+    return headingText.length > 0 ? [headingText] : [];
+  }
 
   // Group consecutive elements by their section. A `title` element
   // opens a new section; following elements until the next title share
   // it. The title text is *not* included in the chunk body so search
   // hits land on actual prose, but it is recorded in `section`.
   const groups: Pending[] = [];
-  let current: Pending = { section: null, items: [] };
+  let current: Pending = { section: null, sectionPath: [], items: [] };
 
   for (const element of elements) {
     if (element.type === 'title') {
@@ -241,8 +255,10 @@ export function chunkStructuredElements(
         groups.push(current);
       }
       const headingText = element.text.trim();
+      const sectionPath = deriveSectionPath(element, headingText);
       current = {
-        section: headingText.length > 0 ? headingText : element.section,
+        section: element.section ?? (headingText.length > 0 ? headingText : null),
+        sectionPath,
         items: [],
       };
       continue;
@@ -270,6 +286,7 @@ export function chunkStructuredElements(
       const chunk = buildChunkFromBucket({
         bucket,
         section: group.section,
+        sectionPath: group.sectionPath,
         documentId,
         index,
       });
@@ -357,11 +374,13 @@ function renderElementSurrogate(element: StructuredElement): string {
 function buildChunkFromBucket({
   bucket,
   section,
+  sectionPath,
   documentId,
   index,
 }: {
   bucket: StructuredElement[];
   section: string | null;
+  sectionPath: string[];
   documentId: string;
   index: number;
 }): ParsedChunk {
@@ -395,6 +414,26 @@ function buildChunkFromBucket({
     .filter((value): value is NonNullable<StructuredElement['image']> => value !== null);
 
   const sourceElementIds = bucket.map(item => item.elementId);
+  const imageProvenance = bucket
+    .filter(item => item.image !== null)
+    .map(item => ({
+      elementId: item.elementId,
+      pageNumber: item.pageNumber,
+      bbox:
+        item.pageNumber !== null && item.bbox !== null
+          ? { pageNumber: item.pageNumber, ...item.bbox }
+          : null,
+    }));
+  const tableProvenance = bucket
+    .filter(item => item.tableHtml !== null && item.tableHtml.length > 0)
+    .map(item => ({
+      elementId: item.elementId,
+      pageNumber: item.pageNumber,
+      bbox:
+        item.pageNumber !== null && item.bbox !== null
+          ? { pageNumber: item.pageNumber, ...item.bbox }
+          : null,
+    }));
 
   // The first non-null parent_id wins. Parsers that emit repeated
   // parent for every element under a title, so this is stable.
@@ -414,6 +453,7 @@ function buildChunkFromBucket({
     id: `${documentId}:${index}`,
     text,
     section,
+    sectionPath,
     pageNumber: pageStart,
     pageStart,
     pageEnd,
@@ -430,6 +470,8 @@ function buildChunkFromBucket({
       index,
       tokenCount: estimateTokens(text),
       elementCount: bucket.length,
+      ...(imageProvenance.length > 0 ? { imageProvenance } : {}),
+      ...(tableProvenance.length > 0 ? { tableProvenance } : {}),
     },
   };
 }

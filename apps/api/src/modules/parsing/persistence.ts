@@ -68,6 +68,30 @@ function vectorToSqlLiteral(vector: number[]) {
   return `[${vector.join(',')}]`;
 }
 
+type AssetProvenance = {
+  elementId?: string;
+  pageNumber?: number | null;
+  bbox?: {
+    pageNumber: number;
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    layoutWidth: number;
+    layoutHeight: number;
+    system: string;
+  } | null;
+};
+
+function readAssetProvenance(metadata: ParsedChunk['metadata'], key: 'imageProvenance' | 'tableProvenance') {
+  const value = metadata[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is AssetProvenance => typeof entry === 'object' && entry !== null);
+}
+
 async function buildImageAssetRow({
   chunk,
   chunkId,
@@ -110,7 +134,9 @@ async function buildImageAssetRow({
   // Bounding box: prefer the chunk's first matching bbox on the same
   // page. The chunk-level bounding boxes are page-tagged so we can
   // pick deterministically without re-walking elements.
-  const bbox = chunk.boundingBoxes[imageIndex] ?? null;
+  const provenance = readAssetProvenance(chunk.metadata, 'imageProvenance')[imageIndex];
+  const bbox = provenance?.bbox ?? chunk.boundingBoxes[imageIndex] ?? null;
+  const pageNumber = provenance?.pageNumber ?? chunk.pageStart;
 
   return {
     id: newAssetId(),
@@ -121,7 +147,8 @@ async function buildImageAssetRow({
     mimeType: image.mimeType,
     storageKey,
     inlinePayload: null,
-    pageNumber: chunk.pageStart,
+    sourceElementId: provenance?.elementId ?? null,
+    pageNumber,
     bbox,
     byteSize: image.data.length,
     sha256Hash: sha,
@@ -150,6 +177,9 @@ async function buildTableAssetRow({
   const html = chunk.tablesHtml[tableIndex]!;
   const htmlBytes = Buffer.byteLength(html, 'utf8');
   const sha = sha256Hex(html);
+  const provenance = readAssetProvenance(chunk.metadata, 'tableProvenance')[tableIndex];
+  const pageNumber = provenance?.pageNumber ?? chunk.pageStart;
+  const bbox = provenance?.bbox ?? null;
 
   // Inline path keeps small tables next to the chunk for fast retrieval
   // and avoids one storage read per citation. Inline payloads are not
@@ -165,8 +195,9 @@ async function buildTableAssetRow({
       mimeType: 'text/html',
       storageKey: null,
       inlinePayload: html,
-      pageNumber: chunk.pageStart,
-      bbox: null,
+      sourceElementId: provenance?.elementId ?? null,
+      pageNumber,
+      bbox,
       byteSize: htmlBytes,
       sha256Hash: sha,
       fileEncryptionKeyWrapped: null,
@@ -202,8 +233,9 @@ async function buildTableAssetRow({
     mimeType: 'text/html',
     storageKey,
     inlinePayload: null,
-    pageNumber: chunk.pageStart,
-    bbox: null,
+    sourceElementId: provenance?.elementId ?? null,
+    pageNumber,
+    bbox,
     byteSize: htmlBytes,
     sha256Hash: sha,
     fileEncryptionKeyWrapped: wrappedDek,
@@ -261,6 +293,7 @@ export async function persistParsedDocument({
             chunkKey: chunk.id,
             content: chunk.text,
             section: chunk.section,
+            sectionPath: chunk.sectionPath,
             pageNumber: chunk.pageNumber,
             chunkType: chunk.type,
             tokenCount:
@@ -352,6 +385,8 @@ export async function persistParsedDocument({
       .set({
         content: parsed.text,
         rawText: parsed.rawText,
+        rawMarkdown: parsed.rawMarkdown,
+        parserStructuredOutput: parsed.rawStructuredOutput,
         parserEngine: parsed.engine,
         parserEngineVersion: parsed.engineVersion,
         parserWarnings: parsed.warnings,

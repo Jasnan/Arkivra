@@ -79,6 +79,8 @@ describe('document search services', () => {
         {
           chunk_id: 'chk_1',
           document_id: 'doc_1',
+          vault_id: 'vlt_1',
+          vault_name: 'Finance',
           document_name: 'Quarterly Report',
           page_start: 2,
           page_end: 3,
@@ -126,10 +128,13 @@ describe('document search services', () => {
       {
         chunkId: 'chk_1',
         documentId: 'doc_1',
+        vaultId: 'vlt_1',
+        vaultName: 'Finance',
         documentName: 'Quarterly Report',
         pageStart: 2,
         pageEnd: 3,
         section: 'Revenue',
+        sectionPath: [],
         snippet: 'Revenue increased to 42',
         boundingBoxes: [
           {

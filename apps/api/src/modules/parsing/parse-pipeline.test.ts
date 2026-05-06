@@ -55,13 +55,21 @@ const input: ParseInput = {
 describe('parse pipeline', () => {
   test('preserves raw parser output alongside cleaned text', async () => {
     const { pipeline } = makePipeline(
-      { text: 'Dirty  \ntext', markdown: '' },
+      {
+        text: 'Dirty  \ntext',
+        markdown: '',
+        rawStructuredOutput: { schema_name: 'DoclingDocument', texts: [] },
+      },
       createDeterministicTextCleaner(),
     );
 
     const parsed = await pipeline.run(input);
 
     expect(parsed.rawText).toBe('Dirty  \ntext');
+    expect(parsed.rawStructuredOutput).toEqual({
+      schema_name: 'DoclingDocument',
+      texts: [],
+    });
     expect(parsed.text).not.toBe(parsed.rawText);
     expect(parsed.text.includes('  ')).toBe(false);
   });
@@ -247,6 +255,7 @@ describe('parse pipeline', () => {
     const chunk = parsed.chunks[0]!;
 
     expect(chunk.section).toBe('Methods');
+    expect(chunk.sectionPath).toEqual(['Methods']);
     expect(chunk.pageStart).toBe(1);
     expect(chunk.pageEnd).toBe(2);
     expect(chunk.tablesHtml).toEqual([tableHtml]);

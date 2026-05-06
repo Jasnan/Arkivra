@@ -3,6 +3,164 @@ import type { DoclingConvertResponse } from './docling.schema.js';
 import { describe, expect, test, vi } from 'vitest';
 import { createDoclingParser } from './docling.parser.js';
 
+const DOCILING_JSON_FIXTURE = {
+  schema_name: 'DoclingDocument',
+  body: {
+    children: [
+      { cref: '#/texts/0' },
+    ],
+  },
+  pages: {
+    1: {
+      size: { width: 612, height: 792 },
+    },
+    2: {
+      size: { width: 612, height: 792 },
+    },
+  },
+  texts: [
+    {
+      self_ref: '#/texts/0',
+      label: 'section_header',
+      text: 'Balance Sheet',
+      parent: { cref: '#/body' },
+      children: [
+        { cref: '#/tables/0' },
+        { cref: '#/pictures/0' },
+      ],
+      prov: [
+        {
+          page_no: 1,
+          bbox: {
+            l: 72,
+            t: 54,
+            r: 220,
+            b: 90,
+            coord_origin: 'TOPLEFT',
+          },
+        },
+      ],
+    },
+    {
+      self_ref: '#/texts/1',
+      label: 'caption',
+      text: 'Table 1. Asset breakdown',
+      parent: { cref: '#/tables/0' },
+      children: [],
+      prov: [
+        {
+          page_no: 1,
+          bbox: {
+            l: 72,
+            t: 320,
+            r: 260,
+            b: 340,
+            coord_origin: 'TOPLEFT',
+          },
+        },
+      ],
+    },
+    {
+      self_ref: '#/texts/2',
+      label: 'caption',
+      text: 'Figure 1. Consolidated totals',
+      parent: { cref: '#/pictures/0' },
+      children: [],
+      prov: [
+        {
+          page_no: 2,
+          bbox: {
+            l: 80,
+            t: 420,
+            r: 280,
+            b: 440,
+            coord_origin: 'TOPLEFT',
+          },
+        },
+      ],
+    },
+  ],
+  tables: [
+    {
+      self_ref: '#/tables/0',
+      parent: { cref: '#/texts/0' },
+      children: [],
+      captions: [{ cref: '#/texts/1' }],
+      data: {
+        table_cells: [
+          {
+            start_row_offset_idx: 0,
+            end_row_offset_idx: 1,
+            start_col_offset_idx: 0,
+            end_col_offset_idx: 1,
+            text: 'Asset',
+            column_header: true,
+          },
+          {
+            start_row_offset_idx: 0,
+            end_row_offset_idx: 1,
+            start_col_offset_idx: 1,
+            end_col_offset_idx: 2,
+            text: 'Value',
+            column_header: true,
+          },
+          {
+            start_row_offset_idx: 1,
+            end_row_offset_idx: 2,
+            start_col_offset_idx: 0,
+            end_col_offset_idx: 1,
+            text: 'Cash',
+          },
+          {
+            start_row_offset_idx: 1,
+            end_row_offset_idx: 2,
+            start_col_offset_idx: 1,
+            end_col_offset_idx: 2,
+            text: '100',
+          },
+        ],
+      },
+      prov: [
+        {
+          page_no: 1,
+          bbox: {
+            l: 72,
+            t: 180,
+            r: 340,
+            b: 300,
+            coord_origin: 'TOPLEFT',
+          },
+        },
+      ],
+    },
+  ],
+  pictures: [
+    {
+      self_ref: '#/pictures/0',
+      parent: { cref: '#/texts/0' },
+      children: [],
+      captions: [{ cref: '#/texts/2' }],
+      image: {
+        mimetype: 'image/png',
+        uri: 'data:image/png;base64,aW1hZ2UtYnl0ZXM=',
+      },
+      prov: [
+        {
+          page_no: 2,
+          bbox: {
+            l: 72,
+            t: 360,
+            r: 340,
+            b: 520,
+            coord_origin: 'TOPLEFT',
+          },
+        },
+      ],
+    },
+  ],
+  groups: [],
+};
+
 function makeDoclingResponse(
   overrides: Partial<DoclingConvertResponse> = {},
 ): DoclingConvertResponse {
@@ -10,7 +168,7 @@ function makeDoclingResponse(
     document: {
       md_content: '# Title\n\nParagraph one.\n\n## Section\n\nParagraph two.',
       text_content: 'Title\nParagraph one.\nSection\nParagraph two.',
-      json_content: {},
+      json_content: DOCILING_JSON_FIXTURE,
       html_content: '',
       doctags_content: '',
     },
@@ -44,8 +202,72 @@ describe('docling parser adapter', () => {
     expect(output.engineVersion).toBe('v1');
     expect(output.markdown).toContain('Title');
     expect(output.text).toContain('Paragraph one');
+    expect(output.rawStructuredOutput).toEqual(DOCILING_JSON_FIXTURE);
+    expect(output.structuredElements).toBeDefined();
     expect(output).not.toHaveProperty('chunks');
     expect(output).not.toHaveProperty('documentId');
+  });
+
+  test('maps Docling json_content into structured elements, tables, and images', async () => {
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeDoclingResponse({
+        document: {
+          md_content: '',
+          text_content: '',
+          json_content: DOCILING_JSON_FIXTURE,
+          html_content: '',
+          doctags_content: '',
+        },
+      })),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_structured',
+      fileName: 'f.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.structuredElements).toBeDefined();
+    expect(output.structuredElements).toHaveLength(3);
+    expect(output.structuredElements?.[0]).toMatchObject({
+      elementId: '#/texts/0',
+      type: 'title',
+      text: 'Balance Sheet',
+      section: 'Balance Sheet',
+      pageNumber: 1,
+      bbox: {
+        x0: 72,
+        y0: 54,
+        x1: 220,
+        y1: 90,
+        layoutWidth: 612,
+        layoutHeight: 792,
+        system: 'PixelSpace',
+      },
+    });
+    expect(output.structuredElements?.[1]).toMatchObject({
+      elementId: '#/tables/0',
+      type: 'table',
+      section: 'Balance Sheet',
+      pageNumber: 1,
+    });
+    expect(output.structuredElements?.[1]?.text).toContain('Table 1. Asset breakdown');
+    expect(output.structuredElements?.[1]?.text).toContain('Cash | 100');
+    expect(output.structuredElements?.[1]?.tableHtml).toContain('<table>');
+    expect(output.structuredElements?.[2]).toMatchObject({
+      elementId: '#/pictures/0',
+      type: 'image',
+      text: 'Figure 1. Consolidated totals',
+      section: 'Balance Sheet',
+      pageNumber: 2,
+    });
+    expect(output.structuredElements?.[2]?.image?.mimeType).toBe('image/png');
+    expect(output.structuredElements?.[2]?.image?.data.toString()).toBe('image-bytes');
+    expect(output.embeddedImages).toHaveLength(1);
+    expect(output.rawStructuredOutput).toEqual(DOCILING_JSON_FIXTURE);
+    expect(output.text).toContain('Balance Sheet');
+    expect(output.text).toContain('Asset | Value');
   });
 
   test('strips data URIs and markdown images from extracted text', async () => {
@@ -57,7 +279,7 @@ describe('docling parser adapter', () => {
               '# Title\n\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\n\nParagraph one.',
             text_content:
               'Title\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\nParagraph one.',
-            json_content: {},
+            json_content: null,
             html_content: '',
             doctags_content: '',
           },
@@ -101,12 +323,12 @@ describe('docling parser adapter', () => {
   test('tolerates Docling returning null for unrequested format fields', async () => {
     const rawResponse = {
       document: {
-        md_content: null,
-        text_content: 'plain text only',
-        json_content: {},
-        html_content: null,
-        doctags_content: null,
-      },
+            md_content: null,
+            text_content: 'plain text only',
+            json_content: null,
+            html_content: null,
+            doctags_content: null,
+          },
       status: 'success',
       processing_time: 0.1,
       errors: [],
@@ -136,7 +358,7 @@ describe('docling parser adapter', () => {
           document: {
             md_content: '# Title\n\nParagraph one.\n\n- Bullet item',
             text_content: '',
-            json_content: {},
+            json_content: null,
             html_content: '',
             doctags_content: '',
           },
@@ -153,6 +375,33 @@ describe('docling parser adapter', () => {
 
     expect(output.markdown).toContain('# Title');
     expect(output.text).toBe('Title\n\nParagraph one.\n\nBullet item');
+  });
+
+  test('falls back to markdown parsing and records a warning when structured mapping fails', async () => {
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(
+        makeDoclingResponse({
+          document: {
+            md_content: '# Title\n\nParagraph one.',
+            text_content: '',
+            json_content: 'not json',
+            html_content: '',
+            doctags_content: '',
+          },
+        }),
+      ),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_bad_json',
+      fileName: 'f.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.structuredElements).toBeUndefined();
+    expect(output.text).toBe('Title\n\nParagraph one.');
+    expect(output.warnings.some(warning => warning.startsWith('docling.structured_mapping_failed:'))).toBe(true);
   });
 
   test('reports engine-version from adapter options', async () => {

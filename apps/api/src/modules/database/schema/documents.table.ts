@@ -34,6 +34,8 @@ export const documentsTable = pgTable(
     mimeType: text('mime_type').notNull(),
     content: text('content').notNull().default(''),
     rawText: text('raw_text').notNull().default(''),
+    rawMarkdown: text('raw_markdown').notNull().default(''),
+    parserStructuredOutput: jsonb('parser_structured_output').$type<Record<string, unknown>>(),
     parserEngine: text('parser_engine'),
     parserEngineVersion: text('parser_engine_version'),
     parserWarnings: jsonb('parser_warnings').$type<string[]>(),

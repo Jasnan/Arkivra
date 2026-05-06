@@ -22,6 +22,7 @@ function makeElement(overrides: Partial<StructuredElement> & { elementId: string
     pageNumber: null,
     bbox: null,
     section: null,
+    sectionPath: undefined,
     ...overrides,
   };
 }
@@ -51,6 +52,7 @@ Experimental results here.`;
 
     const chunks = chunkMarkdown(md, { documentId: 'd' });
     expect(chunks[0]!.section).toBe('Introduction');
+    expect(chunks[0]!.sectionPath).toEqual(['Introduction']);
     // Results section may span one or more chunks
     const resultsChunks = chunks.filter((c) => c.section === 'Results');
     expect(resultsChunks.length).toBeGreaterThan(0);
@@ -111,6 +113,7 @@ First paragraph.
     expect(chunks[0]!.text).toBe('Hello world, this is a test document.');
     expect(chunks[0]!.type).toBe('paragraph');
     expect(chunks[0]!.section).toBeNull();
+    expect(chunks[0]!.sectionPath).toEqual([]);
   });
 
   test('splits markdown by headings into multiple chunks', () => {
@@ -156,6 +159,7 @@ That was the code.`;
     for (const chunk of chunks) {
       expect(chunk.pageStart).toBeNull();
       expect(chunk.pageEnd).toBeNull();
+      expect(chunk.sectionPath).toEqual(['Section']);
       expect(chunk.boundingBoxes).toEqual([]);
       expect(chunk.sourceElementIds).toEqual([]);
       expect(chunk.parentElementId).toBeNull();
@@ -211,11 +215,13 @@ describe('chunkStructuredElements', () => {
 
     expect(chunks).toHaveLength(2);
     expect(chunks[0]?.section).toBe('Methods');
+    expect(chunks[0]?.sectionPath).toEqual(['Methods']);
     expect(chunks[0]?.text).toContain('translation tasks');
     expect(chunks[0]?.sourceElementIds).toEqual(['el-2']);
     expect(chunks[0]?.parentElementId).toBe('el-1');
 
     expect(chunks[1]?.section).toBe('Results');
+    expect(chunks[1]?.sectionPath).toEqual(['Results']);
     expect(chunks[1]?.text).toContain('BLEU 28.4');
     expect(chunks[1]?.sourceElementIds).toEqual(['el-4']);
   });
@@ -256,6 +262,90 @@ describe('chunkStructuredElements', () => {
     expect(chunks[0]?.boundingBoxes[0]?.pageNumber).toBe(1);
     expect(chunks[0]?.boundingBoxes[2]?.pageNumber).toBe(3);
     expect(chunks[0]?.citationPrecision).toBe('box');
+  });
+
+  test('prefers structured section lineage when title elements carry it', () => {
+    const elements: StructuredElement[] = [
+      makeElement({
+        elementId: 'el-1',
+        type: 'title',
+        text: 'Assets',
+        section: 'Financial Statements > Balance Sheet > Assets',
+        sectionPath: ['Financial Statements', 'Balance Sheet', 'Assets'],
+        pageNumber: 1,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'narrative',
+        text: 'Cash and cash equivalents.',
+        section: 'Financial Statements > Balance Sheet > Assets',
+        sectionPath: ['Financial Statements', 'Balance Sheet', 'Assets'],
+        pageNumber: 1,
+        bbox: PIXEL_BBOX,
+        parentId: 'el-1',
+      }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.section).toBe('Financial Statements > Balance Sheet > Assets');
+    expect(chunks[0]?.sectionPath).toEqual(['Financial Statements', 'Balance Sheet', 'Assets']);
+  });
+
+  test('stores asset provenance metadata for image and table elements', () => {
+    const tableHtml = '<table><tbody><tr><td>42</td></tr></tbody></table>';
+    const elements: StructuredElement[] = [
+      makeElement({
+        elementId: 'el-1',
+        type: 'title',
+        text: 'Results',
+        pageNumber: 2,
+        bbox: PIXEL_BBOX,
+      }),
+      makeElement({
+        elementId: 'el-2',
+        type: 'table',
+        text: 'Metric | Value\nBLEU | 42',
+        tableHtml,
+        pageNumber: 2,
+        bbox: PIXEL_BBOX,
+        parentId: 'el-1',
+      }),
+      makeElement({
+        elementId: 'el-3',
+        type: 'image',
+        text: 'Figure 1',
+        image: { mimeType: 'image/png', data: Buffer.from('img') },
+        pageNumber: 3,
+        bbox: { ...PIXEL_BBOX, y0: 100, y1: 200 },
+        parentId: 'el-1',
+      }),
+    ];
+
+    const chunks = chunkStructuredElements(elements, { documentId: 'd' });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.metadata.tableProvenance).toEqual([
+      {
+        elementId: 'el-2',
+        pageNumber: 2,
+        bbox: { pageNumber: 2, ...PIXEL_BBOX },
+      },
+    ]);
+    expect(chunks[0]?.metadata.imageProvenance).toEqual([
+      {
+        elementId: 'el-3',
+        pageNumber: 3,
+        bbox: {
+          pageNumber: 3,
+          ...PIXEL_BBOX,
+          y0: 100,
+          y1: 200,
+        },
+      },
+    ]);
   });
 
   test('captures tables inside the section and surfaces their HTML on the chunk', () => {

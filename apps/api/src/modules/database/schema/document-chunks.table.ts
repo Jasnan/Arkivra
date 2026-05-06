@@ -29,6 +29,7 @@ export const documentChunksTable = pgTable(
     chunkKey: text('chunk_key').notNull(),
     content: text('content').notNull(),
     section: text('section'),
+    sectionPath: jsonb('section_path').$type<string[]>(),
     pageNumber: integer('page_number'),
     chunkType: text('chunk_type'),
     tokenCount: integer('token_count'),

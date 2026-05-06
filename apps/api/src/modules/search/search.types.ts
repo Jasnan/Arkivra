@@ -74,6 +74,7 @@ export type Citation = {
   pageStart: number | null;
   pageEnd: number | null;
   section: string | null;
+  sectionPath?: string[];
   snippet: string;
   boundingBoxes: CitationBoundingBox[];
   citationPrecision: 'box' | 'page' | 'document';

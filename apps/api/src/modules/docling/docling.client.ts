@@ -12,14 +12,14 @@ export type { DoclingConvertResponse } from '../parsing/adapters/docling.schema.
 export type DoclingClient = ReturnType<typeof createDoclingClient>;
 
 export type DoclingConvertOptions = {
-  toFormats: string;
+  toFormats: string[];
   doOcr: boolean;
   ocrEngine: string;
   ocrLang: string[];
 };
 
 export const DEFAULT_DOCLING_CONVERT_OPTIONS: DoclingConvertOptions = {
-  toFormats: 'md',
+  toFormats: ['json', 'md'],
   doOcr: true,
   ocrEngine: 'tesseract',
   ocrLang: ['deu', 'eng'],
@@ -90,7 +90,9 @@ export function createDoclingClient({
     const blob = new Blob([fileData], { type: mimeType });
 
     formData.append('files', blob, fileName);
-    formData.append('to_formats', effectiveConvertOptions.toFormats);
+    for (const format of effectiveConvertOptions.toFormats) {
+      formData.append('to_formats', format);
+    }
     formData.append('include_images', 'true');
     formData.append('image_export_mode', 'embedded');
     formData.append('do_ocr', String(effectiveConvertOptions.doOcr));

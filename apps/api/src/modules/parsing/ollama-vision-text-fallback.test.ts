@@ -66,6 +66,7 @@ describe('ollama vision text fallback', () => {
         pageNumber: 1,
         bbox: null,
         section: null,
+        sectionPath: [],
       },
     ]);
   });

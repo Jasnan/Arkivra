@@ -129,6 +129,7 @@ export function createParsePipeline({
       markdown: normalized.markdown,
       rawText: raw.text,
       rawMarkdown: raw.markdown,
+      rawStructuredOutput: raw.rawStructuredOutput,
       chunks,
       warnings: pipelineWarnings,
     };

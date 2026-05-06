@@ -95,7 +95,8 @@ describe.sequential('migrations smoke', () => {
             'parent_element_id',
             'original_text',
             'tables_html',
-            'citation_precision'
+            'citation_precision',
+            'section_path'
           )
       `,
     );
@@ -111,6 +112,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.bounding_boxes?.data_type).toBe('jsonb');
     expect(byName.source_element_ids?.data_type).toBe('jsonb');
     expect(byName.tables_html?.data_type).toBe('jsonb');
+    expect(byName.section_path?.data_type).toBe('jsonb');
 
     expect(byName.parent_element_id?.data_type).toBe('text');
     expect(byName.original_text?.data_type).toBe('text');
@@ -169,6 +171,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.mime_type?.is_nullable).toBe('YES');
     expect(byName.storage_key?.is_nullable).toBe('YES');
     expect(byName.inline_payload?.is_nullable).toBe('YES');
+    expect(byName.source_element_id?.data_type).toBe('text');
     expect(byName.bbox?.data_type).toBe('jsonb');
     expect(byName.byte_size?.data_type).toBe('integer');
     expect(byName.page_number?.data_type).toBe('integer');
@@ -283,6 +286,86 @@ describe.sequential('migrations smoke', () => {
 
     expect(byName.ollama_embedding_dimensions?.data_type).toBe('integer');
     expect(byName.ollama_embedding_dimensions?.column_default).toContain('1024');
+  });
+
+  test('0004 adds raw markdown and structured parser artifacts columns to documents', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'documents'
+          AND column_name IN (
+            'raw_text',
+            'raw_markdown',
+            'parser_structured_output'
+          )
+      `,
+    );
+
+    const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
+
+    expect(byName.raw_text?.data_type).toBe('text');
+    expect(byName.raw_text?.is_nullable).toBe('NO');
+    expect(byName.raw_text?.column_default).toContain("''");
+
+    expect(byName.raw_markdown?.data_type).toBe('text');
+    expect(byName.raw_markdown?.is_nullable).toBe('NO');
+    expect(byName.raw_markdown?.column_default).toContain("''");
+
+    expect(byName.parser_structured_output?.data_type).toBe('jsonb');
+    expect(byName.parser_structured_output?.is_nullable).toBe('YES');
+  });
+
+  test('0005 adds chunk section lineage and durable asset source element ids', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: chunkRows } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'document_chunks'
+          AND column_name IN ('section_path')
+      `,
+    );
+
+    const chunkByName = Object.fromEntries(chunkRows.map((row) => [row.column_name, row]));
+    expect(chunkByName.section_path?.data_type).toBe('jsonb');
+    expect(chunkByName.section_path?.is_nullable).toBe('YES');
+
+    const { rows: assetRows } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'document_chunk_assets'
+          AND column_name IN ('source_element_id')
+      `,
+    );
+
+    const assetByName = Object.fromEntries(assetRows.map((row) => [row.column_name, row]));
+    expect(assetByName.source_element_id?.data_type).toBe('text');
+    expect(assetByName.source_element_id?.is_nullable).toBe('YES');
   });
 
   test('0012 adds encryption metadata columns to document_chunk_assets', async () => {

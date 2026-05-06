@@ -56,6 +56,7 @@ export const structuredElementSchema = z.object({
   pageNumber: z.number().int().min(1).nullable(),
   bbox: structuredElementBboxSchema.nullable(),
   section: z.string().nullable(),
+  sectionPath: z.array(z.string()).optional(),
 });
 
 export type StructuredElement = z.infer<typeof structuredElementSchema>;
@@ -90,6 +91,7 @@ export const parsedChunkSchema = z.object({
    */
   text: z.string(),
   section: z.string().nullable(),
+  sectionPath: z.array(z.string()).optional(),
   /** Legacy single page number; preserved for back-compat. New chunks
    *  should also populate `pageStart` / `pageEnd`. */
   pageNumber: z.number().int().min(1).nullable(),
@@ -134,6 +136,8 @@ export const parserOutputSchema = z.object({
   /** Raw markdown as emitted by the engine, after engine-specific sanitization. */
   markdown: z.string(),
   embeddedImages: z.array(parserEmbeddedImageSchema).optional(),
+  /** Raw parser-native structured artifact preserved for reprocessing. */
+  rawStructuredOutput: z.record(z.string(), z.unknown()).optional(),
   /**
    * Optional provenance-preserving element list. Parsers that can emit
    * page numbers, bounding boxes, and element ids (e.g. a layout-aware
@@ -159,6 +163,8 @@ export const parsedDocumentSchema = z.object({
   rawText: z.string(),
   /** Raw markdown exactly as the engine returned it — preserved for audit. */
   rawMarkdown: z.string(),
+  /** Raw parser-native structured artifact preserved for reprocessing. */
+  rawStructuredOutput: z.record(z.string(), z.unknown()).optional(),
   chunks: z.array(parsedChunkSchema),
   warnings: z.array(z.string()),
 });

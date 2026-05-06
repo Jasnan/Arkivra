@@ -208,7 +208,7 @@ export function chunkMarkdown(
  *     otherwise `'page'` if every element has a page number,
  *     otherwise `'document'`.
  *
- * The chunker is parser-agnostic — both the Unstructured adapter and
+ * The chunker is parser-agnostic — both the Docling adapter and
  * the vision fallback can feed it.
  */
 export function chunkStructuredElements(
@@ -396,7 +396,7 @@ function buildChunkFromBucket({
 
   const sourceElementIds = bucket.map(item => item.elementId);
 
-  // The first non-null parent_id wins. Unstructured emits the same
+  // The first non-null parent_id wins. Parsers that emit repeated
   // parent for every element under a title, so this is stable.
   const parentElementId = bucket.find(item => item.parentId !== null)?.parentId ?? null;
 

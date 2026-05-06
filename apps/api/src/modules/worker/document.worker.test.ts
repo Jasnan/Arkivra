@@ -20,8 +20,8 @@ vi.mock('../parsing/persistence.js', () => ({
 function makeParsedDocument(): ParsedDocument {
   return {
     documentId: 'doc_1',
-    engine: 'unstructured',
-    engineVersion: 'api-v1',
+    engine: 'docling',
+    engineVersion: 'v1',
     text: 'Clean text',
     markdown: '# Title\n\nParagraph one.',
     rawText: 'Raw text',

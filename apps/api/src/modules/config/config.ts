@@ -82,82 +82,18 @@ export const configDefinition = {
       env: 'ARKIVRA_BACKUPS_MAINTENANCE_FLAG_FILE',
     },
   },
-  unstructured: {
+  docling: {
     url: {
-      doc: 'Unstructured HTTP partition API base URL.',
+      doc: 'Docling HTTP API base URL.',
       schema: z.string().url(),
-      default: 'http://localhost:8000',
-      env: 'ARKIVRA_UNSTRUCTURED_URL',
-    },
-    apiKey: {
-      doc: 'Optional API key for hosted or self-hosted Unstructured API instances that require request validation.',
-      schema: z.string().optional(),
-      default: undefined,
-      env: 'ARKIVRA_UNSTRUCTURED_API_KEY',
-    },
-    strategy: {
-      doc: 'Unstructured partitioning strategy. `hi_res` matches the reference RAG notebook.',
-      schema: z.enum(['fast', 'hi_res', 'auto', 'ocr_only', 'od_only', 'vlm']),
-      default: 'hi_res' as const,
-      env: 'ARKIVRA_UNSTRUCTURED_STRATEGY',
-    },
-    languages: {
-      doc: 'Comma-separated OCR languages passed to Unstructured.',
-      schema: z.string().transform((value) =>
-        value
-          .split(',')
-          .map((v) => v.trim())
-          .filter(Boolean),
-      ),
-      default: 'deu,eng',
-      env: 'ARKIVRA_UNSTRUCTURED_LANGUAGES',
-    },
-    inferTableStructure: {
-      doc: 'Whether Unstructured should infer PDF table structure and return table HTML metadata.',
-      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
-      default: true,
-      env: 'ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE',
-    },
-    extractImageBlockTypes: {
-      doc: 'Comma-separated Unstructured element types to extract as base64 image payloads.',
-      schema: z.string().transform((value) =>
-        value
-          .split(',')
-          .map((v) => v.trim())
-          .filter(Boolean),
-      ),
-      default: 'Image',
-      env: 'ARKIVRA_UNSTRUCTURED_EXTRACT_IMAGE_BLOCK_TYPES',
+      default: 'http://localhost:5001',
+      env: 'ARKIVRA_DOCLING_URL',
     },
     engineVersion: {
-      doc: 'Unstructured API/image version recorded on parsed documents for provenance.',
+      doc: 'Docling API/image version recorded on parsed documents for provenance.',
       schema: z.string().min(1),
-      default: 'api-v1',
-      env: 'ARKIVRA_UNSTRUCTURED_ENGINE_VERSION',
-    },
-    splitPdfPage: {
-      doc: 'Whether Arkivra should split PDF files into smaller page batches before sending them to Unstructured.',
-      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
-      default: true,
-      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_PAGE',
-    },
-    splitPdfAllowFailed: {
-      doc: 'Whether Arkivra should continue Unstructured PDF processing when an individual page batch fails.',
-      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
-      default: false,
-      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_ALLOW_FAILED',
-    },
-    splitPdfConcurrencyLevel: {
-      doc: 'Number of Unstructured PDF page batches Arkivra sends concurrently.',
-      schema: z.coerce.number().int().min(1).max(15),
-      default: 5,
-      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_CONCURRENCY',
-    },
-    splitPdfBatchSize: {
-      doc: 'Number of PDF pages Arkivra includes in each Unstructured partition request.',
-      schema: z.coerce.number().int().min(1).max(50),
-      default: 20,
-      env: 'ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE',
+      default: 'v1',
+      env: 'ARKIVRA_DOCLING_ENGINE_VERSION',
     },
   },
   parsers: {
@@ -174,7 +110,7 @@ export const configDefinition = {
       env: 'ARKIVRA_PARSER_GLUED_WORD_NORMALIZATION',
     },
     emptyTextFallback: {
-      doc: 'Optional recovery path when Unstructured returns no text. `ollama_vision` sends embedded or rendered page images to the configured Ollama model and uses the returned transcription; `none` disables this fallback.',
+      doc: 'Optional recovery path when Docling returns no text. `ollama_vision` sends embedded or rendered page images to the configured Ollama model and uses the returned transcription; `none` disables this fallback.',
       schema: z.enum(['none', 'ollama_vision']),
       default: 'ollama_vision' as const,
       env: 'ARKIVRA_PARSER_EMPTY_TEXT_FALLBACK',
@@ -192,24 +128,6 @@ export const configDefinition = {
       schema: z.string().min(1),
       default: 'gemma4:e4b',
       env: 'ARKIVRA_OLLAMA_MODEL',
-    },
-    gluedWordMinTokenLength: {
-      doc: 'Legacy setting retained for existing admin settings; whole-document AI normalization ignores this value.',
-      schema: z.coerce.number().int().min(4).max(128),
-      default: 12,
-      env: 'ARKIVRA_OLLAMA_GLUED_WORD_MIN_TOKEN_LENGTH',
-    },
-    gluedWordMaxCandidates: {
-      doc: 'Legacy setting retained for existing admin settings; whole-document AI normalization ignores this value.',
-      schema: z.coerce.number().int().min(1).max(1000),
-      default: 100,
-      env: 'ARKIVRA_OLLAMA_GLUED_WORD_MAX_CANDIDATES',
-    },
-    gluedWordBatchSize: {
-      doc: 'Legacy setting retained for existing admin settings; whole-document AI normalization ignores this value.',
-      schema: z.coerce.number().int().min(1).max(200),
-      default: 10,
-      env: 'ARKIVRA_OLLAMA_GLUED_WORD_BATCH_SIZE',
     },
     aiNormalizationMaxInputChars: {
       doc: 'Maximum cleaned parser text length sent to Ollama identity-document normalization. Set 0 to disable this length guard.',

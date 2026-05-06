@@ -22,17 +22,17 @@ function makeParser(engine: ParserEngine, version = 'v1'): DocumentParser {
 
 describe('parser registry', () => {
   test('returns the registered parser for a known engine', () => {
-    const parser = makeParser('unstructured');
-    const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'unstructured' });
+    const parser = makeParser('docling');
+    const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'docling' });
 
-    expect(registry.get('unstructured')).toBe(parser);
-    expect(registry.has('unstructured')).toBe(true);
+    expect(registry.get('docling')).toBe(parser);
+    expect(registry.has('docling')).toBe(true);
   });
 
   test('throws when retrieving an unregistered engine', () => {
     const registry = createParserRegistry({
-      parsers: [makeParser('unstructured')],
-      defaultEngine: 'unstructured',
+      parsers: [makeParser('docling')],
+      defaultEngine: 'docling',
     });
 
     expect(() => registry.get('unknown' as ParserEngine)).toThrow(/not registered/);
@@ -40,43 +40,43 @@ describe('parser registry', () => {
 
   test('throws when constructed without parsers', () => {
     expect(() =>
-      createParserRegistry({ parsers: [], defaultEngine: 'unstructured' }),
+      createParserRegistry({ parsers: [], defaultEngine: 'docling' }),
     ).toThrow(/at least one parser/);
   });
 
   test('throws when the default engine is not in the list', () => {
     expect(() =>
       createParserRegistry({
-        parsers: [makeParser('unstructured')],
+        parsers: [makeParser('docling')],
         defaultEngine: 'unknown' as ParserEngine,
       }),
     ).toThrow(/not registered/);
   });
 
-  test('uses Unstructured as the default parser', () => {
-    const unstructured = makeParser('unstructured');
+  test('uses Docling as the default parser', () => {
+    const docling = makeParser('docling');
     const registry = createParserRegistry({
-      parsers: [unstructured],
-      defaultEngine: 'unstructured',
+      parsers: [docling],
+      defaultEngine: 'docling',
     });
 
-    expect(registry.getDefault()).toBe(unstructured);
-    expect(registry.has('unstructured')).toBe(true);
+    expect(registry.getDefault()).toBe(docling);
+    expect(registry.has('docling')).toBe(true);
   });
 
   test('throws when the same engine is registered twice', () => {
     expect(() =>
       createParserRegistry({
-        parsers: [makeParser('unstructured'), makeParser('unstructured', 'v2')],
-        defaultEngine: 'unstructured',
+        parsers: [makeParser('docling'), makeParser('docling', 'v2')],
+        defaultEngine: 'docling',
       }),
     ).toThrow(/Duplicate/);
   });
 
   test('getDefault returns the configured default parser', () => {
-    const unstructured = makeParser('unstructured');
-    const registry = createParserRegistry({ parsers: [unstructured], defaultEngine: 'unstructured' });
+    const docling = makeParser('docling');
+    const registry = createParserRegistry({ parsers: [docling], defaultEngine: 'docling' });
 
-    expect(registry.getDefault()).toBe(unstructured);
+    expect(registry.getDefault()).toBe(docling);
   });
 });

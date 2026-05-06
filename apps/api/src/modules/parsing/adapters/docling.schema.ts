@@ -70,3 +70,38 @@ export function normalizeDoclingTaskStatus(raw: string): InternalTaskStatus {
 export function isTerminalInternalStatus(status: InternalTaskStatus): boolean {
   return status === 'succeeded' || status === 'failed' || status === 'canceled';
 }
+
+export const doclingChunkResponseSchema = z.object({
+  chunks: z.array(
+    z.object({
+      filename: z.string(),
+      chunk_index: z.number().int(),
+      text: z.string(),
+      raw_text: z.string().nullable().optional(),
+      num_tokens: z.number().int().nullable().optional(),
+      headings: z.array(z.string()).nullable().optional(),
+      captions: z.array(z.string()).nullable().optional(),
+      doc_items: z.array(z.string()),
+      page_numbers: z.array(z.number().int().min(1)).nullable().optional(),
+      metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+    }),
+  ),
+  documents: z.array(
+    z.object({
+      kind: z.literal('ExportResult'),
+      content: z
+        .object({
+          md_content: nullableStringToEmpty,
+          text_content: nullableStringToEmpty,
+          json_content: z.unknown().optional(),
+          html_content: nullableStringToEmpty,
+          doctags_content: nullableStringToEmpty,
+        })
+        .passthrough(),
+      status: z.string().min(1),
+      errors: z.array(z.string()).optional().default([]),
+    }),
+  ),
+  processing_time: z.number().optional(),
+});
+export type DoclingChunkResponse = z.infer<typeof doclingChunkResponseSchema>;

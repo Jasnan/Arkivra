@@ -289,6 +289,63 @@ function buildDoclingFixtureResponse() {
   };
 }
 
+function buildDoclingFixtureChunkResponse() {
+  const convertResponse = buildDoclingFixtureResponse();
+  return {
+    chunks: [
+      {
+        filename: 'fixture.pdf',
+        chunk_index: 0,
+        text: 'Cash reserves increased to 120 while liabilities declined to 30.',
+        headings: ['Annual Report', 'Financial Overview'],
+        page_numbers: [1],
+        doc_items: ['#/texts/2'],
+      },
+      {
+        filename: 'fixture.pdf',
+        chunk_index: 1,
+        text: 'Table 1. Balance sheet summary\n\nAsset | Amount\nCash | 120\nLiabilities | 30',
+        headings: ['Annual Report', 'Financial Overview'],
+        page_numbers: [1],
+        doc_items: ['#/tables/0'],
+      },
+      {
+        filename: 'fixture.pdf',
+        chunk_index: 2,
+        text: 'Revenue trend accelerated in the second quarter and remained stable into July.',
+        headings: ['Annual Report', 'Financial Overview'],
+        page_numbers: [2],
+        doc_items: ['#/texts/3'],
+      },
+      {
+        filename: 'fixture.pdf',
+        chunk_index: 3,
+        text: 'Figure 1. Revenue trend',
+        headings: ['Annual Report', 'Financial Overview'],
+        page_numbers: [2],
+        doc_items: ['#/pictures/0'],
+      },
+      {
+        filename: 'fixture.pdf',
+        chunk_index: 4,
+        text: 'Supporting note: July reflects provisional settlement timing.',
+        headings: ['Annual Report', 'Appendix'],
+        page_numbers: [2],
+        doc_items: ['#/texts/5'],
+      },
+    ],
+    documents: [
+      {
+        kind: 'ExportResult' as const,
+        content: convertResponse.document,
+        status: convertResponse.status,
+        errors: convertResponse.errors,
+      },
+    ],
+    processing_time: convertResponse.processing_time,
+  };
+}
+
 async function createFixturePdfBuffer() {
   const pdfDoc = await PDFDocument.create();
   const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -464,6 +521,7 @@ describe.sequential('Docling fixture worker e2e', () => {
       parsers: [createDoclingParser({
         doclingClient: {
           convertFile: async () => buildDoclingFixtureResponse(),
+          chunkFile: async () => buildDoclingFixtureChunkResponse(),
         },
         engineVersion: config.docling.engineVersion,
       })],

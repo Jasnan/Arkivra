@@ -95,13 +95,16 @@ export function createParsePipeline({
     await hooks?.onStageChange?.('chunking');
 
     const structuredElements = raw.structuredElements;
+    const parserChunks = raw.chunks;
     const chunks =
-      structuredElements !== undefined && structuredElements.length > 0
-        ? chunkStructuredElements(structuredElements, chunkOptions)
-        : chunkMarkdown(
-            normalized.markdown.length > 0 ? normalized.markdown : normalizedText,
-            chunkOptions,
-          );
+      parserChunks !== undefined && parserChunks.length > 0
+        ? parserChunks
+        : structuredElements !== undefined && structuredElements.length > 0
+          ? chunkStructuredElements(structuredElements, chunkOptions)
+          : chunkMarkdown(
+              normalized.markdown.length > 0 ? normalized.markdown : normalizedText,
+              chunkOptions,
+            );
 
     const pipelineWarnings = [...raw.warnings];
     if (chunkSummariser !== undefined) {

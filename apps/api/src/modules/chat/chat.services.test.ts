@@ -19,12 +19,16 @@ const citation: Citation = {
   pageStart: 2,
   pageEnd: 3,
   section: 'Retention',
+  sectionPath: ['Records', 'Retention'],
+  sourceElementIds: ['el_chunk_1', 'el_chunk_2'],
+  tableSourceElementIds: ['el_table_1'],
   snippet: 'Records are retained for seven years.',
   boundingBoxes: [],
   citationPrecision: 'page',
   assetType: 'table',
   tablesHtml: ['<table><tr><td>Retention</td><td>7 years</td></tr></table>'],
   imageAssetIds: [],
+  imageAssets: [],
   score: 0.81,
 };
 
@@ -39,8 +43,9 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('How long are records kept?');
     expect(prompt).toContain('Policy.pdf');
     expect(prompt).toContain('pages 2-3');
+    expect(prompt).toContain('Records > Retention');
     expect(prompt).toContain('Records are retained for seven years.');
-    expect(prompt).toContain('<table>');
+    expect(prompt).toContain('Table 1:\nRow 1: Retention | 7 years');
     expect(prompt).toContain('If the retrieved context is insufficient');
   });
 

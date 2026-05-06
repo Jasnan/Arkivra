@@ -85,6 +85,9 @@ describe('document search services', () => {
           page_start: 2,
           page_end: 3,
           section: 'Revenue',
+          section_path: ['Financials', 'Revenue'],
+          source_element_ids: ['el_chunk_1', 'el_chunk_2'],
+          table_source_element_ids: [{ elementId: 'el_table_1' }],
           snippet: 'Revenue increased to 42',
           bounding_boxes: [
             {
@@ -101,6 +104,7 @@ describe('document search services', () => {
           citation_precision: 'box',
           tables_html: ['<table><tr><td>42</td></tr></table>'],
           image_asset_ids: ['cas_1'],
+          image_assets: [{ assetId: 'cas_1', sourceElementId: 'el_image_1' }],
           score: 0.032,
         },
       ],
@@ -134,7 +138,9 @@ describe('document search services', () => {
         pageStart: 2,
         pageEnd: 3,
         section: 'Revenue',
-        sectionPath: [],
+        sectionPath: ['Financials', 'Revenue'],
+        sourceElementIds: ['el_chunk_1', 'el_chunk_2'],
+        tableSourceElementIds: ['el_table_1'],
         snippet: 'Revenue increased to 42',
         boundingBoxes: [
           {
@@ -152,6 +158,7 @@ describe('document search services', () => {
         assetType: 'image',
         tablesHtml: ['<table><tr><td>42</td></tr></table>'],
         imageAssetIds: ['cas_1'],
+        imageAssets: [{ assetId: 'cas_1', sourceElementId: 'el_image_1' }],
         score: 0.032,
       },
     ]);

@@ -18,12 +18,19 @@ export interface Citation {
   pageStart: number | null;
   pageEnd: number | null;
   section: string | null;
+  sectionPath?: string[];
+  sourceElementIds?: string[];
+  tableSourceElementIds?: string[];
   snippet: string;
   boundingBoxes: CitationBoundingBox[];
   citationPrecision: 'box' | 'page' | 'document';
   assetType: 'text' | 'table' | 'image';
   tablesHtml: string[];
   imageAssetIds: string[];
+  imageAssets?: {
+    assetId: string;
+    sourceElementId: string | null;
+  }[];
   score: number;
 }
 

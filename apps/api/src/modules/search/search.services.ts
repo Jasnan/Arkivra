@@ -3,6 +3,7 @@ import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
 import type {
   Citation,
   CitationAssetType,
+  CitationImageAsset,
   CitationBoundingBox,
   DocumentSearchServices,
   HybridSearchMode,
@@ -50,11 +51,14 @@ type HybridSearchRow = {
   page_end: number | null;
   section: string | null;
   section_path: unknown;
+  source_element_ids: unknown;
+  table_source_element_ids: unknown;
   snippet: string | null;
   bounding_boxes: unknown;
   citation_precision: string;
   tables_html: unknown;
   image_asset_ids: unknown;
+  image_assets: unknown;
   score: number | string | null;
 };
 
@@ -223,6 +227,49 @@ function parseBoundingBoxes(value: unknown): CitationBoundingBox[] {
     }
 
     return [item as CitationBoundingBox];
+  });
+}
+
+function parseImageAssets(value: unknown): CitationImageAsset[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (
+      typeof item !== 'object'
+      || item === null
+      || typeof (item as { assetId?: unknown }).assetId !== 'string'
+      || (
+        (item as { sourceElementId?: unknown }).sourceElementId !== null
+        && typeof (item as { sourceElementId?: unknown }).sourceElementId !== 'string'
+      )
+    ) {
+      return [];
+    }
+
+    return [{
+      assetId: (item as { assetId: string }).assetId,
+      sourceElementId: (item as { sourceElementId: string | null }).sourceElementId,
+    }];
+  });
+}
+
+function parseAssetSourceElementIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (
+      typeof item === 'object'
+      && item !== null
+      && typeof (item as { elementId?: unknown }).elementId === 'string'
+    ) {
+      return [(item as { elementId: string }).elementId];
+    }
+
+    return [];
   });
 }
 
@@ -811,11 +858,14 @@ export function createDocumentSearchServices({
               dc.page_end,
               dc.section,
               COALESCE(dc.section_path, '[]'::jsonb) AS section_path,
+              COALESCE(dc.source_element_ids, '[]'::jsonb) AS source_element_ids,
+              COALESCE(dc.metadata->'tableProvenance', '[]'::jsonb) AS table_source_element_ids,
               COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
               COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
               dc.citation_precision,
               COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
+              COALESCE(assets.image_assets, '[]'::json) AS image_assets,
               (1.0 / (60 + fts_ranked.fts_rank))::float8 AS score
             FROM fts_ranked
             INNER JOIN document_chunks AS dc ON dc.id = fts_ranked.id
@@ -825,7 +875,17 @@ export function createDocumentSearchServices({
               SELECT COALESCE(
                 json_agg(dca.id ORDER BY dca.created_at ASC) FILTER (WHERE dca.asset_type = 'image'),
                 '[]'::json
-              ) AS image_asset_ids
+              ) AS image_asset_ids,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'assetId', dca.id,
+                    'sourceElementId', dca.source_element_id
+                  )
+                  ORDER BY dca.created_at ASC
+                ) FILTER (WHERE dca.asset_type = 'image'),
+                '[]'::json
+              ) AS image_assets
               FROM document_chunk_assets AS dca
               WHERE dca.chunk_id = dc.id
                 AND dca.vault_id = dc.vault_id
@@ -896,11 +956,14 @@ export function createDocumentSearchServices({
               dc.page_end,
               dc.section,
               COALESCE(dc.section_path, '[]'::jsonb) AS section_path,
+              COALESCE(dc.source_element_ids, '[]'::jsonb) AS source_element_ids,
+              COALESCE(dc.metadata->'tableProvenance', '[]'::jsonb) AS table_source_element_ids,
               COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
               COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
               dc.citation_precision,
               COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
+              COALESCE(assets.image_assets, '[]'::json) AS image_assets,
               ranked.score::float8 AS score
             FROM ranked
             INNER JOIN document_chunks AS dc ON dc.id = ranked.id
@@ -910,7 +973,17 @@ export function createDocumentSearchServices({
               SELECT COALESCE(
                 json_agg(dca.id ORDER BY dca.created_at ASC) FILTER (WHERE dca.asset_type = 'image'),
                 '[]'::json
-              ) AS image_asset_ids
+              ) AS image_asset_ids,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'assetId', dca.id,
+                    'sourceElementId', dca.source_element_id
+                  )
+                  ORDER BY dca.created_at ASC
+                ) FILTER (WHERE dca.asset_type = 'image'),
+                '[]'::json
+              ) AS image_assets
               FROM document_chunk_assets AS dca
               WHERE dca.chunk_id = dc.id
                 AND dca.vault_id = dc.vault_id
@@ -921,7 +994,10 @@ export function createDocumentSearchServices({
 
     const citations: Citation[] = result.rows.map((row) => {
       const tablesHtml = parseStringArray(row.tables_html);
-      const imageAssetIds = parseStringArray(row.image_asset_ids);
+      const imageAssets = parseImageAssets(row.image_assets);
+      const imageAssetIds = imageAssets.length > 0
+        ? imageAssets.map(asset => asset.assetId)
+        : parseStringArray(row.image_asset_ids);
 
       return {
         chunkId: row.chunk_id,
@@ -933,6 +1009,8 @@ export function createDocumentSearchServices({
         pageEnd: row.page_end,
         section: row.section,
         sectionPath: parseStringArray(row.section_path),
+        sourceElementIds: parseStringArray(row.source_element_ids),
+        tableSourceElementIds: parseAssetSourceElementIds(row.table_source_element_ids),
         snippet: row.snippet ?? '',
         boundingBoxes: parseCitationPrecision(row.citation_precision) === 'box'
           ? parseBoundingBoxes(row.bounding_boxes)
@@ -941,6 +1019,7 @@ export function createDocumentSearchServices({
         assetType: inferAssetType({ tablesHtml, imageAssetIds }),
         tablesHtml,
         imageAssetIds,
+        imageAssets,
         score: typeof row.score === 'number' ? row.score : Number(row.score ?? 0),
       };
     });

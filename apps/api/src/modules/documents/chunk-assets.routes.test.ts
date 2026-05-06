@@ -18,6 +18,7 @@ function createMockDocumentsServices() {
       assetType: 'table',
       mimeType: 'text/html; charset=utf-8',
       inlinePayload: '<table><tr><td>42</td></tr></table>',
+      sourceElementId: 'docling-table-1',
       byteSize: 35,
       etag: '"asset-table"',
     })),
@@ -130,6 +131,7 @@ describe('chunk asset routes', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
     expect(response.headers.get('etag')).toBe('"asset-table"');
+    expect(response.headers.get('x-arkivra-source-element-id')).toBe('docling-table-1');
     expect(response.headers.get('cache-control')).toContain('private');
     expect(await response.text()).toContain('<table>');
     expect((docServices as any).getChunkAsset).toHaveBeenCalledWith({
@@ -145,6 +147,7 @@ describe('chunk asset routes', () => {
       assetType: 'image',
       mimeType: 'image/png',
       fileData: Buffer.from('png-bytes'),
+      sourceElementId: 'docling-image-1',
       byteSize: 9,
       etag: '"asset-image"',
     }));
@@ -156,6 +159,7 @@ describe('chunk asset routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('image/png');
+    expect(response.headers.get('x-arkivra-source-element-id')).toBe('docling-image-1');
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('png-bytes');
   });
 
@@ -172,6 +176,7 @@ describe('chunk asset routes', () => {
 
     expect(response.status).toBe(304);
     expect(response.headers.get('etag')).toBe('"asset-table"');
+    expect(response.headers.get('x-arkivra-source-element-id')).toBe('docling-table-1');
   });
 
   test('returns 404 for unknown chunk assets', async () => {

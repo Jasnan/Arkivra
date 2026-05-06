@@ -68,9 +68,9 @@ export const configDefinition = {
       env: 'ARKIVRA_DOCUMENT_RETENTION_DAYS',
     },
     documentProcessingConcurrency: {
-      doc: 'How many documents the worker may process in parallel.',
+      doc: 'How many documents the worker may process in parallel. Keep this low for the default single-worker Docling service, especially with large PDFs.',
       schema: z.coerce.number().int().min(1).max(32),
-      default: 2,
+      default: 1,
       env: 'ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY',
     },
   },

@@ -72,6 +72,7 @@ export function createDoclingClient({
   maxWaitMs = 6 * 60 * 60 * 1000,
   requestRetryAttempts = 2,
   requestRetryDelayMs = 3_000,
+  transientFetchGraceMs = 10 * 60 * 1000,
   chunkTaskRecoveryAttempts = 2,
   convertOptions = DEFAULT_DOCLING_CONVERT_OPTIONS,
   routes = DEFAULT_DOCLING_ROUTES,
@@ -83,6 +84,7 @@ export function createDoclingClient({
   maxWaitMs?: number;
   requestRetryAttempts?: number;
   requestRetryDelayMs?: number;
+  transientFetchGraceMs?: number;
   chunkTaskRecoveryAttempts?: number;
   convertOptions?: Partial<DoclingConvertOptions>;
   routes?: DoclingRoutes;
@@ -100,9 +102,7 @@ export function createDoclingClient({
   }
 
   function isRecoverableChunkTaskLoss(error: Error) {
-    return /Docling chunk async status poll failed .*fetch failed/i.test(error.message)
-      || /Docling chunk async result fetch failed .*fetch failed/i.test(error.message)
-      || /Docling chunk async status poll error .*404 Not Found .*Task not found/i.test(error.message);
+    return /Docling chunk async status poll error .*404 Not Found .*Task not found/i.test(error.message);
   }
 
   async function fetchWithRetry(
@@ -123,6 +123,53 @@ export function createDoclingClient({
 
         attempt += 1;
         await sleepImpl(requestRetryDelayMs);
+      }
+    }
+  }
+
+  async function fetchWithTransientGrace({
+    url,
+    init,
+    errorPrefix,
+    taskId,
+    operation,
+    startedAt,
+  }: {
+    url: string;
+    init: RequestInit;
+    errorPrefix: string;
+    taskId: string;
+    operation: string;
+    startedAt: number;
+  }): Promise<Response> {
+    let firstFailureAt: number | null = null;
+
+    while (true) {
+      try {
+        const response = await fetchWithRetry(url, init, errorPrefix);
+
+        if (response.status < 500) {
+          return response;
+        }
+
+        const text = await readErrorText(response);
+        throw new Error(`${errorPrefix}: ${response.status} ${response.statusText} - ${text}`);
+      } catch (error) {
+        const now = Date.now();
+        const message = error instanceof Error ? error.message : 'Unknown fetch error';
+        firstFailureAt ??= now;
+
+        const failureElapsedMs = now - firstFailureAt;
+        const taskElapsedMs = now - startedAt;
+
+        if (failureElapsedMs >= transientFetchGraceMs || taskElapsedMs > maxWaitMs) {
+          throw error;
+        }
+
+        console.warn(
+          `${logPrefix} ${operation} transient fetch failure taskId=${taskId} elapsedMs=${taskElapsedMs} failureElapsedMs=${failureElapsedMs} graceMs=${transientFetchGraceMs} reason=${message}`,
+        );
+        await sleepImpl(pollIntervalMs);
       }
     }
   }
@@ -198,11 +245,14 @@ export function createDoclingClient({
       await sleepImpl(pollIntervalMs);
 
       const pollUrl = routes.pollStatus(baseUrl, taskId);
-      const statusResponse = await fetchWithRetry(
-        pollUrl,
-        { method: 'GET' },
-        `Docling async status poll failed for task ${taskId}`,
-      );
+      const statusResponse = await fetchWithTransientGrace({
+        url: pollUrl,
+        init: { method: 'GET' },
+        errorPrefix: `Docling async status poll failed for task ${taskId}`,
+        taskId,
+        operation: 'async status poll',
+        startedAt,
+      });
 
       if (!statusResponse.ok) {
         const text = await readErrorText(statusResponse);
@@ -241,11 +291,14 @@ export function createDoclingClient({
     }
 
     const resultUrl = routes.fetchResult(baseUrl, taskId);
-    const resultResponse = await fetchWithRetry(
-      resultUrl,
-      { method: 'GET' },
-      `Docling async result fetch failed for task ${taskId}`,
-    );
+    const resultResponse = await fetchWithTransientGrace({
+      url: resultUrl,
+      init: { method: 'GET' },
+      errorPrefix: `Docling async result fetch failed for task ${taskId}`,
+      taskId,
+      operation: 'async result fetch',
+      startedAt,
+    });
 
     if (!resultResponse.ok) {
       const text = await readErrorText(resultResponse);
@@ -365,11 +418,14 @@ export function createDoclingClient({
         await sleepImpl(pollIntervalMs);
 
         const pollUrl = routes.pollStatus(baseUrl, taskId);
-        const statusResponse = await fetchWithRetry(
-          pollUrl,
-          { method: 'GET' },
-          `Docling chunk async status poll failed for task ${taskId}`,
-        );
+        const statusResponse = await fetchWithTransientGrace({
+          url: pollUrl,
+          init: { method: 'GET' },
+          errorPrefix: `Docling chunk async status poll failed for task ${taskId}`,
+          taskId,
+          operation: 'chunk status poll',
+          startedAt,
+        });
 
         if (!statusResponse.ok) {
           const text = await readErrorText(statusResponse);
@@ -415,11 +471,14 @@ export function createDoclingClient({
       }
 
       const resultUrl = routes.fetchResult(baseUrl, taskId);
-      const resultResponse = await fetchWithRetry(
-        resultUrl,
-        { method: 'GET' },
-        `Docling chunk async result fetch failed for task ${taskId}`,
-      );
+      const resultResponse = await fetchWithTransientGrace({
+        url: resultUrl,
+        init: { method: 'GET' },
+        errorPrefix: `Docling chunk async result fetch failed for task ${taskId}`,
+        taskId,
+        operation: 'chunk result fetch',
+        startedAt,
+      });
 
       if (!resultResponse.ok) {
         const text = await readErrorText(resultResponse);

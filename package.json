@@ -8,7 +8,10 @@
   "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@10.30.3",
   "scripts": {
-    "dev": "pnpm --filter @arkivra/api dev",
+    "dev": "pnpm --filter @arkivra/api dev:web",
+    "dev:api": "pnpm --filter @arkivra/api dev:web",
+    "dev:worker": "pnpm --filter @arkivra/api dev:worker",
+    "dev:all": "pnpm --filter @arkivra/api dev",
     "dev:web": "pnpm --filter @arkivra/web dev",
     "build": "pnpm --filter './apps/*' build",
     "commitmsg:check": "node scripts/validate-commit-message.mjs",

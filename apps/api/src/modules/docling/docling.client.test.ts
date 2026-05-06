@@ -390,13 +390,13 @@ describe('docling client', () => {
     );
   });
 
-  test('resubmits chunking when polling still hits fetch failures after request retries', async () => {
+  test('keeps polling the same chunk task after transient poll fetch failures', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_poll_fetch_failed', task_status: 'queued' }))
       .mockRejectedValueOnce(new Error('fetch failed'))
       .mockRejectedValueOnce(new Error('fetch failed'))
       .mockRejectedValueOnce(new Error('fetch failed'))
-      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_ok', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_poll_fetch_failed', task_status: 'success' }))
       .mockResolvedValueOnce(jsonResponse({
         chunks: [],
         documents: [{
@@ -433,8 +433,9 @@ describe('docling client', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       5,
-      'http://docling.local/v1/chunk/hybrid/file/async',
-      expect.objectContaining({ method: 'POST' }),
+      'http://docling.local/v1/status/poll/task_poll_fetch_failed',
+      expect.objectContaining({ method: 'GET' }),
     );
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 });

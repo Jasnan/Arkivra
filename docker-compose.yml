@@ -18,7 +18,7 @@ services:
       retries: 5
 
   docling:
-    image: quay.io/docling-project/docling-serve-cpu:latest
+    image: quay.io/docling-project/docling-serve-cpu:v1.16.1
     restart: unless-stopped
     environment:
       UVICORN_WORKERS: '1'
@@ -48,6 +48,8 @@ services:
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_BACKUPS_PATH: /app/backups
       ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:-http://docling:5001}
+      ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY: ${ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY:-1}
+      ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE: ${ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE:-20}
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
       ARKIVRA_STORAGE_FS_PATH: /app/document-storage
@@ -78,6 +80,8 @@ services:
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_BACKUPS_PATH: /app/backups
       ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:-http://docling:5001}
+      ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY: ${ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY:-1}
+      ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE: ${ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE:-20}
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
       ARKIVRA_STORAGE_FS_PATH: /app/document-storage

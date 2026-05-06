@@ -712,7 +712,12 @@ describe.sequential('Docling fixture worker e2e', () => {
         tableSourceElementIds?: string[];
         citationPrecision: string;
         tablesHtml: string[];
-        imageAssets?: Array<{ assetId: string; sourceElementId: string | null }>;
+        imageAssets?: Array<{
+          assetId: string;
+          sourceElementId: string | null;
+          caption?: string | null;
+          pageNumber?: number | null;
+        }>;
       }>;
     };
 
@@ -732,6 +737,8 @@ describe.sequential('Docling fixture worker e2e', () => {
       {
         assetId: imageAsset?.id,
         sourceElementId: '#/pictures/0',
+        caption: 'Figure 1. Revenue trend',
+        pageNumber: 2,
       },
     ]);
 

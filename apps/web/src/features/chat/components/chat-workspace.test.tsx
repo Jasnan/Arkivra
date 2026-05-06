@@ -55,6 +55,50 @@ vi.mock('../chat.queries', () => ({
                 createdAt: '2026-05-05T10:00:00.000Z',
                 updatedAt: '2026-05-05T10:00:00.000Z',
               },
+              {
+                id: 'msg_2',
+                conversationId: 'chat_existing',
+                vaultId: 'vlt_1',
+                documentId: 'doc_1',
+                scope: 'global',
+                createdBy: null,
+                role: 'assistant',
+                content: 'Revenue increased.[1]',
+                metadata: null,
+                citations: [
+                  {
+                    chunkId: 'chk_1',
+                    documentId: 'doc_1',
+                    vaultId: 'vlt_1',
+                    vaultName: 'Finance',
+                    documentName: 'Quarterly Report.pdf',
+                    pageStart: 2,
+                    pageEnd: 2,
+                    section: 'Revenue',
+                    sectionPath: ['Financials', 'Revenue'],
+                    sourceElementIds: ['#/texts/4', '#/pictures/0'],
+                    tableSourceElementIds: [],
+                    snippet: 'Revenue increased because enterprise renewals improved.',
+                    boundingBoxes: [],
+                    citationPrecision: 'page',
+                    assetType: 'image',
+                    tablesHtml: [],
+                    imageAssetIds: ['cas_1'],
+                    imageAssets: [{
+                      assetId: 'cas_1',
+                      sourceElementId: '#/pictures/0',
+                      caption: 'Figure 1. Revenue trend by quarter',
+                      pageNumber: 2,
+                    }],
+                    score: 0.92,
+                  },
+                ],
+                generationMetrics: null,
+                generationStatus: 'completed',
+                generationError: null,
+                createdAt: '2026-05-05T10:01:00.000Z',
+                updatedAt: '2026-05-05T10:01:00.000Z',
+              },
             ],
           },
         }
@@ -156,5 +200,24 @@ describe('ChatWorkspace new chat drafts', () => {
         content: 'Hello from a draft',
       }),
     );
+  });
+
+  it('shows figure captions in the source flow for cited image evidence', async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /sources \(1\)/i }));
+    await user.click(screen.getByText('Revenue increased because enterprise renewals improved.'));
+
+    expect(await screen.findByText('Figure evidence')).toBeInTheDocument();
+    expect(await screen.findAllByText('Figure 1. Revenue trend by quarter')).toHaveLength(2);
+    expect(screen.getByText('Figure 1')).toBeInTheDocument();
+    expect(screen.getAllByText('Page 2').length).toBeGreaterThan(0);
   });
 });

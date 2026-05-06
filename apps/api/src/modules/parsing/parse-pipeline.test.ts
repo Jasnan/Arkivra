@@ -353,4 +353,85 @@ describe('parse pipeline', () => {
     expect(chunk.text).toBe('Enhanced searchable description');
     expect(parsed.warnings).toContain('ollama_chunk_summariser.image_limit:1/2');
   });
+
+  test('reprocesses stored Docling artifacts without re-running the parser', async () => {
+    const rawStructuredOutput = {
+      schema_name: 'DoclingDocument',
+      texts: [
+        {
+          self_ref: '#/texts/0',
+          label: 'section_header',
+          text: 'Financial Overview',
+          prov: [{ page_no: 1, bbox: { l: 0, t: 0, r: 100, b: 40, coord_origin: 'TOPLEFT' } }],
+        },
+        {
+          self_ref: '#/texts/1',
+          label: 'caption',
+          text: 'Figure 1. Revenue trend',
+          parent: { cref: '#/pictures/0' },
+        },
+      ],
+      pictures: [
+        {
+          self_ref: '#/pictures/0',
+          image: {
+            uri: 'data:image/png;base64,aW1hZ2U=',
+          },
+          captions: [{ cref: '#/texts/1' }],
+          prov: [{ page_no: 2, bbox: { l: 10, t: 20, r: 110, b: 120, coord_origin: 'TOPLEFT' } }],
+        },
+      ],
+      tables: [],
+      groups: [],
+      body: {
+        children: [{ cref: '#/texts/0' }, { cref: '#/pictures/0' }],
+      },
+      pages: {
+        '1': { size: { width: 612, height: 792 } },
+        '2': { size: { width: 612, height: 792 } },
+      },
+    } satisfies Record<string, unknown>;
+
+    const { pipeline, parser } = makePipeline();
+
+    const parsed = await pipeline.reprocessStored({
+      documentId: 'doc_1',
+      engine: 'docling',
+      engineVersion: 'v1',
+      rawText: 'Financial Overview\n\nFigure 1. Revenue trend',
+      rawMarkdown: '## Financial Overview\n\n![Figure 1. Revenue trend](data:image/png;base64,aW1hZ2U=)',
+      rawStructuredOutput,
+      warnings: ['docling.partial_success'],
+    });
+
+    expect((parser.parse as any)).not.toHaveBeenCalled();
+    expect(parsed.rawStructuredOutput).toEqual(rawStructuredOutput);
+    expect(parsed.warnings).toEqual(['docling.partial_success']);
+    expect(parsed.chunks[0]?.sectionPath).toEqual(['Financial Overview']);
+    expect(parsed.chunks[0]?.sourceElementIds).toContain('#/pictures/0');
+    expect(parsed.chunks[0]?.metadata.imageProvenance).toEqual([
+      expect.objectContaining({
+        elementId: '#/pictures/0',
+        caption: 'Figure 1. Revenue trend',
+        pageNumber: 2,
+      }),
+    ]);
+  });
+
+  test('falls back to stored markdown reprocessing when structured remapping fails', async () => {
+    const { pipeline } = makePipeline();
+
+    const parsed = await pipeline.reprocessStored({
+      documentId: 'doc_1',
+      engine: 'docling',
+      engineVersion: 'v1',
+      rawText: 'Fallback plain text',
+      rawMarkdown: '# Fallback Heading\n\nRecovered paragraph.',
+      rawStructuredOutput: '{',
+      warnings: [],
+    });
+
+    expect(parsed.chunks[0]?.section).toBe('Fallback Heading');
+    expect(parsed.warnings.some(warning => warning.startsWith('docling.structured_mapping_failed'))).toBe(true);
+  });
 });

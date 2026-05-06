@@ -238,7 +238,29 @@ function citationImageAssets(citation: Citation) {
   return citation.imageAssetIds.map(assetId => ({
     assetId,
     sourceElementId: null,
+    caption: null,
+    pageNumber: null,
   }));
+}
+
+function citationFigureEvidence(citation: Citation) {
+  return citationImageAssets(citation)
+    .map((asset, index) => {
+      const caption = asset.caption?.trim();
+      if (!caption) {
+        return null;
+      }
+
+      const pageLabel = typeof asset.pageNumber === 'number' ? `Page ${asset.pageNumber}` : null;
+
+      return {
+        id: `${asset.assetId}-${index}`,
+        label: `Figure ${index + 1}`,
+        caption,
+        pageLabel,
+      };
+    })
+    .filter((item): item is { id: string; label: string; caption: string; pageLabel: string | null } => item !== null);
 }
 
 function uniqueNonEmptyStrings(values: Array<string | null | undefined>) {
@@ -650,6 +672,7 @@ function CitationPreviewModal({
   const activePage = selectedPage ?? pages[0] ?? null;
   const pageBoxes = activePage === null ? [] : (groupedBoxes.get(activePage) ?? []);
   const sectionLabel = citationSectionLabel(citation);
+  const figureEvidence = citationFigureEvidence(citation);
   const imageSourceElementIds = uniqueNonEmptyStrings(
     citationImageAssets(citation).map(asset => asset.sourceElementId),
   );
@@ -843,6 +866,30 @@ function CitationPreviewModal({
                 </div>
               </div>
 
+              {figureEvidence.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Figure evidence
+                  </p>
+                  <div className="space-y-3">
+                    {figureEvidence.map((figure) => (
+                      <div
+                        key={figure.id}
+                        className="rounded-2xl border border-border/70 bg-background/70 p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium text-foreground">{figure.label}</span>
+                          {figure.pageLabel ? (
+                            <span className="text-muted-foreground">{figure.pageLabel}</span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-foreground">{figure.caption}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {chunkSourceElementIds.length > 0 || tableSourceElementIds.length > 0 || imageSourceElementIds.length > 0 ? (
                 <div className="space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -935,34 +982,43 @@ function SourcesAccordion({
           </AccordionTrigger>
           <AccordionContent>
             <div className="space-y-3">
-              {citations.map((citation, index) => (
-                <button
-                  key={citation.chunkId}
-                  type="button"
-                  onClick={() => setSelectedCitation(citation)}
-                  className="flex w-full items-start gap-3 rounded-lg border border-border/70 bg-card px-4 py-3 text-left shadow-sm transition hover:border-primary/30 hover:bg-accent/40"
-                >
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground">
-                    {index + 1}
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="font-medium text-foreground">{pageRange(citation)}</span>
-                      {currentVaultId !== citation.vaultId ? (
-                        <span className="text-muted-foreground">{citation.vaultName}</span>
+              {citations.map((citation, index) => {
+                const figurePreview = citationFigureEvidence(citation)[0] ?? null;
+
+                return (
+                  <button
+                    key={citation.chunkId}
+                    type="button"
+                    onClick={() => setSelectedCitation(citation)}
+                    className="flex w-full items-start gap-3 rounded-lg border border-border/70 bg-card px-4 py-3 text-left shadow-sm transition hover:border-primary/30 hover:bg-accent/40"
+                  >
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground">
+                      {index + 1}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium text-foreground">{pageRange(citation)}</span>
+                        {currentVaultId !== citation.vaultId ? (
+                          <span className="text-muted-foreground">{citation.vaultName}</span>
+                        ) : null}
+                      </div>
+                      {citationSectionLabel(citation) ? (
+                        <p className="line-clamp-1 text-xs text-muted-foreground">
+                          {citationSectionLabel(citation)}
+                        </p>
+                      ) : null}
+                      <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
+                        {citation.snippet}
+                      </p>
+                      {figurePreview ? (
+                        <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+                          {figurePreview.caption}
+                        </p>
                       ) : null}
                     </div>
-                    {citationSectionLabel(citation) ? (
-                      <p className="line-clamp-1 text-xs text-muted-foreground">
-                        {citationSectionLabel(citation)}
-                      </p>
-                    ) : null}
-                    <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
-                      {citation.snippet}
-                    </p>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </AccordionContent>
         </AccordionItem>

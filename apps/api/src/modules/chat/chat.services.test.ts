@@ -27,8 +27,13 @@ const citation: Citation = {
   citationPrecision: 'page',
   assetType: 'table',
   tablesHtml: ['<table><tr><td>Retention</td><td>7 years</td></tr></table>'],
-  imageAssetIds: [],
-  imageAssets: [],
+  imageAssetIds: ['cas_1'],
+  imageAssets: [{
+    assetId: 'cas_1',
+    sourceElementId: 'el_image_1',
+    caption: 'Figure 1. Records retention timeline',
+    pageNumber: 3,
+  }],
   score: 0.81,
 };
 
@@ -46,6 +51,7 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('Records > Retention');
     expect(prompt).toContain('Records are retained for seven years.');
     expect(prompt).toContain('Table 1:\nRow 1: Retention | 7 years');
+    expect(prompt).toContain('Figure 1 (page 3): Figure 1. Records retention timeline');
     expect(prompt).toContain('If the retrieved context is insufficient');
   });
 

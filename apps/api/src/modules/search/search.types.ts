@@ -68,6 +68,8 @@ export type CitationAssetType = 'text' | 'table' | 'image';
 export type CitationImageAsset = {
   assetId: string;
   sourceElementId: string | null;
+  caption?: string | null;
+  pageNumber?: number | null;
 };
 
 export type Citation = {

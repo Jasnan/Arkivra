@@ -77,7 +77,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
   }
 
   async function processDocument(job: AsyncJob<ProcessDocumentJobData>) {
-    const { documentId, vaultId } = job.data;
+    const { documentId, vaultId, reprocessFromStoredArtifacts = false } = job.data;
     await setProcessingStage({
       documentId,
       vaultId,
@@ -107,31 +107,8 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         return;
       }
 
-      // 2. Read encrypted file from storage
-      const rawData = await storage.read(doc.originalStorageKey);
-
-      // 3. Decrypt if encrypted
-      let fileData: Buffer;
-
-      if (doc.fileEncryptionKeyWrapped !== null && doc.fileEncryptionKekVersion !== null) {
-        fileData = encryption.decrypt({
-          encryptedData: rawData,
-          wrappedDek: doc.fileEncryptionKeyWrapped,
-          kekVersion: doc.fileEncryptionKekVersion,
-        });
-      } else {
-        fileData = rawData;
-      }
-
-      // 4. Parse → clean → chunk via the engine-agnostic pipeline. The worker
-      //    never touches parser-specific fields; it consumes ParsedDocument.
-      const parsed = await parsePipeline.run({
-        documentId,
-        fileName: doc.originalName,
-        mimeType: doc.mimeType,
-        fileData,
-      }, {
-        onStageChange: async (stage) => {
+      const stageHooks = {
+        onStageChange: async (stage: 'chunking' | 'summarising') => {
           if (stage === 'chunking') {
             await setProcessingStage({
               documentId,
@@ -152,7 +129,50 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
             });
           }
         },
-      });
+      } as const;
+
+      const parsed = reprocessFromStoredArtifacts
+        ? await (() => {
+            if (doc.parserEngine === null || doc.parserEngineVersion === null) {
+              throw new Error(`Stored parser artifacts are unavailable for document ${documentId}`);
+            }
+
+            return parsePipeline.reprocessStored({
+              documentId,
+              engine: doc.parserEngine as 'docling',
+              engineVersion: doc.parserEngineVersion,
+              rawText: doc.rawText,
+              rawMarkdown: doc.rawMarkdown,
+              rawStructuredOutput: doc.parserStructuredOutput ?? undefined,
+              warnings: doc.parserWarnings ?? [],
+            }, stageHooks);
+          })()
+        : await (async () => {
+            // 2. Read encrypted file from storage
+            const rawData = await storage.read(doc.originalStorageKey);
+
+            // 3. Decrypt if encrypted
+            let fileData: Buffer;
+
+            if (doc.fileEncryptionKeyWrapped !== null && doc.fileEncryptionKekVersion !== null) {
+              fileData = encryption.decrypt({
+                encryptedData: rawData,
+                wrappedDek: doc.fileEncryptionKeyWrapped,
+                kekVersion: doc.fileEncryptionKekVersion,
+              });
+            } else {
+              fileData = rawData;
+            }
+
+            // 4. Parse → clean → chunk via the engine-agnostic pipeline. The worker
+            //    never touches parser-specific fields; it consumes ParsedDocument.
+            return parsePipeline.run({
+              documentId,
+              fileName: doc.originalName,
+              mimeType: doc.mimeType,
+              fileData,
+            }, stageHooks);
+          })();
 
       // 5. Persist raw + cleaned text + chunks via the parsing-module writer.
       //    `storage` and `encryption` are forwarded so the writer can persist

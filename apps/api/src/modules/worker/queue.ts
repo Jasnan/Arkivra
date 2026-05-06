@@ -5,7 +5,11 @@ export type { ProcessDocumentJobData } from './worker.types.js';
 export const PROCESS_DOCUMENT_QUEUE = 'process-document';
 
 export function createDocumentQueue({ db }: { db: Database }) {
-  type JobData = { documentId: string; vaultId: string };
+  type JobData = {
+    documentId: string;
+    vaultId: string;
+    reprocessFromStoredArtifacts?: boolean;
+  };
   type EnqueueOptions = JobData & { replaceExisting?: boolean };
   const queue = createPostgresQueue<JobData>({
     db,
@@ -23,6 +27,7 @@ export function createDocumentQueue({ db }: { db: Database }) {
     documentId,
     vaultId,
     replaceExisting = false,
+    reprocessFromStoredArtifacts = false,
   }: EnqueueOptions) {
     const jobId = `process-doc-${documentId}`;
 
@@ -40,7 +45,15 @@ export function createDocumentQueue({ db }: { db: Database }) {
       }
     }
 
-    await queue.add('process', { documentId, vaultId }, { jobId });
+    await queue.add(
+      'process',
+      {
+        documentId,
+        vaultId,
+        reprocessFromStoredArtifacts,
+      },
+      { jobId },
+    );
   }
 
   async function close() {

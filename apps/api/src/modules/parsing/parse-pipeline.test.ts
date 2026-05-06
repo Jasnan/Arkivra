@@ -2,13 +2,36 @@ import type { DocumentParser, ParseInput } from './parser.types.js';
 import type { ParserOutput } from './parsed-document.schema.js';
 import type { GluedWordNormalizer } from './glued-word-normalizer.js';
 import type { ChunkSummariser } from './ollama-chunk-summariser.js';
-import type { EmptyTextFallback } from './ollama-vision-text-fallback.js';
+import type { ParsedChunk } from './parsed-document.schema.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { describe, expect, test, vi } from 'vitest';
 import { createNoopGluedWordNormalizer } from './glued-word-normalizer.js';
 import { createParserRegistry } from './parser.registry.js';
 import { createDeterministicTextCleaner, createNoopTextCleaner } from './text-cleaner.js';
 import { createParsePipeline } from './parse-pipeline.js';
+
+function makeChunk(overrides: Partial<ParsedChunk> = {}): ParsedChunk {
+  return {
+    id: 'doc_1:0',
+    text: 'raw chunk text',
+    section: 'Title',
+    sectionPath: ['Title'],
+    pageNumber: 1,
+    pageStart: 1,
+    pageEnd: 1,
+    boundingBoxes: [],
+    sourceElementIds: ['#/texts/0'],
+    parentElementId: null,
+    originalText: 'raw chunk text',
+    tablesHtml: [],
+    images: [],
+    citationPrecision: 'page',
+    enhancedContent: null,
+    type: 'paragraph',
+    metadata: { tokenCount: 4 },
+    ...overrides,
+  };
+}
 
 function makeParser(raw: Partial<ParserOutput> = {}): DocumentParser {
   return {
@@ -20,6 +43,7 @@ function makeParser(raw: Partial<ParserOutput> = {}): DocumentParser {
       engineVersion: 'v1',
       text: 'raw text',
       markdown: '# raw markdown',
+      chunks: [makeChunk()],
       warnings: [],
       ...raw,
     })),
@@ -30,7 +54,6 @@ function makePipeline(
   parserOverrides: Partial<ParserOutput> = {},
   cleaner: TextCleaner = createNoopTextCleaner(),
   gluedWordNormalizer: GluedWordNormalizer = createNoopGluedWordNormalizer(),
-  emptyTextFallback?: EmptyTextFallback,
   chunkSummariser?: ChunkSummariser,
 ) {
   const parser = makeParser(parserOverrides);
@@ -39,7 +62,6 @@ function makePipeline(
     parserRegistry: registry,
     cleaner,
     gluedWordNormalizer,
-    emptyTextFallback,
     chunkSummariser,
   });
   return { pipeline, parser };
@@ -74,38 +96,35 @@ describe('parse pipeline', () => {
     expect(parsed.text.includes('  ')).toBe(false);
   });
 
-  test('runs cleaner BEFORE chunker (chunk texts contain cleaned content)', async () => {
-    const cleaner: TextCleaner = {
-      name: 'mark',
-      clean: async (inputText) => ({
-        text: inputText.text.replace(/raw/g, 'CLEAN'),
-        markdown: inputText.markdown.replace(/raw/g, 'CLEAN'),
-      }),
-    };
-
-    const { pipeline } = makePipeline({}, cleaner);
-    const parsed = await pipeline.run(input);
-
-    for (const chunk of parsed.chunks) {
-      expect(chunk.text.includes('raw')).toBe(false);
-      expect(chunk.text.includes('CLEAN')).toBe(true);
-    }
-  });
-
-  test('uses markdown as chunking source when non-empty', async () => {
+  test('uses parser-provided chunks directly', async () => {
+    const chunk = makeChunk({
+      text: 'Docling hybrid chunk',
+      originalText: 'Docling hybrid chunk',
+      section: 'Financial Overview',
+      sectionPath: ['Annual Report', 'Financial Overview'],
+      sourceElementIds: ['#/texts/2', '#/pictures/0'],
+      metadata: {
+        tokenCount: 12,
+        imageCaptions: ['Revenue trend by month'],
+      },
+    });
     const { pipeline } = makePipeline({
       text: 'ignored plain text',
-      markdown: '# From Markdown\n\nHeadings preserved.',
+      markdown: '# ignored markdown',
+      chunks: [chunk],
     });
 
     const parsed = await pipeline.run(input);
-    expect(parsed.chunks[0]?.section).toBe('From Markdown');
+
+    expect(parsed.chunks).toEqual([chunk]);
   });
 
-  test('falls back to text when markdown is empty', async () => {
-    const { pipeline } = makePipeline({ text: 'Plain only.', markdown: '' });
-    const parsed = await pipeline.run(input);
-    expect(parsed.chunks[0]?.text).toContain('Plain only.');
+  test('requires parser-provided chunks', async () => {
+    const { pipeline } = makePipeline({
+      chunks: undefined,
+    });
+
+    await expect(pipeline.run(input)).rejects.toThrow(/requires parser-provided chunks/);
   });
 
   test('propagates engine + engineVersion + warnings unchanged', async () => {
@@ -119,15 +138,12 @@ describe('parse pipeline', () => {
   });
 
   test('validates the final ParsedDocument via Zod', async () => {
-    // A parser that returns an empty engine string violates the schema's
-    // `engine: z.string().min(1)` rule. The pipeline must surface this as a
-    // ParserValidationError rather than silently persisting bad data.
     const { pipeline } = makePipeline({ engine: '' });
 
     await expect(pipeline.run(input)).rejects.toThrow(/invalid ParsedDocument/);
   });
 
-  test('runs glued-word normalization after cleanup and before chunking', async () => {
+  test('runs glued-word normalization on cleaned document text and markdown', async () => {
     const normalizer: GluedWordNormalizer = {
       name: 'mock-ollama',
       normalize: async (inputText) => ({
@@ -144,6 +160,7 @@ describe('parse pipeline', () => {
       {
         text: 'GOVERNMENTOFKERALA',
         markdown: '# GOVERNMENTOFKERALA',
+        chunks: [makeChunk({ text: 'chunk stays parser-owned', originalText: 'chunk stays parser-owned' })],
       },
       createNoopTextCleaner(),
       normalizer,
@@ -153,195 +170,30 @@ describe('parse pipeline', () => {
 
     expect(parsed.text).toBe('GOVERNMENT OF KERALA');
     expect(parsed.markdown).toBe('# GOVERNMENT OF KERALA');
-    expect(parsed.chunks[0]?.text).toContain('GOVERNMENT OF KERALA');
+    expect(parsed.chunks[0]?.text).toBe('chunk stays parser-owned');
   });
 
-  test('uses empty-text fallback output before chunking and preserves original raw parser text', async () => {
-    const emptyTextFallback: EmptyTextFallback = {
-      name: 'mock-vision',
-      run: async () => ({
-        output: {
-          text: 'Recovered text from image',
-          markdown: '',
-        },
-        warnings: ['ollama_vision_fallback.used:1'],
-      }),
-    };
-
-    const { pipeline } = makePipeline(
-      {
-        text: '',
-        markdown: '',
-        embeddedImages: [{ mimeType: 'image/png', data: Buffer.from('image') }],
-      },
-      createNoopTextCleaner(),
-      createNoopGluedWordNormalizer(),
-      emptyTextFallback,
-    );
-
-    const parsed = await pipeline.run(input);
-
-    expect(parsed.rawText).toBe('');
-    expect(parsed.rawMarkdown).toBe('');
-    expect(parsed.text).toBe('Recovered text from image');
-    expect(parsed.chunks[0]?.text).toContain('Recovered text from image');
-    expect(parsed.warnings).toEqual(['ollama_vision_fallback.used:1']);
-  });
-
-  test('routes provenance-rich parser output through the element-aware chunker', async () => {
-    const tableHtml = '<table><tr><td>1</td></tr></table>';
-    const imageData = Buffer.from('image-bytes');
-
-    const { pipeline } = makePipeline({
-      text: 'Methods\n\nWe trained models.\n\nA 1',
-      markdown: `# Methods\n\nWe trained models.\n\n${tableHtml}`,
-      structuredElements: [
-        {
-          elementId: 'el-1',
-          parentId: null,
-          type: 'title',
-          text: 'Methods',
-          tableHtml: null,
-          image: null,
-          pageNumber: 1,
-          bbox: {
-            x0: 0, y0: 0, x1: 100, y1: 50,
-            layoutWidth: 612, layoutHeight: 792, system: 'PixelSpace',
-          },
-          section: 'Methods',
-        },
-        {
-          elementId: 'el-2',
-          parentId: 'el-1',
-          type: 'narrative',
-          text: 'We trained models.',
-          tableHtml: null,
-          image: null,
-          pageNumber: 1,
-          bbox: {
-            x0: 0, y0: 60, x1: 500, y1: 200,
-            layoutWidth: 612, layoutHeight: 792, system: 'PixelSpace',
-          },
-          section: 'Methods',
-        },
-        {
-          elementId: 'el-3',
-          parentId: 'el-1',
-          type: 'table',
-          text: 'A 1',
-          tableHtml,
-          image: null,
-          pageNumber: 2,
-          bbox: null,
-          section: 'Methods',
-        },
-        {
-          elementId: 'el-4',
-          parentId: 'el-1',
-          type: 'image',
-          text: '',
-          tableHtml: null,
-          image: { mimeType: 'image/png', data: imageData },
-          pageNumber: 2,
-          bbox: null,
-          section: 'Methods',
-        },
-      ],
-    });
-
-    const parsed = await pipeline.run(input);
-
-    expect(parsed.chunks).toHaveLength(1);
-    const chunk = parsed.chunks[0]!;
-
-    expect(chunk.section).toBe('Methods');
-    expect(chunk.sectionPath).toEqual(['Methods']);
-    expect(chunk.pageStart).toBe(1);
-    expect(chunk.pageEnd).toBe(2);
-    expect(chunk.tablesHtml).toEqual([tableHtml]);
-    expect(chunk.images).toHaveLength(1);
-    expect(chunk.images[0]?.data.toString()).toBe('image-bytes');
-    expect(chunk.sourceElementIds).toEqual(['el-2', 'el-3', 'el-4']);
-    expect(chunk.parentElementId).toBe('el-1');
-    // Mixed bbox / no-bbox elements → 'page'.
-    expect(chunk.citationPrecision).toBe('page');
-    expect(chunk.boundingBoxes).toHaveLength(1);
-    expect(chunk.type).toBe('table');
-  });
-
-  test('falls back to markdown chunker when no structuredElements are emitted', async () => {
-    const { pipeline } = makePipeline({
-      text: 'plain text',
-      markdown: '# Heading\n\nBody text only.',
-    });
-
-    const parsed = await pipeline.run(input);
-
-    expect(parsed.chunks.length).toBeGreaterThan(0);
-    for (const chunk of parsed.chunks) {
-      expect(chunk.boundingBoxes).toEqual([]);
-      expect(chunk.sourceElementIds).toEqual([]);
-      expect(chunk.tablesHtml).toEqual([]);
-      expect(chunk.images).toEqual([]);
-      expect(chunk.citationPrecision).toBe('document');
-    }
-  });
-
-  test('applies chunk summariser output to multimodal chunks while preserving original text', async () => {
+  test('applies chunk summariser output while preserving original text', async () => {
     const chunkSummariser: ChunkSummariser = {
       name: 'stub',
-      summarise: async (chunk) => ({
-        enhancedContent:
-          chunk.tablesHtml.length > 0 || chunk.images.length > 0
-            ? 'Enhanced searchable description'
-            : null,
+      summarise: async () => ({
+        enhancedContent: 'Enhanced searchable description',
         warnings: ['ollama_chunk_summariser.image_limit:1/2'],
       }),
     };
 
     const { pipeline } = makePipeline(
       {
-        text: 'Results\n\nRevenue increased to 20.',
-        markdown: '# Results\n\nRevenue increased to 20.',
-        structuredElements: [
-          {
-            elementId: 'el-1',
-            parentId: null,
-            type: 'title',
-            text: 'Results',
-            tableHtml: null,
-            image: null,
-            pageNumber: 1,
-            bbox: null,
-            section: 'Results',
-          },
-          {
-            elementId: 'el-2',
-            parentId: 'el-1',
-            type: 'narrative',
+        chunks: [
+          makeChunk({
             text: 'Revenue increased to 20.',
-            tableHtml: null,
-            image: null,
-            pageNumber: 1,
-            bbox: null,
-            section: 'Results',
-          },
-          {
-            elementId: 'el-3',
-            parentId: 'el-1',
-            type: 'image',
-            text: '',
-            tableHtml: null,
-            image: { mimeType: 'image/png', data: Buffer.from('image') },
-            pageNumber: 1,
-            bbox: null,
-            section: 'Results',
-          },
+            originalText: 'Revenue increased to 20.',
+            images: [{ mimeType: 'image/png', data: Buffer.from('image') }],
+          }),
         ],
       },
       createNoopTextCleaner(),
       createNoopGluedWordNormalizer(),
-      undefined,
       chunkSummariser,
     );
 
@@ -352,86 +204,5 @@ describe('parse pipeline', () => {
     expect(chunk.enhancedContent).toBe('Enhanced searchable description');
     expect(chunk.text).toBe('Enhanced searchable description');
     expect(parsed.warnings).toContain('ollama_chunk_summariser.image_limit:1/2');
-  });
-
-  test('reprocesses stored Docling artifacts without re-running the parser', async () => {
-    const rawStructuredOutput = {
-      schema_name: 'DoclingDocument',
-      texts: [
-        {
-          self_ref: '#/texts/0',
-          label: 'section_header',
-          text: 'Financial Overview',
-          prov: [{ page_no: 1, bbox: { l: 0, t: 0, r: 100, b: 40, coord_origin: 'TOPLEFT' } }],
-        },
-        {
-          self_ref: '#/texts/1',
-          label: 'caption',
-          text: 'Figure 1. Revenue trend',
-          parent: { cref: '#/pictures/0' },
-        },
-      ],
-      pictures: [
-        {
-          self_ref: '#/pictures/0',
-          image: {
-            uri: 'data:image/png;base64,aW1hZ2U=',
-          },
-          captions: [{ cref: '#/texts/1' }],
-          prov: [{ page_no: 2, bbox: { l: 10, t: 20, r: 110, b: 120, coord_origin: 'TOPLEFT' } }],
-        },
-      ],
-      tables: [],
-      groups: [],
-      body: {
-        children: [{ cref: '#/texts/0' }, { cref: '#/pictures/0' }],
-      },
-      pages: {
-        '1': { size: { width: 612, height: 792 } },
-        '2': { size: { width: 612, height: 792 } },
-      },
-    } satisfies Record<string, unknown>;
-
-    const { pipeline, parser } = makePipeline();
-
-    const parsed = await pipeline.reprocessStored({
-      documentId: 'doc_1',
-      engine: 'docling',
-      engineVersion: 'v1',
-      rawText: 'Financial Overview\n\nFigure 1. Revenue trend',
-      rawMarkdown: '## Financial Overview\n\n![Figure 1. Revenue trend](data:image/png;base64,aW1hZ2U=)',
-      rawStructuredOutput,
-      warnings: ['docling.partial_success'],
-    });
-
-    expect((parser.parse as any)).not.toHaveBeenCalled();
-    expect(parsed.rawStructuredOutput).toEqual(rawStructuredOutput);
-    expect(parsed.warnings).toEqual(['docling.partial_success']);
-    expect(parsed.chunks[0]?.sectionPath).toEqual(['Financial Overview']);
-    expect(parsed.chunks[0]?.sourceElementIds).toContain('#/pictures/0');
-    expect(parsed.chunks[0]?.metadata.imageProvenance).toEqual([
-      expect.objectContaining({
-        elementId: '#/pictures/0',
-        caption: 'Figure 1. Revenue trend',
-        pageNumber: 2,
-      }),
-    ]);
-  });
-
-  test('falls back to stored markdown reprocessing when structured remapping fails', async () => {
-    const { pipeline } = makePipeline();
-
-    const parsed = await pipeline.reprocessStored({
-      documentId: 'doc_1',
-      engine: 'docling',
-      engineVersion: 'v1',
-      rawText: 'Fallback plain text',
-      rawMarkdown: '# Fallback Heading\n\nRecovered paragraph.',
-      rawStructuredOutput: '{',
-      warnings: [],
-    });
-
-    expect(parsed.chunks[0]?.section).toBe('Fallback Heading');
-    expect(parsed.warnings.some(warning => warning.startsWith('docling.structured_mapping_failed'))).toBe(true);
   });
 });

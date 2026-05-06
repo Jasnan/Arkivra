@@ -56,6 +56,9 @@ function createDefaultIngestionSettings(config: Config) {
     embeddingHost: config.ollama.host,
     embeddingModel: 'bge-m3',
     embeddingDimensions: 1024,
+    captioningEnabled: true,
+    captioningHost: config.ollama.host,
+    captioningModel: 'gemma4:e4b',
   };
 }
 
@@ -113,6 +116,9 @@ export function createAdminAiServices({
       embeddingHost: stored.ollamaHost,
       embeddingModel: stored.ollamaEmbeddingModel,
       embeddingDimensions: stored.ollamaEmbeddingDimensions,
+      captioningEnabled: defaults.captioningEnabled,
+      captioningHost: defaults.captioningHost,
+      captioningModel: defaults.captioningModel,
     };
   }
 

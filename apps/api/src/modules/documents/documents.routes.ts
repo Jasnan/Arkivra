@@ -539,7 +539,6 @@ export function registerDocumentRoutes({
         documentId,
         vaultId,
         replaceExisting: true,
-        reprocessFromStoredArtifacts: true,
       });
       await documentsServices.updateDocumentProcessingStatus({
         documentId,
@@ -550,7 +549,7 @@ export function registerDocumentRoutes({
       return context.json({
         queued: true,
         documentId,
-        mode: 'stored_parser_artifacts',
+        mode: 'source_file',
       }, 202);
     },
   );

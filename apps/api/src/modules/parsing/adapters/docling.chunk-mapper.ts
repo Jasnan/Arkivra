@@ -7,6 +7,7 @@ import type {
 } from '../parsed-document.schema.js';
 
 type JsonObject = Record<string, unknown>;
+type EmbeddedImage = { mimeType: string; data: Buffer };
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -95,6 +96,36 @@ function buildBboxLookup(doclingDocument: JsonObject): Map<string, ChunkBounding
   return lookup;
 }
 
+function buildImageLookup(doclingDocument: JsonObject): Map<string, EmbeddedImage> {
+  const lookup = new Map<string, EmbeddedImage>();
+
+  for (const picture of asArray(doclingDocument.pictures)) {
+    if (!isObject(picture)) continue;
+    const selfRef = asString(picture.self_ref);
+    if (selfRef === null) continue;
+
+    const image = isObject(picture.image) ? picture.image : null;
+    if (image === null) continue;
+
+    const uri = asString(image.uri);
+    if (uri === null) continue;
+
+    const match = uri.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
+    if (match === null) continue;
+
+    const mimeType = match[1] ?? asString(image.mimetype) ?? 'image/png';
+    const base64 = match[2] ?? '';
+    if (base64.length === 0) continue;
+
+    const data = Buffer.from(base64, 'base64');
+    if (data.length > 0) {
+      lookup.set(selfRef, { mimeType, data });
+    }
+  }
+
+  return lookup;
+}
+
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -142,14 +173,20 @@ export function mapDoclingChunksToParsedChunks({
   response,
   documentId,
   doclingDocument,
+  imageCaptions,
 }: {
   response: DoclingChunkResponse;
   documentId: string;
   doclingDocument?: JsonObject;
+  imageCaptions?: Map<string, string>;
 }): ParsedChunk[] {
   const bboxLookup = doclingDocument !== undefined
     ? buildBboxLookup(doclingDocument)
     : new Map<string, ChunkBoundingBox[]>();
+
+  const imageLookup = doclingDocument !== undefined
+    ? buildImageLookup(doclingDocument)
+    : new Map<string, EmbeddedImage>();
 
   return response.chunks.map((chunk) => {
     const headings = chunk.headings ?? [];
@@ -157,10 +194,21 @@ export function mapDoclingChunksToParsedChunks({
     const docItems = chunk.doc_items;
 
     const boundingBoxes: ChunkBoundingBox[] = [];
+    const images: EmbeddedImage[] = [];
+    const captions: string[] = [];
     for (const ref of docItems) {
       const refBboxes = bboxLookup.get(ref);
       if (refBboxes !== undefined) {
         boundingBoxes.push(...refBboxes);
+      }
+
+      const refImage = imageLookup.get(ref);
+      if (refImage !== undefined) {
+        images.push(refImage);
+        const caption = imageCaptions?.get(ref) ?? null;
+        if (caption !== null) {
+          captions.push(caption);
+        }
       }
     }
 
@@ -174,9 +222,14 @@ export function mapDoclingChunksToParsedChunks({
     const type = inferChunkType(docItems);
     const tokenCount = chunk.num_tokens ?? estimateTokens(chunk.text);
 
+    let text = chunk.text;
+    if (captions.length > 0) {
+      text = `${text}\n\n[Image descriptions: ${captions.join('; ')}]`;
+    }
+
     return {
       id: `${documentId}:${chunk.chunk_index}`,
-      text: chunk.text,
+      text,
       section,
       sectionPath,
       pageNumber: pageStart,
@@ -187,7 +240,7 @@ export function mapDoclingChunksToParsedChunks({
       parentElementId,
       originalText: chunk.raw_text ?? chunk.text,
       tablesHtml: [],
-      images: [],
+      images,
       citationPrecision,
       enhancedContent: null,
       type,
@@ -198,6 +251,7 @@ export function mapDoclingChunksToParsedChunks({
         doclingHeadings: headings,
         doclingCaptions: chunk.captions ?? [],
         doclingFilename: chunk.filename,
+        imageCaptions: captions.length > 0 ? captions : undefined,
         ...chunk.metadata,
       },
     };

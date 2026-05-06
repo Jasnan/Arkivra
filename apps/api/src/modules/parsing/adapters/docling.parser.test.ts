@@ -1,5 +1,6 @@
 import type { DoclingChunkResponse, DoclingClient } from '../../docling/docling.client.js';
 import type { DoclingConvertResponse } from './docling.schema.js';
+import type { ImageCaptioner } from '../image-captioner.js';
 import { describe, expect, test, vi } from 'vitest';
 import { createDoclingParser } from './docling.parser.js';
 
@@ -482,5 +483,147 @@ describe('docling parser adapter', () => {
     });
 
     expect(output.engineVersion).toBe('v1.7.0');
+  });
+
+  test('generates image captions when imageCaptioner is provided', async () => {
+    const mockCaptioner: ImageCaptioner = {
+      name: 'mock-captioner',
+      caption: vi.fn(async (image) => {
+        if (image.mimeType === 'image/png') {
+          return 'A chart showing financial data';
+        }
+        return null;
+      }),
+    };
+
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        chunks: [
+          {
+            filename: 'file.pdf',
+            chunk_index: 0,
+            text: 'Paragraph one.',
+            headings: ['Title'],
+            page_numbers: [2],
+            doc_items: ['#/pictures/0'],
+          },
+        ],
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: DOCILING_JSON_FIXTURE,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+      })),
+      imageCaptioner: mockCaptioner,
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_caption',
+      fileName: 'f.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(mockCaptioner.caption).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mimeType: 'image/png',
+        data: Buffer.from('image-bytes'),
+      }),
+    );
+    expect(output.chunks).toBeDefined();
+    expect(output.chunks?.[0]?.text).toContain('A chart showing financial data');
+  });
+
+  test('works without imageCaptioner when not provided', async () => {
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: DOCILING_JSON_FIXTURE,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+      })),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_no_caption',
+      fileName: 'f.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.chunks).toBeDefined();
+    expect(output.structuredElements).toBeDefined();
+  });
+
+  test('forces OCR off for Docling chunking', async () => {
+    const doclingClient = makeDoclingClient(makeChunkResponse());
+    const parser = createDoclingParser({
+      doclingClient,
+    });
+
+    await parser.parse({
+      documentId: 'doc_ocr_choice',
+      fileName: 'f.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(doclingClient.chunkFile).toHaveBeenCalledWith(expect.objectContaining({
+      convertOptions: {
+        doOcr: false,
+      },
+    }));
+  });
+
+  test('handles captioning errors gracefully', async () => {
+    const mockCaptioner: ImageCaptioner = {
+      name: 'mock-captioner',
+      caption: vi.fn(async () => {
+        throw new Error('Captioning service unavailable');
+      }),
+    };
+
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: DOCILING_JSON_FIXTURE,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+      })),
+      imageCaptioner: mockCaptioner,
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_caption_error',
+      fileName: 'f.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.warnings).toContain('image_captioner.failed:#/pictures/0:Captioning service unavailable');
+    expect(output.chunks).toBeDefined();
   });
 });

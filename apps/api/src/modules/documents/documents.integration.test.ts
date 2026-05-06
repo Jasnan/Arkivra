@@ -104,9 +104,16 @@ function createMockDocumentsServices() {
     softDeleteDocument: vi.fn(async () => ({ id: 'doc_1' })),
     restoreDocument: vi.fn(async () => ({ success: true, id: 'doc_1' })),
     hardDeleteDocument: vi.fn(async () => ({ success: true, id: 'doc_1' })),
+    updateDocumentProcessingStatus: vi.fn(async () => undefined),
   };
 
   return services as unknown as DocumentsServices;
+}
+
+function createMockDocumentQueue() {
+  return {
+    enqueueProcessDocument: vi.fn(async () => undefined),
+  };
 }
 
 function createMockVaultsServices() {
@@ -135,9 +142,11 @@ function createMockVaultsServices() {
 function createTestApp({
   docServices,
   vaultServices,
+  documentQueue,
 }: {
   docServices: DocumentsServices;
   vaultServices?: VaultsServices;
+  documentQueue?: { enqueueProcessDocument: (args: any) => Promise<void> };
 }) {
   const app = new Hono<ServerContext>();
 
@@ -177,6 +186,7 @@ function createTestApp({
     storage: {} as StorageDriver,
     encryption: {} as EncryptionServices,
     services: docServices,
+    documentQueue,
     retentionDays: 30,
     vaultServices: vs,
   });
@@ -570,6 +580,57 @@ describe('documents integration', () => {
       documentId: 'doc_1',
       vaultId: 'vlt_1',
       name: 'new-name.pdf',
+    });
+  });
+
+  test('queues stored-artifact reprocessing for an existing document', async () => {
+    const docServices = createMockDocumentsServices();
+    const documentQueue = createMockDocumentQueue();
+    const app = createTestApp({ docServices, documentQueue });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/reprocess', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      queued: true,
+      documentId: 'doc_1',
+      mode: 'stored_parser_artifacts',
+    });
+    expect(docServices.getDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+    });
+    expect(documentQueue.enqueueProcessDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      replaceExisting: true,
+      reprocessFromStoredArtifacts: true,
+    });
+    expect((docServices as any).updateDocumentProcessingStatus).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      processingStatus: 'queued',
+    });
+  });
+
+  test('returns 503 when document reprocessing is unavailable', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/reprocess', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'document.reprocess_unavailable',
+        message: 'Document reprocessing is not available in this environment',
+      },
     });
   });
 

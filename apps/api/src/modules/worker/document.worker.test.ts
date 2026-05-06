@@ -54,6 +54,12 @@ function createDb(docOverrides: Partial<{
   fileEncryptionKeyWrapped: string | null;
   fileEncryptionKekVersion: string | null;
   isDeleted: boolean;
+  parserEngine: string | null;
+  parserEngineVersion: string | null;
+  rawText: string;
+  rawMarkdown: string;
+  parserStructuredOutput: Record<string, unknown> | null;
+  parserWarnings: string[] | null;
 }> = {}) {
   const docRow = {
     id: 'doc_1',
@@ -64,6 +70,12 @@ function createDb(docOverrides: Partial<{
     isDeleted: false,
     fileEncryptionKeyWrapped: null as string | null,
     fileEncryptionKekVersion: null as string | null,
+    parserEngine: 'docling' as string | null,
+    parserEngineVersion: 'v1' as string | null,
+    rawText: 'Stored raw text',
+    rawMarkdown: '# Stored raw markdown',
+    parserStructuredOutput: { schema_name: 'DoclingDocument', texts: [] } as Record<string, unknown> | null,
+    parserWarnings: [] as string[] | null,
     ...docOverrides,
   };
 
@@ -95,14 +107,33 @@ function createDb(docOverrides: Partial<{
 function createDeps({
   docOverrides,
   parseImplementation,
+  reprocessImplementation,
 }: {
   docOverrides?: Partial<{
     fileEncryptionKeyWrapped: string | null;
     fileEncryptionKekVersion: string | null;
     isDeleted: boolean;
+    parserEngine: string | null;
+    parserEngineVersion: string | null;
+    rawText: string;
+    rawMarkdown: string;
+    parserStructuredOutput: Record<string, unknown> | null;
+    parserWarnings: string[] | null;
   }>;
   parseImplementation?: (
     input: ParseInput,
+    hooks?: { onStageChange?: (stage: 'chunking' | 'summarising') => void | Promise<void> },
+  ) => Promise<ParsedDocument>;
+  reprocessImplementation?: (
+    input: {
+      documentId: string;
+      engine: string;
+      engineVersion: string;
+      rawText: string;
+      rawMarkdown: string;
+      rawStructuredOutput?: Record<string, unknown>;
+      warnings?: string[];
+    },
     hooks?: { onStageChange?: (stage: 'chunking' | 'summarising') => void | Promise<void> },
   ) => Promise<ParsedDocument>;
 } = {}) {
@@ -121,6 +152,14 @@ function createDeps({
   const parsePipeline = {
     run: vi.fn(
       parseImplementation
+        ?? (async (_input, hooks) => {
+          await hooks?.onStageChange?.('chunking');
+          await hooks?.onStageChange?.('summarising');
+          return makeParsedDocument();
+        }),
+    ),
+    reprocessStored: vi.fn(
+      reprocessImplementation
         ?? (async (_input, hooks) => {
           await hooks?.onStageChange?.('chunking');
           await hooks?.onStageChange?.('summarising');
@@ -230,6 +269,77 @@ describe('document worker', () => {
     });
 
     await expect(worker.processDocument(deps.job as never)).rejects.toThrow('parse failed');
+    expect(updateDocumentProcessingStatus.mock.calls.at(-1)?.[0]?.processingStatus).toBe('failed');
+  });
+
+  test('reprocesses from stored parser artifacts without reading the source file again', async () => {
+    const deps = createDeps({
+      docOverrides: {
+        parserEngine: 'docling',
+        parserEngineVersion: 'v1',
+        rawText: 'Stored raw text',
+        rawMarkdown: '# Stored raw markdown',
+        parserStructuredOutput: { schema_name: 'DoclingDocument', texts: [] },
+        parserWarnings: ['docling.partial_success'],
+      },
+    });
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      chunkEmbedder: deps.chunkEmbedder as never,
+      startPolling: false,
+    });
+
+    await worker.processDocument({
+      ...deps.job,
+      data: {
+        ...deps.job.data,
+        reprocessFromStoredArtifacts: true,
+      },
+    } as never);
+
+    expect(deps.storage.read).not.toHaveBeenCalled();
+    expect(deps.parsePipeline.run).not.toHaveBeenCalled();
+    expect(deps.parsePipeline.reprocessStored).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      engine: 'docling',
+      engineVersion: 'v1',
+      rawText: 'Stored raw text',
+      rawMarkdown: '# Stored raw markdown',
+      rawStructuredOutput: { schema_name: 'DoclingDocument', texts: [] },
+      warnings: ['docling.partial_success'],
+    }, expect.any(Object));
+  });
+
+  test('fails reprocessing when stored parser artifacts are unavailable', async () => {
+    const deps = createDeps({
+      docOverrides: {
+        parserEngine: null,
+        parserEngineVersion: null,
+      },
+    });
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      chunkEmbedder: deps.chunkEmbedder as never,
+      startPolling: false,
+    });
+
+    await expect(worker.processDocument({
+      ...deps.job,
+      data: {
+        ...deps.job.data,
+        reprocessFromStoredArtifacts: true,
+      },
+    } as never)).rejects.toThrow('Stored parser artifacts are unavailable');
     expect(updateDocumentProcessingStatus.mock.calls.at(-1)?.[0]?.processingStatus).toBe('failed');
   });
 });

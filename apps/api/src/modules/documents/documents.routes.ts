@@ -503,6 +503,58 @@ export function registerDocumentRoutes({
     },
   );
 
+  app.post(
+    '/api/vaults/:vaultId/documents/:documentId/reprocess',
+    requireVaultPermission('documents.update'),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      if (documentQueue === undefined) {
+        return context.json(
+          {
+            error: {
+              code: 'document.reprocess_unavailable',
+              message: 'Document reprocessing is not available in this environment',
+            },
+          },
+          503,
+        );
+      }
+
+      const documentId = context.req.param('documentId');
+      const document = await documentsServices.getDocument({ documentId, vaultId });
+
+      if (document === null) {
+        return context.json(
+          { error: { code: 'document.not_found', message: 'Document not found' } },
+          404,
+        );
+      }
+
+      await documentQueue.enqueueProcessDocument({
+        documentId,
+        vaultId,
+        replaceExisting: true,
+        reprocessFromStoredArtifacts: true,
+      });
+      await documentsServices.updateDocumentProcessingStatus({
+        documentId,
+        vaultId,
+        processingStatus: 'queued',
+      });
+
+      return context.json({
+        queued: true,
+        documentId,
+        mode: 'stored_parser_artifacts',
+      }, 202);
+    },
+  );
+
   // Soft delete document
   app.delete(
     '/api/vaults/:vaultId/documents/:documentId',

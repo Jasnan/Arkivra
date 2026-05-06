@@ -105,6 +105,11 @@ describe('document search services', () => {
           tables_html: ['<table><tr><td>42</td></tr></table>'],
           image_asset_ids: ['cas_1'],
           image_assets: [{ assetId: 'cas_1', sourceElementId: 'el_image_1' }],
+          image_provenance: [{
+            elementId: 'el_image_1',
+            caption: 'Figure 1. Revenue trend by quarter',
+            pageNumber: 3,
+          }],
           score: 0.032,
         },
       ],
@@ -158,7 +163,12 @@ describe('document search services', () => {
         assetType: 'image',
         tablesHtml: ['<table><tr><td>42</td></tr></table>'],
         imageAssetIds: ['cas_1'],
-        imageAssets: [{ assetId: 'cas_1', sourceElementId: 'el_image_1' }],
+        imageAssets: [{
+          assetId: 'cas_1',
+          sourceElementId: 'el_image_1',
+          caption: 'Figure 1. Revenue trend by quarter',
+          pageNumber: 3,
+        }],
         score: 0.032,
       },
     ]);

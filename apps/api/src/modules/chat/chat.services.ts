@@ -442,7 +442,29 @@ function getCitationImageAssets(citation: Citation) {
   return citation.imageAssetIds.map(assetId => ({
     assetId,
     sourceElementId: null,
+    caption: null,
+    pageNumber: null,
   }));
+}
+
+function formatCitationFigures(citation: Citation) {
+  const imageAssets = getCitationImageAssets(citation);
+
+  if (imageAssets.length === 0) {
+    return '(none)';
+  }
+
+  return imageAssets.map((imageAsset, index) => {
+    const pageLabel = imageAsset.pageNumber !== null && imageAsset.pageNumber !== undefined
+      ? ` (page ${imageAsset.pageNumber})`
+      : '';
+
+    if (typeof imageAsset.caption === 'string' && imageAsset.caption.trim().length > 0) {
+      return `Figure ${index + 1}${pageLabel}: ${imageAsset.caption.trim()}`;
+    }
+
+    return `Figure ${index + 1}${pageLabel}: image asset attached without a caption.`;
+  }).join('\n');
 }
 
 export function buildCitationContext(citations: Citation[]) {
@@ -456,10 +478,6 @@ export function buildCitationContext(citations: Citation[]) {
           .map((table, tableIndex) => `Table ${tableIndex + 1}:\n${serializeTableHtmlForRetrieval(table)}`)
           .join('\n\n')
       : '(none)';
-    const imageAssets = getCitationImageAssets(citation);
-    const imageLine = imageAssets.length > 0
-      ? `${imageAssets.length} image asset(s) attached to this source.`
-      : 'No image assets.';
 
     return [
       `Source ${index + 1}: ${citation.documentName}`,
@@ -468,7 +486,7 @@ export function buildCitationContext(citations: Citation[]) {
       `Section: ${formatSectionPath(citation)}`,
       `Snippet:\n${citation.snippet}`,
       `Tables:\n${tables}`,
-      imageLine,
+      `Figures:\n${formatCitationFigures(citation)}`,
     ].join('\n');
   }).join('\n\n---\n\n');
 }

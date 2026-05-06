@@ -30,6 +30,8 @@ export interface Citation {
   imageAssets?: {
     assetId: string;
     sourceElementId: string | null;
+    caption?: string | null;
+    pageNumber?: number | null;
   }[];
   score: number;
 }

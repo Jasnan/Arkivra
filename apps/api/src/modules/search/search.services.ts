@@ -59,6 +59,7 @@ type HybridSearchRow = {
   tables_html: unknown;
   image_asset_ids: unknown;
   image_assets: unknown;
+  image_provenance: unknown;
   score: number | string | null;
 };
 
@@ -251,6 +252,44 @@ function parseImageAssets(value: unknown): CitationImageAsset[] {
     return [{
       assetId: (item as { assetId: string }).assetId,
       sourceElementId: (item as { sourceElementId: string | null }).sourceElementId,
+      caption: null,
+      pageNumber: null,
+    }];
+  });
+}
+
+type CitationImageProvenance = {
+  sourceElementId: string | null;
+  caption: string | null;
+  pageNumber: number | null;
+};
+
+function parseImageProvenance(value: unknown): CitationImageProvenance[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) {
+      return [];
+    }
+
+    const sourceElementId = (item as { elementId?: unknown }).elementId;
+    const caption = (item as { caption?: unknown }).caption;
+    const pageNumber = (item as { pageNumber?: unknown }).pageNumber;
+
+    if (
+      (sourceElementId !== null && sourceElementId !== undefined && typeof sourceElementId !== 'string')
+      || (caption !== null && caption !== undefined && typeof caption !== 'string')
+      || (pageNumber !== null && pageNumber !== undefined && typeof pageNumber !== 'number')
+    ) {
+      return [];
+    }
+
+    return [{
+      sourceElementId: typeof sourceElementId === 'string' ? sourceElementId : null,
+      caption: typeof caption === 'string' && caption.trim().length > 0 ? caption.trim() : null,
+      pageNumber: typeof pageNumber === 'number' ? pageNumber : null,
     }];
   });
 }
@@ -297,6 +336,38 @@ function inferAssetType({
   }
 
   return 'text';
+}
+
+function mergeImageAssetsWithProvenance({
+  imageAssets,
+  imageAssetIds,
+  imageProvenance,
+}: {
+  imageAssets: CitationImageAsset[];
+  imageAssetIds: string[];
+  imageProvenance: CitationImageProvenance[];
+}) {
+  const assets = imageAssets.length > 0
+    ? imageAssets
+    : imageAssetIds.map(assetId => ({
+      assetId,
+      sourceElementId: null,
+      caption: null,
+      pageNumber: null,
+    }));
+
+  return assets.map((asset, index) => {
+    const provenance = asset.sourceElementId
+      ? imageProvenance.find(entry => entry.sourceElementId === asset.sourceElementId) ?? imageProvenance[index]
+      : imageProvenance[index];
+
+    return {
+      assetId: asset.assetId,
+      sourceElementId: asset.sourceElementId ?? provenance?.sourceElementId ?? null,
+      caption: provenance?.caption ?? asset.caption ?? null,
+      pageNumber: provenance?.pageNumber ?? asset.pageNumber ?? null,
+    };
+  });
 }
 
 export function createDocumentSearchServices({
@@ -866,6 +937,7 @@ export function createDocumentSearchServices({
               COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
+              COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
               (1.0 / (60 + fts_ranked.fts_rank))::float8 AS score
             FROM fts_ranked
             INNER JOIN document_chunks AS dc ON dc.id = fts_ranked.id
@@ -964,6 +1036,7 @@ export function createDocumentSearchServices({
               COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
+              COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
               ranked.score::float8 AS score
             FROM ranked
             INNER JOIN document_chunks AS dc ON dc.id = ranked.id
@@ -994,10 +1067,15 @@ export function createDocumentSearchServices({
 
     const citations: Citation[] = result.rows.map((row) => {
       const tablesHtml = parseStringArray(row.tables_html);
-      const imageAssets = parseImageAssets(row.image_assets);
-      const imageAssetIds = imageAssets.length > 0
-        ? imageAssets.map(asset => asset.assetId)
+      const parsedImageAssets = parseImageAssets(row.image_assets);
+      const imageAssetIds = parsedImageAssets.length > 0
+        ? parsedImageAssets.map(asset => asset.assetId)
         : parseStringArray(row.image_asset_ids);
+      const imageAssets = mergeImageAssetsWithProvenance({
+        imageAssets: parsedImageAssets,
+        imageAssetIds,
+        imageProvenance: parseImageProvenance(row.image_provenance),
+      });
 
       return {
         chunkId: row.chunk_id,

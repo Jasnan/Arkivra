@@ -418,6 +418,7 @@ function buildChunkFromBucket({
     .filter(item => item.image !== null)
     .map(item => ({
       elementId: item.elementId,
+      caption: item.text.trim().length > 0 ? item.text.trim() : null,
       pageNumber: item.pageNumber,
       bbox:
         item.pageNumber !== null && item.bbox !== null

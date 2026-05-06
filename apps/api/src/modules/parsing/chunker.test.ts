@@ -337,6 +337,7 @@ describe('chunkStructuredElements', () => {
     expect(chunks[0]?.metadata.imageProvenance).toEqual([
       {
         elementId: 'el-3',
+        caption: 'Figure 1',
         pageNumber: 3,
         bbox: {
           pageNumber: 3,

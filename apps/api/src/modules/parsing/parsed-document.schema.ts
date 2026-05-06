@@ -146,6 +146,9 @@ export const parserOutputSchema = z.object({
    * it `undefined`; the pipeline keeps the legacy markdown-only path.
    */
   structuredElements: z.array(structuredElementSchema).optional(),
+  /** Pre-built chunks from the parser (e.g. Docling HybridChunker).
+   *  When present the pipeline skips its own chunking stage. */
+  chunks: z.array(parsedChunkSchema).optional(),
   warnings: z.array(z.string()),
 });
 

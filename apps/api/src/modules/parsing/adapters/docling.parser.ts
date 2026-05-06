@@ -11,6 +11,7 @@ import {
 } from './docling.text.js';
 import { mergeEmbeddedImages } from './docling.mapper.js';
 import { extractDoclingStructuredContent } from './docling.structured.js';
+import { mapDoclingChunksToParsedChunks } from './docling.chunk-mapper.js';
 
 const DOCLING_CAPABILITIES: ParserCapabilities = {
   ocr: true,
@@ -29,14 +30,15 @@ export function createDoclingParser({
   doclingClient: DoclingClient;
 } & DoclingParserOptions): DocumentParser {
   async function parse(input: ParseInput): Promise<ParserOutput> {
-    const response = await doclingClient.convertFile({
+    const response = await doclingClient.chunkFile({
       fileName: input.fileName,
       mimeType: input.mimeType,
       fileData: input.fileData,
     });
 
-    const rawMarkdown = response.document.md_content ?? '';
-    const rawText = response.document.text_content ?? '';
+    const docContent = response.documents[0]?.content;
+    const rawMarkdown = docContent?.md_content ?? '';
+    const rawText = docContent?.text_content ?? '';
     const markdownImages = extractDataUriImages(rawMarkdown);
     const markdown = sanitizeDoclingMarkdown(rawMarkdown);
     let structuredElements: ParserOutput['structuredElements'];
@@ -45,8 +47,8 @@ export function createDoclingParser({
     const warnings: string[] = [];
 
     try {
-      if (response.document.json_content !== undefined && response.document.json_content !== null) {
-        const structured = extractDoclingStructuredContent(response.document.json_content);
+      if (docContent?.json_content !== undefined && docContent?.json_content !== null) {
+        const structured = extractDoclingStructuredContent(docContent.json_content);
         rawStructuredOutput = structured.rawStructuredOutput;
         structuredElements = structured.structuredElements;
         embeddedImages = mergeEmbeddedImages(markdownImages, structured.embeddedImages) ?? markdownImages;
@@ -68,12 +70,22 @@ export function createDoclingParser({
       markdown,
     }) || structuredText;
 
-    if (response.status.toLowerCase() === 'partial_success') {
+    const docStatus = response.documents[0]?.status ?? '';
+    if (docStatus.toLowerCase() === 'partial_success') {
       warnings.push('docling.partial_success');
     }
-    if (Array.isArray(response.errors)) {
-      warnings.push(...response.errors);
+    const docErrors = response.documents[0]?.errors;
+    if (Array.isArray(docErrors)) {
+      warnings.push(...docErrors);
     }
+
+    const chunks = mapDoclingChunksToParsedChunks({
+      response,
+      documentId: input.documentId,
+      doclingDocument: docContent?.json_content !== undefined && docContent?.json_content !== null
+        ? docContent.json_content as Record<string, unknown>
+        : undefined,
+    });
 
     const output: ParserOutput = {
       engine: 'docling',
@@ -83,6 +95,7 @@ export function createDoclingParser({
       embeddedImages,
       rawStructuredOutput,
       structuredElements,
+      chunks,
       warnings,
     };
 

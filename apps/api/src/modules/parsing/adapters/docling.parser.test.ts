@@ -1,4 +1,4 @@
-import type { DoclingClient } from '../../docling/docling.client.js';
+import type { DoclingChunkResponse, DoclingClient } from '../../docling/docling.client.js';
 import type { DoclingConvertResponse } from './docling.schema.js';
 import { describe, expect, test, vi } from 'vitest';
 import { createDoclingParser } from './docling.parser.js';
@@ -161,34 +161,58 @@ const DOCILING_JSON_FIXTURE = {
   groups: [],
 };
 
-function makeDoclingResponse(
-  overrides: Partial<DoclingConvertResponse> = {},
-): DoclingConvertResponse {
+function makeChunkResponse(
+  overrides: Partial<DoclingChunkResponse> = {},
+): DoclingChunkResponse {
   return {
-    document: {
-      md_content: '# Title\n\nParagraph one.\n\n## Section\n\nParagraph two.',
-      text_content: 'Title\nParagraph one.\nSection\nParagraph two.',
-      json_content: DOCILING_JSON_FIXTURE,
-      html_content: '',
-      doctags_content: '',
-    },
-    status: 'success',
+    chunks: [
+      {
+        filename: 'file.pdf',
+        chunk_index: 0,
+        text: 'Paragraph one.',
+        headings: ['Title'],
+        page_numbers: [1],
+        doc_items: ['#/texts/0'],
+      },
+      {
+        filename: 'file.pdf',
+        chunk_index: 1,
+        text: 'Paragraph two.',
+        headings: ['Title', 'Section'],
+        page_numbers: [1],
+        doc_items: ['#/texts/1'],
+      },
+    ],
+    documents: [
+      {
+        kind: 'ExportResult' as const,
+        content: {
+          md_content: '# Title\n\nParagraph one.\n\n## Section\n\nParagraph two.',
+          text_content: 'Title\nParagraph one.\nSection\nParagraph two.',
+          json_content: DOCILING_JSON_FIXTURE,
+          html_content: '',
+          doctags_content: '',
+        },
+        status: 'success',
+        errors: [],
+      },
+    ],
     processing_time: 1.5,
-    errors: [],
     ...overrides,
   };
 }
 
-function makeDoclingClient(response: DoclingConvertResponse): DoclingClient {
+function makeDoclingClient(response: DoclingChunkResponse): DoclingClient {
   return {
-    convertFile: vi.fn(async () => response),
-  };
+    convertFile: vi.fn(async () => response as unknown as DoclingConvertResponse),
+    chunkFile: vi.fn(async () => response),
+  } as unknown as DoclingClient;
 }
 
 describe('docling parser adapter', () => {
   test('maps Docling response to internal ParserOutput', async () => {
     const parser = createDoclingParser({
-      doclingClient: makeDoclingClient(makeDoclingResponse()),
+      doclingClient: makeDoclingClient(makeChunkResponse()),
     });
 
     const output = await parser.parse({
@@ -204,20 +228,27 @@ describe('docling parser adapter', () => {
     expect(output.text).toContain('Paragraph one');
     expect(output.rawStructuredOutput).toEqual(DOCILING_JSON_FIXTURE);
     expect(output.structuredElements).toBeDefined();
-    expect(output).not.toHaveProperty('chunks');
+    expect(output.chunks).toBeDefined();
+    expect(output.chunks).toHaveLength(2);
+    expect(output.chunks?.[0]?.section).toBe('Title');
     expect(output).not.toHaveProperty('documentId');
   });
 
   test('maps Docling json_content into structured elements, tables, and images', async () => {
     const parser = createDoclingParser({
-      doclingClient: makeDoclingClient(makeDoclingResponse({
-        document: {
-          md_content: '',
-          text_content: '',
-          json_content: DOCILING_JSON_FIXTURE,
-          html_content: '',
-          doctags_content: '',
-        },
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: DOCILING_JSON_FIXTURE,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
       })),
     });
 
@@ -273,16 +304,21 @@ describe('docling parser adapter', () => {
   test('strips data URIs and markdown images from extracted text', async () => {
     const parser = createDoclingParser({
       doclingClient: makeDoclingClient(
-        makeDoclingResponse({
-          document: {
-            md_content:
-              '# Title\n\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\n\nParagraph one.',
-            text_content:
-              'Title\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\nParagraph one.',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
+        makeChunkResponse({
+          documents: [{
+            kind: 'ExportResult' as const,
+            content: {
+              md_content:
+                '# Title\n\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\n\nParagraph one.',
+              text_content:
+                'Title\n![Preview](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA)\nParagraph one.',
+              json_content: null,
+              html_content: '',
+              doctags_content: '',
+            },
+            status: 'success',
+            errors: [],
+          }],
         }),
       ),
     });
@@ -305,7 +341,20 @@ describe('docling parser adapter', () => {
   test('collects Docling partial_success into warnings', async () => {
     const parser = createDoclingParser({
       doclingClient: makeDoclingClient(
-        makeDoclingResponse({ status: 'partial_success', errors: ['ocr warning'] }),
+        makeChunkResponse({
+          documents: [{
+            kind: 'ExportResult' as const,
+            content: {
+              md_content: '',
+              text_content: '',
+              json_content: DOCILING_JSON_FIXTURE,
+              html_content: '',
+              doctags_content: '',
+            },
+            status: 'partial_success',
+            errors: ['ocr warning'],
+          }],
+        }),
       ),
     });
 
@@ -321,22 +370,27 @@ describe('docling parser adapter', () => {
   });
 
   test('tolerates Docling returning null for unrequested format fields', async () => {
-    const rawResponse = {
-      document: {
-            md_content: null,
-            text_content: 'plain text only',
-            json_content: null,
-            html_content: null,
-            doctags_content: null,
-          },
-      status: 'success',
+    const rawResponse: DoclingChunkResponse = {
+      chunks: [{ filename: 'f.pdf', chunk_index: 0, text: 'plain text only', doc_items: [] }],
+      documents: [{
+        kind: 'ExportResult' as const,
+        content: {
+          md_content: null as unknown as string,
+          text_content: 'plain text only',
+          json_content: null,
+          html_content: null as unknown as string,
+          doctags_content: null as unknown as string,
+        },
+        status: 'success',
+        errors: [],
+      }],
       processing_time: 0.1,
-      errors: [],
     };
 
     const parser = createDoclingParser({
       doclingClient: {
-        convertFile: vi.fn(async () => rawResponse),
+        convertFile: vi.fn(),
+        chunkFile: vi.fn(async () => rawResponse),
       } as unknown as DoclingClient,
     });
 
@@ -354,14 +408,19 @@ describe('docling parser adapter', () => {
   test('falls back to markdown-derived text when text_content is empty', async () => {
     const parser = createDoclingParser({
       doclingClient: makeDoclingClient(
-        makeDoclingResponse({
-          document: {
-            md_content: '# Title\n\nParagraph one.\n\n- Bullet item',
-            text_content: '',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
+        makeChunkResponse({
+          documents: [{
+            kind: 'ExportResult' as const,
+            content: {
+              md_content: '# Title\n\nParagraph one.\n\n- Bullet item',
+              text_content: '',
+              json_content: null,
+              html_content: '',
+              doctags_content: '',
+            },
+            status: 'success',
+            errors: [],
+          }],
         }),
       ),
     });
@@ -380,14 +439,19 @@ describe('docling parser adapter', () => {
   test('falls back to markdown parsing and records a warning when structured mapping fails', async () => {
     const parser = createDoclingParser({
       doclingClient: makeDoclingClient(
-        makeDoclingResponse({
-          document: {
-            md_content: '# Title\n\nParagraph one.',
-            text_content: '',
-            json_content: 'not json',
-            html_content: '',
-            doctags_content: '',
-          },
+        makeChunkResponse({
+          documents: [{
+            kind: 'ExportResult' as const,
+            content: {
+              md_content: '# Title\n\nParagraph one.',
+              text_content: '',
+              json_content: 'not json',
+              html_content: '',
+              doctags_content: '',
+            },
+            status: 'success',
+            errors: [],
+          }],
         }),
       ),
     });
@@ -406,7 +470,7 @@ describe('docling parser adapter', () => {
 
   test('reports engine-version from adapter options', async () => {
     const parser = createDoclingParser({
-      doclingClient: makeDoclingClient(makeDoclingResponse()),
+      doclingClient: makeDoclingClient(makeChunkResponse()),
       engineVersion: 'v1.7.0',
     });
 

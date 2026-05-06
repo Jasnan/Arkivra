@@ -1,6 +1,7 @@
 import type { DoclingChunkResponse, DoclingClient } from '../../docling/docling.client.js';
 import type { DoclingConvertResponse } from './docling.schema.js';
 import type { ImageCaptioner } from '../image-captioner.js';
+import { PDFDocument } from 'pdf-lib';
 import { describe, expect, test, vi } from 'vitest';
 import { createDoclingParser } from './docling.parser.js';
 
@@ -208,6 +209,15 @@ function makeDoclingClient(response: DoclingChunkResponse): DoclingClient {
     convertFile: vi.fn(async () => response as unknown as DoclingConvertResponse),
     chunkFile: vi.fn(async () => response),
   } as unknown as DoclingClient;
+}
+
+async function createPdfBuffer(pageCount: number) {
+  const pdf = await PDFDocument.create();
+  for (let index = 0; index < pageCount; index += 1) {
+    pdf.addPage([612, 792]);
+  }
+
+  return Buffer.from(await pdf.save());
 }
 
 describe('docling parser adapter', () => {
@@ -587,6 +597,113 @@ describe('docling parser adapter', () => {
       convertOptions: {
         doOcr: false,
       },
+    }));
+  });
+
+  test('splits large PDFs before Docling and offsets merged page citations', async () => {
+    const chunkFile = vi.fn(async ({ fileName }: { fileName: string }) => {
+      const isLastPart = fileName.includes('part-003');
+      const chunks: DoclingChunkResponse['chunks'] = [
+        {
+          filename: fileName,
+          chunk_index: 0,
+          text: `First page chunk from ${fileName}`,
+          headings: ['Part'],
+          page_numbers: [1],
+          doc_items: ['#/texts/0'],
+        },
+      ];
+      if (!isLastPart) {
+        chunks.push({
+          filename: fileName,
+          chunk_index: 1,
+          text: `Second page chunk from ${fileName}`,
+          headings: ['Part'],
+          page_numbers: [2],
+          doc_items: ['#/texts/1'],
+        });
+      }
+
+      return makeChunkResponse({
+        chunks,
+        documents: [
+          {
+            kind: 'ExportResult' as const,
+            content: {
+              md_content: `# ${fileName}`,
+              text_content: fileName,
+              json_content: DOCILING_JSON_FIXTURE,
+              html_content: '',
+              doctags_content: '',
+            },
+            status: 'success',
+            errors: [],
+          },
+        ],
+      });
+    });
+    const doclingClient = {
+      convertFile: vi.fn(),
+      chunkFile,
+    } as unknown as DoclingClient;
+    const parser = createDoclingParser({
+      doclingClient,
+      splitPdfPageThreshold: 2,
+      splitPdfChunkPages: 2,
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_large_pdf',
+      fileName: 'large.pdf',
+      mimeType: 'application/pdf',
+      fileData: await createPdfBuffer(5),
+    });
+
+    expect(chunkFile).toHaveBeenCalledTimes(3);
+    expect(chunkFile).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      fileName: 'large.part-001-of-003.pdf',
+    }));
+    expect(chunkFile).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      fileName: 'large.part-002-of-003.pdf',
+    }));
+    expect(chunkFile).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      fileName: 'large.part-003-of-003.pdf',
+    }));
+
+    expect(output.chunks?.map(chunk => chunk.id)).toEqual([
+      'doc_large_pdf:0',
+      'doc_large_pdf:1',
+      'doc_large_pdf:2',
+      'doc_large_pdf:3',
+      'doc_large_pdf:4',
+    ]);
+    expect(output.chunks?.map(chunk => chunk.pageStart)).toEqual([1, 2, 3, 4, 5]);
+    expect(output.chunks?.[2]?.boundingBoxes[0]?.pageNumber).toBe(3);
+    expect(output.rawStructuredOutput?.schema_name).toBe('ArkivraDoclingSplitDocument');
+  });
+
+  test('uses the default policy of splitting PDFs above 10 pages into 10-page parts', async () => {
+    const doclingClient = makeDoclingClient(makeChunkResponse());
+    const parser = createDoclingParser({
+      doclingClient,
+    });
+
+    await parser.parse({
+      documentId: 'doc_default_split',
+      fileName: 'default-split.pdf',
+      mimeType: 'application/pdf',
+      fileData: await createPdfBuffer(21),
+    });
+
+    expect(doclingClient.chunkFile).toHaveBeenCalledTimes(3);
+    expect(doclingClient.chunkFile).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      fileName: 'default-split.part-001-of-003.pdf',
+    }));
+    expect(doclingClient.chunkFile).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      fileName: 'default-split.part-002-of-003.pdf',
+    }));
+    expect(doclingClient.chunkFile).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      fileName: 'default-split.part-003-of-003.pdf',
     }));
   });
 

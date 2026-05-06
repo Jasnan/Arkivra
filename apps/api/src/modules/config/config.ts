@@ -67,6 +67,12 @@ export const configDefinition = {
       default: 30,
       env: 'ARKIVRA_DOCUMENT_RETENTION_DAYS',
     },
+    documentProcessingConcurrency: {
+      doc: 'How many documents the worker may process in parallel.',
+      schema: z.coerce.number().int().min(1).max(32),
+      default: 2,
+      env: 'ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY',
+    },
   },
   backups: {
     directory: {
@@ -109,12 +115,6 @@ export const configDefinition = {
       default: 'none' as const,
       env: 'ARKIVRA_PARSER_GLUED_WORD_NORMALIZATION',
     },
-    emptyTextFallback: {
-      doc: 'Optional recovery path when Docling returns no text. `ollama_vision` sends embedded or rendered page images to the configured Ollama model and uses the returned transcription; `none` disables this fallback.',
-      schema: z.enum(['none', 'ollama_vision']),
-      default: 'ollama_vision' as const,
-      env: 'ARKIVRA_PARSER_EMPTY_TEXT_FALLBACK',
-    },
   },
   ollama: {
     host: {
@@ -134,6 +134,12 @@ export const configDefinition = {
       schema: z.coerce.number().int().min(0).max(1_000_000),
       default: 1000,
       env: 'ARKIVRA_AI_NORMALIZATION_MAX_INPUT_CHARS',
+    },
+    embeddingBatchSize: {
+      doc: 'How many chunk texts Arkivra sends per Ollama embedding request when /api/embed batching is available.',
+      schema: z.coerce.number().int().min(1).max(512),
+      default: 16,
+      env: 'ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE',
     },
     logRequests: {
       doc: 'Whether to log Arkivra Ollama normalization requests and responses for debugging.',

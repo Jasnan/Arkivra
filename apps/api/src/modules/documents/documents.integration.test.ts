@@ -583,7 +583,7 @@ describe('documents integration', () => {
     });
   });
 
-  test('queues stored-artifact reprocessing for an existing document', async () => {
+  test('queues source-file reprocessing for an existing document', async () => {
     const docServices = createMockDocumentsServices();
     const documentQueue = createMockDocumentQueue();
     const app = createTestApp({ docServices, documentQueue });
@@ -597,7 +597,7 @@ describe('documents integration', () => {
     expect(await response.json()).toEqual({
       queued: true,
       documentId: 'doc_1',
-      mode: 'stored_parser_artifacts',
+      mode: 'source_file',
     });
     expect(docServices.getDocument).toHaveBeenCalledWith({
       documentId: 'doc_1',
@@ -607,7 +607,6 @@ describe('documents integration', () => {
       documentId: 'doc_1',
       vaultId: 'vlt_1',
       replaceExisting: true,
-      reprocessFromStoredArtifacts: true,
     });
     expect((docServices as any).updateDocumentProcessingStatus).toHaveBeenCalledWith({
       documentId: 'doc_1',

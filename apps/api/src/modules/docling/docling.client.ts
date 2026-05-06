@@ -70,6 +70,9 @@ export function createDoclingClient({
   baseUrl,
   pollIntervalMs = 2_000,
   maxWaitMs = 6 * 60 * 60 * 1000,
+  requestRetryAttempts = 2,
+  requestRetryDelayMs = 3_000,
+  chunkTaskRecoveryAttempts = 2,
   convertOptions = DEFAULT_DOCLING_CONVERT_OPTIONS,
   routes = DEFAULT_DOCLING_ROUTES,
   fetchImpl = fetch,
@@ -78,6 +81,9 @@ export function createDoclingClient({
   baseUrl: string;
   pollIntervalMs?: number;
   maxWaitMs?: number;
+  requestRetryAttempts?: number;
+  requestRetryDelayMs?: number;
+  chunkTaskRecoveryAttempts?: number;
   convertOptions?: Partial<DoclingConvertOptions>;
   routes?: DoclingRoutes;
   fetchImpl?: typeof fetch;
@@ -87,9 +93,38 @@ export function createDoclingClient({
     ...DEFAULT_DOCLING_CONVERT_OPTIONS,
     ...convertOptions,
   };
+  const logPrefix = '[docling-client]';
 
   async function readErrorText(response: Response) {
     return await response.text().catch(() => '');
+  }
+
+  function isRecoverableChunkTaskLoss(error: Error) {
+    return /Docling chunk async status poll failed .*fetch failed/i.test(error.message)
+      || /Docling chunk async result fetch failed .*fetch failed/i.test(error.message)
+      || /Docling chunk async status poll error .*404 Not Found .*Task not found/i.test(error.message);
+  }
+
+  async function fetchWithRetry(
+    url: string,
+    init: RequestInit,
+    errorPrefix: string,
+  ): Promise<Response> {
+    let attempt = 0;
+
+    while (true) {
+      try {
+        return await fetchImpl(url, init);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown fetch error';
+        if (attempt >= requestRetryAttempts) {
+          throw new Error(`${errorPrefix}: ${message}`);
+        }
+
+        attempt += 1;
+        await sleepImpl(requestRetryDelayMs);
+      }
+    }
   }
 
   async function convertFile({
@@ -118,17 +153,14 @@ export function createDoclingClient({
     }
 
     const submitUrl = routes.submitAsync(baseUrl);
-    let submitResponse: Response;
-
-    try {
-      submitResponse = await fetchImpl(submitUrl, {
+    const submitResponse = await fetchWithRetry(
+      submitUrl,
+      {
         method: 'POST',
         body: formData,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown fetch error';
-      throw new Error(`Docling async submit failed for ${submitUrl}: ${message}`);
-    }
+      },
+      `Docling async submit failed for ${submitUrl}`,
+    );
 
     if (!submitResponse.ok) {
       const text = await readErrorText(submitResponse);
@@ -166,13 +198,11 @@ export function createDoclingClient({
       await sleepImpl(pollIntervalMs);
 
       const pollUrl = routes.pollStatus(baseUrl, taskId);
-      let statusResponse: Response;
-      try {
-        statusResponse = await fetchImpl(pollUrl, { method: 'GET' });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown fetch error';
-        throw new Error(`Docling async status poll failed for task ${taskId}: ${message}`);
-      }
+      const statusResponse = await fetchWithRetry(
+        pollUrl,
+        { method: 'GET' },
+        `Docling async status poll failed for task ${taskId}`,
+      );
 
       if (!statusResponse.ok) {
         const text = await readErrorText(statusResponse);
@@ -211,13 +241,11 @@ export function createDoclingClient({
     }
 
     const resultUrl = routes.fetchResult(baseUrl, taskId);
-    let resultResponse: Response;
-    try {
-      resultResponse = await fetchImpl(resultUrl, { method: 'GET' });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown fetch error';
-      throw new Error(`Docling async result fetch failed for task ${taskId}: ${message}`);
-    }
+    const resultResponse = await fetchWithRetry(
+      resultUrl,
+      { method: 'GET' },
+      `Docling async result fetch failed for task ${taskId}`,
+    );
 
     if (!resultResponse.ok) {
       const text = await readErrorText(resultResponse);
@@ -248,162 +276,195 @@ export function createDoclingClient({
     mimeType,
     fileData,
     chunkOptions,
+    convertOptions,
   }: {
     fileName: string;
     mimeType: string;
     fileData: Buffer;
     chunkOptions?: Partial<DoclingChunkOptions>;
+    convertOptions?: Partial<Pick<DoclingConvertOptions, 'doOcr'>>;
   }): Promise<DoclingChunkResponse> {
     const effectiveChunkOptions: DoclingChunkOptions = {
       ...DEFAULT_DOCLING_CHUNK_OPTIONS,
       ...chunkOptions,
     };
+    const effectiveChunkConvertOptions = {
+      doOcr: convertOptions?.doOcr ?? effectiveConvertOptions.doOcr,
+    };
 
-    const formData = new FormData();
-    const blob = new Blob([fileData], { type: mimeType });
-
-    formData.append('files', blob, fileName);
-    for (const format of effectiveConvertOptions.toFormats) {
-      formData.append('to_formats', format);
-    }
-    formData.append('include_images', 'true');
-    formData.append('image_export_mode', 'embedded');
-    formData.append('do_ocr', String(effectiveConvertOptions.doOcr));
-    formData.append('ocr_engine', effectiveConvertOptions.ocrEngine);
-
-    for (const language of effectiveConvertOptions.ocrLang) {
-      formData.append('ocr_lang', language);
-    }
-
-    formData.append('include_converted_doc', 'true');
-    formData.append('max_tokens', String(effectiveChunkOptions.maxTokens));
-    formData.append('merge_peers', String(effectiveChunkOptions.mergePeers));
-    formData.append('repeat_table_header', String(effectiveChunkOptions.repeatTableHeader));
-
-    const submitUrl = routes.chunkSubmitAsync(baseUrl);
-    let submitResponse: Response;
-
-    try {
-      submitResponse = await fetchImpl(submitUrl, {
-        method: 'POST',
-        body: formData,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown fetch error';
-      throw new Error(`Docling chunk async submit failed for ${submitUrl}: ${message}`);
-    }
-
-    if (!submitResponse.ok) {
-      const text = await readErrorText(submitResponse);
-      throw new Error(`Docling chunk async submit error: ${submitResponse.status} ${submitResponse.statusText} - ${text}`);
-    }
-
-    const submitJson = await submitResponse.json().catch(() => null);
-    const submitParsed = doclingSubmitResponseSchema.safeParse(submitJson);
-    if (!submitParsed.success) {
-      throw new Error(
-        `Docling chunk async submit returned an unrecognized payload: ${submitParsed.error.message}`,
+    async function submitAndAwaitChunkTask() {
+      console.info(
+        `${logPrefix} submitting chunk task file="${fileName}" mime=${mimeType} bytes=${fileData.length} doOcr=${effectiveChunkConvertOptions.doOcr} maxTokens=${effectiveChunkOptions.maxTokens}`,
       );
-    }
+      const formData = new FormData();
+      const blob = new Blob([fileData], { type: mimeType });
 
-    const taskId = submitParsed.data.task_id;
-    let latestRawStatus = submitParsed.data.task_status;
-    let latestStatusPayload: { errors?: string[]; task_meta?: Record<string, unknown> | null } = {};
-    let latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
+      formData.append('files', blob, fileName);
+      for (const format of effectiveConvertOptions.toFormats) {
+        formData.append('to_formats', format);
+      }
+      formData.append('include_images', 'true');
+      formData.append('image_export_mode', 'embedded');
+      formData.append('do_ocr', String(effectiveChunkConvertOptions.doOcr));
+      formData.append('ocr_engine', effectiveConvertOptions.ocrEngine);
 
-    if (latestInternalStatus === 'unknown') {
-      throw new Error(
-        `Docling chunk async submit returned unknown task_status "${latestRawStatus}" for task ${taskId}`,
+      for (const language of effectiveConvertOptions.ocrLang) {
+        formData.append('ocr_lang', language);
+      }
+
+      formData.append('include_converted_doc', 'true');
+      formData.append('max_tokens', String(effectiveChunkOptions.maxTokens));
+      formData.append('merge_peers', String(effectiveChunkOptions.mergePeers));
+      formData.append('repeat_table_header', String(effectiveChunkOptions.repeatTableHeader));
+
+      const submitUrl = routes.chunkSubmitAsync(baseUrl);
+      const submitResponse = await fetchWithRetry(
+        submitUrl,
+        {
+          method: 'POST',
+          body: formData,
+        },
+        `Docling chunk async submit failed for ${submitUrl}`,
       );
-    }
 
-    const startedAt = Date.now();
+      if (!submitResponse.ok) {
+        const text = await readErrorText(submitResponse);
+        throw new Error(`Docling chunk async submit error: ${submitResponse.status} ${submitResponse.statusText} - ${text}`);
+      }
 
-    while (!isTerminalInternalStatus(latestInternalStatus)) {
-      if (Date.now() - startedAt > maxWaitMs) {
+      const submitJson = await submitResponse.json().catch(() => null);
+      const submitParsed = doclingSubmitResponseSchema.safeParse(submitJson);
+      if (!submitParsed.success) {
         throw new Error(
-          `Docling chunk async conversion exceeded Arkivra max wait of ${maxWaitMs}ms for task ${taskId}`,
+          `Docling chunk async submit returned an unrecognized payload: ${submitParsed.error.message}`,
         );
       }
 
-      await sleepImpl(pollIntervalMs);
-
-      const pollUrl = routes.pollStatus(baseUrl, taskId);
-      let statusResponse: Response;
-      try {
-        statusResponse = await fetchImpl(pollUrl, { method: 'GET' });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown fetch error';
-        throw new Error(`Docling chunk async status poll failed for task ${taskId}: ${message}`);
-      }
-
-      if (!statusResponse.ok) {
-        const text = await readErrorText(statusResponse);
-        throw new Error(
-          `Docling chunk async status poll error for task ${taskId}: ${statusResponse.status} ${statusResponse.statusText} - ${text}`,
-        );
-      }
-
-      const statusJson = await statusResponse.json().catch(() => null);
-      const statusParsed = doclingStatusResponseSchema.safeParse(statusJson);
-      if (!statusParsed.success) {
-        throw new Error(
-          `Docling chunk async status poll returned an unrecognized payload for task ${taskId}: ${statusParsed.error.message}`,
-        );
-      }
-
-      latestRawStatus = statusParsed.data.task_status;
-      latestStatusPayload = {
-        errors: statusParsed.data.errors,
-        task_meta: statusParsed.data.task_meta ?? null,
-      };
-      latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
+      const taskId = submitParsed.data.task_id;
+      let latestRawStatus = submitParsed.data.task_status;
+      let latestStatusPayload: { errors?: string[]; task_meta?: Record<string, unknown> | null } = {};
+      let latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
 
       if (latestInternalStatus === 'unknown') {
         throw new Error(
-          `Docling chunk async poll returned unknown task_status "${latestRawStatus}" for task ${taskId}`,
+          `Docling chunk async submit returned unknown task_status "${latestRawStatus}" for task ${taskId}`,
+        );
+      }
+      console.info(`${logPrefix} chunk task accepted taskId=${taskId} status=${latestRawStatus}`);
+
+      const startedAt = Date.now();
+      let pollCount = 0;
+
+      while (!isTerminalInternalStatus(latestInternalStatus)) {
+        if (Date.now() - startedAt > maxWaitMs) {
+          throw new Error(
+            `Docling chunk async conversion exceeded Arkivra max wait of ${maxWaitMs}ms for task ${taskId}`,
+          );
+        }
+
+        await sleepImpl(pollIntervalMs);
+
+        const pollUrl = routes.pollStatus(baseUrl, taskId);
+        const statusResponse = await fetchWithRetry(
+          pollUrl,
+          { method: 'GET' },
+          `Docling chunk async status poll failed for task ${taskId}`,
+        );
+
+        if (!statusResponse.ok) {
+          const text = await readErrorText(statusResponse);
+          throw new Error(
+            `Docling chunk async status poll error for task ${taskId}: ${statusResponse.status} ${statusResponse.statusText} - ${text}`,
+          );
+        }
+
+        const statusJson = await statusResponse.json().catch(() => null);
+        const statusParsed = doclingStatusResponseSchema.safeParse(statusJson);
+        if (!statusParsed.success) {
+          throw new Error(
+            `Docling chunk async status poll returned an unrecognized payload for task ${taskId}: ${statusParsed.error.message}`,
+          );
+        }
+
+        latestRawStatus = statusParsed.data.task_status;
+        latestStatusPayload = {
+          errors: statusParsed.data.errors,
+          task_meta: statusParsed.data.task_meta ?? null,
+        };
+        latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
+
+        if (latestInternalStatus === 'unknown') {
+          throw new Error(
+            `Docling chunk async poll returned unknown task_status "${latestRawStatus}" for task ${taskId}`,
+          );
+        }
+
+        pollCount += 1;
+        if (pollCount === 1 || pollCount % 10 === 0 || isTerminalInternalStatus(latestInternalStatus)) {
+          console.info(
+            `${logPrefix} chunk task poll taskId=${taskId} status=${latestRawStatus} elapsedMs=${Date.now() - startedAt}`,
+          );
+        }
+      }
+
+      if (latestInternalStatus !== 'succeeded') {
+        const errors = collectTaskErrors(latestStatusPayload);
+        throw new Error(
+          `Docling chunk async conversion failed for task ${taskId}${errors.length > 0 ? `: ${errors.join(', ')}` : ''}`,
+        );
+      }
+
+      const resultUrl = routes.fetchResult(baseUrl, taskId);
+      const resultResponse = await fetchWithRetry(
+        resultUrl,
+        { method: 'GET' },
+        `Docling chunk async result fetch failed for task ${taskId}`,
+      );
+
+      if (!resultResponse.ok) {
+        const text = await readErrorText(resultResponse);
+        throw new Error(
+          `Docling chunk async result fetch error for task ${taskId}: ${resultResponse.status} ${resultResponse.statusText} - ${text}`,
+        );
+      }
+
+      const resultJson = await resultResponse.json().catch(() => null);
+      const resultParsed = doclingChunkResponseSchema.safeParse(resultJson);
+      if (!resultParsed.success) {
+        throw new Error(
+          `Docling chunk returned an unrecognized result payload for task ${taskId}: ${resultParsed.error.message}`,
+        );
+      }
+
+      const data = resultParsed.data;
+      const firstDoc = data.documents[0];
+      if (firstDoc !== undefined && normalizeDoclingTaskStatus(firstDoc.status) === 'failed') {
+        throw new Error(`Docling chunk conversion failed: ${firstDoc.errors.join(', ')}`);
+      }
+
+      console.info(
+        `${logPrefix} chunk task completed taskId=${taskId} chunks=${data.chunks.length} processingTime=${data.processing_time}`,
+      );
+
+      return data;
+    }
+
+    let recoveryAttempt = 0;
+
+    while (true) {
+      try {
+        return await submitAndAwaitChunkTask();
+      } catch (error) {
+        if (!(error instanceof Error) || !isRecoverableChunkTaskLoss(error) || recoveryAttempt >= chunkTaskRecoveryAttempts) {
+          throw error;
+        }
+
+        recoveryAttempt += 1;
+        console.warn(
+          `${logPrefix} chunk task lost; resubmitting file="${fileName}" recoveryAttempt=${recoveryAttempt}/${chunkTaskRecoveryAttempts} reason=${error.message}`,
         );
       }
     }
-
-    if (latestInternalStatus !== 'succeeded') {
-      const errors = collectTaskErrors(latestStatusPayload);
-      throw new Error(
-        `Docling chunk async conversion failed for task ${taskId}${errors.length > 0 ? `: ${errors.join(', ')}` : ''}`,
-      );
-    }
-
-    const resultUrl = routes.fetchResult(baseUrl, taskId);
-    let resultResponse: Response;
-    try {
-      resultResponse = await fetchImpl(resultUrl, { method: 'GET' });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown fetch error';
-      throw new Error(`Docling chunk async result fetch failed for task ${taskId}: ${message}`);
-    }
-
-    if (!resultResponse.ok) {
-      const text = await readErrorText(resultResponse);
-      throw new Error(
-        `Docling chunk async result fetch error for task ${taskId}: ${resultResponse.status} ${resultResponse.statusText} - ${text}`,
-      );
-    }
-
-    const resultJson = await resultResponse.json().catch(() => null);
-    const resultParsed = doclingChunkResponseSchema.safeParse(resultJson);
-    if (!resultParsed.success) {
-      throw new Error(
-        `Docling chunk returned an unrecognized result payload for task ${taskId}: ${resultParsed.error.message}`,
-      );
-    }
-
-    const data = resultParsed.data;
-    const firstDoc = data.documents[0];
-    if (firstDoc !== undefined && normalizeDoclingTaskStatus(firstDoc.status) === 'failed') {
-      throw new Error(`Docling chunk conversion failed: ${firstDoc.errors.join(', ')}`);
-    }
-
-    return data;
   }
 
   return { convertFile, chunkFile };

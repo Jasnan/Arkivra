@@ -9,13 +9,12 @@ import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
-import { renderPdfPagesToImages } from './modules/parsing/pdf-page-renderer.js';
 import {
   createRuntimeConfiguredGluedWordNormalizer,
 } from './modules/parsing/glued-word-normalizer.js';
 import { createRuntimeConfiguredOllamaChunkSummariser } from './modules/parsing/ollama-chunk-summariser.js';
 import { createRuntimeConfiguredOllamaEmbedder } from './modules/parsing/ollama-embedder.js';
-import { createRuntimeConfiguredOllamaVisionTextFallback } from './modules/parsing/ollama-vision-text-fallback.js';
+import { createRuntimeConfiguredOllamaImageCaptioner } from './modules/parsing/image-captioner.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
 import {
@@ -81,9 +80,21 @@ export async function startApp() {
     const doclingClient = createDoclingClient({
       baseUrl: config.docling.url,
     });
+    const imageCaptioner = createRuntimeConfiguredOllamaImageCaptioner({
+      resolveSettings: async () => {
+        const settings = await adminAiServices.getIngestionSettings();
+        return {
+          enabled: settings.captioningEnabled,
+          host: settings.captioningHost,
+          model: settings.captioningModel,
+          logRequests: config.ollama.logRequests,
+        };
+      },
+    });
     const doclingParser = createDoclingParser({
       doclingClient,
       engineVersion: config.docling.engineVersion,
+      imageCaptioner,
     });
     const parserRegistry = createParserRegistry({
       parsers: [doclingParser],
@@ -108,30 +119,6 @@ export async function startApp() {
         };
       },
     });
-    const emptyTextFallback = config.parsers.emptyTextFallback === 'ollama_vision'
-      ? createRuntimeConfiguredOllamaVisionTextFallback({
-          resolveSettings: async () => {
-            const settings = await adminAiServices.getSettings();
-            return {
-              host: settings.ollamaHost,
-              model: settings.model,
-              logRequests: config.ollama.logRequests,
-            };
-          },
-          loadImages: async (input, raw) => {
-            if (raw.engine !== 'docling') {
-              return [];
-            }
-
-            return await renderPdfPagesToImages({
-              fileName: input.fileName,
-              mimeType: input.mimeType,
-              fileData: input.fileData,
-              maxPages: 8,
-            });
-          },
-        })
-      : undefined;
     const chunkSummariser = createRuntimeConfiguredOllamaChunkSummariser({
       resolveSettings: async () => {
         const settings = await adminAiServices.getIngestionSettings();
@@ -148,7 +135,6 @@ export async function startApp() {
       parserRegistry,
       cleaner: textCleaner,
       gluedWordNormalizer,
-      emptyTextFallback,
       chunkSummariser,
     });
     const chunkEmbedder = createRuntimeConfiguredOllamaEmbedder({
@@ -162,6 +148,7 @@ export async function startApp() {
           logRequests: config.ollama.logRequests,
         };
       },
+      batchSize: config.ollama.embeddingBatchSize,
     });
     const documentWorker = createDocumentWorker({
       db,
@@ -169,6 +156,7 @@ export async function startApp() {
       encryption,
       parsePipeline,
       chunkEmbedder,
+      concurrency: config.backgroundJobs.documentProcessingConcurrency,
     });
     const maintenanceWorker = createMaintenanceWorker({
       db,
@@ -192,9 +180,6 @@ export async function startApp() {
     console.info('Document processing worker started');
     console.info(
       `AI OCR normalization: runtime-configured via admin settings (env defaults: ${config.parsers.gluedWordNormalization}, ${config.ollama.model} @ ${config.ollama.host})`,
-    );
-    console.info(
-      `Empty-text fallback: ${config.parsers.emptyTextFallback === 'ollama_vision' ? `Ollama vision (${config.ollama.model} @ ${config.ollama.host})` : 'disabled'}`,
     );
     console.info(
       `Document parser: Docling ${config.docling.url}`,

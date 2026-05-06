@@ -8,7 +8,6 @@ export function createDocumentQueue({ db }: { db: Database }) {
   type JobData = {
     documentId: string;
     vaultId: string;
-    reprocessFromStoredArtifacts?: boolean;
   };
   type EnqueueOptions = JobData & { replaceExisting?: boolean };
   const queue = createPostgresQueue<JobData>({
@@ -27,7 +26,6 @@ export function createDocumentQueue({ db }: { db: Database }) {
     documentId,
     vaultId,
     replaceExisting = false,
-    reprocessFromStoredArtifacts = false,
   }: EnqueueOptions) {
     const jobId = `process-doc-${documentId}`;
 
@@ -50,7 +48,6 @@ export function createDocumentQueue({ db }: { db: Database }) {
       {
         documentId,
         vaultId,
-        reprocessFromStoredArtifacts,
       },
       { jobId },
     );

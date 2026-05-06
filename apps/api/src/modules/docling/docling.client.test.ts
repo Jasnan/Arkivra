@@ -234,4 +234,207 @@ describe('docling client', () => {
 
     dateNowSpy.mockRestore();
   });
+
+  test('allows chunk requests to override OCR per document', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_chunk', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        chunks: [],
+        documents: [{
+          kind: 'ExportResult',
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: null,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+        processing_time: 0.1,
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      convertOptions: {
+        doOcr: true,
+      },
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.chunkFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+      convertOptions: {
+        doOcr: false,
+      },
+    });
+
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.get('do_ocr')).toBe('false');
+  });
+
+  test('retries transient chunk submit fetch failures before succeeding', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_retry', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        chunks: [],
+        documents: [{
+          kind: 'ExportResult',
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: null,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+        processing_time: 0.1,
+      }));
+    const sleepMock = vi.fn(async () => undefined);
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      requestRetryAttempts: 2,
+      requestRetryDelayMs: 5,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: sleepMock,
+    });
+
+    await client.chunkFile({
+      fileName: 'retry.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(sleepMock).toHaveBeenCalledWith(5);
+  });
+
+  test('fails after exhausting chunk submit retries', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('fetch failed'));
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      requestRetryAttempts: 1,
+      requestRetryDelayMs: 5,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await expect(client.chunkFile({
+      fileName: 'retry.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    })).rejects.toThrow(/Docling chunk async submit failed .*fetch failed/i);
+  });
+
+  test('resubmits chunking when a polled task disappears after Docling restarts', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_lost', task_status: 'queued' }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'Task not found.' }), {
+        status: 404,
+        statusText: 'Not Found',
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_recovered', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        chunks: [],
+        documents: [{
+          kind: 'ExportResult',
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: null,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+        processing_time: 0.1,
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      chunkTaskRecoveryAttempts: 1,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.chunkFile({
+      fileName: 'retry.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://docling.local/v1/chunk/hybrid/file/async',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  test('resubmits chunking when polling still hits fetch failures after request retries', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_poll_fetch_failed', task_status: 'queued' }))
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_ok', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        chunks: [],
+        documents: [{
+          kind: 'ExportResult',
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: null,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+        processing_time: 0.1,
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      requestRetryAttempts: 2,
+      requestRetryDelayMs: 5,
+      chunkTaskRecoveryAttempts: 1,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.chunkFile({
+      fileName: 'retry.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      'http://docling.local/v1/chunk/hybrid/file/async',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
 });

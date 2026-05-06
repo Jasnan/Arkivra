@@ -17,11 +17,19 @@ services:
       timeout: 5s
       retries: 5
 
-  unstructured:
-    image: downloads.unstructured.io/unstructured-io/unstructured-api:latest
+  docling:
+    image: quay.io/docling-project/docling-serve:latest
     restart: unless-stopped
     ports:
-      - '8000:8000'
+      - '5001:5001'
+    volumes:
+      - docling-data:/tmp/docling
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5001/health']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   api:
     build:
@@ -37,18 +45,7 @@ services:
       ARKIVRA_HOSTNAME: '0.0.0.0'
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_BACKUPS_PATH: /app/backups
-      ARKIVRA_UNSTRUCTURED_URL: ${ARKIVRA_UNSTRUCTURED_URL:-http://unstructured:8000}
-      ARKIVRA_UNSTRUCTURED_API_KEY: ${ARKIVRA_UNSTRUCTURED_API_KEY:-}
-      ARKIVRA_UNSTRUCTURED_STRATEGY: ${ARKIVRA_UNSTRUCTURED_STRATEGY:-hi_res}
-      ARKIVRA_UNSTRUCTURED_LANGUAGES: ${ARKIVRA_UNSTRUCTURED_LANGUAGES:-deu,eng}
-      ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE: ${ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE:-true}
-      ARKIVRA_UNSTRUCTURED_EXTRACT_IMAGE_BLOCK_TYPES: ${ARKIVRA_UNSTRUCTURED_EXTRACT_IMAGE_BLOCK_TYPES-Image}
-      ARKIVRA_UNSTRUCTURED_ENGINE_VERSION: ${ARKIVRA_UNSTRUCTURED_ENGINE_VERSION:-api-v1}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_PAGE: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_PAGE:-true}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_ALLOW_FAILED: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_ALLOW_FAILED:-false}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_CONCURRENCY: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_CONCURRENCY:-5}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE:-20}
-      ARKIVRA_AI_NORMALIZATION_MAX_INPUT_CHARS: ${ARKIVRA_AI_NORMALIZATION_MAX_INPUT_CHARS:-1000}
+      ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:-http://docling:5001}
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
       ARKIVRA_STORAGE_FS_PATH: /app/document-storage
@@ -59,6 +56,8 @@ services:
       - backups:/app/backups
     depends_on:
       postgres:
+        condition: service_healthy
+      docling:
         condition: service_healthy
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:1221/api/health']
@@ -76,18 +75,7 @@ services:
       PROCESS_MODE: worker
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_BACKUPS_PATH: /app/backups
-      ARKIVRA_UNSTRUCTURED_URL: ${ARKIVRA_UNSTRUCTURED_URL:-http://unstructured:8000}
-      ARKIVRA_UNSTRUCTURED_API_KEY: ${ARKIVRA_UNSTRUCTURED_API_KEY:-}
-      ARKIVRA_UNSTRUCTURED_STRATEGY: ${ARKIVRA_UNSTRUCTURED_STRATEGY:-hi_res}
-      ARKIVRA_UNSTRUCTURED_LANGUAGES: ${ARKIVRA_UNSTRUCTURED_LANGUAGES:-deu,eng}
-      ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE: ${ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE:-true}
-      ARKIVRA_UNSTRUCTURED_EXTRACT_IMAGE_BLOCK_TYPES: ${ARKIVRA_UNSTRUCTURED_EXTRACT_IMAGE_BLOCK_TYPES-Image}
-      ARKIVRA_UNSTRUCTURED_ENGINE_VERSION: ${ARKIVRA_UNSTRUCTURED_ENGINE_VERSION:-api-v1}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_PAGE: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_PAGE:-true}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_ALLOW_FAILED: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_ALLOW_FAILED:-false}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_CONCURRENCY: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_CONCURRENCY:-5}
-      ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE: ${ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE:-20}
-      ARKIVRA_AI_NORMALIZATION_MAX_INPUT_CHARS: ${ARKIVRA_AI_NORMALIZATION_MAX_INPUT_CHARS:-1000}
+      ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:-http://docling:5001}
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
       ARKIVRA_STORAGE_FS_PATH: /app/document-storage
@@ -97,8 +85,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      docling:
+        condition: service_healthy
 
 volumes:
   postgres-data:
+  docling-data:
   document-storage:
   backups:

@@ -139,8 +139,8 @@ describe.sequential('persistParsedDocument integration', () => {
 
     const parsed: ParsedDocument = {
       documentId,
-      engine: 'unstructured',
-      engineVersion: 'api-v1',
+      engine: 'docling',
+      engineVersion: 'v1',
       text: 'BLEU 28.4 on EN-DE.',
       markdown: '# Results\n\nBLEU 28.4 on EN-DE.',
       rawText: 'BLEU 28.4 on EN-DE.',
@@ -324,8 +324,8 @@ describe.sequential('persistParsedDocument integration', () => {
 
     const parsed: ParsedDocument = {
       documentId,
-      engine: 'unstructured',
-      engineVersion: 'api-v1',
+      engine: 'docling',
+      engineVersion: 'v1',
       text: 'First chunk text. Second chunk text.',
       markdown: 'First chunk text.\n\nSecond chunk text.',
       rawText: 'First chunk text. Second chunk text.',

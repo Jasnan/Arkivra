@@ -34,7 +34,7 @@ function printHelp(header, reason) {
   console.error('  feat(uploads): add async extraction retry');
   console.error('  ');
   console.error('  Changes:');
-  console.error('  - Add async Unstructured extraction retry');
+  console.error('  - Add async Docling extraction retry');
   console.error('  - Show clearer extraction status in Transfers');
   console.error('\nAllowed types:');
   console.error(`  ${ALLOWED_TYPES.join(', ')}`);

@@ -7,8 +7,8 @@ import { createStorageDriver } from './modules/storage/storage.services.js';
 import { setupDatabase } from './modules/database/database.js';
 import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
-import { createUnstructuredClient } from './modules/unstructured/unstructured.client.js';
-import { createUnstructuredParser } from './modules/parsing/adapters/unstructured.parser.js';
+import { createDoclingClient } from './modules/docling/docling.client.js';
+import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
 import { renderPdfPagesToImages } from './modules/parsing/pdf-page-renderer.js';
 import {
   createRuntimeConfiguredGluedWordNormalizer,
@@ -78,27 +78,16 @@ export async function startApp() {
   const cleanups: Array<() => Promise<void>> = [];
 
   if (isWorkerMode) {
-    const unstructuredClient = createUnstructuredClient({
-      baseUrl: config.unstructured.url,
-      apiKey: config.unstructured.apiKey,
-      partitionOptions: {
-        strategy: config.unstructured.strategy,
-        languages: config.unstructured.languages,
-        inferTableStructure: config.unstructured.inferTableStructure,
-        extractImageBlockTypes: config.unstructured.extractImageBlockTypes,
-        splitPdfPage: config.unstructured.splitPdfPage,
-        splitPdfAllowFailed: config.unstructured.splitPdfAllowFailed,
-        splitPdfConcurrencyLevel: config.unstructured.splitPdfConcurrencyLevel,
-        splitPdfBatchSize: config.unstructured.splitPdfBatchSize,
-      },
+    const doclingClient = createDoclingClient({
+      baseUrl: config.docling.url,
     });
-    const unstructuredParser = createUnstructuredParser({
-      unstructuredClient,
-      engineVersion: config.unstructured.engineVersion,
+    const doclingParser = createDoclingParser({
+      doclingClient,
+      engineVersion: config.docling.engineVersion,
     });
     const parserRegistry = createParserRegistry({
-      parsers: [unstructuredParser],
-      defaultEngine: 'unstructured',
+      parsers: [doclingParser],
+      defaultEngine: 'docling',
     });
     const textCleaner =
       config.parsers.textCleanup === 'deterministic'
@@ -130,7 +119,7 @@ export async function startApp() {
             };
           },
           loadImages: async (input, raw) => {
-            if (raw.engine !== 'unstructured') {
+            if (raw.engine !== 'docling') {
               return [];
             }
 
@@ -208,7 +197,7 @@ export async function startApp() {
       `Empty-text fallback: ${config.parsers.emptyTextFallback === 'ollama_vision' ? `Ollama vision (${config.ollama.model} @ ${config.ollama.host})` : 'disabled'}`,
     );
     console.info(
-      `Document parser: Unstructured ${config.unstructured.url} (${config.unstructured.strategy}, languages ${config.unstructured.languages.join('+')})`,
+      `Document parser: Docling ${config.docling.url}`,
     );
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,

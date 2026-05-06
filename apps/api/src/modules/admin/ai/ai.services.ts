@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { instanceSettingsTable } from '../../database/schema/index.js';
 
 const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
+const DEFAULT_GLUED_WORD_MIN_TOKEN_LENGTH = 12;
+const DEFAULT_GLUED_WORD_MAX_CANDIDATES = 100;
+const DEFAULT_GLUED_WORD_BATCH_SIZE = 10;
 
 const ollamaTagsResponseSchema = z.object({
   models: z.array(z.object({
@@ -37,9 +40,9 @@ function createDefaultSettings(config: Config): AdminAiSettings {
     enabled: config.parsers.gluedWordNormalization === 'ollama',
     ollamaHost: config.ollama.host,
     model: config.ollama.model,
-    minTokenLength: config.ollama.gluedWordMinTokenLength,
-    maxCandidates: config.ollama.gluedWordMaxCandidates,
-    batchSize: config.ollama.gluedWordBatchSize,
+    minTokenLength: DEFAULT_GLUED_WORD_MIN_TOKEN_LENGTH,
+    maxCandidates: DEFAULT_GLUED_WORD_MAX_CANDIDATES,
+    batchSize: DEFAULT_GLUED_WORD_BATCH_SIZE,
   };
 }
 

@@ -12,12 +12,12 @@ import { createParsePipeline } from './parse-pipeline.js';
 
 function makeParser(raw: Partial<ParserOutput> = {}): DocumentParser {
   return {
-    engine: 'unstructured',
-    engineVersion: 'api-v1',
+    engine: 'docling',
+    engineVersion: 'v1',
     capabilities: { ocr: true, tables: true, supportedMimeTypes: 'any' },
     parse: vi.fn(async (_input: ParseInput) => ({
-      engine: 'unstructured',
-      engineVersion: 'api-v1',
+      engine: 'docling',
+      engineVersion: 'v1',
       text: 'raw text',
       markdown: '# raw markdown',
       warnings: [],
@@ -34,7 +34,7 @@ function makePipeline(
   chunkSummariser?: ChunkSummariser,
 ) {
   const parser = makeParser(parserOverrides);
-  const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'unstructured' });
+  const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'docling' });
   const pipeline = createParsePipeline({
     parserRegistry: registry,
     cleaner,
@@ -102,12 +102,12 @@ describe('parse pipeline', () => {
 
   test('propagates engine + engineVersion + warnings unchanged', async () => {
     const { pipeline } = makePipeline({
-      warnings: ['unstructured.no_elements', 'ocr glitch'],
+      warnings: ['docling.partial_success', 'ocr glitch'],
     });
     const parsed = await pipeline.run(input);
-    expect(parsed.engine).toBe('unstructured');
-    expect(parsed.engineVersion).toBe('api-v1');
-    expect(parsed.warnings).toEqual(['unstructured.no_elements', 'ocr glitch']);
+    expect(parsed.engine).toBe('docling');
+    expect(parsed.engineVersion).toBe('v1');
+    expect(parsed.warnings).toEqual(['docling.partial_success', 'ocr glitch']);
   });
 
   test('validates the final ParsedDocument via Zod', async () => {

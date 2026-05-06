@@ -14,11 +14,11 @@ import {
   vaultsTable,
 } from '../database/schema/index.js';
 import { createEncryptionServices } from '../encryption/encryption.services.js';
-import { createUnstructuredParser } from '../parsing/adapters/unstructured.parser.js';
+import { createDoclingParser } from '../parsing/adapters/docling.parser.js';
 import { createParserRegistry } from '../parsing/parser.registry.js';
 import { createParsePipeline } from '../parsing/parse-pipeline.js';
 import { createDeterministicTextCleaner } from '../parsing/text-cleaner.js';
-import { createUnstructuredClient } from '../unstructured/unstructured.client.js';
+import { createDoclingClient } from '../docling/docling.client.js';
 import { createServer } from '../server/server.js';
 import { createStorageDriver } from '../storage/storage.services.js';
 import { createDocumentQueue } from '../worker/queue.js';
@@ -51,7 +51,7 @@ stream
 BT
 /F1 18 Tf
 40 90 Td
-(Arkivra Unstructured E2E Test PDF) Tj
+(Arkivra Docling E2E Test PDF) Tj
 ET
 endstream
 endobj
@@ -151,10 +151,7 @@ describe.sequential('document upload processing e2e', () => {
         PROCESS_MODE: 'all',
         ARKIVRA_DATABASE_URL:
           process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
-        ARKIVRA_UNSTRUCTURED_URL: process.env.ARKIVRA_UNSTRUCTURED_URL ?? 'http://127.0.0.1:8000',
-        ARKIVRA_UNSTRUCTURED_STRATEGY: process.env.ARKIVRA_UNSTRUCTURED_STRATEGY ?? 'fast',
-        ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE: process.env.ARKIVRA_UNSTRUCTURED_INFER_TABLE_STRUCTURE ?? 'false',
-        ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE: process.env.ARKIVRA_UNSTRUCTURED_SPLIT_PDF_BATCH_SIZE ?? '20',
+        ARKIVRA_DOCLING_URL: process.env.ARKIVRA_DOCLING_URL ?? 'http://127.0.0.1:5001',
         ARKIVRA_SERVER_BASE_URL: 'http://localhost:1221',
         ARKIVRA_CORS_ORIGINS: 'http://localhost:1221',
         ARKIVRA_AUTH_TRUSTED_ORIGINS: 'http://localhost:1221',
@@ -162,8 +159,8 @@ describe.sequential('document upload processing e2e', () => {
       },
     });
 
-    const unstructuredDocsResponse = await fetch(`${config.unstructured.url}/docs`);
-    expect(unstructuredDocsResponse.ok).toBe(true);
+    const doclingHealthResponse = await fetch(`${config.docling.url}/health`);
+    expect(doclingHealthResponse.ok).toBe(true);
 
     const database = setupDatabase({ config });
     db = database.db;
@@ -173,26 +170,15 @@ describe.sequential('document upload processing e2e', () => {
     const encryption = createEncryptionServices({ kekKeysRaw: config.encryption.keys });
     const storage = createStorageDriver({ config });
     documentQueue = createDocumentQueue({ db });
-    const unstructuredClient = createUnstructuredClient({
-      baseUrl: config.unstructured.url,
-      apiKey: config.unstructured.apiKey,
-      partitionOptions: {
-        strategy: config.unstructured.strategy,
-        languages: config.unstructured.languages,
-        inferTableStructure: config.unstructured.inferTableStructure,
-        extractImageBlockTypes: config.unstructured.extractImageBlockTypes,
-        splitPdfPage: config.unstructured.splitPdfPage,
-        splitPdfAllowFailed: config.unstructured.splitPdfAllowFailed,
-        splitPdfConcurrencyLevel: config.unstructured.splitPdfConcurrencyLevel,
-        splitPdfBatchSize: config.unstructured.splitPdfBatchSize,
-      },
+    const doclingClient = createDoclingClient({
+      baseUrl: config.docling.url,
     });
     const parserRegistry = createParserRegistry({
-      parsers: [createUnstructuredParser({
-        unstructuredClient,
-        engineVersion: config.unstructured.engineVersion,
+      parsers: [createDoclingParser({
+        doclingClient,
+        engineVersion: config.docling.engineVersion,
       })],
-      defaultEngine: 'unstructured',
+      defaultEngine: 'docling',
     });
     const parsePipeline = createParsePipeline({
       parserRegistry,
@@ -347,19 +333,19 @@ describe.sequential('document upload processing e2e', () => {
       .orderBy(documentChunksTable.chunkIndex);
 
     expect(document).toBeDefined();
-    expect(document!.content).toContain('Arkivra Unstructured E2E Test PDF');
-    expect(document!.parserEngine).toBe('unstructured');
+    expect(document!.content).toContain('Arkivra Docling E2E Test PDF');
+    expect(document!.parserEngine).toBe('docling');
     expect(document!.parserEngineVersion).toBeTruthy();
     expect(chunks.length).toBeGreaterThan(0);
     expect(chunks[0]?.chunkKey).toBe(`${testContext.documentId}:0`);
-    expect(chunks[0]?.parserEngine).toBe('unstructured');
+    expect(chunks[0]?.parserEngine).toBe('docling');
     expect(['heading', 'paragraph', 'table', 'list', 'other']).toContain(
       chunks[0]?.chunkType ?? 'other',
     );
-    expect(chunks[0]?.content).toContain('Arkivra Unstructured E2E Test PDF');
+    expect(chunks[0]?.content).toContain('Arkivra Docling E2E Test PDF');
 
     const searchResponse = await app.request(
-      `/api/vaults/${testContext.vaultId}/search?q=Unstructured&pageIndex=0&pageSize=10`,
+      `/api/vaults/${testContext.vaultId}/search?q=Docling&pageIndex=0&pageSize=10`,
       {
         method: 'GET',
         headers: {
@@ -382,7 +368,7 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(searchBody.resultsCount).toBeGreaterThanOrEqual(1);
     expect(searchBody.results[0]?.documentId).toBe(testContext.documentId);
-    expect(searchBody.results[0]?.bestChunk.snippet).toContain('Unstructured');
+    expect(searchBody.results[0]?.bestChunk.snippet).toContain('Docling');
 
     const createTagResponse = await app.request(`/api/vaults/${testContext.vaultId}/tags`, {
       method: 'POST',
@@ -577,7 +563,7 @@ describe.sequential('document upload processing e2e', () => {
       .limit(1);
 
     expect(document?.processingStatus).toBe('completed');
-    expect(document?.content).toContain('Arkivra Unstructured E2E Test PDF');
+    expect(document?.content).toContain('Arkivra Docling E2E Test PDF');
   }, 60_000);
 
   test('blocks re-uploading the same file when the original is in trash', async () => {

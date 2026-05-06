@@ -14,7 +14,7 @@ Arkivra is a self-hosted document management system designed for individuals and
 - **Vaults** — Multi-vault support with isolated document collections and role-based access
 - **Authentication** — Email/password, OAuth (GitHub, Google), 2FA via Better Auth
 - **Search** — Full-text keyword search via PostgreSQL `tsvector` on document chunks
-- **Content extraction** — Unstructured.io parses documents for ingestion
+- **Content extraction** — Docling parses documents for ingestion
 - **Tags** — Manual tagging and filtering of documents
 - **Encryption at rest** — All document files encrypted with AES-256-GCM envelope encryption
 - **Backup & restore** — Manual backup/restore via admin UI
@@ -31,7 +31,7 @@ Arkivra is a self-hosted document management system designed for individuals and
 | Database   | PostgreSQL 16 + pgvector                             |
 | Auth       | Better Auth                                          |
 | Jobs       | PostgreSQL-backed async workers                      |
-| Extraction | Unstructured.io                                      |
+| Extraction | Docling                                              |
 | Deployment | Docker Compose                                       |
 
 ## Quick Start
@@ -69,8 +69,8 @@ docker compose up -d
 # Install dependencies
 pnpm install
 
-# Start infrastructure (PostgreSQL, Unstructured)
-docker compose up postgres unstructured -d
+# Start infrastructure (PostgreSQL, Docling)
+docker compose up postgres docling -d
 
 # Copy environment configuration
 cp .env.example .env
@@ -95,7 +95,7 @@ Examples:
 feat(uploads): add async extraction retry
 
 Changes:
-- Add async Unstructured extraction retry
+- Add async Docling extraction retry
 - Show clearer extraction status in Transfers
 ```
 
@@ -145,20 +145,20 @@ pnpm commitmsg:check .git/COMMIT_EDITMSG
 
 ```
 ┌─────────┐  ┌────────┐  ┌──────────┐  ┌──────────────┐
-│   api   │  │ worker │  │ postgres │  │ unstructured │
+│   api   │  │ worker │  │ postgres │  │ docling      │
 │ (Hono)  │  │(async) │  │+pgvector │  │              │
-│ :1221   │  │        │  │  :5432   │  │    :8000     │
+│ :1221   │  │        │  │  :5432   │  │    :5001     │
 └─────────┘  └────────┘  └──────────┘  └──────────────┘
 ```
 
 ## Configuration
 
-All configuration is via environment variables. See [`.env.example`](.env.example) for the full reference.
+All configuration is via environment variables. [`.env.example`](.env.example) now stays intentionally small and relies on sensible defaults for the rest.
 
 | Variable                  | Description                                             | Default                                             |
 | ------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
 | `ARKIVRA_DATABASE_URL`    | PostgreSQL connection string                            | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
-| `ARKIVRA_UNSTRUCTURED_URL` | Unstructured partition API URL                         | `http://localhost:8000`                             |
+| `ARKIVRA_DOCLING_URL`      | Docling API URL                                        | `http://localhost:5001`                             |
 | `ARKIVRA_AUTH_SECRET`     | Session signing secret (**change in production**)       | dev default                                         |
 | `ARKIVRA_ENCRYPTION_KEYS` | KEK for envelope encryption (format: `version:hex-key`) | —                                                   |
 | `ARKIVRA_PORT`            | API server port                                         | `1221`                                              |

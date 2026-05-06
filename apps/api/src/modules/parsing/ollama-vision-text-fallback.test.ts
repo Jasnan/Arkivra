@@ -12,8 +12,8 @@ const input: ParseInput = {
 
 function makeRaw(overrides: Partial<ParserOutput> = {}): ParserOutput {
   return {
-    engine: 'unstructured',
-    engineVersion: 'api-v1',
+    engine: 'docling',
+    engineVersion: 'v1',
     text: '',
     markdown: '',
     embeddedImages: [{ mimeType: 'image/png', data: Buffer.from('image-bytes') }],
@@ -107,7 +107,7 @@ describe('ollama vision text fallback', () => {
   test('loads fallback images when the parser returned empty PDF output without images', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
-      expect(body.messages[0]?.images).toEqual([Buffer.from('unstructured-image').toString('base64')]);
+      expect(body.messages[0]?.images).toEqual([Buffer.from('docling-image').toString('base64')]);
       return new Response(JSON.stringify({
         message: { content: 'Recovered PDF page text' },
       }), {
@@ -117,7 +117,7 @@ describe('ollama vision text fallback', () => {
     });
     const loadImages = vi.fn(async () => [{
       mimeType: 'image/png',
-      data: Buffer.from('unstructured-image'),
+      data: Buffer.from('docling-image'),
     }]);
 
     const fallback = createRuntimeConfiguredOllamaVisionTextFallback({
@@ -131,7 +131,7 @@ describe('ollama vision text fallback', () => {
     });
 
     const result = await fallback.run(input, makeRaw({
-      engine: 'unstructured',
+      engine: 'docling',
       embeddedImages: [],
     }));
 

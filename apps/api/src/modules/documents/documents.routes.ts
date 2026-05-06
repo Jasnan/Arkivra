@@ -396,6 +396,9 @@ export function registerDocumentRoutes({
           headers: {
             etag: result.etag,
             'cache-control': 'private, max-age=3600',
+            ...(result.sourceElementId !== null
+              ? { 'x-arkivra-source-element-id': result.sourceElementId }
+              : {}),
           },
         });
       }
@@ -409,6 +412,9 @@ export function registerDocumentRoutes({
             'content-length': String(Buffer.byteLength(payload, 'utf8')),
             'cache-control': 'private, max-age=3600',
             etag: result.etag,
+            ...(result.sourceElementId !== null
+              ? { 'x-arkivra-source-element-id': result.sourceElementId }
+              : {}),
           },
         });
       }
@@ -420,6 +426,9 @@ export function registerDocumentRoutes({
           'content-length': String(result.fileData.length),
           'cache-control': 'private, max-age=3600',
           etag: result.etag,
+          ...(result.sourceElementId !== null
+            ? { 'x-arkivra-source-element-id': result.sourceElementId }
+            : {}),
         },
       });
     },

@@ -20,7 +20,7 @@
     "test:e2e:background-jobs": "vitest run src/modules/worker/background-jobs.e2e.integration.test.ts",
     "test:e2e:migrations": "vitest run src/modules/database/migrations.e2e.integration.test.ts",
     "test:e2e:persistence": "vitest run src/modules/parsing/persistence.e2e.integration.test.ts",
-    "test:e2e:processing": "vitest run src/modules/documents/documents.e2e.integration.test.ts",
+    "test:e2e:processing": "vitest run src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts",
     "test:watch": "vitest watch",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",

@@ -394,6 +394,7 @@ export function createDocumentsServices({
         assetType: asset.assetType,
         mimeType: asset.mimeType ?? 'text/html; charset=utf-8',
         inlinePayload: asset.inlinePayload,
+        sourceElementId: asset.sourceElementId,
         byteSize: asset.byteSize ?? Buffer.byteLength(asset.inlinePayload, 'utf8'),
         etag,
       };
@@ -417,6 +418,7 @@ export function createDocumentsServices({
       assetType: asset.assetType,
       mimeType: asset.mimeType ?? 'application/octet-stream',
       fileData,
+      sourceElementId: asset.sourceElementId,
       byteSize: asset.byteSize ?? fileData.length,
       etag,
     };

@@ -42,6 +42,7 @@ function createMockDocumentsServices() {
       assetType: 'image',
       mimeType: 'image/png',
       fileData: Buffer.from('asset-bytes'),
+      sourceElementId: 'docling-image-1',
       byteSize: 11,
       etag: '"asset-1"',
     })),

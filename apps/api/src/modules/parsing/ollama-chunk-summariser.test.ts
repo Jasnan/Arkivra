@@ -45,7 +45,7 @@ describe('ollama chunk summariser', () => {
       const body = JSON.parse(String(init?.body));
       expect(body.model).toBe('gemma4:e4b');
       expect(body.messages[0]?.content).toContain('TEXT CONTENT:\nRevenue increased to 20.');
-      expect(body.messages[0]?.content).toContain('TABLES:\n1. <table><tr><td>20</td></tr></table>');
+      expect(body.messages[0]?.content).toContain('TABLES:\nTable 1:\nRow 1: 20');
       expect(body.messages[0]?.images).toEqual([
         Buffer.from('image-1').toString('base64'),
       ]);

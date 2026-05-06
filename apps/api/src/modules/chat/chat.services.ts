@@ -1,5 +1,6 @@
 import type { Database } from '../database/database.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
+import { serializeTableHtmlForRetrieval } from '../parsing/table-formatting.js';
 import type { Citation, DocumentSearchServices } from '../search/search.types.js';
 import type {
   ChatConversation,
@@ -421,6 +422,29 @@ function formatPageRange(citation: Citation) {
   return `page ${citation.pageStart ?? citation.pageEnd}`;
 }
 
+function formatSectionPath(citation: Citation) {
+  const sectionPath = citation.sectionPath
+    ?.map(section => section.trim())
+    .filter(section => section.length > 0) ?? [];
+
+  if (sectionPath.length > 0) {
+    return sectionPath.join(' > ');
+  }
+
+  return citation.section ?? '(none)';
+}
+
+function getCitationImageAssets(citation: Citation) {
+  if (Array.isArray(citation.imageAssets) && citation.imageAssets.length > 0) {
+    return citation.imageAssets;
+  }
+
+  return citation.imageAssetIds.map(assetId => ({
+    assetId,
+    sourceElementId: null,
+  }));
+}
+
 export function buildCitationContext(citations: Citation[]) {
   if (citations.length === 0) {
     return '(no retrieved context)';
@@ -428,17 +452,20 @@ export function buildCitationContext(citations: Citation[]) {
 
   return citations.map((citation, index) => {
     const tables = citation.tablesHtml.length > 0
-      ? citation.tablesHtml.map((table, tableIndex) => `Table ${tableIndex + 1}:\n${table}`).join('\n')
+      ? citation.tablesHtml
+          .map((table, tableIndex) => `Table ${tableIndex + 1}:\n${serializeTableHtmlForRetrieval(table)}`)
+          .join('\n\n')
       : '(none)';
-    const imageLine = citation.imageAssetIds.length > 0
-      ? `${citation.imageAssetIds.length} image asset(s) attached to this source.`
+    const imageAssets = getCitationImageAssets(citation);
+    const imageLine = imageAssets.length > 0
+      ? `${imageAssets.length} image asset(s) attached to this source.`
       : 'No image assets.';
 
     return [
       `Source ${index + 1}: ${citation.documentName}`,
       `Vault: ${citation.vaultName}`,
       `Location: ${formatPageRange(citation)}`,
-      `Section: ${citation.section ?? '(none)'}`,
+      `Section: ${formatSectionPath(citation)}`,
       `Snippet:\n${citation.snippet}`,
       `Tables:\n${tables}`,
       imageLine,
@@ -604,7 +631,7 @@ async function collectCitationImages({
   const images: string[] = [];
 
   for (const citation of citations) {
-    for (const assetId of citation.imageAssetIds) {
+    for (const imageAsset of getCitationImageAssets(citation)) {
       if (images.length >= maxImages) {
         return images;
       }
@@ -612,7 +639,7 @@ async function collectCitationImages({
       const asset = await documentsServices.getChunkAsset({
         vaultId: citation.vaultId,
         chunkId: citation.chunkId,
-        assetId,
+        assetId: imageAsset.assetId,
       });
 
       if (

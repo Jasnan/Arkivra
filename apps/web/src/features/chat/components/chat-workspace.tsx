@@ -218,6 +218,33 @@ function pageRange(citation: Citation) {
   return `Page ${citation.pageStart ?? citation.pageEnd}`;
 }
 
+function citationSectionLabel(citation: Citation) {
+  const sectionPath = citation.sectionPath
+    ?.map(section => section.trim())
+    .filter(section => section.length > 0) ?? [];
+
+  if (sectionPath.length > 0) {
+    return sectionPath.join(' > ');
+  }
+
+  return citation.section;
+}
+
+function citationImageAssets(citation: Citation) {
+  if (Array.isArray(citation.imageAssets) && citation.imageAssets.length > 0) {
+    return citation.imageAssets;
+  }
+
+  return citation.imageAssetIds.map(assetId => ({
+    assetId,
+    sourceElementId: null,
+  }));
+}
+
+function uniqueNonEmptyStrings(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0))];
+}
+
 function scopeLabel(scope: ChatApiScope) {
   if (scope.documentId) {
     return 'the document';
@@ -622,6 +649,12 @@ function CitationPreviewModal({
 
   const activePage = selectedPage ?? pages[0] ?? null;
   const pageBoxes = activePage === null ? [] : (groupedBoxes.get(activePage) ?? []);
+  const sectionLabel = citationSectionLabel(citation);
+  const imageSourceElementIds = uniqueNonEmptyStrings(
+    citationImageAssets(citation).map(asset => asset.sourceElementId),
+  );
+  const tableSourceElementIds = uniqueNonEmptyStrings(citation.tableSourceElementIds ?? []);
+  const chunkSourceElementIds = uniqueNonEmptyStrings(citation.sourceElementIds ?? []);
   const activePreviewUrl = activePage === null
     ? null
     : getDocumentPagePreviewUrl({
@@ -792,12 +825,12 @@ function CitationPreviewModal({
                 </p>
               </div>
 
-              {citation.section ? (
+              {sectionLabel ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Section
                   </p>
-                  <p className="text-sm text-foreground">{citation.section}</p>
+                  <p className="text-sm text-foreground">{sectionLabel}</p>
                 </div>
               ) : null}
 
@@ -809,6 +842,59 @@ function CitationPreviewModal({
                   {citation.snippet}
                 </div>
               </div>
+
+              {chunkSourceElementIds.length > 0 || tableSourceElementIds.length > 0 || imageSourceElementIds.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Docling provenance
+                  </p>
+                  {chunkSourceElementIds.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-foreground">Chunk elements</p>
+                      <div className="flex flex-wrap gap-2">
+                        {chunkSourceElementIds.map(elementId => (
+                          <code
+                            key={elementId}
+                            className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
+                          >
+                            {elementId}
+                          </code>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {tableSourceElementIds.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-foreground">Table elements</p>
+                      <div className="flex flex-wrap gap-2">
+                        {tableSourceElementIds.map(elementId => (
+                          <code
+                            key={elementId}
+                            className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
+                          >
+                            {elementId}
+                          </code>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {imageSourceElementIds.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-foreground">Image elements</p>
+                      <div className="flex flex-wrap gap-2">
+                        {imageSourceElementIds.map(elementId => (
+                          <code
+                            key={elementId}
+                            className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
+                          >
+                            {elementId}
+                          </code>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -866,6 +952,11 @@ function SourcesAccordion({
                         <span className="text-muted-foreground">{citation.vaultName}</span>
                       ) : null}
                     </div>
+                    {citationSectionLabel(citation) ? (
+                      <p className="line-clamp-1 text-xs text-muted-foreground">
+                        {citationSectionLabel(citation)}
+                      </p>
+                    ) : null}
                     <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
                       {citation.snippet}
                     </p>

@@ -1,4 +1,5 @@
 import type { ParsedChunk } from './parsed-document.schema.js';
+import { serializeTableHtmlForRetrieval } from './table-formatting.js';
 import { z } from 'zod';
 
 export type RuntimeOllamaSummarisationSettings = {
@@ -39,7 +40,9 @@ async function readErrorMessage(response: Response) {
 function buildPrompt(chunk: ParsedChunk) {
   const tablesText = chunk.tablesHtml.length === 0
     ? '(none)'
-    : chunk.tablesHtml.map((tableHtml, index) => `${index + 1}. ${tableHtml}`).join('\n\n');
+    : chunk.tablesHtml
+        .map((tableHtml, index) => `Table ${index + 1}:\n${serializeTableHtmlForRetrieval(tableHtml)}`)
+        .join('\n\n');
 
   return [
     'You are creating a searchable description for document content retrieval.',

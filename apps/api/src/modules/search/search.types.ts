@@ -65,6 +65,11 @@ export type CitationBoundingBox = {
 
 export type CitationAssetType = 'text' | 'table' | 'image';
 
+export type CitationImageAsset = {
+  assetId: string;
+  sourceElementId: string | null;
+};
+
 export type Citation = {
   chunkId: string;
   documentId: string;
@@ -75,12 +80,15 @@ export type Citation = {
   pageEnd: number | null;
   section: string | null;
   sectionPath?: string[];
+  sourceElementIds?: string[];
+  tableSourceElementIds?: string[];
   snippet: string;
   boundingBoxes: CitationBoundingBox[];
   citationPrecision: 'box' | 'page' | 'document';
   assetType: CitationAssetType;
   tablesHtml: string[];
   imageAssetIds: string[];
+  imageAssets?: CitationImageAsset[];
   score: number;
 };
 

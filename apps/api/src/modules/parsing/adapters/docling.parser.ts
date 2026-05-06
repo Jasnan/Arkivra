@@ -9,6 +9,8 @@ import {
   sanitizeDoclingMarkdown,
   sanitizeDoclingText,
 } from './docling.text.js';
+import { mergeEmbeddedImages } from './docling.mapper.js';
+import { extractDoclingStructuredContent } from './docling.structured.js';
 
 const DOCLING_CAPABILITIES: ParserCapabilities = {
   ocr: true,
@@ -35,14 +37,37 @@ export function createDoclingParser({
 
     const rawMarkdown = response.document.md_content ?? '';
     const rawText = response.document.text_content ?? '';
-    const embeddedImages = extractDataUriImages(rawMarkdown);
+    const markdownImages = extractDataUriImages(rawMarkdown);
     const markdown = sanitizeDoclingMarkdown(rawMarkdown);
+    let structuredElements: ParserOutput['structuredElements'];
+    let embeddedImages = markdownImages;
+    let rawStructuredOutput: ParserOutput['rawStructuredOutput'];
+    const warnings: string[] = [];
+
+    try {
+      if (response.document.json_content !== undefined && response.document.json_content !== null) {
+        const structured = extractDoclingStructuredContent(response.document.json_content);
+        rawStructuredOutput = structured.rawStructuredOutput;
+        structuredElements = structured.structuredElements;
+        embeddedImages = mergeEmbeddedImages(markdownImages, structured.embeddedImages) ?? markdownImages;
+      }
+    } catch (error) {
+      warnings.push(
+        error instanceof Error
+          ? `docling.structured_mapping_failed:${error.message}`
+          : 'docling.structured_mapping_failed',
+      );
+    }
+
+    const structuredText = structuredElements
+      ?.map(element => element.text.trim())
+      .filter(textPart => textPart.length > 0)
+      .join('\n\n') ?? '';
     const text = deriveDoclingPlainText({
       text: sanitizeDoclingText(rawText),
       markdown,
-    });
+    }) || structuredText;
 
-    const warnings: string[] = [];
     if (response.status.toLowerCase() === 'partial_success') {
       warnings.push('docling.partial_success');
     }
@@ -56,6 +81,8 @@ export function createDoclingParser({
       text,
       markdown,
       embeddedImages,
+      rawStructuredOutput,
+      structuredElements,
       warnings,
     };
 

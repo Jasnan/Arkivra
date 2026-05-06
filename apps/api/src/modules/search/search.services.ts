@@ -49,6 +49,7 @@ type HybridSearchRow = {
   page_start: number | null;
   page_end: number | null;
   section: string | null;
+  section_path: unknown;
   snippet: string | null;
   bounding_boxes: unknown;
   citation_precision: string;
@@ -809,6 +810,7 @@ export function createDocumentSearchServices({
               dc.page_start,
               dc.page_end,
               dc.section,
+              COALESCE(dc.section_path, '[]'::jsonb) AS section_path,
               COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
               COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
               dc.citation_precision,
@@ -893,6 +895,7 @@ export function createDocumentSearchServices({
               dc.page_start,
               dc.page_end,
               dc.section,
+              COALESCE(dc.section_path, '[]'::jsonb) AS section_path,
               COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
               COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
               dc.citation_precision,
@@ -929,6 +932,7 @@ export function createDocumentSearchServices({
         pageStart: row.page_start,
         pageEnd: row.page_end,
         section: row.section,
+        sectionPath: parseStringArray(row.section_path),
         snippet: row.snippet ?? '',
         boundingBoxes: parseCitationPrecision(row.citation_precision) === 'box'
           ? parseBoundingBoxes(row.bounding_boxes)

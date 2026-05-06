@@ -34,6 +34,7 @@ export const documentChunkAssetsTable = pgTable(
     mimeType: text('mime_type'),
     storageKey: text('storage_key'),
     inlinePayload: text('inline_payload'),
+    sourceElementId: text('source_element_id'),
     pageNumber: integer('page_number'),
     bbox: jsonb('bbox').$type<ChunkBoundingBox>(),
     byteSize: integer('byte_size'),

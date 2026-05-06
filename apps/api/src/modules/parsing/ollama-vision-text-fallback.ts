@@ -208,6 +208,7 @@ export function createRuntimeConfiguredOllamaVisionTextFallback({
         pageNumber: transcript.pageIndex + 1,
         bbox: null,
         section: null,
+        sectionPath: [],
       }));
 
       warnings.unshift(`ollama_vision_fallback.used:${selectedImages.length}`);

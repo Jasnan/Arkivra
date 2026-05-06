@@ -59,6 +59,7 @@ type ChunkAssetRecord = {
   mimeType: string | null;
   storageKey: string | null;
   inlinePayload: string | null;
+  sourceElementId: string | null;
   sha256Hash: string | null;
   byteSize: number | null;
   fileEncryptionKeyWrapped: string | null;
@@ -359,6 +360,7 @@ export function createDocumentsServices({
         mimeType: documentChunkAssetsTable.mimeType,
         storageKey: documentChunkAssetsTable.storageKey,
         inlinePayload: documentChunkAssetsTable.inlinePayload,
+        sourceElementId: documentChunkAssetsTable.sourceElementId,
         sha256Hash: documentChunkAssetsTable.sha256Hash,
         byteSize: documentChunkAssetsTable.byteSize,
         fileEncryptionKeyWrapped: documentChunkAssetsTable.fileEncryptionKeyWrapped,

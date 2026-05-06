@@ -145,12 +145,17 @@ describe.sequential('persistParsedDocument integration', () => {
       markdown: '# Results\n\nBLEU 28.4 on EN-DE.',
       rawText: 'BLEU 28.4 on EN-DE.',
       rawMarkdown: '# Results\n\nBLEU 28.4 on EN-DE.',
+      rawStructuredOutput: {
+        schema_name: 'DoclingDocument',
+        texts: [{ self_ref: '#/texts/0', text: 'Results' }],
+      },
       warnings: [],
       chunks: [
         {
           id: `${documentId}:0`,
           text: 'BLEU 28.4 on EN-DE.',
           section: 'Results',
+          sectionPath: ['Financial Statements', 'Results'],
           pageNumber: 2,
           pageStart: 2,
           pageEnd: 2,
@@ -174,7 +179,29 @@ describe.sequential('persistParsedDocument integration', () => {
           citationPrecision: 'page',
           enhancedContent: null,
           type: 'table',
-          metadata: { index: 0, tokenCount: 6 },
+          metadata: {
+            index: 0,
+            tokenCount: 6,
+            imageProvenance: [
+              {
+                elementId: 'el-4',
+                pageNumber: 2,
+                bbox: null,
+              },
+            ],
+            tableProvenance: [
+              {
+                elementId: 'el-2',
+                pageNumber: 2,
+                bbox: null,
+              },
+              {
+                elementId: 'el-3',
+                pageNumber: 2,
+                bbox: null,
+              },
+            ],
+          },
         },
       ],
     };
@@ -192,10 +219,22 @@ describe.sequential('persistParsedDocument integration', () => {
       .select()
       .from(documentChunksTable)
       .where(eq(documentChunksTable.documentId, documentId));
+    const documentRows = await db
+      .select()
+      .from(documentsTable)
+      .where(eq(documentsTable.id, documentId));
 
     expect(chunkRows).toHaveLength(1);
+    expect(documentRows).toHaveLength(1);
+    expect(documentRows[0]?.rawText).toBe('BLEU 28.4 on EN-DE.');
+    expect(documentRows[0]?.rawMarkdown).toBe('# Results\n\nBLEU 28.4 on EN-DE.');
+    expect(documentRows[0]?.parserStructuredOutput).toEqual({
+      schema_name: 'DoclingDocument',
+      texts: [{ self_ref: '#/texts/0', text: 'Results' }],
+    });
     const chunkRow = chunkRows[0]!;
     expect(chunkRow.section).toBe('Results');
+    expect(chunkRow.sectionPath).toEqual(['Financial Statements', 'Results']);
     expect(chunkRow.pageStart).toBe(2);
     expect(chunkRow.pageEnd).toBe(2);
     expect(chunkRow.parentElementId).toBe('el-1');
@@ -235,6 +274,7 @@ describe.sequential('persistParsedDocument integration', () => {
     expect(imageRow.byteSize).toBe(imageBytes.length);
     expect(imageRow.storageKey).not.toBeNull();
     expect(imageRow.inlinePayload).toBeNull();
+    expect(imageRow.sourceElementId).toBe('el-4');
     expect(imageRow.fileEncryptionKeyWrapped).not.toBeNull();
     expect(imageRow.fileEncryptionKekVersion).toBe('1');
 
@@ -251,6 +291,7 @@ describe.sequential('persistParsedDocument integration', () => {
     expect(tableRows).toHaveLength(2);
     for (const row of tableRows) {
       expect(row.mimeType).toBe('text/html');
+      expect(['el-2', 'el-3']).toContain(row.sourceElementId);
       // Both tables in this test fixture are tiny, so they should both
       // land on the inline_payload path.
       expect(row.inlinePayload).not.toBeNull();
@@ -330,12 +371,17 @@ describe.sequential('persistParsedDocument integration', () => {
       markdown: 'First chunk text.\n\nSecond chunk text.',
       rawText: 'First chunk text. Second chunk text.',
       rawMarkdown: 'First chunk text.\n\nSecond chunk text.',
+      rawStructuredOutput: {
+        schema_name: 'DoclingDocument',
+        texts: [{ self_ref: '#/texts/0', text: 'First chunk text.' }],
+      },
       warnings: [],
       chunks: [
         {
           id: `${documentId}:0`,
           text: 'First chunk text.',
           section: null,
+          sectionPath: [],
           pageNumber: 1,
           pageStart: 1,
           pageEnd: 1,
@@ -354,6 +400,7 @@ describe.sequential('persistParsedDocument integration', () => {
           id: `${documentId}:1`,
           text: 'Second chunk text.',
           section: null,
+          sectionPath: [],
           pageNumber: 2,
           pageStart: 2,
           pageEnd: 2,

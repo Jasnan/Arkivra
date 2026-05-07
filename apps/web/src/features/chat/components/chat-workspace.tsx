@@ -10,6 +10,8 @@ import {
   FileText,
   Loader2,
   MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Scale,
   ScanText,
@@ -29,6 +31,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -72,7 +75,7 @@ interface ChatWorkspaceProps {
   scope: ChatApiScope;
   documentName?: string;
   inputPlaceholder: string;
-  minHeightClassName?: string;
+  heightClassName?: string;
   showContextHeader?: boolean;
 }
 
@@ -1243,8 +1246,8 @@ function ChatInputPanel({
   }
 
   return (
-    <div className="sticky bottom-0 border-t border-border/60 bg-background/95 px-4 pb-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:px-6">
-      <div className="mx-auto w-full max-w-5xl rounded-2xl border border-border/70 bg-background/96 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+    <div className="shrink-0 px-4 pb-1 pt-2 sm:px-6 sm:pb-2">
+      <div className="mx-auto w-full max-w-5xl rounded-2xl border border-border/70 bg-background p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
         <div className="flex items-end gap-3">
           <Textarea
             ref={textareaRef}
@@ -1334,14 +1337,17 @@ function ChatContextHeader({
   contextLabel,
   contextBadge,
   contextDescription,
+  leadingAction,
 }: {
   contextLabel: string;
   contextBadge: string;
   contextDescription: string;
+  leadingAction?: ReactNode;
 }) {
   return (
     <div className="px-4 pt-4 sm:px-6">
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        {leadingAction}
         <span>{contextDescription}</span>
         <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-foreground">
           <FileText className="size-4 text-muted-foreground" />
@@ -1452,11 +1458,122 @@ function ChatEmptyState({
   );
 }
 
+function ChatConversationRail({
+  showHeader = true,
+  conversationsQuery,
+  conversationSections,
+  selectedChatId,
+  effectiveSelectedChatId,
+  createConversationPending,
+  onCreateConversation,
+  onSelectConversation,
+  onDeleteConversation,
+}: {
+  showHeader?: boolean;
+  conversationsQuery: ReturnType<typeof useChatConversationsQuery>;
+  conversationSections: Array<[string, ChatConversation[]]>;
+  selectedChatId: string;
+  effectiveSelectedChatId: string;
+  createConversationPending: boolean;
+  onCreateConversation: () => void;
+  onSelectConversation: (chatId: string) => void;
+  onDeleteConversation: (chatId: string) => void;
+}) {
+  return (
+    <>
+      {showHeader ? (
+        <div className="flex items-center justify-between gap-3 py-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <MessageSquare className="size-4 text-primary" />
+            Conversations
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCreateConversation}
+            disabled={createConversationPending}
+            className="h-9 rounded-full px-3"
+          >
+            <Plus className="size-4" />
+            New chat
+          </Button>
+        </div>
+      ) : (
+        <div className="flex justify-end pb-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCreateConversation}
+            disabled={createConversationPending}
+            className="h-9 rounded-full px-3"
+          >
+            <Plus className="size-4" />
+            New chat
+          </Button>
+        </div>
+      )}
+
+      <div className={cn('min-h-0 flex-1 overflow-y-auto pr-1', showHeader ? 'mt-4' : 'mt-2')}>
+        {conversationsQuery.isLoading ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading chats
+          </div>
+        ) : conversationSections.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">No conversations yet.</p>
+        ) : (
+          <div className="space-y-5">
+            {conversationSections.map(([sectionLabel, conversations]) => (
+              <div key={sectionLabel} className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">{sectionLabel}</p>
+                <div className="space-y-1">
+                  {conversations.map((conversation) => (
+                    <div key={conversation.id} className="group flex items-center gap-1">
+                      <button
+                        type="button"
+                        className={cn(
+                          'min-w-0 flex-1 rounded-xl px-3 py-3 text-left text-sm transition',
+                          selectedChatId === conversation.id ||
+                            effectiveSelectedChatId === conversation.id
+                            ? 'bg-secondary text-foreground'
+                            : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
+                        )}
+                        onClick={() => onSelectConversation(conversation.id)}
+                      >
+                        <span className="block truncate font-medium">{conversation.title}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {formatDate(conversation.updatedAt)}
+                        </span>
+                      </button>
+                      {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${conversation.title}`}
+                          className="h-8 w-8 shrink-0 rounded-full opacity-70 group-hover:opacity-100"
+                          onClick={() => onDeleteConversation(conversation.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function ChatWorkspace({
   scope,
   documentName,
   inputPlaceholder,
-  minHeightClassName = 'min-h-[calc(100vh-14rem)]',
+  heightClassName = 'h-[calc(100vh-14rem)] min-h-[32rem]',
   showContextHeader = true,
 }: ChatWorkspaceProps) {
   const { vaultId, documentId } = scope;
@@ -1478,6 +1595,9 @@ export function ChatWorkspace({
   const [composerValue, setComposerValue] = useState('');
   const [currentIntent, setCurrentIntent] = useState<ChatIntent | null>(null);
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
+  const [isDesktopConversationRailCollapsed, setIsDesktopConversationRailCollapsed] =
+    useState(false);
+  const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = streamStatus !== null;
@@ -1576,6 +1696,7 @@ export function ChatWorkspace({
 
   function handleCreateConversation() {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
+    setIsMobileConversationRailOpen(false);
     resetComposerState();
   }
 
@@ -1676,88 +1797,48 @@ export function ChatWorkspace({
 
   return (
     <div
-      className={cn('grid overflow-hidden lg:grid-cols-[18rem_minmax(0,1fr)]', minHeightClassName)}
+      className={cn(
+        'grid overflow-hidden',
+        isDesktopConversationRailCollapsed
+          ? 'lg:grid-cols-[0_minmax(0,1fr)]'
+          : 'lg:grid-cols-[18rem_minmax(0,1fr)]',
+        heightClassName,
+      )}
     >
-      <aside className="flex min-h-0 flex-col border-b border-border/70 pb-6 lg:border-b-0 lg:border-r lg:pr-5">
-        <div className="flex items-center justify-between gap-3 py-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <MessageSquare className="size-4 text-primary" />
-            Conversations
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              void handleCreateConversation();
-            }}
-            disabled={createConversation.isPending}
-            className="h-9 rounded-full px-3"
-          >
-            <Plus className="size-4" />
-            New chat
-          </Button>
-        </div>
-
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
-          {conversationsQuery.isLoading ? (
-            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Loading chats
-            </div>
-          ) : visibleConversations.length === 0 ? (
-            <p className="py-4 text-sm text-muted-foreground">No conversations yet.</p>
-          ) : (
-            <div className="space-y-5">
-              {conversationSections.map(([sectionLabel, conversations]) => (
-                <div key={sectionLabel} className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">{sectionLabel}</p>
-                  <div className="space-y-1">
-                    {conversations.map((conversation) => (
-                      <div key={conversation.id} className="group flex items-center gap-1">
-                        <button
-                          type="button"
-                          className={cn(
-                            'min-w-0 flex-1 rounded-xl px-3 py-3 text-left text-sm transition',
-                            selectedChatId === conversation.id ||
-                              effectiveSelectedChatId === conversation.id
-                              ? 'bg-secondary text-foreground'
-                              : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                          )}
-                          onClick={() => {
-                            setSelectedChatId(conversation.id);
-                            resetComposerState();
-                          }}
-                        >
-                          <span className="block truncate font-medium">{conversation.title}</span>
-                          <span className="mt-1 block text-xs text-muted-foreground">
-                            {formatDate(conversation.updatedAt)}
-                          </span>
-                        </button>
-                        {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Delete ${conversation.title}`}
-                            className="h-8 w-8 shrink-0 rounded-full opacity-70 group-hover:opacity-100"
-                            onClick={() => {
-                              void handleDeleteConversation(conversation.id);
-                            }}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <aside
+        className={cn(
+          'hidden min-h-0 overflow-hidden border-r border-border/70 pb-6 transition-[width,padding,opacity] duration-200 ease-linear lg:flex lg:flex-col',
+          isDesktopConversationRailCollapsed
+            ? 'w-0 border-r-0 pr-0 opacity-0'
+            : 'w-[18rem] pr-5 opacity-100',
+        )}
+        aria-hidden={isDesktopConversationRailCollapsed}
+      >
+        <ChatConversationRail
+          conversationsQuery={conversationsQuery}
+          conversationSections={conversationSections}
+          selectedChatId={selectedChatId}
+          effectiveSelectedChatId={effectiveSelectedChatId}
+          createConversationPending={createConversation.isPending}
+          onCreateConversation={() => {
+            void handleCreateConversation();
+          }}
+          onSelectConversation={(chatId) => {
+            setSelectedChatId(chatId);
+            resetComposerState();
+          }}
+          onDeleteConversation={(chatId) => {
+            void handleDeleteConversation(chatId);
+          }}
+        />
       </aside>
 
-      <section className="flex min-h-0 flex-col overflow-hidden lg:pl-6">
+      <section
+        className={cn(
+          'flex min-h-0 flex-col overflow-hidden',
+          !isDesktopConversationRailCollapsed && 'lg:pl-6',
+        )}
+      >
         {streamError ? (
           <div className="flex items-center gap-2 border-b border-border/70 bg-destructive/10 px-4 py-3 text-sm text-destructive sm:px-6">
             <AlertCircle className="size-4" />
@@ -1770,74 +1851,128 @@ export function ChatWorkspace({
             contextLabel={experience.contextLabel}
             contextBadge={experience.contextBadge}
             contextDescription={experience.contextDescription}
+            leadingAction={
+              <Button
+                type="button"
+                variant="ghost"
+                className="hidden h-9 rounded-full px-3 lg:inline-flex"
+                onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
+              >
+                {isDesktopConversationRailCollapsed ? (
+                  <PanelLeftOpen className="size-4" />
+                ) : (
+                  <PanelLeftClose className="size-4" />
+                )}
+              </Button>
+            }
           />
         ) : null}
 
-        <div className="min-h-0 flex-1">
-          <ScrollArea className="h-full">
-            {shouldShowEmptyState ? (
-              <ChatEmptyState
-                title={experience.emptyTitle}
-                description={experience.emptyDescription}
-                promptSuggestions={experience.promptSuggestions}
-                guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
-                onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
-                onPromptSelect={(prompt) => {
-                  void handleSend(prompt);
-                }}
-              />
-            ) : selectedChatQuery.isLoading && messages.length === 0 ? (
-              <div className="flex min-h-[24rem] items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading conversation
+        <div className="border-b border-border/60 px-4 py-3 sm:px-6 lg:hidden">
+          <Collapsible
+            open={isMobileConversationRailOpen}
+            onOpenChange={setIsMobileConversationRailOpen}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <MessageSquare className="size-4 text-primary" />
+                Conversations
               </div>
-            ) : (
-              <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6">
-                {messages.map((message) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    currentVaultId={vaultId}
-                    scope={scope}
-                    activeStatus={streamStatus}
-                    metrics={
-                      metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined
-                    }
-                    onQuickReplySelect={
-                      isGlobalChat
-                        ? (reply) => {
-                            void handleSend(reply, effectiveIntent);
-                          }
-                        : undefined
-                    }
-                  />
-                ))}
-                {streamingText.length > 0 || isStreaming ? (
-                  <div className="flex gap-3">
-                    <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                      <Sparkles className="size-4" />
-                    </div>
-                    <div className="max-w-[min(44rem,100%)]">
-                      <div className="rounded-2xl bg-muted/60 px-4 py-3 text-sm leading-6 text-foreground">
-                        {streamingText.length > 0 ? (
-                          <MarkdownMessage content={streamingText} citations={[]} />
-                        ) : (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="size-4 animate-spin" />
-                            {statusLabel(streamStatus, scope)}
-                          </div>
-                        )}
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {statusLabel(streamStatus, scope)}
-                      </p>
-                    </div>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="ghost" className="h-9 rounded-full px-3">
+                  <PanelLeftOpen className="size-4" />
+                  {isMobileConversationRailOpen ? 'Hide history' : 'Show history'}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+              <div className="mt-4 border-t border-border/60 pt-3">
+                <ChatConversationRail
+                  showHeader={false}
+                  conversationsQuery={conversationsQuery}
+                  conversationSections={conversationSections}
+                  selectedChatId={selectedChatId}
+                  effectiveSelectedChatId={effectiveSelectedChatId}
+                  createConversationPending={createConversation.isPending}
+                  onCreateConversation={() => {
+                    void handleCreateConversation();
+                  }}
+                  onSelectConversation={(chatId) => {
+                    setSelectedChatId(chatId);
+                    setIsMobileConversationRailOpen(false);
+                    resetComposerState();
+                  }}
+                  onDeleteConversation={(chatId) => {
+                    void handleDeleteConversation(chatId);
+                  }}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {shouldShowEmptyState ? (
+            <ChatEmptyState
+              title={experience.emptyTitle}
+              description={experience.emptyDescription}
+              promptSuggestions={experience.promptSuggestions}
+              guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
+              onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
+              onPromptSelect={(prompt) => {
+                void handleSend(prompt);
+              }}
+            />
+          ) : selectedChatQuery.isLoading && messages.length === 0 ? (
+            <div className="flex min-h-[24rem] items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading conversation
+            </div>
+          ) : (
+            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6">
+              <div className="mt-auto" aria-hidden="true" />
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  currentVaultId={vaultId}
+                  scope={scope}
+                  activeStatus={streamStatus}
+                  metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
+                  onQuickReplySelect={
+                    isGlobalChat
+                      ? (reply) => {
+                          void handleSend(reply, effectiveIntent);
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+              {streamingText.length > 0 || isStreaming ? (
+                <div className="flex gap-3">
+                  <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                    <Sparkles className="size-4" />
                   </div>
-                ) : null}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </ScrollArea>
+                  <div className="max-w-[min(44rem,100%)]">
+                    <div className="rounded-2xl bg-muted/60 px-4 py-3 text-sm leading-6 text-foreground">
+                      {streamingText.length > 0 ? (
+                        <MarkdownMessage content={streamingText} citations={[]} />
+                      ) : (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 className="size-4 animate-spin" />
+                          {statusLabel(streamStatus, scope)}
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {statusLabel(streamStatus, scope)}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
 
         <ChatInputPanel

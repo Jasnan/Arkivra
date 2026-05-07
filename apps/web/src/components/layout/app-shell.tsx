@@ -216,6 +216,8 @@ export function AppShell({ children }: PropsWithChildren) {
     [location.search],
   );
   const pathParts = location.pathname.split('/').filter(Boolean);
+  const isStandaloneChatRoute =
+    location.pathname === '/chat' || (pathParts[0] === 'vaults' && pathParts[2] === 'chat');
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]
@@ -316,7 +318,7 @@ export function AppShell({ children }: PropsWithChildren) {
           footerNavItems={footerNavItems}
         />
 
-        <SidebarInset className="min-h-screen bg-[#fcfcfb] dark:bg-[#1b1b1b]">
+        <SidebarInset className="h-screen min-h-0 overflow-hidden bg-[#fcfcfb] dark:bg-[#1b1b1b]">
           <header className="sticky top-0 z-40 flex h-(--header-height) shrink-0 items-center border-b border-border/60 bg-[#fcfcfb]/95 backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-[#fcfcfb]/85 dark:bg-[#1b1b1b]/95 dark:supports-[backdrop-filter]:bg-[#1b1b1b]/85">
             <div className="flex w-full items-center gap-2 px-4 lg:px-6">
               <SidebarTrigger className="-ml-1 hidden lg:inline-flex" />
@@ -415,9 +417,14 @@ export function AppShell({ children }: PropsWithChildren) {
             </div>
           </header>
 
-          <div className="flex flex-1 flex-col">
-            <div className="@container/main flex flex-1 flex-col gap-2">
-              <div className="flex flex-1 flex-col gap-4 py-4 md:gap-6 md:py-6">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
+              <div
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col gap-4 md:gap-6',
+                  isStandaloneChatRoute ? 'pt-4 md:pt-6' : 'py-4 md:py-6',
+                )}
+              >
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
                   <div className="px-4 lg:px-6">
                     <NavLink
@@ -477,7 +484,14 @@ export function AppShell({ children }: PropsWithChildren) {
                   </nav>
                 </div>
 
-                <main className="flex-1 px-4 pb-4 lg:px-6 lg:pb-6">{children}</main>
+                <main
+                  className={cn(
+                    'flex min-h-0 flex-1 flex-col px-4 lg:px-6',
+                    isStandaloneChatRoute ? 'overflow-hidden pb-0' : 'overflow-auto pb-4 lg:pb-6',
+                  )}
+                >
+                  {children}
+                </main>
               </div>
             </div>
           </div>

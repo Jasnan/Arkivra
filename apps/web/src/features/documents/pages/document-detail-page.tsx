@@ -65,6 +65,7 @@ import {
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
+import { cn } from '@/lib/utils';
 
 type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
@@ -421,7 +422,11 @@ export function DocumentDetailPage() {
   }
 
   return (
-    <section className="space-y-8 pb-8">
+    <section
+      className={cn(
+        activeTab === 'chat' ? 'flex h-full min-h-0 flex-col gap-8 pb-0' : 'space-y-8 pb-8',
+      )}
+    >
       <PageIntro
         title={document.name}
         description={
@@ -601,8 +606,12 @@ export function DocumentDetailPage() {
         }
       />
 
-      <div className="space-y-6">
-        <div className="space-y-5">
+      <div
+        className={cn(activeTab === 'chat' ? 'flex min-h-0 flex-1 flex-col gap-6' : 'space-y-6')}
+      >
+        <div
+          className={cn(activeTab === 'chat' ? 'flex min-h-0 flex-1 flex-col gap-5' : 'space-y-5')}
+        >
           <div className="flex flex-wrap items-center justify-start gap-3">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
               <TabsList className="w-full justify-start gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
@@ -638,7 +647,11 @@ export function DocumentDetailPage() {
             </Tabs>
           </div>
 
-          <div className="min-h-[720px] md:min-h-[860px]">
+          <div
+            className={cn(
+              activeTab === 'chat' ? 'min-h-0 flex-1' : 'min-h-[720px] md:min-h-[860px]',
+            )}
+          >
             {activeTab === 'preview' ? (
               <div className="space-y-4">
                 {previewKind === 'pdf' && !document.isDeleted ? (
@@ -828,7 +841,7 @@ export function DocumentDetailPage() {
                 scope={{ vaultId, documentId }}
                 documentName={document.name}
                 inputPlaceholder="Ask about this document..."
-                minHeightClassName="min-h-[820px]"
+                heightClassName="h-full"
               />
             ) : null}
           </div>

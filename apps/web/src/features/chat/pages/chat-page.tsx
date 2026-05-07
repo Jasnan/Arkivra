@@ -9,7 +9,10 @@ export function ChatPage() {
   return (
     <ChatWorkspace
       scope={scope}
-      inputPlaceholder={vaultId ? 'Ask about documents in this vault...' : 'Ask across your documents...'}
+      inputPlaceholder={
+        vaultId ? 'Ask about documents in this vault...' : 'Ask across your documents...'
+      }
+      heightClassName="h-full"
     />
   );
 }

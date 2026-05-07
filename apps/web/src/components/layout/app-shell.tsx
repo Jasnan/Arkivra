@@ -70,8 +70,7 @@ function persistSidebarCollapsedValue(isCollapsed: boolean) {
 
   try {
     window.localStorage?.setItem?.(SIDEBAR_COLLAPSED_STORAGE_KEY, isCollapsed ? 'true' : 'false');
-  } catch {
-  }
+  } catch {}
 }
 
 interface BreadcrumbEntry {
@@ -217,6 +216,8 @@ export function AppShell({ children }: PropsWithChildren) {
     [location.search],
   );
   const pathParts = location.pathname.split('/').filter(Boolean);
+  const isStandaloneChatRoute =
+    location.pathname === '/chat' || (pathParts[0] === 'vaults' && pathParts[2] === 'chat');
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]
@@ -317,8 +318,8 @@ export function AppShell({ children }: PropsWithChildren) {
           footerNavItems={footerNavItems}
         />
 
-        <SidebarInset className="min-h-screen bg-background lg:m-2 lg:overflow-hidden lg:rounded-[1.9rem] lg:border lg:border-border/80 lg:shadow-[0_1px_2px_rgba(15,23,42,0.05),0_18px_48px_rgba(15,23,42,0.1)] dark:lg:border-white/10 dark:lg:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_18px_48px_rgba(0,0,0,0.28)]">
-          <header className="sticky top-0 z-40 flex h-(--header-height) shrink-0 items-center border-b border-border/60 bg-background/95 backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-background/85">
+        <SidebarInset className="h-screen min-h-0 overflow-hidden bg-[#fcfcfb] dark:bg-[#1b1b1b]">
+          <header className="sticky top-0 z-40 flex h-(--header-height) shrink-0 items-center border-b border-border/60 bg-[#fcfcfb]/95 backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-[#fcfcfb]/85 dark:bg-[#1b1b1b]/95 dark:supports-[backdrop-filter]:bg-[#1b1b1b]/85">
             <div className="flex w-full items-center gap-2 px-4 lg:px-6">
               <SidebarTrigger className="-ml-1 hidden lg:inline-flex" />
               <Separator
@@ -416,9 +417,14 @@ export function AppShell({ children }: PropsWithChildren) {
             </div>
           </header>
 
-          <div className="flex flex-1 flex-col">
-            <div className="@container/main flex flex-1 flex-col gap-2">
-              <div className="flex flex-1 flex-col gap-4 py-4 md:gap-6 md:py-6">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
+              <div
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col gap-4 md:gap-6',
+                  isStandaloneChatRoute ? 'pt-4 md:pt-6' : 'py-4 md:py-6',
+                )}
+              >
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
                   <div className="px-4 lg:px-6">
                     <NavLink
@@ -478,7 +484,14 @@ export function AppShell({ children }: PropsWithChildren) {
                   </nav>
                 </div>
 
-                <main className="flex-1 px-4 pb-4 lg:px-6 lg:pb-6">{children}</main>
+                <main
+                  className={cn(
+                    'flex min-h-0 flex-1 flex-col px-4 lg:px-6',
+                    isStandaloneChatRoute ? 'overflow-hidden pb-0' : 'overflow-auto pb-4 lg:pb-6',
+                  )}
+                >
+                  {children}
+                </main>
               </div>
             </div>
           </div>

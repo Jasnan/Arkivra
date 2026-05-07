@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Download,
+  FileText,
   Image as ImageIcon,
   MessageSquare,
   Pencil,
@@ -16,11 +17,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import {
-  PageIntro,
-  SurfacePanel,
-  vaultInputClassName,
-} from '@/components/layout/vault-ui';
+import { PageIntro, vaultInputClassName } from '@/components/layout/vault-ui';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -68,6 +65,7 @@ import {
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
+import { cn } from '@/lib/utils';
 
 type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
@@ -424,9 +422,146 @@ export function DocumentDetailPage() {
   }
 
   return (
-    <section className="space-y-8 pb-8">
+    <section
+      className={cn(
+        activeTab === 'chat' ? 'flex h-full min-h-0 flex-col gap-8 pb-0' : 'space-y-8 pb-8',
+      )}
+    >
       <PageIntro
         title={document.name}
+        description={
+          <div className="flex max-h-20 min-h-8 flex-wrap items-center gap-2 overflow-y-auto pr-1">
+            <span className="mr-1 text-sm font-medium text-muted-foreground">Tags</span>
+            {assignedTags.length === 0 ? (
+              <span className="text-sm text-muted-foreground">No tags assigned.</span>
+            ) : null}
+            {assignedTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-flex h-8 items-center gap-2 rounded-full bg-muted px-3 text-sm leading-none text-foreground"
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 rounded-full"
+                  style={{ backgroundColor: tag.color ?? '#64748b' }}
+                />
+                {tag.name}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Remove ${tag.name}`}
+                  className="-mr-1 size-6 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                  onClick={() => {
+                    removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                  }}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </span>
+            ))}
+            <DropdownMenu
+              modal={false}
+              open={isTagPickerOpen}
+              onOpenChange={(open) => {
+                setIsTagPickerOpen(open);
+                if (!open) {
+                  setTagSearchValue('');
+                }
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Add tag"
+                  className="size-8 rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-80 overflow-hidden rounded-xl bg-popover p-0"
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault();
+                }}
+              >
+                <div className="border-b border-border/60 p-2">
+                  <Field>
+                    <FieldLabel htmlFor="document-detail-tag-filter" className="sr-only">
+                      Filter tags
+                    </FieldLabel>
+                    <Input
+                      id="document-detail-tag-filter"
+                      type="text"
+                      value={tagSearchValue}
+                      onChange={(event) => setTagSearchValue(event.target.value)}
+                      placeholder="Filter tags..."
+                      className="h-10 border-transparent px-3 focus-visible:ring-0"
+                      autoFocus
+                    />
+                  </Field>
+                </div>
+                <div className="max-h-72 overflow-auto py-1">
+                  {selectedMatchingTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag.id}
+                      checked
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={() => {
+                        removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: tag.color ?? '#64748b' }}
+                      />
+                      <span className="flex-1 truncate">{tag.name}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
+                    <DropdownMenuSeparator />
+                  ) : null}
+                  {sortedFilteredAvailableTags.map((tag) => (
+                    <DropdownMenuCheckboxItem
+                      key={tag.id}
+                      checked={false}
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={() => {
+                        assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: tag.color ?? '#64748b' }}
+                      />
+                      <span className="flex-1 truncate">{tag.name}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
+                    <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
+                      <Plus className="size-4" />
+                      <span className="flex-1 truncate">{`Create new tag "${tagSearchValue.trim()}"`}</span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
+                    normalizedTagSearchValue.length === 0 ? (
+                      <p className="px-4 py-3 text-sm text-muted-foreground">
+                        All tags are already assigned.
+                      </p>
+                    ) : !hasExactTagMatch ? null : (
+                      <p className="px-4 py-3 text-sm text-muted-foreground">No matching tags.</p>
+                    )
+                  ) : null}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        }
         actions={
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -471,162 +606,40 @@ export function DocumentDetailPage() {
         }
       />
 
-      <div className="space-y-6">
-        <SurfacePanel className="space-y-5">
-          <div className="space-y-4">
-            <div className="flex max-h-20 min-h-8 flex-wrap items-center gap-2 overflow-y-auto pr-1">
-              <span className="mr-1 text-sm font-medium text-muted-foreground">Tags</span>
-              {assignedTags.length === 0 ? (
-                <span className="text-sm text-muted-foreground">No tags assigned.</span>
-              ) : null}
-              {assignedTags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="inline-flex h-8 items-center gap-2 rounded-full bg-muted px-3 text-sm leading-none text-foreground"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="size-1.5 rounded-full"
-                    style={{ backgroundColor: tag.color ?? '#64748b' }}
-                  />
-                  {tag.name}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remove ${tag.name}`}
-                    className="-mr-1 size-6 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                    onClick={() => {
-                      removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                    }}
-                  >
-                    <X className="size-3.5" />
-                  </Button>
-                </span>
-              ))}
-              <DropdownMenu
-                modal={false}
-                open={isTagPickerOpen}
-                onOpenChange={(open) => {
-                  setIsTagPickerOpen(open);
-                  if (!open) {
-                    setTagSearchValue('');
-                  }
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Add tag"
-                    className="size-8 rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  className="w-80 overflow-hidden rounded-xl bg-popover p-0"
-                  onCloseAutoFocus={(event) => {
-                    event.preventDefault();
-                  }}
-                >
-                  <div className="border-b border-border/60 p-2">
-                    <Field>
-                      <FieldLabel htmlFor="document-detail-tag-filter" className="sr-only">
-                        Filter tags
-                      </FieldLabel>
-                      <Input
-                        id="document-detail-tag-filter"
-                        type="text"
-                        value={tagSearchValue}
-                        onChange={(event) => setTagSearchValue(event.target.value)}
-                        placeholder="Filter tags..."
-                        className="h-10 border-transparent px-3 focus-visible:ring-0"
-                        autoFocus
-                      />
-                    </Field>
-                  </div>
-                  <div className="max-h-72 overflow-auto py-1">
-                    {selectedMatchingTags.map((tag) => (
-                      <DropdownMenuCheckboxItem
-                        key={tag.id}
-                        checked
-                        onSelect={(event) => event.preventDefault()}
-                        onCheckedChange={() => {
-                          removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                        }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: tag.color ?? '#64748b' }}
-                        />
-                        <span className="flex-1 truncate">{tag.name}</span>
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
-                      <DropdownMenuSeparator />
-                    ) : null}
-                    {sortedFilteredAvailableTags.map((tag) => (
-                      <DropdownMenuCheckboxItem
-                        key={tag.id}
-                        checked={false}
-                        onSelect={(event) => event.preventDefault()}
-                        onCheckedChange={() => {
-                          assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                        }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: tag.color ?? '#64748b' }}
-                        />
-                        <span className="flex-1 truncate">{tag.name}</span>
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
-                      <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
-                        <Plus className="size-4" />
-                        <span className="flex-1 truncate">{`Create new tag "${tagSearchValue.trim()}"`}</span>
-                      </DropdownMenuItem>
-                    ) : null}
-                    {selectedMatchingTags.length === 0 &&
-                    sortedFilteredAvailableTags.length === 0 ? (
-                      normalizedTagSearchValue.length === 0 ? (
-                        <p className="px-4 py-3 text-sm text-muted-foreground">
-                          All tags are already assigned.
-                        </p>
-                      ) : !hasExactTagMatch ? null : (
-                        <p className="px-4 py-3 text-sm text-muted-foreground">No matching tags.</p>
-                      )
-                    ) : null}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
+      <div
+        className={cn(activeTab === 'chat' ? 'flex min-h-0 flex-1 flex-col gap-6' : 'space-y-6')}
+      >
+        <div
+          className={cn(activeTab === 'chat' ? 'flex min-h-0 flex-1 flex-col gap-5' : 'space-y-5')}
+        >
           <div className="flex flex-wrap items-center justify-start gap-3">
-            <Tabs
-              value={activeTab}
-              onValueChange={(value) => setActiveTab(value as DetailTab)}
-            >
-              <TabsList className="justify-start">
-                <TabsTrigger value="preview">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
+              <TabsList className="w-full justify-start gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
+                <TabsTrigger
+                  value="preview"
+                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                >
                   <ImageIcon className="size-4" />
                   Preview
                 </TabsTrigger>
-                <TabsTrigger value="content">
+                <TabsTrigger
+                  value="content"
+                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                >
                   <ScanText className="size-4" />
                   Extracted text
                 </TabsTrigger>
-                <TabsTrigger value="metadata">
+                <TabsTrigger
+                  value="metadata"
+                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                >
                   <Tags className="size-4" />
                   Metadata
                 </TabsTrigger>
-                <TabsTrigger value="chat">
+                <TabsTrigger
+                  value="chat"
+                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                >
                   <MessageSquare className="size-4" />
                   Chat
                 </TabsTrigger>
@@ -634,7 +647,11 @@ export function DocumentDetailPage() {
             </Tabs>
           </div>
 
-          <div className="min-h-[720px] md:min-h-[860px]">
+          <div
+            className={cn(
+              activeTab === 'chat' ? 'min-h-0 flex-1' : 'min-h-[720px] md:min-h-[860px]',
+            )}
+          >
             {activeTab === 'preview' ? (
               <div className="space-y-4">
                 {previewKind === 'pdf' && !document.isDeleted ? (
@@ -690,13 +707,14 @@ export function DocumentDetailPage() {
             {activeTab === 'content' ? (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase ${
-                    document.processingStatus === 'failed'
-                      ? 'bg-destructive/12 text-destructive'
-                      : isExtractionActive
-                        ? 'bg-amber-500/12 text-amber-700'
-                        : 'bg-emerald-500/12 text-emerald-700'
-                  }`}
+                  <span
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase ${
+                      document.processingStatus === 'failed'
+                        ? 'bg-destructive/12 text-destructive'
+                        : isExtractionActive
+                          ? 'bg-amber-500/12 text-amber-700'
+                          : 'bg-emerald-500/12 text-emerald-700'
+                    }`}
                   >
                     {extractionStageLabel}
                   </span>
@@ -823,11 +841,11 @@ export function DocumentDetailPage() {
                 scope={{ vaultId, documentId }}
                 documentName={document.name}
                 inputPlaceholder="Ask about this document..."
-                minHeightClassName="min-h-[820px]"
+                heightClassName="h-full"
               />
             ) : null}
           </div>
-        </SurfacePanel>
+        </div>
       </div>
 
       <Dialog

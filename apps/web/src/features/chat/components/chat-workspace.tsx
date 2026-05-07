@@ -10,6 +10,8 @@ import {
   FileText,
   Loader2,
   MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Scale,
   ScanText,
@@ -20,12 +22,16 @@ import {
   User,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { SurfacePanel } from '@/components/layout/vault-ui';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +41,13 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { getDocumentPagePreviewUrl } from '@/features/documents/documents.api';
@@ -63,7 +75,8 @@ interface ChatWorkspaceProps {
   scope: ChatApiScope;
   documentName?: string;
   inputPlaceholder: string;
-  minHeightClassName?: string;
+  heightClassName?: string;
+  showContextHeader?: boolean;
 }
 
 interface LocalMessage extends ChatMessage {
@@ -169,7 +182,7 @@ interface ChatExperienceConfig {
   }[];
 }
 
-type GlobalGuidedPrompt = typeof GLOBAL_GUIDED_PROMPTS[number];
+type GlobalGuidedPrompt = (typeof GLOBAL_GUIDED_PROMPTS)[number];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -178,6 +191,29 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function conversationDayLabel(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayDifference = Math.round(
+    (startOfToday.getTime() - startOfDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (dayDifference === 0) {
+    return 'Today';
+  }
+
+  if (dayDifference === 1) {
+    return 'Yesterday';
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
 }
 
 function formatDurationMs(value: number | null) {
@@ -199,7 +235,9 @@ function renderMetricsSummary(metrics: ChatGenerationMetrics | null | undefined)
 
   const parts = [
     metrics.tokensPerSecond !== null ? `${metrics.tokensPerSecond} tok/s` : null,
-    metrics.timeToFirstTokenMs !== null ? `TTFT ${formatDurationMs(metrics.timeToFirstTokenMs)}` : null,
+    metrics.timeToFirstTokenMs !== null
+      ? `TTFT ${formatDurationMs(metrics.timeToFirstTokenMs)}`
+      : null,
     metrics.totalDurationMs !== null ? `Total ${formatDurationMs(metrics.totalDurationMs)}` : null,
   ].filter(Boolean);
 
@@ -211,7 +249,11 @@ function pageRange(citation: Citation) {
     return 'Document';
   }
 
-  if (citation.pageStart !== null && citation.pageEnd !== null && citation.pageStart !== citation.pageEnd) {
+  if (
+    citation.pageStart !== null &&
+    citation.pageEnd !== null &&
+    citation.pageStart !== citation.pageEnd
+  ) {
     return `Pages ${citation.pageStart}-${citation.pageEnd}`;
   }
 
@@ -219,9 +261,10 @@ function pageRange(citation: Citation) {
 }
 
 function citationSectionLabel(citation: Citation) {
-  const sectionPath = citation.sectionPath
-    ?.map(section => section.trim())
-    .filter(section => section.length > 0) ?? [];
+  const sectionPath =
+    citation.sectionPath
+      ?.map((section) => section.trim())
+      .filter((section) => section.length > 0) ?? [];
 
   if (sectionPath.length > 0) {
     return sectionPath.join(' > ');
@@ -235,7 +278,7 @@ function citationImageAssets(citation: Citation) {
     return citation.imageAssets;
   }
 
-  return citation.imageAssetIds.map(assetId => ({
+  return citation.imageAssetIds.map((assetId) => ({
     assetId,
     sourceElementId: null,
     caption: null,
@@ -260,11 +303,18 @@ function citationFigureEvidence(citation: Citation) {
         pageLabel,
       };
     })
-    .filter((item): item is { id: string; label: string; caption: string; pageLabel: string | null } => item !== null);
+    .filter(
+      (item): item is { id: string; label: string; caption: string; pageLabel: string | null } =>
+        item !== null,
+    );
 }
 
 function uniqueNonEmptyStrings(values: Array<string | null | undefined>) {
-  return [...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0))];
+  return [
+    ...new Set(
+      values.filter((value): value is string => typeof value === 'string' && value.length > 0),
+    ),
+  ];
 }
 
 function scopeLabel(scope: ChatApiScope) {
@@ -304,9 +354,10 @@ function getChatExperienceConfig({
     return {
       contextLabel: resolvedDocumentName,
       contextBadge: 'Locked',
-      contextDescription: 'You are chatting with this document only.',
+      contextDescription: 'You are chatting with this document:',
       emptyTitle: 'Ask anything about this document',
-      emptyDescription: 'Arkivra will search this document and answer with relevant information and exact references.',
+      emptyDescription:
+        'Arkivra will search this document and answer with relevant information and exact references.',
       promptSuggestions: DOCUMENT_PROMPT_SUGGESTIONS,
     };
   }
@@ -317,7 +368,8 @@ function getChatExperienceConfig({
       contextBadge: 'Vault-wide',
       contextDescription: 'You are chatting across every document in this vault.',
       emptyTitle: 'Ask anything about this vault',
-      emptyDescription: 'Arkivra will search documents in this vault and answer with relevant information and exact references.',
+      emptyDescription:
+        'Arkivra will search documents in this vault and answer with relevant information and exact references.',
       promptSuggestions: VAULT_PROMPT_SUGGESTIONS,
     };
   }
@@ -327,7 +379,8 @@ function getChatExperienceConfig({
     contextBadge: 'Cross-vault',
     contextDescription: 'You are chatting across documents from every vault you can access.',
     emptyTitle: 'Ask anything across your documents',
-    emptyDescription: 'Arkivra will search across your accessible documents and answer with relevant information and exact references.',
+    emptyDescription:
+      'Arkivra will search across your accessible documents and answer with relevant information and exact references.',
     promptSuggestions: [],
   };
 }
@@ -390,24 +443,30 @@ function renderInlineMarkdown({
   onCitationClick?: (citation: Citation) => void;
 }) {
   return parseInlineMarkdown(text).map((token, index) => {
-    const key = token.type === 'citation'
-      ? `${token.type}-${index}-${token.index}`
-      : `${token.type}-${index}-${token.content}`;
+    const key =
+      token.type === 'citation'
+        ? `${token.type}-${index}-${token.index}`
+        : `${token.type}-${index}-${token.content}`;
 
     if (token.type === 'strong') {
-      return <strong key={key} className="font-semibold">{token.content}</strong>;
+      return (
+        <strong key={key} className="font-semibold">
+          {token.content}
+        </strong>
+      );
     }
 
     if (token.type === 'em') {
-      return <em key={key} className="italic">{token.content}</em>;
+      return (
+        <em key={key} className="italic">
+          {token.content}
+        </em>
+      );
     }
 
     if (token.type === 'code') {
       return (
-        <code
-          key={key}
-          className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono text-[0.95em]"
-        >
+        <code key={key} className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono text-[0.95em]">
           {token.content}
         </code>
       );
@@ -549,11 +608,12 @@ function MarkdownMessage({
       flushList();
 
       const level = line.startsWith('### ') ? 3 : line.startsWith('## ') ? 2 : 1;
-      const className = level === 1
-        ? 'text-xl font-semibold'
-        : level === 2
-          ? 'text-lg font-semibold'
-          : 'text-base font-semibold';
+      const className =
+        level === 1
+          ? 'text-xl font-semibold'
+          : level === 2
+            ? 'text-lg font-semibold'
+            : 'text-base font-semibold';
       blocks.push(
         <p key={`heading-${blocks.length}`} className={className}>
           {renderInlineMarkdown({
@@ -651,14 +711,11 @@ function citationPreviewPages(citation: Citation) {
   return [...pageNumbers].sort((a, b) => a - b);
 }
 
-function CitationPreviewModal({
-  citation,
-  open,
-  onOpenChange,
-}: CitationPreviewModalProps) {
+function CitationPreviewModal({ citation, open, onOpenChange }: CitationPreviewModalProps) {
   const pages = useMemo(() => (citation ? citationPreviewPages(citation) : []), [citation]);
   const groupedBoxes = useMemo(
-    () => (citation ? groupBoundingBoxesByPage(citation) : new Map<number, Citation['boundingBoxes']>()),
+    () =>
+      citation ? groupBoundingBoxesByPage(citation) : new Map<number, Citation['boundingBoxes']>(),
     [citation],
   );
   const [selectedPage, setSelectedPage] = useState<number | null>(pages[0] ?? null);
@@ -674,17 +731,18 @@ function CitationPreviewModal({
   const sectionLabel = citationSectionLabel(citation);
   const figureEvidence = citationFigureEvidence(citation);
   const imageSourceElementIds = uniqueNonEmptyStrings(
-    citationImageAssets(citation).map(asset => asset.sourceElementId),
+    citationImageAssets(citation).map((asset) => asset.sourceElementId),
   );
   const tableSourceElementIds = uniqueNonEmptyStrings(citation.tableSourceElementIds ?? []);
   const chunkSourceElementIds = uniqueNonEmptyStrings(citation.sourceElementIds ?? []);
-  const activePreviewUrl = activePage === null
-    ? null
-    : getDocumentPagePreviewUrl({
-        vaultId: citation.vaultId,
-        documentId: citation.documentId,
-        pageNumber: activePage,
-      });
+  const activePreviewUrl =
+    activePage === null
+      ? null
+      : getDocumentPagePreviewUrl({
+          vaultId: citation.vaultId,
+          documentId: citation.documentId,
+          pageNumber: activePage,
+        });
   const canRenderOverlay = pageBoxes.length > 0 && imageSize !== null;
 
   return (
@@ -701,7 +759,7 @@ function CitationPreviewModal({
 
             <div className="flex items-center justify-between border-b border-border/70 px-6 py-3">
               <div className="flex flex-wrap gap-2">
-                {pages.map(pageNumber => (
+                {pages.map((pageNumber) => (
                   <Button
                     key={pageNumber}
                     type="button"
@@ -749,7 +807,7 @@ function CitationPreviewModal({
                         return;
                       }
                       const currentIndex = pages.indexOf(activePage);
-                      const nextPage = currentIndex >= 0 ? pages[currentIndex + 1] ?? null : null;
+                      const nextPage = currentIndex >= 0 ? (pages[currentIndex + 1] ?? null) : null;
                       if (nextPage !== null) {
                         setSelectedPage(nextPage);
                         setImageSize(null);
@@ -792,9 +850,14 @@ function CitationPreviewModal({
                       <div className="pointer-events-none absolute inset-0">
                         {pageBoxes.map((boundingBox) => {
                           const left = (boundingBox.x0 / boundingBox.layoutWidth) * imageSize.width;
-                          const top = (boundingBox.y0 / boundingBox.layoutHeight) * imageSize.height;
-                          const width = ((boundingBox.x1 - boundingBox.x0) / boundingBox.layoutWidth) * imageSize.width;
-                          const height = ((boundingBox.y1 - boundingBox.y0) / boundingBox.layoutHeight) * imageSize.height;
+                          const top =
+                            (boundingBox.y0 / boundingBox.layoutHeight) * imageSize.height;
+                          const width =
+                            ((boundingBox.x1 - boundingBox.x0) / boundingBox.layoutWidth) *
+                            imageSize.width;
+                          const height =
+                            ((boundingBox.y1 - boundingBox.y0) / boundingBox.layoutHeight) *
+                            imageSize.height;
 
                           return (
                             <div
@@ -890,7 +953,9 @@ function CitationPreviewModal({
                 </div>
               ) : null}
 
-              {chunkSourceElementIds.length > 0 || tableSourceElementIds.length > 0 || imageSourceElementIds.length > 0 ? (
+              {chunkSourceElementIds.length > 0 ||
+              tableSourceElementIds.length > 0 ||
+              imageSourceElementIds.length > 0 ? (
                 <div className="space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Docling provenance
@@ -899,7 +964,7 @@ function CitationPreviewModal({
                     <div className="space-y-2">
                       <p className="text-sm text-foreground">Chunk elements</p>
                       <div className="flex flex-wrap gap-2">
-                        {chunkSourceElementIds.map(elementId => (
+                        {chunkSourceElementIds.map((elementId) => (
                           <code
                             key={elementId}
                             className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
@@ -914,7 +979,7 @@ function CitationPreviewModal({
                     <div className="space-y-2">
                       <p className="text-sm text-foreground">Table elements</p>
                       <div className="flex flex-wrap gap-2">
-                        {tableSourceElementIds.map(elementId => (
+                        {tableSourceElementIds.map((elementId) => (
                           <code
                             key={elementId}
                             className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
@@ -929,7 +994,7 @@ function CitationPreviewModal({
                     <div className="space-y-2">
                       <p className="text-sm text-foreground">Image elements</p>
                       <div className="flex flex-wrap gap-2">
-                        {imageSourceElementIds.map(elementId => (
+                        {imageSourceElementIds.map((elementId) => (
                           <code
                             key={elementId}
                             className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
@@ -990,7 +1055,7 @@ function SourcesAccordion({
                     key={citation.chunkId}
                     type="button"
                     onClick={() => setSelectedCitation(citation)}
-                    className="flex w-full items-start gap-3 rounded-lg border border-border/70 bg-card px-4 py-3 text-left shadow-sm transition hover:border-primary/30 hover:bg-accent/40"
+                    className="flex w-full items-start gap-3 rounded-2xl bg-muted/45 px-4 py-3 text-left transition hover:bg-accent/45"
                   >
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground">
                       {index + 1}
@@ -1066,11 +1131,11 @@ function MessageBubble({
       ) : null}
       <div className={cn('max-w-[min(46rem,100%)]', isUser ? 'flex flex-col items-end' : 'w-full')}>
         {isUser ? (
-          <div className="rounded-lg bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground shadow-sm">
+          <div className="rounded-2xl bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground">
             <p className="whitespace-pre-wrap">{message.content}</p>
           </div>
         ) : (
-          <div className="w-full rounded-lg border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-card-foreground shadow-sm">
+          <div className="w-full rounded-2xl bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground">
             <MarkdownMessage
               content={message.content}
               citations={message.citations}
@@ -1083,7 +1148,7 @@ function MessageBubble({
             ) : null}
             {message.metadata?.quickReplies?.length && onQuickReplySelect ? (
               <div className="mt-3 flex flex-wrap gap-2">
-                {message.metadata.quickReplies.map(reply => (
+                {message.metadata.quickReplies.map((reply) => (
                   <Button
                     key={reply}
                     type="button"
@@ -1181,86 +1246,89 @@ function ChatInputPanel({
   }
 
   return (
-    <div className="sticky bottom-0 border-t border-border/60 bg-background/95 px-6 pb-6 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/90">
-      <Card className="border-border/60 p-4 shadow-sm">
-        <div className="space-y-4">
-          <div className="flex items-end gap-3">
-            <Textarea
-              ref={textareaRef}
-              aria-label="Chat message"
-              value={value}
-              onChange={(event) => onValueChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  submit();
-                }
-              }}
-              placeholder={placeholder}
+    <div className="shrink-0 px-4 pb-1 pt-2 sm:px-6 sm:pb-2">
+      <div className="mx-auto w-full max-w-5xl rounded-2xl border border-border/70 bg-background p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+        <div className="flex items-end gap-3">
+          <Textarea
+            ref={textareaRef}
+            aria-label="Chat message"
+            value={value}
+            onChange={(event) => onValueChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="min-h-11 max-h-56 flex-1 resize-none border-0 bg-transparent px-3 py-3 shadow-none focus-visible:ring-0"
+          />
+          <Button
+            type="button"
+            size="icon"
+            aria-label="Send message"
+            disabled={disabled || value.trim().length === 0}
+            onClick={submit}
+            className="size-11 rounded-xl"
+          >
+            <Send className="size-4" />
+          </Button>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-3 border-t border-border/60 px-1 pt-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="chat-show-sources"
+              checked={showSources}
+              onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
               disabled={disabled}
-              className="min-h-11 max-h-56 flex-1 resize-none overflow-y-auto rounded-lg border-border/60 py-3"
+              className="mt-1"
             />
-            <Button
-              type="button"
-              size="icon"
-              aria-label="Send message"
-              disabled={disabled || value.trim().length === 0}
-              onClick={submit}
-              className="size-11 rounded-lg"
-            >
-              <Send className="size-4" />
-            </Button>
+            <div className="space-y-1">
+              <Label htmlFor="chat-show-sources">Show sources</Label>
+              <p className="text-sm text-muted-foreground">
+                Citations and page references will be shown in responses
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="chat-show-sources"
-                checked={showSources}
-                onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
-                disabled={disabled}
-                className="mt-1"
-              />
-              <div className="space-y-1">
-                <Label htmlFor="chat-show-sources">Show sources</Label>
-                <p className="text-sm text-muted-foreground">
-                  Citations and page references will be shown in responses
-                </p>
+          {hasModelPicker ? (
+            <div className="flex items-end gap-3 self-end sm:self-auto">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Model
+                </Label>
+                <Select
+                  value={selectedModel}
+                  onValueChange={onSelectedModelChange}
+                  disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
+                >
+                  <SelectTrigger
+                    aria-label="Document chat model"
+                    className="h-10 min-w-52 rounded-xl border-border/60 bg-muted/20 text-sm shadow-none"
+                  >
+                    <SelectValue
+                      placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(modelOptions ?? []).map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-
-            {hasModelPicker ? (
-              <div className="flex items-end gap-3 self-end sm:self-auto">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Model
-                  </Label>
-                  <Select
-                    value={selectedModel}
-                    onValueChange={onSelectedModelChange}
-                    disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
-                  >
-                    <SelectTrigger aria-label="Document chat model" className="h-10 min-w-52 border-border/60 bg-muted/20 text-sm shadow-none">
-                      <SelectValue placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(modelOptions ?? []).map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {modelOptionsError ? (
-            <p className="text-xs text-destructive">{modelOptionsError}</p>
           ) : null}
         </div>
-      </Card>
+
+        {modelOptionsError ? (
+          <p className="mt-3 px-1 text-xs text-destructive">{modelOptionsError}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1269,31 +1337,27 @@ function ChatContextHeader({
   contextLabel,
   contextBadge,
   contextDescription,
+  leadingAction,
 }: {
   contextLabel: string;
   contextBadge: string;
   contextDescription: string;
+  leadingAction?: ReactNode;
 }) {
   return (
-    <div className="px-6 pt-6">
-      <div className="rounded-lg border border-border/60 bg-background/80 px-4 py-4 shadow-sm">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-secondary text-foreground">
-              <FileText className="size-4" />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-foreground">
-                {`Context: ${contextLabel}`}
-              </p>
-              <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[0.7rem] uppercase tracking-[0.14em]">
-                {contextBadge}
-              </Badge>
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {contextDescription}
-          </p>
+    <div className="px-4 pt-4 sm:px-6">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        {leadingAction}
+        <span>{contextDescription}</span>
+        <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-foreground">
+          <FileText className="size-4 text-muted-foreground" />
+          <span className="max-w-[22rem] truncate font-medium">{contextLabel}</span>
+          <Badge
+            variant="secondary"
+            className="rounded-full px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.14em]"
+          >
+            {contextBadge}
+          </Badge>
         </div>
       </div>
       <Separator className="mt-4" />
@@ -1324,16 +1388,14 @@ function ChatEmptyState({
   return (
     <div className="flex min-h-full items-center justify-center px-6 py-10">
       <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl bg-secondary text-primary shadow-sm">
-          <MessageSquare className="size-7" />
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-secondary/80 text-primary">
+          <MessageSquare className="size-6" />
         </div>
         <div className="mt-6 space-y-3">
-          <h3 className="text-3xl font-semibold tracking-tight text-foreground">
+          <h3 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             {title}
           </h3>
-          <p className="mx-auto max-w-2xl text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
+          <p className="mx-auto max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
         </div>
 
         {hasGuidedPrompts ? (
@@ -1354,7 +1416,9 @@ function ChatEmptyState({
                     </div>
                     <div className="min-w-0 space-y-2">
                       <p className="text-sm font-semibold text-foreground">{prompt.title}</p>
-                      <p className="text-sm leading-6 text-muted-foreground">{prompt.description}</p>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        {prompt.description}
+                      </p>
                       <p className="text-xs text-muted-foreground">{prompt.example}</p>
                     </div>
                   </div>
@@ -1363,22 +1427,19 @@ function ChatEmptyState({
             })}
           </div>
         ) : (
-          <div className="mt-8 grid w-full max-w-2xl gap-3 sm:grid-cols-2">
+          <div className="mt-8 flex w-full max-w-4xl flex-wrap items-center justify-center gap-3">
             {promptSuggestions.map(({ label, icon: Icon }) => (
-              <Button
+              <button
                 key={label}
                 type="button"
-                variant="outline"
-                className="h-auto justify-start rounded-lg px-4 py-4 text-left text-sm font-medium whitespace-normal"
+                className="inline-flex min-h-11 items-center gap-3 rounded-full border border-border/70 bg-background px-4 py-2.5 text-left text-sm font-medium text-foreground transition hover:border-foreground/20 hover:bg-accent/40"
                 onClick={() => onPromptSelect(label)}
               >
-                <span className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-md bg-secondary text-primary">
-                    <Icon className="size-4" />
-                  </span>
-                  <span>{label}</span>
+                <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-primary">
+                  <Icon className="size-4" />
                 </span>
-              </Button>
+                <span>{label}</span>
+              </button>
             ))}
           </div>
         )}
@@ -1391,11 +1452,120 @@ function ChatEmptyState({
           <Separator className="flex-1" />
         </div>
 
-        <p className="mt-4 text-sm text-muted-foreground">
-          Start typing your question below
-        </p>
+        <p className="mt-4 text-sm text-muted-foreground">Start typing your question below</p>
       </div>
     </div>
+  );
+}
+
+function ChatConversationRail({
+  showHeader = true,
+  conversationsQuery,
+  conversationSections,
+  selectedChatId,
+  effectiveSelectedChatId,
+  createConversationPending,
+  onCreateConversation,
+  onSelectConversation,
+  onDeleteConversation,
+}: {
+  showHeader?: boolean;
+  conversationsQuery: ReturnType<typeof useChatConversationsQuery>;
+  conversationSections: Array<[string, ChatConversation[]]>;
+  selectedChatId: string;
+  effectiveSelectedChatId: string;
+  createConversationPending: boolean;
+  onCreateConversation: () => void;
+  onSelectConversation: (chatId: string) => void;
+  onDeleteConversation: (chatId: string) => void;
+}) {
+  return (
+    <>
+      {showHeader ? (
+        <div className="flex items-center justify-between gap-3 py-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <MessageSquare className="size-4 text-primary" />
+            Conversations
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCreateConversation}
+            disabled={createConversationPending}
+            className="h-9 rounded-full px-3"
+          >
+            <Plus className="size-4" />
+            New chat
+          </Button>
+        </div>
+      ) : (
+        <div className="flex justify-end pb-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCreateConversation}
+            disabled={createConversationPending}
+            className="h-9 rounded-full px-3"
+          >
+            <Plus className="size-4" />
+            New chat
+          </Button>
+        </div>
+      )}
+
+      <div className={cn('min-h-0 flex-1 overflow-y-auto pr-1', showHeader ? 'mt-4' : 'mt-2')}>
+        {conversationsQuery.isLoading ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading chats
+          </div>
+        ) : conversationSections.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">No conversations yet.</p>
+        ) : (
+          <div className="space-y-5">
+            {conversationSections.map(([sectionLabel, conversations]) => (
+              <div key={sectionLabel} className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">{sectionLabel}</p>
+                <div className="space-y-1">
+                  {conversations.map((conversation) => (
+                    <div key={conversation.id} className="group flex items-center gap-1">
+                      <button
+                        type="button"
+                        className={cn(
+                          'min-w-0 flex-1 rounded-xl px-3 py-3 text-left text-sm transition',
+                          selectedChatId === conversation.id ||
+                            effectiveSelectedChatId === conversation.id
+                            ? 'bg-secondary text-foreground'
+                            : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
+                        )}
+                        onClick={() => onSelectConversation(conversation.id)}
+                      >
+                        <span className="block truncate font-medium">{conversation.title}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {formatDate(conversation.updatedAt)}
+                        </span>
+                      </button>
+                      {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${conversation.title}`}
+                          className="h-8 w-8 shrink-0 rounded-full opacity-70 group-hover:opacity-100"
+                          onClick={() => onDeleteConversation(conversation.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -1403,7 +1573,8 @@ export function ChatWorkspace({
   scope,
   documentName,
   inputPlaceholder,
-  minHeightClassName = 'min-h-[calc(100vh-14rem)]',
+  heightClassName = 'h-[calc(100vh-14rem)] min-h-[32rem]',
+  showContextHeader = true,
 }: ChatWorkspaceProps) {
   const { vaultId, documentId } = scope;
   const isDocumentChat = Boolean(vaultId && documentId);
@@ -1411,7 +1582,7 @@ export function ChatWorkspace({
   const experience = getChatExperienceConfig({ scope, documentName });
   const queryClient = useQueryClient();
   const conversationsQuery = useChatConversationsQuery(scope);
-  const modelOptionsQuery = useChatModelOptionsQuery(scope, { enabled: isDocumentChat });
+  const modelOptionsQuery = useChatModelOptionsQuery(scope);
   const createConversation = useCreateChatConversationMutation();
   const deleteConversation = useDeleteChatConversationMutation();
   const [selectedChatId, setSelectedChatId] = useState('');
@@ -1424,12 +1595,16 @@ export function ChatWorkspace({
   const [composerValue, setComposerValue] = useState('');
   const [currentIntent, setCurrentIntent] = useState<ChatIntent | null>(null);
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
+  const [isDesktopConversationRailCollapsed, setIsDesktopConversationRailCollapsed] =
+    useState(false);
+  const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = streamStatus !== null;
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
-  const effectiveSelectedChatId
-    = isDraftConversation ? '' : selectedChatId || conversationsQuery.data?.conversations[0]?.id || '';
+  const effectiveSelectedChatId = isDraftConversation
+    ? ''
+    : selectedChatId || conversationsQuery.data?.conversations[0]?.id || '';
   const selectedChatQuery = useChatConversationQuery({
     ...scope,
     chatId: effectiveSelectedChatId,
@@ -1441,14 +1616,15 @@ export function ChatWorkspace({
 
   const availableModels = modelOptionsQuery.data?.options.models ?? [];
   const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
-  const resolvedSelectedModel = selectedModel && (availableModels.length === 0 || availableModels.includes(selectedModel))
-    ? selectedModel
-    : defaultModel || availableModels[0] || '';
+  const resolvedSelectedModel =
+    selectedModel && (availableModels.length === 0 || availableModels.includes(selectedModel))
+      ? selectedModel
+      : defaultModel || availableModels[0] || '';
 
   const messages = useMemo(
     () => [
       ...(selectedChatQuery.data?.conversation.messages ?? []),
-      ...localMessages.filter(message => message.conversationId === effectiveSelectedChatId),
+      ...localMessages.filter((message) => message.conversationId === effectiveSelectedChatId),
     ],
     [effectiveSelectedChatId, localMessages, selectedChatQuery.data?.conversation.messages],
   );
@@ -1475,7 +1651,26 @@ export function ChatWorkspace({
       },
       ...conversations,
     ];
-  }, [conversationsQuery.data?.conversations, documentId, isDocumentChat, isDraftConversation, isGlobalChat, vaultId]);
+  }, [
+    conversationsQuery.data?.conversations,
+    documentId,
+    isDocumentChat,
+    isDraftConversation,
+    isGlobalChat,
+    vaultId,
+  ]);
+  const conversationSections = useMemo(() => {
+    const sections = new Map<string, ChatConversation[]>();
+
+    for (const conversation of visibleConversations) {
+      const label = conversationDayLabel(conversation.updatedAt);
+      const current = sections.get(label) ?? [];
+      current.push(conversation);
+      sections.set(label, current);
+    }
+
+    return [...sections.entries()];
+  }, [visibleConversations]);
 
   function focusComposer() {
     requestAnimationFrame(() => {
@@ -1501,6 +1696,7 @@ export function ChatWorkspace({
 
   function handleCreateConversation() {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
+    setIsMobileConversationRailOpen(false);
     resetComposerState();
   }
 
@@ -1564,10 +1760,10 @@ export function ChatWorkspace({
         chatId,
         content,
         intent: resolvedIntent ?? undefined,
-        model: isDocumentChat ? resolvedSelectedModel : undefined,
+        model: resolvedSelectedModel || undefined,
         responseMode,
         onStatus: setStreamStatus,
-        onToken: token => setStreamingText(current => `${current}${token}`),
+        onToken: (token) => setStreamingText((current) => `${current}${token}`),
         onError: (message) => {
           setStreamError(message);
           setLocalMessages([]);
@@ -1578,7 +1774,7 @@ export function ChatWorkspace({
           ]);
         },
         onDone: (payload) => {
-          setMetricsByMessageId(current => ({
+          setMetricsByMessageId((current) => ({
             ...current,
             [payload.assistantMessage.id]: payload.metrics ?? undefined,
           }));
@@ -1600,167 +1796,205 @@ export function ChatWorkspace({
   }
 
   return (
-    <div className="space-y-5">
-      <div className={cn('grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]', minHeightClassName)}>
-        <SurfacePanel className="flex min-h-0 flex-col p-3">
-          <div className="flex items-center gap-2 px-2 py-2 text-sm font-semibold text-foreground">
-            <MessageSquare className="size-4 text-primary" />
-            Conversations
-          </div>
-          <Button
-            type="button"
-            onClick={() => {
-              void handleCreateConversation();
-            }}
-            disabled={createConversation.isPending}
-            className="mx-2 mt-2"
-          >
-            <Plus className="size-4" />
-            New chat
-          </Button>
-          <div className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto">
-            {conversationsQuery.isLoading ? (
-              <div className="flex items-center gap-2 px-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Loading chats
-              </div>
-            ) : visibleConversations.length === 0 ? (
-              <p className="px-2 py-4 text-sm text-muted-foreground">No conversations yet.</p>
-            ) : (
-              visibleConversations.map(conversation => (
-                <div key={conversation.id} className="group flex items-center gap-1">
-                  <button
-                    type="button"
-                    className={cn(
-                      'min-w-0 flex-1 rounded-lg px-3 py-2 text-left text-sm transition',
-                      selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id
-                        ? 'bg-secondary text-foreground'
-                        : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                    )}
-                    onClick={() => {
-                      setSelectedChatId(conversation.id);
-                      resetComposerState();
-                    }}
-                  >
-                    <span className="block truncate font-medium">{conversation.title}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {formatDate(conversation.updatedAt)}
-                    </span>
-                  </button>
-                  {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete ${conversation.title}`}
-                      className="h-8 w-8 shrink-0 opacity-70 group-hover:opacity-100"
-                      onClick={() => {
-                        void handleDeleteConversation(conversation.id);
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </SurfacePanel>
+    <div
+      className={cn(
+        'grid overflow-hidden',
+        isDesktopConversationRailCollapsed
+          ? 'lg:grid-cols-[0_minmax(0,1fr)]'
+          : 'lg:grid-cols-[18rem_minmax(0,1fr)]',
+        heightClassName,
+      )}
+    >
+      <aside
+        className={cn(
+          'hidden min-h-0 overflow-hidden border-r border-border/70 pb-6 transition-[width,padding,opacity] duration-200 ease-linear lg:flex lg:flex-col',
+          isDesktopConversationRailCollapsed
+            ? 'w-0 border-r-0 pr-0 opacity-0'
+            : 'w-[18rem] pr-5 opacity-100',
+        )}
+        aria-hidden={isDesktopConversationRailCollapsed}
+      >
+        <ChatConversationRail
+          conversationsQuery={conversationsQuery}
+          conversationSections={conversationSections}
+          selectedChatId={selectedChatId}
+          effectiveSelectedChatId={effectiveSelectedChatId}
+          createConversationPending={createConversation.isPending}
+          onCreateConversation={() => {
+            void handleCreateConversation();
+          }}
+          onSelectConversation={(chatId) => {
+            setSelectedChatId(chatId);
+            resetComposerState();
+          }}
+          onDeleteConversation={(chatId) => {
+            void handleDeleteConversation(chatId);
+          }}
+        />
+      </aside>
 
-        <SurfacePanel className="flex min-h-0 flex-col overflow-hidden p-0">
-          {streamError ? (
-            <div className="flex items-center gap-2 border-b border-border/70 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              <AlertCircle className="size-4" />
-              {streamError}
-            </div>
-          ) : null}
+      <section
+        className={cn(
+          'flex min-h-0 flex-col overflow-hidden',
+          !isDesktopConversationRailCollapsed && 'lg:pl-6',
+        )}
+      >
+        {streamError ? (
+          <div className="flex items-center gap-2 border-b border-border/70 bg-destructive/10 px-4 py-3 text-sm text-destructive sm:px-6">
+            <AlertCircle className="size-4" />
+            {streamError}
+          </div>
+        ) : null}
 
+        {showContextHeader ? (
           <ChatContextHeader
             contextLabel={experience.contextLabel}
             contextBadge={experience.contextBadge}
             contextDescription={experience.contextDescription}
+            leadingAction={
+              <Button
+                type="button"
+                variant="ghost"
+                className="hidden h-9 rounded-full px-3 lg:inline-flex"
+                onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
+              >
+                {isDesktopConversationRailCollapsed ? (
+                  <PanelLeftOpen className="size-4" />
+                ) : (
+                  <PanelLeftClose className="size-4" />
+                )}
+              </Button>
+            }
           />
+        ) : null}
 
-          <div className="min-h-0 flex-1">
-            <ScrollArea className="h-full">
-              {shouldShowEmptyState ? (
-                <ChatEmptyState
-                  title={experience.emptyTitle}
-                  description={experience.emptyDescription}
-                  promptSuggestions={experience.promptSuggestions}
-                  guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
-                  onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
-                  onPromptSelect={(prompt) => { void handleSend(prompt); }}
+        <div className="border-b border-border/60 px-4 py-3 sm:px-6 lg:hidden">
+          <Collapsible
+            open={isMobileConversationRailOpen}
+            onOpenChange={setIsMobileConversationRailOpen}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <MessageSquare className="size-4 text-primary" />
+                Conversations
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="ghost" className="h-9 rounded-full px-3">
+                  <PanelLeftOpen className="size-4" />
+                  {isMobileConversationRailOpen ? 'Hide history' : 'Show history'}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+              <div className="mt-4 border-t border-border/60 pt-3">
+                <ChatConversationRail
+                  showHeader={false}
+                  conversationsQuery={conversationsQuery}
+                  conversationSections={conversationSections}
+                  selectedChatId={selectedChatId}
+                  effectiveSelectedChatId={effectiveSelectedChatId}
+                  createConversationPending={createConversation.isPending}
+                  onCreateConversation={() => {
+                    void handleCreateConversation();
+                  }}
+                  onSelectConversation={(chatId) => {
+                    setSelectedChatId(chatId);
+                    setIsMobileConversationRailOpen(false);
+                    resetComposerState();
+                  }}
+                  onDeleteConversation={(chatId) => {
+                    void handleDeleteConversation(chatId);
+                  }}
                 />
-              ) : selectedChatQuery.isLoading && messages.length === 0 ? (
-                <div className="flex min-h-[24rem] items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" />
-                  Loading conversation
-                </div>
-              ) : (
-                <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-6">
-                  {messages.map(message => (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      currentVaultId={vaultId}
-                      scope={scope}
-                      activeStatus={streamStatus}
-                      metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
-                      onQuickReplySelect={isGlobalChat
-                        ? (reply) => {
-                            void handleSend(reply, effectiveIntent);
-                          }
-                        : undefined}
-                    />
-                  ))}
-                  {streamingText.length > 0 || isStreaming ? (
-                    <div className="flex gap-3">
-                      <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                        <Sparkles className="size-4" />
-                      </div>
-                      <div className="max-w-[min(44rem,100%)]">
-                        <div className="rounded-lg border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-card-foreground shadow-sm">
-                          {streamingText.length > 0 ? (
-                            <MarkdownMessage content={streamingText} citations={[]} />
-                          ) : (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Loader2 className="size-4 animate-spin" />
-                              {statusLabel(streamStatus, scope)}
-                            </div>
-                          )}
-                        </div>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {statusLabel(streamStatus, scope)}
-                        </p>
-                      </div>
-                    </div>
-                  ) : null}
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-            </ScrollArea>
-          </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
 
-          <ChatInputPanel
-            disabled={isStreaming || createConversation.isPending}
-            placeholder={inputPlaceholder}
-            responseMode={responseMode}
-            modelOptions={isDocumentChat ? modelOptionsQuery.data?.options.models : undefined}
-            selectedModel={resolvedSelectedModel}
-            isLoadingModels={modelOptionsQuery.isLoading}
-            modelOptionsError={isDocumentChat && modelOptionsQuery.isError
-              ? 'Could not load available Ollama models for this document chat.'
-              : null}
-            onSelectedModelChange={isDocumentChat ? setSelectedModel : undefined}
-            onResponseModeChange={setResponseMode}
-            value={composerValue}
-            onValueChange={setComposerValue}
-            textareaRef={textareaRef}
-            onSubmit={handleSend}
-          />
-        </SurfacePanel>
-      </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {shouldShowEmptyState ? (
+            <ChatEmptyState
+              title={experience.emptyTitle}
+              description={experience.emptyDescription}
+              promptSuggestions={experience.promptSuggestions}
+              guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
+              onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
+              onPromptSelect={(prompt) => {
+                void handleSend(prompt);
+              }}
+            />
+          ) : selectedChatQuery.isLoading && messages.length === 0 ? (
+            <div className="flex min-h-[24rem] items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading conversation
+            </div>
+          ) : (
+            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6">
+              <div className="mt-auto" aria-hidden="true" />
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  currentVaultId={vaultId}
+                  scope={scope}
+                  activeStatus={streamStatus}
+                  metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
+                  onQuickReplySelect={
+                    isGlobalChat
+                      ? (reply) => {
+                          void handleSend(reply, effectiveIntent);
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+              {streamingText.length > 0 || isStreaming ? (
+                <div className="flex gap-3">
+                  <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                    <Sparkles className="size-4" />
+                  </div>
+                  <div className="max-w-[min(44rem,100%)]">
+                    <div className="rounded-2xl bg-muted/60 px-4 py-3 text-sm leading-6 text-foreground">
+                      {streamingText.length > 0 ? (
+                        <MarkdownMessage content={streamingText} citations={[]} />
+                      ) : (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 className="size-4 animate-spin" />
+                          {statusLabel(streamStatus, scope)}
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {statusLabel(streamStatus, scope)}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        <ChatInputPanel
+          disabled={isStreaming || createConversation.isPending}
+          placeholder={inputPlaceholder}
+          responseMode={responseMode}
+          modelOptions={modelOptionsQuery.data?.options.models}
+          selectedModel={resolvedSelectedModel}
+          isLoadingModels={modelOptionsQuery.isLoading}
+          modelOptionsError={
+            modelOptionsQuery.isError
+              ? 'Could not load available Ollama models for this chat.'
+              : null
+          }
+          onSelectedModelChange={setSelectedModel}
+          onResponseModeChange={setResponseMode}
+          value={composerValue}
+          onValueChange={setComposerValue}
+          textareaRef={textareaRef}
+          onSubmit={handleSend}
+        />
+      </section>
     </div>
   );
 }

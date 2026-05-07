@@ -5,7 +5,7 @@ import { authClient } from '@/lib/auth-client';
 
 function AuthLoadingState() {
   return (
-    <Flex minH="100vh" align="center" justify="center" bg="app.bg" fontSize="sm" color="text.muted">
+    <Flex minH="100vh" align="center" justify="center" bg="bg.muted" fontSize="sm" color="fg.muted">
       Checking session...
     </Flex>
   );

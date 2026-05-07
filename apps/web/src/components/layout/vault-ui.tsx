@@ -36,18 +36,18 @@ export function PageIntro({
       <Stack gap="2">
         {eyebrow ? <Text textStyle="label">{eyebrow}</Text> : null}
         <Stack gap="2">
-          <Heading as="h1" textStyle="page.title">
+          <Heading as="h1" textStyle="3xl" fontWeight="semibold" lineHeight="short">
             {title}
           </Heading>
           {description ? (
             typeof description === 'string' || typeof description === 'number'
               ? (
-                  <Text maxW="2xl" textStyle="body" color="text.muted">
+                  <Text maxW="2xl" textStyle="sm" color="fg.muted">
                     {description}
                   </Text>
                 )
               : (
-                  <Box maxW="2xl" color="text.muted">
+                  <Box maxW="2xl" color="fg.muted">
                     {description}
                   </Box>
                 )
@@ -77,7 +77,7 @@ export function SectionHeader({
     <Flex align="flex-end" justify="space-between" gap="4">
       <Stack gap="1.5">
         <Text textStyle="label">{eyebrow}</Text>
-        <Heading as="h2" textStyle="section.title">
+        <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">
           {title}
         </Heading>
       </Stack>
@@ -97,17 +97,18 @@ export function SurfacePanel({
   className?: string;
   variant?: 'default' | 'soft' | 'subtle' | 'raised' | 'strong';
 } & Omit<ComponentProps<typeof Box>, 'children'>>) {
-  const layerStyle =
-    variant === 'soft' || variant === 'subtle'
-      ? 'ark.panel.subtle'
-      : variant === 'raised'
-        ? 'ark.panel.raised'
-        : variant === 'strong'
-          ? 'ark.panel.strong'
-          : 'ark.panel';
+  const panelProps =
+    variant === 'strong'
+      ? { bg: 'bg.inverted', color: 'fg.inverted' }
+      : {
+          borderWidth: '1px',
+          borderColor: variant === 'raised' ? 'border' : 'border.subtle',
+          bg: variant === 'soft' || variant === 'subtle' ? 'bg.subtle' : 'bg.panel',
+          shadow: variant === 'raised' ? 'lg' : 'xs',
+        };
 
   return (
-    <Box layerStyle={layerStyle} p="4" className={className} {...props}>
+    <Box rounded="lg" p="4" className={className} {...panelProps} {...props}>
       {children}
     </Box>
   );
@@ -132,7 +133,7 @@ export function StatCard({
         <Flex align="flex-start" justify="space-between" gap="4">
           <Stack gap="1">
             <Text textStyle="label">{label}</Text>
-            <Box fontFamily="heading" fontSize="xl" fontWeight="semibold" color="text.default">
+            <Box fontFamily="heading" fontSize="xl" fontWeight="semibold" color="fg">
               {value}
             </Box>
           </Stack>
@@ -143,14 +144,14 @@ export function StatCard({
               align="center"
               justify="center"
               rounded="lg"
-              bg="accent.subtle"
-              color="accent.fg"
+              bg="teal.subtle"
+              color="teal.fg"
             >
               {icon}
             </Flex>
           ) : null}
         </Flex>
-        {meta ? <Text textStyle="metadata">{meta}</Text> : null}
+        {meta ? <Text textStyle="sm">{meta}</Text> : null}
       </Stack>
     </SurfacePanel>
   );
@@ -170,10 +171,22 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <Stack layerStyle="ark.empty" align="center" gap="3" textAlign="center" className={className}>
+    <Stack
+      align="center"
+      gap="3"
+      rounded="lg"
+      borderWidth="1px"
+      borderStyle="dashed"
+      borderColor="border"
+      bg="bg.subtle"
+      color="fg.muted"
+      p="4"
+      textAlign="center"
+      className={className}
+    >
       {icon}
-      {title ? <Text fontWeight="semibold" color="text.default">{title}</Text> : null}
-      <Text textStyle="body" color="text.muted">{description}</Text>
+      {title ? <Text fontWeight="semibold" color="fg">{title}</Text> : null}
+      <Text textStyle="sm" color="fg.muted">{description}</Text>
       {action}
     </Stack>
   );
@@ -184,7 +197,16 @@ export function Toolbar({
   className,
 }: PropsWithChildren<{ className?: string }>) {
   return (
-    <Flex layerStyle="ark.toolbar" direction={{ base: 'column', xl: 'row' }} gap="3" className={className}>
+    <Flex
+      direction={{ base: 'column', xl: 'row' }}
+      gap="3"
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.panel/85"
+      p="4"
+      className={className}
+    >
       {children}
     </Flex>
   );

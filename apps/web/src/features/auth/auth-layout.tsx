@@ -12,7 +12,7 @@ import {
 
 export function AuthLayout({ children }: PropsWithChildren) {
   return (
-    <Box minH="100vh" bg="app.bg" color="text.default">
+    <Box minH="100vh" bg="bg.muted" color="fg">
       <Flex
         direction="column"
         mx="auto"

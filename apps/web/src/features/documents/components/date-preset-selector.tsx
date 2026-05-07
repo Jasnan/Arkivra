@@ -49,10 +49,10 @@ export function DatePresetSelector({
               px="3.5"
               py="2.5"
               fontWeight="semibold"
-              bg={value === option.value ? 'surface.subtle' : 'transparent'}
-              color={value === option.value ? 'text.default' : 'text.muted'}
+              bg={value === option.value ? 'bg.subtle' : 'transparent'}
+              color={value === option.value ? 'fg' : 'fg.muted'}
               transition="colors"
-              _hover={value === option.value ? undefined : { bg: 'surface.subtle', opacity: 0.6 }}
+              _hover={value === option.value ? undefined : { bg: 'bg.subtle', opacity: 0.6 }}
             >
               <RadioGroupItem id={`${idPrefix}-${option.value}`} value={option.value} />
               <Text as="span" fontSize="sm">
@@ -80,7 +80,7 @@ export function DatePresetSelector({
                 left="4"
                 top="50%"
                 transform="translateY(-50%)"
-                color="text.muted"
+                color="fg.muted"
                 pointerEvents="none"
               >
                 <CalendarRange size={16} />
@@ -95,7 +95,7 @@ export function DatePresetSelector({
                 h="10"
                 rounded="lg"
                 borderColor="border.subtle"
-                bg="surface.default"
+                bg="bg.panel"
                 pl="11"
               />
             </Box>
@@ -109,7 +109,7 @@ export function DatePresetSelector({
                 left="4"
                 top="50%"
                 transform="translateY(-50%)"
-                color="text.muted"
+                color="fg.muted"
                 pointerEvents="none"
               >
                 <CalendarRange size={16} />
@@ -124,7 +124,7 @@ export function DatePresetSelector({
                 h="10"
                 rounded="lg"
                 borderColor="border.subtle"
-                bg="surface.default"
+                bg="bg.panel"
                 pl="11"
               />
             </Box>

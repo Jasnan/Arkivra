@@ -25,9 +25,9 @@ export function ActionMenuTriggerButton({
       rounded="lg"
       borderWidth="1px"
       borderColor="border.subtle"
-      bg="surface.default"
-      color="text.muted"
-      _hover={{ bg: 'surface.subtle', color: 'text.default' }}
+      bg="bg.panel"
+      color="fg.muted"
+      _hover={{ bg: 'bg.subtle', color: 'fg' }}
       className={className}
       {...props}
     >
@@ -50,7 +50,7 @@ export function ActionMenuItemIcon({
       as={MenuIcon}
       boxSize="4"
       flexShrink="0"
-      color={tone === 'destructive' ? 'status.danger' : 'accent.default'}
+      color={tone === 'destructive' ? 'fg.error' : 'teal.solid'}
       className={className}
     />
   );

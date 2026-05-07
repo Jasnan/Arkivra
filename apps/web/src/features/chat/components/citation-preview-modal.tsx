@@ -89,7 +89,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
       >
         <Flex h="100%" minH="0" direction={{ base: 'column', lg: 'row' }}>
           <Box flex="1" minH="0">
-            <Box bg="surface.subtle" minH="0" h="100%" display="flex" flexDirection="column">
+            <Box bg="bg.subtle" minH="0" h="100%" display="flex" flexDirection="column">
               <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="5">
                 <DialogTitle>{citation.documentName}</DialogTitle>
                 <DialogDescription>
@@ -175,16 +175,16 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                     borderWidth="1px"
                     borderStyle="dashed"
                     borderColor="border.subtle"
-                    bg="surface.subtle"
+                    bg="bg.subtle"
                     p="8"
                     textAlign="center"
                     fontSize="sm"
-                    color="text.muted"
+                    color="fg.muted"
                   >
                     No page preview is available for this citation.
                   </Flex>
                 ) : (
-                  <Box mx="auto" w="100%" maxW="container.lg" rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="surface.default" p="4" shadow="sm">
+                  <Box mx="auto" w="100%" maxW="container.lg" rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.panel" p="4" shadow="sm">
                     <Box position="relative">
                       <chakra.img
                         src={activePreviewUrl}
@@ -219,8 +219,8 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                                 position="absolute"
                                 rounded="md"
                                 borderWidth="2px"
-                                borderColor="accent.default"
-                                bg="accent.default/15"
+                                borderColor="teal.solid"
+                                bg="teal.solid/15"
                                 boxShadow="0 0 0 1px rgba(255,255,255,0.25)"
                                 style={{ left, top, width, height }}
                               />
@@ -233,7 +233,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                 )}
 
                 {imageError ? (
-                  <Text mt="4" fontSize="sm" color="text.muted">
+                  <Text mt="4" fontSize="sm" color="fg.muted">
                     Arkivra could not render a preview image for this page.
                   </Text>
                 ) : null}
@@ -246,7 +246,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
             overflow="auto"
             borderTopWidth="1px"
             borderColor="border.subtle"
-            bg="surface.raised"
+            bg="bg.panel"
             lg={{
               borderLeftWidth: '1px',
               borderTopWidth: '0',
@@ -256,20 +256,20 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
           >
             <Flex direction="column" gap="5" p="6">
               <Flex direction="column" gap="2">
-                <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
+                <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                   Source details
                 </Text>
                 <Box>
-                  <Text fontSize="base" fontWeight="semibold" color="text.default">{citation.documentName}</Text>
-                  <Text mt="1" fontSize="sm" color="text.muted">{pageRange(citation)}</Text>
+                  <Text fontSize="base" fontWeight="semibold" color="fg">{citation.documentName}</Text>
+                  <Text mt="1" fontSize="sm" color="fg.muted">{pageRange(citation)}</Text>
                 </Box>
               </Flex>
 
               <Flex direction="column" gap="2">
-                <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
+                <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                   Citation precision
                 </Text>
-                <Text fontSize="sm" color="text.default">
+                <Text fontSize="sm" color="fg">
                   {citation.citationPrecision === 'box'
                     ? 'Exact box overlay available'
                     : citation.citationPrecision === 'page'
@@ -280,37 +280,37 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
 
               {sectionLabel ? (
                 <Flex direction="column" gap="2">
-                  <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
+                  <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                     Section
                   </Text>
-                  <Text fontSize="sm" color="text.default">{sectionLabel}</Text>
+                  <Text fontSize="sm" color="fg">{sectionLabel}</Text>
                 </Flex>
               ) : null}
 
               <Flex direction="column" gap="2">
-                <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
+                <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                   Matched text
                 </Text>
-                <Box rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="surface.subtle" p="4" fontSize="sm" lineHeight="6" color="text.default">
+                <Box rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4" fontSize="sm" lineHeight="6" color="fg">
                   {citation.snippet}
                 </Box>
               </Flex>
 
               {figureEvidence.length > 0 ? (
                 <Flex direction="column" gap="3">
-                  <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
+                  <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                     Figure evidence
                   </Text>
                   <Flex direction="column" gap="3">
                     {figureEvidence.map((figure) => (
-                      <Box key={figure.id} rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="surface.subtle" p="4">
+                      <Box key={figure.id} rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
                         <Flex align="center" gap="2" fontSize="sm" flexWrap="wrap">
-                          <Text fontWeight="medium" color="text.default">{figure.label}</Text>
+                          <Text fontWeight="medium" color="fg">{figure.label}</Text>
                           {figure.pageLabel ? (
-                            <Text color="text.muted">{figure.pageLabel}</Text>
+                            <Text color="fg.muted">{figure.pageLabel}</Text>
                           ) : null}
                         </Flex>
-                        <Text mt="2" fontSize="sm" lineHeight="6" color="text.default">{figure.caption}</Text>
+                        <Text mt="2" fontSize="sm" lineHeight="6" color="fg">{figure.caption}</Text>
                       </Box>
                     ))}
                   </Flex>
@@ -321,24 +321,24 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
               tableSourceElementIds.length > 0 ||
               imageSourceElementIds.length > 0 ? (
                 <Flex direction="column" gap="3">
-                  <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
+                  <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                     Docling provenance
                   </Text>
                   {chunkSourceElementIds.length > 0 ? (
                     <Flex direction="column" gap="2">
-                      <Text fontSize="sm" color="text.default">Chunk elements</Text>
+                      <Text fontSize="sm" color="fg">Chunk elements</Text>
                       <Flex gap="2" flexWrap="wrap">
                         {chunkSourceElementIds.map((elementId) => (
                           <Box
                             key={elementId}
                             as="code"
                             rounded="md"
-                            bg="surface.subtle"
+                            bg="bg.subtle"
                             px="2"
                             py="1"
                             fontFamily="mono"
                             fontSize="xs"
-                            color="text.default"
+                            color="fg"
                           >
                             {elementId}
                           </Box>
@@ -348,19 +348,19 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                   ) : null}
                   {tableSourceElementIds.length > 0 ? (
                     <Flex direction="column" gap="2">
-                      <Text fontSize="sm" color="text.default">Table elements</Text>
+                      <Text fontSize="sm" color="fg">Table elements</Text>
                       <Flex gap="2" flexWrap="wrap">
                         {tableSourceElementIds.map((elementId) => (
                           <Box
                             key={elementId}
                             as="code"
                             rounded="md"
-                            bg="surface.subtle"
+                            bg="bg.subtle"
                             px="2"
                             py="1"
                             fontFamily="mono"
                             fontSize="xs"
-                            color="text.default"
+                            color="fg"
                           >
                             {elementId}
                           </Box>
@@ -370,19 +370,19 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                   ) : null}
                   {imageSourceElementIds.length > 0 ? (
                     <Flex direction="column" gap="2">
-                      <Text fontSize="sm" color="text.default">Image elements</Text>
+                      <Text fontSize="sm" color="fg">Image elements</Text>
                       <Flex gap="2" flexWrap="wrap">
                         {imageSourceElementIds.map((elementId) => (
                           <Box
                             key={elementId}
                             as="code"
                             rounded="md"
-                            bg="surface.subtle"
+                            bg="bg.subtle"
                             px="2"
                             py="1"
                             fontFamily="mono"
                             fontSize="xs"
-                            color="text.default"
+                            color="fg"
                           >
                             {elementId}
                           </Box>

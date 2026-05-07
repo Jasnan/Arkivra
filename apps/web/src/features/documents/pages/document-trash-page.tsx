@@ -118,9 +118,9 @@ export function DocumentTrashPage() {
 
       <SurfacePanel display="flex" flexDirection="column" gap="5">
         {isLoading ? (
-          <Text textStyle="metadata">Loading deleted documents...</Text>
+          <Text textStyle="sm">Loading deleted documents...</Text>
         ) : null}
-        {isError ? <Text textStyle="metadata" color="status.danger">Unable to load trash.</Text> : null}
+        {isError ? <Text textStyle="sm" color="fg.error">Unable to load trash.</Text> : null}
 
         {!isLoading && deletedDocuments.length === 0 ? (
           <EmptyState description="Trash is empty." />
@@ -142,7 +142,13 @@ export function DocumentTrashPage() {
               </DeleteButton>
             </Flex>
             {deletedDocuments.map((document) => (
-              <Box key={document.id} as="article" layerStyle="ark.listRow" p={{ base: '4', sm: '5' }}>
+              <Box
+                key={document.id}
+                as="article"
+                borderColor="border.subtle"
+                p={{ base: '4', sm: '5' }}
+                _hover={{ bg: 'teal.subtle' }}
+              >
                 <Flex direction={{ base: 'column', lg: 'row' }} align={{ lg: 'flex-start' }} justify={{ lg: 'space-between' }} gap="4">
                   <Box>
                     <Link
@@ -152,24 +158,24 @@ export function DocumentTrashPage() {
                       <Text
                         fontSize={{ base: 'xl', sm: 'sm' }}
                         fontWeight="bold"
-                        color="text.default"
+                        color="fg"
                         transition="colors"
-                        _hover={{ color: 'accent.default' }}
+                        _hover={{ color: 'teal.solid' }}
                       >
                         {document.name}
                       </Text>
                     </Link>
-                    <Text mt="2" textStyle="metadata">
+                    <Text mt="2" textStyle="sm">
                       Deleted {formatDate(document.deletedAt)} •{' '}
                       {formatBytes(document.originalSize)}
                     </Text>
                     {getResolvedVaultName(document) ? (
-                      <Text textStyle="metadata">
+                      <Text textStyle="sm">
                         Vault {getResolvedVaultName(document)} • auto-delete{' '}
                         {getPermanentDeletionLabel(document.deletedAt, retentionDays)}
                       </Text>
                     ) : (
-                      <Text textStyle="metadata">
+                      <Text textStyle="sm">
                         Auto-delete {getPermanentDeletionLabel(document.deletedAt, retentionDays)}
                       </Text>
                     )}

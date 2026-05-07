@@ -55,7 +55,7 @@ export function RequestPasswordResetPage() {
         )}
 
         <AuthActions>
-          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-text-default)' }}>
+          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Sign in
           </Link>
         </AuthActions>

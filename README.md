@@ -25,7 +25,7 @@ Arkivra is a self-hosted document management system designed for individuals and
 
 | Layer      | Technology                                           |
 | ---------- | ---------------------------------------------------- |
-| Frontend   | React + Vite + TypeScript + Tailwind CSS + shadcn/ui |
+| Frontend   | React + Vite + TypeScript + Chakra UI |
 | Backend    | Hono + Node.js                                       |
 | ORM        | Drizzle ORM (pg-core)                                |
 | Database   | PostgreSQL 16 + pgvector                             |

@@ -46,9 +46,9 @@ export function DeleteButton({ children, className, ...props }: ActionButtonProp
   return (
     <Button
       variant="outline"
-      borderColor="status.danger"
-      color="status.danger"
-      _hover={{ bg: 'status.dangerSubtle', color: 'status.danger' }}
+      borderColor="fg.error"
+      color="fg.error"
+      _hover={{ bg: 'bg.error', color: 'fg.error' }}
       className={className}
       {...props}
     >

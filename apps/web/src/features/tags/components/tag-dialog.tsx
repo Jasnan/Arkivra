@@ -61,7 +61,7 @@ export function TagDialog({
   const normalizedName = nameValue.trim();
 
   return (
-    <ChakraDialog.Root open={isOpen} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); if (e.open) return; }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root open={isOpen} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -96,23 +96,23 @@ export function TagDialog({
                         justifyContent="center"
                         rounded="xl"
                         borderWidth="1px"
-                        borderColor={colorValue === color ? 'text.default/35' : 'border.subtle'}
+                        borderColor={colorValue === color ? 'fg/35' : 'border.subtle'}
                         ring={colorValue === color ? '2px' : undefined}
-                        ringColor={colorValue === color ? 'text.default/10' : undefined}
+                        ringColor={colorValue === color ? 'fg/10' : undefined}
                         style={{ backgroundColor: color }}
                         cursor="pointer"
-                        _hover={colorValue !== color ? { borderColor: 'text.default/20' } : undefined}
+                        _hover={colorValue !== color ? { borderColor: 'fg/20' } : undefined}
                         onClick={() => onColorChange(color)}
                       >
                         {colorValue === color ? (
-                          <Box boxSize="2.5" rounded="full" bg={color === '#FFFFFF' ? 'text.default' : 'blackAlpha.700'} />
+                          <Box boxSize="2.5" rounded="full" bg={color === '#FFFFFF' ? 'fg' : 'blackAlpha.700'} />
                         ) : null}
                       </chakra.button>
                     ))}
-                    <chakra.button type="button" aria-label="Choose custom color" display="inline-flex" boxSize="10" alignItems="center" justifyContent="center" rounded="xl" borderWidth="1px" borderColor="border.subtle" bg="surface.default" color="text.default" cursor="pointer" _hover={{ borderColor: 'text.default/20' }} onClick={() => customColorInputRef.current?.click()}>
+                    <chakra.button type="button" aria-label="Choose custom color" display="inline-flex" boxSize="10" alignItems="center" justifyContent="center" rounded="xl" borderWidth="1px" borderColor="border.subtle" bg="bg.panel" color="fg" cursor="pointer" _hover={{ borderColor: 'fg/20' }} onClick={() => customColorInputRef.current?.click()}>
                       <Plus size={20} />
                     </chakra.button>
-                    <chakra.button type="button" aria-label="Reset tag color" display="inline-flex" boxSize="10" alignItems="center" justifyContent="center" rounded="xl" color="text.muted" cursor="pointer" _hover={{ bg: 'surface.selected', color: 'text.default' }} onClick={() => onColorChange('#D8FF75')}>
+                    <chakra.button type="button" aria-label="Reset tag color" display="inline-flex" boxSize="10" alignItems="center" justifyContent="center" rounded="xl" color="fg.muted" cursor="pointer" _hover={{ bg: 'teal.subtle', color: 'fg' }} onClick={() => onColorChange('#D8FF75')}>
                       <RefreshCw size={20} />
                     </chakra.button>
                     <input ref={customColorInputRef} type="color" value={colorValue} style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' }} onChange={(event) => onColorChange(event.target.value.toUpperCase())} />
@@ -121,7 +121,7 @@ export function TagDialog({
 
                 <Field gap="3">
                   <FieldLabel htmlFor="tag-dialog-description">
-                    Description <Text as="span" fontWeight="normal" color="text.muted">(optional)</Text>
+                    Description <Text as="span" fontWeight="normal" color="fg.muted">(optional)</Text>
                   </FieldLabel>
                   <Textarea id="tag-dialog-description" maxLength={256} value={descriptionValue} onChange={(event) => onDescriptionChange(event.target.value)} minH="7rem" resize="vertical" placeholder="Eg. All the contracts signed by the company" />
                 </Field>

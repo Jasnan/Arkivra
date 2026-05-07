@@ -299,7 +299,7 @@ export function AppShell({ children }: PropsWithChildren) {
   }
 
   return (
-    <Box minH="100vh" bg="app.bg" color="text.default">
+    <Box minH="100vh" bg="bg.muted" color="fg">
       <SidebarProvider
         open={!isSidebarCollapsed}
         onOpenChange={(open) => setIsSidebarCollapsed(!open)}
@@ -328,7 +328,7 @@ export function AppShell({ children }: PropsWithChildren) {
             align="center"
             borderBottomWidth="1px"
             borderColor="border.subtle"
-            bg="surface.default"
+            bg="bg.panel"
             backdropFilter="blur(4px)"
             transition="width,height 200ms ease-linear"
           >
@@ -353,7 +353,7 @@ export function AppShell({ children }: PropsWithChildren) {
                               to={item.to}
                               style={{ color: 'inherit' }}
                             >
-                              <Text truncate fontWeight="medium" transition="colors" _hover={{ color: 'text.default' }}>
+                              <Text truncate fontWeight="medium" transition="colors" _hover={{ color: 'fg' }}>
                                 {item.label}
                               </Text>
                             </Link>
@@ -374,7 +374,7 @@ export function AppShell({ children }: PropsWithChildren) {
                     left="3"
                     top="50%"
                     transform="translateY(-50%)"
-                    color="text.muted"
+                    color="fg.muted"
                     pointerEvents="none"
                   >
                     <Search size={16} />
@@ -387,11 +387,11 @@ export function AppShell({ children }: PropsWithChildren) {
                     onClick={openQuickSearch}
                     h="9"
                     rounded="md"
-                    bg="surface.subtle"
+                    bg="bg.subtle"
                     pl="9"
                     borderColor="border.subtle"
-                    color="text.default"
-                    _placeholder={{ color: 'text.muted' }}
+                    color="fg"
+                    _placeholder={{ color: 'fg.muted' }}
                   />
                 </Box>
               </HStack>
@@ -411,10 +411,10 @@ export function AppShell({ children }: PropsWithChildren) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" minW="56">
                     <DropdownMenuLabel style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      <Text fontWeight="medium" color="text.default">
+                      <Text fontWeight="medium" color="fg">
                         {sessionData?.user.email ?? 'Signed in'}
                       </Text>
-                      <Text fontSize="xs" color="text.muted">
+                      <Text fontSize="xs" color="fg.muted">
                         {meQuery.data?.isGlobalAdmin ? 'Admin' : 'Vault member'}
                       </Text>
                     </DropdownMenuLabel>
@@ -468,14 +468,14 @@ export function AppShell({ children }: PropsWithChildren) {
                         rounded="xl"
                         borderWidth="1px"
                         borderColor="border.subtle"
-                        bg="surface.default"
+                        bg="bg.panel"
                         px="4"
                         py="3"
                         fontSize="sm"
-                        color="text.muted"
+                        color="fg.muted"
                         shadow="sm"
                         transition="colors"
-                        _hover={{ bg: 'surface.selected', color: 'text.default' }}
+                        _hover={{ bg: 'teal.subtle', color: 'fg' }}
                       >
                         <HStack gap="3">
                           <Flex
@@ -483,8 +483,8 @@ export function AppShell({ children }: PropsWithChildren) {
                             align="center"
                             justify="center"
                             rounded="lg"
-                            bg="surface.subtle"
-                            color="text.default"
+                            bg="bg.subtle"
+                            color="fg"
                           >
                             <Upload size={16} />
                           </Flex>
@@ -508,7 +508,7 @@ export function AppShell({ children }: PropsWithChildren) {
                       left="4"
                       top="50%"
                       transform="translateY(-50%)"
-                      color="text.muted"
+                      color="fg.muted"
                       pointerEvents="none"
                     >
                       <Search size={16} />
@@ -521,8 +521,8 @@ export function AppShell({ children }: PropsWithChildren) {
                       onClick={openQuickSearch}
                       pl="11"
                       borderColor="border.subtle"
-                      color="text.default"
-                      _placeholder={{ color: 'text.muted' }}
+                      color="fg"
+                      _placeholder={{ color: 'fg.muted' }}
                     />
                   </Box>
 
@@ -544,15 +544,15 @@ export function AppShell({ children }: PropsWithChildren) {
                               rounded="lg"
                               borderWidth="1px"
                               borderColor="border.subtle"
-                              bg={isActive ? 'surface.selected' : 'surface.default'}
-                              color={isActive ? 'text.default' : 'text.muted'}
+                              bg={isActive ? 'teal.subtle' : 'bg.panel'}
+                              color={isActive ? 'fg' : 'fg.muted'}
                               px="3"
                               py="2"
                               fontSize="sm"
                               fontWeight="medium"
                               whiteSpace="nowrap"
                               transition="colors"
-                              _hover={{ bg: 'surface.selected', color: 'text.default' }}
+                              _hover={{ bg: 'teal.subtle', color: 'fg' }}
                             >
                               <Flex boxSize="4" shrink="0" align="center" justify="center">
                                 <IconComponent size={16} />
@@ -596,7 +596,7 @@ export function AppShell({ children }: PropsWithChildren) {
           hideCloseButton
           maxW="4xl"
           overflow="hidden"
-          bg="surface.default"
+          bg="bg.panel"
           p="0"
           onOpenAutoFocus={(event) => {
             event.preventDefault();
@@ -614,7 +614,7 @@ export function AppShell({ children }: PropsWithChildren) {
                   left="4"
                   top="50%"
                   transform="translateY(-50%)"
-                  color="text.muted"
+                  color="fg.muted"
                   pointerEvents="none"
                 >
                   <Search size={16} />
@@ -627,8 +627,8 @@ export function AppShell({ children }: PropsWithChildren) {
                   pl="11"
                   pr="11"
                   borderColor="border.subtle"
-                  color="text.default"
-                  _placeholder={{ color: 'text.muted' }}
+                  color="fg"
+                  _placeholder={{ color: 'fg.muted' }}
                   autoFocus
                 />
                 {searchValue.length > 0 ? (
@@ -643,8 +643,8 @@ export function AppShell({ children }: PropsWithChildren) {
                     h="8"
                     w="8"
                     rounded="lg"
-                    color="text.muted"
-                    _hover={{ bg: 'surface.selected', color: 'text.default' }}
+                    color="fg.muted"
+                    _hover={{ bg: 'teal.subtle', color: 'fg' }}
                     onClick={() => setSearchValue('')}
                   >
                     <X size={16} />
@@ -659,9 +659,9 @@ export function AppShell({ children }: PropsWithChildren) {
                 w="10"
                 rounded="lg"
                 borderColor="border.subtle"
-                bg="surface.default"
-                color="text.muted"
-                _hover={{ color: 'text.default' }}
+                bg="bg.panel"
+                color="fg.muted"
+                _hover={{ color: 'fg' }}
                 onClick={closeQuickSearch}
               >
                 <X size={16} />
@@ -672,36 +672,36 @@ export function AppShell({ children }: PropsWithChildren) {
           <Box maxH="70vh" overflowY="auto" p={{ base: '4', sm: '5' }}>
             {deferredSearchValue.length === 0 ? (
               <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
-                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="surface.subtle" color="accent.default">
+                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="bg.subtle" color="teal.solid">
                   <FileSearch size={20} />
                 </Flex>
                 <Box>
-                  <Text fontWeight="medium" color="text.default">
+                  <Text fontWeight="medium" color="fg">
                     Start typing to search
                   </Text>
-                  <Text mt="1" fontSize="sm" color="text.muted">
+                  <Text mt="1" fontSize="sm" color="fg.muted">
                     Results will appear here without leaving the current page.
                   </Text>
                 </Box>
               </Stack>
             ) : quickSearchQuery.isLoading ? (
-              <Text px="2" py="10" fontSize="sm" color="text.muted">
+              <Text px="2" py="10" fontSize="sm" color="fg.muted">
                 Searching documents...
               </Text>
             ) : quickSearchQuery.isError ? (
-              <Text px="2" py="10" fontSize="sm" color="status.danger">
+              <Text px="2" py="10" fontSize="sm" color="fg.error">
                 Unable to run quick search.
               </Text>
             ) : (quickSearchQuery.data?.results.length ?? 0) === 0 ? (
               <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
-                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="surface.subtle" color="text.muted">
+                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="bg.subtle" color="fg.muted">
                   <SearchX size={20} />
                 </Flex>
                 <Box>
-                  <Text fontWeight="medium" color="text.default">
+                  <Text fontWeight="medium" color="fg">
                     No matching documents
                   </Text>
-                  <Text mt="1" fontSize="sm" color="text.muted">
+                  <Text mt="1" fontSize="sm" color="fg.muted">
                     Try a different name, phrase, or keyword.
                   </Text>
                 </Box>
@@ -716,12 +716,12 @@ export function AppShell({ children }: PropsWithChildren) {
                     rounded="lg"
                     borderWidth="1px"
                     borderColor="border.subtle"
-                    bg="surface.default"
+                    bg="bg.panel"
                     px="4"
                     py="4"
                     textAlign="left"
                     transition="colors"
-                    _hover={{ bg: 'surface.selected' }}
+                    _hover={{ bg: 'teal.subtle' }}
                     onClick={() => {
                       closeQuickSearch();
                       navigate(`/documents/${result.vaultId}/${result.documentId}`);
@@ -730,25 +730,25 @@ export function AppShell({ children }: PropsWithChildren) {
                     <Flex direction={{ base: 'column', sm: 'row' }} gap="3" alignItems={{ base: 'stretch', sm: 'flex-start' }} justifyContent="space-between">
                       <Box minW="0">
                         <Flex align="center" gap="2">
-                          <Text truncate fontSize="base" fontWeight="semibold" color="text.default">
+                          <Text truncate fontSize="base" fontWeight="semibold" color="fg">
                             {result.name}
                           </Text>
                           <ArrowRight size={16} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
                         </Flex>
-                        <Text mt="1" fontSize="sm" color="text.muted">
+                        <Text mt="1" fontSize="sm" color="fg.muted">
                           {result.vaultName} &bull; {result.mimeType} &bull; Updated{' '}
                           {formatDate(result.updatedAt)}
                         </Text>
                         {result.bestChunk ? (
-                          <Text mt="2" fontSize="sm" color="text.muted">
+                          <Text mt="2" fontSize="sm" color="fg.muted">
                             {tokenizeSnippet(result.bestChunk.snippet).map((part) =>
                               part.highlighted ? (
                                 <Box
                                   as="mark"
                                   key={`${result.documentId}-${part.key}`}
                                   rounded="sm"
-                                  bg="accent.subtle"
-                                  color="accent.fg"
+                                  bg="teal.subtle"
+                                  color="teal.fg"
                                   px="1"
                                 >
                                   {part.text}
@@ -762,7 +762,7 @@ export function AppShell({ children }: PropsWithChildren) {
                           </Text>
                         ) : null}
                       </Box>
-                      <Text flexShrink={0} fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
+                      <Text flexShrink={0} fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                         {result.bestChunk?.pageNumber !== null &&
                         result.bestChunk?.pageNumber !== undefined
                           ? `Page ${result.bestChunk.pageNumber}`

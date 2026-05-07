@@ -174,15 +174,15 @@ export function VaultSettingsPage() {
   });
 
   if (!vaultId) {
-    return <Text fontSize="sm" color="status.danger">Invalid vault id.</Text>;
+    return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
   }
 
   if (vaultQuery.isLoading) {
-    return <Text fontSize="sm" color="text.muted">Loading vault settings...</Text>;
+    return <Text fontSize="sm" color="fg.muted">Loading vault settings...</Text>;
   }
 
   if (vaultQuery.isError || !vaultQuery.data) {
-    return <Text fontSize="sm" color="status.danger">Unable to load vault settings.</Text>;
+    return <Text fontSize="sm" color="fg.error">Unable to load vault settings.</Text>;
   }
 
   const vault = vaultQuery.data.vault;
@@ -222,7 +222,7 @@ export function VaultSettingsPage() {
         title="Vault settings"
         description={`${vault.name} • ${vault.id}`}
         actions={
-            <Link to={`/vaults/${vaultId}/documents`} style={{ color: 'var(--chakra-colors-accent-default)', fontWeight: 600, fontSize: '0.875rem' }}>
+            <Link to={`/vaults/${vaultId}/documents`} style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
               Open documents
             </Link>
         }
@@ -257,7 +257,7 @@ export function VaultSettingsPage() {
           <SurfacePanel display="flex" flexDirection="column" gap="5">
             <Box>
               <Text textStyle="label">Rename Vault</Text>
-              <Text fontSize="xl" fontWeight="bold" color="text.default" mt="2">
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Vault identity
               </Text>
             </Box>
@@ -309,10 +309,10 @@ export function VaultSettingsPage() {
           <SurfacePanel display="flex" flexDirection="column" gap="5">
             <Box>
               <Text textStyle="label">Invite Member</Text>
-              <Text fontSize="xl" fontWeight="bold" color="text.default" mt="2">
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Access onboarding
               </Text>
-              <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
+              <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
                 Invite by user id and assign initial permissions.
               </Text>
             </Box>
@@ -340,7 +340,7 @@ export function VaultSettingsPage() {
                 selectedPermissions={invitePermissions}
                 onSelectedPermissionsChange={setInvitePermissions}
                 disabled={!canManageMembers}
-                cardBg="surface.subtle"
+                cardBg="bg.subtle"
               />
 
               <Button type="submit" disabled={!canManageMembers || inviteMutation.isPending}>
@@ -352,21 +352,21 @@ export function VaultSettingsPage() {
           <SurfacePanel display="flex" flexDirection="column" gap="5">
             <Box>
               <Text textStyle="label">Members & Permissions</Text>
-              <Text fontSize="xl" fontWeight="bold" color="text.default" mt="2">
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Access roster
               </Text>
             </Box>
 
             {membersQuery.isLoading ? (
-              <Text fontSize="sm" color="text.muted">Loading members...</Text>
+              <Text fontSize="sm" color="fg.muted">Loading members...</Text>
             ) : null}
             {membersQuery.isError ? (
-              <Text fontSize="sm" color="status.danger">Unable to load members.</Text>
+              <Text fontSize="sm" color="fg.error">Unable to load members.</Text>
             ) : null}
 
             <Stack gap="4">
               {members.map((member) => (
-                <Box key={member.userId} rounded="lg" bg="surface.subtle" p="5">
+                <Box key={member.userId} rounded="lg" bg="bg.subtle" p="5">
                   <Flex
                     direction={{ base: 'column', sm: 'row' }}
                     align={{ base: 'stretch', sm: 'center' }}
@@ -375,10 +375,10 @@ export function VaultSettingsPage() {
                     mb="4"
                   >
                     <Box>
-                      <Text fontSize="base" fontWeight="semibold" color="text.default">
+                      <Text fontSize="base" fontWeight="semibold" color="fg">
                         {member.name ?? member.email}
                       </Text>
-                      <Text mt="2" fontSize="sm" color="text.muted">
+                      <Text mt="2" fontSize="sm" color="fg.muted">
                         {member.userId} • {member.role}
                       </Text>
                     </Box>
@@ -417,7 +417,7 @@ export function VaultSettingsPage() {
                         inputName="permissions"
                         defaultSelectedPermissions={member.permissions}
                         disabled={!canManageMembers}
-                        cardBg="surface.raised"
+                        cardBg="bg.panel"
                       />
 
                       <SaveButton
@@ -428,7 +428,7 @@ export function VaultSettingsPage() {
                       </SaveButton>
                     </chakra.form>
                   ) : (
-                    <Text fontSize="sm" color="text.muted">Owner has full permissions.</Text>
+                    <Text fontSize="sm" color="fg.muted">Owner has full permissions.</Text>
                   )}
                 </Box>
               ))}
@@ -440,10 +440,10 @@ export function VaultSettingsPage() {
           <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
             <Box>
               <Text textStyle="label">Transfer Ownership</Text>
-              <Text fontSize="xl" fontWeight="bold" color="text.default" mt="2">
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Promote a member
               </Text>
-              <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
+              <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
                 Promote an existing member to owner when responsibility needs to change hands.
               </Text>
             </Box>
@@ -486,10 +486,10 @@ export function VaultSettingsPage() {
 
           <SurfacePanel variant="strong" display="flex" flexDirection="column" gap="5">
             <Box>
-              <Text textStyle="label" color="text.inverse/70">Danger Zone</Text>
+              <Text textStyle="label" color="fg.inverted/70">Danger Zone</Text>
               <Text fontSize="xl" fontWeight="bold" mt="2">Delete vault</Text>
             </Box>
-            <Text fontSize="sm" lineHeight="6" color="text.inverse/80">
+            <Text fontSize="sm" lineHeight="6" color="fg.inverted/80">
               Delete this vault permanently from active view. This action remains owner-only.
             </Text>
             <DeleteButton

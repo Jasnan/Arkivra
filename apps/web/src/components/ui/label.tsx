@@ -12,7 +12,7 @@ export function Label({ ref, ...props }: LabelProps) {
       fontSize="sm"
       fontWeight="medium"
       lineHeight="none"
-      color="text.default"
+      color="fg"
       {...props}
     />
   );

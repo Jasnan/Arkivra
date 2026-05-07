@@ -11,10 +11,10 @@ export function Alert({ colorPalette, variant = 'default', ref, ...props }: Aler
     <ChakraAlert.Root
       ref={ref}
       role="alert"
-      colorPalette={colorPalette ?? (variant === 'destructive' ? 'red' : 'blue')}
+      colorPalette={colorPalette ?? (variant === 'destructive' ? 'red' : 'teal')}
       variant="subtle"
       borderWidth="1px"
-      borderColor={variant === 'destructive' ? 'status.danger' : 'border.subtle'}
+      borderColor={variant === 'destructive' ? 'border.error' : 'teal.border'}
       {...props}
     />
   );

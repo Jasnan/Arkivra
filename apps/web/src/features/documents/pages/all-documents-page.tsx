@@ -121,7 +121,7 @@ function getDateFilterLabel({
 
 function VaultIcon() {
   return (
-    <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="surface.subtle" color="accent.default">
+    <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="bg.subtle" color="teal.solid">
       <Folder size={20} />
     </Flex>
   );
@@ -426,11 +426,11 @@ export function AllDocumentsPage() {
                 justify="center"
                 gap="2"
                 rounded="xl"
-                bg="accent.default"
+                bg="teal.solid"
                 px="5"
                 fontSize="sm"
                 fontWeight="semibold"
-                color="text.inverse"
+                color="fg.inverted"
               >
                 <Upload size={16} />
                 Upload
@@ -460,7 +460,7 @@ export function AllDocumentsPage() {
         filtersContent={
           <>
             <Box gap="3">
-              <Text fontSize="sm" fontWeight="semibold" color="text.default">Vault</Text>
+              <Text fontSize="sm" fontWeight="semibold" color="fg">Vault</Text>
               <DropdownMenu
                 modal={false}
                 open={isVaultFilterOpen}
@@ -485,7 +485,7 @@ export function AllDocumentsPage() {
                     shadow="none"
                     mt="3"
                   >
-                    <Text truncate fontSize="sm" color="text.default">
+                    <Text truncate fontSize="sm" color="fg">
                       {selectedVault?.name ?? 'All vaults'}
                     </Text>
                     <Flex
@@ -518,7 +518,7 @@ export function AllDocumentsPage() {
                             left="3"
                             top="50%"
                             transform="translateY(-50%)"
-                            color="text.muted"
+                            color="fg.muted"
                             pointerEvents="none"
                           >
                             <SearchIcon size={16} />
@@ -548,12 +548,12 @@ export function AllDocumentsPage() {
                     <Separator />
                     <Box maxH="72" overflow="auto" p="2">
                       {vaultsQuery.isLoading ? (
-                        <Text px="3" py="3" fontSize="sm" color="text.muted">Loading vaults...</Text>
+                        <Text px="3" py="3" fontSize="sm" color="fg.muted">Loading vaults...</Text>
                       ) : null}
                       {!vaultsQuery.isLoading ? (
                         <DropdownMenuItem
-                          bg={!selectedVaultId ? 'surface.subtle' : undefined}
-                          color={!selectedVaultId ? 'text.default' : undefined}
+                          bg={!selectedVaultId ? 'bg.subtle' : undefined}
+                          color={!selectedVaultId ? 'fg' : undefined}
                           onSelect={() => {
                             setSelectedVaultId('');
                             setIsVaultFilterOpen(false);
@@ -564,13 +564,13 @@ export function AllDocumentsPage() {
                         </DropdownMenuItem>
                       ) : null}
                       {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
-                        <Text px="3" py="3" fontSize="sm" color="text.muted">No vaults found.</Text>
+                        <Text px="3" py="3" fontSize="sm" color="fg.muted">No vaults found.</Text>
                       ) : null}
                       {filteredVaults.map((vault) => (
                         <DropdownMenuItem
                           key={vault.id}
-                          bg={selectedVaultId === vault.id ? 'surface.subtle' : undefined}
-                          color={selectedVaultId === vault.id ? 'text.default' : undefined}
+                          bg={selectedVaultId === vault.id ? 'bg.subtle' : undefined}
+                          color={selectedVaultId === vault.id ? 'fg' : undefined}
                           onSelect={() => {
                             setSelectedVaultId(vault.id);
                             setIsVaultFilterOpen(false);
@@ -589,7 +589,7 @@ export function AllDocumentsPage() {
             </Box>
 
             <Box gap="4">
-              <Text fontSize="sm" fontWeight="semibold" color="text.default">Tags</Text>
+              <Text fontSize="sm" fontWeight="semibold" color="fg">Tags</Text>
               <DropdownMenu
                 modal={false}
                 open={isTagFilterOpen}
@@ -614,7 +614,7 @@ export function AllDocumentsPage() {
                     shadow="none"
                     mt="3"
                   >
-                    <Text truncate fontSize="sm" color="text.default">
+                    <Text truncate fontSize="sm" color="fg">
                       {selectedTagsLabel}
                     </Text>
                     <Flex
@@ -647,7 +647,7 @@ export function AllDocumentsPage() {
                             left="3"
                             top="50%"
                             transform="translateY(-50%)"
-                            color="text.muted"
+                            color="fg.muted"
                             pointerEvents="none"
                           >
                             <SearchIcon size={16} />
@@ -679,15 +679,15 @@ export function AllDocumentsPage() {
                     <Separator />
                     <Box maxH="72" overflow="auto" p="2">
                       {tagsQuery.isLoading ? (
-                        <Text px="3" py="3" fontSize="sm" color="text.muted">Loading tags...</Text>
+                        <Text px="3" py="3" fontSize="sm" color="fg.muted">Loading tags...</Text>
                       ) : null}
                       {!tagsQuery.isLoading && availableTags.length === 0 ? (
-                        <Text px="3" py="3" fontSize="sm" color="text.muted">No tags found.</Text>
+                        <Text px="3" py="3" fontSize="sm" color="fg.muted">No tags found.</Text>
                       ) : null}
                       {!tagsQuery.isLoading &&
                       availableTags.length > 0 &&
                       filteredTags.length === 0 ? (
-                        <Text px="3" py="3" fontSize="sm" color="text.muted">No tags found.</Text>
+                        <Text px="3" py="3" fontSize="sm" color="fg.muted">No tags found.</Text>
                       ) : null}
                       {filteredTags.map((tag) => {
                         const isSelected = selectedTagIds.includes(tag.id);
@@ -703,13 +703,13 @@ export function AllDocumentsPage() {
                               <Box
                                 boxSize="2.5"
                                 rounded="full"
-                                bg={tag.color ?? 'text.muted'}
+                                bg={tag.color ?? 'fg.muted'}
                                 aria-hidden="true"
                               />
                               <Text truncate>{tag.name}</Text>
                             </Flex>
                             {typeof tag.documentsCount === 'number' ? (
-                              <Text ml="auto" fontSize="xs" color="text.muted">
+                              <Text ml="auto" fontSize="xs" color="fg.muted">
                                 {tag.documentsCount} doc{tag.documentsCount === 1 ? '' : 's'}
                               </Text>
                             ) : null}
@@ -722,8 +722,8 @@ export function AllDocumentsPage() {
               </DropdownMenu>
             </Box>
 
-            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="surface.default" p="4">
-              <Text fontSize="sm" fontWeight="semibold" color="text.default">Date</Text>
+            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.panel" p="4">
+              <Text fontSize="sm" fontWeight="semibold" color="fg">Date</Text>
 
               <DatePresetSelector
                 idPrefix="documents-date-filter"
@@ -752,28 +752,28 @@ export function AllDocumentsPage() {
       />
 
       <Flex direction={{ base: 'column', sm: 'row' }} align={{ sm: 'center' }} justify={{ sm: 'space-between' }}>
-        <Text fontSize="lg" fontWeight="semibold" color="text.default">{summaryLabel}</Text>
+        <Text fontSize="lg" fontWeight="semibold" color="fg">{summaryLabel}</Text>
         <Badge variant="secondary" rounded="lg" px="3" py="1.5" fontSize="sm" fontWeight="medium">
           {selectedSortLabel}
         </Badge>
       </Flex>
 
       {vaultsQuery.isLoading ? (
-        <Text fontSize="sm" color="text.muted">Loading vaults...</Text>
+        <Text fontSize="sm" color="fg.muted">Loading vaults...</Text>
       ) : null}
       {vaultsQuery.isError ? (
-        <Text fontSize="sm" color="status.danger">Unable to load vaults.</Text>
+        <Text fontSize="sm" color="fg.error">Unable to load vaults.</Text>
       ) : null}
       {documentsQuery.isLoading ? (
-        <Text fontSize="sm" color="text.muted">Loading documents...</Text>
+        <Text fontSize="sm" color="fg.muted">Loading documents...</Text>
       ) : null}
       {documentsQuery.isError ? (
-        <Text fontSize="sm" color="status.danger">Unable to load your document library.</Text>
+        <Text fontSize="sm" color="fg.error">Unable to load your document library.</Text>
       ) : null}
 
       {!documentsQuery.isLoading && (documentsQuery.data?.results.length ?? 0) === 0 ? (
         <SurfacePanel>
-          <Text fontSize="sm" color="text.muted">
+          <Text fontSize="sm" color="fg.muted">
             No documents matched the current search and filter combination.
           </Text>
         </SurfacePanel>
@@ -803,15 +803,15 @@ export function AllDocumentsPage() {
                     >
                       <Box minW="0">
                         <Flex flexWrap="wrap" align="baseline" gap="3">
-                          <Text truncate fontSize="base" fontWeight="semibold" color="text.default">
+                          <Text truncate fontSize="base" fontWeight="semibold" color="fg">
                             {group.vaultName}
                           </Text>
-                          <Text fontSize="sm" color="text.muted">
+                          <Text fontSize="sm" color="fg.muted">
                             {group.documents.length} document
                             {group.documents.length === 1 ? '' : 's'}
                           </Text>
                         </Flex>
-                        <Text mt="1" display="block" fontSize="sm" color="text.muted">
+                        <Text mt="1" display="block" fontSize="sm" color="fg.muted">
                           {formatVaultRole(vault?.role ?? 'global_admin')}
                         </Text>
                       </Box>
@@ -874,10 +874,10 @@ export function AllDocumentsPage() {
                                     as="mark"
                                     key={`${result.documentId}-${part.key}`}
                                     rounded="md"
-                                    bg="accent.subtle"
+                                    bg="teal.subtle"
                                     px="1.5"
                                     py="0.5"
-                                    color="text.default"
+                                    color="fg"
                                   >
                                     {part.text}
                                   </Box>

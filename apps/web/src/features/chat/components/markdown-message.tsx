@@ -59,7 +59,7 @@ export function MarkdownMessage({
         as="pre"
         overflowX="auto"
         rounded="lg"
-        bg="surface.subtle"
+        bg="bg.subtle"
         p="3"
         fontFamily="mono"
         fontSize="sm"
@@ -135,10 +135,10 @@ export function MarkdownMessage({
           key={`quote-${blocks.length}`}
           as="blockquote"
           borderLeftWidth="2px"
-          borderColor="border.default"
+          borderColor="border"
           pl="4"
           fontStyle="italic"
-          color="text.muted"
+          color="fg.muted"
         >
           {renderInlineMarkdown({ text: line.slice(2), citations, onCitationClick })}
         </Box>,

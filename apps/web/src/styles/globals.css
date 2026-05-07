@@ -34,15 +34,15 @@ textarea {
   height: 2.5rem;
   width: 100%;
   border-radius: 0.5rem;
-  border: 1px solid var(--chakra-colors-border-default, #cfd9e3);
-  background-color: var(--chakra-colors-surface-default, #ffffff);
+  border: 1px solid var(--chakra-colors-border);
+  background-color: var(--chakra-colors-bg-panel);
   padding: 0 0.75rem;
   font-size: 0.875rem;
-  color: var(--chakra-colors-text-default, #102033);
+  color: var(--chakra-colors-fg);
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .vault-input:focus-visible {
-  box-shadow: 0 0 0 2px var(--chakra-colors-border-focus, rgba(47, 128, 200, 0.5));
+  box-shadow: 0 0 0 2px var(--chakra-colors-teal-focus-ring);
 }

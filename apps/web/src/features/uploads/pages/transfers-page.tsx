@@ -137,7 +137,7 @@ export function TransfersPage() {
 
       <Stack gap="3">
         <Stack gap="2">
-          <Text id="transfer-vault-label" fontSize="sm" fontWeight="medium" color="text.muted">
+          <Text id="transfer-vault-label" fontSize="sm" fontWeight="medium" color="fg.muted">
             Vault
           </Text>
           {isVaultLocked ? (
@@ -149,11 +149,11 @@ export function TransfersPage() {
               rounded="lg"
               borderWidth="1px"
               borderColor="border.subtle"
-              bg="surface.subtle"
+              bg="bg.subtle"
               px="4"
               fontSize="sm"
               fontWeight="medium"
-              color="text.default"
+              color="fg"
             >
               {activeVaultName ?? 'Selected vault'}
             </Flex>
@@ -171,10 +171,10 @@ export function TransfersPage() {
                 w="full"
                 maxW="17.5rem"
                 rounded="lg"
-                bg="surface.subtle"
+                bg="bg.subtle"
                 px="4"
                 fontSize="sm"
-                color="text.default"
+                color="fg"
               >
                 <SelectValue placeholder="Select a vault" />
               </SelectTrigger>
@@ -207,26 +207,26 @@ export function TransfersPage() {
             borderWidth="1px"
             borderStyle="dashed"
             borderColor="border.subtle"
-            bg="surface.subtle"
+            bg="bg.subtle"
             px={{ base: '6', sm: '10' }}
             py={{ base: '12', sm: '16' }}
             textAlign="center"
             transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-            _hover={canUpload ? { borderColor: 'border.focus', bg: 'surface.default' } : undefined}
+            _hover={canUpload ? { borderColor: 'teal.focusRing', bg: 'bg.panel' } : undefined}
             cursor={canUpload ? 'pointer' : 'not-allowed'}
             opacity={canUpload ? '1' : '0.7'}
             disabled={!canUpload}
           >
-            <Flex boxSize="4.8rem" align="center" justify="center" rounded="lg" bg="surface.default" color="accent.default">
+            <Flex boxSize="4.8rem" align="center" justify="center" rounded="lg" bg="bg.panel" color="teal.solid">
               <FileUp size={32} />
             </Flex>
-            <Heading as="h2" mt="6" textStyle="section.title">
+            <Heading as="h2" mt="6" textStyle="lg" fontWeight="semibold" lineHeight="short">
               Drag and drop files or folders here
             </Heading>
-            <Text mt="2" maxW="md" textStyle="body" color="text.muted">
+            <Text mt="2" maxW="md" textStyle="sm" color="fg.muted">
               Select a vault and add files. Dropped folders are uploaded as individual files.
             </Text>
-            <Flex mt="6" h="10" align="center" rounded="full" bg="accent.default" px="6" fontSize="sm" fontWeight="semibold" color="accent.fg" transition="opacity 0.15s ease" _groupHover={{ opacity: 0.95 }}>
+            <Flex mt="6" h="10" align="center" rounded="full" bg="teal.solid" px="6" fontSize="sm" fontWeight="semibold" color="teal.fg" transition="opacity 0.15s ease" _groupHover={{ opacity: 0.95 }}>
               Browse files
             </Flex>
           </chakra.button>
@@ -255,14 +255,14 @@ export function TransfersPage() {
         <Flex direction={{ base: 'column', lg: 'row' }} align={{ lg: 'flex-start' }} justify={{ lg: 'space-between' }} gap="4">
           <Stack gap="2">
             <Stack gap="1">
-              <Heading as="h2" textStyle="section.title">Upload queue</Heading>
-              <Text textStyle="body" color="text.muted">
+              <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">Upload queue</Heading>
+              <Text textStyle="sm" color="fg.muted">
                 This page only tracks the file upload itself. Completed uploads are kept for 24
                 hours.
               </Text>
             </Stack>
-            <Flex flexWrap="wrap" align="center" gap="3" fontSize="sm" color="text.muted">
-              <Text as="span" fontWeight="semibold" color="text.default">{state.items.length} files</Text>
+            <Flex flexWrap="wrap" align="center" gap="3" fontSize="sm" color="fg.muted">
+              <Text as="span" fontWeight="semibold" color="fg">{state.items.length} files</Text>
               <Separator orientation="vertical" h="5" bg="border.subtle" />
               <Text as="span">{formatBytes(uploadedBytes)}</Text>
             </Flex>
@@ -294,7 +294,7 @@ export function TransfersPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={state.items.length === 0}
-                  color="status.danger"
+                  color="fg.error"
                   onSelect={handleClearAll}
                 >
                   <ActionMenuItemIcon icon={Trash2} tone="destructive" />
@@ -306,16 +306,16 @@ export function TransfersPage() {
         </Flex>
 
         <Grid alignItems="end" gap="3" templateColumns={{ base: '1fr', lg: 'minmax(0, 1fr) auto' }}>
-          <Box h="2.5" overflow="hidden" rounded="full" bg="surface.subtle">
+          <Box h="2.5" overflow="hidden" rounded="full" bg="bg.subtle">
             <Box
               h="full"
               rounded="full"
-              bg="accent.default"
+              bg="teal.solid"
               transition="width 0.3s ease"
               style={{ width: `${percent}%` }}
             />
           </Box>
-          <Text textAlign="right" fontFamily="heading" fontSize="2xl" fontWeight="semibold" lineHeight="none" color="text.default">
+          <Text textAlign="right" fontFamily="heading" fontSize="2xl" fontWeight="semibold" lineHeight="none" color="fg">
             {percent}%
           </Text>
         </Grid>
@@ -331,7 +331,7 @@ export function TransfersPage() {
           px="7"
           py="4"
           fontSize="sm"
-          color="text.muted"
+          color="fg.muted"
         >
           <Text as="span">File name</Text>
           <Text as="span">Size</Text>
@@ -340,7 +340,7 @@ export function TransfersPage() {
         </Grid>
 
         {state.items.length === 0 ? (
-          <Text px="7" py="12" textAlign="center" textStyle="metadata">
+          <Text px="7" py="12" textAlign="center" textStyle="sm">
             Add files above to start uploading
           </Text>
         ) : (
@@ -355,31 +355,31 @@ export function TransfersPage() {
             >
               <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
                 <Box minW="0">
-                  <Text truncate fontWeight="medium" color="text.default">{item.fileName}</Text>
-                  <Box mt="2" h="2" overflow="hidden" rounded="full" bg="surface.subtle">
+                  <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                  <Box mt="2" h="2" overflow="hidden" rounded="full" bg="bg.subtle">
                     <Box
                       h="full"
                       rounded="full"
-                      bg={item.status === 'failed' ? 'status.danger' : 'accent.default'}
+                      bg={item.status === 'failed' ? 'fg.error' : 'teal.solid'}
                       transition="width 0.3s ease"
                       style={{ width: `${item.progress}%` }}
                     />
                   </Box>
                 </Box>
 
-                <Text textStyle="metadata">{formatBytes(item.size)}</Text>
+                <Text textStyle="sm">{formatBytes(item.size)}</Text>
 
                 <Flex align="center" gap="2" fontSize="sm">
                   {item.status === 'completed' ? (
-                    <CheckCircle2 size={16} color="var(--chakra-colors-accent-default)" />
+                    <CheckCircle2 size={16} color="var(--chakra-colors-teal-solid)" />
                   ) : null}
                   {item.status === 'failed' ? (
-                    <AlertCircle size={16} color="var(--chakra-colors-status-danger)" />
+                    <AlertCircle size={16} color="var(--chakra-colors-fg-error)" />
                   ) : null}
                   {item.status === 'uploading' ? (
-                    <LoaderCircle size={16} color="var(--chakra-colors-accent-default)" style={{ animation: 'spin 1s linear infinite' }} />
+                    <LoaderCircle size={16} color="var(--chakra-colors-teal-solid)" style={{ animation: 'spin 1s linear infinite' }} />
                   ) : null}
-                  <Text as="span" color={item.status === 'failed' ? 'status.danger' : undefined}>
+                  <Text as="span" color={item.status === 'failed' ? 'fg.error' : undefined}>
                     {statusLabel(item.status)}
                   </Text>
                 </Flex>
@@ -396,9 +396,9 @@ export function TransfersPage() {
               </Grid>
 
               {item.error ? (
-                <Text mt="2" textStyle="metadata" color="status.danger">{item.error}</Text>
+                <Text mt="2" textStyle="sm" color="fg.error">{item.error}</Text>
               ) : (
-                <Text mt="2" textStyle="metadata">
+                <Text mt="2" textStyle="sm">
                   {item.status === 'completed'
                     ? `${formatBytes(item.bytesUploaded)} uploaded • complete`
                     : `${formatBytes(item.bytesUploaded)} uploaded • ${Math.round(item.progress)}%`}
@@ -426,17 +426,17 @@ export function TransfersPage() {
                 py="4"
                 textAlign="left"
                 transition="background-color 0.15s ease"
-                _hover={{ bg: 'surface.subtle' }}
+                _hover={{ bg: 'bg.subtle' }}
               >
                 <Box>
-                  <Text fontWeight="medium" color="text.default">Completed ({completedItems.length})</Text>
-                  <Text mt="1" textStyle="metadata">
+                  <Text fontWeight="medium" color="fg">Completed ({completedItems.length})</Text>
+                  <Text mt="1" textStyle="sm">
                     Recent completed uploads remain visible here for up to 24 hours.
                   </Text>
                 </Box>
                 <ChevronDown
                   size={20}
-                  color="var(--chakra-colors-text-muted)"
+                  color="var(--chakra-colors-fg-muted)"
                   style={{
                     transition: 'transform 0.15s ease',
                     transform: isCompletedExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -450,16 +450,16 @@ export function TransfersPage() {
                 <Box key={item.id} borderTopWidth="1px" borderColor="border.subtle" px="7" py="4">
                   <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
                     <Box minW="0">
-                      <Text truncate fontWeight="medium" color="text.default">{item.fileName}</Text>
-                      <Box mt="2" h="2" overflow="hidden" rounded="full" bg="surface.subtle">
-                        <Box h="full" rounded="full" bg="accent.default" style={{ width: '100%' }} />
+                      <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                      <Box mt="2" h="2" overflow="hidden" rounded="full" bg="bg.subtle">
+                        <Box h="full" rounded="full" bg="teal.solid" style={{ width: '100%' }} />
                       </Box>
                     </Box>
 
-                    <Text textStyle="metadata">{formatBytes(item.size)}</Text>
+                    <Text textStyle="sm">{formatBytes(item.size)}</Text>
 
                     <Flex align="center" gap="2" fontSize="sm">
-                      <CheckCircle2 size={16} color="var(--chakra-colors-accent-default)" />
+                      <CheckCircle2 size={16} color="var(--chakra-colors-teal-solid)" />
                       <Text as="span">Done</Text>
                     </Flex>
 
@@ -474,7 +474,7 @@ export function TransfersPage() {
                     </Flex>
                   </Grid>
 
-                  <Text mt="2" textStyle="metadata">
+                  <Text mt="2" textStyle="sm">
                     {formatBytes(item.bytesUploaded)} uploaded • 100%
                   </Text>
                 </Box>
@@ -506,7 +506,7 @@ export function TransfersPage() {
                 </ChakraDialog.CloseTrigger>
               </ChakraDialog.Header>
               <ChakraDialog.Body>
-                <Text color="text.muted" fontSize="sm">
+                <Text color="fg.muted" fontSize="sm">
                   Active uploads will be canceled and the entire transfer queue will be cleared.
                   Completed items will be removed from Transfers, but uploaded documents will remain
                   in their vaults.
@@ -518,7 +518,7 @@ export function TransfersPage() {
                     Keep transfers
                   </Button>
                 </ChakraDialog.ActionTrigger>
-                <Button type="button" bg="status.danger" color="text.inverse" disabled={isClearingAll} onClick={() => void handleConfirmClearAll()}>
+                <Button type="button" bg="fg.error" color="fg.inverted" disabled={isClearingAll} onClick={() => void handleConfirmClearAll()}>
                   {isClearingAll ? 'Clearing...' : 'Cancel and clear all'}
                 </Button>
               </ChakraDialog.Footer>

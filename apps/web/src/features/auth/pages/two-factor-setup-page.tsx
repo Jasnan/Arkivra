@@ -61,14 +61,14 @@ export function TwoFactorSetupPage() {
           <>
             <Alert>
               <AlertDescription>
-                <Box fontWeight="medium" color="text.default">Authenticator setup key</Box>
-                <Box wordBreak="break-all" color="text.muted">{secret ?? 'Unavailable'}</Box>
+                <Box fontWeight="medium" color="fg">Authenticator setup key</Box>
+                <Box wordBreak="break-all" color="fg.muted">{secret ?? 'Unavailable'}</Box>
               </AlertDescription>
             </Alert>
 
             <Alert>
               <AlertDescription>
-                <Box fontWeight="medium" color="text.default">Backup codes</Box>
+                <Box fontWeight="medium" color="fg">Backup codes</Box>
                 <Grid templateColumns="1fr 1fr" gap="2" mt="3">
                   {backupCodes.map((item) => (
                     <Box key={item}>

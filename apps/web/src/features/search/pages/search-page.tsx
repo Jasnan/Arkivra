@@ -132,7 +132,7 @@ export function SearchPage() {
                 top="50%"
                 transform="translateY(-50%)"
                 pointerEvents="none"
-                color="text.muted"
+                color="fg.muted"
               >
                 <SearchIcon size={16} />
               </Box>
@@ -221,7 +221,7 @@ export function SearchPage() {
       {deferredQuery.length === 0 ? (
         <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="3">
           <Text textStyle="label">Discovery Idle</Text>
-          <Text fontSize="sm" lineHeight="6" color="text.muted">
+          <Text fontSize="sm" lineHeight="6" color="fg.muted">
             Start typing to search extracted text across all accessible vaults.
           </Text>
         </SurfacePanel>
@@ -236,12 +236,12 @@ export function SearchPage() {
                 alignItems="center"
                 gap="1.5"
                 rounded="full"
-                bg="surface.subtle"
+                bg="bg.subtle"
                 px="3"
                 py="1"
                 fontSize="xs"
                 fontWeight="semibold"
-                color="text.default"
+                color="fg"
               >
                 {searchQuery.data?.resultsCount ?? 0} matches
               </Box>
@@ -249,21 +249,23 @@ export function SearchPage() {
           />
 
           {searchQuery.isLoading ? (
-            <Text fontSize="sm" color="text.muted">Searching...</Text>
+            <Text fontSize="sm" color="fg.muted">Searching...</Text>
           ) : null}
           {searchQuery.isError ? (
-            <Text fontSize="sm" color="status.danger">Unable to search your vaults.</Text>
+            <Text fontSize="sm" color="fg.error">Unable to search your vaults.</Text>
           ) : null}
 
           {!searchQuery.isLoading && (searchQuery.data?.results.length ?? 0) === 0 ? (
-            <Box layerStyle="ark.empty">No documents matched your query and filters.</Box>
+            <Box rounded="lg" borderWidth="1px" borderStyle="dashed" borderColor="border" bg="bg.subtle" p="4" color="fg.muted">
+              No documents matched your query and filters.
+            </Box>
           ) : (
             <Stack gap="4">
               {(searchQuery.data?.results ?? []).map((result) => (
                 <Box
                   key={`${result.vaultId}-${result.documentId}`}
                   rounded="lg"
-                  bg="surface.subtle"
+                  bg="bg.subtle"
                   p="5"
                 >
                   <Stack gap="4">
@@ -277,16 +279,16 @@ export function SearchPage() {
                         <Box>
                           <Link
                             to={`/vaults/${result.vaultId}/documents/${result.documentId}`}
-                            style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--chakra-colors-text-default)' }}
+                            style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--chakra-colors-fg)' }}
                           >
                             {result.name}
                           </Link>
-                          <Text mt="2" fontSize="sm" color="text.muted">
+                          <Text mt="2" fontSize="sm" color="fg.muted">
                             {result.vaultName} • {result.mimeType} • {result.matchedChunksCount}{' '}
                             matching chunk{result.matchedChunksCount === 1 ? '' : 's'} • Updated{' '}
                             {formatDate(result.updatedAt)}
                           </Text>
-                          <Text fontSize="sm" color="text.muted">
+                          <Text fontSize="sm" color="fg.muted">
                             Document date: {formatDate(result.documentDate)}
                           </Text>
                         </Box>
@@ -297,12 +299,12 @@ export function SearchPage() {
                             align="center"
                             gap="1.5"
                             rounded="full"
-                            bg="surface.subtle"
+                            bg="bg.subtle"
                             px="3"
                             py="1"
                             fontSize="xs"
                             fontWeight="semibold"
-                            color="text.default"
+                            color="fg"
                           >
                             <Vault size={14} />
                             <Text as="span">{result.vaultName}</Text>
@@ -313,12 +315,12 @@ export function SearchPage() {
                               align="center"
                               gap="1.5"
                               rounded="full"
-                              bg="surface.subtle"
+                              bg="bg.subtle"
                               px="3"
                               py="1"
                               fontSize="xs"
                               fontWeight="semibold"
-                              color="text.default"
+                              color="fg"
                             >
                               <Tags size={14} />
                               <Text as="span">{result.bestChunk.chunkType ?? 'text chunk'}</Text>
@@ -329,7 +331,7 @@ export function SearchPage() {
 
                       <Link
                         to={`/vaults/${result.vaultId}/documents/${result.documentId}`}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--chakra-colors-accent-default)', fontWeight: 600, fontSize: '0.875rem' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}
                       >
                         Open document
                         <ArrowRight size={16} />
@@ -338,7 +340,7 @@ export function SearchPage() {
 
                     {result.bestChunk ? (
                       <>
-                        <Box rounded="lg" bg="surface.raised" p="4" fontSize="sm" lineHeight="7" color="text.default">
+                        <Box rounded="lg" bg="bg.panel" p="4" fontSize="sm" lineHeight="7" color="fg">
                           <Text textStyle="label" mb="3">
                             Best matching snippet
                             {result.bestChunk.pageNumber !== null
@@ -352,10 +354,10 @@ export function SearchPage() {
                                   as="mark"
                                   key={`${result.documentId}-${part.key}`}
                                   rounded="md"
-                                  bg="accent.subtle"
+                                  bg="teal.subtle"
                                   px="1.5"
                                   py="0.5"
-                                  color="text.default"
+                                  color="fg"
                                 >
                                   {part.text}
                                 </Box>
@@ -369,16 +371,16 @@ export function SearchPage() {
                         <Box
                           as="details"
                           rounded="lg"
-                          bg="surface.subtle"
+                          bg="bg.subtle"
                           p="4"
                           fontSize="sm"
-                          color="text.muted"
+                          color="fg.muted"
                         >
                           <Box
                             as="summary"
                             cursor="pointer"
                             fontWeight="semibold"
-                            color="text.default"
+                            color="fg"
                           >
                             Matched chunk preview
                           </Box>
@@ -401,7 +403,7 @@ export function SearchPage() {
             gap="3"
             pt="2"
           >
-            <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.24em" color="text.muted">
+            <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.24em" color="fg.muted">
               Page {pageIndex + 1} of {totalPages}
             </Text>
             <Flex gap="2">

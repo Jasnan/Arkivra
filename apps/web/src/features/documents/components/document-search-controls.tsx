@@ -42,14 +42,14 @@ export function ActiveFilterChip({ label, onRemove }: { label: string; onRemove:
       rounded="md"
       borderWidth="1px"
       borderColor="border.subtle"
-      bg="surface.subtle"
+      bg="bg.subtle"
       px="3"
       py="1.5"
       fontSize="sm"
       fontWeight="medium"
-      color="text.default"
+      color="fg"
       transition="colors"
-      _hover={{ borderColor: 'accent.subtle', bg: 'surface.subtle' }}
+      _hover={{ borderColor: 'teal.subtle', bg: 'bg.subtle' }}
       onClick={onRemove}
     >
       <Text as="span">{label}</Text>
@@ -115,7 +115,7 @@ export function DocumentSearchControls<TSortValue extends string>({
         rounded="lg"
         borderWidth="1px"
         borderColor="border.subtle"
-        bg="surface.default"
+        bg="bg.panel"
         p={{ base: '3', sm: '4' }}
       >
         <Flex direction={{ base: 'column', xl: 'row' }} gap="3">
@@ -129,7 +129,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                 left="4"
                 top="50%"
                 transform="translateY(-50%)"
-                color="text.muted"
+                color="fg.muted"
                 pointerEvents="none"
               >
                 <SearchIcon size={16} />
@@ -168,12 +168,12 @@ export function DocumentSearchControls<TSortValue extends string>({
                     minW="7"
                     justifyContent="center"
                     rounded="full"
-                    bg="surface.subtle"
+                    bg="bg.subtle"
                     px="2"
                     py="1"
                     fontSize="xs"
                     fontWeight="bold"
-                    color="text.default"
+                    color="fg"
                   >
                     {activeFilterCount}
                   </Text>
@@ -187,12 +187,12 @@ export function DocumentSearchControls<TSortValue extends string>({
               rounded="lg"
               borderWidth="1px"
               borderColor="border.subtle"
-              bg="surface.default"
+              bg="bg.panel"
               px="3"
               py="1.5"
               shadow="none"
             >
-              <Text as="span" id={sortSelectId} fontSize="sm" fontWeight="semibold" color="text.muted">
+              <Text as="span" id={sortSelectId} fontSize="sm" fontWeight="semibold" color="fg.muted">
                 Sort
               </Text>
               <Select value={sortBy} onValueChange={(value) => onSortChange(value as TSortValue)}>
@@ -232,7 +232,7 @@ export function DocumentSearchControls<TSortValue extends string>({
               pt="4"
             >
               <Flex flexWrap="wrap" align="center" gap="2">
-                <Text as="span" fontSize="sm" fontWeight="semibold" color="text.muted">
+                <Text as="span" fontSize="sm" fontWeight="semibold" color="fg.muted">
                   Active filters:
                 </Text>
                 {activeFilters.map((filter) => (
@@ -248,7 +248,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                 type="button"
                 fontSize="sm"
                 fontWeight="medium"
-                color="accent.default"
+                color="teal.solid"
                 textDecoration="underline"
                 textUnderlineOffset="4"
                 transition="colors"
@@ -272,7 +272,7 @@ export function DocumentSearchControls<TSortValue extends string>({
       >
         <Flex align="center" justify="space-between" gap="4">
           <Flex align="center" gap="3">
-            <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="surface.subtle" color="accent.default">
+            <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="bg.subtle" color="teal.solid">
               <SlidersHorizontal size={20} />
             </Flex>
             <DialogHeader>
@@ -288,7 +288,7 @@ export function DocumentSearchControls<TSortValue extends string>({
               type="button"
               fontSize="sm"
               fontWeight="medium"
-              color="accent.default"
+              color="teal.solid"
               textDecoration="underline"
               textUnderlineOffset="4"
               transition="colors"
@@ -305,9 +305,9 @@ export function DocumentSearchControls<TSortValue extends string>({
               w="9"
               h="9"
               rounded="lg"
-              color="text.muted"
+              color="fg.muted"
               transition="colors"
-              _hover={{ bg: 'surface.subtle', color: 'text.default' }}
+              _hover={{ bg: 'bg.subtle', color: 'fg' }}
               aria-label="Close filters"
               onClick={onCloseFilters}
             >

@@ -50,7 +50,7 @@ export function Button({
   return (
     <ChakraButton
       ref={ref}
-      colorPalette={colorPalette ?? (variant === 'default' ? 'blue' : 'gray')}
+      colorPalette={colorPalette ?? (variant === 'default' ? 'teal' : 'gray')}
       size={normalizeSize(size)}
       variant={normalizeVariant(variant)}
       className={cn(size === 'icon' && 'h-10 w-10 px-0', className)}

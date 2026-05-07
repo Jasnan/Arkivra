@@ -90,7 +90,7 @@ export function Sidebar({
       position="sticky"
       top="0"
       flexShrink={0}
-      color="text.default"
+      color="fg"
       h="100vh"
       p={variant === 'inset' ? '2' : undefined}
       w={
@@ -108,7 +108,7 @@ export function Sidebar({
         position="relative"
         direction="column"
         h="full"
-        bg={variant === 'inset' ? 'transparent' : 'app.shell'}
+        bg={variant === 'inset' ? 'transparent' : 'bg.panel'}
         borderRightWidth={variant === 'inset' ? undefined : '1px'}
         borderColor="border.subtle"
         pointerEvents={isOffcanvas ? 'none' : undefined}
@@ -246,7 +246,7 @@ export function SidebarGroupLabel({ children, ...props }: SidebarGroupLabelProps
       fontWeight="semibold"
       textTransform="uppercase"
       letterSpacing="0.16em"
-      color="text.muted"
+      color="fg.muted"
       {...props}
     >
       {children}

@@ -344,7 +344,7 @@ export function renderInlineMarkdown({
           key={key}
           style={{
             borderRadius: '0.25rem',
-            backgroundColor: 'var(--chakra-colors-surface-subtle)',
+            backgroundColor: 'var(--chakra-colors-bg-subtle)',
             padding: '0.1rem 0.375rem',
             fontFamily: 'monospace',
             fontSize: '0.95em',
@@ -369,12 +369,12 @@ export function renderInlineMarkdown({
               alignItems: 'center',
               borderRadius: '9999px',
               border: '1px solid var(--chakra-colors-border-subtle)',
-              backgroundColor: 'color-mix(in srgb, var(--chakra-colors-surface-subtle), transparent 35%)',
+              backgroundColor: 'color-mix(in srgb, var(--chakra-colors-bg-subtle), transparent 35%)',
               padding: '0.1rem 0.5rem',
               verticalAlign: 'baseline',
               fontSize: '0.78rem',
               fontWeight: 600,
-              color: 'var(--chakra-colors-text-default)',
+              color: 'var(--chakra-colors-fg)',
               margin: '0 0.125rem',
               cursor: 'pointer',
             }}

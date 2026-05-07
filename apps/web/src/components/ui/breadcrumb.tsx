@@ -34,7 +34,7 @@ export function BreadcrumbList({ ref, ...props }: BreadcrumbListProps) {
       alignItems="center"
       gap="1.5"
       fontSize="sm"
-      color="text.muted"
+      color="fg.muted"
       {...props}
     />
   );
@@ -71,7 +71,7 @@ export function BreadcrumbLink({ ref, ...props }: BreadcrumbLinkProps) {
       ref={ref}
       fontWeight="medium"
       transition="color 0.15s ease"
-      _hover={{ color: 'text.default' }}
+      _hover={{ color: 'fg' }}
       {...props}
     />
   );
@@ -89,7 +89,7 @@ export function BreadcrumbPage({ ref, ...props }: BreadcrumbPageProps) {
       ref={ref}
       aria-current="page"
       fontWeight="medium"
-      color="text.default"
+      color="fg"
       {...props}
     />
   );
@@ -105,7 +105,7 @@ export const BreadcrumbSeparator = ({
     role="presentation"
     aria-hidden="true"
     flexShrink="0"
-    color="text.muted"
+    color="fg.muted"
     {...props}
   >
     {children ?? <ChevronRight className="size-3.5" />}

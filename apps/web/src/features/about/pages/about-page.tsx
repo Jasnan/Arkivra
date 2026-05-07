@@ -43,28 +43,28 @@ export function AboutPage() {
         <SurfacePanel display="flex" flexDirection="column" gap="5">
           <Stack gap="2">
             <Text textStyle="label">Instance</Text>
-            <Heading as="h2" textStyle="section.title">Runtime status</Heading>
+            <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">Runtime status</Heading>
           </Stack>
 
           {healthQuery.isLoading ? (
-            <Text textStyle="metadata">Loading version info...</Text>
+            <Text textStyle="sm">Loading version info...</Text>
           ) : null}
           {healthQuery.isError ? (
-            <Text textStyle="metadata" color="status.danger">Unable to load instance metadata.</Text>
+            <Text textStyle="sm" color="fg.error">Unable to load instance metadata.</Text>
           ) : null}
           {healthQuery.data ? (
             <Stack as="dl" gap="4" fontSize="sm">
               <Box>
-                <Text as="dt" color="text.muted">Status</Text>
-                <Text as="dd" fontWeight="medium" color="text.default">{healthQuery.data.status}</Text>
+                <Text as="dt" color="fg.muted">Status</Text>
+                <Text as="dd" fontWeight="medium" color="fg">{healthQuery.data.status}</Text>
               </Box>
               <Box>
-                <Text as="dt" color="text.muted">Version</Text>
-                <Text as="dd" fontWeight="medium" color="text.default">{healthQuery.data.version}</Text>
+                <Text as="dt" color="fg.muted">Version</Text>
+                <Text as="dd" fontWeight="medium" color="fg">{healthQuery.data.version}</Text>
               </Box>
               <Box>
-                <Text as="dt" color="text.muted">Reported at</Text>
-                <Text as="dd" fontWeight="medium" color="text.default">
+                <Text as="dt" color="fg.muted">Reported at</Text>
+                <Text as="dd" fontWeight="medium" color="fg">
                   {new Date(healthQuery.data.timestamp).toLocaleString()}
                 </Text>
               </Box>
@@ -75,10 +75,10 @@ export function AboutPage() {
         <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
           <Stack gap="2">
             <Text textStyle="label">Project</Text>
-            <Heading as="h2" textStyle="section.title">Core direction</Heading>
+            <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">Core direction</Heading>
           </Stack>
 
-          <Stack gap="3" textStyle="body" color="text.muted">
+          <Stack gap="3" textStyle="sm" color="fg.muted">
             <Text>Self-hosted first, so the installation runs on infrastructure you control.</Text>
             <Text>Vault-based organization with explicit ownership, membership, and permissions.</Text>
             <Text>Keyword search is live today, with semantic workflows planned for future phases.</Text>

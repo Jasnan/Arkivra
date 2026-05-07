@@ -40,7 +40,7 @@ export function PermissionCheckboxGrid({
             py="3"
             fontSize="sm"
             fontWeight="normal"
-            color="text.default"
+            color="fg"
             bg={cardBg}
           >
             <Checkbox

@@ -70,7 +70,7 @@ export function ChatInputPanel({
         rounded="2xl"
         borderWidth="1px"
         borderColor="border.subtle"
-        bg="surface.default"
+        bg="bg.panel"
         p="3"
         boxShadow="0 10px 30px rgba(15,23,42,0.05)"
       >
@@ -132,7 +132,7 @@ export function ChatInputPanel({
             />
             <Flex direction="column" gap="1">
               <Label htmlFor="chat-show-sources">Show sources</Label>
-              <Text fontSize="sm" color="text.muted">
+              <Text fontSize="sm" color="fg.muted">
                 Citations and page references will be shown in responses
               </Text>
             </Flex>
@@ -147,7 +147,7 @@ export function ChatInputPanel({
                     fontWeight: 500,
                     textTransform: 'uppercase',
                     letterSpacing: '0.16em',
-                    color: 'var(--chakra-colors-text-muted)',
+                    color: 'var(--chakra-colors-fg-muted)',
                   }}
                 >
                   Model
@@ -164,7 +164,7 @@ export function ChatInputPanel({
                       minWidth: '13rem',
                       borderRadius: '0.75rem',
                       borderColor: 'var(--chakra-colors-border-subtle)',
-                      background: 'color-mix(in srgb, var(--chakra-colors-surface-subtle), transparent 80%)',
+                      background: 'color-mix(in srgb, var(--chakra-colors-bg-subtle), transparent 80%)',
                       fontSize: '0.875rem',
                       boxShadow: 'none',
                     }}
@@ -187,7 +187,7 @@ export function ChatInputPanel({
         </Flex>
 
         {modelOptionsError ? (
-          <Text mt="3" px="1" fontSize="xs" color="status.danger">{modelOptionsError}</Text>
+          <Text mt="3" px="1" fontSize="xs" color="fg.error">{modelOptionsError}</Text>
         ) : null}
       </Box>
     </Box>

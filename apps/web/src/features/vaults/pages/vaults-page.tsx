@@ -193,10 +193,10 @@ export function VaultsPage() {
         />
 
         {vaultsQuery.isLoading ? (
-          <Text textStyle="metadata">Loading vaults...</Text>
+          <Text textStyle="sm">Loading vaults...</Text>
         ) : null}
         {vaultsQuery.isError ? (
-          <Text textStyle="metadata" color="status.danger">Unable to load vaults.</Text>
+          <Text textStyle="sm" color="fg.error">Unable to load vaults.</Text>
         ) : null}
 
         {!vaultsQuery.isLoading && vaults.length === 0 ? (
@@ -222,10 +222,10 @@ export function VaultsPage() {
                 rounded="lg"
                 borderWidth="1px"
                 borderColor="border.subtle"
-                bg="surface.default"
+                bg="bg.panel"
                 p={{ base: '4', sm: '5' }}
                 transition="background-color 0.15s ease, border-color 0.15s ease"
-                _hover={{ bg: 'surface.subtle' }}
+                _hover={{ bg: 'bg.subtle' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
                 onClick={() => navigate(`/vaults/${vault.id}/documents`)}
                 onKeyDown={(event) => {
@@ -236,12 +236,12 @@ export function VaultsPage() {
                 }}
               >
                 <Flex h="full" minH="40" gap="4">
-                    <Flex mt="0.5" boxSize="10" shrink="0" align="center" justify="center" rounded="lg" bg="accent.subtle" color="accent.fg">
+                    <Flex mt="0.5" boxSize="10" shrink="0" align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg">
                       <FolderOpen size={18} />
                     </Flex>
                   <Stack minW="0" flex="1" gap="0">
                     <Flex align="flex-start" justify="space-between" gap="4">
-                      <Heading as="h2" truncate fontSize="md" fontWeight="semibold" lineHeight="tight" color="text.default">
+                      <Heading as="h2" truncate fontSize="md" fontWeight="semibold" lineHeight="tight" color="fg">
                         {vault.name}
                       </Heading>
                       <Flex shrink="0" align="flex-start" gap="2">
@@ -252,12 +252,12 @@ export function VaultsPage() {
                         rounded="md"
                         borderWidth="1px"
                         borderColor="border.subtle"
-                        bg="surface.subtle"
+                        bg="bg.subtle"
                         px="2.5"
                         py="1"
                         fontSize="xs"
                         fontWeight="medium"
-                        color="text.muted"
+                        color="fg.muted"
                         shrink="0"
                       >
                         {formatVaultRole(vault.role)}
@@ -284,16 +284,16 @@ export function VaultsPage() {
                       </Flex>
                     </Flex>
                     {getVaultDescription(vault.description) ? (
-                      <Text mt="2" textStyle="body" color="text.muted">
+                      <Text mt="2" textStyle="sm" color="fg.muted">
                         {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
                       </Text>
                     ) : null}
                     <Box mt="auto" pt="4">
-                      <Text fontSize="sm" fontWeight="medium" color="text.muted">
+                      <Text fontSize="sm" fontWeight="medium" color="fg.muted">
                         {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} •{' '}
                         {formatBytes(vault.totalSize)}
                       </Text>
-                      <Text mt="1" textStyle="metadata">
+                      <Text mt="1" textStyle="sm">
                         Created {formatVaultCreatedDate(vault.createdAt)}
                       </Text>
                     </Box>
@@ -334,7 +334,7 @@ export function VaultsPage() {
                   </Field>
 
                   {!canCreateVault ? (
-                    <Text fontSize="sm" color="text.muted">
+                    <Text fontSize="sm" color="fg.muted">
                       Vault creation is currently disabled for this account.
                     </Text>
                   ) : null}

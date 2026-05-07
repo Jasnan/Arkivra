@@ -18,7 +18,7 @@ export function FieldLegend({
       textStyle={variant === 'legend' ? 'section.title' : undefined}
       fontSize={variant === 'label' ? 'sm' : undefined}
       fontWeight={variant === 'label' ? 'medium' : undefined}
-      color="text.default"
+      color="fg"
       {...props}
     />
   );
@@ -37,11 +37,11 @@ export function FieldContent(props: React.ComponentProps<typeof Stack>) {
 }
 
 export function FieldTitle(props: React.ComponentProps<typeof Box>) {
-  return <Box fontSize="sm" fontWeight="medium" color="text.default" {...props} />;
+  return <Box fontSize="sm" fontWeight="medium" color="fg" {...props} />;
 }
 
 export function FieldDescription(props: React.ComponentProps<typeof Text>) {
-  return <Text textStyle="metadata" color="text.muted" {...props} />;
+  return <Text textStyle="sm" color="fg.muted" {...props} />;
 }
 
 export function FieldError({
@@ -90,7 +90,7 @@ export function FieldLabel({ ref, ...props }: FieldLabelProps) {
       ref={ref}
       fontSize="sm"
       fontWeight="medium"
-      color="text.default"
+      color="fg"
       {...props}
     />
   );

@@ -63,11 +63,11 @@ function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: stri
 }
 
 const typeTokens: Record<string, { bg: string; color: string }> = {
-  PDF: { bg: 'status.dangerSubtle', color: 'document.pdf' },
-  TXT: { bg: 'status.infoSubtle', color: 'document.text' },
-  IMG: { bg: 'status.successSubtle', color: 'document.image' },
-  DOC: { bg: 'accent.subtle', color: 'document.office' },
-  XLS: { bg: 'status.warningSubtle', color: 'document.sheet' },
+  PDF: { bg: 'bg.error', color: 'red.fg' },
+  TXT: { bg: 'bg.info', color: 'blue.fg' },
+  IMG: { bg: 'bg.success', color: 'green.fg' },
+  DOC: { bg: 'teal.subtle', color: 'purple.fg' },
+  XLS: { bg: 'bg.warning', color: 'yellow.fg' },
 };
 
 function getDocumentTypeTokens(label: string) {
@@ -76,7 +76,7 @@ function getDocumentTypeTokens(label: string) {
     : ['CSV', 'XLS', 'XLSX'].includes(label) ? 'XLS'
     : ['DOC', 'DOCX'].includes(label) ? 'DOC'
     : label;
-  return typeTokens[mappedKey] ?? { bg: 'surface.subtle', color: 'document.generic' };
+  return typeTokens[mappedKey] ?? { bg: 'bg.subtle', color: 'fg.muted' };
 }
 
 function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
@@ -107,7 +107,7 @@ function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
 
 function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
   if (tags.length === 0) {
-    return <Text as="span" fontSize="sm" color="text.muted">&mdash;</Text>;
+    return <Text as="span" fontSize="sm" color="fg.muted">&mdash;</Text>;
   }
 
   const visibleTags = tags.slice(0, 2);
@@ -124,12 +124,12 @@ function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
           display="inline-flex"
           alignItems="center"
           rounded="md"
-          bg="surface.subtle"
+          bg="bg.subtle"
           px="2.5"
           py="1"
           fontSize="xs"
           fontWeight="medium"
-          color="text.muted"
+          color="fg.muted"
         >
           +{remainingCount}
         </Box>
@@ -190,7 +190,7 @@ export function DocumentLibraryHeader() {
       px={{ base: '5', sm: '6' }}
       py="4"
       fontSize="sm"
-      color="text.muted"
+      color="fg.muted"
       display={{ base: 'none', md: 'grid' }}
     >
       <Text>Name</Text>
@@ -253,47 +253,47 @@ export function DocumentLibraryRow({
               truncate
               fontSize="base"
               fontWeight="semibold"
-              color="text.default"
+              color="fg"
               transition="colors"
-              _hover={{ color: 'accent.default' }}
+              _hover={{ color: 'teal.solid' }}
             >
               {name}
             </Text>
           </Link>
           {originalName && originalName !== name ? (
-            <Text mt="1" fontSize="sm" color="text.muted">{originalName}</Text>
+            <Text mt="1" fontSize="sm" color="fg.muted">{originalName}</Text>
           ) : null}
           {snippet ? (
-            <Text mt="3" fontSize="sm" lineHeight="6" color="text.muted">{snippet}</Text>
+            <Text mt="3" fontSize="sm" lineHeight="6" color="fg.muted">{snippet}</Text>
           ) : null}
         </Box>
       </Flex>
 
-      <Box fontSize="sm" color="text.muted">
+      <Box fontSize="sm" color="fg.muted">
         <Text
           textStyle="label"
           display={{ md: 'none' }}
         >
           Uploaded
         </Text>
-        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="text.default">
+        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="fg">
           {formatDate(createdAt)}
         </Text>
       </Box>
 
-      <Box fontSize="sm" color="text.muted">
+      <Box fontSize="sm" color="fg.muted">
         <Text
           textStyle="label"
           display={{ md: 'none' }}
         >
           Size
         </Text>
-        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="text.default">
+        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="fg">
           {formatBytes(originalSize)}
         </Text>
       </Box>
 
-      <Box fontSize="sm" color="text.muted">
+      <Box fontSize="sm" color="fg.muted">
         <Text
           textStyle="label"
           display={{ md: 'none' }}

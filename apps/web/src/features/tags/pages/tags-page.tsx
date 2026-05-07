@@ -64,7 +64,7 @@ function DeleteTagDialog({
               </ChakraDialog.CloseTrigger>
             </ChakraDialog.Header>
             <ChakraDialog.Body>
-              <Text color="text.muted" fontSize="sm">
+              <Text color="fg.muted" fontSize="sm">
                 {attachedDocuments > 0
                   ? `This tag is currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'}. Deleting it here will remove the tag from all of those documents.`
                   : 'This tag is not attached to any documents right now.'}
@@ -115,7 +115,7 @@ function TagActionsMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={deletePending}
-          color="status.danger"
+          color="fg.error"
           onSelect={() => onDelete(triggerRef.current)}
         >
           <ActionMenuItemIcon icon={Trash2} tone="destructive" />
@@ -282,7 +282,7 @@ export function TagsPage() {
   }
 
   if (isVaultScoped && !scopedVaultId) {
-    return <Text textStyle="metadata" color="status.danger">Invalid vault id.</Text>;
+    return <Text textStyle="sm" color="fg.error">Invalid vault id.</Text>;
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -330,7 +330,7 @@ export function TagsPage() {
           py="4"
           fontSize="sm"
           fontWeight="medium"
-          color="text.muted"
+          color="fg.muted"
         >
           <Text as="span">Tag</Text>
           <Text as="span">Description</Text>
@@ -341,10 +341,10 @@ export function TagsPage() {
         </Grid>
 
         {tagsQuery.isLoading ? (
-          <Text px="6" py="6" textStyle="metadata">Loading tags...</Text>
+          <Text px="6" py="6" textStyle="sm">Loading tags...</Text>
         ) : null}
         {tagsQuery.isError ? (
-          <Text px="6" py="6" textStyle="metadata" color="status.danger">Unable to load tags.</Text>
+          <Text px="6" py="6" textStyle="sm" color="fg.error">Unable to load tags.</Text>
         ) : null}
         {!tagsQuery.isLoading && tags.length === 0 ? (
           <Box px="6" py="8">
@@ -369,7 +369,7 @@ export function TagsPage() {
               alignItems={{ md: 'center' }}
             >
               <Stack gap="2">
-                <Flex w="fit-content" align="center" gap="3" rounded="full" bg="surface.subtle" px="4" py="2" fontSize="sm" fontWeight="semibold" color="text.default">
+                <Flex w="fit-content" align="center" gap="3" rounded="full" bg="bg.subtle" px="4" py="2" fontSize="sm" fontWeight="semibold" color="fg">
                   <Box
                     aria-hidden="true"
                     boxSize="2.5"
@@ -378,23 +378,23 @@ export function TagsPage() {
                   />
                   <Text as="span">{tag.name}</Text>
                 </Flex>
-                <Text display={{ md: 'none' }} fontSize="xs" color="text.muted">
+                <Text display={{ md: 'none' }} fontSize="xs" color="fg.muted">
                   {tag.vaultName ?? 'Current vault'}
                 </Text>
               </Stack>
 
-              <Text fontSize="sm" color="text.default">{getTagDescription(tag)}</Text>
+              <Text fontSize="sm" color="fg">{getTagDescription(tag)}</Text>
 
-              <Flex align="center" gap="2" fontSize="sm" color="text.default">
-                <FileText size={16} color="var(--chakra-colors-text-muted)" />
+              <Flex align="center" gap="2" fontSize="sm" color="fg">
+                <FileText size={16} color="var(--chakra-colors-fg-muted)" />
                 <Text as="span">{tag.documentsCount ?? 0}</Text>
               </Flex>
 
-              <Text fontSize="sm" color="text.muted">
+              <Text fontSize="sm" color="fg.muted">
                 {tag.vaultName ?? 'Current vault'}
               </Text>
 
-              <Text fontSize="sm" color="text.muted">{formatTagCreatedDate(tag.createdAt)}</Text>
+              <Text fontSize="sm" color="fg.muted">{formatTagCreatedDate(tag.createdAt)}</Text>
 
               <Flex align="center" justify="flex-end" gap="2">
                 <TagActionsMenu

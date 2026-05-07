@@ -29,17 +29,17 @@ export function ChatEmptyState({
           align="center"
           justify="center"
           rounded="2xl"
-          bg="accent.subtle"
-          color="accent.default"
+          bg="teal.subtle"
+          color="teal.solid"
         >
           <MessageSquare size={24} />
         </Flex>
 
         <Flex direction="column" gap="3" mt="6">
-          <Text as="h3" fontSize={{ base: '2xl', sm: '3xl' }} fontWeight="semibold" letterSpacing="tight" color="text.default">
+          <Text as="h3" fontSize={{ base: '2xl', sm: '3xl' }} fontWeight="semibold" letterSpacing="tight" color="fg">
             {title}
           </Text>
-          <Text fontSize="sm" lineHeight="6" color="text.muted" maxW="container.sm" mx="auto">
+          <Text fontSize="sm" lineHeight="6" color="fg.muted" maxW="container.sm" mx="auto">
             {description}
           </Text>
         </Flex>
@@ -55,14 +55,14 @@ export function ChatEmptyState({
                   rounded="2xl"
                   borderWidth="1px"
                   borderColor="border.subtle"
-                  bg="surface.raised"
+                  bg="bg.panel"
                   p="5"
                   textAlign="left"
                   shadow="sm"
                   cursor="pointer"
                   flex="1"
                   minW="240px"
-                  _hover={{ borderColor: 'accent.default/35', bg: 'accent.subtle' }}
+                  _hover={{ borderColor: 'teal.solid/35', bg: 'teal.subtle' }}
                   onClick={() => onGuidedPromptSelect?.(prompt)}
                 >
                   <Flex gap="4">
@@ -72,19 +72,19 @@ export function ChatEmptyState({
                 alignItems="center"
                       justify="center"
                       rounded="xl"
-                      bg="surface.selected"
-                      color="accent.default"
+                      bg="teal.subtle"
+                      color="teal.solid"
                     >
                       <Icon size={20} />
                     </Flex>
                     <Flex direction="column" gap="2" minW="0">
-                      <Text fontSize="sm" fontWeight="semibold" color="text.default">
+                      <Text fontSize="sm" fontWeight="semibold" color="fg">
                         {prompt.title}
                       </Text>
-                      <Text fontSize="sm" lineHeight="6" color="text.muted">
+                      <Text fontSize="sm" lineHeight="6" color="fg.muted">
                         {prompt.description}
                       </Text>
-                      <Text fontSize="xs" color="text.muted">
+                      <Text fontSize="xs" color="fg.muted">
                         {prompt.example}
                       </Text>
                     </Flex>
@@ -106,18 +106,18 @@ export function ChatEmptyState({
                 rounded="full"
                 borderWidth="1px"
                 borderColor="border.subtle"
-                bg="surface.default"
+                bg="bg.panel"
                 px="4"
                 py="2.5"
                 textAlign="left"
                 fontSize="sm"
                 fontWeight="medium"
-                color="text.default"
+                color="fg"
                 cursor="pointer"
-                _hover={{ borderColor: 'text.default/20', bg: 'accent.subtle' }}
+                _hover={{ borderColor: 'fg/20', bg: 'teal.subtle' }}
                 onClick={() => onPromptSelect(label)}
               >
-                <Flex boxSize="8" align="center" justify="center" rounded="full" bg="surface.selected" color="accent.default">
+                <Flex boxSize="8" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.solid">
                   <Icon size={16} />
                 </Flex>
                 <Text>{label}</Text>
@@ -128,13 +128,13 @@ export function ChatEmptyState({
 
         <Flex mt="8" w="100%" maxW="container.xs" align="center" gap="4">
           <Separator style={{ flex: 1 }} />
-          <Text fontSize="xs" fontWeight="medium" textTransform="uppercase" letterSpacing="0.22em" color="text.muted">
+          <Text fontSize="xs" fontWeight="medium" textTransform="uppercase" letterSpacing="0.22em" color="fg.muted">
             Or
           </Text>
           <Separator style={{ flex: 1 }} />
         </Flex>
 
-        <Text mt="4" fontSize="sm" color="text.muted">Start typing your question below</Text>
+        <Text mt="4" fontSize="sm" color="fg.muted">Start typing your question below</Text>
       </Flex>
     </Flex>
   );

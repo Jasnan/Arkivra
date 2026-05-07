@@ -70,7 +70,7 @@ export function TwoFactorVerifyPage() {
         </form>
 
         <AuthActions>
-          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-text-default)' }}>
+          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Use another account
           </Link>
         </AuthActions>

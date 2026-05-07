@@ -17,7 +17,7 @@ export function ChatContextHeader({
 }) {
   return (
     <Box px="4" pt="4" sm={{ px: '6' }}>
-      <Flex align="center" gap="3" fontSize="sm" color="text.muted" flexWrap="wrap">
+      <Flex align="center" gap="3" fontSize="sm" color="fg.muted" flexWrap="wrap">
         {leadingAction}
         <Box as="span" srOnly>{`Context: ${contextLabel}`}</Box>
         <Text>{contextDescription}</Text>
@@ -27,12 +27,12 @@ export function ChatContextHeader({
           rounded="full"
           borderWidth="1px"
           borderColor="border.subtle"
-          bg="surface.default"
+          bg="bg.panel"
           px="3"
           py="1.5"
-          color="text.default"
+          color="fg"
         >
-          <FileText size={16} color="var(--chakra-colors-text-muted)" />
+          <FileText size={16} color="var(--chakra-colors-fg-muted)" />
           <Text maxW="22rem" truncate fontWeight="medium">
             {contextLabel}
           </Text>

@@ -37,7 +37,7 @@ export function SourcesAccordion({
             style={{ borderRadius: '0.375rem', padding: '0.75rem 0.25rem' }}
           >
             <Flex align="center" gap="2">
-              <FileText size={16} color="var(--chakra-colors-text-muted)" />
+              <FileText size={16} color="var(--chakra-colors-fg-muted)" />
               <Text>{`Sources (${citations.length})`}</Text>
             </Flex>
           </AccordionTrigger>
@@ -55,12 +55,12 @@ export function SourcesAccordion({
                     alignItems="flex-start"
                     gap="3"
                     rounded="2xl"
-                    bg="surface.subtle"
+                    bg="bg.subtle"
                     px="4"
                     py="3"
                     textAlign="left"
                     cursor="pointer"
-                    _hover={{ bg: 'accent.subtle' }}
+                    _hover={{ bg: 'teal.subtle' }}
                   >
                     <Flex
                       boxSize="8"
@@ -68,30 +68,30 @@ export function SourcesAccordion({
                       align="center"
                       justify="center"
                       rounded="full"
-                      bg="surface.selected"
+                      bg="teal.subtle"
                       fontSize="sm"
                       fontWeight="semibold"
-                      color="text.default"
+                      color="fg"
                     >
                       {index + 1}
                     </Flex>
                     <Flex direction="column" gap="1">
                       <Flex align="center" gap="2" fontSize="sm" flexWrap="wrap">
-                        <Text fontWeight="medium" color="text.default">{pageRange(citation)}</Text>
+                        <Text fontWeight="medium" color="fg">{pageRange(citation)}</Text>
                         {currentVaultId !== citation.vaultId ? (
-                          <Text color="text.muted">{citation.vaultName}</Text>
+                          <Text color="fg.muted">{citation.vaultName}</Text>
                         ) : null}
                       </Flex>
                       {citationSectionLabel(citation) ? (
-                        <Text lineClamp="1" fontSize="xs" color="text.muted">
+                        <Text lineClamp="1" fontSize="xs" color="fg.muted">
                           {citationSectionLabel(citation)}
                         </Text>
                       ) : null}
-                      <Text lineClamp="2" fontSize="sm" lineHeight="6" color="text.muted">
+                      <Text lineClamp="2" fontSize="sm" lineHeight="6" color="fg.muted">
                         {citation.snippet}
                       </Text>
                       {figurePreview ? (
-                        <Text lineClamp="2" fontSize="xs" lineHeight="5" color="text.muted">
+                        <Text lineClamp="2" fontSize="xs" lineHeight="5" color="fg.muted">
                           {figurePreview.caption}
                         </Text>
                       ) : null}

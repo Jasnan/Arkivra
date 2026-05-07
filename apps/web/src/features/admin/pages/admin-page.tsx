@@ -72,7 +72,7 @@ function SettingField({
   return (
     <Stack gap="3">
       <Flex align="center" gap="2">
-        <FieldLabel fontSize="sm" fontWeight="semibold" color="text.default">
+        <FieldLabel fontSize="sm" fontWeight="semibold" color="fg">
           {label}
         </FieldLabel>
         {tooltip ? <InfoTooltip content={tooltip} /> : null}
@@ -84,7 +84,7 @@ function SettingField({
             left="5"
             top="50%"
             transform="translateY(-50%)"
-            color="text.muted"
+            color="fg.muted"
             pointerEvents="none"
           >
             {icon}
@@ -302,7 +302,7 @@ export function AdminPage() {
   }
 
   if (meQuery.isLoading) {
-    return <Text fontSize="sm" color="text.muted">Loading admin context...</Text>;
+    return <Text fontSize="sm" color="fg.muted">Loading admin context...</Text>;
   }
 
   if (!isEnabled) {
@@ -377,14 +377,14 @@ export function AdminPage() {
                   align="center"
                   justify="center"
                   rounded="lg"
-                  bg="accent.default"
-                  color="text.inverse"
+                  bg="teal.solid"
+                  color="fg.inverted"
                 >
                   <Sparkles size={24} />
                 </Flex>
                 <Stack gap="2.5">
                   <Flex align="center" gap="3" flexWrap="wrap">
-                    <Text fontSize="xl" fontWeight="semibold" color="text.default">
+                    <Text fontSize="xl" fontWeight="semibold" color="fg">
                       AI Normalization
                     </Text>
                     <Box
@@ -396,13 +396,13 @@ export function AdminPage() {
                       fontWeight="semibold"
                       textTransform="uppercase"
                       letterSpacing="0.08em"
-                      bg={aiSettings.enabled ? 'status.successSubtle' : 'surface.subtle'}
-                      color={aiSettings.enabled ? 'status.success' : 'text.muted'}
+                      bg={aiSettings.enabled ? 'bg.success' : 'bg.subtle'}
+                      color={aiSettings.enabled ? 'fg.success' : 'fg.muted'}
                     >
                       {aiSettings.enabled ? 'ENABLED' : 'OFF'}
                     </Box>
                   </Flex>
-                  <Text maxW="container.sm" fontSize="sm" lineHeight="6" color="text.muted">
+                  <Text maxW="container.sm" fontSize="sm" lineHeight="6" color="fg.muted">
                     Use locally running Ollama models to normalize messy OCR text during ingestion into
                     clean identity-document Markdown for retrieval.
                   </Text>
@@ -446,12 +446,12 @@ export function AdminPage() {
                     rounded="lg"
                     borderWidth="1px"
                     borderColor="border.subtle"
-                    bg="surface.default"
+                    bg="bg.panel"
                     px="4"
                     py="3"
                     fontSize="sm"
                     fontWeight="semibold"
-                    color="text.default"
+                    color="fg"
                   >
                     <Switch
                       id="ai-normalization-enabled"
@@ -575,7 +575,7 @@ export function AdminPage() {
             >
               {updateAiSettingsMutation.isPending ? 'Saving...' : 'Save changes'}
             </SaveButton>
-            <Text fontSize="sm" color="text.muted">Changes are applied to new ingestion jobs.</Text>
+            <Text fontSize="sm" color="fg.muted">Changes are applied to new ingestion jobs.</Text>
           </Flex>
         </SurfacePanel>
 
@@ -588,10 +588,10 @@ export function AdminPage() {
           >
             <Box>
               <Text textStyle="label">Backups</Text>
-              <Text fontSize="lg" fontWeight="semibold" color="text.default" mt="2">
+              <Text fontSize="lg" fontWeight="semibold" color="fg" mt="2">
                 Archive control
               </Text>
-              <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
+              <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
                 Create a new archive or restore one already stored on the server.
               </Text>
             </Box>
@@ -603,12 +603,17 @@ export function AdminPage() {
               {createBackupMutation.isPending ? 'Queueing...' : 'Create backup'}
             </CreateButton>
           </Flex>
-          {backupsQuery.isLoading ? <Text fontSize="sm" color="text.muted">Loading backups...</Text> : null}
+          {backupsQuery.isLoading ? <Text fontSize="sm" color="fg.muted">Loading backups...</Text> : null}
           {!backupsQuery.isLoading && (backupsQuery.data?.backups.length ?? 0) === 0 ? (
             <Box
-              layerStyle="ark.empty"
+              rounded="lg"
+              borderWidth="1px"
+              borderStyle="dashed"
+              borderColor="border"
+              bg="bg.subtle"
+              p="4"
               fontSize="sm"
-              color="text.muted"
+              color="fg.muted"
             >
               No backups available yet.
             </Box>
@@ -616,7 +621,7 @@ export function AdminPage() {
 
           <Stack gap="4">
             {(backupsQuery.data?.backups ?? []).map(backup => (
-              <Box key={backup.id} rounded="lg" bg="surface.subtle" p="5">
+              <Box key={backup.id} rounded="lg" bg="bg.subtle" p="5">
                 <Flex
                   direction={{ base: 'column', lg: 'row' }}
                   align={{ base: 'stretch', lg: 'center' }}
@@ -624,15 +629,15 @@ export function AdminPage() {
                   gap="4"
                 >
                   <Box>
-                    <Text fontSize="base" fontWeight="semibold" color="text.default">{backup.fileName}</Text>
-                    <Text mt="2" fontSize="sm" color="text.muted">
+                    <Text fontSize="base" fontWeight="semibold" color="fg">{backup.fileName}</Text>
+                    <Text mt="2" fontSize="sm" color="fg.muted">
                       Created {formatDate(backup.createdAt)} • {formatBytes(backup.size)}
                     </Text>
                   </Box>
                   <Flex gap="3" flexWrap="wrap">
                     <chakra.a
                       href={getBackupDownloadUrl({ backupId: backup.id })}
-                      color="accent.default"
+                      color="teal.solid"
                       fontWeight="semibold"
                       fontSize="sm"
                     >
@@ -656,19 +661,19 @@ export function AdminPage() {
         <SurfacePanel display="flex" flexDirection="column" gap="5">
           <Box>
             <Text textStyle="label">Users</Text>
-            <Text fontSize="lg" fontWeight="semibold" color="text.default" mt="2">
+            <Text fontSize="lg" fontWeight="semibold" color="fg" mt="2">
               Access control
             </Text>
-            <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
+            <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
               Suspend accounts and manage global admin privileges.
             </Text>
           </Box>
 
-          {usersQuery.isLoading ? <Text fontSize="sm" color="text.muted">Loading users...</Text> : null}
+          {usersQuery.isLoading ? <Text fontSize="sm" color="fg.muted">Loading users...</Text> : null}
 
           <Stack gap="4">
             {(usersQuery.data?.users ?? []).map(user => (
-              <Box key={user.id} rounded="lg" bg="surface.subtle" p="5">
+              <Box key={user.id} rounded="lg" bg="bg.subtle" p="5">
                 <Flex
                   direction={{ base: 'column', lg: 'row' }}
                   align={{ base: 'stretch', lg: 'center' }}
@@ -676,11 +681,11 @@ export function AdminPage() {
                   gap="4"
                 >
                   <Box>
-                    <Text fontSize="base" fontWeight="semibold" color="text.default">{user.name ?? 'Unnamed user'}</Text>
-                    <Text mt="2" fontSize="sm" color="text.muted">
+                    <Text fontSize="base" fontWeight="semibold" color="fg">{user.name ?? 'Unnamed user'}</Text>
+                    <Text mt="2" fontSize="sm" color="fg.muted">
                       {user.email} • {user.isGlobalAdmin ? 'global admin' : user.canCreateVault ? 'vault creator' : 'user'} • {user.disabledAt ? 'disabled' : 'active'}
                     </Text>
-                    <Text fontSize="sm" color="text.muted">
+                    <Text fontSize="sm" color="fg.muted">
                       2FA {user.twoFactorEnabled ? 'enabled' : 'not enabled'} • created {formatDate(user.createdAt)}
                     </Text>
                   </Box>
@@ -742,30 +747,30 @@ export function AdminPage() {
         <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
           <Box>
             <Text textStyle="label">Vault Oversight</Text>
-            <Text fontSize="lg" fontWeight="semibold" color="text.default" mt="2">
+            <Text fontSize="lg" fontWeight="semibold" color="fg" mt="2">
               Ownership ledger
             </Text>
-            <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
+            <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
               Inspect active vault ownership across the installation.
             </Text>
           </Box>
 
-          {vaultsQuery.isLoading ? <Text fontSize="sm" color="text.muted">Loading vaults...</Text> : null}
+          {vaultsQuery.isLoading ? <Text fontSize="sm" color="fg.muted">Loading vaults...</Text> : null}
           {!vaultsQuery.isLoading && (vaultsQuery.data?.vaults.length ?? 0) === 0 ? (
-            <Box layerStyle="ark.empty">
+            <Box rounded="lg" borderWidth="1px" borderStyle="dashed" borderColor="border" bg="bg.subtle" p="4" color="fg.muted">
               No active vaults found.
             </Box>
           ) : null}
 
           <Stack gap="4">
             {(vaultsQuery.data?.vaults ?? []).map(vault => (
-              <Box key={vault.id} rounded="lg" bg="surface.raised" p="5">
-                <Text fontSize="base" fontWeight="semibold" color="text.default">{vault.name}</Text>
-                <Text mt="2" fontSize="xs" color="text.muted">{vault.id}</Text>
-                <Text mt="4" fontSize="sm" color="text.muted">
+              <Box key={vault.id} rounded="lg" bg="bg.panel" p="5">
+                <Text fontSize="base" fontWeight="semibold" color="fg">{vault.name}</Text>
+                <Text mt="2" fontSize="xs" color="fg.muted">{vault.id}</Text>
+                <Text mt="4" fontSize="sm" color="fg.muted">
                   Owner: {vault.ownerName ?? 'Unknown'}{vault.ownerEmail ? ` (${vault.ownerEmail})` : ''}
                 </Text>
-                <Text fontSize="sm" color="text.muted">Created {formatDate(vault.createdAt)}</Text>
+                <Text fontSize="sm" color="fg.muted">Created {formatDate(vault.createdAt)}</Text>
               </Box>
             ))}
           </Stack>

@@ -27,8 +27,8 @@ function SecurityStatusBadge({
   return (
     <Badge
       variant="secondary"
-      color={tone === 'positive' ? 'status.success' : 'status.warning'}
-      bg={tone === 'positive' ? 'status.successSubtle' : 'status.warningSubtle'}
+      color={tone === 'positive' ? 'fg.success' : 'fg.warning'}
+      bg={tone === 'positive' ? 'bg.success' : 'bg.warning'}
       style={{ gap: '0.375rem' }}
     >
       {children}
@@ -104,7 +104,7 @@ export function SettingsPage() {
   });
 
   if (sessionPending) {
-    return <Text textStyle="metadata">Loading your account...</Text>;
+    return <Text textStyle="sm">Loading your account...</Text>;
   }
 
   return (
@@ -114,7 +114,7 @@ export function SettingsPage() {
         description="Manage your profile and security."
         actions={
           isGlobalAdmin ? (
-            <Link to="/admin" style={{ color: 'var(--chakra-colors-accent-default)', fontWeight: 600, fontSize: '0.875rem' }}>
+            <Link to="/admin" style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
               Admin panel
             </Link>
           ) : undefined
@@ -180,12 +180,12 @@ export function SettingsPage() {
 
             <Stack gap="4" fontSize="sm">
               <Flex align="center" justify="space-between" gap="4">
-                <Text color="text.muted">Signed in as:</Text>
-                <Text fontWeight="medium" color="text.default">{sessionData?.user.email ?? 'Unknown'}</Text>
+                <Text color="fg.muted">Signed in as:</Text>
+                <Text fontWeight="medium" color="fg">{sessionData?.user.email ?? 'Unknown'}</Text>
               </Flex>
               <Flex align="center" justify="space-between" gap="4">
-                <Text color="text.muted">Role</Text>
-                <Text fontWeight="medium" color="text.default">
+                <Text color="fg.muted">Role</Text>
+                <Text fontWeight="medium" color="fg">
                   {isGlobalAdmin ? 'Admin access' : 'Member access'}
                 </Text>
               </Flex>
@@ -217,14 +217,14 @@ export function SettingsPage() {
             display="flex"
             alignItems="flex-start"
             gap="3"
-            borderColor="status.warning/70"
-            bg="status.warningSubtle"
-            color="status.warning"
+            borderColor="fg.warning/70"
+            bg="bg.warning"
+            color="fg.warning"
           >
             <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '0.125rem' }} />
             <Stack gap="1">
               <AlertTitle>Enhance your security</AlertTitle>
-              <AlertDescription color="status.warning">
+              <AlertDescription color="fg.warning">
                 Improve your account protection by enabling Two-factor authentication (2FA) and
                 completing email verification.
               </AlertDescription>
@@ -235,7 +235,7 @@ export function SettingsPage() {
             <Grid gap="4" py="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) 260px' }} alignItems="center">
               <Stack gap="1">
                 <CardTitle fontSize="md">Two-factor authentication (2FA)</CardTitle>
-                <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="text.default">
+                <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="fg">
                   <Text as="span">Status:</Text>
                   <SecurityStatusBadge
                     tone={sessionData?.user.twoFactorEnabled ? 'positive' : 'warning'}
@@ -254,11 +254,11 @@ export function SettingsPage() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     borderRadius: '0.5rem',
-                    backgroundColor: 'var(--chakra-colors-accent-default)',
+                    backgroundColor: 'var(--chakra-colors-teal-solid)',
                     padding: '0 1.25rem',
                     fontSize: '0.875rem',
                     fontWeight: 600,
-                    color: 'var(--chakra-colors-text-inverse)',
+                    color: 'var(--chakra-colors-fg-inverted)',
                   }}
                 >
                   {sessionData?.user.twoFactorEnabled ? 'Manage 2FA' : 'Enable 2FA'}
@@ -281,7 +281,7 @@ export function SettingsPage() {
             <Grid gap="4" py="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) 260px' }} alignItems="center">
               <Stack gap="1">
                 <CardTitle fontSize="md">Email verification</CardTitle>
-                <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="text.default">
+                <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="fg">
                   <Text as="span">Status:</Text>
                   <SecurityStatusBadge
                     tone={sessionData?.user.emailVerified ? 'positive' : 'warning'}
@@ -311,7 +311,7 @@ export function SettingsPage() {
             <Grid gap="4" pt="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) 260px' }} alignItems="center">
               <Stack gap="1">
                 <CardTitle fontSize="md">Password</CardTitle>
-                <Text textStyle="metadata">Last changed: Never</Text>
+                <Text textStyle="sm">Last changed: Never</Text>
               </Stack>
               <Flex justify={{ base: 'flex-start', md: 'flex-end' }}>
                 <Link
@@ -325,11 +325,11 @@ export function SettingsPage() {
                     borderRadius: '0.5rem',
                     borderWidth: '1px',
                     borderColor: 'var(--chakra-colors-border-subtle)',
-                    backgroundColor: 'var(--chakra-colors-surface-default)',
+                    backgroundColor: 'var(--chakra-colors-bg-panel)',
                     padding: '0 1.25rem',
                     fontSize: '0.875rem',
                     fontWeight: 600,
-                    color: 'var(--chakra-colors-text-default)',
+                    color: 'var(--chakra-colors-fg)',
                   }}
                 >
                   Change password

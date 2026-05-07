@@ -52,19 +52,19 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
           fontSize="sm"
           fontWeight="medium"
           justify={open ? 'flex-start' : 'center'}
-          bg={isActive ? 'surface.selected' : 'transparent'}
-          color={isActive ? 'text.default' : 'text.muted'}
+          bg={isActive ? 'teal.subtle' : 'transparent'}
+          color={isActive ? 'fg' : 'fg.muted'}
           transition="colors"
-          _hover={{ bg: 'surface.selected', color: 'text.default' }}
+          _hover={{ bg: 'teal.subtle', color: 'fg' }}
         >
           <Flex
             shrink={0}
             boxSize="4"
             align="center"
             justify="center"
-            color={isActive ? 'accent.fg' : 'text.muted'}
+            color={isActive ? 'teal.fg' : 'fg.muted'}
             transition="colors"
-            _groupHover={{ color: 'accent.fg' }}
+            _groupHover={{ color: 'teal.fg' }}
           >
             <Icon size={16} />
           </Flex>
@@ -102,10 +102,10 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
             rounded="lg"
             px="2"
             py="1.5"
-            color="text.default"
+            color="fg"
             justify={open ? 'flex-start' : 'center'}
             transition="colors"
-            _hover={{ bg: 'surface.selected', color: 'accent.fg' }}
+            _hover={{ bg: 'teal.subtle', color: 'teal.fg' }}
           >
             <Flex
               shrink={0}
@@ -113,8 +113,8 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
               align="center"
               justify="center"
               rounded="xl"
-              bg="accent.default"
-              color="text.inverse"
+              bg="teal.solid"
+              color="fg.inverted"
             >
               <Image src={arkivraLogoUrl} alt="Arkivra" boxSize="6" objectFit="contain" filter="invert(1)" />
             </Flex>
@@ -122,7 +122,7 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
               <Text fontFamily="heading" fontSize="base" fontWeight="semibold" lineHeight="none">
                 Arkivra
               </Text>
-              <Text mt="1" fontSize="sm" lineHeight="none" color="text.muted">
+              <Text mt="1" fontSize="sm" lineHeight="none" color="fg.muted">
                 v{packageJson.version}
               </Text>
             </Box>

@@ -30,8 +30,8 @@ export function ChatConversationRail({
     <>
       {showHeader ? (
         <Flex align="center" justify="space-between" gap="3" py="2">
-          <Flex align="center" gap="2" fontSize="sm" fontWeight="semibold" color="text.default">
-            <MessageSquare size={16} color="var(--chakra-colors-accent-default)" />
+          <Flex align="center" gap="2" fontSize="sm" fontWeight="semibold" color="fg">
+            <MessageSquare size={16} color="var(--chakra-colors-teal-solid)" />
             Conversations
           </Flex>
           <Button
@@ -68,17 +68,17 @@ export function ChatConversationRail({
         mt={showHeader ? '4' : '2'}
       >
         {conversationsQuery.isLoading ? (
-          <Flex align="center" gap="2" py="4" fontSize="sm" color="text.muted">
+          <Flex align="center" gap="2" py="4" fontSize="sm" color="fg.muted">
             <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
             Loading chats
           </Flex>
         ) : conversationSections.length === 0 ? (
-          <Text py="4" fontSize="sm" color="text.muted">No conversations yet.</Text>
+          <Text py="4" fontSize="sm" color="fg.muted">No conversations yet.</Text>
         ) : (
           <Flex direction="column" gap="5">
             {conversationSections.map(([sectionLabel, conversations]) => (
               <Flex key={sectionLabel} direction="column" gap="2">
-                <Text fontSize="xs" fontWeight="medium" color="text.muted">{sectionLabel}</Text>
+                <Text fontSize="xs" fontWeight="medium" color="fg.muted">{sectionLabel}</Text>
                 <Flex direction="column" gap="1">
                   {conversations.map((conversation) => (
                     <Flex key={conversation.id} className="group" align="center" gap="1">
@@ -91,14 +91,14 @@ export function ChatConversationRail({
                         py="3"
                         textAlign="left"
                         fontSize="sm"
-                        bg={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'surface.selected' : undefined}
-                        color={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'text.default' : 'text.muted'}
+                        bg={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'teal.subtle' : undefined}
+                        color={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'fg' : 'fg.muted'}
                         cursor="pointer"
-                        _hover={selectedChatId !== conversation.id && effectiveSelectedChatId !== conversation.id ? { bg: 'surface.subtle', color: 'text.default' } : undefined}
+                        _hover={selectedChatId !== conversation.id && effectiveSelectedChatId !== conversation.id ? { bg: 'bg.subtle', color: 'fg' } : undefined}
                         onClick={() => onSelectConversation(conversation.id)}
                       >
                         <Text truncate fontWeight="medium">{conversation.title}</Text>
-                        <Text mt="1" fontSize="xs" color="text.muted">
+                        <Text mt="1" fontSize="xs" color="fg.muted">
                           {formatDate(conversation.updatedAt)}
                         </Text>
                       </chakra.button>

@@ -39,8 +39,8 @@ export function MessageBubble({
           align="center"
           justify="center"
           rounded="lg"
-          bg="accent.default"
-          color="text.inverse"
+          bg="teal.solid"
+          color="fg.inverted"
         >
           <Bot size={16} />
         </Flex>
@@ -50,20 +50,20 @@ export function MessageBubble({
         {isUser ? (
           <>
             <Flex direction="column" align="flex-end" w="100%">
-              <Box rounded="2xl" bg="accent.default" px="4" py="3" fontSize="sm" lineHeight="6" color="text.inverse" maxW="min(46rem, 100%)">
+              <Box rounded="2xl" bg="teal.solid" px="4" py="3" fontSize="sm" lineHeight="6" color="fg.inverted" maxW="min(46rem, 100%)">
                 <Text whiteSpace="pre-wrap">{message.content}</Text>
               </Box>
             </Flex>
           </>
         ) : (
-          <Box w="100%" rounded="2xl" bg="surface.subtle" px="4" py="3" fontSize="sm" lineHeight="6" color="text.default">
+          <Box w="100%" rounded="2xl" bg="bg.subtle" px="4" py="3" fontSize="sm" lineHeight="6" color="fg">
             <MarkdownMessage
               content={message.content}
               citations={message.citations}
               onCitationClick={(citation) => setSelectedCitation(citation)}
             />
             {renderMetricsSummary(metrics) ? (
-              <Text mt="3" fontSize="xs" color="text.muted">
+              <Text mt="3" fontSize="xs" color="fg.muted">
                 {renderMetricsSummary(metrics)}
               </Text>
             ) : null}
@@ -87,10 +87,10 @@ export function MessageBubble({
           </Box>
         )}
 
-        <Text mt="1" fontSize="xs" color="text.muted">
+        <Text mt="1" fontSize="xs" color="fg.muted">
           {message.localOnly ? `${pendingStatusLabel}...` : formatDate(message.createdAt)}
           {message.generationStatus === 'failed' && message.generationError ? (
-            <Text as="span" ml="2" color="status.danger">{message.generationError}</Text>
+            <Text as="span" ml="2" color="fg.error">{message.generationError}</Text>
           ) : null}
         </Text>
 
@@ -114,8 +114,8 @@ export function MessageBubble({
           align="center"
           justify="center"
           rounded="lg"
-          bg="surface.selected"
-          color="text.muted"
+          bg="teal.subtle"
+          color="fg.muted"
         >
           <User size={16} />
         </Flex>

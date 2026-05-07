@@ -93,11 +93,11 @@ export function LoginPage() {
           </Button>
         </Grid>
 
-        <Flex align="center" justify="space-between" fontSize="sm" color="text.muted">
-          <Link to="/request-password-reset" style={{ color: 'var(--chakra-colors-text-muted)' }}>
+        <Flex align="center" justify="space-between" fontSize="sm" color="fg.muted">
+          <Link to="/request-password-reset" style={{ color: 'var(--chakra-colors-fg-muted)' }}>
             Forgot password?
           </Link>
-          <Link to="/register" style={{ color: 'var(--chakra-colors-text-muted)' }}>
+          <Link to="/register" style={{ color: 'var(--chakra-colors-fg-muted)' }}>
             Create account
           </Link>
         </Flex>

@@ -209,15 +209,15 @@ export function DocumentDetailPage() {
   });
 
   if (!vaultId || !documentId) {
-    return <Text fontSize="sm" color="status.danger">Invalid document route.</Text>;
+    return <Text fontSize="sm" color="fg.error">Invalid document route.</Text>;
   }
 
   if (documentQuery.isLoading) {
-    return <Text fontSize="sm" color="text.muted">Loading document...</Text>;
+    return <Text fontSize="sm" color="fg.muted">Loading document...</Text>;
   }
 
   if (documentQuery.isError || !documentQuery.data) {
-    return <Text fontSize="sm" color="status.danger">Unable to load document.</Text>;
+    return <Text fontSize="sm" color="fg.error">Unable to load document.</Text>;
   }
 
   const document = documentQuery.data.document;
@@ -425,11 +425,11 @@ export function DocumentDetailPage() {
         title={document.name}
         description={
           <Flex maxH="20" minH="8" flexWrap="wrap" align="center" gap="2" overflowY="auto" pr="1">
-            <Text as="span" mr="1" fontSize="sm" fontWeight="medium" color="text.muted">
+            <Text as="span" mr="1" fontSize="sm" fontWeight="medium" color="fg.muted">
               Tags
             </Text>
             {assignedTags.length === 0 ? (
-              <Text fontSize="sm" color="text.muted">No tags assigned.</Text>
+              <Text fontSize="sm" color="fg.muted">No tags assigned.</Text>
             ) : null}
             {assignedTags.map((tag) => (
               <Flex
@@ -439,11 +439,11 @@ export function DocumentDetailPage() {
                 align="center"
                 gap="2"
                 rounded="full"
-                bg="surface.subtle"
+                bg="bg.subtle"
                 px="3"
                 fontSize="sm"
                 lineHeight="none"
-                color="text.default"
+                color="fg"
               >
                 <Box aria-hidden="true" boxSize="1.5" rounded="full" bg={tag.color ?? '#64748b'} />
                 {tag.name}
@@ -453,8 +453,8 @@ export function DocumentDetailPage() {
                   size="icon"
                   aria-label={`Remove ${tag.name}`}
                   rounded="full"
-                  color="text.muted"
-                  _hover={{ bg: 'surface.default', color: 'text.default' }}
+                  color="fg.muted"
+                  _hover={{ bg: 'bg.panel', color: 'fg' }}
                   h="6"
                   w="6"
                   mr="-1"
@@ -485,9 +485,9 @@ export function DocumentDetailPage() {
                   h="8"
                   w="8"
                   rounded="full"
-                  bg="surface.subtle"
-                  color="text.muted"
-                  _hover={{ bg: 'surface.subtle', color: 'text.default' }}
+                  bg="bg.subtle"
+                  color="fg.muted"
+                  _hover={{ bg: 'bg.subtle', color: 'fg' }}
                 >
                   <Plus size={16} />
                 </Button>
@@ -497,7 +497,7 @@ export function DocumentDetailPage() {
                 minW="80"
                 overflow="hidden"
                 rounded="xl"
-                bg="surface.raised"
+                bg="bg.panel"
                 p="0"
                 onCloseAutoFocus={(event) => {
                   event.preventDefault();
@@ -560,11 +560,11 @@ export function DocumentDetailPage() {
                   ) : null}
                   {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
                     normalizedTagSearchValue.length === 0 ? (
-                      <Text px="4" py="3" fontSize="sm" color="text.muted">
+                      <Text px="4" py="3" fontSize="sm" color="fg.muted">
                         All tags are already assigned.
                       </Text>
                     ) : !hasExactTagMatch ? null : (
-                      <Text px="4" py="3" fontSize="sm" color="text.muted">No matching tags.</Text>
+                      <Text px="4" py="3" fontSize="sm" color="fg.muted">No matching tags.</Text>
                     )
                   ) : null}
                 </Box>
@@ -603,9 +603,9 @@ export function DocumentDetailPage() {
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem
-                  color="status.danger"
-                  _hover={{ bg: 'status.dangerSubtle', color: 'status.danger' }}
-                  _focus={{ bg: 'status.dangerSubtle', color: 'status.danger' }}
+                  color="fg.error"
+                  _hover={{ bg: 'bg.error', color: 'fg.error' }}
+                  _focus={{ bg: 'bg.error', color: 'fg.error' }}
                   disabled={deleteMutation.isPending}
                   onSelect={() => setIsDeleteDialogOpen(true)}
                 >
@@ -672,7 +672,7 @@ export function DocumentDetailPage() {
             {activeTab === 'preview' ? (
               <Flex direction="column" gap="4">
                 {previewKind === 'pdf' && !document.isDeleted ? (
-                  <Box overflow="hidden" rounded="lg" bg="surface.subtle" p="2">
+                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
                     <chakra.iframe
                       title="Document preview"
                       src={inlineFileUrl}
@@ -685,7 +685,7 @@ export function DocumentDetailPage() {
                 ) : null}
 
                 {previewKind === 'image' && !document.isDeleted ? (
-                  <Box overflow="hidden" rounded="lg" bg="surface.subtle" p="4">
+                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="4">
                     <Flex
                       h={{ base: '82vh', md: '860px' }}
                       align="center"
@@ -707,7 +707,7 @@ export function DocumentDetailPage() {
                 ) : null}
 
                 {previewKind === 'text' && !document.isDeleted ? (
-                  <Box overflow="hidden" rounded="lg" bg="surface.subtle" p="2">
+                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
                     <chakra.iframe
                       title="Text preview"
                       src={inlineFileUrl}
@@ -720,7 +720,7 @@ export function DocumentDetailPage() {
                 ) : null}
 
                 {previewKind === 'unsupported' || document.isDeleted ? (
-                  <Box rounded="lg" bg="surface.subtle" p="6">
+                  <Box rounded="lg" bg="bg.subtle" p="6">
                     <Flex
                       minH="820px"
                       direction="column"
@@ -731,16 +731,16 @@ export function DocumentDetailPage() {
                       borderWidth="1px"
                       borderStyle="dashed"
                       borderColor="border.subtle"
-                      bg="surface.default"
+                      bg="bg.panel"
                       px="6"
                       textAlign="center"
                     >
                       <ImageIcon size={40} />
                       <Box>
-                        <Text fontSize="sm" fontWeight="semibold" color="text.default">
+                        <Text fontSize="sm" fontWeight="semibold" color="fg">
                           Preview unavailable
                         </Text>
-                        <Text maxW="xl" fontSize="sm" lineHeight="6" color="text.muted">
+                        <Text maxW="xl" fontSize="sm" lineHeight="6" color="fg.muted">
                           {document.isDeleted
                             ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
                             : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'}
@@ -768,22 +768,22 @@ export function DocumentDetailPage() {
                     letterSpacing="wide"
                     bg={
                       document.processingStatus === 'failed'
-                        ? 'status.dangerSubtle'
+                        ? 'bg.error'
                         : isExtractionActive
-                          ? 'status.warningSubtle'
-                          : 'status.successSubtle'
+                          ? 'bg.warning'
+                          : 'bg.success'
                     }
                     color={
                       document.processingStatus === 'failed'
-                        ? 'status.danger'
+                        ? 'fg.error'
                         : isExtractionActive
-                          ? 'status.warning'
-                          : 'status.success'
+                          ? 'fg.warning'
+                          : 'fg.success'
                     }
                   >
                     {extractionStageLabel}
                   </Box>
-                  <Text fontSize="sm" lineHeight="6" color="text.muted">
+                  <Text fontSize="sm" lineHeight="6" color="fg.muted">
                     {isExtractionActive
                       ? 'The document detail view polls the backend while processing is in progress.'
                       : 'OCR and extracted text appear here after processing completes.'}
@@ -793,12 +793,12 @@ export function DocumentDetailPage() {
                   h={{ base: '82vh', md: '820px' }}
                   overflow="auto"
                   rounded="lg"
-                  bg="surface.subtle"
+                  bg="bg.subtle"
                   p="5"
                   fontSize="sm"
                   whiteSpace="pre-wrap"
                   wordBreak="break-word"
-                  color="text.default"
+                  color="fg"
                 >
                   {extractedTextMessage}
                 </Box>
@@ -813,8 +813,8 @@ export function DocumentDetailPage() {
                   gap="4"
                   fontSize="sm"
                 >
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Text color="text.muted">Display name</Text>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">Display name</Text>
                     {isNameEditing ? (
                       <Input
                         id="document-name"
@@ -822,13 +822,13 @@ export function DocumentDetailPage() {
                         value={currentName}
                         mt="2"
                         borderColor="border.subtle"
-                        bg="surface.default"
+                        bg="bg.panel"
                         autoFocus
                         onChange={(event) => setRenameValue(event.target.value)}
                       />
                     ) : (
                       <Flex align="center" justify="space-between" gap="3" mt="2">
-                        <Text fontWeight="medium" color="text.default">
+                        <Text fontWeight="medium" color="fg">
                           {document.name}
                         </Text>
                         <chakra.button
@@ -840,9 +840,9 @@ export function DocumentDetailPage() {
                           alignItems="center"
                           justifyContent="center"
                           rounded="lg"
-                          color="text.muted"
+                          color="fg.muted"
                           transition="colors"
-                          _hover={{ bg: 'surface.default', color: 'text.default' }}
+                          _hover={{ bg: 'bg.panel', color: 'fg' }}
                           onClick={() => setIsNameEditing(true)}
                         >
                           <Pencil size={16} />
@@ -850,8 +850,8 @@ export function DocumentDetailPage() {
                       </Flex>
                     )}
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Flex align="center" gap="2" color="text.muted">
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Flex align="center" gap="2" color="fg.muted">
                       <Text>Document date</Text>
                       <InfoTooltip
                         label="More info about document date"
@@ -866,13 +866,13 @@ export function DocumentDetailPage() {
                         value={currentDocumentDate}
                         mt="2"
                         borderColor="border.subtle"
-                        bg="surface.default"
+                        bg="bg.panel"
                         autoFocus
                         onChange={(event) => setDocumentDateValue(event.target.value)}
                       />
                     ) : (
                       <Flex align="center" justify="space-between" gap="3" mt="2">
-                        <Text fontWeight="medium" color="text.default">
+                        <Text fontWeight="medium" color="fg">
                           {formatDate(document.documentDate)}
                         </Text>
                         <chakra.button
@@ -884,9 +884,9 @@ export function DocumentDetailPage() {
                           alignItems="center"
                           justifyContent="center"
                           rounded="lg"
-                          color="text.muted"
+                          color="fg.muted"
                           transition="colors"
-                          _hover={{ bg: 'surface.default', color: 'text.default' }}
+                          _hover={{ bg: 'bg.panel', color: 'fg' }}
                           onClick={() => setIsDocumentDateEditing(true)}
                         >
                           <Pencil size={16} />
@@ -894,39 +894,39 @@ export function DocumentDetailPage() {
                       </Flex>
                     )}
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Text color="text.muted">Original file</Text>
-                    <Text mt="2" fontWeight="medium" color="text.default">
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">Original file</Text>
+                    <Text mt="2" fontWeight="medium" color="fg">
                       {document.originalName}
                     </Text>
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Text color="text.muted">File size</Text>
-                    <Text mt="2" fontWeight="medium" color="text.default">
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">File size</Text>
+                    <Text mt="2" fontWeight="medium" color="fg">
                       {formatBytes(document.originalSize)}
                     </Text>
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Text color="text.muted">Format</Text>
-                    <Text mt="2" fontWeight="medium" color="text.default">
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">Format</Text>
+                    <Text mt="2" fontWeight="medium" color="fg">
                       {document.mimeType}
                     </Text>
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Text color="text.muted">Uploaded by</Text>
-                    <Text mt="2" fontWeight="medium" color="text.default">
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">Uploaded by</Text>
+                    <Text mt="2" fontWeight="medium" color="fg">
                       {document.createdBy ?? 'Unknown'}
                     </Text>
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Text color="text.muted">Uploaded at</Text>
-                    <Text mt="2" fontWeight="medium" color="text.default">
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">Uploaded at</Text>
+                    <Text mt="2" fontWeight="medium" color="fg">
                       {formatDate(document.createdAt)}
                     </Text>
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
-                    <Text color="text.muted">Last updated</Text>
-                    <Text mt="2" fontWeight="medium" color="text.default">
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">Last updated</Text>
+                    <Text mt="2" fontWeight="medium" color="fg">
                       {formatDate(document.updatedAt)}
                     </Text>
                   </Box>
@@ -975,7 +975,7 @@ export function DocumentDetailPage() {
                 </ChakraDialog.CloseTrigger>
               </ChakraDialog.Header>
               <ChakraDialog.Body>
-                <Text color="text.muted" fontSize="sm">
+                <Text color="fg.muted" fontSize="sm">
                   This document will be removed from the active vault, but it is recoverable from Trash
                   until it is permanently removed manually or automatically after 30 days.
                 </Text>

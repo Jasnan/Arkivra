@@ -261,7 +261,7 @@ export function DocumentsPage() {
   }, [queryClient, vaultId]);
 
   if (!vaultId) {
-    return <Text fontSize="sm" color="status.danger">Invalid vault id.</Text>;
+    return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
   }
 
   function clearFilters() {
@@ -292,11 +292,11 @@ export function DocumentsPage() {
                 justify="center"
                 gap="2"
                 rounded="xl"
-                bg="accent.default"
+                bg="teal.solid"
                 px="5"
                 fontSize="sm"
                 fontWeight="semibold"
-                color="text.inverse"
+                color="fg.inverted"
               >
                 <Upload size={16} />
                 Upload
@@ -337,7 +337,7 @@ export function DocumentsPage() {
                 id="vault-documents-tag-filter-label"
                 fontSize="sm"
                 fontWeight="semibold"
-                color="text.default"
+                color="fg"
               >
                 Tag
               </Text>
@@ -354,7 +354,7 @@ export function DocumentsPage() {
                   h="10"
                   rounded="lg"
                   borderColor="border.subtle"
-                  bg="surface.default"
+                  bg="bg.panel"
                   mt="3"
                 >
                   <SelectValue placeholder="All tags" />
@@ -370,8 +370,8 @@ export function DocumentsPage() {
               </Select>
             </Box>
 
-            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="surface.default" p="4">
-              <Text fontSize="sm" fontWeight="semibold" color="text.default">
+            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.panel" p="4">
+              <Text fontSize="sm" fontWeight="semibold" color="fg">
                 Date
               </Text>
 
@@ -409,7 +409,7 @@ export function DocumentsPage() {
       />
 
       <SurfacePanel>
-        <Text fontSize="sm" color="text.muted">
+        <Text fontSize="sm" color="fg.muted">
           {activeResultCount} document{activeResultCount === 1 ? '' : 's'}
         </Text>
       </SurfacePanel>
@@ -418,20 +418,20 @@ export function DocumentsPage() {
         <DocumentLibraryHeader />
 
         {documentsQuery.isLoading ? (
-          <Text px="6" py="6" fontSize="sm" color="text.muted">Loading documents...</Text>
+          <Text px="6" py="6" fontSize="sm" color="fg.muted">Loading documents...</Text>
         ) : null}
         {documentsQuery.isError ? (
-          <Text px="6" py="6" fontSize="sm" color="status.danger">Unable to load documents.</Text>
+          <Text px="6" py="6" fontSize="sm" color="fg.error">Unable to load documents.</Text>
         ) : null}
         {searchQuery.isLoading ? (
-          <Text px="6" py="6" fontSize="sm" color="text.muted">Searching documents...</Text>
+          <Text px="6" py="6" fontSize="sm" color="fg.muted">Searching documents...</Text>
         ) : null}
         {searchQuery.isError ? (
-          <Text px="6" py="6" fontSize="sm" color="status.danger">Unable to search this vault.</Text>
+          <Text px="6" py="6" fontSize="sm" color="fg.error">Unable to search this vault.</Text>
         ) : null}
 
         {emptyState ? (
-          <Text px="6" py="8" fontSize="sm" color="text.muted">
+          <Text px="6" py="8" fontSize="sm" color="fg.muted">
             No documents match the current filters.
           </Text>
         ) : (
@@ -455,8 +455,8 @@ export function DocumentsPage() {
                                 as="mark"
                                 key={`${result.documentId}-${part.key}`}
                                 rounded="md"
-                                bg="accent.subtle"
-                                color="text.default"
+                                bg="teal.subtle"
+                                color="fg"
                                 px="1.5"
                                 py="0.5"
                               >
@@ -507,7 +507,7 @@ export function DocumentsPage() {
           alignItems={{ sm: 'center' }}
           justifyContent={{ sm: 'space-between' }}
         >
-          <Text fontSize="sm" color="text.muted">
+          <Text fontSize="sm" color="fg.muted">
             Page {activePageIndex + 1} of {activePageCount}
           </Text>
           <Flex gap="2">

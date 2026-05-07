@@ -25,7 +25,7 @@ function normalizeVariant(variant: BadgeProps['variant']) {
 export function Badge({ colorPalette, variant = 'default', ...props }: BadgeProps) {
   return (
     <ChakraBadge
-      colorPalette={colorPalette ?? (variant === 'destructive' ? 'red' : variant === 'default' ? 'blue' : 'gray')}
+      colorPalette={colorPalette ?? (variant === 'destructive' ? 'red' : variant === 'default' ? 'teal' : 'gray')}
       variant={normalizeVariant(variant)}
       {...props}
     />

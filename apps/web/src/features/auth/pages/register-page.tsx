@@ -65,9 +65,9 @@ export function RegisterPage() {
           </Button>
         </form>
 
-        <Box fontSize="sm" color="text.muted">
+        <Box fontSize="sm" color="fg.muted">
           Already have an account?{' '}
-          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-text-default)' }}>
+          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Sign in
           </Link>
         </Box>

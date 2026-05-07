@@ -313,11 +313,11 @@ export function ChatWorkspace({
             gap="2"
             borderBottomWidth="1px"
             borderColor="border.subtle"
-            bg="status.dangerSubtle"
+            bg="bg.error"
             px="4"
             py="3"
             fontSize="sm"
-            color="status.danger"
+            color="fg.error"
             sm={{ px: '6' }}
           >
             <AlertCircle size={16} />
@@ -361,8 +361,8 @@ export function ChatWorkspace({
             onOpenChange={setIsMobileConversationRailOpen}
           >
             <Flex align="center" justify="space-between" gap="3">
-              <Flex align="center" gap="2" fontSize="sm" fontWeight="medium" color="text.default">
-                <MessageSquare size={16} color="var(--chakra-colors-accent-default)" />
+              <Flex align="center" gap="2" fontSize="sm" fontWeight="medium" color="fg">
+                <MessageSquare size={16} color="var(--chakra-colors-teal-solid)" />
                 Conversations
               </Flex>
               <CollapsibleTrigger asChild>
@@ -430,7 +430,7 @@ export function ChatWorkspace({
               px="6"
               py="10"
               fontSize="sm"
-              color="text.muted"
+              color="fg.muted"
             >
               <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
               Loading conversation
@@ -474,31 +474,31 @@ export function ChatWorkspace({
                     align="center"
                     justify="center"
                     rounded="xl"
-                    bg="accent.default"
-                    color="text.inverse"
+                    bg="teal.solid"
+                    color="fg.inverted"
                   >
                     <Sparkles size={16} />
                   </Flex>
                   <Box maxW="min(44rem, 100%)">
                     <Box
                       rounded="2xl"
-                      bg="surface.subtle"
+                      bg="bg.subtle"
                       px="4"
                       py="3"
                       fontSize="sm"
                       lineHeight="6"
-                      color="text.default"
+                      color="fg"
                     >
                       {streamingText.length > 0 ? (
                         <MarkdownMessage content={streamingText} citations={[]} />
                       ) : (
-                        <Flex align="center" gap="2" color="text.muted">
+                        <Flex align="center" gap="2" color="fg.muted">
                           <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
                           {statusLabel(streamStatus, scope)}
                         </Flex>
                       )}
                     </Box>
-                    <Text mt="2" fontSize="xs" color="text.muted">
+                    <Text mt="2" fontSize="xs" color="fg.muted">
                       {statusLabel(streamStatus, scope)}
                     </Text>
                   </Box>

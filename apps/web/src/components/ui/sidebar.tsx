@@ -102,7 +102,7 @@ export function Sidebar({
           'relative flex h-full flex-col bg-sidebar',
           variant === 'inset'
             ? 'bg-transparent'
-            : 'border-r border-sidebar-border/70',
+            : 'border-r border-sidebar-border/70 bg-[#f4f4f2] dark:bg-[#161616]',
           isOffcanvas && 'pointer-events-none overflow-hidden opacity-0',
         )}
       >
@@ -186,11 +186,19 @@ export function SidebarContent({ className, ...props }: SidebarSectionProps) {
 }
 
 export function SidebarFooter({ className, ...props }: SidebarSectionProps) {
-  return <div data-slot="sidebar-footer" className={cn('mt-auto flex flex-col', className)} {...props} />;
+  return (
+    <div data-slot="sidebar-footer" className={cn('mt-auto flex flex-col', className)} {...props} />
+  );
 }
 
 export function SidebarGroup({ className, ...props }: SidebarSectionProps) {
-  return <section data-slot="sidebar-group" className={cn('flex flex-col gap-2', className)} {...props} />;
+  return (
+    <section
+      data-slot="sidebar-group"
+      className={cn('flex flex-col gap-2', className)}
+      {...props}
+    />
+  );
 }
 
 type SidebarGroupLabelProps = React.ComponentPropsWithoutRef<'p'>;
@@ -211,7 +219,9 @@ export function SidebarGroupLabel({ className, ...props }: SidebarGroupLabelProp
 type SidebarMenuProps = React.ComponentPropsWithoutRef<'ul'>;
 
 export function SidebarMenu({ className, ...props }: SidebarMenuProps) {
-  return <ul data-slot="sidebar-menu" className={cn('flex flex-col gap-1', className)} {...props} />;
+  return (
+    <ul data-slot="sidebar-menu" className={cn('flex flex-col gap-1', className)} {...props} />
+  );
 }
 
 type SidebarMenuItemProps = React.ComponentPropsWithoutRef<'li'>;

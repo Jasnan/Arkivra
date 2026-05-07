@@ -70,8 +70,7 @@ function persistSidebarCollapsedValue(isCollapsed: boolean) {
 
   try {
     window.localStorage?.setItem?.(SIDEBAR_COLLAPSED_STORAGE_KEY, isCollapsed ? 'true' : 'false');
-  } catch {
-  }
+  } catch {}
 }
 
 interface BreadcrumbEntry {
@@ -317,8 +316,8 @@ export function AppShell({ children }: PropsWithChildren) {
           footerNavItems={footerNavItems}
         />
 
-        <SidebarInset className="min-h-screen bg-background lg:m-2 lg:overflow-hidden lg:rounded-[1.9rem] lg:border lg:border-border/80 lg:shadow-[0_1px_2px_rgba(15,23,42,0.05),0_18px_48px_rgba(15,23,42,0.1)] dark:lg:border-white/10 dark:lg:shadow-[0_1px_2px_rgba(0,0,0,0.35),0_18px_48px_rgba(0,0,0,0.28)]">
-          <header className="sticky top-0 z-40 flex h-(--header-height) shrink-0 items-center border-b border-border/60 bg-background/95 backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-background/85">
+        <SidebarInset className="min-h-screen bg-[#fcfcfb] dark:bg-[#1b1b1b]">
+          <header className="sticky top-0 z-40 flex h-(--header-height) shrink-0 items-center border-b border-border/60 bg-[#fcfcfb]/95 backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-[#fcfcfb]/85 dark:bg-[#1b1b1b]/95 dark:supports-[backdrop-filter]:bg-[#1b1b1b]/85">
             <div className="flex w-full items-center gap-2 px-4 lg:px-6">
               <SidebarTrigger className="-ml-1 hidden lg:inline-flex" />
               <Separator

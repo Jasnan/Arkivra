@@ -52,7 +52,7 @@ export function SidebarProvider({
         <Box
           data-slot="sidebar-wrapper"
           data-state={open ? 'expanded' : 'collapsed'}
-          className="group/sidebar-wrapper"
+          display="flex"
           minH="100vh"
           w="full"
           {...props}
@@ -86,7 +86,7 @@ export function Sidebar({
       data-state={open ? 'expanded' : 'collapsed'}
       data-collapsible={isCollapsed ? 'icon' : isOffcanvas ? 'offcanvas' : ''}
       aria-hidden={isOffcanvas ? true : undefined}
-      className="group/sidebar peer hidden lg:block"
+      display="block"
       position="sticky"
       top="0"
       flexShrink={0}

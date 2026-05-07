@@ -333,7 +333,7 @@ export function AppShell({ children }: PropsWithChildren) {
             transition="width,height 200ms ease-linear"
           >
             <Flex w="full" align="center" gap="2" px={{ base: '4', lg: '6' }}>
-              <SidebarTrigger className="-ml-1 hidden lg:inline-flex" />
+              <SidebarTrigger ml="-1" />
               <Separator
                 orientation="vertical"
                 display={{ base: 'none', lg: 'block' }}

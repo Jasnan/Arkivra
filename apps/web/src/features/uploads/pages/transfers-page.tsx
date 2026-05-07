@@ -1,6 +1,6 @@
 import type { ChangeEvent, DragEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, Heading, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, Flex, Grid, Heading, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -24,14 +24,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -492,58 +484,48 @@ export function TransfersPage() {
         ) : null}
       </SurfacePanel>
 
-      <Dialog
+      <ChakraDialog.Root
         open={isClearAllDialogOpen}
-        onOpenChange={(open) => {
-          if (!isClearingAll) {
-            setIsClearAllDialogOpen(open);
+        onOpenChange={(e) => {
+          if (e.open) {
+            setIsClearAllDialogOpen(true);
+          } else if (!isClearingAll) {
+            setIsClearAllDialogOpen(false);
           }
         }}
+        size={{ mdDown: 'full', md: 'lg' }}
       >
-        <DialogContent
-          maxWidth="32rem"
-          onPointerDownOutside={(event) => {
-            if (isClearingAll) {
-              event.preventDefault();
-            }
-          }}
-          onEscapeKeyDown={(event) => {
-            if (isClearingAll) {
-              event.preventDefault();
-            }
-          }}
-        >
-          <Stack gap="5" px={{ base: '6', sm: '8' }} py={{ base: '6', sm: '7' }}>
-            <DialogHeader>
-              <DialogTitle>Cancel and clear transfers?</DialogTitle>
-              <DialogDescription>
-                Active uploads will be canceled and the entire transfer queue will be cleared.
-                Completed items will be removed from Transfers, but uploaded documents will remain
-                in their vaults.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsClearAllDialogOpen(false)}
-                disabled={isClearingAll}
-              >
-                Keep transfers
-              </Button>
-              <Button
-                type="button"
-                bg="status.danger"
-                color="text.inverse"
-                disabled={isClearingAll}
-                onClick={() => void handleConfirmClearAll()}
-              >
-                {isClearingAll ? 'Clearing...' : 'Cancel and clear all'}
-              </Button>
-            </DialogFooter>
-          </Stack>
-        </DialogContent>
-      </Dialog>
+        <Portal>
+          <ChakraDialog.Backdrop />
+          <ChakraDialog.Positioner>
+            <ChakraDialog.Content>
+              <ChakraDialog.Header>
+                <ChakraDialog.Title>Cancel and clear transfers?</ChakraDialog.Title>
+                <ChakraDialog.CloseTrigger asChild>
+                  <CloseButton size="sm" />
+                </ChakraDialog.CloseTrigger>
+              </ChakraDialog.Header>
+              <ChakraDialog.Body>
+                <Text color="text.muted" fontSize="sm">
+                  Active uploads will be canceled and the entire transfer queue will be cleared.
+                  Completed items will be removed from Transfers, but uploaded documents will remain
+                  in their vaults.
+                </Text>
+              </ChakraDialog.Body>
+              <ChakraDialog.Footer>
+                <ChakraDialog.ActionTrigger asChild>
+                  <Button type="button" variant="outline" onClick={() => setIsClearAllDialogOpen(false)} disabled={isClearingAll}>
+                    Keep transfers
+                  </Button>
+                </ChakraDialog.ActionTrigger>
+                <Button type="button" bg="status.danger" color="text.inverse" disabled={isClearingAll} onClick={() => void handleConfirmClearAll()}>
+                  {isClearingAll ? 'Clearing...' : 'Cancel and clear all'}
+                </Button>
+              </ChakraDialog.Footer>
+            </ChakraDialog.Content>
+          </ChakraDialog.Positioner>
+        </Portal>
+      </ChakraDialog.Root>
     </Stack>
   );
 }

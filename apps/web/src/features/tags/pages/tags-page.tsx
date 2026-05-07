@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
+import { Box, Flex, Grid, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Pencil, Trash2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -14,14 +14,6 @@ import {
 import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,52 +52,38 @@ function DeleteTagDialog({
 }) {
   const attachedDocuments = tag.documentsCount ?? 0;
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !isPending) onClose();
-      }}
-    >
-      <DialogContent
-        maxWidth="36rem"
-        px={{ base: '6', sm: '8' }}
-        pb={{ base: '6', sm: '8' }}
-        pt={{ base: '6', sm: '7' }}
-        onPointerDownOutside={(event) => {
-          if (isPending) event.preventDefault();
-        }}
-        onEscapeKeyDown={(event) => {
-          if (isPending) event.preventDefault();
-        }}
-      >
-        <DialogHeader style={{ paddingRight: 'var(--chakra-spacing-10)' }}>
-          <Text textStyle="label" color="status.danger/80">Delete Tag</Text>
-          <DialogTitle>{`Delete “${tag.name}”?`}</DialogTitle>
-          <DialogDescription>
-            {attachedDocuments > 0
-              ? `This tag is currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'}. Deleting it here will remove the tag from all of those documents.`
-              : 'This tag is not attached to any documents right now.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <Stack gap="5" mt="5">
-          <Text fontSize="sm" lineHeight="6" color="text.muted">
-            {attachedDocuments > 0
-              ? 'This action cannot be undone from the tags page.'
-              : 'You can create the tag again later if needed.'}
-          </Text>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
-              Cancel
-            </Button>
-            <DeleteButton type="button" onClick={onConfirm} disabled={isPending}>
-              {isPending ? 'Deleting...' : 'Delete tag'}
-            </DeleteButton>
-          </DialogFooter>
-        </Stack>
-      </DialogContent>
-    </Dialog>
+    <ChakraDialog.Root open onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>{`Delete “${tag.name}”?`}</ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <Text color="text.muted" fontSize="sm">
+                {attachedDocuments > 0
+                  ? `This tag is currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'}. Deleting it here will remove the tag from all of those documents.`
+                  : 'This tag is not attached to any documents right now.'}
+              </Text>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <ChakraDialog.ActionTrigger asChild>
+                <Button variant="outline" onClick={onClose} disabled={isPending}>
+                  Cancel
+                </Button>
+              </ChakraDialog.ActionTrigger>
+              <DeleteButton type="button" onClick={onConfirm} disabled={isPending}>
+                {isPending ? 'Deleting...' : 'Delete tag'}
+              </DeleteButton>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
   );
 }
 

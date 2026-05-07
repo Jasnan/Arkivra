@@ -18,7 +18,7 @@ export function AuthLayout({ children }: PropsWithChildren) {
         mx="auto"
         minH="100vh"
         w="100%"
-        maxW="container.xs"
+        maxW="28rem"
         px="4"
         py="6"
         sm={{ px: '6' }}
@@ -44,12 +44,12 @@ export function AuthCard({
   children,
 }: PropsWithChildren<{ title: string; subtitle?: string }>) {
   return (
-    <Card w="100%">
-      <CardHeader pb="4">
+    <Card w="100%" p={{ base: '5', sm: '6' }}>
+      <CardHeader pb="4" px="0">
         <CardTitle>{title}</CardTitle>
-        {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
+        {subtitle ? <CardDescription mt="1">{subtitle}</CardDescription> : null}
       </CardHeader>
-      <CardContent>
+      <CardContent px="0" pb="0">
         <Stack gap="4">{children}</Stack>
       </CardContent>
     </Card>

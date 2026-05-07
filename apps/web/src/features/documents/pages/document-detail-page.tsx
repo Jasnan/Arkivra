@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, Flex, Text, chakra } from '@chakra-ui/react';
+import { Box, Flex, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import {
   Download,
   Image as ImageIcon,
@@ -21,14 +21,6 @@ import { PageIntro } from '@/components/layout/vault-ui';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -963,43 +955,45 @@ export function DocumentDetailPage() {
         </Flex>
       </Flex>
 
-      <Dialog
+      <ChakraDialog.Root
         open={isDeleteDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(e) => {
           if (!deleteMutation.isPending) {
-            setIsDeleteDialogOpen(open);
+            setIsDeleteDialogOpen(e.open);
           }
         }}
+        size={{ mdDown: 'full', md: 'lg' }}
       >
-        <DialogContent maxW="md" p="6">
-          <DialogHeader style={{ paddingRight: '2.5rem' }}>
-            <DialogTitle>{`Move "${document.name}" to trash?`}</DialogTitle>
-            <DialogDescription>
-              This document will be removed from the active vault, but it is recoverable from Trash
-              until it is permanently removed manually or automatically after 30 days.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter style={{ marginTop: '1.5rem' }}>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={deleteMutation.isPending}
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <DeleteButton
-              type="button"
-              disabled={deleteMutation.isPending}
-              onClick={() => {
-                deleteMutation.mutate({ vaultId, documentId });
-              }}
-            >
-              {deleteMutation.isPending ? 'Moving...' : 'Move to trash'}
-            </DeleteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <Portal>
+          <ChakraDialog.Backdrop />
+          <ChakraDialog.Positioner>
+            <ChakraDialog.Content>
+              <ChakraDialog.Header>
+                <ChakraDialog.Title>{`Move "${document.name}" to trash?`}</ChakraDialog.Title>
+                <ChakraDialog.CloseTrigger asChild>
+                  <CloseButton size="sm" />
+                </ChakraDialog.CloseTrigger>
+              </ChakraDialog.Header>
+              <ChakraDialog.Body>
+                <Text color="text.muted" fontSize="sm">
+                  This document will be removed from the active vault, but it is recoverable from Trash
+                  until it is permanently removed manually or automatically after 30 days.
+                </Text>
+              </ChakraDialog.Body>
+              <ChakraDialog.Footer>
+                <ChakraDialog.ActionTrigger asChild>
+                  <Button type="button" variant="outline" disabled={deleteMutation.isPending} onClick={() => setIsDeleteDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                </ChakraDialog.ActionTrigger>
+                <DeleteButton type="button" disabled={deleteMutation.isPending} onClick={() => { deleteMutation.mutate({ vaultId, documentId }); }}>
+                  {deleteMutation.isPending ? 'Moving...' : 'Move to trash'}
+                </DeleteButton>
+              </ChakraDialog.Footer>
+            </ChakraDialog.Content>
+          </ChakraDialog.Positioner>
+        </Portal>
+      </ChakraDialog.Root>
 
       <TagDialog
         isOpen={isCreateTagDialogOpen}

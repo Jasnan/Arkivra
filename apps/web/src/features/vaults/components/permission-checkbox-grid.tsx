@@ -1,6 +1,6 @@
+import { Box, Grid } from '@chakra-ui/react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 import { VAULT_MEMBER_PERMISSIONS } from '@/features/vaults/vaults.types';
 import type { VaultMemberPermission } from '@/features/vaults/vaults.types';
 
@@ -11,7 +11,7 @@ export function PermissionCheckboxGrid({
   defaultSelectedPermissions,
   inputName,
   disabled,
-  cardClassName,
+  cardBg,
 }: {
   idPrefix: string;
   selectedPermissions?: VaultMemberPermission[];
@@ -19,10 +19,10 @@ export function PermissionCheckboxGrid({
   defaultSelectedPermissions?: VaultMemberPermission[];
   inputName?: string;
   disabled?: boolean;
-  cardClassName?: string;
+  cardBg?: string;
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <Grid gap="2" templateColumns={{ base: '1fr', sm: '1fr 1fr' }}>
       {VAULT_MEMBER_PERMISSIONS.map((permission) => {
         const id = `${idPrefix}-${permission}`;
         const isControlled =
@@ -32,10 +32,16 @@ export function PermissionCheckboxGrid({
           <Label
             key={permission}
             htmlFor={id}
-            className={cn(
-              'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-normal text-foreground',
-              cardClassName,
-            )}
+            display="flex"
+            alignItems="center"
+            gap="3"
+            rounded="lg"
+            px="4"
+            py="3"
+            fontSize="sm"
+            fontWeight="normal"
+            color="text.default"
+            bg={cardBg}
           >
             <Checkbox
               id={id}
@@ -63,10 +69,10 @@ export function PermissionCheckboxGrid({
               }
               disabled={disabled}
             />
-            <span>{permission}</span>
+            <Box as="span">{permission}</Box>
           </Label>
         );
       })}
-    </div>
+    </Grid>
   );
 }

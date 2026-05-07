@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useDeferredValue, useState } from 'react';
+import { Box, Flex, Grid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
@@ -62,31 +63,36 @@ function SettingField({
   tooltip,
   icon,
   children,
-  className = '',
 }: {
   label: string;
   tooltip?: string;
   icon?: ReactNode;
   children: ReactNode;
-  className?: string;
 }) {
   return (
-    <div className={`space-y-3 ${className}`}>
-      <div className="flex items-center gap-2">
-        <FieldLabel className="text-[0.95rem] font-semibold text-foreground">{label}</FieldLabel>
-        {tooltip ? (
-          <InfoTooltip content={tooltip} />
-        ) : null}
-      </div>
-      <div className="relative">
+    <Stack gap="3">
+      <Flex align="center" gap="2">
+        <FieldLabel fontSize="sm" fontWeight="semibold" color="text.default">
+          {label}
+        </FieldLabel>
+        {tooltip ? <InfoTooltip content={tooltip} /> : null}
+      </Flex>
+      <Box position="relative">
         {icon ? (
-          <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground">
+          <Box
+            position="absolute"
+            left="5"
+            top="50%"
+            transform="translateY(-50%)"
+            color="text.muted"
+            pointerEvents="none"
+          >
             {icon}
-          </span>
+          </Box>
         ) : null}
-        <div className={className}>{children}</div>
-      </div>
-    </div>
+        {children}
+      </Box>
+    </Stack>
   );
 }
 
@@ -296,12 +302,12 @@ export function AdminPage() {
   }
 
   if (meQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading admin context...</p>;
+    return <Text fontSize="sm" color="text.muted">Loading admin context...</Text>;
   }
 
   if (!isEnabled) {
     return (
-      <section className="space-y-6 pb-8">
+      <Stack as="section" gap="6" pb="8">
         <PageIntro
           eyebrow="Instance Oversight"
           title="Admin"
@@ -312,36 +318,36 @@ export function AdminPage() {
             Global admin access is required to open this page.
           </AlertDescription>
         </Alert>
-      </section>
+      </Stack>
     );
   }
 
   return (
-    <section className="space-y-8 pb-8">
+    <Stack as="section" gap="8" pb="8">
       <PageIntro
         eyebrow="Instance Oversight"
         title="Admin"
         description="Manage backups, AI normalization, user access, and installation-wide vault oversight from a single governance surface."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' }}>
         <StatCard
           label="Backups"
           value={(backupsQuery.data?.backups ?? []).length}
           meta="Archives currently available on the server."
-          icon={<DatabaseBackup className="size-5" />}
+          icon={<DatabaseBackup size={20} />}
         />
         <StatCard
           label="Users"
           value={(usersQuery.data?.users ?? []).length}
           meta="Accounts currently visible to the admin API."
-          icon={<Users className="size-5" />}
+          icon={<Users size={20} />}
         />
         <StatCard
           label="Vaults"
           value={(vaultsQuery.data?.vaults ?? []).length}
           meta="Active vaults under installation oversight."
-          icon={<Vault className="size-5" />}
+          icon={<Vault size={20} />}
         />
         <StatCard
           label="AI OCR"
@@ -351,324 +357,420 @@ export function AdminPage() {
               ? `Model: ${aiSettingsQuery.data.settings.model}`
               : 'AI normalization is disabled.'
           }
-          icon={<Bot className="size-5" />}
+          icon={<Bot size={20} />}
         />
-      </div>
+      </Grid>
 
-      <div className="space-y-6">
-        <SurfacePanel className="overflow-hidden p-0">
-            <div className="space-y-8 p-8">
-              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-                <div className="flex items-start gap-5">
-                  <div className="flex size-14 shrink-0 items-center justify-center rounded-[18px] bg-[#f2efff] text-[#7a73f0] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                    <Sparkles className="size-6" />
-                  </div>
-                  <div className="space-y-2.5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="font-display text-[2.2rem] font-extrabold tracking-[-0.05em] text-primary">AI Normalization</h2>
-                      <span className={`inline-flex rounded-full px-3.5 py-1 text-[0.82rem] font-semibold tracking-[0.1em] ${
-                        aiSettings.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-secondary text-muted-foreground'
-                      }`}>
-                        {aiSettings.enabled ? 'ENABLED' : 'OFF'}
-                      </span>
-                    </div>
-                    <p className="max-w-3xl text-[0.96rem] leading-8 text-muted-foreground">
-                      Use locally running Ollama models to normalize messy OCR text during ingestion into
-                      clean identity-document Markdown for retrieval.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-14 rounded-[22px] px-7 text-[0.96rem]"
-                  disabled={modelsQuery.isFetching || deferredHost.length === 0}
-                  onClick={() => void modelsQuery.refetch()}
+      <Stack gap="6">
+        <SurfacePanel overflow="hidden" p="0">
+          <Stack gap="8" p="8">
+            <Flex
+              direction={{ base: 'column', xl: 'row' }}
+              align={{ base: 'stretch', xl: 'flex-start' }}
+              justify={{ base: 'flex-start', xl: 'space-between' }}
+              gap="6"
+            >
+              <Flex gap="5">
+                <Flex
+                  boxSize="12"
+                  shrink="0"
+                  align="center"
+                  justify="center"
+                  rounded="lg"
+                  bg="accent.default"
+                  color="text.inverse"
                 >
-                  <RefreshCw className={`size-5 ${modelsQuery.isFetching ? 'animate-spin' : ''}`} />
-                  Refresh models
-                </Button>
-              </div>
-
-              <AiStatusBlock
-                aiSettings={aiSettings}
-                aiStatusMessage={aiStatusMessage}
-                modelsError={modelsQuery.error instanceof Error ? modelsQuery.error : null}
-                saveError={updateAiSettingsMutation.error instanceof Error ? updateAiSettingsMutation.error : null}
-                availability={availabilityQuery.data?.availability}
-              />
-
-              <div className="grid gap-8 md:grid-cols-2">
-                <div className="space-y-3">
-                  <SettingField
-                    label="Feature toggle"
-                    tooltip="Turns whole-document OCR normalization on or off. Disable this if you want Arkivra to keep the parser output exactly as extracted."
-                  >
-                    <label
-                      htmlFor="ai-normalization-enabled"
-                      className="flex min-h-16 items-center gap-4 rounded-[20px] border border-border/70 bg-background px-5 py-4 text-[0.96rem] font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                  <Sparkles size={24} />
+                </Flex>
+                <Stack gap="2.5">
+                  <Flex align="center" gap="3" flexWrap="wrap">
+                    <Text fontSize="xl" fontWeight="semibold" color="text.default">
+                      AI Normalization
+                    </Text>
+                    <Box
+                      display="inline-flex"
+                      rounded="full"
+                      px="3"
+                      py="1"
+                      fontSize="xs"
+                      fontWeight="semibold"
+                      textTransform="uppercase"
+                      letterSpacing="0.08em"
+                      bg={aiSettings.enabled ? 'status.successSubtle' : 'surface.subtle'}
+                      color={aiSettings.enabled ? 'status.success' : 'text.muted'}
                     >
-                      <Switch
-                        id="ai-normalization-enabled"
-                        checked={aiSettings.enabled}
-                        onCheckedChange={(checked) => {
-                          setAiStatusMessage(null);
-                          setAiSettingsDraft((current) => ({
-                            ...(current ?? aiSettings),
-                            enabled: checked,
-                          }));
-                        }}
-                      />
-                      <span>Enable AI OCR normalization</span>
-                    </label>
-                  </SettingField>
-                </div>
+                      {aiSettings.enabled ? 'ENABLED' : 'OFF'}
+                    </Box>
+                  </Flex>
+                  <Text maxW="container.sm" fontSize="sm" lineHeight="6" color="text.muted">
+                    Use locally running Ollama models to normalize messy OCR text during ingestion into
+                    clean identity-document Markdown for retrieval.
+                  </Text>
+                </Stack>
+              </Flex>
+              <Button
+                type="button"
+                variant="outline"
+                h="10"
+                rounded="lg"
+                px="4"
+                fontSize="sm"
+                disabled={modelsQuery.isFetching || deferredHost.length === 0}
+                onClick={() => void modelsQuery.refetch()}
+              >
+                <RefreshCw size={20} style={{ animation: modelsQuery.isFetching ? 'spin 1s linear infinite' : undefined }} />
+                Refresh models
+              </Button>
+            </Flex>
 
-                <div className="space-y-3">
-                  <SettingField
-                    label="Ollama host"
-                    tooltip="The HTTP address Arkivra uses to talk to Ollama. Example: use http://127.0.0.1:11434 for a local install, or http://192.168.1.50:11434 if Ollama runs on another machine in your LAN."
-                    icon={<Globe className="size-6" />}
+            <AiStatusBlock
+              aiSettings={aiSettings}
+              aiStatusMessage={aiStatusMessage}
+              modelsError={modelsQuery.error instanceof Error ? modelsQuery.error : null}
+              saveError={updateAiSettingsMutation.error instanceof Error ? updateAiSettingsMutation.error : null}
+              availability={availabilityQuery.data?.availability}
+            />
+
+            <Grid gap="8" templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }}>
+              <Stack gap="3">
+                <SettingField
+                  label="Feature toggle"
+                  tooltip="Turns whole-document OCR normalization on or off. Disable this if you want Arkivra to keep the parser output exactly as extracted."
+                >
+                  <chakra.label
+                    htmlFor="ai-normalization-enabled"
+                    display="flex"
+                    minH="12"
+                    alignItems="center"
+                    gap="4"
+                    rounded="lg"
+                    borderWidth="1px"
+                    borderColor="border.subtle"
+                    bg="surface.default"
+                    px="4"
+                    py="3"
+                    fontSize="sm"
+                    fontWeight="semibold"
+                    color="text.default"
                   >
-                    <Input
-                      aria-label="Ollama host"
-                      value={aiSettings.ollamaHost}
-                      disabled={!aiSettings.enabled}
-                      onChange={(event) => {
+                    <Switch
+                      id="ai-normalization-enabled"
+                      checked={aiSettings.enabled}
+                      onCheckedChange={(checked) => {
                         setAiStatusMessage(null);
                         setAiSettingsDraft((current) => ({
                           ...(current ?? aiSettings),
-                          ollamaHost: event.target.value,
+                          enabled: checked,
                         }));
                       }}
-                      className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
-                      placeholder="http://127.0.0.1:11434"
                     />
-                  </SettingField>
-                </div>
+                    <Text as="span">Enable AI OCR normalization</Text>
+                  </chakra.label>
+                </SettingField>
+              </Stack>
 
-                <div className="space-y-3">
-                  <SettingField
-                    label="Model"
-                    tooltip="The Ollama model used to rewrite noisy OCR into clean identity-document Markdown. A stronger model may do better with IDs, passports, visas, and messy scans."
-                    icon={<Bot className="size-6" />}
-                  >
-                    {modelOptions.length > 0 ? (
-                      <Select
-                        value={aiSettings.model}
-                        disabled={!aiSettings.enabled}
-                        onValueChange={(value) => {
-                          setAiStatusMessage(null);
-                          setAiSettingsDraft((current) => ({
-                            ...(current ?? aiSettings),
-                            model: value,
-                          }));
-                        }}
-                      >
-                        <SelectTrigger aria-label="Ollama model" className="h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40">
-                          <SelectValue placeholder="Select an Ollama model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {modelOptions.map(model => (
-                            <SelectItem key={model.name} value={model.name}>
-                              {model.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
+              <Stack gap="3">
+                <SettingField
+                  label="Ollama host"
+                  tooltip="The HTTP address Arkivra uses to talk to Ollama. Example: use http://127.0.0.1:11434 for a local install, or http://192.168.1.50:11434 if Ollama runs on another machine in your LAN."
+                  icon={<Globe size={24} />}
+                >
+                  <Input
+                    aria-label="Ollama host"
+                    value={aiSettings.ollamaHost}
+                    disabled={!aiSettings.enabled}
+                    onChange={(event) => {
+                      setAiStatusMessage(null);
+                      setAiSettingsDraft((current) => ({
+                        ...(current ?? aiSettings),
+                        ollamaHost: event.target.value,
+                      }));
+                    }}
+                    className={vaultInputClassName}
+                    h="12"
+                    rounded="lg"
+                    pl="14"
+                    fontSize="sm"
+                    placeholder="http://127.0.0.1:11434"
+                  />
+                </SettingField>
+              </Stack>
+
+              <Stack gap="3">
+                <SettingField
+                  label="Model"
+                  tooltip="The Ollama model used to rewrite noisy OCR into clean identity-document Markdown. A stronger model may do better with IDs, passports, visas, and messy scans."
+                  icon={<Bot size={24} />}
+                >
+                  {modelOptions.length > 0 ? (
+                    <Select
+                      value={aiSettings.model}
+                      disabled={!aiSettings.enabled}
+                      onValueChange={(value) => {
+                        setAiStatusMessage(null);
+                        setAiSettingsDraft((current) => ({
+                          ...(current ?? aiSettings),
+                          model: value,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger
                         aria-label="Ollama model"
-                        value={aiSettings.model}
-                        disabled={!aiSettings.enabled}
-                        onChange={(event) => {
+                        className={vaultInputClassName}
+                        h="12"
+                        rounded="lg"
+                        pl="14"
+                        fontSize="sm"
+                      >
+                        <SelectValue placeholder="Select an Ollama model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modelOptions.map(model => (
+                          <SelectItem key={model.name} value={model.name}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      aria-label="Ollama model"
+                      value={aiSettings.model}
+                      disabled={!aiSettings.enabled}
+                      onChange={(event) => {
                         setAiStatusMessage(null);
                         setAiSettingsDraft((current) => ({
                           ...(current ?? aiSettings),
                           model: event.target.value,
                         }));
                       }}
-                        className={`${vaultInputClassName} h-16 rounded-[20px] pl-14 text-[0.96rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] disabled:bg-secondary/40`}
-                        placeholder="gemma4:e4b"
-                      />
-                    )}
-                  </SettingField>
-                </div>
+                      className={vaultInputClassName}
+                      h="12"
+                      rounded="lg"
+                      pl="14"
+                      fontSize="sm"
+                      placeholder="gemma4:e4b"
+                    />
+                  )}
+                </SettingField>
+              </Stack>
+            </Grid>
+          </Stack>
 
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-5 border-t border-border/70 px-8 py-7 lg:flex-row lg:items-center lg:justify-between">
-              <SaveButton
-                type="button"
-                className="px-7"
-                disabled={updateAiSettingsMutation.isPending || aiSettingsQuery.isLoading}
-                onClick={() => updateAiSettingsMutation.mutate(aiSettings)}
-              >
-                {updateAiSettingsMutation.isPending ? 'Saving...' : 'Save changes'}
-              </SaveButton>
-              <p className="text-[0.94rem] text-muted-foreground">Changes are applied to new ingestion jobs.</p>
-            </div>
+          <Flex
+            direction={{ base: 'column', lg: 'row' }}
+            align={{ base: 'stretch', lg: 'center' }}
+            justify={{ base: 'flex-start', lg: 'space-between' }}
+            gap="5"
+            borderTopWidth="1px"
+            borderColor="border.subtle"
+            px="8"
+            py="7"
+          >
+            <SaveButton
+              type="button"
+              px="7"
+              disabled={updateAiSettingsMutation.isPending || aiSettingsQuery.isLoading}
+              onClick={() => updateAiSettingsMutation.mutate(aiSettings)}
+            >
+              {updateAiSettingsMutation.isPending ? 'Saving...' : 'Save changes'}
+            </SaveButton>
+            <Text fontSize="sm" color="text.muted">Changes are applied to new ingestion jobs.</Text>
+          </Flex>
         </SurfacePanel>
 
-        <SurfacePanel className="space-y-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="vault-label">Backups</p>
-                <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Archive control</h2>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Create a new archive or restore one already stored on the server.
-                </p>
-              </div>
-              <CreateButton
-                type="button"
-                disabled={createBackupMutation.isPending}
-                onClick={() => createBackupMutation.mutate()}
-              >
-                {createBackupMutation.isPending ? 'Queueing...' : 'Create backup'}
-              </CreateButton>
-            </div>
-            {backupsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading backups...</p> : null}
-            {!backupsQuery.isLoading && (backupsQuery.data?.backups.length ?? 0) === 0 ? (
-              <div className="vault-empty">No backups available yet.</div>
-            ) : null}
+        <SurfacePanel display="flex" flexDirection="column" gap="5">
+          <Flex
+            direction={{ base: 'column', sm: 'row' }}
+            align={{ base: 'stretch', sm: 'flex-end' }}
+            justify={{ base: 'flex-start', sm: 'space-between' }}
+            gap="3"
+          >
+            <Box>
+              <Text textStyle="label">Backups</Text>
+              <Text fontSize="lg" fontWeight="semibold" color="text.default" mt="2">
+                Archive control
+              </Text>
+              <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
+                Create a new archive or restore one already stored on the server.
+              </Text>
+            </Box>
+            <CreateButton
+              type="button"
+              disabled={createBackupMutation.isPending}
+              onClick={() => createBackupMutation.mutate()}
+            >
+              {createBackupMutation.isPending ? 'Queueing...' : 'Create backup'}
+            </CreateButton>
+          </Flex>
+          {backupsQuery.isLoading ? <Text fontSize="sm" color="text.muted">Loading backups...</Text> : null}
+          {!backupsQuery.isLoading && (backupsQuery.data?.backups.length ?? 0) === 0 ? (
+            <Box
+              layerStyle="ark.empty"
+              fontSize="sm"
+              color="text.muted"
+            >
+              No backups available yet.
+            </Box>
+          ) : null}
 
-            <div className="space-y-4">
-              {(backupsQuery.data?.backups ?? []).map(backup => (
-                <article key={backup.id} className="rounded-[24px] bg-secondary/56 p-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{backup.fileName}</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        Created {formatDate(backup.createdAt)} • {formatBytes(backup.size)}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <a href={getBackupDownloadUrl({ backupId: backup.id })} className="vault-link">
-                        Download
-                      </a>
-                      <RestoreArchiveButton
-                        type="button"
-                        variant="outline"
-                        disabled={restoreBackupMutation.isPending}
-                        onClick={() => restoreBackupMutation.mutate({ backupId: backup.id })}
-                      >
-                        {restoreBackupMutation.isPending ? 'Queueing...' : 'Restore'}
-                      </RestoreArchiveButton>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+          <Stack gap="4">
+            {(backupsQuery.data?.backups ?? []).map(backup => (
+              <Box key={backup.id} rounded="lg" bg="surface.subtle" p="5">
+                <Flex
+                  direction={{ base: 'column', lg: 'row' }}
+                  align={{ base: 'stretch', lg: 'center' }}
+                  justify={{ base: 'flex-start', lg: 'space-between' }}
+                  gap="4"
+                >
+                  <Box>
+                    <Text fontSize="base" fontWeight="semibold" color="text.default">{backup.fileName}</Text>
+                    <Text mt="2" fontSize="sm" color="text.muted">
+                      Created {formatDate(backup.createdAt)} • {formatBytes(backup.size)}
+                    </Text>
+                  </Box>
+                  <Flex gap="3" flexWrap="wrap">
+                    <chakra.a
+                      href={getBackupDownloadUrl({ backupId: backup.id })}
+                      color="accent.default"
+                      fontWeight="semibold"
+                      fontSize="sm"
+                    >
+                      Download
+                    </chakra.a>
+                    <RestoreArchiveButton
+                      type="button"
+                      variant="outline"
+                      disabled={restoreBackupMutation.isPending}
+                      onClick={() => restoreBackupMutation.mutate({ backupId: backup.id })}
+                    >
+                      {restoreBackupMutation.isPending ? 'Queueing...' : 'Restore'}
+                    </RestoreArchiveButton>
+                  </Flex>
+                </Flex>
+              </Box>
+            ))}
+          </Stack>
         </SurfacePanel>
 
-        <SurfacePanel className="space-y-5">
-            <div>
-              <p className="vault-label">Users</p>
-              <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Access control</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Suspend accounts and manage global admin privileges.
-              </p>
-            </div>
+        <SurfacePanel display="flex" flexDirection="column" gap="5">
+          <Box>
+            <Text textStyle="label">Users</Text>
+            <Text fontSize="lg" fontWeight="semibold" color="text.default" mt="2">
+              Access control
+            </Text>
+            <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
+              Suspend accounts and manage global admin privileges.
+            </Text>
+          </Box>
 
-            {usersQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading users...</p> : null}
+          {usersQuery.isLoading ? <Text fontSize="sm" color="text.muted">Loading users...</Text> : null}
 
-            <div className="space-y-4">
-              {(usersQuery.data?.users ?? []).map(user => (
-                <article key={user.id} className="rounded-[24px] bg-secondary/56 p-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{user.name ?? 'Unnamed user'}</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {user.email} • {user.isGlobalAdmin ? 'global admin' : user.canCreateVault ? 'vault creator' : 'user'} • {user.disabledAt ? 'disabled' : 'active'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        2FA {user.twoFactorEnabled ? 'enabled' : 'not enabled'} • created {formatDate(user.createdAt)}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
+          <Stack gap="4">
+            {(usersQuery.data?.users ?? []).map(user => (
+              <Box key={user.id} rounded="lg" bg="surface.subtle" p="5">
+                <Flex
+                  direction={{ base: 'column', lg: 'row' }}
+                  align={{ base: 'stretch', lg: 'center' }}
+                  justify={{ base: 'flex-start', lg: 'space-between' }}
+                  gap="4"
+                >
+                  <Box>
+                    <Text fontSize="base" fontWeight="semibold" color="text.default">{user.name ?? 'Unnamed user'}</Text>
+                    <Text mt="2" fontSize="sm" color="text.muted">
+                      {user.email} • {user.isGlobalAdmin ? 'global admin' : user.canCreateVault ? 'vault creator' : 'user'} • {user.disabledAt ? 'disabled' : 'active'}
+                    </Text>
+                    <Text fontSize="sm" color="text.muted">
+                      2FA {user.twoFactorEnabled ? 'enabled' : 'not enabled'} • created {formatDate(user.createdAt)}
+                    </Text>
+                  </Box>
+                  <Flex gap="3" flexWrap="wrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={updateUserMutation.isPending}
+                      onClick={() => updateUserMutation.mutate({ userId: user.id, disabled: user.disabledAt === null })}
+                    >
+                      {user.disabledAt ? 'Re-enable' : 'Disable'}
+                    </Button>
+                    {user.isGlobalAdmin ? (
                       <Button
                         type="button"
                         variant="outline"
-                        disabled={updateUserMutation.isPending}
-                        onClick={() => updateUserMutation.mutate({ userId: user.id, disabled: user.disabledAt === null })}
+                        disabled={revokeAdminMutation.isPending}
+                        onClick={() => revokeAdminMutation.mutate({ userId: user.id })}
                       >
-                        {user.disabledAt ? 'Re-enable' : 'Disable'}
+                        Revoke admin
                       </Button>
-                      {user.isGlobalAdmin ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={revokeAdminMutation.isPending}
-                          onClick={() => revokeAdminMutation.mutate({ userId: user.id })}
-                        >
-                          Revoke admin
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={grantAdminMutation.isPending}
-                          onClick={() => grantAdminMutation.mutate({ userId: user.id })}
-                        >
-                          Grant admin
-                        </Button>
-                      )}
-                      {user.canCreateVault && !user.isGlobalAdmin ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={revokeVaultCreatorMutation.isPending}
-                          onClick={() => revokeVaultCreatorMutation.mutate({ userId: user.id })}
-                        >
-                          Revoke vault creation
-                        </Button>
-                      ) : null}
-                      {!user.canCreateVault ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={grantVaultCreatorMutation.isPending}
-                          onClick={() => grantVaultCreatorMutation.mutate({ userId: user.id })}
-                        >
-                          Grant vault creation
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={grantAdminMutation.isPending}
+                        onClick={() => grantAdminMutation.mutate({ userId: user.id })}
+                      >
+                        Grant admin
+                      </Button>
+                    )}
+                    {user.canCreateVault && !user.isGlobalAdmin ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={revokeVaultCreatorMutation.isPending}
+                        onClick={() => revokeVaultCreatorMutation.mutate({ userId: user.id })}
+                      >
+                        Revoke vault creation
+                      </Button>
+                    ) : null}
+                    {!user.canCreateVault ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={grantVaultCreatorMutation.isPending}
+                        onClick={() => grantVaultCreatorMutation.mutate({ userId: user.id })}
+                      >
+                        Grant vault creation
+                      </Button>
+                    ) : null}
+                  </Flex>
+                </Flex>
+              </Box>
+            ))}
+          </Stack>
         </SurfacePanel>
 
-        <SurfacePanel variant="soft" className="space-y-5">
-          <div>
-            <p className="vault-label">Vault Oversight</p>
-            <h2 className="font-display mt-2 text-3xl font-bold tracking-[-0.04em] text-foreground">Ownership ledger</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
+          <Box>
+            <Text textStyle="label">Vault Oversight</Text>
+            <Text fontSize="lg" fontWeight="semibold" color="text.default" mt="2">
+              Ownership ledger
+            </Text>
+            <Text mt="2" fontSize="sm" lineHeight="6" color="text.muted">
               Inspect active vault ownership across the installation.
-            </p>
-          </div>
+            </Text>
+          </Box>
 
-          {vaultsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading vaults...</p> : null}
+          {vaultsQuery.isLoading ? <Text fontSize="sm" color="text.muted">Loading vaults...</Text> : null}
           {!vaultsQuery.isLoading && (vaultsQuery.data?.vaults.length ?? 0) === 0 ? (
-            <div className="vault-empty">No active vaults found.</div>
+            <Box layerStyle="ark.empty">
+              No active vaults found.
+            </Box>
           ) : null}
 
-          <div className="space-y-4">
+          <Stack gap="4">
             {(vaultsQuery.data?.vaults ?? []).map(vault => (
-              <article key={vault.id} className="rounded-[24px] bg-card/85 p-5">
-                <h3 className="font-display text-2xl font-bold tracking-[-0.04em] text-foreground">{vault.name}</h3>
-                <p className="mt-2 text-xs text-muted-foreground">{vault.id}</p>
-                <p className="mt-4 text-sm text-muted-foreground">
+              <Box key={vault.id} rounded="lg" bg="surface.raised" p="5">
+                <Text fontSize="base" fontWeight="semibold" color="text.default">{vault.name}</Text>
+                <Text mt="2" fontSize="xs" color="text.muted">{vault.id}</Text>
+                <Text mt="4" fontSize="sm" color="text.muted">
                   Owner: {vault.ownerName ?? 'Unknown'}{vault.ownerEmail ? ` (${vault.ownerEmail})` : ''}
-                </p>
-                <p className="text-sm text-muted-foreground">Created {formatDate(vault.createdAt)}</p>
-              </article>
+                </Text>
+                <Text fontSize="sm" color="text.muted">Created {formatDate(vault.createdAt)}</Text>
+              </Box>
             ))}
-          </div>
+          </Stack>
         </SurfacePanel>
-      </div>
-    </section>
+      </Stack>
+    </Stack>
   );
 }

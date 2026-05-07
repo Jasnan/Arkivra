@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Download, File, FolderOpen, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Box, Flex, Grid, Text } from '@chakra-ui/react';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
   DropdownMenu,
@@ -13,15 +14,21 @@ import type { SearchResultTag } from '@/features/search/search.types';
 
 function TagPill({ name, color }: { name: string; color: string | null }) {
   return (
-    <span
-      className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium tracking-normal"
-      style={{
-        backgroundColor: color ? `${color}18` : undefined,
-        color: color ?? undefined,
-      }}
+    <Box
+      as="span"
+      display="inline-flex"
+      alignItems="center"
+      rounded="md"
+      px="2.5"
+      py="1"
+      fontSize="xs"
+      fontWeight="medium"
+      letterSpacing="normal"
+      bg={color ? `${color}18` : undefined}
+      color={color ?? undefined}
     >
       {name}
-    </span>
+    </Box>
   );
 }
 
@@ -55,50 +62,52 @@ function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: stri
   return 'FILE';
 }
 
-function getDocumentTypeClasses(label: string) {
-  switch (label) {
-    case 'PDF':
-      return 'bg-rose-50 text-rose-700 ring-rose-200';
-    case 'TXT':
-      return 'bg-sky-50 text-sky-700 ring-sky-200';
-    case 'PNG':
-    case 'JPG':
-    case 'JPEG':
-    case 'WEBP':
-    case 'GIF':
-    case 'IMG':
-      return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-    case 'DOC':
-    case 'DOCX':
-      return 'bg-indigo-50 text-indigo-700 ring-indigo-200';
-    case 'CSV':
-    case 'XLS':
-    case 'XLSX':
-      return 'bg-amber-50 text-amber-700 ring-amber-200';
-    default:
-      return 'bg-secondary text-primary ring-border/60';
-  }
+const typeTokens: Record<string, { bg: string; color: string }> = {
+  PDF: { bg: 'status.dangerSubtle', color: 'document.pdf' },
+  TXT: { bg: 'status.infoSubtle', color: 'document.text' },
+  IMG: { bg: 'status.successSubtle', color: 'document.image' },
+  DOC: { bg: 'accent.subtle', color: 'document.office' },
+  XLS: { bg: 'status.warningSubtle', color: 'document.sheet' },
+};
+
+function getDocumentTypeTokens(label: string) {
+  const mappedKey =
+    ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(label) ? 'IMG'
+    : ['CSV', 'XLS', 'XLSX'].includes(label) ? 'XLS'
+    : ['DOC', 'DOCX'].includes(label) ? 'DOC'
+    : label;
+  return typeTokens[mappedKey] ?? { bg: 'surface.subtle', color: 'document.generic' };
 }
 
 function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
   const label = getDocumentTypeLabel({ name, mimeType });
+  const tokens = getDocumentTypeTokens(label);
 
   return (
-    <div
-      className={`flex size-10 shrink-0 items-center justify-center rounded-lg ring-1 ${getDocumentTypeClasses(label)}`}
+    <Flex
+      boxSize="10"
+      shrink={0}
+      align="center"
+      justify="center"
+      rounded="lg"
+      bg={tokens.bg}
+      color={tokens.color}
       aria-hidden="true"
+      {...{ outline: '1px solid', outlineColor: 'border.subtle' } as any}
     >
-      <div className="flex flex-col items-center leading-none">
-        <File className="mb-0.5 size-3.5" />
-        <span className="text-[0.6rem] font-bold tracking-normal">{label}</span>
-      </div>
-    </div>
+      <Flex direction="column" align="center" lineHeight="none">
+        <File size={14} style={{ marginBottom: '2px' }} />
+        <Text as="span" fontSize="0.6rem" fontWeight="bold" letterSpacing="normal">
+          {label}
+        </Text>
+      </Flex>
+    </Flex>
   );
 }
 
 function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
   if (tags.length === 0) {
-    return <span className="text-sm text-muted-foreground">—</span>;
+    return <Text as="span" fontSize="sm" color="text.muted">&mdash;</Text>;
   }
 
   const visibleTags = tags.slice(0, 2);
@@ -110,9 +119,20 @@ function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
         <TagPill key={tag.id} name={tag.name} color={tag.color} />
       ))}
       {remainingCount > 0 ? (
-        <span className="inline-flex items-center rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground">
+        <Box
+          as="span"
+          display="inline-flex"
+          alignItems="center"
+          rounded="md"
+          bg="surface.subtle"
+          px="2.5"
+          py="1"
+          fontSize="xs"
+          fontWeight="medium"
+          color="text.muted"
+        >
           +{remainingCount}
-        </span>
+        </Box>
       ) : null}
     </>
   );
@@ -136,7 +156,7 @@ function DocumentActionsMenu({
       <DropdownMenuTrigger asChild>
         <ActionMenuTriggerButton label={`Open actions for ${documentName}`} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" minW="56">
         <DropdownMenuItem asChild>
           <Link to={documentLink}>
             <ActionMenuItemIcon icon={FolderOpen} />
@@ -162,13 +182,23 @@ function DocumentActionsMenu({
 
 export function DocumentLibraryHeader() {
   return (
-    <div className="hidden grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] gap-5 border-b border-border/70 px-5 py-4 text-sm text-muted-foreground md:grid sm:px-6">
-      <span>Name</span>
-      <span>Uploaded</span>
-      <span>Size</span>
-      <span>Tags</span>
-      <span className="text-right">Actions</span>
-    </div>
+    <Grid
+      templateColumns="minmax(0,1.9fr) 160px 120px 180px 76px"
+      gap="5"
+      borderBottomWidth="1px"
+      borderColor="border.subtle"
+      px={{ base: '5', sm: '6' }}
+      py="4"
+      fontSize="sm"
+      color="text.muted"
+      display={{ base: 'none', md: 'grid' }}
+    >
+      <Text>Name</Text>
+      <Text>Uploaded</Text>
+      <Text>Size</Text>
+      <Text>Tags</Text>
+      <Text textAlign="right">Actions</Text>
+    </Grid>
   );
 }
 
@@ -205,43 +235,77 @@ export function DocumentLibraryRow({
   const downloadHref = `/api/vaults/${vaultId}/documents/${documentId}/download`;
 
   return (
-    <article className="grid gap-5 px-5 py-5 md:grid-cols-[minmax(0,1.9fr)_160px_120px_180px_76px] md:items-center sm:px-6">
-      <div className="flex items-start gap-4">
+    <Grid
+      templateColumns={{ base: '1fr', md: 'minmax(0,1.9fr) 160px 120px 180px 76px' }}
+      gap="5"
+      px={{ base: '5', sm: '6' }}
+      py="5"
+      alignItems={{ md: 'center' }}
+    >
+      <Flex align="flex-start" gap="4">
         <FileTypeIcon name={name} mimeType={mimeType} />
-        <div className="min-w-0">
+        <Box minW="0">
           <Link
             to={detailLink}
-            className="block truncate text-base font-semibold text-foreground transition hover:text-primary"
+            style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
           >
-            {name}
+            <Text
+              truncate
+              fontSize="base"
+              fontWeight="semibold"
+              color="text.default"
+              transition="colors"
+              _hover={{ color: 'accent.default' }}
+            >
+              {name}
+            </Text>
           </Link>
           {originalName && originalName !== name ? (
-            <p className="mt-1 text-sm text-muted-foreground">{originalName}</p>
+            <Text mt="1" fontSize="sm" color="text.muted">{originalName}</Text>
           ) : null}
           {snippet ? (
-            <div className="mt-3 text-sm leading-6 text-muted-foreground">{snippet}</div>
+            <Text mt="3" fontSize="sm" lineHeight="6" color="text.muted">{snippet}</Text>
           ) : null}
-        </div>
-      </div>
+        </Box>
+      </Flex>
 
-      <div className="text-sm text-muted-foreground">
-        <p className="vault-label md:hidden">Uploaded</p>
-        <p className="mt-2 text-sm text-foreground md:mt-0">{formatDate(createdAt)}</p>
-      </div>
+      <Box fontSize="sm" color="text.muted">
+        <Text
+          textStyle="label"
+          display={{ md: 'none' }}
+        >
+          Uploaded
+        </Text>
+        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="text.default">
+          {formatDate(createdAt)}
+        </Text>
+      </Box>
 
-      <div className="text-sm text-muted-foreground">
-        <p className="vault-label md:hidden">Size</p>
-        <p className="mt-2 text-sm text-foreground md:mt-0">{formatBytes(originalSize)}</p>
-      </div>
+      <Box fontSize="sm" color="text.muted">
+        <Text
+          textStyle="label"
+          display={{ md: 'none' }}
+        >
+          Size
+        </Text>
+        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="text.default">
+          {formatBytes(originalSize)}
+        </Text>
+      </Box>
 
-      <div className="text-sm text-muted-foreground">
-        <p className="vault-label md:hidden">Tags</p>
-        <div className="mt-2 flex flex-wrap gap-2 md:mt-0">
+      <Box fontSize="sm" color="text.muted">
+        <Text
+          textStyle="label"
+          display={{ md: 'none' }}
+        >
+          Tags
+        </Text>
+        <Flex mt={{ base: '2', md: '0' }} flexWrap="wrap" gap="2">
           <VisibleTags tags={tags} />
-        </div>
-      </div>
+        </Flex>
+      </Box>
 
-      <div className="flex justify-start md:justify-end">
+      <Flex justify={{ base: 'flex-start', md: 'flex-end' }}>
         <DocumentActionsMenu
           documentName={name}
           documentLink={detailLink}
@@ -249,7 +313,7 @@ export function DocumentLibraryRow({
           onDelete={onDelete}
           deleteDisabled={deleteDisabled}
         />
-      </div>
-    </article>
+      </Flex>
+    </Grid>
   );
 }

@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { Box } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -41,55 +42,35 @@ export function RegisterPage() {
   return (
     <AuthLayout>
       <AuthCard title="Create account" subtitle="Start organizing your documents in Arkivra.">
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
           <Field>
             <FieldLabel htmlFor="name">Name</FieldLabel>
-            <Input
-              id="name"
-              type="text"
-              required
-              autoComplete="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
+            <Input id="name" type="text" required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="email">Email</FieldLabel>
-            <Input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
+            <Input id="email" type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
+            <Input id="password" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />
           </Field>
 
           {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" w="100%" disabled={isSubmitting}>
             {isSubmitting ? 'Creating account…' : 'Create account'}
           </Button>
         </form>
 
-        <p className="text-sm text-muted-foreground">
+        <Box fontSize="sm" color="text.muted">
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-foreground hover:underline">Sign in</Link>
-        </p>
+          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-text-default)' }}>
+            Sign in
+          </Link>
+        </Box>
       </AuthCard>
     </AuthLayout>
   );

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Box, Flex, HStack, Text } from '@chakra-ui/react';
 import { Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   PageIntro,
   SurfacePanel,
-  vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -261,7 +261,7 @@ export function DocumentsPage() {
   }, [queryClient, vaultId]);
 
   if (!vaultId) {
-    return <p className="text-sm text-destructive">Invalid vault id.</p>;
+    return <Text fontSize="sm" color="status.danger">Invalid vault id.</Text>;
   }
 
   function clearFilters() {
@@ -273,25 +273,36 @@ export function DocumentsPage() {
   }
 
   return (
-    <section className="space-y-6 pb-8">
+    <Flex as="section" direction="column" gap="6" pb="8">
       <PageIntro
         title="Documents"
         actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <Link to={`/vaults/${vaultId}/documents/trash`} className="vault-link">
+          <HStack flexWrap="wrap" gap="3">
+            <Link to={`/vaults/${vaultId}/documents/trash`} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
               Deleted documents
             </Link>
-            <Link to={`/vaults/${vaultId}/tags`} className="vault-link">
+            <Link to={`/vaults/${vaultId}/tags`} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
               Tags
             </Link>
-            <Link
-              to={`/transfers?vaultId=${vaultId}&locked=true`}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
-            >
-              <Upload className="size-4" />
-              Upload
+            <Link to={`/transfers?vaultId=${vaultId}&locked=true`} style={{ textDecoration: 'none' }}>
+              <Flex
+                display="inline-flex"
+                h="11"
+                align="center"
+                justify="center"
+                gap="2"
+                rounded="xl"
+                bg="accent.default"
+                px="5"
+                fontSize="sm"
+                fontWeight="semibold"
+                color="text.inverse"
+              >
+                <Upload size={16} />
+                Upload
+              </Flex>
             </Link>
-          </div>
+          </HStack>
         }
       />
       <DocumentSearchControls
@@ -320,13 +331,16 @@ export function DocumentsPage() {
         filtersTitle="Filters"
         filtersContent={
           <>
-            <div className="space-y-3">
-              <span
+            <Box gap="3">
+              <Text
+                as="span"
                 id="vault-documents-tag-filter-label"
-                className="text-sm font-semibold text-foreground"
+                fontSize="sm"
+                fontWeight="semibold"
+                color="text.default"
               >
                 Tag
-              </span>
+              </Text>
               <Select
                 value={selectedTagId || '__all__'}
                 onValueChange={(value) => {
@@ -337,7 +351,11 @@ export function DocumentsPage() {
                 <SelectTrigger
                   aria-label="Tag filter"
                   aria-labelledby="vault-documents-tag-filter-label"
-                  className={`${vaultInputClassName} h-10 rounded-lg border-border/70 bg-background`}
+                  h="10"
+                  rounded="lg"
+                  borderColor="border.subtle"
+                  bg="surface.default"
+                  mt="3"
                 >
                   <SelectValue placeholder="All tags" />
                 </SelectTrigger>
@@ -350,12 +368,12 @@ export function DocumentsPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Box>
 
-            <div className="rounded-lg border border-border/70 bg-background/80 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Date</h3>
-              </div>
+            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="surface.default" p="4">
+              <Text fontSize="sm" fontWeight="semibold" color="text.default">
+                Date
+              </Text>
 
               <DatePresetSelector
                 idPrefix="vault-documents-date-filter"
@@ -384,41 +402,40 @@ export function DocumentsPage() {
 
                   setPageIndex(0);
                 }}
-                inputClassName={vaultInputClassName}
               />
-            </div>
+            </Box>
           </>
         }
       />
 
-      <SurfacePanel className="space-y-4">
-        <p className="text-sm text-muted-foreground">
+      <SurfacePanel>
+        <Text fontSize="sm" color="text.muted">
           {activeResultCount} document{activeResultCount === 1 ? '' : 's'}
-        </p>
+        </Text>
       </SurfacePanel>
 
-      <SurfacePanel className="overflow-hidden p-0">
+      <SurfacePanel overflow="hidden" p="0">
         <DocumentLibraryHeader />
 
         {documentsQuery.isLoading ? (
-          <p className="px-6 py-6 text-sm text-muted-foreground">Loading documents...</p>
+          <Text px="6" py="6" fontSize="sm" color="text.muted">Loading documents...</Text>
         ) : null}
         {documentsQuery.isError ? (
-          <p className="px-6 py-6 text-sm text-destructive">Unable to load documents.</p>
+          <Text px="6" py="6" fontSize="sm" color="status.danger">Unable to load documents.</Text>
         ) : null}
         {searchQuery.isLoading ? (
-          <p className="px-6 py-6 text-sm text-muted-foreground">Searching documents...</p>
+          <Text px="6" py="6" fontSize="sm" color="text.muted">Searching documents...</Text>
         ) : null}
         {searchQuery.isError ? (
-          <p className="px-6 py-6 text-sm text-destructive">Unable to search this vault.</p>
+          <Text px="6" py="6" fontSize="sm" color="status.danger">Unable to search this vault.</Text>
         ) : null}
 
         {emptyState ? (
-          <div className="px-6 py-8 text-sm text-muted-foreground">
+          <Text px="6" py="8" fontSize="sm" color="text.muted">
             No documents match the current filters.
-          </div>
+          </Text>
         ) : (
-          <div className="divide-y divide-border/70">
+          <Flex direction="column" divideY="1px" divideColor="border.subtle">
             {usingSearch
               ? (searchQuery.data?.results ?? []).map((result) => (
                   <DocumentLibraryRow
@@ -434,14 +451,21 @@ export function DocumentsPage() {
                       result.bestChunk
                         ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
                             part.highlighted ? (
-                              <mark
+                              <Box
+                                as="mark"
                                 key={`${result.documentId}-${part.key}`}
-                                className="rounded-md bg-accent px-1.5 py-0.5 text-foreground"
+                                rounded="md"
+                                bg="accent.subtle"
+                                color="text.default"
+                                px="1.5"
+                                py="0.5"
                               >
                                 {part.text}
-                              </mark>
+                              </Box>
                             ) : (
-                              <span key={`${result.documentId}-${part.key}`}>{part.text}</span>
+                              <Text as="span" key={`${result.documentId}-${part.key}`}>
+                                {part.text}
+                              </Text>
                             ),
                           )
                         : undefined
@@ -471,15 +495,22 @@ export function DocumentsPage() {
                     }}
                   />
                 ))}
-          </div>
+          </Flex>
         )}
 
         <Separator />
-        <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
+        <Flex
+          direction={{ base: 'column', sm: 'row' }}
+          gap="3"
+          px="6"
+          py="4"
+          alignItems={{ sm: 'center' }}
+          justifyContent={{ sm: 'space-between' }}
+        >
+          <Text fontSize="sm" color="text.muted">
             Page {activePageIndex + 1} of {activePageCount}
-          </p>
-          <div className="flex gap-2">
+          </Text>
+          <Flex gap="2">
             <Button
               type="button"
               variant="outline"
@@ -496,9 +527,9 @@ export function DocumentsPage() {
             >
               Next
             </Button>
-          </div>
-        </div>
+          </Flex>
+        </Flex>
       </SurfacePanel>
-    </section>
+    </Flex>
   );
 }

@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
+import { Box, Flex, Grid, Heading, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderKanban, FolderOpen, Settings2, ShieldCheck, Vault } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +10,7 @@ import {
   SectionTitle,
   StatCard,
   SurfacePanel,
+  EmptyState,
 } from '@/components/layout/vault-ui';
 import { CreateButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
@@ -160,7 +162,7 @@ export function VaultsPage() {
   }
 
   return (
-    <section className="space-y-8 pb-8">
+    <Stack as="section" gap="8" pb="8">
       <PageIntro
         title="Vaults"
         description="Manage and access your vaults."
@@ -173,7 +175,7 @@ export function VaultsPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))' }}>
         <StatCard
           label="Vaults"
           value={vaults.length}
@@ -192,35 +194,49 @@ export function VaultsPage() {
           icon={<FolderKanban className="size-5" />}
           className="gap-3"
         />
-      </div>
+      </Grid>
 
-      <SurfacePanel className="space-y-5">
+      <SurfacePanel display="flex" flexDirection="column" gap="5">
         <SectionTitle
           eyebrow="Vaults"
           title={`${vaults.length} ${vaults.length === 1 ? 'vault' : 'vaults'}`}
         />
 
         {vaultsQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading vaults...</p>
+          <Text textStyle="metadata">Loading vaults...</Text>
         ) : null}
         {vaultsQuery.isError ? (
-          <p className="text-sm text-destructive">Unable to load vaults.</p>
+          <Text textStyle="metadata" color="status.danger">Unable to load vaults.</Text>
         ) : null}
 
         {!vaultsQuery.isLoading && vaults.length === 0 ? (
-          <div className="vault-empty">
-            {meQuery.data?.canCreateVault
-              ? 'No vaults yet. Create your first vault to start storing documents.'
-              : 'No vaults available yet. A global admin must grant vault creation before you can open a new workspace.'}
-          </div>
+          <EmptyState
+            description={
+              meQuery.data?.canCreateVault
+                ? 'No vaults yet. Create your first vault to start storing documents.'
+                : 'No vaults available yet. A global admin must grant vault creation before you can open a new workspace.'
+            }
+          />
         ) : (
-          <div className="grid gap-5 md:grid-cols-2">
+          <Grid gap="5" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}>
             {vaults.map((vault) => (
-              <article
+              <Box
                 key={vault.id}
+                as="article"
                 role="link"
                 tabIndex={0}
-                className="flex h-full cursor-pointer flex-col rounded-lg border border-border/70 bg-background p-4 transition-colors hover:bg-secondary/45 focus:outline-none focus:ring-2 focus:ring-primary/30 sm:p-5"
+                display="flex"
+                h="full"
+                cursor="pointer"
+                flexDirection="column"
+                rounded="lg"
+                borderWidth="1px"
+                borderColor="border.subtle"
+                bg="surface.default"
+                p={{ base: '4', sm: '5' }}
+                transition="background-color 0.15s ease, border-color 0.15s ease"
+                _hover={{ bg: 'surface.subtle' }}
+                _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
                 onClick={() => navigate(`/vaults/${vault.id}/documents`)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -229,18 +245,18 @@ export function VaultsPage() {
                   }
                 }}
               >
-                <div className="flex h-full min-h-40 gap-4">
-                  <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
+                <Flex h="full" minH="40" gap="4">
+                  <Flex mt="0.5" boxSize="10" shrink="0" align="center" justify="center" rounded="lg" bg="accent.subtle" color="accent.fg">
                     <FolderOpen className="size-[1.15rem]" />
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <div className="flex items-start justify-between gap-4">
-                      <h2 className="truncate text-base font-semibold leading-tight text-foreground">
+                  </Flex>
+                  <Stack minW="0" flex="1" gap="0">
+                    <Flex align="flex-start" justify="space-between" gap="4">
+                      <Heading as="h2" truncate fontSize="md" fontWeight="semibold" lineHeight="tight" color="text.default">
                         {vault.name}
-                      </h2>
-                      <div className="flex shrink-0 items-start gap-2">
+                      </Heading>
+                      <Flex shrink="0" align="flex-start" gap="2">
                         <span className="vault-chip shrink-0">{formatVaultRole(vault.role)}</span>
-                        <div
+                        <Box
                           className="relative"
                           onPointerDown={(event) => event.stopPropagation()}
                           onClick={(event) => event.stopPropagation()}
@@ -258,28 +274,28 @@ export function VaultsPage() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </div>
-                      </div>
-                    </div>
+                        </Box>
+                      </Flex>
+                    </Flex>
                     {getVaultDescription(vault.description) ? (
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      <Text mt="2" textStyle="body" color="text.muted">
                         {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
-                      </p>
+                      </Text>
                     ) : null}
-                    <div className="mt-auto pt-4">
-                      <p className="text-sm font-medium text-muted-foreground">
+                    <Box mt="auto" pt="4">
+                      <Text fontSize="sm" fontWeight="medium" color="text.muted">
                         {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} •{' '}
                         {formatBytes(vault.totalSize)}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      </Text>
+                      <Text mt="1" textStyle="metadata">
                         Created {formatVaultCreatedDate(vault.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </article>
+                      </Text>
+                    </Box>
+                  </Stack>
+                </Flex>
+              </Box>
             ))}
-          </div>
+          </Grid>
         )}
       </SurfacePanel>
 
@@ -356,6 +372,6 @@ export function VaultsPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </section>
+    </Stack>
   );
 }

@@ -1,32 +1,20 @@
 import * as React from 'react';
-import type { VariantProps } from 'class-variance-authority';
-import { cva } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { Alert as ChakraAlert } from '@chakra-ui/react';
 
-const alertVariants = cva('relative w-full rounded-lg border px-4 py-3 text-sm', {
-  variants: {
-    variant: {
-      default: 'bg-card text-card-foreground',
-      destructive:
-        'border-destructive/30 bg-destructive/10 text-destructive [&_p]:text-destructive/90',
-    },
-  },
-  defaultVariants: {
-    variant: 'default',
-  },
-});
+type AlertProps = React.ComponentProps<typeof ChakraAlert.Root> & {
+  ref?: React.Ref<HTMLDivElement>;
+  variant?: 'default' | 'destructive';
+};
 
-type AlertProps = React.HTMLAttributes<HTMLDivElement> &
-  VariantProps<typeof alertVariants> & {
-    ref?: React.Ref<HTMLDivElement>;
-  };
-
-export function Alert({ className, variant, ref, ...props }: AlertProps) {
+export function Alert({ colorPalette, variant = 'default', ref, ...props }: AlertProps) {
   return (
-    <div
+    <ChakraAlert.Root
       ref={ref}
       role="alert"
-      className={cn(alertVariants({ className, variant }), className)}
+      colorPalette={colorPalette ?? (variant === 'destructive' ? 'red' : 'blue')}
+      variant="subtle"
+      borderWidth="1px"
+      borderColor={variant === 'destructive' ? 'status.danger' : 'border.subtle'}
       {...props}
     />
   );
@@ -34,10 +22,10 @@ export function Alert({ className, variant, ref, ...props }: AlertProps) {
 
 Alert.displayName = 'Alert';
 
-export function AlertTitle({ className, ...props }: React.ComponentProps<'h5'>) {
-  return <h5 className={cn('mb-1 font-medium leading-none tracking-tight', className)} {...props} />;
+export function AlertTitle(props: React.ComponentProps<typeof ChakraAlert.Title>) {
+  return <ChakraAlert.Title {...props} />;
 }
 
-export function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('text-sm [&_p]:leading-relaxed', className)} {...props} />;
+export function AlertDescription(props: React.ComponentProps<typeof ChakraAlert.Description>) {
+  return <ChakraAlert.Description {...props} />;
 }

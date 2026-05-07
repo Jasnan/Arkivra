@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Box, Flex, HStack, Stack, Text, Input, IconButton } from '@chakra-ui/react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {
@@ -47,7 +48,6 @@ import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { authClient } from '@/lib/auth-client';
-import { cn } from '@/lib/utils';
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'arkivra.sidebarCollapsed';
 
@@ -299,11 +299,10 @@ export function AppShell({ children }: PropsWithChildren) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f4f2] text-foreground dark:bg-[#161616]">
+    <Box minH="100vh" bg="app.bg" color="text.default">
       <SidebarProvider
         open={!isSidebarCollapsed}
         onOpenChange={(open) => setIsSidebarCollapsed(!open)}
-        className="w-full"
         style={
           {
             '--sidebar-width': '17rem',
@@ -318,29 +317,45 @@ export function AppShell({ children }: PropsWithChildren) {
           footerNavItems={footerNavItems}
         />
 
-        <SidebarInset className="h-screen min-h-0 overflow-hidden bg-[#fcfcfb] dark:bg-[#1b1b1b]">
-          <header className="sticky top-0 z-40 flex h-(--header-height) shrink-0 items-center border-b border-border/60 bg-[#fcfcfb]/95 backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-[#fcfcfb]/85 dark:bg-[#1b1b1b]/95 dark:supports-[backdrop-filter]:bg-[#1b1b1b]/85">
-            <div className="flex w-full items-center gap-2 px-4 lg:px-6">
+        <SidebarInset h="100vh" minH="0" overflow="hidden">
+          <Flex
+            as="header"
+            position="sticky"
+            top="0"
+            zIndex={40}
+            h={isSidebarCollapsed ? '12' : 'var(--header-height)'}
+            shrink={0}
+            align="center"
+            borderBottomWidth="1px"
+            borderColor="border.subtle"
+            bg="surface.default"
+            backdropFilter="blur(4px)"
+            transition="width,height 200ms ease-linear"
+          >
+            <Flex w="full" align="center" gap="2" px={{ base: '4', lg: '6' }}>
               <SidebarTrigger className="-ml-1 hidden lg:inline-flex" />
               <Separator
                 orientation="vertical"
-                className="mx-2 hidden data-[orientation=vertical]:h-4 lg:block"
+                display={{ base: 'none', lg: 'block' }}
+                h="4"
               />
-              <Breadcrumb className="min-w-0">
-                <BreadcrumbList className="flex-nowrap">
+              <Breadcrumb minW="0">
+                <BreadcrumbList flexWrap="nowrap">
                   {breadcrumbs.map((item, index) => {
                     const isLast = index === breadcrumbs.length - 1;
 
                     return (
                       <Fragment key={`${item.to ?? item.label}-${item.label}`}>
                         {index > 0 ? <BreadcrumbSeparator /> : null}
-                        <BreadcrumbItem className="min-w-0">
+                        <BreadcrumbItem minW="0">
                           {item.to && !isLast ? (
                             <Link
                               to={item.to}
-                              className="truncate font-medium transition hover:text-foreground"
+                              style={{ color: 'inherit' }}
                             >
-                              {item.label}
+                              <Text truncate fontWeight="medium" transition="colors" _hover={{ color: 'text.default' }}>
+                                {item.label}
+                              </Text>
                             </Link>
                           ) : (
                             <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
@@ -352,21 +367,36 @@ export function AppShell({ children }: PropsWithChildren) {
                 </BreadcrumbList>
               </Breadcrumb>
 
-              <div className="ml-auto hidden w-full max-w-sm items-center gap-2 md:flex">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
+              <HStack ml="auto" display={{ base: 'none', md: 'flex' }} maxW="sm" w="full" gap="2">
+                <Box position="relative" flex="1">
+                  <Box
+                    position="absolute"
+                    left="3"
+                    top="50%"
+                    transform="translateY(-50%)"
+                    color="text.muted"
+                    pointerEvents="none"
+                  >
+                    <Search size={16} />
+                  </Box>
+                  <Input
                     aria-label="Global search"
                     placeholder="Quick search"
-                    className="vault-input h-9 rounded-md bg-muted/40 pl-9"
                     readOnly
                     onFocus={openQuickSearch}
                     onClick={openQuickSearch}
+                    h="9"
+                    rounded="md"
+                    bg="surface.subtle"
+                    pl="9"
+                    borderColor="border.subtle"
+                    color="text.default"
+                    _placeholder={{ color: 'text.muted' }}
                   />
-                </div>
-              </div>
+                </Box>
+              </HStack>
 
-              <div className="ml-auto flex items-center gap-2 md:ml-0">
+              <HStack ml="auto" gap="2" md={{ ml: '0' }}>
                 <ThemeToggle />
 
                 <DropdownMenu modal={false}>
@@ -374,31 +404,31 @@ export function AppShell({ children }: PropsWithChildren) {
                     <button
                       type="button"
                       aria-label="Open account menu"
-                      className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
+                      className="h-9 w-9 cursor-pointer flex items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
                     >
-                      <UserCircle2 className="size-[18px]" />
+                      <UserCircle2 size={18} />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel className="py-2">
-                      <p className="font-medium text-foreground">
+                  <DropdownMenuContent align="end" minW="56">
+                    <DropdownMenuLabel style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+                      <Text fontWeight="medium" color="text.default">
                         {sessionData?.user.email ?? 'Signed in'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                      </Text>
+                      <Text fontSize="xs" color="text.muted">
                         {meQuery.data?.isGlobalAdmin ? 'Admin' : 'Vault member'}
-                      </p>
+                      </Text>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <NavLink to="/settings">
-                        <Settings className="size-4 text-primary" />
+                        <Settings size={16} />
                         Account settings
                       </NavLink>
                     </DropdownMenuItem>
                     {meQuery.data?.isGlobalAdmin ? (
                       <DropdownMenuItem asChild>
                         <NavLink to="/admin">
-                          <ShieldCheck className="size-4 text-primary" />
+                          <ShieldCheck size={16} />
                           Admin
                         </NavLink>
                       </DropdownMenuItem>
@@ -408,93 +438,147 @@ export function AppShell({ children }: PropsWithChildren) {
                         void authClient.signOut();
                       }}
                     >
-                      <LogOut className="size-4 text-primary" />
+                      <LogOut size={16} />
                       Sign out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
-            </div>
-          </header>
+              </HStack>
+            </Flex>
+          </Flex>
 
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
-              <div
-                className={cn(
-                  'flex min-h-0 flex-1 flex-col gap-4 md:gap-6',
-                  isStandaloneChatRoute ? 'pt-4 md:pt-6' : 'py-4 md:py-6',
-                )}
+          <Flex minH="0" flex="1" direction="column">
+            <Flex className="@container/main" minH="0" flex="1" direction="column" gap="2">
+              <Stack
+                minH="0"
+                flex="1"
+                gap={{ base: '4', md: '6' }}
+                pt={isStandaloneChatRoute ? '4' : undefined}
+                py={isStandaloneChatRoute ? undefined : { base: '4', md: '6' }}
               >
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                  <div className="px-4 lg:px-6">
+                  <Box px={{ base: '4', lg: '6' }}>
                     <NavLink
                       to="/transfers"
-                      className="flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm transition hover:bg-muted/50 hover:text-foreground"
+                      style={{ color: 'inherit', textDecoration: 'none' }}
                     >
-                      <span className="flex items-center gap-3">
-                        <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
-                          <Upload className="size-4" />
-                        </span>
-                        Uploading {uploadState.activeCount + uploadState.queuedCount} file
-                        {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
-                      </span>
-                      <span className="text-xs uppercase tracking-[0.16em]">View queue</span>
+                      <Flex
+                        align="center"
+                        justify="space-between"
+                        rounded="xl"
+                        borderWidth="1px"
+                        borderColor="border.subtle"
+                        bg="surface.default"
+                        px="4"
+                        py="3"
+                        fontSize="sm"
+                        color="text.muted"
+                        shadow="sm"
+                        transition="colors"
+                        _hover={{ bg: 'surface.selected', color: 'text.default' }}
+                      >
+                        <HStack gap="3">
+                          <Flex
+                            boxSize="9"
+                            align="center"
+                            justify="center"
+                            rounded="lg"
+                            bg="surface.subtle"
+                            color="text.default"
+                          >
+                            <Upload size={16} />
+                          </Flex>
+                          <Text>
+                            Uploading {uploadState.activeCount + uploadState.queuedCount} file
+                            {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
+                          </Text>
+                        </HStack>
+                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em">
+                          View queue
+                        </Text>
+                      </Flex>
                     </NavLink>
-                  </div>
+                  </Box>
                 ) : null}
 
-                <div className="space-y-3 px-4 lg:hidden">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
+                <Stack gap="3" px="4" display={{ base: 'flex', lg: 'none' }}>
+                  <Box position="relative">
+                    <Box
+                      position="absolute"
+                      left="4"
+                      top="50%"
+                      transform="translateY(-50%)"
+                      color="text.muted"
+                      pointerEvents="none"
+                    >
+                      <Search size={16} />
+                    </Box>
+                    <Input
                       aria-label="Global search"
                       placeholder="Quick search"
-                      className="vault-input pl-11"
                       readOnly
                       onFocus={openQuickSearch}
                       onClick={openQuickSearch}
+                      pl="11"
+                      borderColor="border.subtle"
+                      color="text.default"
+                      _placeholder={{ color: 'text.muted' }}
                     />
-                  </div>
+                  </Box>
 
-                  <nav className="flex gap-2 overflow-x-auto">
+                  <HStack gap="2" overflowX="auto">
                     {[...primaryNavItems, ...footerNavItems].map((item) => {
-                      const Icon = item.icon;
+                      const IconComponent = item.icon;
 
                       return (
                         <NavLink
                           key={item.to}
                           to={item.to}
                           end={item.to === '/documents'}
-                          className={({ isActive }) =>
-                            cn(
-                              'inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 text-sm font-medium whitespace-nowrap transition',
-                              isActive
-                                ? 'bg-muted text-foreground'
-                                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                            )
-                          }
+                          style={{ color: 'inherit', textDecoration: 'none', flexShrink: 0 }}
                         >
-                          <span className="flex size-4 shrink-0 items-center justify-center">
-                            <Icon className="size-4" />
-                          </span>
-                          {item.label}
+                          {({ isActive }) => (
+                            <Flex
+                              align="center"
+                              gap="2"
+                              rounded="lg"
+                              borderWidth="1px"
+                              borderColor="border.subtle"
+                              bg={isActive ? 'surface.selected' : 'surface.default'}
+                              color={isActive ? 'text.default' : 'text.muted'}
+                              px="3"
+                              py="2"
+                              fontSize="sm"
+                              fontWeight="medium"
+                              whiteSpace="nowrap"
+                              transition="colors"
+                              _hover={{ bg: 'surface.selected', color: 'text.default' }}
+                            >
+                              <Flex boxSize="4" shrink="0" align="center" justify="center">
+                                <IconComponent size={16} />
+                              </Flex>
+                              <Text>{item.label}</Text>
+                            </Flex>
+                          )}
                         </NavLink>
                       );
                     })}
-                  </nav>
-                </div>
+                  </HStack>
+                </Stack>
 
-                <main
-                  className={cn(
-                    'flex min-h-0 flex-1 flex-col px-4 lg:px-6',
-                    isStandaloneChatRoute ? 'overflow-hidden pb-0' : 'overflow-auto pb-4 lg:pb-6',
-                  )}
+                <Box
+                  as="main"
+                  flex="1"
+                  minH="0"
+                  px={{ base: '4', lg: '6' }}
+                  overflow={isStandaloneChatRoute ? 'hidden' : 'auto'}
+                  pb={isStandaloneChatRoute ? '0' : { base: '4', lg: '6' }}
                 >
                   {children}
-                </main>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </Stack>
+            </Flex>
+          </Flex>
         </SidebarInset>
       </SidebarProvider>
       <Dialog
@@ -510,127 +594,188 @@ export function AppShell({ children }: PropsWithChildren) {
       >
         <DialogContent
           hideCloseButton
-          className="max-w-4xl overflow-hidden bg-background p-0"
+          maxW="4xl"
+          overflow="hidden"
+          bg="surface.default"
+          p="0"
           onOpenAutoFocus={(event) => {
             event.preventDefault();
           }}
         >
-          <div className="border-b border-border/70 p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <input
+          <Flex
+            borderBottomWidth="1px"
+            borderColor="border.subtle"
+            p={{ base: '4', sm: '5' }}
+          >
+            <HStack w="full" gap="3">
+              <Box position="relative" flex="1">
+                <Box
+                  position="absolute"
+                  left="4"
+                  top="50%"
+                  transform="translateY(-50%)"
+                  color="text.muted"
+                  pointerEvents="none"
+                >
+                  <Search size={16} />
+                </Box>
+                <Input
                   aria-label="Quick search modal"
                   value={searchValue}
                   onChange={(event) => setSearchValue(event.target.value)}
                   placeholder="Search across all accessible documents..."
-                  className="vault-input pl-11 pr-11"
+                  pl="11"
+                  pr="11"
+                  borderColor="border.subtle"
+                  color="text.default"
+                  _placeholder={{ color: 'text.muted' }}
                   autoFocus
                 />
                 {searchValue.length > 0 ? (
-                  <button
+                  <IconButton
                     type="button"
-                    className="absolute right-3 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
+                    aria-label="Clear search"
+                    position="absolute"
+                    right="3"
+                    top="50%"
+                    transform="translateY(-50%)"
+                    variant="ghost"
+                    h="8"
+                    w="8"
+                    rounded="lg"
+                    color="text.muted"
+                    _hover={{ bg: 'surface.selected', color: 'text.default' }}
                     onClick={() => setSearchValue('')}
                   >
-                    <X className="size-4" />
-                  </button>
+                    <X size={16} />
+                  </IconButton>
                 ) : null}
-              </div>
-              <button
+              </Box>
+              <IconButton
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:text-foreground"
+                aria-label="Close search"
+                variant="outline"
+                h="10"
+                w="10"
+                rounded="lg"
+                borderColor="border.subtle"
+                bg="surface.default"
+                color="text.muted"
+                _hover={{ color: 'text.default' }}
                 onClick={closeQuickSearch}
               >
-                <X className="size-4" />
-              </button>
-            </div>
-          </div>
+                <X size={16} />
+              </IconButton>
+            </HStack>
+          </Flex>
 
-          <div className="max-h-[70vh] overflow-y-auto p-4 sm:p-5">
+          <Box maxH="70vh" overflowY="auto" p={{ base: '4', sm: '5' }}>
             {deferredSearchValue.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-                <div className="flex size-12 items-center justify-center rounded-lg bg-secondary text-primary">
-                  <FileSearch className="size-5" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">Start typing to search</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+              <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
+                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="surface.subtle" color="accent.default">
+                  <FileSearch size={20} />
+                </Flex>
+                <Box>
+                  <Text fontWeight="medium" color="text.default">
+                    Start typing to search
+                  </Text>
+                  <Text mt="1" fontSize="sm" color="text.muted">
                     Results will appear here without leaving the current page.
-                  </p>
-                </div>
-              </div>
+                  </Text>
+                </Box>
+              </Stack>
             ) : quickSearchQuery.isLoading ? (
-              <p className="px-2 py-10 text-sm text-muted-foreground">Searching documents...</p>
+              <Text px="2" py="10" fontSize="sm" color="text.muted">
+                Searching documents...
+              </Text>
             ) : quickSearchQuery.isError ? (
-              <p className="px-2 py-10 text-sm text-destructive">Unable to run quick search.</p>
+              <Text px="2" py="10" fontSize="sm" color="status.danger">
+                Unable to run quick search.
+              </Text>
             ) : (quickSearchQuery.data?.results.length ?? 0) === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-                <div className="flex size-12 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-                  <SearchX className="size-5" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">No matching documents</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+              <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
+                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="surface.subtle" color="text.muted">
+                  <SearchX size={20} />
+                </Flex>
+                <Box>
+                  <Text fontWeight="medium" color="text.default">
+                    No matching documents
+                  </Text>
+                  <Text mt="1" fontSize="sm" color="text.muted">
                     Try a different name, phrase, or keyword.
-                  </p>
-                </div>
-              </div>
+                  </Text>
+                </Box>
+              </Stack>
             ) : (
-              <div className="space-y-2">
+              <Stack gap="2">
                 {(quickSearchQuery.data?.results ?? []).map((result) => (
-                  <button
+                  <Box
                     key={`${result.vaultId}-${result.documentId}`}
-                    type="button"
-                    className="w-full rounded-lg border border-border/70 bg-background px-4 py-4 text-left transition hover:bg-secondary/45"
+                    as="button"
+                    w="full"
+                    rounded="lg"
+                    borderWidth="1px"
+                    borderColor="border.subtle"
+                    bg="surface.default"
+                    px="4"
+                    py="4"
+                    textAlign="left"
+                    transition="colors"
+                    _hover={{ bg: 'surface.selected' }}
                     onClick={() => {
                       closeQuickSearch();
                       navigate(`/documents/${result.vaultId}/${result.documentId}`);
                     }}
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-base font-semibold text-foreground">
+                    <Flex direction={{ base: 'column', sm: 'row' }} gap="3" alignItems={{ base: 'stretch', sm: 'flex-start' }} justifyContent="space-between">
+                      <Box minW="0">
+                        <Flex align="center" gap="2">
+                          <Text truncate fontSize="base" fontWeight="semibold" color="text.default">
                             {result.name}
-                          </p>
-                          <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {result.vaultName} • {result.mimeType} • Updated{' '}
+                          </Text>
+                          <ArrowRight size={16} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+                        </Flex>
+                        <Text mt="1" fontSize="sm" color="text.muted">
+                          {result.vaultName} &bull; {result.mimeType} &bull; Updated{' '}
                           {formatDate(result.updatedAt)}
-                        </p>
+                        </Text>
                         {result.bestChunk ? (
-                          <p className="mt-2 text-sm text-muted-foreground">
+                          <Text mt="2" fontSize="sm" color="text.muted">
                             {tokenizeSnippet(result.bestChunk.snippet).map((part) =>
                               part.highlighted ? (
-                                <mark
+                                <Box
+                                  as="mark"
                                   key={`${result.documentId}-${part.key}`}
-                                  className="rounded bg-accent px-1 text-accent-foreground"
+                                  rounded="sm"
+                                  bg="accent.subtle"
+                                  color="accent.fg"
+                                  px="1"
                                 >
                                   {part.text}
-                                </mark>
+                                </Box>
                               ) : (
-                                <span key={`${result.documentId}-${part.key}`}>{part.text}</span>
+                                <Text as="span" key={`${result.documentId}-${part.key}`}>
+                                  {part.text}
+                                </Text>
                               ),
                             )}
-                          </p>
+                          </Text>
                         ) : null}
-                      </div>
-                      <span className="shrink-0 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      </Box>
+                      <Text flexShrink={0} fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="text.muted">
                         {result.bestChunk?.pageNumber !== null &&
                         result.bestChunk?.pageNumber !== undefined
                           ? `Page ${result.bestChunk.pageNumber}`
                           : 'Match'}
-                      </span>
-                    </div>
-                  </button>
+                      </Text>
+                    </Flex>
+                  </Box>
                 ))}
-              </div>
+              </Stack>
             )}
-          </div>
+          </Box>
         </DialogContent>
       </Dialog>
-    </div>
+    </Box>
   );
 }

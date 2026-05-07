@@ -1,7 +1,8 @@
+import { Box, Flex, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
+import { EmptyState, PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DeleteButton, RestoreButton } from '@/components/ui/action-buttons';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
@@ -102,7 +103,7 @@ export function DocumentTrashPage() {
   });
 
   return (
-    <section className="space-y-8 pb-8">
+    <Stack as="section" gap="8" pb="8">
       <PageIntro
         eyebrow="Lifecycle Control"
         title="Trash"
@@ -115,17 +116,17 @@ export function DocumentTrashPage() {
         </AlertDescription>
       </Alert>
 
-      <SurfacePanel className="space-y-5">
+      <SurfacePanel display="flex" flexDirection="column" gap="5">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading deleted documents...</p>
+          <Text textStyle="metadata">Loading deleted documents...</Text>
         ) : null}
-        {isError ? <p className="text-sm text-destructive">Unable to load trash.</p> : null}
+        {isError ? <Text textStyle="metadata" color="status.danger">Unable to load trash.</Text> : null}
 
         {!isLoading && deletedDocuments.length === 0 ? (
-          <div className="vault-empty">Trash is empty.</div>
+          <EmptyState description="Trash is empty." />
         ) : (
-          <div className="space-y-4">
-            <div className="flex justify-end">
+          <Stack gap="4">
+            <Flex justify="flex-end">
               <DeleteButton
                 type="button"
                 disabled={
@@ -139,34 +140,42 @@ export function DocumentTrashPage() {
               >
                 {deleteAllMutation.isPending ? 'Deleting...' : 'Delete all permanently'}
               </DeleteButton>
-            </div>
+            </Flex>
             {deletedDocuments.map((document) => (
-              <article key={document.id} className="rounded-lg bg-secondary/56 p-4 sm:p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
+              <Box key={document.id} as="article" layerStyle="ark.listRow" p={{ base: '4', sm: '5' }}>
+                <Flex direction={{ base: 'column', lg: 'row' }} align={{ lg: 'flex-start' }} justify={{ lg: 'space-between' }} gap="4">
+                  <Box>
                     <Link
                       to={`/vaults/${getResolvedVaultId(document, vaultId)}/documents/${document.id}`}
-                      className="font-display text-xl font-bold  text-foreground transition hover:text-primary sm:text-sm"
+                      style={{ color: 'inherit', textDecoration: 'none' }}
                     >
-                      {document.name}
+                      <Text
+                        fontSize={{ base: 'xl', sm: 'sm' }}
+                        fontWeight="bold"
+                        color="text.default"
+                        transition="colors"
+                        _hover={{ color: 'accent.default' }}
+                      >
+                        {document.name}
+                      </Text>
                     </Link>
-                    <p className="mt-2 text-sm text-muted-foreground">
+                    <Text mt="2" textStyle="metadata">
                       Deleted {formatDate(document.deletedAt)} •{' '}
                       {formatBytes(document.originalSize)}
-                    </p>
+                    </Text>
                     {getResolvedVaultName(document) ? (
-                      <p className="text-sm text-muted-foreground">
+                      <Text textStyle="metadata">
                         Vault {getResolvedVaultName(document)} • auto-delete{' '}
                         {getPermanentDeletionLabel(document.deletedAt, retentionDays)}
-                      </p>
+                      </Text>
                     ) : (
-                      <p className="text-sm text-muted-foreground">
+                      <Text textStyle="metadata">
                         Auto-delete {getPermanentDeletionLabel(document.deletedAt, retentionDays)}
-                      </p>
+                      </Text>
                     )}
-                  </div>
+                  </Box>
 
-                  <div className="flex flex-wrap gap-3">
+                  <Flex flexWrap="wrap" gap="3">
                     <RestoreButton
                       type="button"
                       disabled={
@@ -199,13 +208,13 @@ export function DocumentTrashPage() {
                     >
                       Delete permanently
                     </DeleteButton>
-                  </div>
-                </div>
-              </article>
+                  </Flex>
+                </Flex>
+              </Box>
             ))}
-          </div>
+          </Stack>
         )}
       </SurfacePanel>
-    </section>
+    </Stack>
   );
 }

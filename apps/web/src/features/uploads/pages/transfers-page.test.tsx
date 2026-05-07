@@ -52,7 +52,7 @@ vi.mock('@/features/vaults/vaults.queries', () => ({
   }),
 }));
 
-describe('TransfersPage', () => {
+describe('transfers page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

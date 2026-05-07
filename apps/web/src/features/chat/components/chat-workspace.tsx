@@ -1,59 +1,19 @@
-import type { ReactNode, RefObject } from 'react';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Box, Flex, Text } from '@chakra-ui/react';
 import {
   AlertCircle,
-  CalendarDays,
-  Bot,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
   Loader2,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
-  Scale,
-  ScanText,
-  Search,
-  Send,
   Sparkles,
-  Trash2,
-  User,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
-import { getDocumentPagePreviewUrl } from '@/features/documents/documents.api';
-import { cn } from '@/lib/utils';
 import { streamChatMessage } from '../chat.api';
-import type { ChatApiScope, ChatResponseMode } from '../chat.api';
+import type { ChatResponseMode } from '../chat.api';
 import {
   chatQueryKeys,
   useChatConversationQuery,
@@ -62,1512 +22,27 @@ import {
   useDeleteChatConversationMutation,
   useChatModelOptionsQuery,
 } from '../chat.queries';
+import type { ChatConversation, ChatIntent, ChatStreamStatus } from '../chat.types';
 import type {
-  ChatConversation,
-  ChatGenerationMetrics,
-  ChatIntent,
-  ChatMessage,
-  ChatStreamStatus,
-  Citation,
-} from '../chat.types';
-
-interface ChatWorkspaceProps {
-  scope: ChatApiScope;
-  documentName?: string;
-  inputPlaceholder: string;
-  heightClassName?: string;
-  showContextHeader?: boolean;
-}
-
-interface LocalMessage extends ChatMessage {
-  localOnly?: boolean;
-}
-
-type ChatMetricsByMessageId = Record<string, ChatGenerationMetrics | undefined>;
-
-type InlineToken =
-  | { type: 'text'; content: string }
-  | { type: 'strong'; content: string }
-  | { type: 'em'; content: string }
-  | { type: 'code'; content: string }
-  | { type: 'citation'; index: number };
-
-const INLINE_MARKDOWN_PATTERN = /(\[\d+\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
-const WINDOWS_NEWLINE_PATTERN = /\r\n/g;
-const ORDERED_LIST_PREFIX_PATTERN = /^\d+$/;
-const DOCUMENT_PROMPT_SUGGESTIONS = [
-  {
-    label: 'What is this document about?',
-    icon: Search,
-  },
-  {
-    label: 'Extract key information',
-    icon: FileText,
-  },
-  {
-    label: 'Summarize in simple terms',
-    icon: Sparkles,
-  },
-  {
-    label: 'Find important dates',
-    icon: CalendarDays,
-  },
-] as const;
-
-const VAULT_PROMPT_SUGGESTIONS = [
-  {
-    label: 'What is in this vault?',
-    icon: Search,
-  },
-  {
-    label: 'Summarize the main themes',
-    icon: FileText,
-  },
-  {
-    label: 'Extract key details',
-    icon: Sparkles,
-  },
-  {
-    label: 'Find important dates',
-    icon: CalendarDays,
-  },
-] as const;
-
-const GLOBAL_GUIDED_PROMPTS = [
-  {
-    id: 'search',
-    title: 'Find documents about a topic or keyword',
-    description: 'Search across your documents for relevant matches.',
-    example: 'e.g. "Find invoices for 2024"',
-    prefill: 'Find documents about: ',
-    icon: Search,
-  },
-  {
-    id: 'summarize',
-    title: 'Summarize documents about a topic',
-    description: 'Combine information from multiple documents into a clear summary.',
-    example: 'e.g. "Summarise all my tax filings"',
-    prefill: 'Summarise documents about: ',
-    icon: FileText,
-  },
-  {
-    id: 'compare',
-    title: 'Compare documents or versions',
-    description: 'Compare two documents or time-based versions.',
-    example: 'e.g. "Compare my 2023 tax filing with 2024"',
-    prefill: 'Compare: ',
-    icon: Scale,
-  },
-  {
-    id: 'extract',
-    title: 'Extract key information from documents',
-    description: 'Find names, organizations, IDs, and important details.',
-    example: 'e.g. "Extract all tax IDs from my documents"',
-    prefill: 'Extract key information about: ',
-    icon: ScanText,
-  },
-] as const;
-
-const NEW_CHAT_DRAFT_ID = '__new_chat_draft__';
-
-interface ChatExperienceConfig {
-  contextLabel: string;
-  contextBadge: string;
-  contextDescription: string;
-  emptyTitle: string;
-  emptyDescription: string;
-  promptSuggestions: readonly {
-    label: string;
-    icon: typeof Search;
-  }[];
-}
-
-type GlobalGuidedPrompt = (typeof GLOBAL_GUIDED_PROMPTS)[number];
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
-
-function conversationDayLabel(value: string) {
-  const date = new Date(value);
-  const now = new Date();
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayDifference = Math.round(
-    (startOfToday.getTime() - startOfDate.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  if (dayDifference === 0) {
-    return 'Today';
-  }
-
-  if (dayDifference === 1) {
-    return 'Yesterday';
-  }
-
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  }).format(date);
-}
-
-function formatDurationMs(value: number | null) {
-  if (value === null) {
-    return null;
-  }
-
-  if (value < 1000) {
-    return `${Math.round(value)} ms`;
-  }
-
-  return `${(value / 1000).toFixed(1)} s`;
-}
-
-function renderMetricsSummary(metrics: ChatGenerationMetrics | null | undefined) {
-  if (!metrics) {
-    return null;
-  }
-
-  const parts = [
-    metrics.tokensPerSecond !== null ? `${metrics.tokensPerSecond} tok/s` : null,
-    metrics.timeToFirstTokenMs !== null
-      ? `TTFT ${formatDurationMs(metrics.timeToFirstTokenMs)}`
-      : null,
-    metrics.totalDurationMs !== null ? `Total ${formatDurationMs(metrics.totalDurationMs)}` : null,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(' • ') : null;
-}
-
-function pageRange(citation: Citation) {
-  if (citation.pageStart === null && citation.pageEnd === null) {
-    return 'Document';
-  }
-
-  if (
-    citation.pageStart !== null &&
-    citation.pageEnd !== null &&
-    citation.pageStart !== citation.pageEnd
-  ) {
-    return `Pages ${citation.pageStart}-${citation.pageEnd}`;
-  }
-
-  return `Page ${citation.pageStart ?? citation.pageEnd}`;
-}
-
-function citationSectionLabel(citation: Citation) {
-  const sectionPath =
-    citation.sectionPath
-      ?.map((section) => section.trim())
-      .filter((section) => section.length > 0) ?? [];
-
-  if (sectionPath.length > 0) {
-    return sectionPath.join(' > ');
-  }
-
-  return citation.section;
-}
-
-function citationImageAssets(citation: Citation) {
-  if (Array.isArray(citation.imageAssets) && citation.imageAssets.length > 0) {
-    return citation.imageAssets;
-  }
-
-  return citation.imageAssetIds.map((assetId) => ({
-    assetId,
-    sourceElementId: null,
-    caption: null,
-    pageNumber: null,
-  }));
-}
-
-function citationFigureEvidence(citation: Citation) {
-  return citationImageAssets(citation)
-    .map((asset, index) => {
-      const caption = asset.caption?.trim();
-      if (!caption) {
-        return null;
-      }
-
-      const pageLabel = typeof asset.pageNumber === 'number' ? `Page ${asset.pageNumber}` : null;
-
-      return {
-        id: `${asset.assetId}-${index}`,
-        label: `Figure ${index + 1}`,
-        caption,
-        pageLabel,
-      };
-    })
-    .filter(
-      (item): item is { id: string; label: string; caption: string; pageLabel: string | null } =>
-        item !== null,
-    );
-}
-
-function uniqueNonEmptyStrings(values: Array<string | null | undefined>) {
-  return [
-    ...new Set(
-      values.filter((value): value is string => typeof value === 'string' && value.length > 0),
-    ),
-  ];
-}
-
-function scopeLabel(scope: ChatApiScope) {
-  if (scope.documentId) {
-    return 'the document';
-  }
-
-  if (scope.vaultId) {
-    return 'the vault';
-  }
-
-  return 'your documents';
-}
-
-function statusLabel(status: ChatStreamStatus | null, scope: ChatApiScope) {
-  switch (status) {
-    case 'retrieval':
-      return `Searching ${scopeLabel(scope)}`;
-    case 'generation':
-      return 'Generating the answer';
-    case 'saving':
-      return 'Saving the answer';
-    default:
-      return 'Sending your question';
-  }
-}
-
-function getChatExperienceConfig({
-  scope,
-  documentName,
-}: {
-  scope: ChatApiScope;
-  documentName?: string;
-}): ChatExperienceConfig {
-  if (scope.documentId) {
-    const resolvedDocumentName = documentName?.trim() || 'Current document';
-    return {
-      contextLabel: resolvedDocumentName,
-      contextBadge: 'Locked',
-      contextDescription: 'You are chatting with this document:',
-      emptyTitle: 'Ask anything about this document',
-      emptyDescription:
-        'Arkivra will search this document and answer with relevant information and exact references.',
-      promptSuggestions: DOCUMENT_PROMPT_SUGGESTIONS,
-    };
-  }
-
-  if (scope.vaultId) {
-    return {
-      contextLabel: 'This vault',
-      contextBadge: 'Vault-wide',
-      contextDescription: 'You are chatting across every document in this vault.',
-      emptyTitle: 'Ask anything about this vault',
-      emptyDescription:
-        'Arkivra will search documents in this vault and answer with relevant information and exact references.',
-      promptSuggestions: VAULT_PROMPT_SUGGESTIONS,
-    };
-  }
-
-  return {
-    contextLabel: 'All accessible documents',
-    contextBadge: 'Cross-vault',
-    contextDescription: 'You are chatting across documents from every vault you can access.',
-    emptyTitle: 'Ask anything across your documents',
-    emptyDescription:
-      'Arkivra will search across your accessible documents and answer with relevant information and exact references.',
-    promptSuggestions: [],
-  };
-}
-
-function getLatestIntent(messages: ChatMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role === 'user' && message.metadata?.intent) {
-      return message.metadata.intent;
-    }
-  }
-
-  return null;
-}
-
-function parseInlineMarkdown(text: string): InlineToken[] {
-  const tokens: InlineToken[] = [];
-  let lastIndex = 0;
-
-  for (const match of text.matchAll(INLINE_MARKDOWN_PATTERN)) {
-    const matchedText = match[0];
-    const start = match.index ?? 0;
-
-    if (start > lastIndex) {
-      tokens.push({ type: 'text', content: text.slice(lastIndex, start) });
-    }
-
-    if (matchedText.startsWith('[') && matchedText.endsWith(']')) {
-      const index = Number(matchedText.slice(1, -1));
-      if (Number.isInteger(index) && index >= 1) {
-        tokens.push({ type: 'citation', index });
-      } else {
-        tokens.push({ type: 'text', content: matchedText });
-      }
-    } else if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
-      tokens.push({ type: 'strong', content: matchedText.slice(2, -2) });
-    } else if (matchedText.startsWith('*') && matchedText.endsWith('*')) {
-      tokens.push({ type: 'em', content: matchedText.slice(1, -1) });
-    } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
-      tokens.push({ type: 'code', content: matchedText.slice(1, -1) });
-    }
-
-    lastIndex = start + matchedText.length;
-  }
-
-  if (lastIndex < text.length) {
-    tokens.push({ type: 'text', content: text.slice(lastIndex) });
-  }
-
-  return tokens;
-}
-
-function renderInlineMarkdown({
-  text,
-  citations,
-  onCitationClick,
-}: {
-  text: string;
-  citations: Citation[];
-  onCitationClick?: (citation: Citation) => void;
-}) {
-  return parseInlineMarkdown(text).map((token, index) => {
-    const key =
-      token.type === 'citation'
-        ? `${token.type}-${index}-${token.index}`
-        : `${token.type}-${index}-${token.content}`;
-
-    if (token.type === 'strong') {
-      return (
-        <strong key={key} className="font-semibold">
-          {token.content}
-        </strong>
-      );
-    }
-
-    if (token.type === 'em') {
-      return (
-        <em key={key} className="italic">
-          {token.content}
-        </em>
-      );
-    }
-
-    if (token.type === 'code') {
-      return (
-        <code key={key} className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono text-[0.95em]">
-          {token.content}
-        </code>
-      );
-    }
-
-    if (token.type === 'citation') {
-      const citation = citations[token.index - 1] ?? null;
-
-      if (citation && onCitationClick) {
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onCitationClick(citation)}
-            className="mx-0.5 inline-flex items-center rounded-full border border-border/80 bg-secondary/65 px-2 py-0.5 align-baseline text-[0.78rem] font-semibold text-foreground transition hover:border-primary/40 hover:bg-secondary"
-          >
-            {`[${token.index}]`}
-          </button>
-        );
-      }
-
-      return <Fragment key={key}>{`[${token.index}]`}</Fragment>;
-    }
-
-    return <Fragment key={key}>{token.content}</Fragment>;
-  });
-}
-
-function MarkdownMessage({
-  content,
-  citations,
-  onCitationClick,
-}: {
-  content: string;
-  citations: Citation[];
-  onCitationClick?: (citation: Citation) => void;
-}) {
-  const lines = content.replace(WINDOWS_NEWLINE_PATTERN, '\n').split('\n');
-  const blocks: ReactNode[] = [];
-  let paragraphLines: string[] = [];
-  let listItems: { type: 'ul' | 'ol'; content: string }[] = [];
-  let codeFenceLines: string[] = [];
-  let inCodeFence = false;
-
-  function flushParagraph() {
-    if (paragraphLines.length === 0) {
-      return;
-    }
-
-    blocks.push(
-      <p key={`p-${blocks.length}`} className="whitespace-pre-wrap">
-        {renderInlineMarkdown({
-          text: paragraphLines.join(' '),
-          citations,
-          onCitationClick,
-        })}
-      </p>,
-    );
-    paragraphLines = [];
-  }
-
-  function flushList() {
-    if (listItems.length === 0) {
-      return;
-    }
-
-    const isOrdered = listItems[0]?.type === 'ol';
-    const ListTag = isOrdered ? 'ol' : 'ul';
-    blocks.push(
-      <ListTag
-        key={`list-${blocks.length}`}
-        className={cn('space-y-1 pl-5', isOrdered ? 'list-decimal' : 'list-disc')}
-      >
-        {listItems.map((item) => (
-          <li key={`${item.type}-${item.content}`}>
-            {renderInlineMarkdown({
-              text: item.content,
-              citations,
-              onCitationClick,
-            })}
-          </li>
-        ))}
-      </ListTag>,
-    );
-    listItems = [];
-  }
-
-  function flushCodeFence() {
-    if (codeFenceLines.length === 0) {
-      return;
-    }
-
-    blocks.push(
-      <pre
-        key={`code-${blocks.length}`}
-        className="overflow-x-auto rounded-lg bg-secondary/80 p-3 font-mono text-sm"
-      >
-        <code>{codeFenceLines.join('\n')}</code>
-      </pre>,
-    );
-    codeFenceLines = [];
-  }
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-
-    if (trimmedLine.startsWith('```')) {
-      flushParagraph();
-      flushList();
-
-      if (inCodeFence) {
-        flushCodeFence();
-      }
-
-      inCodeFence = !inCodeFence;
-      continue;
-    }
-
-    if (inCodeFence) {
-      codeFenceLines.push(line);
-      continue;
-    }
-
-    if (trimmedLine.length === 0) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-
-    const headingText = line.startsWith('### ')
-      ? line.slice(4)
-      : line.startsWith('## ')
-        ? line.slice(3)
-        : line.startsWith('# ')
-          ? line.slice(2)
-          : null;
-    if (headingText !== null) {
-      flushParagraph();
-      flushList();
-
-      const level = line.startsWith('### ') ? 3 : line.startsWith('## ') ? 2 : 1;
-      const className =
-        level === 1
-          ? 'text-xl font-semibold'
-          : level === 2
-            ? 'text-lg font-semibold'
-            : 'text-base font-semibold';
-      blocks.push(
-        <p key={`heading-${blocks.length}`} className={className}>
-          {renderInlineMarkdown({
-            text: headingText,
-            citations,
-            onCitationClick,
-          })}
-        </p>,
-      );
-      continue;
-    }
-
-    const orderedMarkerIndex = line.indexOf('. ');
-    const orderedPrefix = orderedMarkerIndex > 0 ? line.slice(0, orderedMarkerIndex) : '';
-    const orderedContent = orderedMarkerIndex > 0 ? line.slice(orderedMarkerIndex + 2) : '';
-    if (ORDERED_LIST_PREFIX_PATTERN.test(orderedPrefix) && orderedContent.length > 0) {
-      flushParagraph();
-      listItems.push({ type: 'ol', content: orderedContent });
-      continue;
-    }
-
-    if ((line.startsWith('- ') || line.startsWith('* ')) && line.slice(2).trim().length > 0) {
-      flushParagraph();
-      listItems.push({ type: 'ul', content: line.slice(2) });
-      continue;
-    }
-
-    if (line.startsWith('> ')) {
-      flushParagraph();
-      flushList();
-      blocks.push(
-        <blockquote
-          key={`quote-${blocks.length}`}
-          className="border-l-2 border-border pl-4 italic text-muted-foreground"
-        >
-          {renderInlineMarkdown({
-            text: line.slice(2),
-            citations,
-            onCitationClick,
-          })}
-        </blockquote>,
-      );
-      continue;
-    }
-
-    paragraphLines.push(line.trim());
-  }
-
-  flushParagraph();
-  flushList();
-  flushCodeFence();
-
-  return <div className="space-y-4">{blocks}</div>;
-}
-
-interface CitationPreviewModalProps {
-  citation: Citation | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-function groupBoundingBoxesByPage(citation: Citation) {
-  const grouped = new Map<number, Citation['boundingBoxes']>();
-
-  for (const boundingBox of citation.boundingBoxes) {
-    const current = grouped.get(boundingBox.pageNumber) ?? [];
-    current.push(boundingBox);
-    grouped.set(boundingBox.pageNumber, current);
-  }
-
-  return grouped;
-}
-
-function citationPreviewPages(citation: Citation) {
-  const pageNumbers = new Set<number>();
-
-  if (citation.pageStart !== null && citation.pageEnd !== null) {
-    for (let pageNumber = citation.pageStart; pageNumber <= citation.pageEnd; pageNumber += 1) {
-      pageNumbers.add(pageNumber);
-    }
-  }
-
-  if (citation.pageStart !== null) {
-    pageNumbers.add(citation.pageStart);
-  }
-
-  if (citation.pageEnd !== null) {
-    pageNumbers.add(citation.pageEnd);
-  }
-
-  for (const boundingBox of citation.boundingBoxes) {
-    pageNumbers.add(boundingBox.pageNumber);
-  }
-
-  return [...pageNumbers].sort((a, b) => a - b);
-}
-
-function CitationPreviewModal({ citation, open, onOpenChange }: CitationPreviewModalProps) {
-  const pages = useMemo(() => (citation ? citationPreviewPages(citation) : []), [citation]);
-  const groupedBoxes = useMemo(
-    () =>
-      citation ? groupBoundingBoxesByPage(citation) : new Map<number, Citation['boundingBoxes']>(),
-    [citation],
-  );
-  const [selectedPage, setSelectedPage] = useState<number | null>(pages[0] ?? null);
-  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
-  const [imageError, setImageError] = useState(false);
-
-  if (!citation) {
-    return null;
-  }
-
-  const activePage = selectedPage ?? pages[0] ?? null;
-  const pageBoxes = activePage === null ? [] : (groupedBoxes.get(activePage) ?? []);
-  const sectionLabel = citationSectionLabel(citation);
-  const figureEvidence = citationFigureEvidence(citation);
-  const imageSourceElementIds = uniqueNonEmptyStrings(
-    citationImageAssets(citation).map((asset) => asset.sourceElementId),
-  );
-  const tableSourceElementIds = uniqueNonEmptyStrings(citation.tableSourceElementIds ?? []);
-  const chunkSourceElementIds = uniqueNonEmptyStrings(citation.sourceElementIds ?? []);
-  const activePreviewUrl =
-    activePage === null
-      ? null
-      : getDocumentPagePreviewUrl({
-          vaultId: citation.vaultId,
-          documentId: citation.documentId,
-          pageNumber: activePage,
-        });
-  const canRenderOverlay = pageBoxes.length > 0 && imageSize !== null;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[90vh] max-h-[90vh] max-w-6xl overflow-hidden p-0">
-        <div className="grid h-full min-h-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="flex min-h-0 flex-col bg-secondary/20">
-            <DialogHeader className="border-b border-border/70 px-6 py-5">
-              <DialogTitle>{citation.documentName}</DialogTitle>
-              <DialogDescription>
-                {activePage !== null ? `Page ${activePage}` : 'Document preview unavailable'}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="flex items-center justify-between border-b border-border/70 px-6 py-3">
-              <div className="flex flex-wrap gap-2">
-                {pages.map((pageNumber) => (
-                  <Button
-                    key={pageNumber}
-                    type="button"
-                    variant={activePage === pageNumber ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => {
-                      setSelectedPage(pageNumber);
-                      setImageSize(null);
-                      setImageError(false);
-                    }}
-                  >
-                    {`Page ${pageNumber}`}
-                  </Button>
-                ))}
-              </div>
-              {pages.length > 1 ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={activePage === null || activePage === pages[0]}
-                    onClick={() => {
-                      if (activePage === null) {
-                        return;
-                      }
-                      const currentIndex = pages.indexOf(activePage);
-                      const previousPage = currentIndex > 0 ? pages[currentIndex - 1] : null;
-                      if (previousPage !== null) {
-                        setSelectedPage(previousPage);
-                        setImageSize(null);
-                        setImageError(false);
-                      }
-                    }}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={activePage === null || activePage === pages.at(-1)}
-                    onClick={() => {
-                      if (activePage === null) {
-                        return;
-                      }
-                      const currentIndex = pages.indexOf(activePage);
-                      const nextPage = currentIndex >= 0 ? (pages[currentIndex + 1] ?? null) : null;
-                      if (nextPage !== null) {
-                        setSelectedPage(nextPage);
-                        setImageSize(null);
-                        setImageError(false);
-                      }
-                    }}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto p-6">
-              {activePreviewUrl === null ? (
-                <div className="flex h-full min-h-80 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 p-8 text-center text-sm text-muted-foreground">
-                  No page preview is available for this citation.
-                </div>
-              ) : (
-                <div className="mx-auto w-full max-w-4xl rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
-                  <div className="relative">
-                    <img
-                      src={activePreviewUrl}
-                      alt={`${citation.documentName} page ${activePage}`}
-                      className="h-auto w-full rounded-xl"
-                      onLoad={(event) => {
-                        setImageSize({
-                          width: event.currentTarget.clientWidth,
-                          height: event.currentTarget.clientHeight,
-                        });
-                        setImageError(false);
-                      }}
-                      onError={() => {
-                        setImageSize(null);
-                        setImageError(true);
-                      }}
-                    />
-
-                    {canRenderOverlay ? (
-                      <div className="pointer-events-none absolute inset-0">
-                        {pageBoxes.map((boundingBox) => {
-                          const left = (boundingBox.x0 / boundingBox.layoutWidth) * imageSize.width;
-                          const top =
-                            (boundingBox.y0 / boundingBox.layoutHeight) * imageSize.height;
-                          const width =
-                            ((boundingBox.x1 - boundingBox.x0) / boundingBox.layoutWidth) *
-                            imageSize.width;
-                          const height =
-                            ((boundingBox.y1 - boundingBox.y0) / boundingBox.layoutHeight) *
-                            imageSize.height;
-
-                          return (
-                            <div
-                              key={`${boundingBox.pageNumber}-${boundingBox.x0}-${boundingBox.y0}-${boundingBox.x1}-${boundingBox.y1}`}
-                              className="absolute rounded-md border-2 border-primary bg-primary/15 shadow-[0_0_0_1px_rgba(255,255,255,0.25)]"
-                              style={{
-                                left,
-                                top,
-                                width,
-                                height,
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-
-              {imageError ? (
-                <p className="mt-4 text-sm text-muted-foreground">
-                  Arkivra could not render a preview image for this page.
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="min-h-0 overflow-auto border-t border-border/70 bg-card lg:border-l lg:border-t-0">
-            <div className="space-y-5 p-6">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Source details
-                </p>
-                <div>
-                  <p className="text-base font-semibold text-foreground">{citation.documentName}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{pageRange(citation)}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Citation precision
-                </p>
-                <p className="text-sm text-foreground">
-                  {citation.citationPrecision === 'box'
-                    ? 'Exact box overlay available'
-                    : citation.citationPrecision === 'page'
-                      ? 'Page-level citation available'
-                      : 'Document-level citation only'}
-                </p>
-              </div>
-
-              {sectionLabel ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Section
-                  </p>
-                  <p className="text-sm text-foreground">{sectionLabel}</p>
-                </div>
-              ) : null}
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Matched text
-                </p>
-                <div className="rounded-2xl border border-border/70 bg-background/70 p-4 text-sm leading-6 text-foreground">
-                  {citation.snippet}
-                </div>
-              </div>
-
-              {figureEvidence.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Figure evidence
-                  </p>
-                  <div className="space-y-3">
-                    {figureEvidence.map((figure) => (
-                      <div
-                        key={figure.id}
-                        className="rounded-2xl border border-border/70 bg-background/70 p-4"
-                      >
-                        <div className="flex flex-wrap items-center gap-2 text-sm">
-                          <span className="font-medium text-foreground">{figure.label}</span>
-                          {figure.pageLabel ? (
-                            <span className="text-muted-foreground">{figure.pageLabel}</span>
-                          ) : null}
-                        </div>
-                        <p className="mt-2 text-sm leading-6 text-foreground">{figure.caption}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {chunkSourceElementIds.length > 0 ||
-              tableSourceElementIds.length > 0 ||
-              imageSourceElementIds.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Docling provenance
-                  </p>
-                  {chunkSourceElementIds.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-foreground">Chunk elements</p>
-                      <div className="flex flex-wrap gap-2">
-                        {chunkSourceElementIds.map((elementId) => (
-                          <code
-                            key={elementId}
-                            className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
-                          >
-                            {elementId}
-                          </code>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  {tableSourceElementIds.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-foreground">Table elements</p>
-                      <div className="flex flex-wrap gap-2">
-                        {tableSourceElementIds.map((elementId) => (
-                          <code
-                            key={elementId}
-                            className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
-                          >
-                            {elementId}
-                          </code>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  {imageSourceElementIds.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-foreground">Image elements</p>
-                      <div className="flex flex-wrap gap-2">
-                        {imageSourceElementIds.map((elementId) => (
-                          <code
-                            key={elementId}
-                            className="rounded-md bg-secondary/70 px-2 py-1 font-mono text-xs text-foreground"
-                          >
-                            {elementId}
-                          </code>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SourcesAccordion({
-  currentVaultId,
-  citations,
-}: {
-  currentVaultId?: string;
-  citations: Citation[];
-}) {
-  const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
-
-  if (citations.length === 0) {
-    return null;
-  }
-
-  return (
-    <>
-      <Accordion
-        type="single"
-        collapsible
-        value={isOpen ? 'sources' : undefined}
-        onValueChange={(value) => setIsOpen(value === 'sources')}
-        className="mt-4 border-t border-border/70 pt-2"
-      >
-        <AccordionItem value="sources" className="border-b-0">
-          <AccordionTrigger className="rounded-md px-1 py-3 hover:no-underline">
-            <div className="flex items-center gap-2">
-              <FileText className="size-4 text-muted-foreground" />
-              <span>{`Sources (${citations.length})`}</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="space-y-3">
-              {citations.map((citation, index) => {
-                const figurePreview = citationFigureEvidence(citation)[0] ?? null;
-
-                return (
-                  <button
-                    key={citation.chunkId}
-                    type="button"
-                    onClick={() => setSelectedCitation(citation)}
-                    className="flex w-full items-start gap-3 rounded-2xl bg-muted/45 px-4 py-3 text-left transition hover:bg-accent/45"
-                  >
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground">
-                      {index + 1}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-medium text-foreground">{pageRange(citation)}</span>
-                        {currentVaultId !== citation.vaultId ? (
-                          <span className="text-muted-foreground">{citation.vaultName}</span>
-                        ) : null}
-                      </div>
-                      {citationSectionLabel(citation) ? (
-                        <p className="line-clamp-1 text-xs text-muted-foreground">
-                          {citationSectionLabel(citation)}
-                        </p>
-                      ) : null}
-                      <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
-                        {citation.snippet}
-                      </p>
-                      {figurePreview ? (
-                        <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-                          {figurePreview.caption}
-                        </p>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-
-      <CitationPreviewModal
-        key={selectedCitation?.chunkId ?? 'no-citation'}
-        citation={selectedCitation}
-        open={selectedCitation !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedCitation(null);
-          }
-        }}
-      />
-    </>
-  );
-}
-
-function MessageBubble({
-  message,
-  currentVaultId,
-  scope,
-  activeStatus,
-  metrics,
-  onQuickReplySelect,
-}: {
-  message: LocalMessage;
-  currentVaultId?: string;
-  scope: ChatApiScope;
-  activeStatus: ChatStreamStatus | null;
-  metrics?: ChatGenerationMetrics;
-  onQuickReplySelect?: (reply: string) => void;
-}) {
-  const isUser = message.role === 'user';
-  const pendingStatusLabel = statusLabel(activeStatus, scope);
-  const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
-
-  return (
-    <div className={cn('flex gap-3', isUser ? 'justify-end' : 'justify-start')}>
-      {!isUser ? (
-        <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Bot className="size-4" />
-        </div>
-      ) : null}
-      <div className={cn('max-w-[min(46rem,100%)]', isUser ? 'flex flex-col items-end' : 'w-full')}>
-        {isUser ? (
-          <div className="rounded-2xl bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground">
-            <p className="whitespace-pre-wrap">{message.content}</p>
-          </div>
-        ) : (
-          <div className="w-full rounded-2xl bg-muted/45 px-4 py-3 text-sm leading-6 text-foreground">
-            <MarkdownMessage
-              content={message.content}
-              citations={message.citations}
-              onCitationClick={(citation) => setSelectedCitation(citation)}
-            />
-            {renderMetricsSummary(metrics) ? (
-              <div className="mt-3 text-xs text-muted-foreground">
-                {renderMetricsSummary(metrics)}
-              </div>
-            ) : null}
-            {message.metadata?.quickReplies?.length && onQuickReplySelect ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {message.metadata.quickReplies.map((reply) => (
-                  <Button
-                    key={reply}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-auto rounded-full px-3 py-1.5 text-xs"
-                    onClick={() => onQuickReplySelect(reply)}
-                  >
-                    {reply}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-            <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} />
-          </div>
-        )}
-        <div className="mt-1 text-xs text-muted-foreground">
-          {message.localOnly ? `${pendingStatusLabel}...` : formatDate(message.createdAt)}
-          {message.generationStatus === 'failed' && message.generationError ? (
-            <span className="ml-2 text-destructive">{message.generationError}</span>
-          ) : null}
-        </div>
-        {!isUser ? (
-          <CitationPreviewModal
-            key={selectedCitation?.chunkId ?? 'no-inline-citation'}
-            citation={selectedCitation}
-            open={selectedCitation !== null}
-            onOpenChange={(open) => {
-              if (!open) {
-                setSelectedCitation(null);
-              }
-            }}
-          />
-        ) : null}
-      </div>
-      {isUser ? (
-        <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-          <User className="size-4" />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ChatInputPanel({
-  disabled,
-  placeholder,
-  responseMode,
-  modelOptions,
-  selectedModel,
-  isLoadingModels,
-  modelOptionsError,
-  onSelectedModelChange,
-  onResponseModeChange,
-  value,
-  onValueChange,
-  textareaRef,
-  onSubmit,
-}: {
-  disabled: boolean;
-  placeholder: string;
-  responseMode: ChatResponseMode;
-  modelOptions?: string[];
-  selectedModel: string;
-  isLoadingModels?: boolean;
-  modelOptionsError?: string | null;
-  onSelectedModelChange?: (nextValue: string) => void;
-  onResponseModeChange: (nextValue: ChatResponseMode) => void;
-  value: string;
-  onValueChange: (nextValue: string) => void;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
-  onSubmit: (content: string) => void;
-}) {
-  const showSources = responseMode === 'multimodal';
-  const hasModelPicker = Boolean(onSelectedModelChange);
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = '0px';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 224)}px`;
-  }, [textareaRef, value]);
-
-  function submit() {
-    const content = value.trim();
-    if (content.length === 0 || disabled) {
-      return;
-    }
-
-    onValueChange('');
-    onSubmit(content);
-  }
-
-  return (
-    <div className="shrink-0 px-4 pb-1 pt-2 sm:px-6 sm:pb-2">
-      <div className="mx-auto w-full max-w-5xl rounded-2xl border border-border/70 bg-background p-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-        <div className="flex items-end gap-3">
-          <Textarea
-            ref={textareaRef}
-            aria-label="Chat message"
-            value={value}
-            onChange={(event) => onValueChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                submit();
-              }
-            }}
-            placeholder={placeholder}
-            disabled={disabled}
-            className="min-h-11 max-h-56 flex-1 resize-none border-0 bg-transparent px-3 py-3 shadow-none focus-visible:ring-0"
-          />
-          <Button
-            type="button"
-            size="icon"
-            aria-label="Send message"
-            disabled={disabled || value.trim().length === 0}
-            onClick={submit}
-            className="size-11 rounded-xl"
-          >
-            <Send className="size-4" />
-          </Button>
-        </div>
-
-        <div className="mt-3 flex flex-col gap-3 border-t border-border/60 px-1 pt-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-start gap-3">
-            <Checkbox
-              id="chat-show-sources"
-              checked={showSources}
-              onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
-              disabled={disabled}
-              className="mt-1"
-            />
-            <div className="space-y-1">
-              <Label htmlFor="chat-show-sources">Show sources</Label>
-              <p className="text-sm text-muted-foreground">
-                Citations and page references will be shown in responses
-              </p>
-            </div>
-          </div>
-
-          {hasModelPicker ? (
-            <div className="flex items-end gap-3 self-end sm:self-auto">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  Model
-                </Label>
-                <Select
-                  value={selectedModel}
-                  onValueChange={onSelectedModelChange}
-                  disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
-                >
-                  <SelectTrigger
-                    aria-label="Document chat model"
-                    className="h-10 min-w-52 rounded-xl border-border/60 bg-muted/20 text-sm shadow-none"
-                  >
-                    <SelectValue
-                      placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(modelOptions ?? []).map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {modelOptionsError ? (
-          <p className="mt-3 px-1 text-xs text-destructive">{modelOptionsError}</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function ChatContextHeader({
-  contextLabel,
-  contextBadge,
-  contextDescription,
-  leadingAction,
-}: {
-  contextLabel: string;
-  contextBadge: string;
-  contextDescription: string;
-  leadingAction?: ReactNode;
-}) {
-  return (
-    <div className="px-4 pt-4 sm:px-6">
-      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        {leadingAction}
-        <span>{contextDescription}</span>
-        <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-foreground">
-          <FileText className="size-4 text-muted-foreground" />
-          <span className="max-w-[22rem] truncate font-medium">{contextLabel}</span>
-          <Badge
-            variant="secondary"
-            className="rounded-full px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.14em]"
-          >
-            {contextBadge}
-          </Badge>
-        </div>
-      </div>
-      <Separator className="mt-4" />
-    </div>
-  );
-}
-
-function ChatEmptyState({
-  title,
-  description,
-  promptSuggestions,
-  guidedPrompts,
-  onPromptSelect,
-  onGuidedPromptSelect,
-}: {
-  title: string;
-  description: string;
-  promptSuggestions: readonly {
-    label: string;
-    icon: typeof Search;
-  }[];
-  guidedPrompts?: readonly GlobalGuidedPrompt[];
-  onPromptSelect: (prompt: string) => void;
-  onGuidedPromptSelect?: (prompt: GlobalGuidedPrompt) => void;
-}) {
-  const hasGuidedPrompts = Boolean(guidedPrompts?.length && onGuidedPromptSelect);
-
-  return (
-    <div className="flex min-h-full items-center justify-center px-6 py-10">
-      <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-secondary/80 text-primary">
-          <MessageSquare className="size-6" />
-        </div>
-        <div className="mt-6 space-y-3">
-          <h3 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            {title}
-          </h3>
-          <p className="mx-auto max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
-        </div>
-
-        {hasGuidedPrompts ? (
-          <div className="mt-8 grid w-full max-w-4xl gap-3 sm:grid-cols-2">
-            {guidedPrompts?.map((prompt) => {
-              const Icon = prompt.icon;
-
-              return (
-                <button
-                  key={prompt.id}
-                  type="button"
-                  className="rounded-2xl border border-border/70 bg-card p-5 text-left shadow-sm transition hover:border-primary/35 hover:bg-accent/30"
-                  onClick={() => onGuidedPromptSelect?.(prompt)}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
-                      <Icon className="size-5" />
-                    </div>
-                    <div className="min-w-0 space-y-2">
-                      <p className="text-sm font-semibold text-foreground">{prompt.title}</p>
-                      <p className="text-sm leading-6 text-muted-foreground">
-                        {prompt.description}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{prompt.example}</p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-8 flex w-full max-w-4xl flex-wrap items-center justify-center gap-3">
-            {promptSuggestions.map(({ label, icon: Icon }) => (
-              <button
-                key={label}
-                type="button"
-                className="inline-flex min-h-11 items-center gap-3 rounded-full border border-border/70 bg-background px-4 py-2.5 text-left text-sm font-medium text-foreground transition hover:border-foreground/20 hover:bg-accent/40"
-                onClick={() => onPromptSelect(label)}
-              >
-                <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-primary">
-                  <Icon className="size-4" />
-                </span>
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-8 flex w-full max-w-md items-center gap-4">
-          <Separator className="flex-1" />
-          <span className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-            Or
-          </span>
-          <Separator className="flex-1" />
-        </div>
-
-        <p className="mt-4 text-sm text-muted-foreground">Start typing your question below</p>
-      </div>
-    </div>
-  );
-}
-
-function ChatConversationRail({
-  showHeader = true,
-  conversationsQuery,
-  conversationSections,
-  selectedChatId,
-  effectiveSelectedChatId,
-  createConversationPending,
-  onCreateConversation,
-  onSelectConversation,
-  onDeleteConversation,
-}: {
-  showHeader?: boolean;
-  conversationsQuery: ReturnType<typeof useChatConversationsQuery>;
-  conversationSections: Array<[string, ChatConversation[]]>;
-  selectedChatId: string;
-  effectiveSelectedChatId: string;
-  createConversationPending: boolean;
-  onCreateConversation: () => void;
-  onSelectConversation: (chatId: string) => void;
-  onDeleteConversation: (chatId: string) => void;
-}) {
-  return (
-    <>
-      {showHeader ? (
-        <div className="flex items-center justify-between gap-3 py-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <MessageSquare className="size-4 text-primary" />
-            Conversations
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onCreateConversation}
-            disabled={createConversationPending}
-            className="h-9 rounded-full px-3"
-          >
-            <Plus className="size-4" />
-            New chat
-          </Button>
-        </div>
-      ) : (
-        <div className="flex justify-end pb-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onCreateConversation}
-            disabled={createConversationPending}
-            className="h-9 rounded-full px-3"
-          >
-            <Plus className="size-4" />
-            New chat
-          </Button>
-        </div>
-      )}
-
-      <div className={cn('min-h-0 flex-1 overflow-y-auto pr-1', showHeader ? 'mt-4' : 'mt-2')}>
-        {conversationsQuery.isLoading ? (
-          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Loading chats
-          </div>
-        ) : conversationSections.length === 0 ? (
-          <p className="py-4 text-sm text-muted-foreground">No conversations yet.</p>
-        ) : (
-          <div className="space-y-5">
-            {conversationSections.map(([sectionLabel, conversations]) => (
-              <div key={sectionLabel} className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">{sectionLabel}</p>
-                <div className="space-y-1">
-                  {conversations.map((conversation) => (
-                    <div key={conversation.id} className="group flex items-center gap-1">
-                      <button
-                        type="button"
-                        className={cn(
-                          'min-w-0 flex-1 rounded-xl px-3 py-3 text-left text-sm transition',
-                          selectedChatId === conversation.id ||
-                            effectiveSelectedChatId === conversation.id
-                            ? 'bg-secondary text-foreground'
-                            : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                        )}
-                        onClick={() => onSelectConversation(conversation.id)}
-                      >
-                        <span className="block truncate font-medium">{conversation.title}</span>
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {formatDate(conversation.updatedAt)}
-                        </span>
-                      </button>
-                      {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Delete ${conversation.title}`}
-                          className="h-8 w-8 shrink-0 rounded-full opacity-70 group-hover:opacity-100"
-                          onClick={() => onDeleteConversation(conversation.id)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
+  ChatMetricsByMessageId,
+  ChatWorkspaceProps,
+  GlobalGuidedPrompt,
+  LocalMessage,
+} from './chat-utils';
+import {
+  GLOBAL_GUIDED_PROMPTS,
+  NEW_CHAT_DRAFT_ID,
+  conversationDayLabel,
+  getChatExperienceConfig,
+  getLatestIntent,
+  statusLabel,
+} from './chat-utils';
+import { ChatConversationRail } from './chat-conversation-rail';
+import { ChatContextHeader } from './chat-context-header';
+import { ChatEmptyState } from './chat-empty-state';
+import { ChatInputPanel } from './chat-input-panel';
+import { MarkdownMessage } from './markdown-message';
+import { MessageBubble } from './message-bubble';
 
 export function ChatWorkspace({
   scope,
@@ -1633,11 +108,7 @@ export function ChatWorkspace({
   const shouldShowEmptyState = messages.length === 0 && !isStreaming;
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
-
-    if (!isDraftConversation) {
-      return conversations;
-    }
-
+    if (!isDraftConversation) return conversations;
     return [
       {
         id: NEW_CHAT_DRAFT_ID,
@@ -1661,24 +132,19 @@ export function ChatWorkspace({
   ]);
   const conversationSections = useMemo(() => {
     const sections = new Map<string, ChatConversation[]>();
-
     for (const conversation of visibleConversations) {
       const label = conversationDayLabel(conversation.updatedAt);
       const current = sections.get(label) ?? [];
       current.push(conversation);
       sections.set(label, current);
     }
-
     return [...sections.entries()];
   }, [visibleConversations]);
 
   function focusComposer() {
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
-      if (!textarea) {
-        return;
-      }
-
+      if (!textarea) return;
       textarea.focus();
       const end = textarea.value.length;
       textarea.setSelectionRange(end, end);
@@ -1702,9 +168,7 @@ export function ChatWorkspace({
 
   async function handleDeleteConversation(chatId: string) {
     await deleteConversation.mutateAsync({ ...scope, chatId });
-    if (selectedChatId === chatId) {
-      setSelectedChatId('');
-    }
+    if (selectedChatId === chatId) setSelectedChatId('');
     await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
   }
 
@@ -1725,10 +189,7 @@ export function ChatWorkspace({
       chatId = result.conversation.id;
       setSelectedChatId(chatId);
       queryClient.setQueryData(chatQueryKeys.conversation(scope, chatId), {
-        conversation: {
-          ...result.conversation,
-          messages: [],
-        },
+        conversation: { ...result.conversation, messages: [] },
       });
       await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
     }
@@ -1796,22 +257,28 @@ export function ChatWorkspace({
   }
 
   return (
-    <div
-      className={cn(
-        'grid overflow-hidden',
-        isDesktopConversationRailCollapsed
-          ? 'lg:grid-cols-[0_minmax(0,1fr)]'
-          : 'lg:grid-cols-[18rem_minmax(0,1fr)]',
-        heightClassName,
-      )}
+    <Box
+      display="grid"
+      overflow="hidden"
+      className={heightClassName}
+      gridTemplateColumns={{
+        base: '1fr',
+        lg: isDesktopConversationRailCollapsed ? '0 minmax(0, 1fr)' : '18rem minmax(0, 1fr)',
+      }}
     >
-      <aside
-        className={cn(
-          'hidden min-h-0 overflow-hidden border-r border-border/70 pb-6 transition-[width,padding,opacity] duration-200 ease-linear lg:flex lg:flex-col',
-          isDesktopConversationRailCollapsed
-            ? 'w-0 border-r-0 pr-0 opacity-0'
-            : 'w-[18rem] pr-5 opacity-100',
-        )}
+      <Box
+        as="aside"
+        display={{ base: 'none', lg: 'flex' }}
+        flexDirection="column"
+        minH="0"
+        overflow="hidden"
+        borderRightWidth={isDesktopConversationRailCollapsed ? '0' : '1px'}
+        borderColor="border.subtle"
+        pb="6"
+        transition="width,padding,opacity 200ms ease-linear"
+        width={isDesktopConversationRailCollapsed ? '0' : '18rem'}
+        pr={isDesktopConversationRailCollapsed ? '0' : '5'}
+        opacity={isDesktopConversationRailCollapsed ? '0' : '1'}
         aria-hidden={isDesktopConversationRailCollapsed}
       >
         <ChatConversationRail
@@ -1831,19 +298,31 @@ export function ChatWorkspace({
             void handleDeleteConversation(chatId);
           }}
         />
-      </aside>
+      </Box>
 
-      <section
-        className={cn(
-          'flex min-h-0 flex-col overflow-hidden',
-          !isDesktopConversationRailCollapsed && 'lg:pl-6',
-        )}
+      <Flex
+        as="section"
+        direction="column"
+        minH="0"
+        overflow="hidden"
+        lg={!isDesktopConversationRailCollapsed ? { pl: '6' } : undefined}
       >
         {streamError ? (
-          <div className="flex items-center gap-2 border-b border-border/70 bg-destructive/10 px-4 py-3 text-sm text-destructive sm:px-6">
-            <AlertCircle className="size-4" />
+          <Flex
+            align="center"
+            gap="2"
+            borderBottomWidth="1px"
+            borderColor="border.subtle"
+            bg="status.dangerSubtle"
+            px="4"
+            py="3"
+            fontSize="sm"
+            color="status.danger"
+            sm={{ px: '6' }}
+          >
+            <AlertCircle size={16} />
             {streamError}
-          </div>
+          </Flex>
         ) : null}
 
         {showContextHeader ? (
@@ -1855,38 +334,57 @@ export function ChatWorkspace({
               <Button
                 type="button"
                 variant="ghost"
-                className="hidden h-9 rounded-full px-3 lg:inline-flex"
+                display={{ base: 'none', lg: 'inline-flex' }}
+                style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
                 onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
               >
                 {isDesktopConversationRailCollapsed ? (
-                  <PanelLeftOpen className="size-4" />
+                  <PanelLeftOpen size={16} />
                 ) : (
-                  <PanelLeftClose className="size-4" />
+                  <PanelLeftClose size={16} />
                 )}
               </Button>
             }
           />
         ) : null}
 
-        <div className="border-b border-border/60 px-4 py-3 sm:px-6 lg:hidden">
+        <Box
+          display={{ base: 'block', lg: 'none' }}
+          borderBottomWidth="1px"
+          borderColor="border.subtle"
+          px="4"
+          py="3"
+          sm={{ px: '6' }}
+        >
           <Collapsible
             open={isMobileConversationRailOpen}
             onOpenChange={setIsMobileConversationRailOpen}
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <MessageSquare className="size-4 text-primary" />
+            <Flex align="center" justify="space-between" gap="3">
+              <Flex align="center" gap="2" fontSize="sm" fontWeight="medium" color="text.default">
+                <MessageSquare size={16} color="var(--chakra-colors-accent-default)" />
                 Conversations
-              </div>
+              </Flex>
               <CollapsibleTrigger asChild>
-                <Button type="button" variant="ghost" className="h-9 rounded-full px-3">
-                  <PanelLeftOpen className="size-4" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
+                >
+                  <PanelLeftOpen size={16} />
                   {isMobileConversationRailOpen ? 'Hide history' : 'Show history'}
                 </Button>
               </CollapsibleTrigger>
-            </div>
-            <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-              <div className="mt-4 border-t border-border/60 pt-3">
+            </Flex>
+            <CollapsibleContent
+              style={{
+                overflow: 'hidden',
+                animationTimingFunction: 'ease',
+              }}
+              _open={{ animationName: 'accordion-down' }}
+              _closed={{ animationName: 'accordion-up' }}
+            >
+              <Box mt="4" borderTopWidth="1px" borderColor="border.subtle" pt="3">
                 <ChatConversationRail
                   showHeader={false}
                   conversationsQuery={conversationsQuery}
@@ -1906,12 +404,12 @@ export function ChatWorkspace({
                     void handleDeleteConversation(chatId);
                   }}
                 />
-              </div>
+              </Box>
             </CollapsibleContent>
           </Collapsible>
-        </div>
+        </Box>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <Box minH="0" flex="1" overflowY="auto">
           {shouldShowEmptyState ? (
             <ChatEmptyState
               title={experience.emptyTitle}
@@ -1924,13 +422,32 @@ export function ChatWorkspace({
               }}
             />
           ) : selectedChatQuery.isLoading && messages.length === 0 ? (
-            <div className="flex min-h-[24rem] items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
+            <Flex
+              minH="24rem"
+              align="center"
+              justify="center"
+              gap="2"
+              px="6"
+              py="10"
+              fontSize="sm"
+              color="text.muted"
+            >
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
               Loading conversation
-            </div>
+            </Flex>
           ) : (
-            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6">
-              <div className="mt-auto" aria-hidden="true" />
+            <Flex
+              direction="column"
+              gap="6"
+              mx="auto"
+              minH="100%"
+              w="100%"
+              maxW="container.lg"
+              px="4"
+              py="6"
+              sm={{ px: '6' }}
+            >
+              <Box mt="auto" aria-hidden="true" />
               {messages.map((message) => (
                 <MessageBubble
                   key={message.id}
@@ -1949,31 +466,48 @@ export function ChatWorkspace({
                 />
               ))}
               {streamingText.length > 0 || isStreaming ? (
-                <div className="flex gap-3">
-                  <div className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                    <Sparkles className="size-4" />
-                  </div>
-                  <div className="max-w-[min(44rem,100%)]">
-                    <div className="rounded-2xl bg-muted/60 px-4 py-3 text-sm leading-6 text-foreground">
+                <Flex gap="3">
+                  <Flex
+                    mt="1"
+                    boxSize="9"
+                    shrink="0"
+                    align="center"
+                    justify="center"
+                    rounded="xl"
+                    bg="accent.default"
+                    color="text.inverse"
+                  >
+                    <Sparkles size={16} />
+                  </Flex>
+                  <Box maxW="min(44rem, 100%)">
+                    <Box
+                      rounded="2xl"
+                      bg="surface.subtle"
+                      px="4"
+                      py="3"
+                      fontSize="sm"
+                      lineHeight="6"
+                      color="text.default"
+                    >
                       {streamingText.length > 0 ? (
                         <MarkdownMessage content={streamingText} citations={[]} />
                       ) : (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Loader2 className="size-4 animate-spin" />
+                        <Flex align="center" gap="2" color="text.muted">
+                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
                           {statusLabel(streamStatus, scope)}
-                        </div>
+                        </Flex>
                       )}
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
+                    </Box>
+                    <Text mt="2" fontSize="xs" color="text.muted">
                       {statusLabel(streamStatus, scope)}
-                    </p>
-                  </div>
-                </div>
+                    </Text>
+                  </Box>
+                </Flex>
               ) : null}
               <div ref={messagesEndRef} />
-            </div>
+            </Flex>
           )}
-        </div>
+        </Box>
 
         <ChatInputPanel
           disabled={isStreaming || createConversation.isPending}
@@ -1994,7 +528,7 @@ export function ChatWorkspace({
           textareaRef={textareaRef}
           onSubmit={handleSend}
         />
-      </section>
-    </div>
+      </Flex>
+    </Box>
   );
 }

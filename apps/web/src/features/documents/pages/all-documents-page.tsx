@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import {
   Check,
   ChevronDown,
@@ -14,7 +15,6 @@ import { toast } from 'sonner';
 import {
   PageIntro,
   SurfacePanel,
-  vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Badge } from '@/components/ui/badge';
@@ -44,7 +44,6 @@ import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
-import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 100;
 
@@ -122,9 +121,9 @@ function getDateFilterLabel({
 
 function VaultIcon() {
   return (
-    <div className="flex size-12 items-center justify-center rounded-lg bg-secondary text-primary ring-1 ring-border/60">
-      <Folder className="size-5" />
-    </div>
+    <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="surface.subtle" color="accent.default">
+      <Folder size={20} />
+    </Flex>
   );
 }
 
@@ -414,19 +413,30 @@ export function AllDocumentsPage() {
   }, [selectedTags]);
 
   return (
-    <section className="space-y-8 pb-8">
+    <Flex as="section" direction="column" gap="8" pb="8">
       <PageIntro
         title="All Documents"
         actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              to="/transfers"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
-            >
-              <Upload className="size-4" />
-              Upload
+          <Flex flexWrap="wrap" align="center" gap="3">
+            <Link to="/transfers" style={{ textDecoration: 'none' }}>
+              <Flex
+                display="inline-flex"
+                h="11"
+                align="center"
+                justify="center"
+                gap="2"
+                rounded="xl"
+                bg="accent.default"
+                px="5"
+                fontSize="sm"
+                fontWeight="semibold"
+                color="text.inverse"
+              >
+                <Upload size={16} />
+                Upload
+              </Flex>
             </Link>
-          </div>
+          </Flex>
         }
       />
       <DocumentSearchControls
@@ -449,8 +459,8 @@ export function AllDocumentsPage() {
         filtersTitle="Filters"
         filtersContent={
           <>
-            <div className="space-y-3">
-              <span className="text-sm font-semibold text-foreground">Vault</span>
+            <Box gap="3">
+              <Text fontSize="sm" fontWeight="semibold" color="text.default">Vault</Text>
               <DropdownMenu
                 modal={false}
                 open={isVaultFilterOpen}
@@ -466,31 +476,53 @@ export function AllDocumentsPage() {
                     type="button"
                     variant="outline"
                     aria-label="Vault filter"
-                    className={`${vaultInputClassName} h-10 w-full justify-between px-4 text-left font-medium shadow-none`}
+                    h="10"
+                    w="full"
+                    justifyContent="space-between"
+                    px="4"
+                    textAlign="left"
+                    fontWeight="medium"
+                    shadow="none"
+                    mt="3"
                   >
-                    <span className="truncate text-sm text-foreground">
+                    <Text truncate fontSize="sm" color="text.default">
                       {selectedVault?.name ?? 'All vaults'}
-                    </span>
-                    <ChevronDown
-                      className={`size-4 shrink-0 text-muted-foreground transition ${isVaultFilterOpen ? 'rotate-180' : ''}`}
-                    />
+                    </Text>
+                    <Flex
+                      shrink={0}
+                      align="center"
+                      transition="transform 200ms"
+                      transform={isVaultFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)'}
+                    >
+                      <ChevronDown size={16} />
+                    </Flex>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
-                  className="w-[min(28rem,calc(100vw-4rem))] p-0"
+                  minW="112"
+                  p="0"
                   onCloseAutoFocus={(event) => {
                     event.preventDefault();
                   }}
                 >
-                  <div ref={vaultFilterContentRef}>
-                    <div className="p-2">
+                  <Box ref={vaultFilterContentRef}>
+                    <Box p="2">
                       <Field>
-                        <FieldLabel htmlFor="all-documents-search-vaults" className="sr-only">
+                        <FieldLabel htmlFor="all-documents-search-vaults" srOnly>
                           Search vaults
                         </FieldLabel>
-                        <div className="relative">
-                          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Box position="relative">
+                          <Box
+                            position="absolute"
+                            left="3"
+                            top="50%"
+                            transform="translateY(-50%)"
+                            color="text.muted"
+                            pointerEvents="none"
+                          >
+                            <SearchIcon size={16} />
+                          </Box>
                           <Input
                             id="all-documents-search-vaults"
                             aria-label="Search vaults"
@@ -502,57 +534,62 @@ export function AllDocumentsPage() {
                               )
                             }
                             placeholder="Search vaults"
-                            className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
+                            h="10"
+                            rounded="xl"
+                            borderColor="transparent"
+                            pl="10"
+                            pr="3"
+                            focusRing="none"
                             autoFocus
                           />
-                        </div>
+                        </Box>
                       </Field>
-                    </div>
+                    </Box>
                     <Separator />
-                    <div className="max-h-72 overflow-auto p-2">
+                    <Box maxH="72" overflow="auto" p="2">
                       {vaultsQuery.isLoading ? (
-                        <p className="px-3 py-3 text-sm text-muted-foreground">Loading vaults...</p>
+                        <Text px="3" py="3" fontSize="sm" color="text.muted">Loading vaults...</Text>
                       ) : null}
                       {!vaultsQuery.isLoading ? (
                         <DropdownMenuItem
-                          className={cn(!selectedVaultId && 'bg-secondary/70 text-foreground')}
+                          bg={!selectedVaultId ? 'surface.subtle' : undefined}
+                          color={!selectedVaultId ? 'text.default' : undefined}
                           onSelect={() => {
                             setSelectedVaultId('');
                             setIsVaultFilterOpen(false);
                           }}
                         >
-                          <span className="flex-1">All vaults</span>
-                          {!selectedVaultId ? <Check className="size-4 text-primary" /> : null}
+                          <Text flex="1">All vaults</Text>
+                          {!selectedVaultId ? <Check size={16} /> : null}
                         </DropdownMenuItem>
                       ) : null}
                       {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
-                        <p className="px-3 py-3 text-sm text-muted-foreground">No vaults found.</p>
+                        <Text px="3" py="3" fontSize="sm" color="text.muted">No vaults found.</Text>
                       ) : null}
                       {filteredVaults.map((vault) => (
                         <DropdownMenuItem
                           key={vault.id}
-                          className={cn(
-                            selectedVaultId === vault.id && 'bg-secondary/70 text-foreground',
-                          )}
+                          bg={selectedVaultId === vault.id ? 'surface.subtle' : undefined}
+                          color={selectedVaultId === vault.id ? 'text.default' : undefined}
                           onSelect={() => {
                             setSelectedVaultId(vault.id);
                             setIsVaultFilterOpen(false);
                           }}
                         >
-                          <span className="flex-1 truncate">{vault.name}</span>
+                          <Text flex="1" truncate>{vault.name}</Text>
                           {selectedVaultId === vault.id ? (
-                            <Check className="size-4 text-primary" />
+                            <Check size={16} />
                           ) : null}
                         </DropdownMenuItem>
                       ))}
-                    </div>
-                  </div>
+                    </Box>
+                  </Box>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </Box>
 
-            <div className="space-y-4">
-              <span className="text-sm font-semibold text-foreground">Tags</span>
+            <Box gap="4">
+              <Text fontSize="sm" fontWeight="semibold" color="text.default">Tags</Text>
               <DropdownMenu
                 modal={false}
                 open={isTagFilterOpen}
@@ -568,58 +605,89 @@ export function AllDocumentsPage() {
                     type="button"
                     variant="outline"
                     aria-label="Tags filter"
-                    className={`${vaultInputClassName} h-10 w-full justify-between px-4 text-left font-medium shadow-none`}
+                    h="10"
+                    w="full"
+                    justifyContent="space-between"
+                    px="4"
+                    textAlign="left"
+                    fontWeight="medium"
+                    shadow="none"
+                    mt="3"
                   >
-                    <span className="truncate text-sm text-foreground">{selectedTagsLabel}</span>
-                    <ChevronDown
-                      className={`size-4 shrink-0 text-muted-foreground transition ${isTagFilterOpen ? 'rotate-180' : ''}`}
-                    />
+                    <Text truncate fontSize="sm" color="text.default">
+                      {selectedTagsLabel}
+                    </Text>
+                    <Flex
+                      shrink={0}
+                      align="center"
+                      transition="transform 200ms"
+                      transform={isTagFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)'}
+                    >
+                      <ChevronDown size={16} />
+                    </Flex>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
-                  className="w-[min(28rem,calc(100vw-4rem))] p-0"
+                  minW="112"
+                  p="0"
                   onCloseAutoFocus={(event) => {
                     event.preventDefault();
                   }}
                 >
-                  <div ref={tagFilterContentRef}>
-                    <div className="p-2">
+                  <Box ref={tagFilterContentRef}>
+                    <Box p="2">
                       <Field>
-                        <FieldLabel htmlFor="all-documents-search-tags" className="sr-only">
+                        <FieldLabel htmlFor="all-documents-search-tags" srOnly>
                           Search tags
                         </FieldLabel>
-                        <div className="relative">
-                          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Box position="relative">
+                          <Box
+                            position="absolute"
+                            left="3"
+                            top="50%"
+                            transform="translateY(-50%)"
+                            color="text.muted"
+                            pointerEvents="none"
+                          >
+                            <SearchIcon size={16} />
+                          </Box>
                           <Input
                             id="all-documents-search-tags"
                             aria-label="Search tags"
                             value={tagSearchQuery}
-                            onChange={(event) => setTagSearchQuery(event.target.value)}
+                            onChange={(event) => {
+                              setTagSearchQuery(event.target.value);
+                            }}
                             onKeyDown={(event) =>
                               handleFilterSearchKeyDown(event, () =>
                                 focusFirstFilterItem(tagFilterContentRef.current),
                               )
                             }
                             placeholder="Search tags"
-                            className="h-10 rounded-xl border-transparent pl-10 pr-3 focus-visible:ring-0"
+                            h="10"
+                            rounded="xl"
+                            borderColor="transparent"
+                            pl="10"
+                            pr="3"
+                            focusRing="none"
                             autoFocus
                           />
-                        </div>
+                        </Box>
                       </Field>
-                    </div>
+                    </Box>
                     <Separator />
-                    <div className="max-h-72 overflow-auto p-2">
+                    <Box maxH="72" overflow="auto" p="2">
                       {tagsQuery.isLoading ? (
-                        <p className="px-3 py-3 text-sm text-muted-foreground">Loading tags...</p>
+                        <Text px="3" py="3" fontSize="sm" color="text.muted">Loading tags...</Text>
                       ) : null}
                       {!tagsQuery.isLoading && availableTags.length === 0 ? (
-                        <p className="px-3 py-3 text-sm text-muted-foreground">No tags found.</p>
+                        <Text px="3" py="3" fontSize="sm" color="text.muted">No tags found.</Text>
                       ) : null}
                       {!tagsQuery.isLoading &&
                       availableTags.length > 0 &&
                       filteredTags.length === 0 ? (
-                        <p className="px-3 py-3 text-sm text-muted-foreground">No tags found.</p>
+                        <Text px="3" py="3" fontSize="sm" color="text.muted">No tags found.</Text>
                       ) : null}
                       {filteredTags.map((tag) => {
                         const isSelected = selectedTagIds.includes(tag.id);
@@ -631,34 +699,31 @@ export function AllDocumentsPage() {
                             onSelect={(event) => event.preventDefault()}
                             onCheckedChange={() => toggleTagSelection(tag.id)}
                           >
-                            <span className="flex min-w-0 flex-1 items-center gap-3">
-                              <span
-                                className="size-2.5 rounded-full"
-                                style={{
-                                  backgroundColor: tag.color ?? 'hsl(var(--muted-foreground))',
-                                }}
+                            <Flex minW="0" flex="1" align="center" gap="3">
+                              <Box
+                                boxSize="2.5"
+                                rounded="full"
+                                bg={tag.color ?? 'text.muted'}
                                 aria-hidden="true"
                               />
-                              <span className="truncate">{tag.name}</span>
-                            </span>
+                              <Text truncate>{tag.name}</Text>
+                            </Flex>
                             {typeof tag.documentsCount === 'number' ? (
-                              <span className="ml-auto text-xs text-muted-foreground">
+                              <Text ml="auto" fontSize="xs" color="text.muted">
                                 {tag.documentsCount} doc{tag.documentsCount === 1 ? '' : 's'}
-                              </span>
+                              </Text>
                             ) : null}
                           </DropdownMenuCheckboxItem>
                         );
                       })}
-                    </div>
-                  </div>
+                    </Box>
+                  </Box>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </Box>
 
-            <div className="rounded-lg border border-border/70 bg-background/80 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Date</h3>
-              </div>
+            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="surface.default" p="4">
+              <Text fontSize="sm" fontWeight="semibold" color="text.default">Date</Text>
 
               <DatePresetSelector
                 idPrefix="documents-date-filter"
@@ -680,80 +745,87 @@ export function AllDocumentsPage() {
                     setCustomDateFrom(nextValue);
                   }
                 }}
-                inputClassName={vaultInputClassName}
               />
-            </div>
+            </Box>
           </>
         }
       />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-lg font-semibold text-foreground">{summaryLabel}</p>
-        </div>
-
-        <Badge variant="secondary" className="rounded-lg px-3 py-1.5 text-sm font-medium">
+      <Flex direction={{ base: 'column', sm: 'row' }} align={{ sm: 'center' }} justify={{ sm: 'space-between' }}>
+        <Text fontSize="lg" fontWeight="semibold" color="text.default">{summaryLabel}</Text>
+        <Badge variant="secondary" rounded="lg" px="3" py="1.5" fontSize="sm" fontWeight="medium">
           {selectedSortLabel}
         </Badge>
-      </div>
+      </Flex>
 
       {vaultsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading vaults...</p>
+        <Text fontSize="sm" color="text.muted">Loading vaults...</Text>
       ) : null}
       {vaultsQuery.isError ? (
-        <p className="text-sm text-destructive">Unable to load vaults.</p>
+        <Text fontSize="sm" color="status.danger">Unable to load vaults.</Text>
       ) : null}
       {documentsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading documents...</p>
+        <Text fontSize="sm" color="text.muted">Loading documents...</Text>
       ) : null}
       {documentsQuery.isError ? (
-        <p className="text-sm text-destructive">Unable to load your document library.</p>
+        <Text fontSize="sm" color="status.danger">Unable to load your document library.</Text>
       ) : null}
 
       {!documentsQuery.isLoading && (documentsQuery.data?.results.length ?? 0) === 0 ? (
         <SurfacePanel>
-          <p className="text-sm text-muted-foreground">
+          <Text fontSize="sm" color="text.muted">
             No documents matched the current search and filter combination.
-          </p>
+          </Text>
         </SurfacePanel>
       ) : null}
 
-      <div className="space-y-5">
+      <Flex direction="column" gap="5">
         {groupedDocuments.map((group) => {
           const vault = vaultsById.get(group.vaultId);
           const isCollapsed = collapsedVaultIds.includes(group.vaultId);
 
           return (
-            <SurfacePanel key={group.vaultId} className="rounded-lg p-0">
-              <div className="border-b border-border/70 px-5 py-5 sm:px-6">
-                <div className="flex items-start gap-4">
+            <SurfacePanel key={group.vaultId} rounded="lg" p="0">
+              <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '5', sm: '6' }} py="5">
+                <Flex align="flex-start" gap="4" w="full">
                   <VaultIcon />
-                  <div className="min-w-0 flex-1">
-                    <button
+                  <Box minW="0" flex="1">
+                    <chakra.button
                       type="button"
-                      className="flex w-full items-start justify-between gap-4 text-left"
+                      display="flex"
+                      w="full"
+                      alignItems="flex-start"
+                      justifyContent="space-between"
+                      gap="4"
+                      textAlign="left"
                       aria-expanded={!isCollapsed}
                       onClick={() => toggleVaultCollapsed(group.vaultId)}
                     >
-                      <span className="min-w-0">
-                        <span className="flex flex-wrap items-baseline gap-3">
-                          <span className="truncate text-base font-semibold text-foreground">
+                      <Box minW="0">
+                        <Flex flexWrap="wrap" align="baseline" gap="3">
+                          <Text truncate fontSize="base" fontWeight="semibold" color="text.default">
                             {group.vaultName}
-                          </span>
-                          <span className="text-sm text-muted-foreground">
+                          </Text>
+                          <Text fontSize="sm" color="text.muted">
                             {group.documents.length} document
                             {group.documents.length === 1 ? '' : 's'}
-                          </span>
-                        </span>
-                        <span className="mt-1 block text-sm text-muted-foreground">
+                          </Text>
+                        </Flex>
+                        <Text mt="1" display="block" fontSize="sm" color="text.muted">
                           {formatVaultRole(vault?.role ?? 'global_admin')}
-                        </span>
-                      </span>
-                      <ChevronDown
-                        className={`mt-1 size-5 shrink-0 text-muted-foreground transition ${isCollapsed ? '' : 'rotate-180'}`}
-                      />
-                    </button>
-                  </div>
+                        </Text>
+                      </Box>
+                      <Flex
+                        mt="1"
+                        shrink={0}
+                        align="center"
+                        transition="transform 200ms"
+                        transform={isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)'}
+                      >
+                        <ChevronDown size={20} />
+                      </Flex>
+                    </chakra.button>
+                  </Box>
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <ActionMenuTriggerButton
@@ -761,7 +833,7 @@ export function AllDocumentsPage() {
                         onClick={(event) => event.stopPropagation()}
                       />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent align="end" minW="56">
                       <DropdownMenuItem asChild>
                         <Link to={`/vaults/${group.vaultId}/documents`}>
                           <ActionMenuItemIcon icon={FolderOpen} />
@@ -776,14 +848,14 @@ export function AllDocumentsPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </div>
-              </div>
+                </Flex>
+              </Flex>
 
               {!isCollapsed ? (
                 <>
                   <DocumentLibraryHeader />
 
-                  <div className="divide-y divide-border/70">
+                  <Flex direction="column" divideY="1px" divideColor="border.subtle">
                     {group.documents.map((result) => (
                       <DocumentLibraryRow
                         key={result.documentId}
@@ -798,16 +870,21 @@ export function AllDocumentsPage() {
                           debouncedQuery.length > 0 && result.bestChunk
                             ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
                                 part.highlighted ? (
-                                  <mark
+                                  <Box
+                                    as="mark"
                                     key={`${result.documentId}-${part.key}`}
-                                    className="rounded-md bg-accent px-1.5 py-0.5 text-foreground"
+                                    rounded="md"
+                                    bg="accent.subtle"
+                                    px="1.5"
+                                    py="0.5"
+                                    color="text.default"
                                   >
                                     {part.text}
-                                  </mark>
+                                  </Box>
                                 ) : (
-                                  <span key={`${result.documentId}-${part.key}`}>
+                                  <Text as="span" key={`${result.documentId}-${part.key}`}>
                                     {part.text}
-                                  </span>
+                                  </Text>
                                 ),
                               )
                             : undefined
@@ -824,13 +901,13 @@ export function AllDocumentsPage() {
                         deleteDisabled={deleteMutation.isPending}
                       />
                     ))}
-                  </div>
+                  </Flex>
                 </>
               ) : null}
             </SurfacePanel>
           );
         })}
-      </div>
-    </section>
+      </Flex>
+    </Flex>
   );
 }

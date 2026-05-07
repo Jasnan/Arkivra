@@ -1,25 +1,21 @@
 import type { PropsWithChildren } from 'react';
+import { Flex } from '@chakra-ui/react';
 import { Navigate } from 'react-router-dom';
 import { authClient } from '@/lib/auth-client';
 
 function AuthLoadingState() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+    <Flex minH="100vh" align="center" justify="center" bg="app.bg" fontSize="sm" color="text.muted">
       Checking session...
-    </div>
+    </Flex>
   );
 }
 
 export function ProtectedRoute({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) {
-    return <AuthLoadingState />;
-  }
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
+  if (isPending) return <AuthLoadingState />;
+  if (!session) return <Navigate to="/login" replace />;
 
   return <>{children}</>;
 }
@@ -27,13 +23,8 @@ export function ProtectedRoute({ children }: PropsWithChildren) {
 export function PublicOnlyRoute({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) {
-    return <AuthLoadingState />;
-  }
-
-  if (session) {
-    return <Navigate to="/" replace />;
-  }
+  if (isPending) return <AuthLoadingState />;
+  if (session) return <Navigate to="/" replace />;
 
   return <>{children}</>;
 }

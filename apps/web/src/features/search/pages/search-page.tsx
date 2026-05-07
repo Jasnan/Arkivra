@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
 import { Archive, ArrowRight, Search as SearchIcon, Tags, Vault } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
@@ -39,13 +40,11 @@ export function SearchPage() {
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
-
     if (query.trim().length > 0) {
       next.set('q', query.trim());
     } else {
       next.delete('q');
     }
-
     next.set('pageIndex', '0');
     setSearchParams(next, { replace: true });
   }, [query, searchParams, setSearchParams]);
@@ -75,33 +74,28 @@ export function SearchPage() {
 
   function updateFilters(nextValues: Record<string, string>) {
     const next = new URLSearchParams(searchParams);
-
     for (const [key, value] of Object.entries(nextValues)) {
-      if (value) {
-        next.set(key, value);
-      } else {
-        next.delete(key);
-      }
+      if (value) next.set(key, value);
+      else next.delete(key);
     }
-
     next.set('pageIndex', '0');
     setSearchParams(next, { replace: true });
   }
 
   return (
-    <section className="space-y-8 pb-8">
+    <Stack as="section" gap="8" pb="8">
       <PageIntro
         eyebrow="Global Discovery"
         title="Search across vaults"
         description="Run full-text discovery across every vault you can access, then narrow results by vault, tag, or document date."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }}>
         <StatCard
           label="Accessible vaults"
           value={(vaultsQuery.data?.vaults ?? []).length}
           meta="Search spans only the workspaces your account can reach."
-          icon={<Vault className="size-5" />}
+          icon={<Vault size={20} />}
         />
         <StatCard
           label="Current scope"
@@ -111,7 +105,7 @@ export function SearchPage() {
               ? 'Results are limited to one selected vault.'
               : 'Results can come from any accessible vault.'
           }
-          icon={<Archive className="size-5" />}
+          icon={<Archive size={20} />}
         />
         <StatCard
           label="Matches"
@@ -121,26 +115,36 @@ export function SearchPage() {
               ? 'Count updates as search terms and filters change.'
               : 'Start typing to query extracted text.'
           }
-          icon={<SearchIcon className="size-5" />}
+          icon={<SearchIcon size={20} />}
         />
-      </div>
+      </Grid>
 
-      <SurfacePanel className="space-y-5">
+      <SurfacePanel display="flex" flexDirection="column" gap="5">
         <SectionTitle eyebrow="Search Controls" title="Query and refine" />
 
-        <div className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+        <Grid gap="4" templateColumns={{ base: '1fr', lg: '2fr 1fr 1fr 1fr' }}>
           <Field>
             <FieldLabel htmlFor="global-search">Search text</FieldLabel>
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Box position="relative">
+              <Box
+                position="absolute"
+                left="4"
+                top="50%"
+                transform="translateY(-50%)"
+                pointerEvents="none"
+                color="text.muted"
+              >
+                <SearchIcon size={16} />
+              </Box>
               <Input
                 id="global-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search invoices, clauses, names..."
-                className={`${vaultInputClassName} pl-11`}
+                className={vaultInputClassName}
+                pl="11"
               />
-            </div>
+            </Box>
           </Field>
 
           <Field>
@@ -149,10 +153,7 @@ export function SearchPage() {
               value={vaultId || '__all__'}
               onValueChange={(value) => {
                 const nextVaultId = value === '__all__' ? '' : value;
-                updateFilters({
-                  vaultId: nextVaultId,
-                  tagId: nextVaultId ? tagId : '',
-                });
+                updateFilters({ vaultId: nextVaultId, tagId: nextVaultId ? tagId : '' });
               }}
             >
               <SelectTrigger aria-labelledby="search-vault-label" className={vaultInputClassName}>
@@ -192,7 +193,7 @@ export function SearchPage() {
             </Select>
           </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <Grid gap="4" templateColumns={{ base: '1fr 1fr', lg: '1fr' }}>
             <Field>
               <FieldLabel htmlFor="date-from">Date from</FieldLabel>
               <Input
@@ -213,132 +214,197 @@ export function SearchPage() {
                 className={vaultInputClassName}
               />
             </Field>
-          </div>
-        </div>
+          </Grid>
+        </Grid>
       </SurfacePanel>
 
       {deferredQuery.length === 0 ? (
-        <SurfacePanel variant="soft" className="space-y-3">
-          <p className="vault-label">Discovery Idle</p>
-          <p className="text-sm leading-6 text-muted-foreground">
+        <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="3">
+          <Text textStyle="label">Discovery Idle</Text>
+          <Text fontSize="sm" lineHeight="6" color="text.muted">
             Start typing to search extracted text across all accessible vaults.
-          </p>
+          </Text>
         </SurfacePanel>
       ) : (
-        <SurfacePanel className="space-y-5">
+        <SurfacePanel display="flex" flexDirection="column" gap="5">
           <SectionTitle
             eyebrow="Search Results"
             title="Matches"
             action={
-              <span className="vault-chip">{searchQuery.data?.resultsCount ?? 0} matches</span>
+              <Box
+                display="inline-flex"
+                alignItems="center"
+                gap="1.5"
+                rounded="full"
+                bg="surface.subtle"
+                px="3"
+                py="1"
+                fontSize="xs"
+                fontWeight="semibold"
+                color="text.default"
+              >
+                {searchQuery.data?.resultsCount ?? 0} matches
+              </Box>
             }
           />
 
           {searchQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Searching...</p>
+            <Text fontSize="sm" color="text.muted">Searching...</Text>
           ) : null}
           {searchQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to search your vaults.</p>
+            <Text fontSize="sm" color="status.danger">Unable to search your vaults.</Text>
           ) : null}
 
           {!searchQuery.isLoading && (searchQuery.data?.results.length ?? 0) === 0 ? (
-            <div className="vault-empty">No documents matched your query and filters.</div>
+            <Box layerStyle="ark.empty">No documents matched your query and filters.</Box>
           ) : (
-            <div className="space-y-4">
+            <Stack gap="4">
               {(searchQuery.data?.results ?? []).map((result) => (
-                <article
+                <Box
                   key={`${result.vaultId}-${result.documentId}`}
-                  className="rounded-lg bg-secondary/56 p-5"
+                  rounded="lg"
+                  bg="surface.subtle"
+                  p="5"
                 >
-                  <div className="space-y-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-3">
-                        <div>
+                  <Stack gap="4">
+                    <Flex
+                      direction={{ base: 'column', lg: 'row' }}
+                      align={{ lg: 'flex-start' }}
+                      justify={{ lg: 'space-between' }}
+                      gap="3"
+                    >
+                      <Stack gap="3">
+                        <Box>
                           <Link
                             to={`/vaults/${result.vaultId}/documents/${result.documentId}`}
-                            className="text-base font-semibold text-foreground transition hover:text-primary"
+                            style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--chakra-colors-text-default)' }}
                           >
                             {result.name}
                           </Link>
-                          <p className="mt-2 text-sm text-muted-foreground">
+                          <Text mt="2" fontSize="sm" color="text.muted">
                             {result.vaultName} • {result.mimeType} • {result.matchedChunksCount}{' '}
                             matching chunk{result.matchedChunksCount === 1 ? '' : 's'} • Updated{' '}
                             {formatDate(result.updatedAt)}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
+                          </Text>
+                          <Text fontSize="sm" color="text.muted">
                             Document date: {formatDate(result.documentDate)}
-                          </p>
-                        </div>
+                          </Text>
+                        </Box>
 
-                        <div className="flex flex-wrap gap-2">
-                          <span className="vault-chip">
-                            <Vault className="size-3.5" />
-                            {result.vaultName}
-                          </span>
+                        <Flex gap="2" flexWrap="wrap">
+                          <Flex
+                            display="inline-flex"
+                            align="center"
+                            gap="1.5"
+                            rounded="full"
+                            bg="surface.subtle"
+                            px="3"
+                            py="1"
+                            fontSize="xs"
+                            fontWeight="semibold"
+                            color="text.default"
+                          >
+                            <Vault size={14} />
+                            <Text as="span">{result.vaultName}</Text>
+                          </Flex>
                           {result.bestChunk ? (
-                            <span className="vault-chip">
-                              <Tags className="size-3.5" />
-                              {result.bestChunk.chunkType ?? 'text chunk'}
-                            </span>
+                            <Flex
+                              display="inline-flex"
+                              align="center"
+                              gap="1.5"
+                              rounded="full"
+                              bg="surface.subtle"
+                              px="3"
+                              py="1"
+                              fontSize="xs"
+                              fontWeight="semibold"
+                              color="text.default"
+                            >
+                              <Tags size={14} />
+                              <Text as="span">{result.bestChunk.chunkType ?? 'text chunk'}</Text>
+                            </Flex>
                           ) : null}
-                        </div>
-                      </div>
+                        </Flex>
+                      </Stack>
 
                       <Link
                         to={`/vaults/${result.vaultId}/documents/${result.documentId}`}
-                        className="vault-link inline-flex items-center gap-2"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--chakra-colors-accent-default)', fontWeight: 600, fontSize: '0.875rem' }}
                       >
                         Open document
-                        <ArrowRight className="size-4" />
+                        <ArrowRight size={16} />
                       </Link>
-                    </div>
+                    </Flex>
 
                     {result.bestChunk ? (
                       <>
-                        <div className="rounded-lg bg-card/85 p-4 text-sm leading-7 text-foreground">
-                          <p className="vault-label mb-3">
+                        <Box rounded="lg" bg="surface.raised" p="4" fontSize="sm" lineHeight="7" color="text.default">
+                          <Text textStyle="label" mb="3">
                             Best matching snippet
                             {result.bestChunk.pageNumber !== null
                               ? ` • Page ${result.bestChunk.pageNumber}`
                               : ''}
-                          </p>
-                          <p className="break-words">
+                          </Text>
+                          <Box wordBreak="break-word">
                             {tokenizeSnippet(result.bestChunk.snippet).map((part) =>
                               part.highlighted ? (
-                                <mark
+                                <Box
+                                  as="mark"
                                   key={`${result.documentId}-${part.key}`}
-                                  className="rounded-md bg-accent px-1.5 py-0.5 text-foreground"
+                                  rounded="md"
+                                  bg="accent.subtle"
+                                  px="1.5"
+                                  py="0.5"
+                                  color="text.default"
                                 >
                                   {part.text}
-                                </mark>
+                                </Box>
                               ) : (
-                                <span key={`${result.documentId}-${part.key}`}>{part.text}</span>
+                                <Text as="span" key={`${result.documentId}-${part.key}`}>{part.text}</Text>
                               ),
                             )}
-                          </p>
-                        </div>
+                          </Box>
+                        </Box>
 
-                        <details className="rounded-lg bg-card/70 p-4 text-sm text-muted-foreground">
-                          <summary className="cursor-pointer font-semibold text-foreground">
+                        <Box
+                          as="details"
+                          rounded="lg"
+                          bg="surface.subtle"
+                          p="4"
+                          fontSize="sm"
+                          color="text.muted"
+                        >
+                          <Box
+                            as="summary"
+                            cursor="pointer"
+                            fontWeight="semibold"
+                            color="text.default"
+                          >
                             Matched chunk preview
-                          </summary>
-                          <p className="mt-3 whitespace-pre-wrap break-words leading-6">
+                          </Box>
+                          <Text mt="3" whiteSpace="pre-wrap" wordBreak="break-word" lineHeight="6">
                             {stripSnippetMarkup(result.bestChunk.content)}
-                          </p>
-                        </details>
+                          </Text>
+                        </Box>
                       </>
                     ) : null}
-                  </div>
-                </article>
+                  </Stack>
+                </Box>
               ))}
-            </div>
+            </Stack>
           )}
 
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+          <Flex
+            direction={{ base: 'column', sm: 'row' }}
+            align={{ base: 'stretch', sm: 'center' }}
+            justify={{ base: 'flex-start', sm: 'space-between' }}
+            gap="3"
+            pt="2"
+          >
+            <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.24em" color="text.muted">
               Page {pageIndex + 1} of {totalPages}
-            </p>
-            <div className="flex gap-2">
+            </Text>
+            <Flex gap="2">
               <Button
                 type="button"
                 variant="outline"
@@ -363,10 +429,10 @@ export function SearchPage() {
               >
                 Next
               </Button>
-            </div>
-          </div>
+            </Flex>
+          </Flex>
         </SurfacePanel>
       )}
-    </section>
+    </Stack>
   );
 }

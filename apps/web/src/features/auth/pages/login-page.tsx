@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { Flex, Grid } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -45,16 +46,13 @@ export function LoginPage() {
   async function handleOAuth(provider: 'google' | 'github') {
     setErrorMessage(null);
     const { error } = await authClient.signIn.social({ provider, callbackURL: '/' });
-
-    if (error) {
-      setErrorMessage(error.message ?? 'OAuth sign in failed.');
-    }
+    if (error) setErrorMessage(error.message ?? 'OAuth sign in failed.');
   }
 
   return (
     <AuthLayout>
       <AuthCard title="Welcome back" subtitle="Sign in to access your vaults.">
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
           <Field>
             <FieldLabel htmlFor="email">Email</FieldLabel>
             <Input
@@ -81,24 +79,28 @@ export function LoginPage() {
 
           {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" w="100%" disabled={isSubmitting}>
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
 
-        <div className="grid grid-cols-2 gap-2">
+        <Grid templateColumns="1fr 1fr" gap="2">
           <Button type="button" variant="outline" onClick={() => handleOAuth('google')}>
             Google
           </Button>
           <Button type="button" variant="outline" onClick={() => handleOAuth('github')}>
             GitHub
           </Button>
-        </div>
+        </Grid>
 
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <Link to="/request-password-reset" className="hover:text-foreground">Forgot password?</Link>
-          <Link to="/register" className="hover:text-foreground">Create account</Link>
-        </div>
+        <Flex align="center" justify="space-between" fontSize="sm" color="text.muted">
+          <Link to="/request-password-reset" style={{ color: 'var(--chakra-colors-text-muted)' }}>
+            Forgot password?
+          </Link>
+          <Link to="/register" style={{ color: 'var(--chakra-colors-text-muted)' }}>
+            Create account
+          </Link>
+        </Flex>
       </AuthCard>
     </AuthLayout>
   );

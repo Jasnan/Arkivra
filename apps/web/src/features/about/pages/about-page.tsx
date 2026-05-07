@@ -1,3 +1,4 @@
+import { Box, Flex, Grid, Heading, Stack, Text, chakra } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { BookOpen, LockKeyhole, SearchCheck } from 'lucide-react';
 import { PageIntro, StatCard, SurfacePanel } from '@/components/layout/vault-ui';
@@ -10,14 +11,14 @@ export function AboutPage() {
   });
 
   return (
-    <section className="space-y-8 pb-8">
+    <Stack as="section" gap="8" pb="8">
       <PageIntro
         eyebrow="Platform Overview"
         title="About Arkivra"
         description="Arkivra is a self-hosted, AI-ready document management system built for private control, structured search, and a durable vault model."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))' }}>
         <StatCard
           label="Hosting model"
           value="Self-hosted"
@@ -36,73 +37,73 @@ export function AboutPage() {
           meta="Open source by default."
           icon={<BookOpen className="size-5" />}
         />
-      </div>
+      </Grid>
 
-      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <SurfacePanel className="space-y-5">
-          <div>
-            <p className="vault-label">Instance</p>
-            <h2 className="font-display mt-2 text-xl font-bold  text-foreground">Runtime status</h2>
-          </div>
+      <Grid gap="6" templateColumns={{ base: '1fr', lg: '0.9fr 1.1fr' }}>
+        <SurfacePanel display="flex" flexDirection="column" gap="5">
+          <Stack gap="2">
+            <Text textStyle="label">Instance</Text>
+            <Heading as="h2" textStyle="section.title">Runtime status</Heading>
+          </Stack>
 
           {healthQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading version info...</p>
+            <Text textStyle="metadata">Loading version info...</Text>
           ) : null}
           {healthQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load instance metadata.</p>
+            <Text textStyle="metadata" color="status.danger">Unable to load instance metadata.</Text>
           ) : null}
           {healthQuery.data ? (
-            <dl className="space-y-4 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Status</dt>
-                <dd className="font-medium text-foreground">{healthQuery.data.status}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Version</dt>
-                <dd className="font-medium text-foreground">{healthQuery.data.version}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Reported at</dt>
-                <dd className="font-medium text-foreground">
+            <Stack as="dl" gap="4" fontSize="sm">
+              <Box>
+                <Text as="dt" color="text.muted">Status</Text>
+                <Text as="dd" fontWeight="medium" color="text.default">{healthQuery.data.status}</Text>
+              </Box>
+              <Box>
+                <Text as="dt" color="text.muted">Version</Text>
+                <Text as="dd" fontWeight="medium" color="text.default">{healthQuery.data.version}</Text>
+              </Box>
+              <Box>
+                <Text as="dt" color="text.muted">Reported at</Text>
+                <Text as="dd" fontWeight="medium" color="text.default">
                   {new Date(healthQuery.data.timestamp).toLocaleString()}
-                </dd>
-              </div>
-            </dl>
+                </Text>
+              </Box>
+            </Stack>
           ) : null}
         </SurfacePanel>
 
-        <SurfacePanel variant="soft" className="space-y-5">
-          <div>
-            <p className="vault-label">Project</p>
-            <h2 className="font-display mt-2 text-xl font-bold  text-foreground">Core direction</h2>
-          </div>
+        <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
+          <Stack gap="2">
+            <Text textStyle="label">Project</Text>
+            <Heading as="h2" textStyle="section.title">Core direction</Heading>
+          </Stack>
 
-          <div className="space-y-3 text-sm leading-6 text-muted-foreground">
-            <p>Self-hosted first, so the installation runs on infrastructure you control.</p>
-            <p>Vault-based organization with explicit ownership, membership, and permissions.</p>
-            <p>Keyword search is live today, with semantic workflows planned for future phases.</p>
-          </div>
+          <Stack gap="3" textStyle="body" color="text.muted">
+            <Text>Self-hosted first, so the installation runs on infrastructure you control.</Text>
+            <Text>Vault-based organization with explicit ownership, membership, and permissions.</Text>
+            <Text>Keyword search is live today, with semantic workflows planned for future phases.</Text>
+          </Stack>
 
-          <div className="flex flex-wrap gap-3">
-            <a
+          <Flex flexWrap="wrap" gap="3">
+            <chakra.a
               href="https://github.com/Jasnan/Arkivra"
               target="_blank"
               rel="noreferrer"
               className="vault-link"
             >
               GitHub repository
-            </a>
-            <a
+            </chakra.a>
+            <chakra.a
               href="https://github.com/Jasnan/Arkivra/blob/main/README.md"
               target="_blank"
               rel="noreferrer"
               className="vault-link"
             >
               README
-            </a>
-          </div>
+            </chakra.a>
+          </Flex>
         </SurfacePanel>
-      </div>
-    </section>
+      </Grid>
+    </Stack>
   );
 }

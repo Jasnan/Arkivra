@@ -1,17 +1,18 @@
 import * as React from 'react';
+import { chakra } from '@chakra-ui/react';
 import { ChevronRight, MoreHorizontal } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
-type BreadcrumbProps = React.ComponentPropsWithoutRef<'nav'> & {
+type BreadcrumbProps = React.ComponentProps<typeof chakra.nav> & {
   ref?: React.Ref<HTMLElement>;
 };
 
-export function Breadcrumb({ className, ref, ...props }: BreadcrumbProps) {
+export function Breadcrumb({ ref, ...props }: BreadcrumbProps) {
   return (
-    <nav
+    <chakra.nav
       ref={ref}
       aria-label="Breadcrumb"
-      className={cn('min-w-0 overflow-hidden', className)}
+      minW="0"
+      overflow="hidden"
       {...props}
     />
   );
@@ -19,18 +20,21 @@ export function Breadcrumb({ className, ref, ...props }: BreadcrumbProps) {
 
 Breadcrumb.displayName = 'Breadcrumb';
 
-type BreadcrumbListProps = React.ComponentPropsWithoutRef<'ol'> & {
+type BreadcrumbListProps = React.ComponentProps<typeof chakra.ol> & {
   ref?: React.Ref<HTMLOListElement>;
 };
 
-export function BreadcrumbList({ className, ref, ...props }: BreadcrumbListProps) {
+export function BreadcrumbList({ ref, ...props }: BreadcrumbListProps) {
   return (
-    <ol
+    <chakra.ol
       ref={ref}
-      className={cn(
-        'flex min-w-0 flex-wrap items-center gap-1.5 text-sm text-muted-foreground',
-        className,
-      )}
+      display="flex"
+      minW="0"
+      flexWrap="wrap"
+      alignItems="center"
+      gap="1.5"
+      fontSize="sm"
+      color="text.muted"
       {...props}
     />
   );
@@ -38,15 +42,18 @@ export function BreadcrumbList({ className, ref, ...props }: BreadcrumbListProps
 
 BreadcrumbList.displayName = 'BreadcrumbList';
 
-type BreadcrumbItemProps = React.ComponentPropsWithoutRef<'li'> & {
+type BreadcrumbItemProps = React.ComponentProps<typeof chakra.li> & {
   ref?: React.Ref<HTMLLIElement>;
 };
 
-export function BreadcrumbItem({ className, ref, ...props }: BreadcrumbItemProps) {
+export function BreadcrumbItem({ ref, ...props }: BreadcrumbItemProps) {
   return (
-    <li
+    <chakra.li
       ref={ref}
-      className={cn('inline-flex min-w-0 items-center gap-1.5', className)}
+      display="inline-flex"
+      minW="0"
+      alignItems="center"
+      gap="1.5"
       {...props}
     />
   );
@@ -54,15 +61,17 @@ export function BreadcrumbItem({ className, ref, ...props }: BreadcrumbItemProps
 
 BreadcrumbItem.displayName = 'BreadcrumbItem';
 
-type BreadcrumbLinkProps = React.ComponentPropsWithoutRef<'a'> & {
+type BreadcrumbLinkProps = React.ComponentProps<typeof chakra.a> & {
   ref?: React.Ref<HTMLAnchorElement>;
 };
 
-export function BreadcrumbLink({ className, ref, ...props }: BreadcrumbLinkProps) {
+export function BreadcrumbLink({ ref, ...props }: BreadcrumbLinkProps) {
   return (
-    <a
+    <chakra.a
       ref={ref}
-      className={cn('font-medium transition hover:text-foreground', className)}
+      fontWeight="medium"
+      transition="color 0.15s ease"
+      _hover={{ color: 'text.default' }}
       {...props}
     />
   );
@@ -70,16 +79,17 @@ export function BreadcrumbLink({ className, ref, ...props }: BreadcrumbLinkProps
 
 BreadcrumbLink.displayName = 'BreadcrumbLink';
 
-type BreadcrumbPageProps = React.ComponentPropsWithoutRef<'span'> & {
+type BreadcrumbPageProps = React.ComponentProps<typeof chakra.span> & {
   ref?: React.Ref<HTMLSpanElement>;
 };
 
-export function BreadcrumbPage({ className, ref, ...props }: BreadcrumbPageProps) {
+export function BreadcrumbPage({ ref, ...props }: BreadcrumbPageProps) {
   return (
-    <span
+    <chakra.span
       ref={ref}
       aria-current="page"
-      className={cn('font-medium text-foreground', className)}
+      fontWeight="medium"
+      color="text.default"
       {...props}
     />
   );
@@ -89,34 +99,36 @@ BreadcrumbPage.displayName = 'BreadcrumbPage';
 
 export const BreadcrumbSeparator = ({
   children,
-  className,
   ...props
-}: React.ComponentPropsWithoutRef<'li'>) => (
-  <li
+}: React.ComponentProps<typeof chakra.li>) => (
+  <chakra.li
     role="presentation"
     aria-hidden="true"
-    className={cn('shrink-0 text-muted-foreground', className)}
+    flexShrink="0"
+    color="text.muted"
     {...props}
   >
     {children ?? <ChevronRight className="size-3.5" />}
-  </li>
+  </chakra.li>
 );
 
 BreadcrumbSeparator.displayName = 'BreadcrumbSeparator';
 
 export const BreadcrumbEllipsis = ({
-  className,
   ...props
-}: React.ComponentPropsWithoutRef<'span'>) => (
-  <span
+}: React.ComponentProps<typeof chakra.span>) => (
+  <chakra.span
     role="presentation"
     aria-hidden="true"
-    className={cn('flex size-9 items-center justify-center', className)}
+    display="flex"
+    boxSize="9"
+    alignItems="center"
+    justifyContent="center"
     {...props}
   >
     <MoreHorizontal className="size-4" />
     <span className="sr-only">More</span>
-  </span>
+  </chakra.span>
 );
 
 BreadcrumbEllipsis.displayName = 'BreadcrumbEllipsis';

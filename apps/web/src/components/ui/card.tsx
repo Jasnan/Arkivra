@@ -1,31 +1,26 @@
 import * as React from 'react';
-import { cn } from '@/lib/utils';
+import { Box, Heading, Text } from '@chakra-ui/react';
 
-export function Card({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)}
-      {...props}
-    />
-  );
+export function Card(props: React.ComponentProps<typeof Box>) {
+  return <Box layerStyle="ark.panel" {...props} />;
 }
 
-export function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('flex flex-col space-y-1.5 p-6', className)} {...props} />;
+export function CardHeader(props: React.ComponentProps<typeof Box>) {
+  return <Box display="grid" gap="1.5" {...props} />;
 }
 
-export function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('text-xl font-semibold tracking-tight', className)} {...props} />;
+export function CardTitle(props: React.ComponentProps<typeof Heading>) {
+  return <Heading as="h3" textStyle="section.title" {...props} />;
 }
 
-export function CardDescription({ className, ...props }: React.ComponentProps<'p'>) {
-  return <p className={cn('text-sm text-muted-foreground', className)} {...props} />;
+export function CardDescription(props: React.ComponentProps<typeof Text>) {
+  return <Text textStyle="body" color="text.muted" {...props} />;
 }
 
-export function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('px-6 pb-6', className)} {...props} />;
+export function CardContent(props: React.ComponentProps<typeof Box>) {
+  return <Box {...props} />;
 }
 
-export function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('flex items-center px-6 pb-6', className)} {...props} />;
+export function CardFooter(props: React.ComponentProps<typeof Box>) {
+  return <Box display="flex" alignItems="center" {...props} />;
 }

@@ -1,26 +1,25 @@
 import * as React from 'react';
-import * as SwitchPrimitive from '@radix-ui/react-switch';
-import { cn } from '@/lib/utils';
+import { Switch as ChakraSwitch } from '@chakra-ui/react';
 
-type SwitchProps = React.ComponentPropsWithRef<typeof SwitchPrimitive.Root>;
+type SwitchProps = Omit<React.ComponentProps<typeof ChakraSwitch.Root>, 'onCheckedChange'> & {
+  ref?: React.Ref<HTMLLabelElement>;
+  onCheckedChange?: (checked: boolean) => void;
+};
 
-export function Switch({ className, ref, ...props }: SwitchProps) {
+export function Switch({ ref, onCheckedChange, children, ...props }: SwitchProps) {
   return (
-    <SwitchPrimitive.Root
+    <ChakraSwitch.Root
       ref={ref}
-      className={cn(
-        'peer inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent bg-input shadow-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted',
-        className,
-      )}
+      onCheckedChange={onCheckedChange ? (event) => onCheckedChange(event.checked) : undefined}
       {...props}
     >
-      <SwitchPrimitive.Thumb
-        className={cn(
-          'pointer-events-none block size-5 rounded-full bg-background shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0',
-        )}
-      />
-    </SwitchPrimitive.Root>
+      <ChakraSwitch.HiddenInput />
+      <ChakraSwitch.Control>
+        <ChakraSwitch.Thumb />
+      </ChakraSwitch.Control>
+      {children ? <ChakraSwitch.Label>{children}</ChakraSwitch.Label> : null}
+    </ChakraSwitch.Root>
   );
 }
 
-Switch.displayName = SwitchPrimitive.Root.displayName;
+Switch.displayName = 'Switch';

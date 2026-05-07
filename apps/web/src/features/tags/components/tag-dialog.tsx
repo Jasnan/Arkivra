@@ -1,5 +1,6 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useRef } from 'react';
+import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import { Plus, RefreshCw, X } from 'lucide-react';
 import { CreateButton, SaveButton } from '@/components/ui/action-buttons';
 import { Badge } from '@/components/ui/badge';
@@ -69,43 +70,52 @@ export function TagDialog({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open && !isPending) {
-          onClose();
-        }
+        if (!open && !isPending) onClose();
       }}
     >
       <DialogContent
         hideCloseButton
-        className="max-w-3xl"
+        maxWidth="48rem"
         onPointerDownOutside={(event) => {
-          if (isPending) {
-            event.preventDefault();
-          }
+          if (isPending) event.preventDefault();
         }}
         onEscapeKeyDown={(event) => {
-          if (isPending) {
-            event.preventDefault();
-          }
+          if (isPending) event.preventDefault();
         }}
       >
-        <div className="flex items-start justify-between gap-4 px-6 pt-6 sm:px-8 sm:pt-7">
+        <Flex align="flex-start" justify="space-between" gap="4" px={{ base: '6', sm: '8' }} pt={{ base: '6', sm: '7' }}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
-            <DialogDescription className="sr-only">{title}</DialogDescription>
+            <DialogDescription style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' }}>{title}</DialogDescription>
           </DialogHeader>
-          <button
+          <chakra.button
             type="button"
             aria-label={closeLabel}
-            className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+            display="inline-flex"
+            boxSize="9"
+            alignItems="center"
+            justifyContent="center"
+            rounded="full"
+            color="text.muted"
+            cursor="pointer"
+            _hover={{ bg: 'surface.selected', color: 'text.default' }}
             onClick={onClose}
             disabled={isPending}
           >
-            <X className="size-5" />
-          </button>
-        </div>
+            <X size={20} />
+          </chakra.button>
+        </Flex>
 
-        <form className="space-y-6 px-6 pb-6 pt-5 sm:px-8 sm:pb-8" onSubmit={onSubmit}>
-          <Field className="gap-3">
+        <chakra.form
+          display="flex"
+          flexDirection="column"
+          gap="6"
+          px={{ base: '6', sm: '8' }}
+          pb={{ base: '6', sm: '8' }}
+          pt="5"
+          onSubmit={onSubmit}
+        >
+          <Field gap="3">
             <FieldLabel htmlFor="tag-dialog-name">Name</FieldLabel>
             <Input
               id="tag-dialog-name"
@@ -121,86 +131,127 @@ export function TagDialog({
 
           {extraFields}
 
-          <Field className="gap-3">
+          <Field gap="3">
             <FieldLabel>Color</FieldLabel>
-            <div className="flex flex-wrap items-center gap-2.5">
+            <Flex flexWrap="wrap" align="center" gap="2.5">
               {DEFAULT_TAG_COLORS.map((color) => (
-                <button
+                <chakra.button
                   key={color}
                   type="button"
                   aria-label={`Select color ${color}`}
                   aria-pressed={colorValue === color}
-                  className={`flex size-10 items-center justify-center rounded-xl border transition ${colorValue === color ? 'border-foreground/35 ring-2 ring-foreground/10' : 'border-border/70 hover:border-foreground/20'}`}
+                  display="flex"
+                  boxSize="10"
+                  alignItems="center"
+                  justifyContent="center"
+                  rounded="xl"
+                  borderWidth="1px"
+                  borderColor={colorValue === color ? 'text.default/35' : 'border.subtle'}
+                  ring={colorValue === color ? '2px' : undefined}
+                  ringColor={colorValue === color ? 'text.default/10' : undefined}
                   style={{ backgroundColor: color }}
+                  cursor="pointer"
+                  _hover={colorValue !== color ? { borderColor: 'text.default/20' } : undefined}
                   onClick={() => onColorChange(color)}
                 >
                   {colorValue === color ? (
-                    <span
-                      className={`size-2.5 rounded-full ${color === '#FFFFFF' ? 'bg-foreground' : 'bg-black/65'}`}
+                    <Box
+                      boxSize="2.5"
+                      rounded="full"
+                      bg={color === '#FFFFFF' ? 'text.default' : 'blackAlpha.700'}
                     />
                   ) : null}
-                </button>
+                </chakra.button>
               ))}
-              <button
+              <chakra.button
                 type="button"
                 aria-label="Choose custom color"
-                className="inline-flex size-10 items-center justify-center rounded-xl border border-border/70 bg-background text-foreground transition hover:border-foreground/20"
+                display="inline-flex"
+                boxSize="10"
+                alignItems="center"
+                justifyContent="center"
+                rounded="xl"
+                borderWidth="1px"
+                borderColor="border.subtle"
+                bg="surface.default"
+                color="text.default"
+                cursor="pointer"
+                _hover={{ borderColor: 'text.default/20' }}
                 onClick={() => customColorInputRef.current?.click()}
               >
-                <Plus className="size-5" />
-              </button>
-              <button
+                <Plus size={20} />
+              </chakra.button>
+              <chakra.button
                 type="button"
                 aria-label="Reset tag color"
-                className="inline-flex size-10 items-center justify-center rounded-xl text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                display="inline-flex"
+                boxSize="10"
+                alignItems="center"
+                justifyContent="center"
+                rounded="xl"
+                color="text.muted"
+                cursor="pointer"
+                _hover={{ bg: 'surface.selected', color: 'text.default' }}
                 onClick={() => onColorChange('#D8FF75')}
               >
-                <RefreshCw className="size-5" />
-              </button>
+                <RefreshCw size={20} />
+              </chakra.button>
               <input
                 ref={customColorInputRef}
                 type="color"
                 value={colorValue}
-                className="sr-only"
+                style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' }}
                 onChange={(event) => onColorChange(event.target.value.toUpperCase())}
               />
-            </div>
+            </Flex>
           </Field>
 
-          <Field className="gap-3">
+          <Field gap="3">
             <FieldLabel htmlFor="tag-dialog-description">
-              Description <span className="font-normal text-muted-foreground">(optional)</span>
+              Description <Text as="span" fontWeight="normal" color="text.muted">(optional)</Text>
             </FieldLabel>
             <Textarea
               id="tag-dialog-description"
               maxLength={256}
               value={descriptionValue}
               onChange={(event) => onDescriptionChange(event.target.value)}
-              className="min-h-28 resize-y"
+              minH="7rem"
+              resize="vertical"
               placeholder="Eg. All the contracts signed by the company"
             />
           </Field>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-            <Badge variant="secondary" className="gap-2 rounded-lg px-2.5 py-1 text-sm leading-none">
-              <span
+          <Flex align="center" justify="space-between" gap="4" pt="2" flexWrap="wrap">
+            <Badge
+              variant="secondary"
+              display="flex"
+              alignItems="center"
+              gap="2"
+              rounded="lg"
+              px="2.5"
+              py="1"
+              fontSize="sm"
+              lineHeight="none"
+            >
+              <Box
                 aria-hidden="true"
-                className="size-1.5 rounded-full"
+                boxSize="1.5"
+                rounded="full"
                 style={{ backgroundColor: colorValue }}
               />
-              {normalizedName || 'New tag'}
+              <Text as="span">{normalizedName || 'New tag'}</Text>
             </Badge>
             {submitLabel.toLowerCase().includes('create') ? (
-              <CreateButton type="submit" className="px-5" disabled={isSubmitDisabled}>
+              <CreateButton type="submit" px="5" disabled={isSubmitDisabled}>
                 {isPending ? pendingLabel : submitLabel}
               </CreateButton>
             ) : (
-              <SaveButton type="submit" className="px-5" disabled={isSubmitDisabled}>
+              <SaveButton type="submit" px="5" disabled={isSubmitDisabled}>
                 {isPending ? pendingLabel : submitLabel}
               </SaveButton>
             )}
-          </div>
-        </form>
+          </Flex>
+        </chakra.form>
       </DialogContent>
     </Dialog>
   );

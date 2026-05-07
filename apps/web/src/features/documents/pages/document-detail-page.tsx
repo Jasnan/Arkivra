@@ -1,9 +1,9 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import {
   Download,
-  FileText,
   Image as ImageIcon,
   MessageSquare,
   Pencil,
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PageIntro, vaultInputClassName } from '@/components/layout/vault-ui';
+import { PageIntro } from '@/components/layout/vault-ui';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -65,7 +65,6 @@ import {
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
-import { cn } from '@/lib/utils';
 
 type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
@@ -218,15 +217,15 @@ export function DocumentDetailPage() {
   });
 
   if (!vaultId || !documentId) {
-    return <p className="text-sm text-destructive">Invalid document route.</p>;
+    return <Text fontSize="sm" color="status.danger">Invalid document route.</Text>;
   }
 
   if (documentQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading document...</p>;
+    return <Text fontSize="sm" color="text.muted">Loading document...</Text>;
   }
 
   if (documentQuery.isError || !documentQuery.data) {
-    return <p className="text-sm text-destructive">Unable to load document.</p>;
+    return <Text fontSize="sm" color="status.danger">Unable to load document.</Text>;
   }
 
   const document = documentQuery.data.document;
@@ -422,43 +421,58 @@ export function DocumentDetailPage() {
   }
 
   return (
-    <section
-      className={cn(
-        activeTab === 'chat' ? 'flex h-full min-h-0 flex-col gap-8 pb-0' : 'space-y-8 pb-8',
-      )}
+    <Flex
+      as="section"
+      direction="column"
+      h={activeTab === 'chat' ? 'full' : undefined}
+      minH="0"
+      gap={activeTab === 'chat' ? '0' : '8'}
+      pb={activeTab === 'chat' ? '0' : '8'}
     >
       <PageIntro
         title={document.name}
         description={
-          <div className="flex max-h-20 min-h-8 flex-wrap items-center gap-2 overflow-y-auto pr-1">
-            <span className="mr-1 text-sm font-medium text-muted-foreground">Tags</span>
+          <Flex maxH="20" minH="8" flexWrap="wrap" align="center" gap="2" overflowY="auto" pr="1">
+            <Text as="span" mr="1" fontSize="sm" fontWeight="medium" color="text.muted">
+              Tags
+            </Text>
             {assignedTags.length === 0 ? (
-              <span className="text-sm text-muted-foreground">No tags assigned.</span>
+              <Text fontSize="sm" color="text.muted">No tags assigned.</Text>
             ) : null}
             {assignedTags.map((tag) => (
-              <span
+              <Flex
                 key={tag.id}
-                className="inline-flex h-8 items-center gap-2 rounded-full bg-muted px-3 text-sm leading-none text-foreground"
+                display="inline-flex"
+                h="8"
+                align="center"
+                gap="2"
+                rounded="full"
+                bg="surface.subtle"
+                px="3"
+                fontSize="sm"
+                lineHeight="none"
+                color="text.default"
               >
-                <span
-                  aria-hidden="true"
-                  className="size-1.5 rounded-full"
-                  style={{ backgroundColor: tag.color ?? '#64748b' }}
-                />
+                <Box aria-hidden="true" boxSize="1.5" rounded="full" bg={tag.color ?? '#64748b'} />
                 {tag.name}
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   aria-label={`Remove ${tag.name}`}
-                  className="-mr-1 size-6 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                  rounded="full"
+                  color="text.muted"
+                  _hover={{ bg: 'surface.default', color: 'text.default' }}
+                  h="6"
+                  w="6"
+                  mr="-1"
                   onClick={() => {
                     removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
                   }}
                 >
-                  <X className="size-3.5" />
+                  <X size={14} />
                 </Button>
-              </span>
+              </Flex>
             ))}
             <DropdownMenu
               modal={false}
@@ -476,21 +490,30 @@ export function DocumentDetailPage() {
                   variant="ghost"
                   size="icon"
                   aria-label="Add tag"
-                  className="size-8 rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  h="8"
+                  w="8"
+                  rounded="full"
+                  bg="surface.subtle"
+                  color="text.muted"
+                  _hover={{ bg: 'surface.subtle', color: 'text.default' }}
                 >
-                  <Plus className="size-4" />
+                  <Plus size={16} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="start"
-                className="w-80 overflow-hidden rounded-xl bg-popover p-0"
+                minW="80"
+                overflow="hidden"
+                rounded="xl"
+                bg="surface.raised"
+                p="0"
                 onCloseAutoFocus={(event) => {
                   event.preventDefault();
                 }}
               >
-                <div className="border-b border-border/60 p-2">
+                <Box borderBottomWidth="1px" borderColor="border.subtle" p="2">
                   <Field>
-                    <FieldLabel htmlFor="document-detail-tag-filter" className="sr-only">
+                    <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
                       Filter tags
                     </FieldLabel>
                     <Input
@@ -499,12 +522,15 @@ export function DocumentDetailPage() {
                       value={tagSearchValue}
                       onChange={(event) => setTagSearchValue(event.target.value)}
                       placeholder="Filter tags..."
-                      className="h-10 border-transparent px-3 focus-visible:ring-0"
+                      h="10"
+                      borderColor="transparent"
+                      px="3"
+                      focusRing="none"
                       autoFocus
                     />
                   </Field>
-                </div>
-                <div className="max-h-72 overflow-auto py-1">
+                </Box>
+                <Box maxH="72" overflow="auto" py="1">
                   {selectedMatchingTags.map((tag) => (
                     <DropdownMenuCheckboxItem
                       key={tag.id}
@@ -514,12 +540,8 @@ export function DocumentDetailPage() {
                         removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
                       }}
                     >
-                      <span
-                        aria-hidden="true"
-                        className="size-2 rounded-full"
-                        style={{ backgroundColor: tag.color ?? '#64748b' }}
-                      />
-                      <span className="flex-1 truncate">{tag.name}</span>
+                      <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
+                      <Text flex="1" truncate>{tag.name}</Text>
                     </DropdownMenuCheckboxItem>
                   ))}
                   {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
@@ -534,40 +556,36 @@ export function DocumentDetailPage() {
                         assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
                       }}
                     >
-                      <span
-                        aria-hidden="true"
-                        className="size-2 rounded-full"
-                        style={{ backgroundColor: tag.color ?? '#64748b' }}
-                      />
-                      <span className="flex-1 truncate">{tag.name}</span>
+                      <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
+                      <Text flex="1" truncate>{tag.name}</Text>
                     </DropdownMenuCheckboxItem>
                   ))}
                   {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
                     <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
-                      <Plus className="size-4" />
-                      <span className="flex-1 truncate">{`Create new tag "${tagSearchValue.trim()}"`}</span>
+                      <Plus size={16} />
+                      <Text flex="1" truncate>{`Create new tag "${tagSearchValue.trim()}"`}</Text>
                     </DropdownMenuItem>
                   ) : null}
                   {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
                     normalizedTagSearchValue.length === 0 ? (
-                      <p className="px-4 py-3 text-sm text-muted-foreground">
+                      <Text px="4" py="3" fontSize="sm" color="text.muted">
                         All tags are already assigned.
-                      </p>
+                      </Text>
                     ) : !hasExactTagMatch ? null : (
-                      <p className="px-4 py-3 text-sm text-muted-foreground">No matching tags.</p>
+                      <Text px="4" py="3" fontSize="sm" color="text.muted">No matching tags.</Text>
                     )
                   ) : null}
-                </div>
+                </Box>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </Flex>
         }
         actions={
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" minW="56">
               <DropdownMenuItem asChild>
                 <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
                   <ActionMenuItemIcon icon={Download} />
@@ -593,7 +611,9 @@ export function DocumentDetailPage() {
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem
-                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  color="status.danger"
+                  _hover={{ bg: 'status.dangerSubtle', color: 'status.danger' }}
+                  _focus={{ bg: 'status.dangerSubtle', color: 'status.danger' }}
                   disabled={deleteMutation.isPending}
                   onSelect={() => setIsDeleteDialogOpen(true)}
                 >
@@ -606,234 +626,329 @@ export function DocumentDetailPage() {
         }
       />
 
-      <div
-        className={cn(activeTab === 'chat' ? 'flex min-h-0 flex-1 flex-col gap-6' : 'space-y-6')}
+      <Flex
+        direction="column"
+        flex={activeTab === 'chat' ? '1' : undefined}
+        minH="0"
+        gap={activeTab === 'chat' ? '6' : '6'}
       >
-        <div
-          className={cn(activeTab === 'chat' ? 'flex min-h-0 flex-1 flex-col gap-5' : 'space-y-5')}
+        <Flex
+          direction="column"
+          flex={activeTab === 'chat' ? '1' : undefined}
+          minH="0"
+          gap={activeTab === 'chat' ? '5' : '5'}
         >
-          <div className="flex flex-wrap items-center justify-start gap-3">
+          <Flex flexWrap="wrap" align="center" justify="flex-start" gap="3">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
               <TabsList className="w-full justify-start gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
                 <TabsTrigger
                   value="preview"
                   className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
                 >
-                  <ImageIcon className="size-4" />
+                  <ImageIcon size={16} />
                   Preview
                 </TabsTrigger>
                 <TabsTrigger
                   value="content"
                   className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
                 >
-                  <ScanText className="size-4" />
+                  <ScanText size={16} />
                   Extracted text
                 </TabsTrigger>
                 <TabsTrigger
                   value="metadata"
                   className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
                 >
-                  <Tags className="size-4" />
+                  <Tags size={16} />
                   Metadata
                 </TabsTrigger>
                 <TabsTrigger
                   value="chat"
                   className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
                 >
-                  <MessageSquare className="size-4" />
+                  <MessageSquare size={16} />
                   Chat
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-          </div>
+          </Flex>
 
-          <div
-            className={cn(
-              activeTab === 'chat' ? 'min-h-0 flex-1' : 'min-h-[720px] md:min-h-[860px]',
-            )}
+          <Box
+            flex={activeTab === 'chat' ? '1' : undefined}
+            minH={activeTab === 'chat' ? '0' : { base: '720px', md: '860px' }}
           >
             {activeTab === 'preview' ? (
-              <div className="space-y-4">
+              <Flex direction="column" gap="4">
                 {previewKind === 'pdf' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
-                    <iframe
+                  <Box overflow="hidden" rounded="lg" bg="surface.subtle" p="2">
+                    <chakra.iframe
                       title="Document preview"
                       src={inlineFileUrl}
-                      className="h-[82vh] min-h-[860px] w-full rounded-lg bg-white"
+                      h={{ base: '82vh', md: '860px' }}
+                      w="full"
+                      rounded="lg"
+                      bg="white"
                     />
-                  </div>
+                  </Box>
                 ) : null}
 
                 {previewKind === 'image' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-4">
-                    <div className="flex h-[82vh] min-h-[860px] items-center justify-center rounded-lg bg-white p-8">
-                      <img
+                  <Box overflow="hidden" rounded="lg" bg="surface.subtle" p="4">
+                    <Flex
+                      h={{ base: '82vh', md: '860px' }}
+                      align="center"
+                      justify="center"
+                      rounded="lg"
+                      bg="white"
+                      p="8"
+                    >
+                      <chakra.img
                         src={inlineFileUrl}
                         alt={document.name}
-                        className="max-h-[84vh] w-auto max-w-full rounded-[12px] object-contain"
+                        maxH="84vh"
+                        w="auto"
+                        maxW="full"
+                        objectFit="contain"
                       />
-                    </div>
-                  </div>
+                    </Flex>
+                  </Box>
                 ) : null}
 
                 {previewKind === 'text' && !document.isDeleted ? (
-                  <div className="overflow-hidden rounded-lg bg-secondary/55 p-2">
-                    <iframe
+                  <Box overflow="hidden" rounded="lg" bg="surface.subtle" p="2">
+                    <chakra.iframe
                       title="Text preview"
                       src={inlineFileUrl}
-                      className="h-[82vh] min-h-[860px] w-full rounded-lg bg-white"
+                      h={{ base: '82vh', md: '860px' }}
+                      w="full"
+                      rounded="lg"
+                      bg="white"
                     />
-                  </div>
+                  </Box>
                 ) : null}
 
                 {previewKind === 'unsupported' || document.isDeleted ? (
-                  <div className="rounded-lg bg-secondary/55 p-6">
-                    <div className="flex min-h-[820px] flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border/70 bg-background/80 px-6 text-center">
-                      <ImageIcon className="size-10 text-muted-foreground" />
-                      <div className="space-y-2">
-                        <p className="text-sm font-semibold text-foreground">Preview unavailable</p>
-                        <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+                  <Box rounded="lg" bg="surface.subtle" p="6">
+                    <Flex
+                      minH="820px"
+                      direction="column"
+                      align="center"
+                      justify="center"
+                      gap="4"
+                      rounded="lg"
+                      borderWidth="1px"
+                      borderStyle="dashed"
+                      borderColor="border.subtle"
+                      bg="surface.default"
+                      px="6"
+                      textAlign="center"
+                    >
+                      <ImageIcon size={40} />
+                      <Box>
+                        <Text fontSize="sm" fontWeight="semibold" color="text.default">
+                          Preview unavailable
+                        </Text>
+                        <Text maxW="xl" fontSize="sm" lineHeight="6" color="text.muted">
                           {document.isDeleted
                             ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
                             : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                        </Text>
+                      </Box>
+                    </Flex>
+                  </Box>
                 ) : null}
-              </div>
+              </Flex>
             ) : null}
 
             {activeTab === 'content' ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase ${
+              <Flex direction="column" gap="3">
+                <Flex flexWrap="wrap" align="center" gap="3">
+                  <Box
+                    as="span"
+                    display="inline-flex"
+                    alignItems="center"
+                    rounded="full"
+                    px="3"
+                    py="1"
+                    fontSize="xs"
+                    fontWeight="semibold"
+                    textTransform="uppercase"
+                    letterSpacing="wide"
+                    bg={
                       document.processingStatus === 'failed'
-                        ? 'bg-destructive/12 text-destructive'
+                        ? 'status.dangerSubtle'
                         : isExtractionActive
-                          ? 'bg-amber-500/12 text-amber-700'
-                          : 'bg-emerald-500/12 text-emerald-700'
-                    }`}
+                          ? 'status.warningSubtle'
+                          : 'status.successSubtle'
+                    }
+                    color={
+                      document.processingStatus === 'failed'
+                        ? 'status.danger'
+                        : isExtractionActive
+                          ? 'status.warning'
+                          : 'status.success'
+                    }
                   >
                     {extractionStageLabel}
-                  </span>
-                  <p className="text-sm leading-6 text-muted-foreground">
+                  </Box>
+                  <Text fontSize="sm" lineHeight="6" color="text.muted">
                     {isExtractionActive
                       ? 'The document detail view polls the backend while processing is in progress.'
                       : 'OCR and extracted text appear here after processing completes.'}
-                  </p>
-                </div>
-                <div className="h-[82vh] min-h-[820px] overflow-auto rounded-lg bg-secondary/55 p-5 text-sm whitespace-pre-wrap break-words text-foreground">
+                  </Text>
+                </Flex>
+                <Box
+                  h={{ base: '82vh', md: '820px' }}
+                  overflow="auto"
+                  rounded="lg"
+                  bg="surface.subtle"
+                  p="5"
+                  fontSize="sm"
+                  whiteSpace="pre-wrap"
+                  wordBreak="break-word"
+                  color="text.default"
+                >
                   {extractedTextMessage}
-                </div>
-              </div>
+                </Box>
+              </Flex>
             ) : null}
 
             {activeTab === 'metadata' ? (
-              <form className="min-h-[820px] space-y-5" onSubmit={handleMetadataSave}>
-                <div className="grid gap-4 text-sm sm:grid-cols-2">
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <p className="text-muted-foreground">Display name</p>
+              <chakra.form minH="820px" onSubmit={handleMetadataSave}>
+                <Flex
+                  direction={{ base: 'column', sm: 'row' }}
+                  flexWrap="wrap"
+                  gap="4"
+                  fontSize="sm"
+                >
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Text color="text.muted">Display name</Text>
                     {isNameEditing ? (
                       <Input
                         id="document-name"
                         type="text"
                         value={currentName}
-                        className={`${vaultInputClassName} mt-2`}
-                        onChange={(event) => setRenameValue(event.target.value)}
+                        mt="2"
+                        borderColor="border.subtle"
+                        bg="surface.default"
                         autoFocus
+                        onChange={(event) => setRenameValue(event.target.value)}
                       />
                     ) : (
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <p className="font-medium text-foreground">{document.name}</p>
-                        <button
+                      <Flex align="center" justify="space-between" gap="3" mt="2">
+                        <Text fontWeight="medium" color="text.default">
+                          {document.name}
+                        </Text>
+                        <chakra.button
                           type="button"
                           aria-label="Edit display name"
-                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          display="inline-flex"
+                          boxSize="8"
+                          flexShrink={0}
+                          alignItems="center"
+                          justifyContent="center"
+                          rounded="lg"
+                          color="text.muted"
+                          transition="colors"
+                          _hover={{ bg: 'surface.default', color: 'text.default' }}
                           onClick={() => setIsNameEditing(true)}
                         >
-                          <Pencil className="size-4" />
-                        </button>
-                      </div>
+                          <Pencil size={16} />
+                        </chakra.button>
+                      </Flex>
                     )}
-                  </div>
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <p>Document date</p>
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Flex align="center" gap="2" color="text.muted">
+                      <Text>Document date</Text>
                       <InfoTooltip
                         label="More info about document date"
                         contentClassName="max-w-72"
                         content="The date the document was issued for. For example, an invoice dated 21.01.2026 has that document date even if it was uploaded on 24.04.2026."
                       />
-                    </div>
+                    </Flex>
                     {isDocumentDateEditing ? (
                       <Input
                         id="document-date"
                         type="date"
                         value={currentDocumentDate}
-                        className={`${vaultInputClassName} mt-2`}
-                        onChange={(event) => setDocumentDateValue(event.target.value)}
+                        mt="2"
+                        borderColor="border.subtle"
+                        bg="surface.default"
                         autoFocus
+                        onChange={(event) => setDocumentDateValue(event.target.value)}
                       />
                     ) : (
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <p className="font-medium text-foreground">
+                      <Flex align="center" justify="space-between" gap="3" mt="2">
+                        <Text fontWeight="medium" color="text.default">
                           {formatDate(document.documentDate)}
-                        </p>
-                        <button
+                        </Text>
+                        <chakra.button
                           type="button"
                           aria-label="Edit document date"
-                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          display="inline-flex"
+                          boxSize="8"
+                          flexShrink={0}
+                          alignItems="center"
+                          justifyContent="center"
+                          rounded="lg"
+                          color="text.muted"
+                          transition="colors"
+                          _hover={{ bg: 'surface.default', color: 'text.default' }}
                           onClick={() => setIsDocumentDateEditing(true)}
                         >
-                          <Pencil className="size-4" />
-                        </button>
-                      </div>
+                          <Pencil size={16} />
+                        </chakra.button>
+                      </Flex>
                     )}
-                  </div>
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <p className="text-muted-foreground">Original file</p>
-                    <p className="mt-2 font-medium text-foreground">{document.originalName}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <p className="text-muted-foreground">File size</p>
-                    <p className="mt-2 font-medium text-foreground">
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Text color="text.muted">Original file</Text>
+                    <Text mt="2" fontWeight="medium" color="text.default">
+                      {document.originalName}
+                    </Text>
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Text color="text.muted">File size</Text>
+                    <Text mt="2" fontWeight="medium" color="text.default">
                       {formatBytes(document.originalSize)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <p className="text-muted-foreground">Format</p>
-                    <p className="mt-2 font-medium text-foreground">{document.mimeType}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <p className="text-muted-foreground">Uploaded by</p>
-                    <p className="mt-2 font-medium text-foreground">
+                    </Text>
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Text color="text.muted">Format</Text>
+                    <Text mt="2" fontWeight="medium" color="text.default">
+                      {document.mimeType}
+                    </Text>
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Text color="text.muted">Uploaded by</Text>
+                    <Text mt="2" fontWeight="medium" color="text.default">
                       {document.createdBy ?? 'Unknown'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <p className="text-muted-foreground">Uploaded at</p>
-                    <p className="mt-2 font-medium text-foreground">
+                    </Text>
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Text color="text.muted">Uploaded at</Text>
+                    <Text mt="2" fontWeight="medium" color="text.default">
                       {formatDate(document.createdAt)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/55 p-4">
-                    <p className="text-muted-foreground">Last updated</p>
-                    <p className="mt-2 font-medium text-foreground">
+                    </Text>
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="surface.subtle" p="4">
+                    <Text color="text.muted">Last updated</Text>
+                    <Text mt="2" fontWeight="medium" color="text.default">
                       {formatDate(document.updatedAt)}
-                    </p>
-                  </div>
-                </div>
+                    </Text>
+                  </Box>
+                </Flex>
                 {isNameEditing || isDocumentDateEditing ? (
                   <SaveButton
                     type="submit"
+                    mt="5"
                     disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}
                   >
                     {isMetadataSaving ? 'Saving...' : 'Save changes'}
                   </SaveButton>
                 ) : null}
-              </form>
+              </chakra.form>
             ) : null}
 
             {activeTab === 'chat' ? (
@@ -844,9 +959,9 @@ export function DocumentDetailPage() {
                 heightClassName="h-full"
               />
             ) : null}
-          </div>
-        </div>
-      </div>
+          </Box>
+        </Flex>
+      </Flex>
 
       <Dialog
         open={isDeleteDialogOpen}
@@ -856,15 +971,15 @@ export function DocumentDetailPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md p-6">
-          <DialogHeader className="pr-10">
+        <DialogContent maxW="md" p="6">
+          <DialogHeader style={{ paddingRight: '2.5rem' }}>
             <DialogTitle>{`Move "${document.name}" to trash?`}</DialogTitle>
             <DialogDescription>
               This document will be removed from the active vault, but it is recoverable from Trash
               until it is permanently removed manually or automatically after 30 days.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-6">
+          <DialogFooter style={{ marginTop: '1.5rem' }}>
             <Button
               type="button"
               variant="outline"
@@ -903,6 +1018,6 @@ export function DocumentDetailPage() {
         onClose={closeCreateTagDialog}
         onSubmit={handleCreateTagSubmit}
       />
-    </section>
+    </Flex>
   );
 }

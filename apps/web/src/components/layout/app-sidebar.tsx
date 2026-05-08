@@ -1,5 +1,5 @@
 import type { ComponentProps, ComponentType } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { LucideProps } from 'lucide-react';
 import { Box, Flex, Image, Text, useMediaQuery } from '@chakra-ui/react';
 import arkivraLogoUrl from '@/assets/arkivra-logo.png';
@@ -16,7 +16,6 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar';
 import { useSidebar } from '@/components/ui/sidebar-context';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SidebarNavItem {
   to: string;
@@ -33,55 +32,46 @@ interface AppSidebarProps {
 function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
   const { open } = useSidebar();
   const Icon = item.icon;
+  const location = useLocation();
+  const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
 
-  const link = (
-    <NavLink
+  return (
+    <Link
       to={item.to}
       aria-label={!open ? item.label : undefined}
       title={!open ? item.label : undefined}
       style={{ color: 'inherit' }}
     >
-      {({ isActive }) => (
+      <Flex
+        align="center"
+        gap="3"
+        rounded="lg"
+        px="2.5"
+        py="2"
+        fontSize="sm"
+        fontWeight="medium"
+        justify={open ? 'flex-start' : 'center'}
+        bg={isActive ? 'teal.subtle' : 'transparent'}
+        color={isActive ? 'fg' : 'fg.muted'}
+        transition="colors"
+        _hover={{ bg: 'teal.subtle', color: 'fg' }}
+      >
         <Flex
+          shrink={0}
+          boxSize="4"
           align="center"
-          gap="3"
-          rounded="lg"
-          px="2.5"
-          py="2"
-          fontSize="sm"
-          fontWeight="medium"
-          justify={open ? 'flex-start' : 'center'}
-          bg={isActive ? 'teal.subtle' : 'transparent'}
-          color={isActive ? 'fg' : 'fg.muted'}
+          justify="center"
+          color={isActive ? 'teal.fg' : 'fg.muted'}
           transition="colors"
-          _hover={{ bg: 'teal.subtle', color: 'fg' }}
+          _groupHover={{ color: 'teal.fg' }}
         >
-          <Flex
-            shrink={0}
-            boxSize="4"
-            align="center"
-            justify="center"
-            color={isActive ? 'teal.fg' : 'fg.muted'}
-            transition="colors"
-            _groupHover={{ color: 'teal.fg' }}
-          >
-            <Icon size={16} />
-          </Flex>
-          <Text as="span" truncate display={open ? undefined : 'none'}>
-            {item.label}
-          </Text>
+          <Icon size={16} />
         </Flex>
-      )}
-    </NavLink>
-  );
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side="right" align="center" hidden={open}>
-        {item.label}
-      </TooltipContent>
-    </Tooltip>
+        <Text as="span" truncate display={open ? undefined : 'none'}>
+          {item.label}
+        </Text>
+      </Flex>
+    </Link>
   );
 }
 

@@ -45,7 +45,8 @@ import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 
-const PAGE_SIZE = 100;
+const SEARCH_PAGE_SIZE = 100;
+const VAULT_PAGE_SIZE = 8;
 
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
   { value: 'created_desc', label: 'Newest' },
@@ -119,14 +120,6 @@ function getDateFilterLabel({
   return 'Any time';
 }
 
-function VaultIcon() {
-  return (
-    <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="bg.subtle" color="teal.solid">
-      <Folder size={20} />
-    </Flex>
-  );
-}
-
 function formatVaultRole(role: string | null | undefined) {
   if (role === 'owner') {
     return 'Owner';
@@ -180,6 +173,7 @@ export function AllDocumentsPage() {
   const [vaultSearchQuery, setVaultSearchQuery] = useState('');
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
+  const [vaultPageIndexes, setVaultPageIndexes] = useState<Record<string, number>>({});
   const [selectedDocumentKeys, setSelectedDocumentKeys] = useState<string[]>([]);
   const vaultFilterContentRef = useRef<HTMLDivElement | null>(null);
   const tagFilterContentRef = useRef<HTMLDivElement | null>(null);
@@ -218,7 +212,7 @@ export function AllDocumentsPage() {
   const documentsQuery = useGlobalSearchDocumentsQuery({
     query: debouncedQuery,
     pageIndex: 0,
-    pageSize: PAGE_SIZE,
+    pageSize: SEARCH_PAGE_SIZE,
     vaultIds: selectedVaultId ? [selectedVaultId] : undefined,
     tagIds: visibleSelectedTagIds,
     dateFrom: appliedDateRange.dateFrom,
@@ -324,22 +318,44 @@ export function AllDocumentsPage() {
     });
   }, [documentsQuery.data?.results, vaultsQuery.data?.vaults]);
 
+  const paginatedGroups = useMemo(
+    () =>
+      groupedDocuments.map((group) => {
+        const pageCount = Math.max(1, Math.ceil(group.documents.length / VAULT_PAGE_SIZE));
+        const pageIndex = Math.min(vaultPageIndexes[group.vaultId] ?? 0, pageCount - 1);
+        const pageDocuments = group.documents.slice(
+          pageIndex * VAULT_PAGE_SIZE,
+          (pageIndex + 1) * VAULT_PAGE_SIZE,
+        );
+
+        return {
+          ...group,
+          pageCount,
+          pageIndex,
+          pageDocuments,
+        };
+      }),
+    [groupedDocuments, vaultPageIndexes],
+  );
+
   const vaultsById = useMemo(
     () => new Map((vaultsQuery.data?.vaults ?? []).map((vault) => [vault.id, vault])),
     [vaultsQuery.data?.vaults],
   );
 
   const visibleDocumentKeys = useMemo(
-    () => groupedDocuments.flatMap((group) =>
-      group.documents.map((document) => getDocumentSelectionKey(document.vaultId, document.documentId)),
+    () => paginatedGroups.flatMap((group) =>
+      group.pageDocuments.map((document) =>
+        getDocumentSelectionKey(document.vaultId, document.documentId),
+      ),
     ),
-    [groupedDocuments],
+    [paginatedGroups],
   );
 
   const selectedDocuments = useMemo(() => {
     const documentsByKey = new Map(
-      groupedDocuments.flatMap((group) =>
-        group.documents.map((document) => [
+      paginatedGroups.flatMap((group) =>
+        group.pageDocuments.map((document) => [
           getDocumentSelectionKey(document.vaultId, document.documentId),
           document,
         ]),
@@ -349,7 +365,7 @@ export function AllDocumentsPage() {
     return selectedDocumentKeys
       .map((key) => documentsByKey.get(key))
       .filter((document): document is SearchResultItem => Boolean(document));
-  }, [groupedDocuments, selectedDocumentKeys]);
+  }, [paginatedGroups, selectedDocumentKeys]);
 
   useEffect(() => {
     const visibleKeySet = new Set(visibleDocumentKeys);
@@ -381,6 +397,7 @@ export function AllDocumentsPage() {
             label: selectedVault.name,
             onRemove: () => {
               setSelectedVaultId('');
+              setVaultPageIndexes({});
             },
           },
         ]
@@ -388,7 +405,10 @@ export function AllDocumentsPage() {
     ...selectedTags.map((tag) => ({
       key: `tag-${tag.id}`,
       label: tag.name,
-      onRemove: () => setSelectedTagIds((current) => current.filter((item) => item !== tag.id)),
+      onRemove: () => {
+        setSelectedTagIds((current) => current.filter((item) => item !== tag.id));
+        setVaultPageIndexes({});
+      },
     })),
     ...(datePreset !== 'any'
       ? [
@@ -403,6 +423,7 @@ export function AllDocumentsPage() {
               setDatePreset('any');
               setCustomDateFrom('');
               setCustomDateTo('');
+              setVaultPageIndexes({});
             },
           },
         ]
@@ -413,6 +434,7 @@ export function AllDocumentsPage() {
     setSelectedTagIds((current) =>
       current.includes(tagId) ? current.filter((item) => item !== tagId) : [...current, tagId],
     );
+    setVaultPageIndexes({});
   }
 
   function closeFilters() {
@@ -431,12 +453,14 @@ export function AllDocumentsPage() {
     setCustomDateTo('');
     setVaultSearchQuery('');
     setTagSearchQuery('');
+    setVaultPageIndexes({});
   }
 
-  function toggleVaultCollapsed(vaultId: string) {
-    setCollapsedVaultIds((current) =>
-      current.includes(vaultId) ? current.filter((id) => id !== vaultId) : [...current, vaultId],
-    );
+  function setVaultPageIndex(vaultId: string, pageIndex: number) {
+    setVaultPageIndexes((current) => ({
+      ...current,
+      [vaultId]: pageIndex,
+    }));
   }
 
   function toggleDocumentSelection(selectionKey: string, checked: boolean) {
@@ -518,7 +542,10 @@ export function AllDocumentsPage() {
       />
       <DocumentSearchControls
         query={query}
-        onQueryChange={setQuery}
+        onQueryChange={(value) => {
+          setQuery(value);
+          setVaultPageIndexes({});
+        }}
         searchPlaceholder="Search documents"
         searchAriaLabel="Search documents"
         isFiltersOpen={isFiltersOpen}
@@ -529,7 +556,10 @@ export function AllDocumentsPage() {
         activeFilters={activeFilters}
         onClearFilters={clearFilters}
         sortBy={sortBy}
-        onSortChange={setSortBy}
+        onSortChange={(value) => {
+          setSortBy(value);
+          setVaultPageIndexes({});
+        }}
         sortOptions={sortOptions}
         sortSelectId="documents-sort"
         sortAriaLabel="Sort documents"
@@ -633,6 +663,7 @@ export function AllDocumentsPage() {
                           color={!selectedVaultId ? 'fg' : undefined}
                           onSelect={() => {
                             setSelectedVaultId('');
+                            setVaultPageIndexes({});
                             setIsVaultFilterOpen(false);
                           }}
                         >
@@ -650,6 +681,7 @@ export function AllDocumentsPage() {
                           color={selectedVaultId === vault.id ? 'fg' : undefined}
                           onSelect={() => {
                             setSelectedVaultId(vault.id);
+                            setVaultPageIndexes({});
                             setIsVaultFilterOpen(false);
                           }}
                         >
@@ -805,7 +837,10 @@ export function AllDocumentsPage() {
               <DatePresetSelector
                 idPrefix="documents-date-filter"
                 value={datePreset}
-                onValueChange={setDatePreset}
+                onValueChange={(value) => {
+                  setDatePreset(value);
+                  setVaultPageIndexes({});
+                }}
                 customDateFrom={customDateFrom}
                 customDateTo={customDateTo}
                 onCustomDateFromChange={(nextValue) => {
@@ -814,6 +849,8 @@ export function AllDocumentsPage() {
                   if (customDateTo && nextValue && nextValue > customDateTo) {
                     setCustomDateTo(nextValue);
                   }
+
+                  setVaultPageIndexes({});
                 }}
                 onCustomDateToChange={(nextValue) => {
                   setCustomDateTo(nextValue);
@@ -821,6 +858,8 @@ export function AllDocumentsPage() {
                   if (customDateFrom && nextValue && nextValue < customDateFrom) {
                     setCustomDateFrom(nextValue);
                   }
+
+                  setVaultPageIndexes({});
                 }}
               />
             </Box>
@@ -857,7 +896,7 @@ export function AllDocumentsPage() {
       ) : null}
 
       <Flex direction="column" gap="5">
-        {groupedDocuments.map((group) => {
+        {paginatedGroups.map((group) => {
           const vault = vaultsById.get(group.vaultId);
           const isCollapsed = collapsedVaultIds.includes(group.vaultId);
 
@@ -882,42 +921,41 @@ export function AllDocumentsPage() {
                   });
                 }}
               >
-                <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '5', sm: '6' }} py="5">
-                  <Flex align="flex-start" gap="4" w="full">
-                    <VaultIcon />
+                <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '4', sm: '5' }} py="2.5">
+                  <Flex align="center" gap="2.5" w="full">
+                    <Flex w="10" ml="-1" justify="center" color="teal.solid" aria-hidden="true">
+                      <Folder size={18} />
+                    </Flex>
                     <Box minW="0" flex="1">
                       <Collapsible.Trigger asChild>
                         <chakra.button
                           type="button"
                           display="flex"
                           w="full"
-                          alignItems="flex-start"
+                          alignItems="center"
                           justifyContent="space-between"
-                          gap="4"
+                          gap="3"
                           textAlign="left"
                         >
-                          <Box minW="0">
-                            <Flex flexWrap="wrap" align="baseline" gap="3">
-                              <Text truncate fontSize="base" fontWeight="semibold" color="fg">
-                                {group.vaultName}
-                              </Text>
-                              <Text fontSize="sm" color="fg.muted">
-                                {group.documents.length} document
-                                {group.documents.length === 1 ? '' : 's'}
-                              </Text>
-                            </Flex>
-                            <Text mt="1" display="block" fontSize="sm" color="fg.muted">
+                          <Flex minW="0" flexWrap="wrap" align="baseline" gap="2">
+                            <Text truncate fontSize="sm" fontWeight="semibold" color="fg">
+                              {group.vaultName}
+                            </Text>
+                            <Text fontSize="xs" color="fg.muted">
                               {formatVaultRole(vault?.role ?? 'global_admin')}
                             </Text>
-                          </Box>
+                            <Text fontSize="xs" color="fg.muted">
+                              {group.documents.length} document
+                              {group.documents.length === 1 ? '' : 's'}
+                            </Text>
+                          </Flex>
                           <Flex
-                            mt="1"
                             shrink={0}
                             align="center"
                             transition="transform 200ms"
                             transform={isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)'}
                           >
-                            <ChevronDown size={20} />
+                            <ChevronDown size={18} />
                           </Flex>
                         </chakra.button>
                       </Collapsible.Trigger>
@@ -926,6 +964,8 @@ export function AllDocumentsPage() {
                       <DropdownMenuTrigger asChild>
                         <ActionMenuTriggerButton
                           label={`Open actions for ${group.vaultName}`}
+                          h="8"
+                          w="8"
                           onClick={(event) => event.stopPropagation()}
                         />
                       </DropdownMenuTrigger>
@@ -950,7 +990,7 @@ export function AllDocumentsPage() {
                 <Collapsible.Content>
                   <DocumentLibraryTable
                     vaultName={group.vaultName}
-                    documents={group.documents.map((result) => ({
+                    documents={group.pageDocuments.map((result) => ({
                       documentId: result.documentId,
                       vaultId: result.vaultId,
                       name: result.name,
@@ -986,11 +1026,51 @@ export function AllDocumentsPage() {
                     selectedDocumentKeys={selectedDocumentKeys}
                     onToggleDocument={toggleDocumentSelection}
                     onToggleAllDocuments={toggleAllDocumentSelection}
-                    onDelete={(document) => {
-                      deleteMutation.mutate([document]);
-                    }}
-                    deleteDisabled={deleteMutation.isPending}
                   />
+                  {group.documents.length > 0 ? (
+                    <>
+                      <Separator />
+                      <Flex
+                        direction={{ base: 'column', sm: 'row' }}
+                        gap="2"
+                        px="4"
+                        py="2.5"
+                        alignItems={{ sm: 'center' }}
+                        justifyContent={{ sm: 'space-between' }}
+                      >
+                        <Text fontSize="xs" color="fg.muted">
+                          Page {group.pageIndex + 1} of {group.pageCount}
+                        </Text>
+                        <Flex gap="2">
+                          <Button
+                            size="xs"
+                            type="button"
+                            variant="outline"
+                            disabled={group.pageIndex === 0}
+                            onClick={() =>
+                              setVaultPageIndex(group.vaultId, Math.max(0, group.pageIndex - 1))
+                            }
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            size="xs"
+                            type="button"
+                            variant="outline"
+                            disabled={group.pageIndex >= group.pageCount - 1}
+                            onClick={() =>
+                              setVaultPageIndex(
+                                group.vaultId,
+                                Math.min(group.pageCount - 1, group.pageIndex + 1),
+                              )
+                            }
+                          >
+                            Next
+                          </Button>
+                        </Flex>
+                      </Flex>
+                    </>
+                  ) : null}
                 </Collapsible.Content>
               </Collapsible.Root>
             </SurfacePanel>

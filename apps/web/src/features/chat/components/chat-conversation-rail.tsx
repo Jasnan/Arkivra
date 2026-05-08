@@ -1,6 +1,7 @@
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import { Loader2, MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ChatConversation } from '../chat.types';
 import type { useChatConversationsQuery } from '../chat.queries';
 import { formatDate, NEW_CHAT_DRAFT_ID } from './chat-utils';
@@ -40,9 +41,9 @@ export function ChatConversationRail({
             colorPalette="teal"
             onClick={onCreateConversation}
             disabled={createConversationPending}
-            style={{ height: '2.25rem', borderRadius: '9999px', padding: '0' }}
+            style={{ height: '1.75rem', borderRadius: '9999px', padding: '0' }}
           >
-            <Plus size={18} />
+            <Plus size={14} />
           </Button>
         </Flex>
       ) : (
@@ -53,9 +54,9 @@ export function ChatConversationRail({
             colorPalette="teal"
             onClick={onCreateConversation}
             disabled={createConversationPending}
-            style={{ height: '2.25rem', borderRadius: '9999px', padding: '0' }}
+            style={{ height: '1.75rem', borderRadius: '9999px', padding: '0' }}
           >
-            <Plus size={18} />
+            <Plus size={14} />
           </Button>
         </Flex>
       )}
@@ -82,27 +83,32 @@ export function ChatConversationRail({
                 <Flex direction="column" gap="1">
                   {conversations.map((conversation) => (
                     <Flex key={conversation.id} className="group" position="relative">
-                      <chakra.button
-                        type="button"
-                        minW="0"
-                        flex="1"
-                        rounded="xl"
-                        px="3"
-                        py="2.5"
-                        pr="8"
-                        textAlign="left"
-                        fontSize="sm"
-                        bg={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'teal.subtle' : undefined}
-                        color={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'fg' : 'fg.muted'}
-                        cursor="pointer"
-                        _hover={selectedChatId !== conversation.id && effectiveSelectedChatId !== conversation.id ? { bg: 'bg.subtle', color: 'fg' } : undefined}
-                        onClick={() => onSelectConversation(conversation.id)}
-                      >
-                        <Text truncate fontWeight="medium">{conversation.title}</Text>
-                        <Text mt="0.5" fontSize="xs" color="fg.muted">
-                          {formatDate(conversation.updatedAt)}
-                        </Text>
-                      </chakra.button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <chakra.button
+                            type="button"
+                            minW="0"
+                            flex="1"
+                            rounded="xl"
+                            px="3"
+                            py="2.5"
+                            pr="8"
+                            textAlign="left"
+                            fontSize="sm"
+                            bg={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'teal.subtle' : undefined}
+                            color={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'fg' : 'fg.muted'}
+                            cursor="pointer"
+                            _hover={selectedChatId !== conversation.id && effectiveSelectedChatId !== conversation.id ? { bg: 'bg.subtle', color: 'fg' } : undefined}
+                            onClick={() => onSelectConversation(conversation.id)}
+                          >
+                            <Text truncate fontWeight="medium">{conversation.title}</Text>
+                            <Text mt="0.5" fontSize="xs" color="fg.muted">
+                              {formatDate(conversation.updatedAt)}
+                            </Text>
+                          </chakra.button>
+                        </TooltipTrigger>
+                        <TooltipContent>{conversation.title}</TooltipContent>
+                      </Tooltip>
                       {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
                         <Button
                           type="button"

@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, Flex, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
+import { Box, Flex, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra, Heading } from '@chakra-ui/react';
 import {
   Download,
   Image as ImageIcon,
@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PageIntro } from '@/components/layout/vault-ui';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -421,9 +420,60 @@ export function DocumentDetailPage() {
       gap="0"
       pb="0"
     >
-      <PageIntro
-        title={document.name}
-        actions={
+      <Flex
+        as="header"
+        align="center"
+        justify="space-between"
+        gap="4"
+        borderBottomWidth="1px"
+        borderColor="border.subtle"
+        pb="3"
+      >
+        <Heading
+          as="h1"
+          textStyle="xl"
+          fontWeight="semibold"
+          lineHeight="short"
+          truncate
+          maxW="sm"
+        >
+          {document.name}
+        </Heading>
+
+        <Flex align="center" gap="4">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
+            <TabsList className="justify-end gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
+              <TabsTrigger
+                value="preview"
+                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <ImageIcon size={16} />
+                Preview
+              </TabsTrigger>
+              <TabsTrigger
+                value="content"
+                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <ScanText size={16} />
+                Extracted text
+              </TabsTrigger>
+              <TabsTrigger
+                value="metadata"
+                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <Tags size={16} />
+                Metadata
+              </TabsTrigger>
+              <TabsTrigger
+                value="chat"
+                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <MessageSquare size={16} />
+                Chat
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
@@ -466,61 +516,14 @@ export function DocumentDetailPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-        }
-      />
+        </Flex>
+      </Flex>
 
-      <Flex
-        direction="column"
+      <Box
         flex={activeTab === 'chat' ? '1' : undefined}
-        minH="0"
-        gap="0"
+        h={activeTab === 'chat' ? 'full' : undefined}
+        minH={activeTab === 'chat' ? '0' : { base: '720px', md: '860px' }}
       >
-        <Flex
-          direction="column"
-          flex={activeTab === 'chat' ? '1' : undefined}
-          minH="0"
-          gap="0"
-        >
-          <Flex flexWrap="wrap" align="center" justify="flex-start" gap="3" mb="5">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
-              <TabsList className="w-full justify-start gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
-                <TabsTrigger
-                  value="preview"
-                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                >
-                  <ImageIcon size={16} />
-                  Preview
-                </TabsTrigger>
-                <TabsTrigger
-                  value="content"
-                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                >
-                  <ScanText size={16} />
-                  Extracted text
-                </TabsTrigger>
-                <TabsTrigger
-                  value="metadata"
-                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                >
-                  <Tags size={16} />
-                  Metadata
-                </TabsTrigger>
-                <TabsTrigger
-                  value="chat"
-                  className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                >
-                  <MessageSquare size={16} />
-                  Chat
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </Flex>
-
-          <Box
-            flex={activeTab === 'chat' ? '1' : undefined}
-            h={activeTab === 'chat' ? 'full' : undefined}
-            minH={activeTab === 'chat' ? '0' : { base: '720px', md: '860px' }}
-          >
             {activeTab === 'preview' ? (
               <Flex direction="column" gap="4">
                 {previewKind === 'pdf' && !document.isDeleted ? (
@@ -952,9 +955,7 @@ export function DocumentDetailPage() {
                 heightClassName="h-full"
               />
             ) : null}
-          </Box>
-        </Flex>
-      </Flex>
+        </Box>
 
       <ChakraDialog.Root
         open={isDeleteDialogOpen}

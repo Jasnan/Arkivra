@@ -223,7 +223,7 @@ export function VaultSettingsPage() {
         title="Vault settings"
         description={`${vault.name} • ${vault.id}`}
         actions={
-            <Link to={ROUTES.vaultDocuments(vaultId)} style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
+            <Link to={ROUTES.vaultRoot(vaultId)} style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
               Open documents
             </Link>
         }

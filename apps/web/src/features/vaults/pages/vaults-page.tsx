@@ -228,11 +228,11 @@ export function VaultsPage() {
                 transition="background-color 0.15s ease, border-color 0.15s ease"
                 _hover={{ bg: 'bg.subtle' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
-                onClick={() => navigate(ROUTES.vaultDocuments(vault.id))}
+                onClick={() => navigate(ROUTES.vaultRoot(vault.id))}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    navigate(ROUTES.vaultDocuments(vault.id));
+                    navigate(ROUTES.vaultRoot(vault.id));
                   }
                 }}
               >

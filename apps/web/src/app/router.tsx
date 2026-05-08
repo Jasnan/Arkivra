@@ -1,14 +1,11 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
-import { ROUTES } from '@/app/routes';
-import { AppShell } from '@/components/layout/app-shell';
-import { ProtectedRoute, PublicOnlyRoute } from '@/features/auth/auth-guards';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { ProtectedLayout, PublicOnlyRoute } from '@/features/auth/auth-guards';
 import { LoginPage } from '@/features/auth/pages/login-page';
 import { RegisterPage } from '@/features/auth/pages/register-page';
 import { RequestPasswordResetPage } from '@/features/auth/pages/request-password-reset-page';
 import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
 import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
-import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
 import { ChatPage } from '@/features/chat/pages/chat-page';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
@@ -22,82 +19,99 @@ import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 import { SearchPage } from '@/features/search/pages/search-page';
 
-export function createAppRouter() {
-  return (
-    <Routes>
-      {/* ── Public-only routes (no AppShell, no session required) ── */}
-      <Route
-        path={ROUTES.login}
-        element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>}
-      />
-      <Route
-        path={ROUTES.register}
-        element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>}
-      />
-      <Route
-        path={ROUTES.requestPasswordReset}
-        element={<PublicOnlyRoute><RequestPasswordResetPage /></PublicOnlyRoute>}
-      />
-      <Route
-        path={ROUTES.resetPassword}
-        element={<PublicOnlyRoute><ResetPasswordPage /></PublicOnlyRoute>}
-      />
-      <Route
-        path={ROUTES.twoFactorVerify}
-        element={<PublicOnlyRoute><TwoFactorVerifyPage /></PublicOnlyRoute>}
-      />
+export const appRouter = createBrowserRouter([
+  // ── Public-only routes ──
+  {
+    path: '/login',
+    element: <PublicOnlyRoute><LoginPage /></PublicOnlyRoute>,
+  },
+  {
+    path: '/register',
+    element: <PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>,
+  },
+  {
+    path: '/request-password-reset',
+    element: <PublicOnlyRoute><RequestPasswordResetPage /></PublicOnlyRoute>,
+  },
+  {
+    path: '/reset-password',
+    element: <PublicOnlyRoute><ResetPasswordPage /></PublicOnlyRoute>,
+  },
+  {
+    path: '/two-factor/verify',
+    element: <PublicOnlyRoute><TwoFactorVerifyPage /></PublicOnlyRoute>,
+  },
 
-      {/* ── Protected routes (require session, wrapped in AppShell) ── */}
-      <Route
-        path="/*"
-        element={<ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>}
-      >
-        {/* Root */}
-        <Route index element={<Navigate to={ROUTES.vaults} replace />} />
+  // ── Protected routes (require session, wrapped in AppShell) ──
+  {
+    element: <ProtectedLayout />,
+    children: [
+      // Root
+      { index: true, element: <Navigate to="/vaults" replace /> },
 
-        {/* Auth (protected) */}
-        <Route path="two-factor/setup" element={<TwoFactorSetupPage />} />
+      // Auth (protected)
+      { path: 'two-factor/setup', element: <TwoFactorSetupPage /> },
 
-        {/* Vaults */}
-        <Route path="vaults" element={<VaultsPage />} />
-        <Route path="vaults/new" element={<Navigate to={ROUTES.vaults} replace />} />
-        <Route path="vaults/:vaultId/settings" element={<VaultSettingsPage />} />
-        <Route path="vaults/:vaultId/documents" element={<DocumentsPage />} />
-        <Route path="vaults/:vaultId/documents/trash" element={<DocumentTrashPage />} />
-        <Route path="vaults/:vaultId/documents/:documentId/chat" element={<DocumentDetailPage />} />
-        <Route path="vaults/:vaultId/documents/:documentId" element={<DocumentDetailPage />} />
-        <Route path="vaults/:vaultId/chat" element={<ChatPage />} />
-        <Route path="vaults/:vaultId/tags" element={<TagsPage />} />
+      // Vaults
+      {
+        path: 'vaults',
+        children: [
+          { index: true, element: <VaultsPage /> },
+          { path: 'new', element: <Navigate to="/vaults" replace /> },
+          {
+            path: ':vaultId',
+            children: [
+              { index: true, element: <DocumentsPage /> },
+              { path: 'settings', element: <VaultSettingsPage /> },
+              { path: 'trash', element: <DocumentTrashPage /> },
+              { path: 'chat', element: <ChatPage /> },
+              { path: 'tags', element: <TagsPage /> },
+              {
+                path: ':documentId',
+                children: [
+                  { index: true, element: <DocumentDetailPage /> },
+                  { path: 'chat', element: <DocumentDetailPage /> },
+                ],
+              },
+            ],
+          },
+        ],
+      },
 
-        {/* Documents */}
-        <Route path="documents" element={<AllDocumentsPage />} />
-        <Route path="documents/trash" element={<DocumentTrashPage />} />
-        <Route path="documents/:vaultId/:documentId" element={<DocumentDetailPage />} />
+      // Chat (global)
+      { path: 'chat', element: <ChatPage /> },
 
-        {/* Chat (global) */}
-        <Route path="chat" element={<ChatPage />} />
+      // Trash (global)
+      { path: 'trash', element: <DocumentTrashPage /> },
 
-        {/* Tags (global) */}
-        <Route path="tags" element={<TagsPage />} />
+      // Tags (global)
+      { path: 'tags', element: <TagsPage /> },
 
-        {/* Transfers */}
-        <Route path="transfers" element={<TransfersPage />} />
+      // Search
+      { path: 'search', element: <SearchPage /> },
 
-        {/* Search */}
-        <Route path="search" element={<SearchPage />} />
+      // Transfers
+      { path: 'transfers', element: <TransfersPage /> },
 
-        {/* Settings */}
-        <Route path="settings" element={<SettingsPage />} />
+      // Settings
+      { path: 'settings', element: <SettingsPage /> },
 
-        {/* Admin */}
-        <Route path="admin" element={<AdminPage />} />
+      // Admin
+      { path: 'admin', element: <AdminPage /> },
 
-        {/* About */}
-        <Route path="about" element={<AboutPage />} />
+      // About
+      { path: 'about', element: <AboutPage /> },
 
-        {/* Catch-all fallback */}
-        <Route path="*" element={<Navigate to={ROUTES.vaults} replace />} />
-      </Route>
-    </Routes>
-  );
-}
+      // Catch-all
+      { path: '*', element: <Navigate to="/vaults" replace /> },
+    ],
+  },
+]);
+
+appRouter.subscribe((state) => {
+  console.log('[Router Subscribe]', {
+    pathname: state.location.pathname,
+    navigationState: state.navigation.state,
+    matches: state.matches.map((m) => m.route.path || '(index)'),
+  });
+});

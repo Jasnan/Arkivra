@@ -972,7 +972,7 @@ export function AllDocumentsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" minW="56">
                         <DropdownMenuItem asChild>
-                          <Link to={ROUTES.vaultDocuments(group.vaultId)}>
+                          <Link to={ROUTES.vaultRoot(group.vaultId)}>
                             <ActionMenuItemIcon icon={FolderOpen} />
                             Open vault
                           </Link>
@@ -1022,7 +1022,7 @@ export function AllDocumentsPage() {
                             ),
                           )
                         : undefined,
-                      documentLink: ROUTES.documentDetail(result.vaultId, result.documentId),
+                      documentLink: ROUTES.vaultDocument(result.vaultId, result.documentId),
                     }))}
                     selectedDocumentKeys={selectedDocumentKeys}
                     onToggleDocument={toggleDocumentSelection}

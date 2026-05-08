@@ -9,35 +9,32 @@ export const ROUTES = {
 
   // Vaults
   vaults: '/vaults',
-  vaultSettings: (vaultId: string) => `/vaults/${vaultId}/settings` as const,
-  vaultDocuments: (vaultId: string) => `/vaults/${vaultId}/documents` as const,
+  vaultRoot: (vaultId: string) => `/vaults/${vaultId}` as const,
   vaultChat: (vaultId: string) => `/vaults/${vaultId}/chat` as const,
   vaultTags: (vaultId: string) => `/vaults/${vaultId}/tags` as const,
-  vaultTrash: (vaultId: string) => `/vaults/${vaultId}/documents/trash` as const,
+  vaultTrash: (vaultId: string) => `/vaults/${vaultId}/trash` as const,
+  vaultSettings: (vaultId: string) => `/vaults/${vaultId}/settings` as const,
   vaultDocument: (vaultId: string, documentId: string) =>
-    `/vaults/${vaultId}/documents/${documentId}` as const,
+    `/vaults/${vaultId}/${documentId}` as const,
   vaultDocumentChat: (vaultId: string, documentId: string) =>
-    `/vaults/${vaultId}/documents/${documentId}/chat` as const,
+    `/vaults/${vaultId}/${documentId}/chat` as const,
 
-  // Documents (global)
-  documents: '/documents',
-  documentDetail: (vaultId: string, documentId: string) =>
-    `/documents/${vaultId}/${documentId}` as const,
-  documentsTrash: '/documents/trash',
+  // Chat (global, cross-vault)
+  chat: '/chat',
 
-  // Transfers
-  transfers: '/transfers',
-  transfersWithLock: (vaultId: string) =>
-    `/transfers?vaultId=${vaultId}&locked=true` as const,
+  // Trash (global, cross-vault)
+  trash: '/trash',
 
-  // Tags (global)
+  // Tags (global, cross-vault)
   tags: '/tags',
 
   // Search
   search: '/search',
 
-  // Chat (global)
-  chat: '/chat',
+  // Transfers
+  transfers: '/transfers',
+  transfersWithLock: (vaultId: string) =>
+    `/transfers?vaultId=${vaultId}&locked=true` as const,
 
   // Settings
   settings: '/settings',

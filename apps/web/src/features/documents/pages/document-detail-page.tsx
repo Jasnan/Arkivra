@@ -84,9 +84,7 @@ export function DocumentDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const parentRoute = location.pathname.startsWith(`${ROUTES.documents}/`)
-    ? ROUTES.documents
-    : ROUTES.vaultDocuments(vaultId);
+  const parentRoute = ROUTES.vaultRoot(vaultId);
 
   const documentQuery = useDocumentQuery({ vaultId, documentId });
   const documentTagsQuery = useDocumentTagsQuery({ vaultId, documentId });

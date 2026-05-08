@@ -1,9 +1,8 @@
-import type { CSSProperties, PropsWithChildren } from 'react';
-import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { Fragment, useEffect, useDeferredValue, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Compass,
-  File,
   FileSearch,
   LogOut,
   MessageSquare,
@@ -18,7 +17,7 @@ import {
   Vault,
   X,
 } from 'lucide-react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router-dom';
 import { Box, Flex, HStack, Stack, Text, Input, IconButton } from '@chakra-ui/react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import type { SidebarNavItem } from '@/components/layout/app-sidebar';
@@ -110,20 +109,12 @@ function buildBreadcrumbs({
     return [{ label: 'Vaults' }];
   }
 
-  if (pathname === ROUTES.documents) {
-    return [{ label: 'All Documents' }];
-  }
-
   if (pathname === ROUTES.chat) {
     return [{ label: 'Chat' }];
   }
 
-  if (pathname === ROUTES.documentsTrash) {
-    return [{ label: 'All Documents', to: ROUTES.documents }, { label: 'Trash' }];
-  }
-
-  if (parts[0] === 'documents' && parts[1] && parts[2]) {
-    return [{ label: 'All Documents', to: ROUTES.documents }, { label: currentDocumentLabel }];
+  if (pathname === ROUTES.trash) {
+    return [{ label: 'Trash' }];
   }
 
   if (pathname === ROUTES.tags) {
@@ -134,16 +125,16 @@ function buildBreadcrumbs({
     if (transferVaultId) {
       return [
         { label: 'Vaults', to: ROUTES.vaults },
-        { label: vaultName ?? 'Vault', to: ROUTES.vaultDocuments(transferVaultId) },
+        { label: vaultName ?? 'Vault', to: ROUTES.vaultRoot(transferVaultId) },
         { label: 'Upload' },
       ];
     }
 
-    return [{ label: 'All Documents', to: ROUTES.documents }, { label: 'Upload' }];
+    return [{ label: 'Upload' }];
   }
 
   if (pathname === ROUTES.search) {
-    return [{ label: 'All Documents', to: ROUTES.documents }, { label: 'Search' }];
+    return [{ label: 'Search' }];
   }
 
   if (pathname === ROUTES.settings) {
@@ -160,11 +151,15 @@ function buildBreadcrumbs({
 
   if (parts[0] === 'vaults' && parts[1]) {
     const vaultLabel = vaultName ?? 'Vault';
-    const vaultDocumentsPath = ROUTES.vaultDocuments(parts[1]);
+    const vaultRootPath = ROUTES.vaultRoot(parts[1]);
     const base: BreadcrumbEntry[] = [
       { label: 'Vaults', to: ROUTES.vaults },
-      { label: vaultLabel, to: vaultDocumentsPath },
+      { label: vaultLabel, to: vaultRootPath },
     ];
+
+    if (parts.length === 2) {
+      return base;
+    }
 
     if (parts[2] === 'settings') {
       return [...base, { label: 'Settings' }];
@@ -178,20 +173,16 @@ function buildBreadcrumbs({
       return [...base, { label: 'Chat' }];
     }
 
-    if (parts[2] === 'documents' && parts[3] === 'trash') {
+    if (parts[2] === 'trash') {
       return [...base, { label: 'Trash' }];
     }
 
-    if (parts[2] === 'documents' && parts[3] && parts[4] === 'chat') {
+    if (parts[3] === 'chat') {
       return [...base, { label: currentDocumentLabel }, { label: 'Chat' }];
     }
 
-    if (parts[2] === 'documents' && parts[3]) {
+    if (parts[2]) {
       return [...base, { label: currentDocumentLabel }];
-    }
-
-    if (parts[2] === 'documents') {
-      return base;
     }
 
     return base;
@@ -200,9 +191,28 @@ function buildBreadcrumbs({
   return [{ label: 'Arkivra' }];
 }
 
-export function AppShell({ children }: PropsWithChildren) {
+function RouterDebugProbe() {
+  const location = useLocation();
+  const matches = useMatches();
+
+  useEffect(() => {
+    console.log('[RouterDebugProbe]', {
+      pathname: location.pathname,
+      matches: matches.map((m) => (m as { route?: { path?: string } }).route?.path || '(index)'),
+    });
+  });
+
+  return null;
+}
+
+export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    console.log('[AppShell] render', { pathname: location.pathname });
+  });
+
   const meQuery = useMeQuery();
   const vaultsQuery = useVaultsQuery();
   const uploadState = useUploadManagerState();
@@ -264,10 +274,10 @@ export function AppShell({ children }: PropsWithChildren) {
     const primaryItems: SidebarNavItem[] = [
       { to: ROUTES.vaults, label: 'Vaults', icon: Vault },
       { to: ROUTES.chat, label: 'Chat', icon: MessageSquare },
-      { to: ROUTES.documents, label: 'All Documents', icon: File },
+      { to: ROUTES.trash, label: 'Trash', icon: Trash2 },
       { to: ROUTES.tags, label: 'Tags', icon: Tags },
+      { to: ROUTES.search, label: 'Search', icon: Search },
       { to: ROUTES.transfers, label: 'Transfers', icon: Upload },
-      { to: ROUTES.documentsTrash, label: 'Trash', icon: Trash2 },
     ];
     const secondaryItems: SidebarNavItem[] = [
       { to: ROUTES.settings, label: 'Settings', icon: Settings },
@@ -459,7 +469,7 @@ export function AppShell({ children }: PropsWithChildren) {
             py="0"
           >
             {isStandaloneChatRoute ? (
-              children
+              <><RouterDebugProbe /><Outlet /></>
             ) : (
               <Stack h="full" minH="0" gap={{ base: '4', md: '6' }} pt={{ base: '4', md: '6' }}>
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
@@ -507,7 +517,8 @@ export function AppShell({ children }: PropsWithChildren) {
 
 
 
-                {children}
+                <RouterDebugProbe />
+                <Outlet />
               </Stack>
             )}
           </Box>
@@ -656,7 +667,7 @@ export function AppShell({ children }: PropsWithChildren) {
                     _hover={{ bg: 'teal.subtle' }}
                     onClick={() => {
                       closeQuickSearch();
-                      navigate(ROUTES.documentDetail(result.vaultId, result.documentId));
+                      navigate(ROUTES.vaultDocument(result.vaultId, result.documentId));
                     }}
                   >
                     <Flex direction={{ base: 'column', sm: 'row' }} gap="3" alignItems={{ base: 'stretch', sm: 'flex-start' }} justifyContent="space-between">

@@ -418,160 +418,11 @@ export function DocumentDetailPage() {
       direction="column"
       h={activeTab === 'chat' ? 'full' : undefined}
       minH="0"
-      gap={activeTab === 'chat' ? '0' : '8'}
-      pb={activeTab === 'chat' ? '0' : '8'}
+      gap="0"
+      pb="0"
     >
       <PageIntro
         title={document.name}
-        description={
-          <Flex maxH="20" minH="8" flexWrap="wrap" align="center" gap="2" overflowY="auto" pr="1">
-            <Text as="span" mr="1" fontSize="sm" fontWeight="medium" color="fg.muted">
-              Tags
-            </Text>
-            {assignedTags.length === 0 ? (
-              <Text fontSize="sm" color="fg.muted">No tags assigned.</Text>
-            ) : null}
-            {assignedTags.map((tag) => (
-              <Flex
-                key={tag.id}
-                display="inline-flex"
-                h="8"
-                align="center"
-                gap="2"
-                rounded="full"
-                bg="bg.subtle"
-                px="3"
-                fontSize="sm"
-                lineHeight="none"
-                color="fg"
-              >
-                <Box aria-hidden="true" boxSize="1.5" rounded="full" bg={tag.color ?? '#64748b'} />
-                {tag.name}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remove ${tag.name}`}
-                  rounded="full"
-                  color="fg.muted"
-                  _hover={{ bg: 'bg.panel', color: 'fg' }}
-                  h="6"
-                  w="6"
-                  mr="-1"
-                  onClick={() => {
-                    removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                  }}
-                >
-                  <X size={14} />
-                </Button>
-              </Flex>
-            ))}
-            <DropdownMenu
-              modal={false}
-              open={isTagPickerOpen}
-              onOpenChange={(open) => {
-                setIsTagPickerOpen(open);
-                if (!open) {
-                  setTagSearchValue('');
-                }
-              }}
-            >
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Add tag"
-                  h="8"
-                  w="8"
-                  rounded="full"
-                  bg="bg.subtle"
-                  color="fg.muted"
-                  _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                >
-                  <Plus size={16} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                minW="80"
-                overflow="hidden"
-                rounded="xl"
-                bg="bg.panel"
-                p="0"
-                onCloseAutoFocus={(event) => {
-                  event.preventDefault();
-                }}
-              >
-                <Box borderBottomWidth="1px" borderColor="border.subtle" p="2">
-                  <Field>
-                    <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
-                      Filter tags
-                    </FieldLabel>
-                    <Input
-                      id="document-detail-tag-filter"
-                      type="text"
-                      value={tagSearchValue}
-                      onChange={(event) => setTagSearchValue(event.target.value)}
-                      placeholder="Filter tags..."
-                      h="10"
-                      borderColor="transparent"
-                      px="3"
-                      focusRing="none"
-                      autoFocus
-                    />
-                  </Field>
-                </Box>
-                <Box maxH="72" overflow="auto" py="1">
-                  {selectedMatchingTags.map((tag) => (
-                    <DropdownMenuCheckboxItem
-                      key={tag.id}
-                      checked
-                      onSelect={(event) => event.preventDefault()}
-                      onCheckedChange={() => {
-                        removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                      }}
-                    >
-                      <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
-                      <Text flex="1" truncate>{tag.name}</Text>
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                  {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
-                    <DropdownMenuSeparator />
-                  ) : null}
-                  {sortedFilteredAvailableTags.map((tag) => (
-                    <DropdownMenuCheckboxItem
-                      key={tag.id}
-                      checked={false}
-                      onSelect={(event) => event.preventDefault()}
-                      onCheckedChange={() => {
-                        assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                      }}
-                    >
-                      <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
-                      <Text flex="1" truncate>{tag.name}</Text>
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                  {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
-                    <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
-                      <Plus size={16} />
-                      <Text flex="1" truncate>{`Create new tag "${tagSearchValue.trim()}"`}</Text>
-                    </DropdownMenuItem>
-                  ) : null}
-                  {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
-                    normalizedTagSearchValue.length === 0 ? (
-                      <Text px="4" py="3" fontSize="sm" color="fg.muted">
-                        All tags are already assigned.
-                      </Text>
-                    ) : !hasExactTagMatch ? null : (
-                      <Text px="4" py="3" fontSize="sm" color="fg.muted">No matching tags.</Text>
-                    )
-                  ) : null}
-                </Box>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </Flex>
-        }
         actions={
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -622,15 +473,15 @@ export function DocumentDetailPage() {
         direction="column"
         flex={activeTab === 'chat' ? '1' : undefined}
         minH="0"
-        gap={activeTab === 'chat' ? '0' : '6'}
+        gap="0"
       >
         <Flex
           direction="column"
           flex={activeTab === 'chat' ? '1' : undefined}
           minH="0"
-          gap={activeTab === 'chat' ? '0' : '5'}
+          gap="0"
         >
-          <Flex flexWrap="wrap" align="center" justify="flex-start" gap="3" mb={activeTab === 'chat' ? '5' : undefined}>
+          <Flex flexWrap="wrap" align="center" justify="flex-start" gap="3" mb="5">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
               <TabsList className="w-full justify-start gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
                 <TabsTrigger
@@ -932,6 +783,155 @@ export function DocumentDetailPage() {
                     </Text>
                   </Box>
                 </Flex>
+
+                <Box rounded="lg" bg="bg.subtle" p="4" mt="4">
+                  <Text color="fg.muted" mb="3">Tags</Text>
+                  <Flex flexWrap="wrap" align="center" gap="2">
+                    {assignedTags.length === 0 ? (
+                      <Text fontSize="sm" color="fg.muted">No tags assigned.</Text>
+                    ) : null}
+                    {assignedTags.map((tag) => (
+                      <Flex
+                        key={tag.id}
+                        display="inline-flex"
+                        h="8"
+                        align="center"
+                        gap="2"
+                        rounded="full"
+                        bg="bg.panel"
+                        px="3"
+                        fontSize="sm"
+                        lineHeight="none"
+                        color="fg"
+                      >
+                        <Box aria-hidden="true" boxSize="1.5" rounded="full" bg={tag.color ?? '#64748b'} />
+                        {tag.name}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove ${tag.name}`}
+                          rounded="full"
+                          color="fg.muted"
+                          _hover={{ bg: 'bg.subtle', color: 'fg' }}
+                          h="6"
+                          w="6"
+                          mr="-1"
+                          onClick={() => {
+                            removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                          }}
+                        >
+                          <X size={14} />
+                        </Button>
+                      </Flex>
+                    ))}
+                    <DropdownMenu
+                      modal={false}
+                      open={isTagPickerOpen}
+                      onOpenChange={(open) => {
+                        setIsTagPickerOpen(open);
+                        if (!open) {
+                          setTagSearchValue('');
+                        }
+                      }}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Add tag"
+                          h="8"
+                          w="8"
+                          rounded="full"
+                          bg="bg.panel"
+                          color="fg.muted"
+                          _hover={{ bg: 'bg.subtle', color: 'fg' }}
+                        >
+                          <Plus size={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        minW="80"
+                        overflow="hidden"
+                        rounded="xl"
+                        bg="bg.panel"
+                        p="0"
+                        onCloseAutoFocus={(event) => {
+                          event.preventDefault();
+                        }}
+                      >
+                        <Box borderBottomWidth="1px" borderColor="border.subtle" p="2">
+                          <Field>
+                            <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
+                              Filter tags
+                            </FieldLabel>
+                            <Input
+                              id="document-detail-tag-filter"
+                              type="text"
+                              value={tagSearchValue}
+                              onChange={(event) => setTagSearchValue(event.target.value)}
+                              placeholder="Filter tags..."
+                              h="10"
+                              borderColor="transparent"
+                              px="3"
+                              focusRing="none"
+                              autoFocus
+                            />
+                          </Field>
+                        </Box>
+                        <Box maxH="72" overflow="auto" py="1">
+                          {selectedMatchingTags.map((tag) => (
+                            <DropdownMenuCheckboxItem
+                              key={tag.id}
+                              checked
+                              onSelect={(event) => event.preventDefault()}
+                              onCheckedChange={() => {
+                                removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                              }}
+                            >
+                              <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
+                              <Text flex="1" truncate>{tag.name}</Text>
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                          {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
+                            <DropdownMenuSeparator />
+                          ) : null}
+                          {sortedFilteredAvailableTags.map((tag) => (
+                            <DropdownMenuCheckboxItem
+                              key={tag.id}
+                              checked={false}
+                              onSelect={(event) => event.preventDefault()}
+                              onCheckedChange={() => {
+                                assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                              }}
+                            >
+                              <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
+                              <Text flex="1" truncate>{tag.name}</Text>
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                          {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
+                            <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
+                              <Plus size={16} />
+                              <Text flex="1" truncate>{`Create new tag "${tagSearchValue.trim()}"`}</Text>
+                            </DropdownMenuItem>
+                          ) : null}
+                          {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
+                            normalizedTagSearchValue.length === 0 ? (
+                              <Text px="4" py="3" fontSize="sm" color="fg.muted">
+                                All tags are already assigned.
+                              </Text>
+                            ) : !hasExactTagMatch ? null : (
+                              <Text px="4" py="3" fontSize="sm" color="fg.muted">No matching tags.</Text>
+                            )
+                          ) : null}
+                        </Box>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </Flex>
+                </Box>
+
                 {isNameEditing || isDocumentDateEditing ? (
                   <SaveButton
                     type="submit"

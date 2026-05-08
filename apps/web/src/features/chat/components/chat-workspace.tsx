@@ -38,7 +38,6 @@ import {
   statusLabel,
 } from './chat-utils';
 import { ChatConversationRail } from './chat-conversation-rail';
-import { ChatContextHeader } from './chat-context-header';
 import { ChatEmptyState } from './chat-empty-state';
 import { ChatInputPanel } from './chat-input-panel';
 import { MarkdownMessage } from './markdown-message';
@@ -49,7 +48,6 @@ export function ChatWorkspace({
   documentName,
   inputPlaceholder,
   heightClassName = 'h-[calc(100vh-14rem)] min-h-[32rem]',
-  showContextHeader = true,
 }: ChatWorkspaceProps) {
   const isFullHeight = heightClassName === 'h-full';
   const { vaultId, documentId } = scope;
@@ -260,6 +258,7 @@ export function ChatWorkspace({
   return (
     <Box
       display="grid"
+      position="relative"
       h={isFullHeight ? 'full' : 'calc(100vh - 14rem)'}
       minH={isFullHeight ? '0' : '32rem'}
       overflow="hidden"
@@ -303,9 +302,32 @@ export function ChatWorkspace({
       </Box>
 
       <Box
+        display={{ base: 'none', lg: 'flex' }}
+        position="absolute"
+        top="0.5rem"
+        left={isDesktopConversationRailCollapsed ? '0.5rem' : '16.875rem'}
+        zIndex="dropdown"
+        transition="left 200ms ease-linear"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={isDesktopConversationRailCollapsed ? 'Show conversation list' : 'Hide conversation list'}
+          style={{ height: '2.25rem', width: '2.25rem', borderRadius: '9999px', padding: 0 }}
+          onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
+        >
+          {isDesktopConversationRailCollapsed ? (
+            <PanelLeftOpen size={16} />
+          ) : (
+            <PanelLeftClose size={16} />
+          )}
+        </Button>
+      </Box>
+
+      <Box
         as="section"
         display="grid"
-        gridTemplateRows="auto auto minmax(0, 1fr) auto"
+        gridTemplateRows="auto 1fr auto"
         h="100%"
         minH="0"
         maxH="100%"
@@ -329,29 +351,6 @@ export function ChatWorkspace({
               <AlertCircle size={16} />
               {streamError}
             </Flex>
-          ) : null}
-
-          {showContextHeader ? (
-            <ChatContextHeader
-              contextLabel={experience.contextLabel}
-              contextBadge={experience.contextBadge}
-              contextDescription={experience.contextDescription}
-              leadingAction={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  display={{ base: 'none', lg: 'inline-flex' }}
-                  style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
-                  onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
-                >
-                  {isDesktopConversationRailCollapsed ? (
-                    <PanelLeftOpen size={16} />
-                  ) : (
-                    <PanelLeftClose size={16} />
-                  )}
-                </Button>
-              }
-            />
           ) : null}
 
           <Box
@@ -445,13 +444,13 @@ export function ChatWorkspace({
           ) : (
             <Flex
               direction="column"
-              gap="6"
+              gap="4"
               mx="auto"
               w="100%"
               maxW="72rem"
               px="4"
               pt="6"
-              pb="6"
+              pb="20"
               sm={{ px: '6' }}
             >
               <Box mt="auto" aria-hidden="true" />

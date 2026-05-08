@@ -16,7 +16,6 @@ export interface ChatWorkspaceProps {
   documentName?: string;
   inputPlaceholder: string;
   heightClassName?: string;
-  showContextHeader?: boolean;
 }
 
 export interface LocalMessage extends ChatMessage {
@@ -230,9 +229,9 @@ export function getChatExperienceConfig({
       contextLabel: resolvedDocumentName,
       contextBadge: 'Locked',
       contextDescription: 'You are chatting with this document:',
-      emptyTitle: 'Ask anything about this document',
+      emptyTitle: 'Ask about this document',
       emptyDescription:
-        'Arkivra will search this document and answer with relevant information and exact references.',
+        'Arkivra searches this document for answers with exact references.',
       promptSuggestions: DOCUMENT_PROMPT_SUGGESTIONS,
     };
   }

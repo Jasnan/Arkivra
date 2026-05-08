@@ -75,7 +75,7 @@ type FieldProps = React.ComponentProps<typeof ChakraField.Root> & {
 };
 
 export function Field({ ref, ...props }: FieldProps) {
-  return <ChakraField.Root ref={ref} role="group" {...props} />;
+  return <ChakraField.Root ref={ref} {...props} />;
 }
 
 Field.displayName = 'Field';
@@ -86,7 +86,7 @@ type FieldLabelProps = React.ComponentProps<typeof chakra.label> & {
 
 export function FieldLabel({ ref, ...props }: FieldLabelProps) {
   return (
-    <chakra.label
+    <ChakraField.Label
       ref={ref}
       fontSize="sm"
       fontWeight="medium"

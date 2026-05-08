@@ -95,7 +95,7 @@ export function DatePresetSelector({
                 h="10"
                 rounded="lg"
                 borderColor="border.subtle"
-                bg="bg.panel"
+                bg="bg.surface"
                 pl="11"
               />
             </Box>
@@ -124,7 +124,7 @@ export function DatePresetSelector({
                 h="10"
                 rounded="lg"
                 borderColor="border.subtle"
-                bg="bg.panel"
+                bg="bg.surface"
                 pl="11"
               />
             </Box>

@@ -585,7 +585,7 @@ export function DocumentDetailPage() {
                       borderWidth="1px"
                       borderStyle="dashed"
                       borderColor="border.subtle"
-                      bg="bg.panel"
+                      bg="bg.surface"
                       px="6"
                       textAlign="center"
                     >
@@ -676,7 +676,7 @@ export function DocumentDetailPage() {
                         value={currentName}
                         mt="2"
                         borderColor="border.subtle"
-                        bg="bg.panel"
+                        bg="bg.surface"
                         autoFocus
                         onChange={(event) => setRenameValue(event.target.value)}
                       />
@@ -696,7 +696,7 @@ export function DocumentDetailPage() {
                           rounded="lg"
                           color="fg.muted"
                           transition="colors"
-                          _hover={{ bg: 'bg.panel', color: 'fg' }}
+                          _hover={{ bg: 'bg.surface', color: 'fg' }}
                           onClick={() => setIsNameEditing(true)}
                         >
                           <Pencil size={16} />
@@ -720,7 +720,7 @@ export function DocumentDetailPage() {
                         value={currentDocumentDate}
                         mt="2"
                         borderColor="border.subtle"
-                        bg="bg.panel"
+                        bg="bg.surface"
                         autoFocus
                         onChange={(event) => setDocumentDateValue(event.target.value)}
                       />
@@ -740,7 +740,7 @@ export function DocumentDetailPage() {
                           rounded="lg"
                           color="fg.muted"
                           transition="colors"
-                          _hover={{ bg: 'bg.panel', color: 'fg' }}
+                          _hover={{ bg: 'bg.surface', color: 'fg' }}
                           onClick={() => setIsDocumentDateEditing(true)}
                         >
                           <Pencil size={16} />
@@ -800,7 +800,7 @@ export function DocumentDetailPage() {
                         align="center"
                         gap="2"
                         rounded="full"
-                        bg="bg.panel"
+                        bg="bg.surface"
                         px="3"
                         fontSize="sm"
                         lineHeight="none"
@@ -846,7 +846,7 @@ export function DocumentDetailPage() {
                           h="8"
                           w="8"
                           rounded="full"
-                          bg="bg.panel"
+                          bg="bg.surface"
                           color="fg.muted"
                           _hover={{ bg: 'bg.subtle', color: 'fg' }}
                         >
@@ -858,7 +858,7 @@ export function DocumentDetailPage() {
                         minW="80"
                         overflow="hidden"
                         rounded="xl"
-                        bg="bg.panel"
+                        bg="bg.surface"
                         p="0"
                         onCloseAutoFocus={(event) => {
                           event.preventDefault();

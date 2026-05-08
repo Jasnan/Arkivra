@@ -352,7 +352,7 @@ export function SearchPage() {
 
                     {result.bestChunk ? (
                       <>
-                        <Box rounded="lg" bg="bg.panel" p="4" fontSize="sm" lineHeight="7" color="fg">
+                        <Box rounded="lg" bg="bg.surface" p="4" fontSize="sm" lineHeight="7" color="fg">
                           <Text textStyle="label" mb="3">
                             Best matching snippet
                             {result.bestChunk.pageNumber !== null

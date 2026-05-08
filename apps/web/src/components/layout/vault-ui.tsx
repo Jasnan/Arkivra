@@ -103,8 +103,8 @@ export function SurfacePanel({
       : {
           borderWidth: '1px',
           borderColor: variant === 'raised' ? 'border' : 'border.subtle',
-          bg: variant === 'soft' || variant === 'subtle' ? 'bg.subtle' : 'bg.panel',
-          shadow: variant === 'raised' ? 'lg' : 'xs',
+          bg: variant === 'soft' || variant === 'subtle' ? 'bg.subtle' : 'bg.surface',
+          shadow: variant === 'raised' ? 'lg' : 'sm',
         };
 
   return (
@@ -178,7 +178,7 @@ export function EmptyState({
       borderWidth="1px"
       borderStyle="dashed"
       borderColor="border"
-      bg="bg.subtle"
+      bg="bg.surface"
       color="fg.muted"
       p="4"
       textAlign="center"
@@ -203,7 +203,7 @@ export function Toolbar({
       rounded="lg"
       borderWidth="1px"
       borderColor="border.subtle"
-      bg="bg.panel/85"
+      bg="bg.surface"
       p="4"
       className={className}
     >

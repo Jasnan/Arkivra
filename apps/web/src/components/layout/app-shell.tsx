@@ -298,7 +298,7 @@ export function AppShell() {
   }
 
   return (
-    <Box minH="100vh" bg="bg.muted" color="fg">
+    <Box minH="100vh" bg="bg.canvas" color="fg">
       <SidebarProvider
         open={!isSidebarCollapsed}
         onOpenChange={(open) => setIsSidebarCollapsed(!open)}
@@ -327,7 +327,7 @@ export function AppShell() {
             align="center"
             borderBottomWidth="1px"
             borderColor="border.subtle"
-            bg="bg.panel"
+            bg="bg.surface"
             backdropFilter="blur(4px)"
             transition="width,height 200ms ease-linear"
           >
@@ -470,7 +470,7 @@ export function AppShell() {
                       rounded="xl"
                       borderWidth="1px"
                       borderColor="border.subtle"
-                      bg="bg.panel"
+                      bg="bg.surface"
                       px="4"
                       py="3"
                       fontSize="sm"
@@ -485,7 +485,7 @@ export function AppShell() {
                           align="center"
                           justify="center"
                           rounded="lg"
-                          bg="bg.subtle"
+                    bg="bg.elevated"
                           color="fg"
                         >
                           <Upload size={16} />
@@ -589,7 +589,7 @@ export function AppShell() {
                 w="10"
                 rounded="lg"
                 borderColor="border.subtle"
-                bg="bg.panel"
+                bg="bg.surface"
                 color="fg.muted"
                 _hover={{ color: 'fg' }}
                 onClick={closeQuickSearch}
@@ -646,7 +646,7 @@ export function AppShell() {
                     rounded="lg"
                     borderWidth="1px"
                     borderColor="border.subtle"
-                    bg="bg.panel"
+                    bg="bg.surface"
                     px="4"
                     py="4"
                     textAlign="left"

@@ -108,7 +108,7 @@ export function Sidebar({
         position="relative"
         direction="column"
         h="full"
-        bg={variant === 'inset' ? 'transparent' : 'bg.panel'}
+        bg={variant === 'inset' ? 'transparent' : 'bg.surface'}
         borderRightWidth={variant === 'inset' ? undefined : '1px'}
         borderColor="border.subtle"
         pointerEvents={isOffcanvas ? 'none' : undefined}

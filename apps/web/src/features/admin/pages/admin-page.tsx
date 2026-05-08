@@ -446,7 +446,7 @@ export function AdminPage() {
                     rounded="lg"
                     borderWidth="1px"
                     borderColor="border.subtle"
-                    bg="bg.panel"
+                    bg="bg.surface"
                     px="4"
                     py="3"
                     fontSize="sm"
@@ -764,7 +764,7 @@ export function AdminPage() {
 
           <Stack gap="4">
             {(vaultsQuery.data?.vaults ?? []).map(vault => (
-              <Box key={vault.id} rounded="lg" bg="bg.panel" p="5">
+              <Box key={vault.id} rounded="lg" bg="bg.surface" p="5">
                 <Text fontSize="base" fontWeight="semibold" color="fg">{vault.name}</Text>
                 <Text mt="2" fontSize="xs" color="fg.muted">{vault.id}</Text>
                 <Text mt="4" fontSize="sm" color="fg.muted">

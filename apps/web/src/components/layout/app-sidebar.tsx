@@ -53,9 +53,9 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
         fontWeight="medium"
         justify={open ? 'flex-start' : 'center'}
         bg={isActive ? 'teal.subtle' : 'transparent'}
-        color={isActive ? 'fg' : 'fg.muted'}
+        color={isActive ? 'teal.fg' : 'fg.muted'}
         transition="colors"
-        _hover={{ bg: 'teal.subtle', color: 'fg' }}
+        _hover={{ bg: 'teal.subtle', color: 'teal.fg' }}
       >
         <Flex
           shrink={0}
@@ -106,6 +106,7 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
               rounded="xl"
               bg="teal.solid"
               color="fg.inverted"
+              shadow="sm"
             >
               <Image src={arkivraLogoUrl} alt="Arkivra" boxSize="6" objectFit="contain" filter="invert(1)" />
             </Flex>

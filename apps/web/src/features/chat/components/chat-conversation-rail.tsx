@@ -95,8 +95,8 @@ export function ChatConversationRail({
                             pr="8"
                             textAlign="left"
                             fontSize="sm"
-                            bg={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'teal.subtle' : undefined}
-                            color={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'fg' : 'fg.muted'}
+                            bg={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'teal.subtle' : 'transparent'}
+                            color={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'teal.fg' : 'fg.muted'}
                             cursor="pointer"
                             _hover={selectedChatId !== conversation.id && effectiveSelectedChatId !== conversation.id ? { bg: 'bg.subtle', color: 'fg' } : undefined}
                             onClick={() => onSelectConversation(conversation.id)}

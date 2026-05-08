@@ -68,9 +68,9 @@ export function ChatInputPanel({
         rounded="2xl"
         borderWidth="1px"
         borderColor="border.subtle"
-        bg="bg.panel"
+        bg="bg.elevated"
         p="3"
-        boxShadow="0 10px 30px rgba(15,23,42,0.05)"
+        boxShadow="lg"
       >
         <Flex gap="3">
           <Textarea

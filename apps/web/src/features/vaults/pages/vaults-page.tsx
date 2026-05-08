@@ -223,7 +223,7 @@ export function VaultsPage() {
                 rounded="lg"
                 borderWidth="1px"
                 borderColor="border.subtle"
-                bg="bg.panel"
+                bg="bg.surface"
                 p={{ base: '4', sm: '5' }}
                 transition="background-color 0.15s ease, border-color 0.15s ease"
                 _hover={{ bg: 'bg.subtle' }}

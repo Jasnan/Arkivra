@@ -25,7 +25,7 @@ export function ActionMenuTriggerButton({
       rounded="lg"
       borderWidth="1px"
       borderColor="border.subtle"
-      bg="bg.panel"
+      bg="bg.surface"
       color="fg.muted"
       _hover={{ bg: 'bg.subtle', color: 'fg' }}
       className={className}

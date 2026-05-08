@@ -2,6 +2,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Flex, Grid } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -25,7 +26,7 @@ export function LoginPage() {
       email,
       password,
       rememberMe: true,
-      callbackURL: '/',
+      callbackURL: ROUTES.root,
     });
 
     setIsSubmitting(false);
@@ -36,16 +37,16 @@ export function LoginPage() {
     }
 
     if (data && typeof data === 'object' && 'twoFactorRedirect' in data && data.twoFactorRedirect) {
-      navigate('/two-factor/verify');
+      navigate(ROUTES.twoFactorVerify);
       return;
     }
 
-    navigate('/');
+    navigate(ROUTES.root);
   }
 
   async function handleOAuth(provider: 'google' | 'github') {
     setErrorMessage(null);
-    const { error } = await authClient.signIn.social({ provider, callbackURL: '/' });
+    const { error } = await authClient.signIn.social({ provider, callbackURL: ROUTES.root });
     if (error) setErrorMessage(error.message ?? 'OAuth sign in failed.');
   }
 
@@ -94,10 +95,10 @@ export function LoginPage() {
         </Grid>
 
         <Flex align="center" justify="space-between" fontSize="sm" color="fg.muted">
-          <Link to="/request-password-reset" style={{ color: 'var(--chakra-colors-fg-muted)' }}>
+          <Link to={ROUTES.requestPasswordReset} style={{ color: 'var(--chakra-colors-fg-muted)' }}>
             Forgot password?
           </Link>
-          <Link to="/register" style={{ color: 'var(--chakra-colors-fg-muted)' }}>
+          <Link to={ROUTES.register} style={{ color: 'var(--chakra-colors-fg-muted)' }}>
             Create account
           </Link>
         </Flex>

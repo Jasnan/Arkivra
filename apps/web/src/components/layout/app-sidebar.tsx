@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import type { LucideProps } from 'lucide-react';
 import { Box, Flex, Image, Text, useMediaQuery } from '@chakra-ui/react';
 import arkivraLogoUrl from '@/assets/arkivra-logo.png';
+import { ROUTES } from '@/app/routes';
 import packageJson from '../../../package.json';
 import {
   Sidebar,
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useSidebar } from '@/components/ui/sidebar-context';
 
-interface SidebarNavItem {
+export interface SidebarNavItem {
   to: string;
   label: string;
   icon: ComponentType<LucideProps>;
@@ -83,7 +84,7 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
     <Sidebar collapsible={isMdAndUp ? 'icon' : 'offcanvas'} variant={variant}>
       <SidebarHeader px="3" py="4">
         <Link
-          to="/vaults"
+          to={ROUTES.vaults}
           style={{ display: 'contents' }}
         >
           <Flex

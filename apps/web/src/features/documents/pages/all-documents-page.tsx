@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import {
   PageIntro,
   SurfacePanel,
@@ -519,7 +520,7 @@ export function AllDocumentsPage() {
         title="All Documents"
         actions={
           <Flex flexWrap="wrap" align="center" gap="3">
-            <Link to="/transfers" style={{ textDecoration: 'none' }}>
+            <Link to={ROUTES.transfers} style={{ textDecoration: 'none' }}>
               <Flex
                 display="inline-flex"
                 h="11"
@@ -971,13 +972,13 @@ export function AllDocumentsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" minW="56">
                         <DropdownMenuItem asChild>
-                          <Link to={`/vaults/${group.vaultId}/documents`}>
+                          <Link to={ROUTES.vaultDocuments(group.vaultId)}>
                             <ActionMenuItemIcon icon={FolderOpen} />
                             Open vault
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link to={`/vaults/${group.vaultId}/settings`}>
+                          <Link to={ROUTES.vaultSettings(group.vaultId)}>
                             <ActionMenuItemIcon icon={Settings2} />
                             Vault settings
                           </Link>
@@ -1021,7 +1022,7 @@ export function AllDocumentsPage() {
                             ),
                           )
                         : undefined,
-                      documentLink: `/documents/${result.vaultId}/${result.documentId}`,
+                      documentLink: ROUTES.documentDetail(result.vaultId, result.documentId),
                     }))}
                     selectedDocumentKeys={selectedDocumentKeys}
                     onToggleDocument={toggleDocumentSelection}

@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
 import { Archive, ArrowRight, Search as SearchIcon, Tags, Vault } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import {
   PageIntro,
   SectionTitle,
@@ -278,7 +279,7 @@ export function SearchPage() {
                       <Stack gap="3">
                         <Box>
                           <Link
-                            to={`/vaults/${result.vaultId}/documents/${result.documentId}`}
+                            to={ROUTES.vaultDocument(result.vaultId, result.documentId)}
                             style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--chakra-colors-fg)' }}
                           >
                             {result.name}
@@ -330,7 +331,7 @@ export function SearchPage() {
                       </Stack>
 
                       <Link
-                        to={`/vaults/${result.vaultId}/documents/${result.documentId}`}
+                        to={ROUTES.vaultDocument(result.vaultId, result.documentId)}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}
                       >
                         Open document

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -83,9 +84,9 @@ export function DocumentDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const parentRoute = location.pathname.startsWith('/documents/')
-    ? '/documents'
-    : `/vaults/${vaultId}/documents`;
+  const parentRoute = location.pathname.startsWith(`${ROUTES.documents}/`)
+    ? ROUTES.documents
+    : ROUTES.vaultDocuments(vaultId);
 
   const documentQuery = useDocumentQuery({ vaultId, documentId });
   const documentTagsQuery = useDocumentTagsQuery({ vaultId, documentId });

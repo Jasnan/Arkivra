@@ -4,6 +4,7 @@ import { ActionBar, Box, Flex, HStack, Portal, Text } from '@chakra-ui/react';
 import { Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import {
   PageIntro,
   SurfacePanel,
@@ -388,13 +389,13 @@ export function DocumentsPage() {
         title="Documents"
         actions={
           <HStack flexWrap="wrap" gap="3">
-            <Link to={`/vaults/${vaultId}/documents/trash`} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
+            <Link to={ROUTES.vaultTrash(vaultId)} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
               Deleted documents
             </Link>
-            <Link to={`/vaults/${vaultId}/tags`} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
+            <Link to={ROUTES.vaultTags(vaultId)} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
               Tags
             </Link>
-            <Link to={`/transfers?vaultId=${vaultId}&locked=true`} style={{ textDecoration: 'none' }}>
+            <Link to={ROUTES.transfersWithLock(vaultId)} style={{ textDecoration: 'none' }}>
               <Flex
                 display="inline-flex"
                 h="11"

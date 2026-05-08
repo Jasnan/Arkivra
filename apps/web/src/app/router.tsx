@@ -1,5 +1,5 @@
-/* eslint-disable react-refresh/only-export-components */
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { AppShell } from '@/components/layout/app-shell';
 import { ProtectedRoute, PublicOnlyRoute } from '@/features/auth/auth-guards';
 import { LoginPage } from '@/features/auth/pages/login-page';
@@ -25,36 +25,79 @@ import { SearchPage } from '@/features/search/pages/search-page';
 export function createAppRouter() {
   return (
     <Routes>
-      <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-      <Route path="/register" element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>} />
-      <Route path="/request-password-reset" element={<PublicOnlyRoute><RequestPasswordResetPage /></PublicOnlyRoute>} />
-      <Route path="/reset-password" element={<PublicOnlyRoute><ResetPasswordPage /></PublicOnlyRoute>} />
-      <Route path="/two-factor/verify" element={<PublicOnlyRoute><TwoFactorVerifyPage /></PublicOnlyRoute>} />
+      {/* ── Public-only routes (no AppShell, no session required) ── */}
+      <Route
+        path={ROUTES.login}
+        element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>}
+      />
+      <Route
+        path={ROUTES.register}
+        element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>}
+      />
+      <Route
+        path={ROUTES.requestPasswordReset}
+        element={<PublicOnlyRoute><RequestPasswordResetPage /></PublicOnlyRoute>}
+      />
+      <Route
+        path={ROUTES.resetPassword}
+        element={<PublicOnlyRoute><ResetPasswordPage /></PublicOnlyRoute>}
+      />
+      <Route
+        path={ROUTES.twoFactorVerify}
+        element={<PublicOnlyRoute><TwoFactorVerifyPage /></PublicOnlyRoute>}
+      />
 
-      <Route path="/" element={<ProtectedRoute><AppShell><Routes>
-        <Route index element={<Navigate to="/vaults" replace />} />
+      {/* ── Protected routes (require session, wrapped in AppShell) ── */}
+      <Route
+        path="/*"
+        element={<ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>}
+      >
+        {/* Root */}
+        <Route index element={<Navigate to={ROUTES.vaults} replace />} />
+
+        {/* Auth (protected) */}
         <Route path="two-factor/setup" element={<TwoFactorSetupPage />} />
+
+        {/* Vaults */}
         <Route path="vaults" element={<VaultsPage />} />
-        <Route path="chat" element={<ChatPage />} />
-        <Route path="vaults/new" element={<Navigate to="/vaults" replace />} />
+        <Route path="vaults/new" element={<Navigate to={ROUTES.vaults} replace />} />
         <Route path="vaults/:vaultId/settings" element={<VaultSettingsPage />} />
-        <Route path="documents" element={<AllDocumentsPage />} />
-        <Route path="documents/:vaultId/:documentId" element={<DocumentDetailPage />} />
-        <Route path="documents/trash" element={<DocumentTrashPage />} />
-        <Route path="transfers" element={<TransfersPage />} />
         <Route path="vaults/:vaultId/documents" element={<DocumentsPage />} />
-        <Route path="vaults/:vaultId/chat" element={<ChatPage />} />
         <Route path="vaults/:vaultId/documents/trash" element={<DocumentTrashPage />} />
-        <Route path="vaults/:vaultId/documents/:documentId" element={<DocumentDetailPage />} />
         <Route path="vaults/:vaultId/documents/:documentId/chat" element={<DocumentDetailPage />} />
-        <Route path="tags" element={<TagsPage />} />
+        <Route path="vaults/:vaultId/documents/:documentId" element={<DocumentDetailPage />} />
+        <Route path="vaults/:vaultId/chat" element={<ChatPage />} />
         <Route path="vaults/:vaultId/tags" element={<TagsPage />} />
+
+        {/* Documents */}
+        <Route path="documents" element={<AllDocumentsPage />} />
+        <Route path="documents/trash" element={<DocumentTrashPage />} />
+        <Route path="documents/:vaultId/:documentId" element={<DocumentDetailPage />} />
+
+        {/* Chat (global) */}
+        <Route path="chat" element={<ChatPage />} />
+
+        {/* Tags (global) */}
+        <Route path="tags" element={<TagsPage />} />
+
+        {/* Transfers */}
+        <Route path="transfers" element={<TransfersPage />} />
+
+        {/* Search */}
         <Route path="search" element={<SearchPage />} />
+
+        {/* Settings */}
         <Route path="settings" element={<SettingsPage />} />
+
+        {/* Admin */}
         <Route path="admin" element={<AdminPage />} />
+
+        {/* About */}
         <Route path="about" element={<AboutPage />} />
-        <Route path="*" element={<Navigate to="/vaults" replace />} />
-      </Routes></AppShell></ProtectedRoute>} />
+
+        {/* Catch-all fallback */}
+        <Route path="*" element={<Navigate to={ROUTES.vaults} replace />} />
+      </Route>
     </Routes>
   );
 }

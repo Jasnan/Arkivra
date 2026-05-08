@@ -4,6 +4,7 @@ import { Box, Flex, Grid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, KeyRound, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { toast } from 'sonner';
 import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -114,7 +115,7 @@ export function SettingsPage() {
         description="Manage your profile and security."
         actions={
           isGlobalAdmin ? (
-            <Link to="/admin" style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
+            <Link to={ROUTES.admin} style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
               Admin panel
             </Link>
           ) : undefined
@@ -247,7 +248,7 @@ export function SettingsPage() {
               </Stack>
               <Stack gap="3">
                 <Link
-                  to="/two-factor/setup"
+                  to={ROUTES.twoFactorSetup}
                   style={{
                     display: 'inline-flex',
                     height: '2.5rem',
@@ -315,7 +316,7 @@ export function SettingsPage() {
               </Stack>
               <Flex justify={{ base: 'flex-start', md: 'flex-end' }}>
                 <Link
-                  to="/request-password-reset"
+                  to={ROUTES.requestPasswordReset}
                   style={{
                     display: 'inline-flex',
                     height: '2.5rem',

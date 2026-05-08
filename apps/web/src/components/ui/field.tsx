@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Box, Field as ChakraField, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, Stack, Text, chakra } from '@chakra-ui/react';
 import { Separator } from './separator';
 
 export function FieldSet(props: React.ComponentProps<typeof Box>) {
@@ -48,49 +48,49 @@ export function FieldError({
   errors,
   children,
   ...props
-}: React.ComponentProps<typeof ChakraField.ErrorText> & {
+}: React.ComponentProps<typeof Text> & {
   errors?: Array<{ message?: string } | undefined>;
 }) {
   const messages = errors?.map((error) => error?.message).filter(Boolean);
 
-  if (messages && messages.length > 0) {
-    return (
-      <ChakraField.ErrorText {...props}>
-        {messages.length === 1
+  return (
+    <Text fontSize="sm" color="fg.error" {...props}>
+      {messages && messages.length > 0
+        ? messages.length === 1
           ? messages[0]
           : (
               <Box as="ul" ps="5">
                 {messages.map((message) => <Box as="li" key={message}>{message}</Box>)}
               </Box>
-            )}
-      </ChakraField.ErrorText>
-    );
-  }
-
-  return <ChakraField.ErrorText {...props}>{children}</ChakraField.ErrorText>;
+            )
+        : children}
+    </Text>
+  );
 }
 
-type FieldProps = React.ComponentProps<typeof ChakraField.Root> & {
+type FieldProps = React.ComponentProps<typeof Box> & {
   ref?: React.Ref<HTMLDivElement>;
 };
 
 export function Field({ ref, ...props }: FieldProps) {
-  return <ChakraField.Root ref={ref} {...props} />;
+  return <Box ref={ref} {...props} />;
 }
 
 Field.displayName = 'Field';
 
 type FieldLabelProps = React.ComponentProps<typeof chakra.label> & {
   ref?: React.Ref<HTMLLabelElement>;
+  srOnly?: boolean;
 };
 
-export function FieldLabel({ ref, ...props }: FieldLabelProps) {
+export function FieldLabel({ ref, srOnly, ...props }: FieldLabelProps) {
   return (
-    <ChakraField.Label
+    <chakra.label
       ref={ref}
       fontSize="sm"
       fontWeight="medium"
       color="fg"
+      {...(srOnly ? { srOnly: true } : {})}
       {...props}
     />
   );

@@ -6,7 +6,7 @@ import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthCard } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function RegisterPage() {
@@ -41,8 +41,7 @@ export function RegisterPage() {
   }
 
   return (
-    <AuthLayout>
-      <AuthCard title="Create account" subtitle="Start organizing your documents in Arkivra.">
+    <AuthCard title="Create account" subtitle="Start organizing your documents in Arkivra.">
         <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
           <Field>
             <FieldLabel htmlFor="name">Name</FieldLabel>
@@ -73,6 +72,5 @@ export function RegisterPage() {
           </Link>
         </Box>
       </AuthCard>
-    </AuthLayout>
   );
 }

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthCard } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 const TOTP_SECRET_REGEX = /secret=([^&]+)/;
@@ -55,8 +55,7 @@ export function TwoFactorSetupPage() {
   }
 
   return (
-    <AuthLayout>
-      <AuthCard title="Set up two-factor auth" subtitle="Protect your account with TOTP verification.">
+    <AuthCard title="Set up two-factor auth" subtitle="Protect your account with TOTP verification.">
         {totpUri ? (
           <>
             <Alert>
@@ -111,6 +110,5 @@ export function TwoFactorSetupPage() {
           </form>
         )}
       </AuthCard>
-    </AuthLayout>
   );
 }

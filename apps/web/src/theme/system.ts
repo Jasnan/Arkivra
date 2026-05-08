@@ -217,9 +217,6 @@ const config = defineConfig({
       fontFamily: 'body',
       bg: 'bg.canvas',
       color: 'fg',
-      textRendering: 'optimizeLegibility',
-      WebkitFontSmoothing: 'antialiased',
-      MozOsxFontSmoothing: 'grayscale',
     },
 
     'button, input, select, textarea': {

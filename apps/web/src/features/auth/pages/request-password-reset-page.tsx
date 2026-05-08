@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthActions, AuthCard } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function RequestPasswordResetPage() {
@@ -34,8 +34,7 @@ export function RequestPasswordResetPage() {
   }
 
   return (
-    <AuthLayout>
-      <AuthCard title="Reset password" subtitle="Request a password reset link by email.">
+    <AuthCard title="Reset password" subtitle="Request a password reset link by email.">
         {submitted ? (
           <Alert>
             <AlertDescription>If an account exists for {email}, a reset link has been sent.</AlertDescription>
@@ -61,6 +60,5 @@ export function RequestPasswordResetPage() {
           </Link>
         </AuthActions>
       </AuthCard>
-    </AuthLayout>
   );
 }

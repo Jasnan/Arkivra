@@ -97,7 +97,6 @@ export function MessageBubble({
 
         {!isUser ? (
           <CitationPreviewModal
-            key={selectedCitation?.chunkId ?? 'no-inline-citation'}
             citation={selectedCitation}
             open={selectedCitation !== null}
             onOpenChange={(open) => {

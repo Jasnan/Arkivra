@@ -264,7 +264,7 @@ export function ChatWorkspace({
       overflow="hidden"
       gridTemplateColumns={{
         base: '1fr',
-        lg: isDesktopConversationRailCollapsed ? '0 minmax(0, 1fr)' : '18rem minmax(0, 1fr)',
+        lg: isDesktopConversationRailCollapsed ? '0 minmax(0, 1fr)' : '14rem minmax(0, 1fr)',
       }}
     >
       <Box
@@ -277,7 +277,7 @@ export function ChatWorkspace({
         borderColor="border.subtle"
         pb="6"
         transition="width,padding,opacity 200ms ease-linear"
-        width={isDesktopConversationRailCollapsed ? '0' : '18rem'}
+        width={isDesktopConversationRailCollapsed ? '0' : '14rem'}
         pr={isDesktopConversationRailCollapsed ? '0' : '5'}
         opacity={isDesktopConversationRailCollapsed ? '0' : '1'}
         aria-hidden={isDesktopConversationRailCollapsed}
@@ -305,7 +305,7 @@ export function ChatWorkspace({
         display={{ base: 'none', lg: 'flex' }}
         position="absolute"
         top="0.5rem"
-        left={isDesktopConversationRailCollapsed ? '0.5rem' : '16.875rem'}
+        left={isDesktopConversationRailCollapsed ? '0.5rem' : '12.875rem'}
         zIndex="dropdown"
         transition="left 200ms ease-linear"
       >

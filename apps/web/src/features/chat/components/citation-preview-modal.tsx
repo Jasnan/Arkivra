@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -56,9 +56,18 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
       citation ? groupBoundingBoxesByPage(citation) : new Map<number, Citation['boundingBoxes']>(),
     [citation],
   );
-  const [selectedPage, setSelectedPage] = useState<number | null>(pages[0] ?? null);
+  const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (citation) {
+      const initialPages = citationPreviewPages(citation);
+      setSelectedPage(initialPages[0] ?? null);
+      setImageSize(null);
+      setImageError(false);
+    }
+  }, [citation]);
 
   if (!citation) return null;
 

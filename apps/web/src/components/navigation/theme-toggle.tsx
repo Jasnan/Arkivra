@@ -8,7 +8,7 @@ export function ThemeToggle() {
 
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="icon"
       type="button"
       aria-label="Toggle color theme"

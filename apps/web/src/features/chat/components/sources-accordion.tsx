@@ -109,7 +109,6 @@ export function SourcesAccordion({
       </Accordion>
 
       <CitationPreviewModal
-        key={selectedCitation?.chunkId ?? 'no-citation'}
         citation={selectedCitation}
         open={selectedCitation !== null}
         onOpenChange={(open) => {

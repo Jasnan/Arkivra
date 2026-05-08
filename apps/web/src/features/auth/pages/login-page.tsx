@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Flex, Grid } from '@chakra-ui/react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -37,11 +37,11 @@ export function LoginPage() {
     }
 
     if (data && typeof data === 'object' && 'twoFactorRedirect' in data && data.twoFactorRedirect) {
-      navigate(ROUTES.twoFactorVerify);
+      navigate({ to: ROUTES.twoFactorVerify });
       return;
     }
 
-    navigate(ROUTES.root);
+    navigate({ to: ROUTES.root });
   }
 
   async function handleOAuth(provider: 'google' | 'github') {

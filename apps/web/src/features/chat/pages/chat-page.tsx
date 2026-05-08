@@ -1,8 +1,8 @@
-import { useParams } from 'react-router-dom';
+import { useParams } from '@tanstack/react-router';
 import { ChatWorkspace } from '../components/chat-workspace';
 
 export function ChatPage() {
-  const params = useParams<{ vaultId?: string }>();
+  const params = useParams({ strict: false }) as { vaultId?: string };
   const vaultId = params.vaultId;
   const scope = vaultId ? { vaultId } : {};
 

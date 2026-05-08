@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
 import { Archive, ArrowRight, Search as SearchIcon, Tags, Vault } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import {
   PageIntro,
@@ -29,26 +29,32 @@ import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 const PAGE_SIZE = 10;
 
 export function SearchPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState(searchParams.get('q') ?? '');
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as Record<string, string>;
+  const [query, setQuery] = useState(search.q ?? '');
   const deferredQuery = useDeferredValue(query.trim());
 
-  const vaultId = searchParams.get('vaultId') ?? '';
-  const tagId = searchParams.get('tagId') ?? '';
-  const dateFrom = searchParams.get('dateFrom') ?? '';
-  const dateTo = searchParams.get('dateTo') ?? '';
-  const pageIndex = Number.parseInt(searchParams.get('pageIndex') ?? '0', 10) || 0;
+  const vaultId = search.vaultId ?? '';
+  const tagId = search.tagId ?? '';
+  const dateFrom = search.dateFrom ?? '';
+  const dateTo = search.dateTo ?? '';
+  const pageIndex = Number.parseInt(search.pageIndex ?? '0', 10) || 0;
 
   useEffect(() => {
-    const next = new URLSearchParams(searchParams);
-    if (query.trim().length > 0) {
-      next.set('q', query.trim());
-    } else {
-      next.delete('q');
-    }
-    next.set('pageIndex', '0');
-    setSearchParams(next, { replace: true });
-  }, [query, searchParams, setSearchParams]);
+    navigate({
+      search: (prev: Record<string, string>) => {
+        const next: Record<string, string> = { ...prev }
+        if (query.trim().length > 0) {
+          next.q = query.trim()
+        } else {
+          delete next.q
+        }
+        next.pageIndex = '0'
+        return next
+      },
+      replace: true,
+    } as any)
+  }, [query, navigate]);
 
   const vaultsQuery = useVaultsQuery();
   const tagsQuery = useTagsQuery({ vaultId });
@@ -74,13 +80,18 @@ export function SearchPage() {
   }, [searchQuery.data?.resultsCount]);
 
   function updateFilters(nextValues: Record<string, string>) {
-    const next = new URLSearchParams(searchParams);
-    for (const [key, value] of Object.entries(nextValues)) {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    }
-    next.set('pageIndex', '0');
-    setSearchParams(next, { replace: true });
+    navigate({
+      search: (prev: Record<string, string>) => {
+        const next: Record<string, string> = { ...prev }
+        for (const [key, value] of Object.entries(nextValues)) {
+          if (value) next[key] = value
+          else delete next[key]
+        }
+        next.pageIndex = '0'
+        return next
+      },
+      replace: true,
+    } as any)
   }
 
   return (
@@ -413,9 +424,10 @@ export function SearchPage() {
                 variant="outline"
                 disabled={pageIndex === 0}
                 onClick={() => {
-                  const next = new URLSearchParams(searchParams);
-                  next.set('pageIndex', String(Math.max(0, pageIndex - 1)));
-                  setSearchParams(next, { replace: true });
+                  navigate({
+                    search: (prev: Record<string, string>) => ({ ...prev, pageIndex: String(Math.max(0, pageIndex - 1)) }),
+                    replace: true,
+                  } as any)
                 }}
               >
                 Previous
@@ -425,9 +437,10 @@ export function SearchPage() {
                 variant="outline"
                 disabled={pageIndex >= totalPages - 1}
                 onClick={() => {
-                  const next = new URLSearchParams(searchParams);
-                  next.set('pageIndex', String(Math.min(totalPages - 1, pageIndex + 1)));
-                  setSearchParams(next, { replace: true });
+                  navigate({
+                    search: (prev: Record<string, string>) => ({ ...prev, pageIndex: String(Math.min(totalPages - 1, pageIndex + 1)) }),
+                    replace: true,
+                  } as any)
                 }}
               >
                 Next

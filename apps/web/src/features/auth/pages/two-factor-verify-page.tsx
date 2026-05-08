@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Flex } from '@chakra-ui/react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -35,7 +35,7 @@ export function TwoFactorVerifyPage() {
       return;
     }
 
-    navigate(ROUTES.root);
+    navigate({ to: ROUTES.root });
   }
 
   return (

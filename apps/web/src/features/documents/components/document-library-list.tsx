@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { Checkbox as ChakraCheckbox, Table, Box, Flex, Text } from '@chakra-ui/react';
 import { File } from 'lucide-react';
 import { ROUTES } from '@/app/routes';

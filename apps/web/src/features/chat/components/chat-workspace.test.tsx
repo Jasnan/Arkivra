@@ -166,7 +166,7 @@ describe('chat workspace new chat drafts', () => {
   it('keeps a new chat unsaved until the first message is sent', async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(
+    await renderWithProviders(
       <ChatWorkspace
         scope={{}}
         inputPlaceholder="Ask anything"
@@ -211,7 +211,7 @@ describe('chat workspace new chat drafts', () => {
   it('shows figure captions in the source flow for cited image evidence', async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(
+    await renderWithProviders(
       <ChatWorkspace
         scope={{}}
         inputPlaceholder="Ask anything"

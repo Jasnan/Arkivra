@@ -53,7 +53,7 @@ describe('auth pages', () => {
 
   it('submits the login form and supports OAuth buttons', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<LoginPage />);
+    await renderWithProviders(<LoginPage />);
 
     await user.type(screen.getByLabelText(/email/i), 'user@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'secret123');
@@ -74,7 +74,7 @@ describe('auth pages', () => {
   it('submits the register form', async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(<RegisterPage />);
+    await renderWithProviders(<RegisterPage />);
     await user.type(screen.getByLabelText(/name/i), 'Alex');
     await user.type(screen.getByLabelText(/email/i), 'alex@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'secret123');
@@ -89,7 +89,7 @@ describe('auth pages', () => {
 
   it('submits the password reset request flow', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<RequestPasswordResetPage />);
+    await renderWithProviders(<RequestPasswordResetPage />);
     await user.type(screen.getByLabelText(/email/i), 'alex@example.com');
     await user.click(screen.getByRole('button', { name: /send reset link/i }));
 
@@ -101,7 +101,7 @@ describe('auth pages', () => {
 
   it('resets password when a token is present', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ResetPasswordPage />, {
+    await renderWithProviders(<ResetPasswordPage />, {
       initialEntries: ['/reset-password?token=tok_123'],
       routePath: '/reset-password',
     });
@@ -118,7 +118,7 @@ describe('auth pages', () => {
 
   it('enables and verifies two-factor auth', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<TwoFactorSetupPage />);
+    await renderWithProviders(<TwoFactorSetupPage />);
 
     await user.type(screen.getByLabelText(/current password/i), 'secret123');
     await user.click(screen.getByRole('button', { name: /generate setup key/i }));
@@ -136,7 +136,7 @@ describe('auth pages', () => {
 
   it('accepts backup codes on the verification page', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<TwoFactorVerifyPage />);
+    await renderWithProviders(<TwoFactorVerifyPage />);
 
     await user.click(screen.getByRole('button', { name: /backup code/i }));
     await user.type(screen.getByLabelText(/backup code/i), 'backup-1');

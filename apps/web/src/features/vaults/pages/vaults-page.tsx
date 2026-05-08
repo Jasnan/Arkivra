@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, Heading, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderKanban, FolderOpen, Settings2, ShieldCheck, Vault } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import {
@@ -94,7 +94,7 @@ export function VaultsPage() {
       setName('');
       setDescription('');
       toast.success('Vault created.');
-      navigate(ROUTES.vaultSettings(vault.id));
+      navigate({ to: ROUTES.vaultSettings(vault.id) });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not create vault.');
@@ -228,11 +228,11 @@ export function VaultsPage() {
                 transition="background-color 0.15s ease, border-color 0.15s ease"
                 _hover={{ bg: 'bg.subtle' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
-                onClick={() => navigate(ROUTES.vaultRoot(vault.id))}
+                onClick={() => navigate({ to: ROUTES.vaultRoot(vault.id) })}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    navigate(ROUTES.vaultRoot(vault.id));
+                    navigate({ to: ROUTES.vaultRoot(vault.id) });
                   }
                 }}
               >
@@ -274,7 +274,7 @@ export function VaultsPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" minWidth="9rem">
                               <DropdownMenuItem
-                                onSelect={() => navigate(ROUTES.vaultSettings(vault.id))}
+                                onSelect={() => navigate({ to: ROUTES.vaultSettings(vault.id) })}
                               >
                                 <ActionMenuItemIcon icon={Settings2} />
                                 Settings

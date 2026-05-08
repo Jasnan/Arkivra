@@ -39,7 +39,7 @@ describe('vault pages', () => {
       });
     }));
 
-    renderWithProviders(<VaultsPage />);
+    await renderWithProviders(<VaultsPage />);
 
     expect(await screen.findByRole('heading', { name: 'Personal' })).toBeInTheDocument();
     expect(screen.getByText('Household records')).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe('vault pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<VaultsPage />);
+    await renderWithProviders(<VaultsPage />);
 
     await user.click(await screen.findByRole('button', { name: /create vault/i }));
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
@@ -121,7 +121,7 @@ describe('vault pages', () => {
       throw new Error(`Unhandled request ${url}`);
     }));
 
-    renderWithProviders(<VaultsPage />);
+    await renderWithProviders(<VaultsPage />);
 
     const createButton = await screen.findByRole('button', { name: /create vault/i });
     await user.click(createButton);
@@ -160,7 +160,7 @@ describe('vault pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<VaultsPage />);
+    await renderWithProviders(<VaultsPage />);
 
     expect(await screen.findByText(/must grant vault creation/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /create vault/i })).not.toBeInTheDocument();
@@ -226,7 +226,7 @@ describe('vault pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<VaultSettingsPage />, {
+    await renderWithProviders(<VaultSettingsPage />, {
       initialEntries: ['/vaults/vlt_1/settings'],
       routePath: '/vaults/:vaultId/settings',
     });

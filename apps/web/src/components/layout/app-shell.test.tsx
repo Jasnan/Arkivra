@@ -102,10 +102,8 @@ describe('app shell account menu', () => {
   it('dismisses the account menu when clicking outside of it', async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(
-      <AppShell>
-        <div>Workspace</div>
-      </AppShell>,
+    await renderWithProviders(
+      <AppShell />,
       {
         initialEntries: ['/vaults'],
         routePath: '/vaults',
@@ -128,10 +126,8 @@ describe('app shell account menu', () => {
   it('collapses the desktop sidebar to icon-only navigation', async () => {
     const user = userEvent.setup();
 
-    renderWithProviders(
-      <AppShell>
-        <div>Workspace</div>
-      </AppShell>,
+    await renderWithProviders(
+      <AppShell />,
       {
         initialEntries: ['/vaults'],
         routePath: '/vaults',
@@ -155,10 +151,8 @@ describe('app shell account menu', () => {
   });
 
   it('shows global document breadcrumbs for all-documents detail pages', async () => {
-    renderWithProviders(
-      <AppShell>
-        <div>Workspace</div>
-      </AppShell>,
+    await renderWithProviders(
+      <AppShell />,
       {
         initialEntries: ['/documents/vlt_1/doc_1'],
         routePath: '/documents/:vaultId/:documentId',
@@ -175,10 +169,8 @@ describe('app shell account menu', () => {
   });
 
   it('shows vault-scoped breadcrumbs for vault document detail pages', async () => {
-    renderWithProviders(
-      <AppShell>
-        <div>Workspace</div>
-      </AppShell>,
+    await renderWithProviders(
+      <AppShell />,
       {
         initialEntries: ['/vaults/vlt_1/documents/doc_1'],
         routePath: '/vaults/:vaultId/documents/:documentId',

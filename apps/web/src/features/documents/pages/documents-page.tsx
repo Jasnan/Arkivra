@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, Flex, HStack, Portal, Text } from '@chakra-ui/react';
 import { Upload } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import {
@@ -108,7 +108,7 @@ function getDateFilterLabel({
 }
 
 export function DocumentsPage() {
-  const params = useParams<{ vaultId: string }>();
+  const params = useParams({ strict: false }) as { vaultId?: string };
   const vaultId = params.vaultId ?? '';
   const queryClient = useQueryClient();
 

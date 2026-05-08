@@ -1,51 +1,49 @@
 /* eslint-disable react-refresh/only-export-components */
-import type { PropsWithChildren, ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { Toaster } from 'sonner';
-import { ThemeProvider } from '@/components/providers/theme-provider';
+import type { PropsWithChildren, ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render } from '@testing-library/react'
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
+import { Toaster } from 'sonner'
+import { ThemeProvider } from '@/components/providers/theme-provider'
 
-function TestProviders({
-  children,
-  initialEntries,
-  routePath,
-}: PropsWithChildren<{ initialEntries?: string[]; routePath?: string }>) {
+export async function renderWithProviders(
+  ui: ReactNode,
+  options?: { initialEntries?: string[]; routePath?: string },
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
       },
     },
-  });
+  })
 
-  return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={initialEntries}>
-          {routePath
-            ? (
-                <Routes>
-                  <Route path={routePath} element={<>{children}</>} />
-                </Routes>
-              )
-            : children}
-        </MemoryRouter>
-        <Toaster position="top-right" richColors />
-      </QueryClientProvider>
-    </ThemeProvider>
-  );
-}
+  const rootRoute = createRootRoute()
+  const path = options?.routePath ? options.routePath.replace(/:(\w+)/g, '$$$1') : '/'
+  const testRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path,
+    component: () => <>{ui}</>,
+  })
+  const routeTree = rootRoute.addChildren([testRoute])
 
-export function renderWithProviders(
-  ui: ReactNode,
-  options?: { initialEntries?: string[]; routePath?: string },
-) {
-  return render(ui, {
-    wrapper: ({ children }) => (
-      <TestProviders initialEntries={options?.initialEntries} routePath={options?.routePath}>
-        {children}
-      </TestProviders>
-    ),
-  });
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: options?.initialEntries ?? ['/'] }),
+  })
+
+  await router.load()
+
+  function Wrapper({ children }: PropsWithChildren) {
+    return (
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+          <Toaster position="top-right" richColors />
+        </QueryClientProvider>
+      </ThemeProvider>
+    )
+  }
+
+  return render(ui, { wrapper: Wrapper })
 }

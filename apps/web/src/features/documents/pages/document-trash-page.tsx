@@ -1,6 +1,6 @@
 import { Box, Flex, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { EmptyState, PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
@@ -38,7 +38,7 @@ function getResolvedVaultName(document: DocumentSummary | DeletedDocumentSummary
 }
 
 export function DocumentTrashPage() {
-  const params = useParams<{ vaultId: string }>();
+  const params = useParams({ strict: false }) as { vaultId?: string };
   const vaultId = params.vaultId;
   const isVaultScoped = typeof vaultId === 'string' && vaultId.length > 0;
   const queryClient = useQueryClient();

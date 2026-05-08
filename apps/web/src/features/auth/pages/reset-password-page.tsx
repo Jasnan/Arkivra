@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,8 @@ import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function ResetPasswordPage() {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') ?? undefined;
+  const search = useSearch({ strict: false });
+  const token = (search as Record<string, string | undefined>).token;
   const navigate = useNavigate();
 
   const [password, setPassword] = useState('');
@@ -34,7 +34,7 @@ export function ResetPasswordPage() {
       return;
     }
     setIsReset(true);
-    setTimeout(navigate, 600, ROUTES.login);
+    setTimeout(() => navigate({ to: ROUTES.login }), 600);
   }
 
   return (

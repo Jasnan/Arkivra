@@ -44,7 +44,7 @@ export function TooltipContent({
           maxW="64"
           borderWidth="1px"
           borderColor="border.subtle"
-          bg="bg.panel"
+          bg="bg.elevated"
           color="fg.muted"
           px="3"
           py="2"

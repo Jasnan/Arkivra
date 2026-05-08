@@ -418,7 +418,7 @@ export function VaultSettingsPage() {
                         inputName="permissions"
                         defaultSelectedPermissions={member.permissions}
                         disabled={!canManageMembers}
-                        cardBg="bg.panel"
+                        cardBg="bg.surface"
                       />
 
                       <SaveButton

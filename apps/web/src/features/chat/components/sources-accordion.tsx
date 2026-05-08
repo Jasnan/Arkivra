@@ -33,7 +33,7 @@ export function SourcesAccordion({
         mt="4"
         mb={isOpen ? { base: '10rem', md: '9rem' } : '0'}
         borderTopWidth="1px"
-        borderTopColor="border.subtle"
+        borderTopColor="border"
         pt="2"
       >
         <AccordionItem value="sources" style={{ borderBottom: '0' }}>
@@ -59,7 +59,7 @@ export function SourcesAccordion({
                     alignItems="flex-start"
                     gap="3"
                     rounded="2xl"
-                    bg="bg.subtle"
+                    bg="bg.surface"
                     px="4"
                     py="3"
                     textAlign="left"

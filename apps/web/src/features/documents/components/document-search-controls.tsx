@@ -115,7 +115,7 @@ export function DocumentSearchControls<TSortValue extends string>({
         rounded="lg"
         borderWidth="1px"
         borderColor="border.subtle"
-        bg="bg.panel"
+        bg="bg.surface"
         p={{ base: '3', sm: '4' }}
       >
         <Flex direction={{ base: 'column', xl: 'row' }} gap="3">
@@ -187,7 +187,7 @@ export function DocumentSearchControls<TSortValue extends string>({
               rounded="lg"
               borderWidth="1px"
               borderColor="border.subtle"
-              bg="bg.panel"
+        bg="bg.surface"
               px="3"
               py="1.5"
               shadow="none"

@@ -213,12 +213,12 @@ export function TransfersPage() {
             py={{ base: '12', sm: '16' }}
             textAlign="center"
             transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-            _hover={canUpload ? { borderColor: 'teal.focusRing', bg: 'bg.panel' } : undefined}
+            _hover={canUpload ? { borderColor: 'teal.focusRing', bg: 'bg.surface' } : undefined}
             cursor={canUpload ? 'pointer' : 'not-allowed'}
             opacity={canUpload ? '1' : '0.7'}
             disabled={!canUpload}
           >
-            <Flex boxSize="4.8rem" align="center" justify="center" rounded="lg" bg="bg.panel" color="teal.solid">
+            <Flex boxSize="4.8rem" align="center" justify="center" rounded="lg" bg="bg.surface" color="teal.solid">
               <FileUp size={32} />
             </Flex>
             <Heading as="h2" mt="6" textStyle="lg" fontWeight="semibold" lineHeight="short">

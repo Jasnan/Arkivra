@@ -832,7 +832,7 @@ export function AllDocumentsPage() {
               </DropdownMenu>
             </Box>
 
-            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.panel" p="4">
+            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
               <Text fontSize="sm" fontWeight="semibold" color="fg">Date</Text>
 
               <DatePresetSelector

@@ -193,7 +193,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                     No page preview is available for this citation.
                   </Flex>
                 ) : (
-                  <Box mx="auto" w="100%" maxW="container.lg" rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.panel" p="4" shadow="sm">
+                  <Box mx="auto" w="100%" maxW="container.lg" rounded="2xl" borderWidth="1px" borderColor="border" bg="bg.surface" p="4" shadow="md">
                     <Box position="relative">
                       <chakra.img
                         src={activePreviewUrl}
@@ -254,8 +254,8 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
             minH="0"
             overflow="auto"
             borderTopWidth="1px"
-            borderColor="border.subtle"
-            bg="bg.panel"
+            borderColor="border"
+            bg="bg.surface"
             lg={{
               borderLeftWidth: '1px',
               borderTopWidth: '0',

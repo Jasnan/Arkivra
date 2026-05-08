@@ -340,7 +340,7 @@ export function ChatWorkspace({
               align="center"
               gap="2"
               borderBottomWidth="1px"
-              borderColor="border.subtle"
+        borderColor="border"
               bg="bg.error"
               px="4"
               py="3"
@@ -356,7 +356,7 @@ export function ChatWorkspace({
           <Box
             display={{ base: 'block', lg: 'none' }}
             borderBottomWidth="1px"
-            borderColor="border.subtle"
+              borderColor="border"
             px="4"
             py="3"
             sm={{ px: '6' }}
@@ -389,7 +389,7 @@ export function ChatWorkspace({
                 _open={{ animationName: 'accordion-down' }}
                 _closed={{ animationName: 'accordion-up' }}
               >
-                <Box mt="4" borderTopWidth="1px" borderColor="border.subtle" pt="3">
+                <Box mt="4"                 borderTopWidth="1px" borderColor="border" pt="3">
                   <ChatConversationRail
                     showHeader={false}
                     conversationsQuery={conversationsQuery}
@@ -488,12 +488,14 @@ export function ChatWorkspace({
                   <Box maxW="min(44rem, 100%)">
                     <Box
                       rounded="2xl"
-                      bg="bg.subtle"
+                      bg="bg.elevated"
                       px="4"
                       py="3"
                       fontSize="sm"
                       lineHeight="1.6"
                       color="fg"
+                      borderWidth="1px"
+                      borderColor="border.subtle"
                     >
                       {streamingText.length > 0 ? (
                         <MarkdownMessage content={streamingText} citations={[]} />

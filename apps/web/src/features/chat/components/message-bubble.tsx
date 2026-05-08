@@ -57,7 +57,7 @@ export function MessageBubble({
             </Flex>
           </>
         ) : (
-          <Box w="100%" rounded="2xl" bg="bg.subtle" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg">
+          <Box w="100%" rounded="2xl" bg="bg.elevated" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg" borderWidth="1px" borderColor="border.subtle">
             <MarkdownMessage
               content={displayContent}
               citations={message.citations}

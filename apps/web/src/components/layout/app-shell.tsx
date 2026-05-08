@@ -305,7 +305,7 @@ export function AppShell({ children }: PropsWithChildren) {
         onOpenChange={(open) => setIsSidebarCollapsed(!open)}
         style={
           {
-            '--sidebar-width': '17rem',
+            '--sidebar-width': '14rem',
             '--sidebar-width-icon': '4.75rem',
             '--header-height': '3.5rem',
           } as CSSProperties
@@ -367,7 +367,7 @@ export function AppShell({ children }: PropsWithChildren) {
                 </BreadcrumbList>
               </Breadcrumb>
 
-              <HStack ml="auto" display={{ base: 'none', md: 'flex' }} maxW="sm" w="full" gap="2">
+              <HStack ml="auto" maxW="sm" w="full" gap="2">
                 <Box position="relative" flex="1">
                   <Box
                     position="absolute"
@@ -503,70 +503,7 @@ export function AppShell({ children }: PropsWithChildren) {
                   </NavLink>
                 ) : null}
 
-                <Stack gap="3" display={{ base: 'flex', lg: 'none' }}>
-                  <Box position="relative">
-                    <Box
-                      position="absolute"
-                      left="4"
-                      top="50%"
-                      transform="translateY(-50%)"
-                      color="fg.muted"
-                      pointerEvents="none"
-                    >
-                      <Search size={16} />
-                    </Box>
-                    <Input
-                      aria-label="Global search"
-                      placeholder="Quick search"
-                      readOnly
-                      onFocus={openQuickSearch}
-                      onClick={openQuickSearch}
-                      pl="11"
-                      borderColor="border.subtle"
-                      color="fg"
-                      _placeholder={{ color: 'fg.muted' }}
-                    />
-                  </Box>
 
-                  <HStack gap="2" overflowX="auto">
-                    {[...primaryNavItems, ...footerNavItems].map((item) => {
-                      const IconComponent = item.icon;
-
-                      return (
-                        <NavLink
-                          key={item.to}
-                          to={item.to}
-                          end={item.to === '/documents'}
-                          style={{ color: 'inherit', textDecoration: 'none', flexShrink: 0 }}
-                        >
-                          {({ isActive }) => (
-                            <Flex
-                              align="center"
-                              gap="2"
-                              rounded="lg"
-                              borderWidth="1px"
-                              borderColor="border.subtle"
-                              bg={isActive ? 'teal.subtle' : 'bg.panel'}
-                              color={isActive ? 'fg' : 'fg.muted'}
-                              px="3"
-                              py="2"
-                              fontSize="sm"
-                              fontWeight="medium"
-                              whiteSpace="nowrap"
-                              transition="colors"
-                              _hover={{ bg: 'teal.subtle', color: 'fg' }}
-                            >
-                              <Flex boxSize="4" shrink="0" align="center" justify="center">
-                                <IconComponent size={16} />
-                              </Flex>
-                              <Text>{item.label}</Text>
-                            </Flex>
-                          )}
-                        </NavLink>
-                      );
-                    })}
-                  </HStack>
-                </Stack>
 
                 {children}
               </Stack>

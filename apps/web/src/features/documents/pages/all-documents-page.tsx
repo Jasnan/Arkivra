@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, Flex, Text, chakra } from '@chakra-ui/react';
+import { ActionBar, Box, Collapsible, Flex, Portal, Text, chakra } from '@chakra-ui/react';
 import {
   Check,
   ChevronDown,
@@ -29,12 +29,12 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { softDeleteDocument } from '@/features/documents/documents.api';
+import { getDocumentDownloadUrl, softDeleteDocument } from '@/features/documents/documents.api';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
 import {
-  DocumentLibraryHeader,
-  DocumentLibraryRow,
+  DocumentLibraryTable,
+  getDocumentSelectionKey,
 } from '@/features/documents/components/document-library-list';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
@@ -180,6 +180,7 @@ export function AllDocumentsPage() {
   const [vaultSearchQuery, setVaultSearchQuery] = useState('');
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
+  const [selectedDocumentKeys, setSelectedDocumentKeys] = useState<string[]>([]);
   const vaultFilterContentRef = useRef<HTMLDivElement | null>(null);
   const tagFilterContentRef = useRef<HTMLDivElement | null>(null);
 
@@ -225,14 +226,32 @@ export function AllDocumentsPage() {
     sortBy,
     enabled: !vaultsQuery.isLoading,
   });
+  async function invalidateDocumentQueries() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+    ]);
+  }
+
   const deleteMutation = useMutation({
-    mutationFn: softDeleteDocument,
-    onSuccess: async () => {
-      toast.success('Document moved to trash.');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
-        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
-      ]);
+    mutationFn: async (documents: Array<{ vaultId: string; documentId: string }>) =>
+      Promise.all(documents.map((document) => softDeleteDocument(document))),
+    onSuccess: async (_data, documents) => {
+      const deletedKeys = new Set(
+        documents.map((document) =>
+          getDocumentSelectionKey(document.vaultId, document.documentId),
+        ),
+      );
+
+      toast.success(
+        documents.length === 1
+          ? 'Document moved to trash.'
+          : `${documents.length} documents moved to trash.`,
+      );
+      setSelectedDocumentKeys((current) => {
+        return current.filter((key) => !deletedKeys.has(key));
+      });
+      await invalidateDocumentQueries();
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not delete document.');
@@ -309,6 +328,33 @@ export function AllDocumentsPage() {
     () => new Map((vaultsQuery.data?.vaults ?? []).map((vault) => [vault.id, vault])),
     [vaultsQuery.data?.vaults],
   );
+
+  const visibleDocumentKeys = useMemo(
+    () => groupedDocuments.flatMap((group) =>
+      group.documents.map((document) => getDocumentSelectionKey(document.vaultId, document.documentId)),
+    ),
+    [groupedDocuments],
+  );
+
+  const selectedDocuments = useMemo(() => {
+    const documentsByKey = new Map(
+      groupedDocuments.flatMap((group) =>
+        group.documents.map((document) => [
+          getDocumentSelectionKey(document.vaultId, document.documentId),
+          document,
+        ]),
+      ),
+    );
+
+    return selectedDocumentKeys
+      .map((key) => documentsByKey.get(key))
+      .filter((document): document is SearchResultItem => Boolean(document));
+  }, [groupedDocuments, selectedDocumentKeys]);
+
+  useEffect(() => {
+    const visibleKeySet = new Set(visibleDocumentKeys);
+    setSelectedDocumentKeys((current) => current.filter((key) => visibleKeySet.has(key)));
+  }, [visibleDocumentKeys]);
 
   const summaryLabel = useMemo(() => {
     const totalDocuments = documentsQuery.data?.resultsCount ?? 0;
@@ -391,6 +437,37 @@ export function AllDocumentsPage() {
     setCollapsedVaultIds((current) =>
       current.includes(vaultId) ? current.filter((id) => id !== vaultId) : [...current, vaultId],
     );
+  }
+
+  function toggleDocumentSelection(selectionKey: string, checked: boolean) {
+    setSelectedDocumentKeys((current) => (
+      checked
+        ? current.includes(selectionKey) ? current : [...current, selectionKey]
+        : current.filter((key) => key !== selectionKey)
+    ));
+  }
+
+  function toggleAllDocumentSelection(selectionKeys: string[], checked: boolean) {
+    setSelectedDocumentKeys((current) => {
+      if (checked) {
+        return Array.from(new Set([...current, ...selectionKeys]));
+      }
+
+      const groupKeySet = new Set(selectionKeys);
+      return current.filter((key) => !groupKeySet.has(key));
+    });
+  }
+
+  function downloadDocuments(documents: Array<{ vaultId: string; documentId: string }>) {
+    for (const document of documents) {
+      const link = window.document.createElement('a');
+      link.href = getDocumentDownloadUrl(document);
+      link.download = '';
+      link.rel = 'noopener';
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
   }
 
   function focusFirstFilterItem(container: HTMLDivElement | null) {
@@ -786,128 +863,183 @@ export function AllDocumentsPage() {
 
           return (
             <SurfacePanel key={group.vaultId} rounded="lg" p="0">
-              <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '5', sm: '6' }} py="5">
-                <Flex align="flex-start" gap="4" w="full">
-                  <VaultIcon />
-                  <Box minW="0" flex="1">
-                    <chakra.button
-                      type="button"
-                      display="flex"
-                      w="full"
-                      alignItems="flex-start"
-                      justifyContent="space-between"
-                      gap="4"
-                      textAlign="left"
-                      aria-expanded={!isCollapsed}
-                      onClick={() => toggleVaultCollapsed(group.vaultId)}
-                    >
-                      <Box minW="0">
-                        <Flex flexWrap="wrap" align="baseline" gap="3">
-                          <Text truncate fontSize="base" fontWeight="semibold" color="fg">
-                            {group.vaultName}
-                          </Text>
-                          <Text fontSize="sm" color="fg.muted">
-                            {group.documents.length} document
-                            {group.documents.length === 1 ? '' : 's'}
-                          </Text>
-                        </Flex>
-                        <Text mt="1" display="block" fontSize="sm" color="fg.muted">
-                          {formatVaultRole(vault?.role ?? 'global_admin')}
-                        </Text>
-                      </Box>
-                      <Flex
-                        mt="1"
-                        shrink={0}
-                        align="center"
-                        transition="transform 200ms"
-                        transform={isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)'}
-                      >
-                        <ChevronDown size={20} />
-                      </Flex>
-                    </chakra.button>
-                  </Box>
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <ActionMenuTriggerButton
-                        label={`Open actions for ${group.vaultName}`}
-                        onClick={(event) => event.stopPropagation()}
-                      />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" minW="56">
-                      <DropdownMenuItem asChild>
-                        <Link to={`/vaults/${group.vaultId}/documents`}>
-                          <ActionMenuItemIcon icon={FolderOpen} />
-                          Open vault
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link to={`/vaults/${group.vaultId}/settings`}>
-                          <ActionMenuItemIcon icon={Settings2} />
-                          Vault settings
-                        </Link>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </Flex>
-              </Flex>
+              <Collapsible.Root
+                open={!isCollapsed}
+                onOpenChange={(event) => {
+                  const nextCollapsed = !event.open;
+                  setCollapsedVaultIds((current) => {
+                    const hasVault = current.includes(group.vaultId);
 
-              {!isCollapsed ? (
-                <>
-                  <DocumentLibraryHeader />
+                    if (nextCollapsed && !hasVault) {
+                      return [...current, group.vaultId];
+                    }
 
-                  <Flex direction="column" divideY="1px" divideColor="border.subtle">
-                    {group.documents.map((result) => (
-                      <DocumentLibraryRow
-                        key={result.documentId}
-                        name={result.name}
-                        originalName={result.originalName}
-                        mimeType={result.mimeType}
-                        originalSize={result.originalSize}
-                        createdAt={result.createdAt}
-                        updatedAt={result.updatedAt}
-                        tags={result.tags}
-                        snippet={
-                          debouncedQuery.length > 0 && result.bestChunk
-                            ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
-                                part.highlighted ? (
-                                  <Box
-                                    as="mark"
-                                    key={`${result.documentId}-${part.key}`}
-                                    rounded="md"
-                                    bg="teal.subtle"
-                                    px="1.5"
-                                    py="0.5"
-                                    color="fg"
-                                  >
-                                    {part.text}
-                                  </Box>
-                                ) : (
-                                  <Text as="span" key={`${result.documentId}-${part.key}`}>
-                                    {part.text}
-                                  </Text>
-                                ),
-                              )
-                            : undefined
-                        }
-                        vaultId={result.vaultId}
-                        documentId={result.documentId}
-                        documentLink={`/documents/${result.vaultId}/${result.documentId}`}
-                        onDelete={() => {
-                          deleteMutation.mutate({
-                            vaultId: result.vaultId,
-                            documentId: result.documentId,
-                          });
-                        }}
-                        deleteDisabled={deleteMutation.isPending}
-                      />
-                    ))}
+                    if (!nextCollapsed && hasVault) {
+                      return current.filter((id) => id !== group.vaultId);
+                    }
+
+                    return current;
+                  });
+                }}
+              >
+                <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '5', sm: '6' }} py="5">
+                  <Flex align="flex-start" gap="4" w="full">
+                    <VaultIcon />
+                    <Box minW="0" flex="1">
+                      <Collapsible.Trigger asChild>
+                        <chakra.button
+                          type="button"
+                          display="flex"
+                          w="full"
+                          alignItems="flex-start"
+                          justifyContent="space-between"
+                          gap="4"
+                          textAlign="left"
+                        >
+                          <Box minW="0">
+                            <Flex flexWrap="wrap" align="baseline" gap="3">
+                              <Text truncate fontSize="base" fontWeight="semibold" color="fg">
+                                {group.vaultName}
+                              </Text>
+                              <Text fontSize="sm" color="fg.muted">
+                                {group.documents.length} document
+                                {group.documents.length === 1 ? '' : 's'}
+                              </Text>
+                            </Flex>
+                            <Text mt="1" display="block" fontSize="sm" color="fg.muted">
+                              {formatVaultRole(vault?.role ?? 'global_admin')}
+                            </Text>
+                          </Box>
+                          <Flex
+                            mt="1"
+                            shrink={0}
+                            align="center"
+                            transition="transform 200ms"
+                            transform={isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)'}
+                          >
+                            <ChevronDown size={20} />
+                          </Flex>
+                        </chakra.button>
+                      </Collapsible.Trigger>
+                    </Box>
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <ActionMenuTriggerButton
+                          label={`Open actions for ${group.vaultName}`}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" minW="56">
+                        <DropdownMenuItem asChild>
+                          <Link to={`/vaults/${group.vaultId}/documents`}>
+                            <ActionMenuItemIcon icon={FolderOpen} />
+                            Open vault
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link to={`/vaults/${group.vaultId}/settings`}>
+                            <ActionMenuItemIcon icon={Settings2} />
+                            Vault settings
+                          </Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </Flex>
-                </>
-              ) : null}
+                </Flex>
+
+                <Collapsible.Content>
+                  <DocumentLibraryTable
+                    vaultName={group.vaultName}
+                    documents={group.documents.map((result) => ({
+                      documentId: result.documentId,
+                      vaultId: result.vaultId,
+                      name: result.name,
+                      originalName: result.originalName,
+                      mimeType: result.mimeType,
+                      originalSize: result.originalSize,
+                      createdAt: result.createdAt,
+                      updatedAt: result.updatedAt,
+                      tags: result.tags,
+                      snippet: debouncedQuery.length > 0 && result.bestChunk
+                        ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
+                            part.highlighted ? (
+                              <Box
+                                as="mark"
+                                key={`${result.documentId}-${part.key}`}
+                                rounded="md"
+                                bg="teal.subtle"
+                                px="1.5"
+                                py="0.5"
+                                color="fg"
+                              >
+                                {part.text}
+                              </Box>
+                            ) : (
+                              <Text as="span" key={`${result.documentId}-${part.key}`}>
+                                {part.text}
+                              </Text>
+                            ),
+                          )
+                        : undefined,
+                      documentLink: `/documents/${result.vaultId}/${result.documentId}`,
+                    }))}
+                    selectedDocumentKeys={selectedDocumentKeys}
+                    onToggleDocument={toggleDocumentSelection}
+                    onToggleAllDocuments={toggleAllDocumentSelection}
+                    onDelete={(document) => {
+                      deleteMutation.mutate([document]);
+                    }}
+                    deleteDisabled={deleteMutation.isPending}
+                  />
+                </Collapsible.Content>
+              </Collapsible.Root>
             </SurfacePanel>
           );
         })}
       </Flex>
+
+      <ActionBar.Root open={selectedDocuments.length > 0}>
+        <Portal>
+          <ActionBar.Positioner>
+            <ActionBar.Content>
+              <ActionBar.SelectionTrigger>
+                {selectedDocuments.length} selected
+              </ActionBar.SelectionTrigger>
+              <ActionBar.Separator />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  downloadDocuments(
+                    selectedDocuments.map((document) => ({
+                      vaultId: document.vaultId,
+                      documentId: document.documentId,
+                    })),
+                  );
+                }}
+              >
+                Download selected
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  deleteMutation.mutate(
+                    selectedDocuments.map((document) => ({
+                      vaultId: document.vaultId,
+                      documentId: document.documentId,
+                    })),
+                  );
+                }}
+              >
+                Delete selected
+              </Button>
+            </ActionBar.Content>
+          </ActionBar.Positioner>
+        </Portal>
+      </ActionBar.Root>
     </Flex>
   );
 }

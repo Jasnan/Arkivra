@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
+import { Checkbox as ChakraCheckbox, Table, Box, Flex, Text } from '@chakra-ui/react';
 import { Download, File, FolderOpen, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Box, Flex, Grid, Text } from '@chakra-ui/react';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
   DropdownMenu,
@@ -9,8 +9,32 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import { formatBytes } from '@/features/documents/documents.utils';
 import type { SearchResultTag } from '@/features/search/search.types';
+
+export interface DocumentLibraryItem {
+  documentId: string;
+  vaultId: string;
+  name: string;
+  mimeType: string;
+  originalName?: string;
+  originalSize: number;
+  createdAt: string;
+  updatedAt: string;
+  tags?: SearchResultTag[];
+  snippet?: ReactNode;
+  documentLink?: string;
+}
+
+function formatDateOnly(value: string | null) {
+  if (!value) {
+    return 'Not set';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+  }).format(new Date(value));
+}
 
 function TagPill({ name, color }: { name: string; color: string | null }) {
   return (
@@ -180,140 +204,212 @@ function DocumentActionsMenu({
   );
 }
 
-export function DocumentLibraryHeader() {
+function SelectionCheckbox({
+  checked,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean | 'indeterminate';
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
   return (
-    <Grid
-      templateColumns="minmax(0,1.9fr) 160px 120px 180px 76px"
-      gap="5"
-      borderBottomWidth="1px"
-      borderColor="border.subtle"
-      px={{ base: '5', sm: '6' }}
-      py="4"
-      fontSize="sm"
-      color="fg.muted"
-      display={{ base: 'none', md: 'grid' }}
+    <ChakraCheckbox.Root
+      size="sm"
+      checked={checked}
+      aria-label={label}
+      onCheckedChange={(event) => onCheckedChange(event.checked === true)}
     >
-      <Text>Name</Text>
-      <Text>Uploaded</Text>
-      <Text>Size</Text>
-      <Text>Tags</Text>
-      <Text textAlign="right">Actions</Text>
-    </Grid>
+      <ChakraCheckbox.HiddenInput />
+      <ChakraCheckbox.Control>
+        <ChakraCheckbox.Indicator />
+      </ChakraCheckbox.Control>
+    </ChakraCheckbox.Root>
   );
 }
 
-export function DocumentLibraryRow({
-  name,
-  mimeType,
-  originalName,
-  originalSize,
-  createdAt,
-  updatedAt: _updatedAt,
-  tags,
-  snippet,
-  vaultId,
-  documentId,
-  documentLink,
+export function getDocumentSelectionKey(vaultId: string, documentId: string) {
+  return `${vaultId}:${documentId}`;
+}
+
+export function DocumentLibraryTable({
+  documents,
+  vaultName,
+  selectable = true,
+  selectedDocumentKeys,
+  onToggleDocument,
+  onToggleAllDocuments,
   onDelete,
   deleteDisabled,
 }: {
-  name: string;
-  mimeType: string;
-  originalName?: string;
-  originalSize: number;
-  createdAt: string;
-  updatedAt: string;
-  tags?: SearchResultTag[];
-  snippet?: ReactNode;
-  vaultId: string;
-  documentId: string;
-  documentLink?: string;
-  onDelete?: () => void;
+  documents: DocumentLibraryItem[];
+  vaultName: string;
+  selectable?: boolean;
+  selectedDocumentKeys: string[];
+  onToggleDocument: (selectionKey: string, checked: boolean) => void;
+  onToggleAllDocuments: (selectionKeys: string[], checked: boolean) => void;
+  onDelete?: (document: { vaultId: string; documentId: string }) => void;
   deleteDisabled?: boolean;
 }) {
-  const detailLink = documentLink ?? `/vaults/${vaultId}/documents/${documentId}`;
-  const downloadHref = `/api/vaults/${vaultId}/documents/${documentId}/download`;
+  const documentKeys = documents.map((document) =>
+    getDocumentSelectionKey(document.vaultId, document.documentId),
+  );
+  const selectedCount = documentKeys.filter((key) => selectedDocumentKeys.includes(key)).length;
+  const allSelected = documentKeys.length > 0 && selectedCount === documentKeys.length;
+  const indeterminate = selectedCount > 0 && !allSelected;
 
   return (
-    <Grid
-      templateColumns={{ base: '1fr', md: 'minmax(0,1.9fr) 160px 120px 180px 76px' }}
-      gap="5"
-      px={{ base: '5', sm: '6' }}
-      py="5"
-      alignItems={{ md: 'center' }}
-    >
-      <Flex align="flex-start" gap="4">
-        <FileTypeIcon name={name} mimeType={mimeType} />
-        <Box minW="0">
-          <Link
-            to={detailLink}
-            style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
-          >
-            <Text
-              truncate
-              fontSize="base"
-              fontWeight="semibold"
-              color="fg"
-              transition="colors"
-              _hover={{ color: 'teal.solid' }}
-            >
-              {name}
-            </Text>
-          </Link>
-          {originalName && originalName !== name ? (
-            <Text mt="1" fontSize="sm" color="fg.muted">{originalName}</Text>
-          ) : null}
-          {snippet ? (
-            <Text mt="3" fontSize="sm" lineHeight="6" color="fg.muted">{snippet}</Text>
-          ) : null}
-        </Box>
-      </Flex>
+    <Table.ScrollArea>
+      <Table.Root
+        size="sm"
+        variant="line"
+        interactive
+        css={{
+          '& [data-selected]': {
+            background: 'var(--chakra-colors-bg-subtle)',
+          },
+        }}
+      >
+        <Table.Header>
+          <Table.Row>
+            {selectable ? (
+              <Table.ColumnHeader w="10">
+                <SelectionCheckbox
+                  checked={indeterminate ? 'indeterminate' : allSelected}
+                  label={`Select all documents in ${vaultName}`}
+                  onCheckedChange={(checked) => onToggleAllDocuments(documentKeys, checked)}
+                />
+              </Table.ColumnHeader>
+            ) : null}
+            <Table.ColumnHeader minW="360px">Name</Table.ColumnHeader>
+            <Table.ColumnHeader minW="180px">Uploaded</Table.ColumnHeader>
+            <Table.ColumnHeader minW="120px">Size</Table.ColumnHeader>
+            <Table.ColumnHeader minW="180px">Tags</Table.ColumnHeader>
+            <Table.ColumnHeader w="20" textAlign="right">Actions</Table.ColumnHeader>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {documents.map((document) => {
+            const detailLink = document.documentLink ?? `/vaults/${document.vaultId}/documents/${document.documentId}`;
+            const downloadHref = `/api/vaults/${document.vaultId}/documents/${document.documentId}/download`;
+            const selectionKey = getDocumentSelectionKey(document.vaultId, document.documentId);
+            const isSelected = selectedDocumentKeys.includes(selectionKey);
 
-      <Box fontSize="sm" color="fg.muted">
-        <Text
-          textStyle="label"
-          display={{ md: 'none' }}
-        >
-          Uploaded
-        </Text>
-        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="fg">
-          {formatDate(createdAt)}
-        </Text>
-      </Box>
-
-      <Box fontSize="sm" color="fg.muted">
-        <Text
-          textStyle="label"
-          display={{ md: 'none' }}
-        >
-          Size
-        </Text>
-        <Text mt={{ base: '2', md: '0' }} fontSize="sm" color="fg">
-          {formatBytes(originalSize)}
-        </Text>
-      </Box>
-
-      <Box fontSize="sm" color="fg.muted">
-        <Text
-          textStyle="label"
-          display={{ md: 'none' }}
-        >
-          Tags
-        </Text>
-        <Flex mt={{ base: '2', md: '0' }} flexWrap="wrap" gap="2">
-          <VisibleTags tags={tags} />
-        </Flex>
-      </Box>
-
-      <Flex justify={{ base: 'flex-start', md: 'flex-end' }}>
-        <DocumentActionsMenu
-          documentName={name}
-          documentLink={detailLink}
-          downloadHref={downloadHref}
-          onDelete={onDelete}
-          deleteDisabled={deleteDisabled}
-        />
-      </Flex>
-    </Grid>
+            return (
+              <Table.Row
+                key={document.documentId}
+                data-selected={isSelected ? '' : undefined}
+              >
+                {selectable ? (
+                  <Table.Cell verticalAlign="top" w="10" onClick={(event) => event.stopPropagation()}>
+                    <SelectionCheckbox
+                      checked={isSelected}
+                      label={`Select ${document.name}`}
+                      onCheckedChange={(checked) => onToggleDocument(selectionKey, checked)}
+                    />
+                  </Table.Cell>
+                ) : null}
+                <Table.Cell verticalAlign="top" p="0">
+                  <a
+                    href={detailLink}
+                    style={{
+                      display: 'block',
+                      minWidth: 0,
+                      padding: '0.75rem 1rem',
+                      color: 'inherit',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Flex align="flex-start" gap="4" minW="0">
+                      <FileTypeIcon name={document.name} mimeType={document.mimeType} />
+                      <Box minW="0">
+                        <Text
+                          fontSize="sm"
+                          fontWeight="semibold"
+                          color="fg"
+                          transition="colors"
+                          _hover={{ color: 'teal.solid' }}
+                        >
+                          {document.name}
+                        </Text>
+                        {document.originalName && document.originalName !== document.name ? (
+                          <Text mt="1" fontSize="sm" color="fg.muted">
+                            {document.originalName}
+                          </Text>
+                        ) : null}
+                        {document.snippet ? (
+                          <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
+                            {document.snippet}
+                          </Text>
+                        ) : null}
+                      </Box>
+                    </Flex>
+                  </a>
+                </Table.Cell>
+                <Table.Cell verticalAlign="top" p="0">
+                  <a
+                    href={detailLink}
+                    style={{
+                      display: 'block',
+                      padding: '0.75rem 1rem',
+                      color: 'inherit',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Text fontSize="sm" color="fg">
+                      {formatDateOnly(document.createdAt)}
+                    </Text>
+                  </a>
+                </Table.Cell>
+                <Table.Cell verticalAlign="top" p="0">
+                  <a
+                    href={detailLink}
+                    style={{
+                      display: 'block',
+                      padding: '0.75rem 1rem',
+                      color: 'inherit',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Text fontSize="sm" color="fg">
+                      {formatBytes(document.originalSize)}
+                    </Text>
+                  </a>
+                </Table.Cell>
+                <Table.Cell verticalAlign="top" p="0">
+                  <a
+                    href={detailLink}
+                    style={{
+                      display: 'block',
+                      padding: '0.75rem 1rem',
+                      color: 'inherit',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Flex flexWrap="wrap" gap="2">
+                      <VisibleTags tags={document.tags} />
+                    </Flex>
+                  </a>
+                </Table.Cell>
+                <Table.Cell verticalAlign="top" textAlign="right" onClick={(event) => event.stopPropagation()}>
+                  <Flex justify="flex-end">
+                    <DocumentActionsMenu
+                      documentName={document.name}
+                      documentLink={detailLink}
+                      downloadHref={downloadHref}
+                      onDelete={onDelete ? () => onDelete({
+                        vaultId: document.vaultId,
+                        documentId: document.documentId,
+                      }) : undefined}
+                      deleteDisabled={deleteDisabled}
+                    />
+                  </Flex>
+                </Table.Cell>
+              </Table.Row>
+            );
+          })}
+        </Table.Body>
+      </Table.Root>
+    </Table.ScrollArea>
   );
 }

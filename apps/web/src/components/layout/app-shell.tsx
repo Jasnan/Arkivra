@@ -17,7 +17,7 @@ import {
   Vault,
   X,
 } from 'lucide-react';
-import { Link, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { Box, Flex, HStack, Stack, Text, Input, IconButton } from '@chakra-ui/react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import type { SidebarNavItem } from '@/components/layout/app-sidebar';
@@ -49,6 +49,7 @@ import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { ROUTES } from '@/app/routes';
 import { authClient } from '@/lib/auth-client';
+import { RouterDebugProbe } from '@/features/auth/auth-guards';
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'arkivra.sidebarCollapsed';
 
@@ -191,20 +192,6 @@ function buildBreadcrumbs({
   return [{ label: 'Arkivra' }];
 }
 
-function RouterDebugProbe() {
-  const location = useLocation();
-  const matches = useMatches();
-
-  useEffect(() => {
-    console.log('[RouterDebugProbe]', {
-      pathname: location.pathname,
-      matches: matches.map((m) => (m as { route?: { path?: string } }).route?.path || '(index)'),
-    });
-  });
-
-  return null;
-}
-
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -224,7 +211,7 @@ export function AppShell() {
   });
   const deferredSearchValue = useDeferredValue(searchValue.trim());
   const transferVaultId = useMemo(
-    () => new URLSearchParams(location.search).get('vaultId'),
+    () => (location.search as Record<string, string | undefined>).vaultId ?? null,
     [location.search],
   );
   const pathParts = location.pathname.split('/').filter(Boolean);
@@ -432,17 +419,17 @@ export function AppShell() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <NavLink to={ROUTES.settings}>
-                        <Settings size={16} />
-                        Account settings
-                      </NavLink>
+                        <Link to={ROUTES.settings}>
+                          <Settings size={16} />
+                          Account settings
+                        </Link>
                     </DropdownMenuItem>
                     {meQuery.data?.isGlobalAdmin ? (
                       <DropdownMenuItem asChild>
-                        <NavLink to={ROUTES.admin}>
+                        <Link to={ROUTES.admin}>
                           <ShieldCheck size={16} />
                           Admin
-                        </NavLink>
+                        </Link>
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem
@@ -473,10 +460,10 @@ export function AppShell() {
             ) : (
               <Stack h="full" minH="0" gap={{ base: '4', md: '6' }} pt={{ base: '4', md: '6' }}>
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                  <NavLink
-                    to={ROUTES.transfers}
-                    style={{ color: 'inherit', textDecoration: 'none' }}
-                  >
+                    <Link
+                      to={ROUTES.transfers}
+                      style={{ color: 'inherit', textDecoration: 'none' }}
+                    >
                     <Flex
                       align="center"
                       justify="space-between"
@@ -511,9 +498,9 @@ export function AppShell() {
                       <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em">
                         View queue
                       </Text>
-                    </Flex>
-                  </NavLink>
-                ) : null}
+                      </Flex>
+                    </Link>
+                  ) : null}
 
 
 
@@ -667,7 +654,7 @@ export function AppShell() {
                     _hover={{ bg: 'teal.subtle' }}
                     onClick={() => {
                       closeQuickSearch();
-                      navigate(ROUTES.vaultDocument(result.vaultId, result.documentId));
+                      navigate({ to: ROUTES.vaultDocument(result.vaultId, result.documentId) });
                     }}
                   >
                     <Flex direction={{ base: 'column', sm: 'row' }} gap="3" alignItems={{ base: 'stretch', sm: 'flex-start' }} justifyContent="space-between">

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Box, Flex, Grid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, KeyRound, ShieldAlert } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { toast } from 'sonner';
 import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';

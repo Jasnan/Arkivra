@@ -59,6 +59,8 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
 
+window.scrollTo = () => {};
+
 if (!window.ResizeObserver) {
   class ResizeObserverMock {
     observe() {}

@@ -60,7 +60,7 @@ describe('transfers page', () => {
   it('adds files from dropped directories to the upload queue', async () => {
     const report = new File(['report'], 'report.pdf', { type: 'application/pdf' });
     const note = new File(['note'], 'note.txt', { type: 'text/plain' });
-    const button = renderPage();
+    const button = await renderPage();
 
     fireEvent.drop(button, {
       dataTransfer: {
@@ -87,8 +87,8 @@ describe('transfers page', () => {
   });
 });
 
-function renderPage() {
-  renderWithProviders(<TransfersPage />, {
+async function renderPage() {
+  await renderWithProviders(<TransfersPage />, {
     initialEntries: ['/transfers'],
     routePath: '/transfers',
   });

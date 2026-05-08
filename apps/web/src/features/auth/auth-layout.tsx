@@ -1,6 +1,6 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Box, Flex, Stack } from '@chakra-ui/react';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {

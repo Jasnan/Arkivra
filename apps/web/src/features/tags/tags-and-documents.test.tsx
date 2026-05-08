@@ -90,7 +90,7 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<TagsPage />, {
+    await renderWithProviders(<TagsPage />, {
       initialEntries: ['/tags'],
       routePath: '/tags',
     });
@@ -206,7 +206,7 @@ describe('tags and documents pages', () => {
       }),
     );
 
-    renderWithProviders(<TagsPage />, {
+    await renderWithProviders(<TagsPage />, {
       initialEntries: ['/tags'],
       routePath: '/tags',
     });
@@ -251,7 +251,7 @@ describe('tags and documents pages', () => {
       }),
     );
 
-    renderWithProviders(<TagsPage />, {
+    await renderWithProviders(<TagsPage />, {
       initialEntries: ['/tags'],
       routePath: '/tags',
     });
@@ -314,7 +314,7 @@ describe('tags and documents pages', () => {
       }),
     );
 
-    renderWithProviders(<TagsPage />, {
+    await renderWithProviders(<TagsPage />, {
       initialEntries: ['/tags'],
       routePath: '/tags',
     });
@@ -401,7 +401,7 @@ describe('tags and documents pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const user = userEvent.setup();
-    renderWithProviders(<DocumentsPage />, {
+    await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1/documents'],
       routePath: '/vaults/:vaultId/documents',
     });
@@ -473,7 +473,7 @@ describe('tags and documents pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const user = userEvent.setup();
-    renderWithProviders(<DocumentsPage />, {
+    await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1/documents'],
       routePath: '/vaults/:vaultId/documents',
     });
@@ -534,7 +534,7 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<DocumentsPage />, {
+    await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1/documents'],
       routePath: '/vaults/:vaultId/documents',
     });
@@ -616,7 +616,7 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
@@ -710,7 +710,7 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
@@ -810,7 +810,7 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
@@ -882,7 +882,7 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
@@ -949,7 +949,7 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });

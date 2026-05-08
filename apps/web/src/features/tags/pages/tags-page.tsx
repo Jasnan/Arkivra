@@ -15,7 +15,7 @@ import {
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Pencil, Trash2 } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import {
   PageIntro,
@@ -229,7 +229,7 @@ function SelectionCheckbox({
 }
 
 export function TagsPage() {
-  const params = useParams<{ vaultId: string }>();
+  const params = useParams({ strict: false }) as { vaultId?: string };
   const scopedVaultId = params.vaultId;
   const isVaultScoped = scopedVaultId !== undefined && scopedVaultId.length > 0;
   const queryClient = useQueryClient();

@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Box, Flex, Grid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import {
@@ -67,7 +67,7 @@ function collectPermissions(form: HTMLFormElement) {
 }
 
 export function VaultSettingsPage() {
-  const params = useParams<{ vaultId: string }>();
+  const params = useParams({ strict: false }) as { vaultId?: string };
   const vaultId = params.vaultId ?? '';
 
   const navigate = useNavigate();
@@ -119,7 +119,7 @@ export function VaultSettingsPage() {
     mutationFn: deleteVault,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
-      navigate(ROUTES.vaults);
+      navigate({ to: ROUTES.vaults });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not delete vault.');

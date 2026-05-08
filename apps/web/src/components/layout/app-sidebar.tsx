@@ -1,5 +1,5 @@
 import type { ComponentProps, ComponentType } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from '@tanstack/react-router';
 import type { LucideProps } from 'lucide-react';
 import { Box, Flex, Image, Text, useMediaQuery } from '@chakra-ui/react';
 import arkivraLogoUrl from '@/assets/arkivra-logo.png';
@@ -78,7 +78,7 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
 
 export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default' }: AppSidebarProps) {
   const { open } = useSidebar();
-  const [isMdAndUp] = useMediaQuery('(min-width: 768px)', { ssr: false });
+  const [isMdAndUp] = useMediaQuery(['(min-width: 768px)'], { ssr: false });
 
   return (
     <Sidebar collapsible={isMdAndUp ? 'icon' : 'offcanvas'} variant={variant}>

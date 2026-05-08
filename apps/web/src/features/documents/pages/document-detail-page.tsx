@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
@@ -78,7 +78,7 @@ function getPreviewKind(mimeType: string): PreviewKind {
 }
 
 export function DocumentDetailPage() {
-  const params = useParams<{ vaultId: string; documentId: string }>();
+  const params = useParams({ strict: false }) as { vaultId?: string; documentId?: string };
   const vaultId = params.vaultId ?? '';
   const documentId = params.documentId ?? '';
   const location = useLocation();
@@ -161,7 +161,7 @@ export function DocumentDetailPage() {
       toast.success('Document moved to trash.');
       setIsDeleteDialogOpen(false);
       await invalidateDocument();
-      navigate(parentRoute, { replace: true });
+      navigate({ to: parentRoute, replace: true });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not delete document.');

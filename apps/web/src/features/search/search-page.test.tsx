@@ -104,7 +104,7 @@ describe('documents library search controls', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });
@@ -186,7 +186,7 @@ describe('documents library search controls', () => {
       throw new Error(`Unhandled request ${url}`);
     }));
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });
@@ -239,7 +239,7 @@ describe('documents library search controls', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });
@@ -312,7 +312,7 @@ describe('documents library search controls', () => {
       throw new Error(`Unhandled request ${url}`);
     }));
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });
@@ -402,7 +402,7 @@ describe('documents library search controls', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });
@@ -497,7 +497,7 @@ describe('documents library search controls', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });
@@ -565,7 +565,7 @@ describe('documents library search controls', () => {
       throw new Error(`Unhandled request ${url}`);
     }));
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });
@@ -622,7 +622,7 @@ describe('documents library search controls', () => {
       throw new Error(`Unhandled request ${url}`);
     }));
 
-    renderWithProviders(<AllDocumentsPage />, {
+    await renderWithProviders(<AllDocumentsPage />, {
       initialEntries: ['/documents'],
       routePath: '/documents',
     });

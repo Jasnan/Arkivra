@@ -73,7 +73,7 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<SettingsPage />);
+    await renderWithProviders(<SettingsPage />);
 
     const nameInput = await screen.findByLabelText(/^name$/i);
     await user.clear(nameInput);
@@ -117,7 +117,7 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<SettingsPage />);
+    await renderWithProviders(<SettingsPage />);
 
     expect(await screen.findByRole('heading', { name: /account settings/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /admin panel/i })).not.toBeInTheDocument();
@@ -295,7 +295,7 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<AdminPage />);
+    await renderWithProviders(<AdminPage />);
 
     expect(await screen.findByText(/invoices vault/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /create backup/i }));
@@ -374,7 +374,7 @@ describe('settings, admin, and about pages', () => {
       }),
     );
 
-    renderWithProviders(<AboutPage />);
+    await renderWithProviders(<AboutPage />);
 
     expect(await screen.findByText('0.1.0')).toBeInTheDocument();
     expect(screen.getByText(/self-hosted first/i)).toBeInTheDocument();

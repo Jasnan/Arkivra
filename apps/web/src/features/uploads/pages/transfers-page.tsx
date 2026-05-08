@@ -10,7 +10,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   PageIntro,
   SurfacePanel,
@@ -64,12 +64,13 @@ function statusLabel(status: string) {
 }
 
 export function TransfersPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as Record<string, string>;
   const { data } = useVaultsQuery();
   const state = useUploadManagerState();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const vaultId = searchParams.get('vaultId') ?? data?.vaults[0]?.id ?? '';
-  const isVaultLocked = searchParams.get('locked') === 'true' && vaultId.length > 0;
+  const vaultId = search.vaultId ?? data?.vaults[0]?.id ?? '';
+  const isVaultLocked = search.locked === 'true' && vaultId.length > 0;
   const activeVaultName = (data?.vaults ?? []).find((vault) => vault.id === vaultId)?.name ?? null;
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
   const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
@@ -161,7 +162,7 @@ export function TransfersPage() {
             <Select
               value={vaultId || '__none__'}
               onValueChange={(value) =>
-                setSearchParams(value === '__none__' ? {} : { vaultId: value })
+                navigate({ search: value === '__none__' ? {} : { vaultId: value }, replace: true } as any)
               }
             >
               <SelectTrigger

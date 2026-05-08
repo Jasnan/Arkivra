@@ -37,7 +37,6 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
   const link = (
     <NavLink
       to={item.to}
-      end={item.to === '/documents'}
       aria-label={!open ? item.label : undefined}
       title={!open ? item.label : undefined}
       style={{ color: 'inherit' }}

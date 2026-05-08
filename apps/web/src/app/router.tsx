@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AppShell } from '@/components/layout/app-shell';
 import { ProtectedRoute, PublicOnlyRoute } from '@/features/auth/auth-guards';
 import { LoginPage } from '@/features/auth/pages/login-page';
@@ -22,9 +22,11 @@ import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 
 function RootLayout() {
+  const location = useLocation();
+
   return (
     <AppShell>
-      <Outlet />
+      <Outlet key={location.pathname} />
     </AppShell>
   );
 }

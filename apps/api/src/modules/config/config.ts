@@ -228,6 +228,30 @@ export const configDefinition = {
       default: 'http://localhost:5173,http://localhost:1221',
       env: 'ARKIVRA_AUTH_TRUSTED_ORIGINS',
     },
+    googleClientId: {
+      doc: 'Google OAuth client ID.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'GOOGLE_CLIENT_ID',
+    },
+    googleClientSecret: {
+      doc: 'Google OAuth client secret.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'GOOGLE_CLIENT_SECRET',
+    },
+    githubClientId: {
+      doc: 'GitHub OAuth client ID.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'GITHUB_CLIENT_ID',
+    },
+    githubClientSecret: {
+      doc: 'GitHub OAuth client secret.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'GITHUB_CLIENT_SECRET',
+    },
   },
 } as const;
 

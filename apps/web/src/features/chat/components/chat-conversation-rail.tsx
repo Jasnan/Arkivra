@@ -36,26 +36,26 @@ export function ChatConversationRail({
           </Flex>
           <Button
             type="button"
-            variant="ghost"
+            variant="solid"
+            colorPalette="teal"
             onClick={onCreateConversation}
             disabled={createConversationPending}
-            style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
+            style={{ height: '2.25rem', borderRadius: '9999px', padding: '0' }}
           >
-            <Plus size={16} />
-            New chat
+            <Plus size={18} />
           </Button>
         </Flex>
       ) : (
         <Flex justify="flex-end" pb="2">
           <Button
             type="button"
-            variant="ghost"
+            variant="solid"
+            colorPalette="teal"
             onClick={onCreateConversation}
             disabled={createConversationPending}
-            style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
+            style={{ height: '2.25rem', borderRadius: '9999px', padding: '0' }}
           >
-            <Plus size={16} />
-            New chat
+            <Plus size={18} />
           </Button>
         </Flex>
       )}

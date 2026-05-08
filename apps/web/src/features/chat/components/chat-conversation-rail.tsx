@@ -81,14 +81,15 @@ export function ChatConversationRail({
                 <Text fontSize="xs" fontWeight="medium" color="fg.muted">{sectionLabel}</Text>
                 <Flex direction="column" gap="1">
                   {conversations.map((conversation) => (
-                    <Flex key={conversation.id} className="group" align="center" gap="1">
+                    <Flex key={conversation.id} className="group" position="relative">
                       <chakra.button
                         type="button"
                         minW="0"
                         flex="1"
                         rounded="xl"
                         px="3"
-                        py="3"
+                        py="2.5"
+                        pr="8"
                         textAlign="left"
                         fontSize="sm"
                         bg={selectedChatId === conversation.id || effectiveSelectedChatId === conversation.id ? 'teal.subtle' : undefined}
@@ -98,7 +99,7 @@ export function ChatConversationRail({
                         onClick={() => onSelectConversation(conversation.id)}
                       >
                         <Text truncate fontWeight="medium">{conversation.title}</Text>
-                        <Text mt="1" fontSize="xs" color="fg.muted">
+                        <Text mt="0.5" fontSize="xs" color="fg.muted">
                           {formatDate(conversation.updatedAt)}
                         </Text>
                       </chakra.button>
@@ -108,10 +109,16 @@ export function ChatConversationRail({
                           variant="ghost"
                           size="icon"
                           aria-label={`Delete ${conversation.title}`}
-                          style={{ height: '2rem', width: '2rem', borderRadius: '9999px', flexShrink: 0 }}
+                          position="absolute"
+                          right="1"
+                          top="50%"
+                          transform="translateY(-50%)"
+                          opacity="0"
+                          _groupHover={{ opacity: '1' }}
+                          style={{ height: '1.5rem', width: '1.5rem', borderRadius: '9999px', flexShrink: 0 }}
                           onClick={() => onDeleteConversation(conversation.id)}
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={12} />
                         </Button>
                       )}
                     </Flex>

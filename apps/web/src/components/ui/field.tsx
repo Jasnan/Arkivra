@@ -1,119 +1,96 @@
 import * as React from 'react';
-import type { VariantProps } from 'class-variance-authority';
-import { cva } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { Box, Field as ChakraField, Stack, Text, chakra } from '@chakra-ui/react';
 import { Separator } from './separator';
 
-const fieldVariants = cva('flex gap-2', {
-  variants: {
-    orientation: {
-      vertical: 'flex-col',
-      horizontal: 'flex-row items-start gap-3',
-      responsive: 'flex-col md:flex-row md:items-start md:gap-3',
-    },
-  },
-  defaultVariants: {
-    orientation: 'vertical',
-  },
-});
-
-export function FieldSet({ className, ...props }: React.ComponentProps<'fieldset'>) {
-  return <fieldset className={cn('space-y-4', className)} {...props} />;
+export function FieldSet(props: React.ComponentProps<typeof Box>) {
+  return <Box as="fieldset" display="grid" gap="4" {...props} />;
 }
 
 export function FieldLegend({
-  className,
   variant = 'legend',
   ...props
-}: React.ComponentProps<'legend'> & {
+}: React.ComponentProps<typeof Box> & {
   variant?: 'legend' | 'label';
 }) {
   return (
-    <legend
-      className={cn(
-        variant === 'legend' && 'text-sm font-semibold text-foreground',
-        variant === 'label' && 'text-sm font-medium leading-none text-foreground',
-        className,
-      )}
+    <Box
+      as="legend"
+      textStyle={variant === 'legend' ? 'section.title' : undefined}
+      fontSize={variant === 'label' ? 'sm' : undefined}
+      fontWeight={variant === 'label' ? 'medium' : undefined}
+      color="fg"
       {...props}
     />
   );
 }
 
-export function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('flex flex-col gap-4', className)} {...props} />;
+export function FieldGroup(props: React.ComponentProps<typeof Stack>) {
+  return <Stack gap="4" {...props} />;
 }
 
-export function FieldSeparator({
-  className,
-  ...props
-}: React.ComponentProps<typeof Separator>) {
-  return <Separator className={className} {...props} />;
+export function FieldSeparator(props: React.ComponentProps<typeof Separator>) {
+  return <Separator {...props} />;
 }
 
-export function FieldContent({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('flex flex-col gap-1.5', className)} {...props} />;
+export function FieldContent(props: React.ComponentProps<typeof Stack>) {
+  return <Stack gap="1.5" {...props} />;
 }
 
-export function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('text-sm font-medium text-foreground', className)} {...props} />;
+export function FieldTitle(props: React.ComponentProps<typeof Box>) {
+  return <Box fontSize="sm" fontWeight="medium" color="fg" {...props} />;
 }
 
-export function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
-  return <p className={cn('text-sm text-muted-foreground', className)} {...props} />;
+export function FieldDescription(props: React.ComponentProps<typeof Text>) {
+  return <Text textStyle="sm" color="fg.muted" {...props} />;
 }
 
 export function FieldError({
-  className,
   errors,
+  children,
   ...props
-}: React.ComponentProps<'div'> & {
+}: React.ComponentProps<typeof ChakraField.ErrorText> & {
   errors?: Array<{ message?: string } | undefined>;
 }) {
   const messages = errors?.map((error) => error?.message).filter(Boolean);
 
   if (messages && messages.length > 0) {
     return (
-      <div className={cn('text-sm text-destructive', className)} {...props}>
-        {messages.length === 1 ? <p>{messages[0]}</p> : <ul className="list-disc pl-5">{messages.map(message => <li key={message}>{message}</li>)}</ul>}
-      </div>
+      <ChakraField.ErrorText {...props}>
+        {messages.length === 1
+          ? messages[0]
+          : (
+              <Box as="ul" ps="5">
+                {messages.map((message) => <Box as="li" key={message}>{message}</Box>)}
+              </Box>
+            )}
+      </ChakraField.ErrorText>
     );
   }
 
-  return <div className={cn('text-sm text-destructive', className)} {...props} />;
+  return <ChakraField.ErrorText {...props}>{children}</ChakraField.ErrorText>;
 }
 
-type FieldProps = React.ComponentProps<'div'> &
-  VariantProps<typeof fieldVariants> & {
-    ref?: React.Ref<HTMLDivElement>;
-  };
+type FieldProps = React.ComponentProps<typeof ChakraField.Root> & {
+  ref?: React.Ref<HTMLDivElement>;
+};
 
-export function Field({ className, orientation, ref, ...props }: FieldProps) {
-  return (
-    <div
-      ref={ref}
-      role="group"
-      className={cn(
-        fieldVariants({ orientation }),
-        '[&[data-invalid]_*]:text-destructive',
-        className,
-      )}
-      {...props}
-    />
-  );
+export function Field({ ref, ...props }: FieldProps) {
+  return <ChakraField.Root ref={ref} role="group" {...props} />;
 }
 
 Field.displayName = 'Field';
 
-type FieldLabelProps = React.ComponentProps<'label'> & {
+type FieldLabelProps = React.ComponentProps<typeof chakra.label> & {
   ref?: React.Ref<HTMLLabelElement>;
 };
 
-export function FieldLabel({ className, ref, ...props }: FieldLabelProps) {
+export function FieldLabel({ ref, ...props }: FieldLabelProps) {
   return (
-    <label
+    <chakra.label
       ref={ref}
-      className={cn('text-sm font-medium leading-none text-foreground', className)}
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg"
       {...props}
     />
   );

@@ -1,5 +1,6 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useState } from 'react';
+import { Box, Flex, Grid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, KeyRound, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -26,11 +27,9 @@ function SecurityStatusBadge({
   return (
     <Badge
       variant="secondary"
-      className={
-        tone === 'positive'
-          ? 'gap-1.5 bg-emerald-100 text-emerald-900'
-          : 'gap-1.5 bg-amber-100 text-amber-900'
-      }
+      color={tone === 'positive' ? 'fg.success' : 'fg.warning'}
+      bg={tone === 'positive' ? 'bg.success' : 'bg.warning'}
+      style={{ gap: '0.375rem' }}
     >
       {children}
     </Badge>
@@ -105,41 +104,32 @@ export function SettingsPage() {
   });
 
   if (sessionPending) {
-    return <p className="text-sm text-muted-foreground">Loading your account...</p>;
+    return <Text textStyle="sm">Loading your account...</Text>;
   }
 
-  const panelClassName =
-    'flex h-full flex-col gap-5 rounded-lg border border-border/70 bg-background p-5';
-  const bodyLabelClassName = 'text-sm text-muted-foreground';
-  const bodyValueClassName = 'text-sm font-medium text-foreground';
-  const securityActionLinkClassName =
-    'inline-flex h-10 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-95';
-  const outlineActionLinkClassName =
-    'inline-flex h-10 min-w-[260px] items-center justify-center rounded-lg border border-border/80 bg-background px-5 text-sm font-semibold text-foreground transition hover:bg-secondary/40';
-
   return (
-    <section className="space-y-8 pb-8">
+    <Stack as="section" gap="8" pb="8">
       <PageIntro
         title="Account settings"
         description="Manage your profile and security."
         actions={
           isGlobalAdmin ? (
-            <Link to="/admin" className="vault-link">
+            <Link to="/admin" style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
               Admin panel
             </Link>
           ) : undefined
         }
       />
-      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.3fr] xl:items-stretch">
-        <div className="grid gap-6 xl:grid-rows-2 xl:min-h-full">
-          <SurfacePanel className={`${panelClassName} xl:min-h-0`}>
-            <div className="space-y-1">
-              <CardTitle className="text-lg">Profile Information</CardTitle>
+      <Grid gap="6" templateColumns={{ base: '1fr', xl: '0.8fr 1.3fr' }} alignItems="stretch">
+        <Grid gap="6" templateRows={{ xl: 'repeat(2, minmax(0, 1fr))' }} minH={{ xl: 'full' }}>
+          <SurfacePanel display="flex" h="full" minH={{ xl: '0' }} flexDirection="column" gap="5" p="5">
+            <Stack gap="1">
+              <CardTitle fontSize="lg">Profile Information</CardTitle>
               <CardDescription>Keep your basic account details up to date.</CardDescription>
-            </div>
+            </Stack>
 
-            <form
-              className="flex h-full flex-col gap-5"
+            <chakra.form
+              h="100%"
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 profileMutation.mutate();
@@ -174,88 +164,109 @@ export function SettingsPage() {
                   placeholder="you@example.com"
                 />
               </Field>
-              <div className="mt-auto pt-2">
-                <SaveButton type="submit" disabled={profileMutation.isPending} className="w-full">
+              <Box mt="auto" pt="2">
+                <SaveButton type="submit" disabled={profileMutation.isPending} w="100%">
                   {profileMutation.isPending ? 'Saving...' : 'Save changes'}
                 </SaveButton>
-              </div>
-            </form>
+              </Box>
+            </chakra.form>
           </SurfacePanel>
 
-          <SurfacePanel className={`${panelClassName} xl:min-h-0`}>
-            <div className="space-y-1">
-              <CardTitle className="text-lg">Account Status</CardTitle>
+          <SurfacePanel display="flex" h="full" minH={{ xl: '0' }} flexDirection="column" gap="5" p="5">
+            <Stack gap="1">
+              <CardTitle fontSize="lg">Account Status</CardTitle>
               <CardDescription>Quick account details for your current session.</CardDescription>
-            </div>
+            </Stack>
 
-            <div className="space-y-4 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <span className={bodyLabelClassName}>Signed in as:</span>
-                <span className={bodyValueClassName}>{sessionData?.user.email ?? 'Unknown'}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className={bodyLabelClassName}>Role</span>
-                <span className={bodyValueClassName}>
+            <Stack gap="4" fontSize="sm">
+              <Flex align="center" justify="space-between" gap="4">
+                <Text color="fg.muted">Signed in as:</Text>
+                <Text fontWeight="medium" color="fg">{sessionData?.user.email ?? 'Unknown'}</Text>
+              </Flex>
+              <Flex align="center" justify="space-between" gap="4">
+                <Text color="fg.muted">Role</Text>
+                <Text fontWeight="medium" color="fg">
                   {isGlobalAdmin ? 'Admin access' : 'Member access'}
-                </span>
-              </div>
+                </Text>
+              </Flex>
 
-              <div className="mt-auto pt-4">
+              <Box mt="auto" pt="4">
                 <Button
                   type="button"
-                  className="w-full"
+                  w="100%"
                   disabled={signOutMutation.isPending}
                   onClick={() => {
                     signOutMutation.mutate();
                   }}
                 >
-                  <KeyRound className="size-4" />
+                  <KeyRound size={16} />
                   {signOutMutation.isPending ? 'Signing out...' : 'Sign out'}
                 </Button>
-              </div>
-            </div>
+              </Box>
+            </Stack>
           </SurfacePanel>
-        </div>
+        </Grid>
 
-        <SurfacePanel className={`${panelClassName} xl:h-full`}>
-          <div className="space-y-1">
+        <SurfacePanel display="flex" h={{ xl: 'full' }} flexDirection="column" gap="5" p="5">
+          <Stack gap="1">
             <CardTitle>Security &amp; Protection</CardTitle>
             <CardDescription>Review the settings that protect your account access.</CardDescription>
-          </div>
+          </Stack>
 
-          <Alert className="flex items-start gap-3 border-amber-300/70 bg-amber-50 text-amber-950">
-            <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-600" />
-            <div className="space-y-1">
+          <Alert
+            display="flex"
+            alignItems="flex-start"
+            gap="3"
+            borderColor="fg.warning/70"
+            bg="bg.warning"
+            color="fg.warning"
+          >
+            <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '0.125rem' }} />
+            <Stack gap="1">
               <AlertTitle>Enhance your security</AlertTitle>
-              <AlertDescription className="max-w-2xl text-amber-900/90">
+              <AlertDescription color="fg.warning">
                 Improve your account protection by enabling Two-factor authentication (2FA) and
                 completing email verification.
               </AlertDescription>
-            </div>
+            </Stack>
           </Alert>
 
-          <div className="space-y-0">
-            <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
-              <div className="space-y-1">
-                <CardTitle className="text-base">Two-factor authentication (2FA)</CardTitle>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
-                  <span>Status:</span>
+          <Stack gap="0">
+            <Grid gap="4" py="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) 260px' }} alignItems="center">
+              <Stack gap="1">
+                <CardTitle fontSize="md">Two-factor authentication (2FA)</CardTitle>
+                <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="fg">
+                  <Text as="span">Status:</Text>
                   <SecurityStatusBadge
                     tone={sessionData?.user.twoFactorEnabled ? 'positive' : 'warning'}
                   >
                     {sessionData?.user.twoFactorEnabled ? 'Enabled' : 'Off'}
-                    {!sessionData?.user.twoFactorEnabled ? <AlertTriangle className="size-4" /> : null}
+                    {!sessionData?.user.twoFactorEnabled ? <AlertTriangle size={16} /> : null}
                   </SecurityStatusBadge>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3">
-                <Link to="/two-factor/setup" className={securityActionLinkClassName}>
+                </Flex>
+              </Stack>
+              <Stack gap="3">
+                <Link
+                  to="/two-factor/setup"
+                  style={{
+                    display: 'inline-flex',
+                    height: '2.5rem',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'var(--chakra-colors-teal-solid)',
+                    padding: '0 1.25rem',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: 'var(--chakra-colors-fg-inverted)',
+                  }}
+                >
                   {sessionData?.user.twoFactorEnabled ? 'Manage 2FA' : 'Enable 2FA'}
                 </Link>
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-lg"
+                  rounded="lg"
                   disabled={emailMutation.isPending}
                   onClick={() => {
                     emailMutation.mutate();
@@ -263,28 +274,29 @@ export function SettingsPage() {
                 >
                   {emailMutation.isPending ? 'Sending...' : 'Send verification email'}
                 </Button>
-              </div>
-            </div>
+              </Stack>
+            </Grid>
 
             <Separator />
-            <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
-              <div className="space-y-1">
-                <CardTitle className="text-base">Email verification</CardTitle>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
-                  <span>Status:</span>
+            <Grid gap="4" py="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) 260px' }} alignItems="center">
+              <Stack gap="1">
+                <CardTitle fontSize="md">Email verification</CardTitle>
+                <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="fg">
+                  <Text as="span">Status:</Text>
                   <SecurityStatusBadge
                     tone={sessionData?.user.emailVerified ? 'positive' : 'warning'}
                   >
                     {sessionData?.user.emailVerified ? 'Verified' : 'Unverified'}
-                    {!sessionData?.user.emailVerified ? <AlertTriangle className="size-4" /> : null}
+                    {!sessionData?.user.emailVerified ? <AlertTriangle size={16} /> : null}
                   </SecurityStatusBadge>
-                </div>
-              </div>
-              <div className="flex justify-start md:justify-end">
+                </Flex>
+              </Stack>
+              <Flex justify={{ base: 'flex-start', md: 'flex-end' }}>
                 <Button
                   type="button"
                   variant="outline"
-                  className="min-w-[260px] rounded-lg"
+                  minW="260px"
+                  rounded="lg"
                   disabled={emailMutation.isPending}
                   onClick={() => {
                     emailMutation.mutate();
@@ -292,24 +304,41 @@ export function SettingsPage() {
                 >
                   {emailMutation.isPending ? 'Sending...' : 'Verify now'}
                 </Button>
-              </div>
-            </div>
+              </Flex>
+            </Grid>
 
             <Separator />
-            <div className="grid gap-4 pt-5 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
-              <div className="space-y-1">
-                <CardTitle className="text-base">Password</CardTitle>
-                <p className={bodyLabelClassName}>Last changed: Never</p>
-              </div>
-              <div className="flex justify-start md:justify-end">
-                <Link to="/request-password-reset" className={outlineActionLinkClassName}>
+            <Grid gap="4" pt="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) 260px' }} alignItems="center">
+              <Stack gap="1">
+                <CardTitle fontSize="md">Password</CardTitle>
+                <Text textStyle="sm">Last changed: Never</Text>
+              </Stack>
+              <Flex justify={{ base: 'flex-start', md: 'flex-end' }}>
+                <Link
+                  to="/request-password-reset"
+                  style={{
+                    display: 'inline-flex',
+                    height: '2.5rem',
+                    minWidth: '260px',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '0.5rem',
+                    borderWidth: '1px',
+                    borderColor: 'var(--chakra-colors-border-subtle)',
+                    backgroundColor: 'var(--chakra-colors-bg-panel)',
+                    padding: '0 1.25rem',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: 'var(--chakra-colors-fg)',
+                  }}
+                >
                   Change password
                 </Link>
-              </div>
-            </div>
-          </div>
+              </Flex>
+            </Grid>
+          </Stack>
         </SurfacePanel>
-      </div>
-    </section>
+      </Grid>
+    </Stack>
   );
 }

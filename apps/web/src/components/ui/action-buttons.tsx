@@ -1,7 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { ArchiveRestore, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 type ActionButtonProps = Omit<ComponentProps<typeof Button>, 'children'> & {
   children: ReactNode;
@@ -47,10 +46,10 @@ export function DeleteButton({ children, className, ...props }: ActionButtonProp
   return (
     <Button
       variant="outline"
-      className={cn(
-        'border-destructive/30 text-destructive hover:bg-destructive/8 hover:text-destructive',
-        className,
-      )}
+      borderColor="fg.error"
+      color="fg.error"
+      _hover={{ bg: 'bg.error', color: 'fg.error' }}
+      className={className}
       {...props}
     >
       <Trash2 className="size-4" />

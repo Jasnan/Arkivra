@@ -1,5 +1,6 @@
 import type { ChangeEvent, DragEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Flex, Grid, Heading, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -24,14 +25,6 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -47,7 +40,6 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
-import { cn } from '@/lib/utils';
 import { getDroppedFiles } from '../dropped-files';
 import { uploadManager } from '../upload-manager';
 import { useUploadManagerState } from '../use-upload-manager';
@@ -103,18 +95,12 @@ export function TransfersPage() {
   );
 
   useEffect(() => {
-    if (!vaultId) {
-      return;
-    }
-
+    if (!vaultId) return;
     void uploadManager.reconcileVault(vaultId);
   }, [vaultId]);
 
   function handleFiles(files: File[]) {
-    if (!canUpload || files.length === 0) {
-      return;
-    }
-
+    if (!canUpload || files.length === 0) return;
     uploadManager.addFiles({ vaultId, files });
   }
 
@@ -143,21 +129,34 @@ export function TransfersPage() {
   }
 
   return (
-    <section className="space-y-4 pb-8">
+    <Stack as="section" gap="4" pb="8">
       <PageIntro
         title="Upload"
         description="Add files to a vault and monitor the transfer queue."
       />
 
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <span id="transfer-vault-label" className="text-sm font-medium text-muted-foreground">
+      <Stack gap="3">
+        <Stack gap="2">
+          <Text id="transfer-vault-label" fontSize="sm" fontWeight="medium" color="fg.muted">
             Vault
-          </span>
+          </Text>
           {isVaultLocked ? (
-            <div className="flex h-10 w-full max-w-[17.5rem] items-center rounded-lg border border-border/70 bg-secondary/20 px-4 text-sm font-medium text-foreground ">
+            <Flex
+              h="10"
+              w="full"
+              maxW="17.5rem"
+              align="center"
+              rounded="lg"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.subtle"
+              px="4"
+              fontSize="sm"
+              fontWeight="medium"
+              color="fg"
+            >
               {activeVaultName ?? 'Selected vault'}
-            </div>
+            </Flex>
           ) : (
             <Select
               value={vaultId || '__none__'}
@@ -167,7 +166,15 @@ export function TransfersPage() {
             >
               <SelectTrigger
                 aria-labelledby="transfer-vault-label"
-                className={`${vaultInputClassName} h-10 w-full max-w-[17.5rem] rounded-lg bg-secondary/20 px-4 text-sm text-foreground `}
+                className={vaultInputClassName}
+                h="10"
+                w="full"
+                maxW="17.5rem"
+                rounded="lg"
+                bg="bg.subtle"
+                px="4"
+                fontSize="sm"
+                color="fg"
               >
                 <SelectValue placeholder="Select a vault" />
               </SelectTrigger>
@@ -181,35 +188,48 @@ export function TransfersPage() {
               </SelectContent>
             </Select>
           )}
-        </div>
+        </Stack>
 
-        <SurfacePanel className="rounded-lg p-5 sm:p-6">
-          <button
+        <SurfacePanel p={{ base: '5', sm: '6' }}>
+          <chakra.button
             type="button"
             onClick={() => inputRef.current?.click()}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDrop}
-            className={cn(
-              'group flex min-h-[300px] w-full flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(247,248,255,0.88))] px-6 py-12 text-center  transition sm:px-10 sm:py-16',
-              canUpload
-                ? 'hover:border-primary/30 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(242,245,255,0.96))]'
-                : 'cursor-not-allowed opacity-70',
-            )}
+            className="group"
+            display="flex"
+            minH="300px"
+            w="full"
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            rounded="lg"
+            borderWidth="1px"
+            borderStyle="dashed"
+            borderColor="border.subtle"
+            bg="bg.subtle"
+            px={{ base: '6', sm: '10' }}
+            py={{ base: '12', sm: '16' }}
+            textAlign="center"
+            transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
+            _hover={canUpload ? { borderColor: 'teal.focusRing', bg: 'bg.panel' } : undefined}
+            cursor={canUpload ? 'pointer' : 'not-allowed'}
+            opacity={canUpload ? '1' : '0.7'}
             disabled={!canUpload}
           >
-            <div className="flex size-[4.8rem] items-center justify-center rounded-lg bg-card text-primary ">
-              <FileUp className="size-8" />
-            </div>
-            <h2 className="mt-6 font-display text-xl font-extrabold  text-foreground sm:text-xl">
+            <Flex boxSize="4.8rem" align="center" justify="center" rounded="lg" bg="bg.panel" color="teal.solid">
+              <FileUp size={32} />
+            </Flex>
+            <Heading as="h2" mt="6" textStyle="lg" fontWeight="semibold" lineHeight="short">
               Drag and drop files or folders here
-            </h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+            </Heading>
+            <Text mt="2" maxW="md" textStyle="sm" color="fg.muted">
               Select a vault and add files. Dropped folders are uploaded as individual files.
-            </p>
-            <span className="mt-6 inline-flex h-10 items-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground  transition group-hover:bg-primary/95">
+            </Text>
+            <Flex mt="6" h="10" align="center" rounded="full" bg="teal.solid" px="6" fontSize="sm" fontWeight="semibold" color="teal.fg" transition="opacity 0.15s ease" _groupHover={{ opacity: 0.95 }}>
               Browse files
-            </span>
-          </button>
+            </Flex>
+          </chakra.button>
         </SurfacePanel>
 
         <input
@@ -219,7 +239,7 @@ export function TransfersPage() {
           className="hidden"
           onChange={handleInputChange}
         />
-      </div>
+      </Stack>
 
       {state.hydratedFromStorage &&
       state.items.some((item) => item.error?.includes('Previous upload session found')) ? (
@@ -231,29 +251,29 @@ export function TransfersPage() {
         </Alert>
       ) : null}
 
-      <SurfacePanel className="space-y-4 rounded-lg p-5 sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold  text-foreground">Upload queue</h2>
-              <p className="text-sm text-muted-foreground">
+      <SurfacePanel display="flex" flexDirection="column" gap="4" p={{ base: '5', sm: '6' }}>
+        <Flex direction={{ base: 'column', lg: 'row' }} align={{ lg: 'flex-start' }} justify={{ lg: 'space-between' }} gap="4">
+          <Stack gap="2">
+            <Stack gap="1">
+              <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">Upload queue</Heading>
+              <Text textStyle="sm" color="fg.muted">
                 This page only tracks the file upload itself. Completed uploads are kept for 24
                 hours.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{state.items.length} files</span>
-              <Separator orientation="vertical" className="h-5 bg-border/80" />
-              <span>{formatBytes(uploadedBytes)}</span>
-            </div>
-          </div>
+              </Text>
+            </Stack>
+            <Flex flexWrap="wrap" align="center" gap="3" fontSize="sm" color="fg.muted">
+              <Text as="span" fontWeight="semibold" color="fg">{state.items.length} files</Text>
+              <Separator orientation="vertical" h="5" bg="border.subtle" />
+              <Text as="span">{formatBytes(uploadedBytes)}</Text>
+            </Flex>
+          </Stack>
 
-          <div className="flex flex-wrap gap-3">
+          <Flex flexWrap="wrap" gap="3">
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <ActionMenuTriggerButton label="Transfer actions" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuContent align="end" minWidth="15rem">
                 <DropdownMenuItem
                   disabled={!canUpload}
                   onSelect={() => {
@@ -274,7 +294,7 @@ export function TransfersPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={state.items.length === 0}
-                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  color="fg.error"
                   onSelect={handleClearAll}
                 >
                   <ActionMenuItemIcon icon={Trash2} tone="destructive" />
@@ -282,89 +302,109 @@ export function TransfersPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        </div>
+          </Flex>
+        </Flex>
 
-        <div className="grid items-end gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="h-2.5 overflow-hidden rounded-full bg-secondary/90">
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-300"
+        <Grid alignItems="end" gap="3" templateColumns={{ base: '1fr', lg: 'minmax(0, 1fr) auto' }}>
+          <Box h="2.5" overflow="hidden" rounded="full" bg="bg.subtle">
+            <Box
+              h="full"
+              rounded="full"
+              bg="teal.solid"
+              transition="width 0.3s ease"
               style={{ width: `${percent}%` }}
             />
-          </div>
-          <div className="text-right font-display text-2xl font-semibold leading-none text-foreground">
+          </Box>
+          <Text textAlign="right" fontFamily="heading" fontSize="2xl" fontWeight="semibold" lineHeight="none" color="fg">
             {percent}%
-          </div>
-        </div>
+          </Text>
+        </Grid>
       </SurfacePanel>
 
-      <SurfacePanel className="overflow-hidden rounded-lg p-0">
-        <div className="hidden grid-cols-[minmax(0,1.3fr)_140px_160px_160px] gap-4 border-b border-border/70 px-7 py-4 text-sm text-muted-foreground md:grid">
-          <span>File name</span>
-          <span>Size</span>
-          <span>Status</span>
-          <span className="text-right">Actions</span>
-        </div>
+      <SurfacePanel overflow="hidden" p="0">
+        <Grid
+          display={{ base: 'none', md: 'grid' }}
+          templateColumns="minmax(0, 1.3fr) 140px 160px 160px"
+          gap="4"
+          borderBottomWidth="1px"
+          borderColor="border.subtle"
+          px="7"
+          py="4"
+          fontSize="sm"
+          color="fg.muted"
+        >
+          <Text as="span">File name</Text>
+          <Text as="span">Size</Text>
+          <Text as="span">Status</Text>
+          <Text as="span" textAlign="right">Actions</Text>
+        </Grid>
 
         {state.items.length === 0 ? (
-          <p className="px-7 py-12 text-center text-sm text-muted-foreground">
+          <Text px="7" py="12" textAlign="center" textStyle="sm">
             Add files above to start uploading
-          </p>
+          </Text>
         ) : (
           nonCompletedItems.map((item) => (
-            <div key={item.id} className="border-b border-border/60 px-7 py-4 last:border-b-0">
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_140px_160px_160px] md:items-center">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{item.fileName}</p>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-[width] duration-300',
-                        item.status === 'failed' ? 'bg-destructive' : 'bg-primary',
-                      )}
+            <Box
+              key={item.id}
+              borderBottomWidth="1px"
+              borderColor="border.subtle"
+              px="7"
+              py="4"
+              _last={{ borderBottomWidth: 0 }}
+            >
+              <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
+                <Box minW="0">
+                  <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                  <Box mt="2" h="2" overflow="hidden" rounded="full" bg="bg.subtle">
+                    <Box
+                      h="full"
+                      rounded="full"
+                      bg={item.status === 'failed' ? 'fg.error' : 'teal.solid'}
+                      transition="width 0.3s ease"
                       style={{ width: `${item.progress}%` }}
                     />
-                  </div>
-                </div>
+                  </Box>
+                </Box>
 
-                <p className="text-sm text-muted-foreground">{formatBytes(item.size)}</p>
+                <Text textStyle="sm">{formatBytes(item.size)}</Text>
 
-                <div className="flex items-center gap-2 text-sm">
+                <Flex align="center" gap="2" fontSize="sm">
                   {item.status === 'completed' ? (
-                    <CheckCircle2 className="size-4 text-primary" />
+                    <CheckCircle2 size={16} color="var(--chakra-colors-teal-solid)" />
                   ) : null}
                   {item.status === 'failed' ? (
-                    <AlertCircle className="size-4 text-destructive" />
+                    <AlertCircle size={16} color="var(--chakra-colors-fg-error)" />
                   ) : null}
                   {item.status === 'uploading' ? (
-                    <LoaderCircle className="size-4 animate-spin text-primary" />
+                    <LoaderCircle size={16} color="var(--chakra-colors-teal-solid)" style={{ animation: 'spin 1s linear infinite' }} />
                   ) : null}
-                  <span className={cn(item.status === 'failed' && 'text-destructive')}>
+                  <Text as="span" color={item.status === 'failed' ? 'fg.error' : undefined}>
                     {statusLabel(item.status)}
-                  </span>
-                </div>
+                  </Text>
+                </Flex>
 
-                <div className="flex items-center justify-end gap-2">
+                <Flex align="center" justify="flex-end" gap="2">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => void uploadManager.remove(item.id)}
                   >
-                    <Trash2 className="size-4" />
+                    <Trash2 size={16} />
                   </Button>
-                </div>
-              </div>
+                </Flex>
+              </Grid>
 
               {item.error ? (
-                <p className="mt-2 text-sm text-destructive">{item.error}</p>
+                <Text mt="2" textStyle="sm" color="fg.error">{item.error}</Text>
               ) : (
-                <p className="mt-2 text-sm text-muted-foreground">
+                <Text mt="2" textStyle="sm">
                   {item.status === 'completed'
                     ? `${formatBytes(item.bytesUploaded)} uploaded • complete`
                     : `${formatBytes(item.bytesUploaded)} uploaded • ${Math.round(item.progress)}%`}
-                </p>
+                </Text>
               )}
-            </div>
+            </Box>
           ))
         )}
 
@@ -372,113 +412,120 @@ export function TransfersPage() {
           <Collapsible
             open={isCompletedExpanded}
             onOpenChange={setIsCompletedExpanded}
-            className={cn(nonCompletedItems.length > 0 && 'border-t border-border/60')}
+            borderTopWidth={nonCompletedItems.length > 0 ? '1px' : '0'}
+            borderColor="border.subtle"
           >
-            <CollapsibleTrigger className="flex w-full items-center justify-between px-7 py-4 text-left transition hover:bg-secondary/30">
-              <div>
-                <p className="font-medium text-foreground">Completed ({completedItems.length})</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Recent completed uploads remain visible here for up to 24 hours.
-                </p>
-              </div>
-              <ChevronDown
-                className={cn(
-                  'size-5 text-muted-foreground transition-transform',
-                  isCompletedExpanded && 'rotate-180',
-                )}
-              />
+            <CollapsibleTrigger asChild>
+              <chakra.button
+                type="button"
+                display="flex"
+                w="full"
+                alignItems="center"
+                justifyContent="space-between"
+                px="7"
+                py="4"
+                textAlign="left"
+                transition="background-color 0.15s ease"
+                _hover={{ bg: 'bg.subtle' }}
+              >
+                <Box>
+                  <Text fontWeight="medium" color="fg">Completed ({completedItems.length})</Text>
+                  <Text mt="1" textStyle="sm">
+                    Recent completed uploads remain visible here for up to 24 hours.
+                  </Text>
+                </Box>
+                <ChevronDown
+                  size={20}
+                  color="var(--chakra-colors-fg-muted)"
+                  style={{
+                    transition: 'transform 0.15s ease',
+                    transform: isCompletedExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  }}
+                />
+              </chakra.button>
             </CollapsibleTrigger>
 
             <CollapsibleContent>
               {completedItems.map((item) => (
-                <div key={item.id} className="border-t border-border/60 px-7 py-4">
-                  <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_140px_160px_160px] md:items-center">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">{item.fileName}</p>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
-                        <div className="h-full rounded-full bg-primary" style={{ width: '100%' }} />
-                      </div>
-                    </div>
+                <Box key={item.id} borderTopWidth="1px" borderColor="border.subtle" px="7" py="4">
+                  <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
+                    <Box minW="0">
+                      <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                      <Box mt="2" h="2" overflow="hidden" rounded="full" bg="bg.subtle">
+                        <Box h="full" rounded="full" bg="teal.solid" style={{ width: '100%' }} />
+                      </Box>
+                    </Box>
 
-                    <p className="text-sm text-muted-foreground">{formatBytes(item.size)}</p>
+                    <Text textStyle="sm">{formatBytes(item.size)}</Text>
 
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="size-4 text-primary" />
-                      <span>Done</span>
-                    </div>
+                    <Flex align="center" gap="2" fontSize="sm">
+                      <CheckCircle2 size={16} color="var(--chakra-colors-teal-solid)" />
+                      <Text as="span">Done</Text>
+                    </Flex>
 
-                    <div className="flex items-center justify-end gap-2">
+                    <Flex align="center" justify="flex-end" gap="2">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => void uploadManager.remove(item.id)}
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 size={16} />
                       </Button>
-                    </div>
-                  </div>
+                    </Flex>
+                  </Grid>
 
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <Text mt="2" textStyle="sm">
                     {formatBytes(item.bytesUploaded)} uploaded • 100%
-                  </p>
-                </div>
+                  </Text>
+                </Box>
               ))}
             </CollapsibleContent>
           </Collapsible>
         ) : null}
       </SurfacePanel>
 
-      <Dialog
+      <ChakraDialog.Root
         open={isClearAllDialogOpen}
-        onOpenChange={(open) => {
-          if (!isClearingAll) {
-            setIsClearAllDialogOpen(open);
+        onOpenChange={(e) => {
+          if (e.open) {
+            setIsClearAllDialogOpen(true);
+          } else if (!isClearingAll) {
+            setIsClearAllDialogOpen(false);
           }
         }}
+        size={{ mdDown: 'full', md: 'lg' }}
       >
-        <DialogContent
-          className="max-w-lg"
-          onPointerDownOutside={(event) => {
-            if (isClearingAll) {
-              event.preventDefault();
-            }
-          }}
-          onEscapeKeyDown={(event) => {
-            if (isClearingAll) {
-              event.preventDefault();
-            }
-          }}
-        >
-          <div className="space-y-5 px-6 py-6 sm:px-8 sm:py-7">
-            <DialogHeader>
-              <DialogTitle>Cancel and clear transfers?</DialogTitle>
-              <DialogDescription>
-                Active uploads will be canceled and the entire transfer queue will be cleared.
-                Completed items will be removed from Transfers, but uploaded documents will remain
-                in their vaults.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsClearAllDialogOpen(false)}
-                disabled={isClearingAll}
-              >
-                Keep transfers
-              </Button>
-              <Button
-                type="button"
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => void handleConfirmClearAll()}
-                disabled={isClearingAll}
-              >
-                {isClearingAll ? 'Clearing...' : 'Cancel and clear all'}
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </section>
+        <Portal>
+          <ChakraDialog.Backdrop />
+          <ChakraDialog.Positioner>
+            <ChakraDialog.Content>
+              <ChakraDialog.Header>
+                <ChakraDialog.Title>Cancel and clear transfers?</ChakraDialog.Title>
+                <ChakraDialog.CloseTrigger asChild>
+                  <CloseButton size="sm" />
+                </ChakraDialog.CloseTrigger>
+              </ChakraDialog.Header>
+              <ChakraDialog.Body>
+                <Text color="fg.muted" fontSize="sm">
+                  Active uploads will be canceled and the entire transfer queue will be cleared.
+                  Completed items will be removed from Transfers, but uploaded documents will remain
+                  in their vaults.
+                </Text>
+              </ChakraDialog.Body>
+              <ChakraDialog.Footer>
+                <ChakraDialog.ActionTrigger asChild>
+                  <Button type="button" variant="outline" onClick={() => setIsClearAllDialogOpen(false)} disabled={isClearingAll}>
+                    Keep transfers
+                  </Button>
+                </ChakraDialog.ActionTrigger>
+                <Button type="button" bg="fg.error" color="fg.inverted" disabled={isClearingAll} onClick={() => void handleConfirmClearAll()}>
+                  {isClearingAll ? 'Clearing...' : 'Cancel and clear all'}
+                </Button>
+              </ChakraDialog.Footer>
+            </ChakraDialog.Content>
+          </ChakraDialog.Positioner>
+        </Portal>
+      </ChakraDialog.Root>
+    </Stack>
   );
 }

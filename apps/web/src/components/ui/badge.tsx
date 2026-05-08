@@ -1,26 +1,33 @@
-import type { VariantProps } from 'class-variance-authority';
-import { cva } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import * as React from 'react';
+import { Badge as ChakraBadge } from '@chakra-ui/react';
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-  {
-    variants: {
-      variant: {
-        default: 'border-transparent bg-primary text-primary-foreground',
-        secondary: 'border-transparent bg-secondary text-secondary-foreground',
-        outline: 'text-foreground',
-        destructive: 'border-transparent bg-destructive text-destructive-foreground',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
-  },
-);
+type LegacyBadgeVariant = 'default' | 'secondary' | 'outline' | 'destructive';
+type ChakraBadgeProps = React.ComponentProps<typeof ChakraBadge>;
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
+const variantMap: Record<LegacyBadgeVariant, ChakraBadgeProps['variant']> = {
+  default: 'solid',
+  secondary: 'subtle',
+  outline: 'outline',
+  destructive: 'solid',
+};
 
-export function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ className, variant }))} {...props} />;
+export interface BadgeProps
+  extends Omit<ChakraBadgeProps, 'variant'> {
+  variant?: LegacyBadgeVariant | ChakraBadgeProps['variant'];
+}
+
+function normalizeVariant(variant: BadgeProps['variant']) {
+  return typeof variant === 'string' && variant in variantMap
+    ? variantMap[variant as LegacyBadgeVariant]
+    : (variant as ChakraBadgeProps['variant']) ?? 'solid';
+}
+
+export function Badge({ colorPalette, variant = 'default', ...props }: BadgeProps) {
+  return (
+    <ChakraBadge
+      colorPalette={colorPalette ?? (variant === 'destructive' ? 'red' : variant === 'default' ? 'teal' : 'gray')}
+      variant={normalizeVariant(variant)}
+      {...props}
+    />
+  );
 }

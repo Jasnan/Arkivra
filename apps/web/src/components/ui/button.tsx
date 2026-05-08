@@ -1,39 +1,62 @@
 import * as React from 'react';
-import type { VariantProps } from 'class-variance-authority';
-import { cva } from 'class-variance-authority';
+import { Button as ChakraButton } from '@chakra-ui/react';
 import { cn } from '@/lib/utils';
 
-const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold tracking-normal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50',
-  {
-    variants: {
-      variant: {
-        default: 'bg-primary text-primary-foreground hover:opacity-95',
-        outline: 'bg-background text-foreground ring-1 ring-border hover:bg-secondary/60',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/85',
-        ghost: 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-      },
-      size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-8 rounded-md px-3',
-        lg: 'h-11 px-6',
-        icon: 'h-10 w-10',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-      size: 'default',
-    },
-  },
-);
+type LegacyButtonVariant = 'default' | 'outline' | 'secondary' | 'ghost';
+type LegacyButtonSize = 'default' | 'sm' | 'lg' | 'icon';
+type ChakraButtonProps = React.ComponentProps<typeof ChakraButton>;
+
+const variantMap: Record<LegacyButtonVariant, ChakraButtonProps['variant']> = {
+  default: 'solid',
+  outline: 'outline',
+  secondary: 'subtle',
+  ghost: 'ghost',
+};
+
+const sizeMap: Record<LegacyButtonSize, ChakraButtonProps['size']> = {
+  default: 'md',
+  sm: 'sm',
+  lg: 'lg',
+  icon: 'md',
+};
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+  extends Omit<ChakraButtonProps, 'size' | 'variant'> {
   ref?: React.Ref<HTMLButtonElement>;
+  size?: LegacyButtonSize | ChakraButtonProps['size'];
+  variant?: LegacyButtonVariant | ChakraButtonProps['variant'];
 }
 
-export function Button({ className, size, variant, ref, ...props }: ButtonProps) {
-  return <button ref={ref} className={cn(buttonVariants({ className, size, variant }))} {...props} />;
+function normalizeVariant(variant: ButtonProps['variant']) {
+  return typeof variant === 'string' && variant in variantMap
+    ? variantMap[variant as LegacyButtonVariant]
+    : (variant as ChakraButtonProps['variant']) ?? 'solid';
+}
+
+function normalizeSize(size: ButtonProps['size']) {
+  return typeof size === 'string' && size in sizeMap
+    ? sizeMap[size as LegacyButtonSize]
+    : (size as ChakraButtonProps['size']) ?? 'md';
+}
+
+export function Button({
+  className,
+  colorPalette,
+  size = 'default',
+  variant = 'default',
+  ref,
+  ...props
+}: ButtonProps) {
+  return (
+    <ChakraButton
+      ref={ref}
+      colorPalette={colorPalette ?? (variant === 'default' ? 'teal' : 'gray')}
+      size={normalizeSize(size)}
+      variant={normalizeVariant(variant)}
+      className={cn(size === 'icon' && 'h-10 w-10 px-0', className)}
+      {...props}
+    />
+  );
 }
 
 Button.displayName = 'Button';

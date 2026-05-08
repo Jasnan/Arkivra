@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import { Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,14 +34,27 @@ export interface DocumentSearchControlFilter {
 
 export function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <button
+    <chakra.button
       type="button"
+      display="flex"
+      alignItems="center"
+      gap="2"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.subtle"
+      px="3"
+      py="1.5"
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg"
+      transition="colors"
+      _hover={{ borderColor: 'teal.subtle', bg: 'bg.subtle' }}
       onClick={onRemove}
-      className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-secondary/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-primary/20 hover:bg-secondary"
     >
-      <span>{label}</span>
-      <X className="size-4 text-muted-foreground" />
-    </button>
+      <Text as="span">{label}</Text>
+      <X size={16} />
+    </chakra.button>
   );
 }
 
@@ -97,52 +111,101 @@ export function DocumentSearchControls<TSortValue extends string>({
         onCloseFilters();
       }}
     >
-      <div className="rounded-lg border border-border/70 bg-background/80 p-3 sm:p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-          <Field className="min-w-0 flex-1">
-            <FieldLabel htmlFor="document-search-query" className="sr-only">
+      <Box
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.panel"
+        p={{ base: '3', sm: '4' }}
+      >
+        <Flex direction={{ base: 'column', xl: 'row' }} gap="3">
+          <Field minW="0" flex="1">
+            <FieldLabel htmlFor="document-search-query" srOnly>
               {searchAriaLabel}
             </FieldLabel>
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Box position="relative">
+              <Box
+                position="absolute"
+                left="4"
+                top="50%"
+                transform="translateY(-50%)"
+                color="fg.muted"
+                pointerEvents="none"
+              >
+                <SearchIcon size={16} />
+              </Box>
               <Input
                 id="document-search-query"
                 aria-label={searchAriaLabel}
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 placeholder={searchPlaceholder}
-                className="h-11 border-border/70 pl-11 pr-4"
+                h="11"
+                borderColor="border.subtle"
+                pl="11"
+                pr="4"
               />
-            </div>
+            </Box>
           </Field>
 
-          <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
+          <Flex direction={{ base: 'column', sm: 'row' }} gap="3">
             <DialogTrigger asChild>
               <Button
                 type="button"
                 variant="outline"
-                size="lg"
-                className="h-11 min-w-[9rem] justify-center border-border/70 px-4 shadow-none"
+                h="11"
+                minW="36"
+                borderColor="border.subtle"
+                px="4"
+                shadow="none"
               >
-                <SlidersHorizontal className="size-5" />
-                <span>Filter</span>
+                <SlidersHorizontal size={20} />
+                <Text as="span">Filter</Text>
                 {activeFilterCount > 0 ? (
-                  <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-secondary px-2 py-1 text-xs font-bold text-foreground">
+                  <Text
+                    as="span"
+                    display="inline-flex"
+                    minW="7"
+                    justifyContent="center"
+                    rounded="full"
+                    bg="bg.subtle"
+                    px="2"
+                    py="1"
+                    fontSize="xs"
+                    fontWeight="bold"
+                    color="fg"
+                  >
                     {activeFilterCount}
-                  </span>
+                  </Text>
                 ) : null}
               </Button>
             </DialogTrigger>
 
-            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-background px-3 py-1.5 shadow-none">
-              <span id={sortSelectId} className="text-sm font-semibold text-muted-foreground">
+            <Flex
+              align="center"
+              gap="3"
+              rounded="lg"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.panel"
+              px="3"
+              py="1.5"
+              shadow="none"
+            >
+              <Text as="span" id={sortSelectId} fontSize="sm" fontWeight="semibold" color="fg.muted">
                 Sort
-              </span>
+              </Text>
               <Select value={sortBy} onValueChange={(value) => onSortChange(value as TSortValue)}>
                 <SelectTrigger
                   aria-label={sortAriaLabel}
                   aria-labelledby={sortSelectId}
-                  className="h-9 min-w-[10rem] border-0 bg-transparent px-0 shadow-none focus:ring-0"
+                  h="9"
+                  minW="40"
+                  border="0"
+                  bg="transparent"
+                  px="0"
+                  shadow="none"
+                  focusRing="none"
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -154,16 +217,24 @@ export function DocumentSearchControls<TSortValue extends string>({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-        </div>
+            </Flex>
+          </Flex>
+        </Flex>
 
         {activeFilters.length > 0 ? (
           <>
-            <Separator className="mt-4" />
-            <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-muted-foreground">Active filters:</span>
+            <Separator mt="4" />
+            <Flex
+              direction={{ base: 'column', sm: 'row' }}
+              alignItems={{ sm: 'center' }}
+              justifyContent={{ sm: 'space-between' }}
+              gap="3"
+              pt="4"
+            >
+              <Flex flexWrap="wrap" align="center" gap="2">
+                <Text as="span" fontSize="sm" fontWeight="semibold" color="fg.muted">
+                  Active filters:
+                </Text>
                 {activeFilters.map((filter) => (
                   <ActiveFilterChip
                     key={filter.key}
@@ -171,58 +242,90 @@ export function DocumentSearchControls<TSortValue extends string>({
                     onRemove={filter.onRemove}
                   />
                 ))}
-              </div>
+              </Flex>
 
-              <button type="button" className="vault-link text-left" onClick={onClearFilters}>
+              <chakra.button
+                type="button"
+                fontSize="sm"
+                fontWeight="medium"
+                color="teal.solid"
+                textDecoration="underline"
+                textUnderlineOffset="4"
+                transition="colors"
+                _hover={{ opacity: 0.8 }}
+                textAlign="left"
+                onClick={onClearFilters}
+              >
                 Clear all
-              </button>
-            </div>
+              </chakra.button>
+            </Flex>
           </>
         ) : null}
-      </div>
+      </Box>
 
       <DialogContent
         hideCloseButton
-        className="max-h-[calc(100vh-3rem)] max-w-2xl overflow-y-auto p-5 sm:p-7"
+        maxH="calc(100vh-3rem)"
+        maxW="2xl"
+        overflowY="auto"
+        p={{ base: '5', sm: '7' }}
       >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-secondary text-primary">
-              <SlidersHorizontal className="size-5" />
-            </div>
+        <Flex align="center" justify="space-between" gap="4">
+          <Flex align="center" gap="3">
+            <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="bg.subtle" color="teal.solid">
+              <SlidersHorizontal size={20} />
+            </Flex>
             <DialogHeader>
               <DialogTitle>{filtersTitle}</DialogTitle>
-              <DialogDescription className={filtersDescription ? undefined : 'sr-only'}>
+              <DialogDescription srOnly={!filtersDescription}>
                 {filtersDescription ?? 'Adjust filters.'}
               </DialogDescription>
             </DialogHeader>
-          </div>
+          </Flex>
 
-          <div className="flex items-center gap-3">
-            <button type="button" className="vault-link" onClick={onResetFilters}>
-              Reset
-            </button>
-            <Button
+          <Flex align="center" gap="3">
+            <chakra.button
               type="button"
-              variant="ghost"
-              size="icon"
+              fontSize="sm"
+              fontWeight="medium"
+              color="teal.solid"
+              textDecoration="underline"
+              textUnderlineOffset="4"
+              transition="colors"
+              _hover={{ opacity: 0.8 }}
+              onClick={onResetFilters}
+            >
+              Reset
+            </chakra.button>
+            <chakra.button
+              type="button"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              w="9"
+              h="9"
+              rounded="lg"
+              color="fg.muted"
+              transition="colors"
+              _hover={{ bg: 'bg.subtle', color: 'fg' }}
               aria-label="Close filters"
-              className="rounded-lg"
               onClick={onCloseFilters}
             >
-              <X className="size-5" />
-            </Button>
-          </div>
-        </div>
+              <X size={20} />
+            </chakra.button>
+          </Flex>
+        </Flex>
 
-        <div className="mt-6 space-y-5">{filtersContent}</div>
+        <Box mt="6" display="flex" flexDirection="column" gap="5">
+          {filtersContent}
+        </Box>
 
-        <Separator className="mt-7" />
-        <div className="flex flex-wrap items-center justify-end gap-4 pt-5">
-          <Button type="button" onClick={onCloseFilters} className="px-5">
+        <Separator mt="7" />
+        <Flex flexWrap="wrap" justify="flex-end" gap="4" pt="5">
+          <Button type="button" px="5" onClick={onCloseFilters}>
             Done
           </Button>
-        </div>
+        </Flex>
       </DialogContent>
     </Dialog>
   );

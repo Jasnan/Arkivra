@@ -1,40 +1,81 @@
 import * as React from 'react';
-import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import { AbsoluteCenter, Menu as ChakraMenu, Portal } from '@chakra-ui/react';
 import { Check, ChevronRight, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root {...props} />;
+function textValue(children: React.ReactNode, fallback = 'item') {
+  if (typeof children === 'string' || typeof children === 'number') {
+    return String(children);
+  }
+
+  return fallback;
 }
 
-export function DropdownMenuTrigger(
-  props: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>,
-) {
-  return <DropdownMenuPrimitive.Trigger {...props} />;
+function isTextEntryElement(element: EventTarget | null) {
+  return (
+    element instanceof HTMLInputElement
+    || element instanceof HTMLTextAreaElement
+    || (element instanceof HTMLElement && element.isContentEditable)
+  );
 }
 
-export function DropdownMenuPortal(
-  props: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>,
-) {
-  return <DropdownMenuPrimitive.Portal {...props} />;
+type DropdownMenuProps = Omit<
+  React.ComponentProps<typeof ChakraMenu.Root>,
+  'onOpenChange'
+> & {
+  modal?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+export function DropdownMenu({ onOpenChange, modal: _modal, ...props }: DropdownMenuProps) {
+  return (
+    <ChakraMenu.Root
+      lazyMount
+      typeahead={false}
+      unmountOnExit
+      onOpenChange={onOpenChange ? (event) => onOpenChange(event.open) : undefined}
+      {...props}
+    />
+  );
 }
 
-export function DropdownMenuGroup(props: React.ComponentProps<typeof DropdownMenuPrimitive.Group>) {
-  return <DropdownMenuPrimitive.Group {...props} />;
+export function DropdownMenuTrigger(props: React.ComponentProps<typeof ChakraMenu.Trigger>) {
+  return <ChakraMenu.Trigger {...props} />;
 }
 
-export function DropdownMenuSub(props: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
-  return <DropdownMenuPrimitive.Sub {...props} />;
+export function DropdownMenuPortal(props: React.ComponentProps<typeof Portal>) {
+  return <Portal {...props} />;
 }
 
-export function DropdownMenuRadioGroup(
-  props: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>,
-) {
-  return <DropdownMenuPrimitive.RadioGroup {...props} />;
+export function DropdownMenuGroup(props: React.ComponentProps<typeof ChakraMenu.ItemGroup>) {
+  return <ChakraMenu.ItemGroup {...props} />;
+}
+
+export function DropdownMenuSub(props: React.ComponentProps<typeof ChakraMenu.Root>) {
+  return <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }} {...props} />;
+}
+
+type DropdownMenuRadioGroupProps = Omit<
+  React.ComponentProps<typeof ChakraMenu.RadioItemGroup>,
+  'onValueChange'
+> & {
+  onValueChange?: (value: string) => void;
+};
+
+export function DropdownMenuRadioGroup({
+  onValueChange,
+  ...props
+}: DropdownMenuRadioGroupProps) {
+  return (
+    <ChakraMenu.RadioItemGroup
+      onValueChange={onValueChange ? (event) => onValueChange(event.value) : undefined}
+      {...props}
+    />
+  );
 }
 
 type DropdownMenuSubTriggerProps = React.ComponentPropsWithRef<
-  typeof DropdownMenuPrimitive.SubTrigger
+  typeof ChakraMenu.TriggerItem
 > & {
   inset?: boolean;
 };
@@ -47,7 +88,7 @@ export function DropdownMenuSubTrigger({
   ...props
 }: DropdownMenuSubTriggerProps) {
   return (
-    <DropdownMenuPrimitive.SubTrigger
+    <ChakraMenu.TriggerItem
       ref={ref}
       className={cn(
         'flex cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[state=open]:bg-secondary/70 data-[state=open]:text-foreground',
@@ -58,147 +99,188 @@ export function DropdownMenuSubTrigger({
     >
       {children}
       <ChevronRight className="ml-auto size-4" />
-    </DropdownMenuPrimitive.SubTrigger>
+    </ChakraMenu.TriggerItem>
   );
 }
 
-DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName;
-
-type DropdownMenuSubContentProps = React.ComponentPropsWithRef<
-  typeof DropdownMenuPrimitive.SubContent
->;
+type DropdownMenuSubContentProps = React.ComponentPropsWithRef<typeof ChakraMenu.Content>;
 
 export function DropdownMenuSubContent({ className, ref, ...props }: DropdownMenuSubContentProps) {
   return (
-    <DropdownMenuPrimitive.SubContent
-      ref={ref}
-      className={cn(
-        'z-50 min-w-36 overflow-hidden rounded-lg border border-border/70 bg-card p-1.5 shadow-lg',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
-
-type DropdownMenuContentProps = React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.Content>;
-
-export function DropdownMenuContent({
-  className,
-  sideOffset = 12,
-  ref,
-  ...props
-}: DropdownMenuContentProps) {
-  return (
-    <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.Content
+    <ChakraMenu.Positioner>
+      <ChakraMenu.Content
         ref={ref}
-        sideOffset={sideOffset}
         className={cn(
           'z-50 min-w-36 overflow-hidden rounded-lg border border-border/70 bg-card p-1.5 shadow-lg',
           className,
         )}
         {...props}
       />
-    </DropdownMenuPrimitive.Portal>
+    </ChakraMenu.Positioner>
   );
 }
 
-DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
+type DropdownMenuContentProps = React.ComponentPropsWithRef<typeof ChakraMenu.Content> & {
+  align?: 'start' | 'center' | 'end';
+  onCloseAutoFocus?: (event: Event) => void;
+  sideOffset?: number;
+};
 
-type DropdownMenuItemProps = React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.Item> & {
+export function DropdownMenuContent({
+  className,
+  align: _align,
+  onCloseAutoFocus: _onCloseAutoFocus,
+  sideOffset: _sideOffset,
+  onKeyDownCapture,
+  ref,
+  ...props
+}: DropdownMenuContentProps) {
+  return (
+    <ChakraMenu.Positioner>
+      <ChakraMenu.Content
+        ref={ref}
+        className={cn(
+          'z-50 min-w-36 overflow-hidden rounded-lg border border-border/70 bg-card p-1.5 shadow-lg',
+          className,
+        )}
+        onKeyDownCapture={(event) => {
+          onKeyDownCapture?.(event);
+          if (!event.defaultPrevented && isTextEntryElement(event.target)) {
+            event.stopPropagation();
+          }
+        }}
+        onPointerDownCapture={(event) => {
+          if (isTextEntryElement(event.target)) {
+            event.stopPropagation();
+          }
+        }}
+        onClickCapture={(event) => {
+          if (isTextEntryElement(event.target)) {
+            event.stopPropagation();
+          }
+        }}
+        {...(props as any)}
+      />
+    </ChakraMenu.Positioner>
+  );
+}
+
+type DropdownMenuItemProps = Omit<
+  React.ComponentPropsWithRef<typeof ChakraMenu.Item>,
+  'value'
+> & {
+  value?: string;
   inset?: boolean;
 };
 
-export function DropdownMenuItem({ className, inset, ref, ...props }: DropdownMenuItemProps) {
+export function DropdownMenuItem({
+  className,
+  inset,
+  children,
+  onClick,
+  onSelect,
+  ref,
+  value,
+  ...props
+}: DropdownMenuItemProps) {
   return (
-    <DropdownMenuPrimitive.Item
+    <ChakraMenu.Item
       ref={ref}
+      value={value ?? textValue(children)}
       className={cn(
         'relative flex cursor-default select-none items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         inset && 'pl-8',
         className,
       )}
+      onClick={(event) => {
+        onClick?.(event);
+        onSelect?.();
+      }}
       {...props}
-    />
+    >
+      {children}
+    </ChakraMenu.Item>
   );
 }
 
-DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
-
-type DropdownMenuCheckboxItemProps = React.ComponentPropsWithRef<
-  typeof DropdownMenuPrimitive.CheckboxItem
->;
+type DropdownMenuCheckboxItemProps = Omit<
+  React.ComponentPropsWithRef<typeof ChakraMenu.CheckboxItem>,
+  'value'
+> & {
+  value?: string;
+  onSelect?: (event: { preventDefault: () => void }) => void;
+};
 
 export function DropdownMenuCheckboxItem({
   className,
   children,
   checked,
   ref,
+  value,
+  closeOnSelect = false,
+  onSelect,
   ...props
 }: DropdownMenuCheckboxItemProps) {
   return (
-    <DropdownMenuPrimitive.CheckboxItem
+    <ChakraMenu.CheckboxItem
       ref={ref}
+      value={value ?? textValue(children)}
       className={cn(
         'relative flex cursor-default select-none items-center gap-3 rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       checked={checked}
+      closeOnSelect={closeOnSelect}
+      onClick={() => onSelect?.({ preventDefault: () => {} })}
       {...props}
     >
-      <span className="absolute left-3 flex size-4 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
+      <AbsoluteCenter axis="horizontal" insetStart="3">
+        <ChakraMenu.ItemIndicator>
           <Check className="size-4" />
-        </DropdownMenuPrimitive.ItemIndicator>
-      </span>
+        </ChakraMenu.ItemIndicator>
+      </AbsoluteCenter>
       {children}
-    </DropdownMenuPrimitive.CheckboxItem>
+    </ChakraMenu.CheckboxItem>
   );
 }
 
-DropdownMenuCheckboxItem.displayName = DropdownMenuPrimitive.CheckboxItem.displayName;
-
-type DropdownMenuRadioItemProps = React.ComponentPropsWithRef<
-  typeof DropdownMenuPrimitive.RadioItem
->;
+type DropdownMenuRadioItemProps = React.ComponentPropsWithRef<typeof ChakraMenu.RadioItem>;
 
 export function DropdownMenuRadioItem({
   className,
   children,
   ref,
+  value,
   ...props
 }: DropdownMenuRadioItemProps) {
   return (
-    <DropdownMenuPrimitive.RadioItem
+    <ChakraMenu.RadioItem
       ref={ref}
+      value={value}
       className={cn(
         'relative flex cursor-default select-none items-center gap-3 rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}
     >
-      <span className="absolute left-3 flex size-4 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
+      <AbsoluteCenter axis="horizontal" insetStart="3">
+        <ChakraMenu.ItemIndicator>
           <Circle className="size-2.5 fill-current" />
-        </DropdownMenuPrimitive.ItemIndicator>
-      </span>
+        </ChakraMenu.ItemIndicator>
+      </AbsoluteCenter>
       {children}
-    </DropdownMenuPrimitive.RadioItem>
+    </ChakraMenu.RadioItem>
   );
 }
 
-DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
-
-type DropdownMenuLabelProps = React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.Label> & {
+type DropdownMenuLabelProps = React.HTMLAttributes<HTMLDivElement> & {
   inset?: boolean;
+  ref?: React.Ref<HTMLDivElement>;
 };
 
 export function DropdownMenuLabel({ className, inset, ref, ...props }: DropdownMenuLabelProps) {
   return (
-    <DropdownMenuPrimitive.Label
+    <div
       ref={ref}
       className={cn('px-3 py-2 text-sm font-medium text-foreground', inset && 'pl-8', className)}
       {...props}
@@ -206,23 +288,17 @@ export function DropdownMenuLabel({ className, inset, ref, ...props }: DropdownM
   );
 }
 
-DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName;
-
-type DropdownMenuSeparatorProps = React.ComponentPropsWithRef<
-  typeof DropdownMenuPrimitive.Separator
->;
+type DropdownMenuSeparatorProps = React.ComponentPropsWithRef<typeof ChakraMenu.Separator>;
 
 export function DropdownMenuSeparator({ className, ref, ...props }: DropdownMenuSeparatorProps) {
   return (
-    <DropdownMenuPrimitive.Separator
+    <ChakraMenu.Separator
       ref={ref}
       className={cn('-mx-1 my-1 h-px bg-border/70', className)}
       {...props}
     />
   );
 }
-
-DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName;
 
 export const DropdownMenuShortcut = ({
   className,

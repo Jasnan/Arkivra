@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
+import { Box, Flex, Grid, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Pencil, Trash2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -7,19 +8,12 @@ import { toast } from 'sonner';
 import {
   PageIntro,
   SurfacePanel,
+  EmptyState,
   vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,59 +52,38 @@ function DeleteTagDialog({
 }) {
   const attachedDocuments = tag.documentsCount ?? 0;
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !isPending) {
-          onClose();
-        }
-      }}
-    >
-      <DialogContent
-        className="max-w-xl px-6 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-7"
-        onPointerDownOutside={(event) => {
-          if (isPending) {
-            event.preventDefault();
-          }
-        }}
-        onEscapeKeyDown={(event) => {
-          if (isPending) {
-            event.preventDefault();
-          }
-        }}
-      >
-        <DialogHeader className="pr-10">
-          <p className="vault-label text-destructive/80">Delete Tag</p>
-          <DialogTitle>{`Delete “${tag.name}”?`}</DialogTitle>
-          <DialogDescription>
-            {attachedDocuments > 0
-              ? `This tag is currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'}. Deleting it here will remove the tag from all of those documents.`
-              : 'This tag is not attached to any documents right now.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="mt-5 space-y-5">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {attachedDocuments > 0
-              ? 'This action cannot be undone from the tags page.'
-              : 'You can create the tag again later if needed.'}
-          </p>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
-              Cancel
-            </Button>
-            <DeleteButton
-              type="button"
-              onClick={onConfirm}
-              disabled={isPending}
-            >
-              {isPending ? 'Deleting...' : 'Delete tag'}
-            </DeleteButton>
-          </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <ChakraDialog.Root open onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>{`Delete “${tag.name}”?`}</ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <Text color="fg.muted" fontSize="sm">
+                {attachedDocuments > 0
+                  ? `This tag is currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'}. Deleting it here will remove the tag from all of those documents.`
+                  : 'This tag is not attached to any documents right now.'}
+              </Text>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <ChakraDialog.ActionTrigger asChild>
+                <Button variant="outline" onClick={onClose} disabled={isPending}>
+                  Cancel
+                </Button>
+              </ChakraDialog.ActionTrigger>
+              <DeleteButton type="button" onClick={onConfirm} disabled={isPending}>
+                {isPending ? 'Deleting...' : 'Delete tag'}
+              </DeleteButton>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
   );
 }
 
@@ -135,14 +108,14 @@ function TagActionsMenu({
           label={`Open actions for ${tag.name}`}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" minWidth="14rem">
         <DropdownMenuItem onSelect={() => onEdit(triggerRef.current)}>
           <ActionMenuItemIcon icon={Pencil} />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={deletePending}
-          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          color="fg.error"
           onSelect={() => onDelete(triggerRef.current)}
         >
           <ActionMenuItemIcon icon={Trash2} tone="destructive" />
@@ -154,13 +127,8 @@ function TagActionsMenu({
 }
 
 function formatTagCreatedDate(value?: string) {
-  if (!value) {
-    return 'Unknown date';
-  }
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-  }).format(new Date(value));
+  if (!value) return 'Unknown date';
+  return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(value));
 }
 
 function getTagDescription(tag: Tag) {
@@ -199,12 +167,8 @@ export function TagsPage() {
 
   const filteredTags = useMemo(() => {
     const normalizedFilter = filterText.trim().toLowerCase();
-
     return tags.filter((tag) => {
-      if (normalizedFilter.length === 0) {
-        return true;
-      }
-
+      if (normalizedFilter.length === 0) return true;
       return [tag.name, tag.description ?? '', tag.vaultName ?? ''].some((value) =>
         value.toLowerCase().includes(normalizedFilter),
       );
@@ -219,11 +183,8 @@ export function TagsPage() {
   function restoreFocusTarget() {
     const target = focusRestoreTargetRef.current;
     focusRestoreTargetRef.current = null;
-
     if (target) {
-      requestAnimationFrame(() => {
-        target.focus();
-      });
+      requestAnimationFrame(() => target.focus());
     }
   }
 
@@ -302,43 +263,36 @@ export function TagsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     const targetVaultId = (isVaultScoped ? scopedVaultId : formVaultId)?.trim() ?? '';
     if (targetVaultId.length === 0) {
       toast.error('Choose a vault before saving this tag.');
       return;
     }
-
     const payload = {
       vaultId: targetVaultId,
       name: formName.trim(),
       color: formColor || null,
       description: formDescription.trim() || null,
     };
-
     if (dialogMode === 'edit' && selectedTag?.id) {
-      await updateMutation.mutateAsync({
-        ...payload,
-        tagId: selectedTag.id,
-      });
+      await updateMutation.mutateAsync({ ...payload, tagId: selectedTag.id });
       return;
     }
-
     await createMutation.mutateAsync(payload);
   }
 
   if (isVaultScoped && !scopedVaultId) {
-    return <p className="text-sm text-destructive">Invalid vault id.</p>;
+    return <Text textStyle="sm" color="fg.error">Invalid vault id.</Text>;
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <section className="space-y-6 pb-8">
+    <Stack as="section" gap="6" pb="8">
       <PageIntro
         title="Tags"
         actions={
-          <div className="flex flex-wrap items-center gap-3">
+          <Flex flexWrap="wrap" align="center" gap="3">
             <CreateButton
               ref={createButtonRef}
               type="button"
@@ -347,89 +301,102 @@ export function TagsPage() {
             >
               Create tag
             </CreateButton>
-          </div>
+          </Flex>
         }
       />
 
       <SurfacePanel>
-        <div className="w-full lg:w-[22rem]">
+        <Box w="full" maxW={{ lg: '22rem' }}>
           <Field>
-            <FieldLabel htmlFor="tag-filter" className="sr-only">
+            <FieldLabel htmlFor="tag-filter" srOnly>
               Search tags
             </FieldLabel>
             <Input
-            id="tag-filter"
-            value={filterText}
-            onChange={(event) => setFilterText(event.target.value)}
-            placeholder="Search tags"
+              id="tag-filter"
+              value={filterText}
+              onChange={(event) => setFilterText(event.target.value)}
+              placeholder="Search tags"
             />
           </Field>
-        </div>
+        </Box>
       </SurfacePanel>
 
-      <SurfacePanel className="overflow-hidden p-0">
-        <div className="hidden grid-cols-[180px_minmax(0,1.4fr)_140px_170px_150px_130px] gap-6 px-6 py-4 text-sm font-medium text-muted-foreground md:grid">
-          <span>Tag</span>
-          <span>Description</span>
-          <span>Documents</span>
-          <span>Vault</span>
-          <span>Created</span>
-          <span className="text-right">Actions</span>
-        </div>
+      <SurfacePanel overflow="hidden" p="0">
+        <Grid
+          display={{ base: 'none', md: 'grid' }}
+          templateColumns="180px minmax(0, 1.4fr) 140px 170px 150px 130px"
+          gap="6"
+          px="6"
+          py="4"
+          fontSize="sm"
+          fontWeight="medium"
+          color="fg.muted"
+        >
+          <Text as="span">Tag</Text>
+          <Text as="span">Description</Text>
+          <Text as="span">Documents</Text>
+          <Text as="span">Vault</Text>
+          <Text as="span">Created</Text>
+          <Text as="span" textAlign="right">Actions</Text>
+        </Grid>
 
         {tagsQuery.isLoading ? (
-          <p className="px-6 py-6 text-sm text-muted-foreground">Loading tags...</p>
+          <Text px="6" py="6" textStyle="sm">Loading tags...</Text>
         ) : null}
         {tagsQuery.isError ? (
-          <p className="px-6 py-6 text-sm text-destructive">Unable to load tags.</p>
+          <Text px="6" py="6" textStyle="sm" color="fg.error">Unable to load tags.</Text>
         ) : null}
         {!tagsQuery.isLoading && tags.length === 0 ? (
-          <div className="px-6 py-8 text-sm text-muted-foreground">
-            No tags yet. Create the first one to start organizing documents.
-          </div>
+          <Box px="6" py="8">
+            <EmptyState description="No tags yet. Create the first one to start organizing documents." />
+          </Box>
         ) : null}
         {!tagsQuery.isLoading && tags.length > 0 && filteredTags.length === 0 ? (
-          <div className="px-6 py-8 text-sm text-muted-foreground">No tags match that search.</div>
+          <Box px="6" py="8">
+            <EmptyState description="No tags match that search." />
+          </Box>
         ) : null}
 
-        <div className="divide-y divide-border/70">
+        <Stack gap="0" divideY="1px" divideColor="border.subtle">
           {filteredTags.map((tag) => (
-            <article
+            <Grid
+              as="article"
               key={tag.id}
-              className="grid gap-4 px-6 py-5 md:grid-cols-[180px_minmax(0,1.4fr)_140px_170px_150px_130px] md:items-center md:gap-6"
+              gap={{ base: '4', md: '6' }}
+              px="6"
+              py="5"
+              templateColumns={{ base: '1fr', md: '180px minmax(0, 1.4fr) 140px 170px 150px 130px' }}
+              alignItems={{ md: 'center' }}
             >
-              <div className="space-y-2">
-                <div className="inline-flex w-fit items-center gap-3 rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-foreground">
-                  <span
+              <Stack gap="2">
+                <Flex w="fit-content" align="center" gap="3" rounded="full" bg="bg.subtle" px="4" py="2" fontSize="sm" fontWeight="semibold" color="fg">
+                  <Box
                     aria-hidden="true"
-                    className="size-2.5 rounded-full"
+                    boxSize="2.5"
+                    rounded="full"
                     style={{ backgroundColor: tag.color ?? '#94a3b8' }}
                   />
-                  <span>{tag.name}</span>
-                </div>
-                <p className="text-xs text-muted-foreground md:hidden">
+                  <Text as="span">{tag.name}</Text>
+                </Flex>
+                <Text display={{ md: 'none' }} fontSize="xs" color="fg.muted">
                   {tag.vaultName ?? 'Current vault'}
-                </p>
-              </div>
+                </Text>
+              </Stack>
 
-              <div className="space-y-1">
-                <p className="text-sm text-foreground">{getTagDescription(tag)}</p>
-              </div>
+              <Text fontSize="sm" color="fg">{getTagDescription(tag)}</Text>
 
-              <div className="flex items-center gap-2 text-sm text-foreground">
-                <FileText className="size-4 text-muted-foreground" />
-                <span>{tag.documentsCount ?? 0}</span>
-              </div>
+              <Flex align="center" gap="2" fontSize="sm" color="fg">
+                <FileText size={16} color="var(--chakra-colors-fg-muted)" />
+                <Text as="span">{tag.documentsCount ?? 0}</Text>
+              </Flex>
 
-              <div className="text-sm text-muted-foreground">
+              <Text fontSize="sm" color="fg.muted">
                 {tag.vaultName ?? 'Current vault'}
-              </div>
+              </Text>
 
-              <div className="text-sm text-muted-foreground">
-                <p>{formatTagCreatedDate(tag.createdAt)}</p>
-              </div>
+              <Text fontSize="sm" color="fg.muted">{formatTagCreatedDate(tag.createdAt)}</Text>
 
-              <div className="flex items-center justify-end gap-2">
+              <Flex align="center" justify="flex-end" gap="2">
                 <TagActionsMenu
                   tag={tag}
                   deletePending={deleteMutation.isPending}
@@ -439,10 +406,10 @@ export function TagsPage() {
                     setTagPendingDelete(tag);
                   }}
                 />
-              </div>
-            </article>
+              </Flex>
+            </Grid>
           ))}
-        </div>
+        </Stack>
       </SurfacePanel>
 
       <TagDialog
@@ -453,7 +420,7 @@ export function TagsPage() {
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
         extraFields={
           !isVaultScoped ? (
-            <Field className="gap-3">
+            <Field gap="3">
               <FieldLabel id="tag-dialog-vault-label">Vault</FieldLabel>
               <Select
                 value={formVaultId || '__none__'}
@@ -461,7 +428,10 @@ export function TagsPage() {
               >
                 <SelectTrigger
                   aria-labelledby="tag-dialog-vault-label"
-                  className={`${vaultInputClassName} h-10 rounded-lg border-foreground/20 text-sm focus:border-foreground/35`}
+                  className={vaultInputClassName}
+                  h="10"
+                  rounded="lg"
+                  fontSize="sm"
                 >
                   <SelectValue placeholder="Choose a vault" />
                 </SelectTrigger>
@@ -509,6 +479,6 @@ export function TagsPage() {
           }}
         />
       ) : null}
-    </section>
+    </Stack>
   );
 }

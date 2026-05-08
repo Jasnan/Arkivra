@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
+import { Box, Flex, Stack } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {
@@ -11,18 +12,29 @@ import {
 
 export function AuthLayout({ children }: PropsWithChildren) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 py-6 sm:px-6">
-        <header className="mb-10 flex items-center justify-between">
-          <Link to="/" className="text-sm font-semibold tracking-tight">
+    <Box minH="100vh" bg="bg.muted" color="fg">
+      <Flex
+        direction="column"
+        mx="auto"
+        minH="100vh"
+        w="100%"
+        maxW="28rem"
+        px="4"
+        py="6"
+        sm={{ px: '6' }}
+      >
+        <Flex as="header" align="center" justify="space-between" mb="10">
+          <Link to="/" style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '-0.025em' }}>
             Arkivra
           </Link>
           <ThemeToggle />
-        </header>
+        </Flex>
 
-        <main className="flex flex-1 items-center justify-center">{children}</main>
-      </div>
-    </div>
+        <Flex as="main" flex="1" align="center" justify="center">
+          {children}
+        </Flex>
+      </Flex>
+    </Box>
   );
 }
 
@@ -32,20 +44,31 @@ export function AuthCard({
   children,
 }: PropsWithChildren<{ title: string; subtitle?: string }>) {
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-4">
+    <Card w="100%" p={{ base: '5', sm: '6' }}>
+      <CardHeader pb="4" px="0">
         <CardTitle>{title}</CardTitle>
-        {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
+        {subtitle ? <CardDescription mt="1">{subtitle}</CardDescription> : null}
       </CardHeader>
-      <CardContent className="space-y-4">{children}</CardContent>
+      <CardContent px="0" pb="0">
+        <Stack gap="4">{children}</Stack>
+      </CardContent>
     </Card>
   );
 }
 
 export function AuthActions({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border/70 pt-4 text-sm">
+    <Flex
+      flexWrap="wrap"
+      align="center"
+      justify="center"
+      gap="3"
+      borderTopWidth="1px"
+      borderColor="border.subtle"
+      pt="4"
+      fontSize="sm"
+    >
       {children}
-    </div>
+    </Flex>
   );
 }

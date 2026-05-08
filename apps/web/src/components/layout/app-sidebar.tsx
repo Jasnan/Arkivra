@@ -1,6 +1,7 @@
 import type { ComponentProps, ComponentType } from 'react';
-import { Link, NavLink, matchPath, useLocation } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import type { LucideProps } from 'lucide-react';
+import { Box, Flex, Image, Text } from '@chakra-ui/react';
 import arkivraLogoUrl from '@/assets/arkivra-logo.png';
 import packageJson from '../../../package.json';
 import {
@@ -16,7 +17,6 @@ import {
 } from '@/components/ui/sidebar';
 import { useSidebar } from '@/components/ui/sidebar-context';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 
 interface SidebarNavItem {
   to: string;
@@ -30,19 +30,9 @@ interface AppSidebarProps {
   variant?: ComponentProps<typeof Sidebar>['variant'];
 }
 
-function isNavItemActive(pathname: string, item: SidebarNavItem) {
-  if (item.to === '/documents') {
-    return pathname === '/documents';
-  }
-
-  return Boolean(matchPath({ path: item.to, end: false }, pathname));
-}
-
 function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
   const { open } = useSidebar();
-  const location = useLocation();
   const Icon = item.icon;
-  const isActive = isNavItemActive(location.pathname, item);
 
   const link = (
     <NavLink
@@ -50,32 +40,46 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
       end={item.to === '/documents'}
       aria-label={!open ? item.label : undefined}
       title={!open ? item.label : undefined}
-      className={cn(
-        'group/nav-item flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
-        open ? 'justify-start' : 'justify-center px-2.5',
-        isActive
-          ? 'bg-sidebar-accent/80 text-sidebar-accent-foreground'
-          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground',
-      )}
+      style={{ color: 'inherit' }}
     >
-      <span
-        className={cn(
-          'flex size-4 shrink-0 items-center justify-center transition-colors',
-          isActive
-            ? 'text-sidebar-accent-foreground'
-            : 'text-sidebar-foreground/70 group-hover/nav-item:text-sidebar-accent-foreground',
-        )}
-      >
-        <Icon className="size-4" />
-      </span>
-      <span className={cn('truncate', !open && 'hidden')}>{item.label}</span>
+      {({ isActive }) => (
+        <Flex
+          align="center"
+          gap="3"
+          rounded="lg"
+          px="2.5"
+          py="2"
+          fontSize="sm"
+          fontWeight="medium"
+          justify={open ? 'flex-start' : 'center'}
+          bg={isActive ? 'teal.subtle' : 'transparent'}
+          color={isActive ? 'fg' : 'fg.muted'}
+          transition="colors"
+          _hover={{ bg: 'teal.subtle', color: 'fg' }}
+        >
+          <Flex
+            shrink={0}
+            boxSize="4"
+            align="center"
+            justify="center"
+            color={isActive ? 'teal.fg' : 'fg.muted'}
+            transition="colors"
+            _groupHover={{ color: 'teal.fg' }}
+          >
+            <Icon size={16} />
+          </Flex>
+          <Text as="span" truncate display={open ? undefined : 'none'}>
+            {item.label}
+          </Text>
+        </Flex>
+      )}
     </NavLink>
   );
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side="right" align="center" className={cn(open && 'hidden')}>
+      <TooltipContent side="right" align="center" hidden={open}>
         {item.label}
       </TooltipContent>
     </Tooltip>
@@ -87,29 +91,50 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
 
   return (
     <Sidebar collapsible="icon" variant={variant}>
-      <SidebarHeader className="px-3 py-4">
+      <SidebarHeader px="3" py="4">
         <Link
           to="/vaults"
-          className={cn(
-            'flex items-center gap-3 rounded-lg px-2 py-1.5 text-sidebar-foreground transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground',
-            !open && 'justify-center px-1.5',
-          )}
+          style={{ display: 'contents' }}
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
-            <img src={arkivraLogoUrl} alt="Arkivra" className="size-6 object-contain brightness-0 invert" />
-          </span>
-          <div className={cn('min-w-0', !open && 'hidden')}>
-            <p className="font-display text-base font-semibold leading-none">Arkivra</p>
-            <p className="mt-1 text-sm leading-none text-sidebar-foreground/65">
-              v{packageJson.version}
-            </p>
-          </div>
+          <Flex
+            align="center"
+            gap="3"
+            rounded="lg"
+            px="2"
+            py="1.5"
+            color="fg"
+            justify={open ? 'flex-start' : 'center'}
+            transition="colors"
+            _hover={{ bg: 'teal.subtle', color: 'teal.fg' }}
+          >
+            <Flex
+              shrink={0}
+              boxSize="9"
+              align="center"
+              justify="center"
+              rounded="xl"
+              bg="teal.solid"
+              color="fg.inverted"
+            >
+              <Image src={arkivraLogoUrl} alt="Arkivra" boxSize="6" objectFit="contain" filter="invert(1)" />
+            </Flex>
+            <Box minW="0" display={open ? undefined : 'none'}>
+              <Text fontFamily="heading" fontSize="base" fontWeight="semibold" lineHeight="none">
+                Arkivra
+              </Text>
+              <Text mt="1" fontSize="sm" lineHeight="none" color="fg.muted">
+                v{packageJson.version}
+              </Text>
+            </Box>
+          </Flex>
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 pb-3">
+      <SidebarContent px="3" pb="3">
         <SidebarGroup>
-          <SidebarGroupLabel className={cn(!open && 'sr-only')}>Library</SidebarGroupLabel>
+          <SidebarGroupLabel display={open ? undefined : 'none'}>
+            Library
+          </SidebarGroupLabel>
           <nav aria-label="Primary">
             <SidebarMenu>
               {primaryNavItems.map((item) => (
@@ -122,9 +147,11 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border/70 px-3 py-3">
-        <SidebarGroup className="gap-3">
-          <SidebarGroupLabel className={cn(!open && 'sr-only')}>Settings</SidebarGroupLabel>
+      <SidebarFooter borderTopWidth="1px" borderColor="border.subtle" px="3" py="3">
+        <SidebarGroup gap="3">
+          <SidebarGroupLabel display={open ? undefined : 'none'}>
+            Settings
+          </SidebarGroupLabel>
           <nav aria-label="Secondary">
             <SidebarMenu>
               {footerNavItems.map((item) => (

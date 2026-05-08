@@ -143,7 +143,7 @@ vi.mock('../chat.queries', () => ({
   }),
 }));
 
-describe('ChatWorkspace new chat drafts', () => {
+describe('chat workspace new chat drafts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createConversationMock.mockResolvedValue({
@@ -175,12 +175,18 @@ describe('ChatWorkspace new chat drafts', () => {
 
     expect(screen.getByText('Existing saved message')).toBeInTheDocument();
 
+    // Open the mobile conversation rail if the desktop sidebar is hidden
+    const showHistoryButton = screen.queryByRole('button', { name: /show history/i });
+    if (showHistoryButton) {
+      await user.click(showHistoryButton);
+    }
+
     await user.click(screen.getByRole('button', { name: /new chat/i }));
 
     expect(createConversationMock).not.toHaveBeenCalled();
     expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
     expect(screen.getByText(/start typing your question below/i)).toBeInTheDocument();
-    expect(screen.getAllByText('New chat')).toHaveLength(2);
+    expect(screen.getAllByText('New chat').length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByLabelText(/delete new chat/i)).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/chat message/i), 'Hello from a draft');

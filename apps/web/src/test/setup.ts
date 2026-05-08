@@ -1,17 +1,39 @@
 import '@testing-library/jest-dom/vitest';
 
+const MIN_WIDTH_PATTERN = /min-width:\s*(\d+)px/;
+const MAX_WIDTH_PATTERN = /max-width:\s*(\d+)px/;
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }),
+  value: (query: string) => {
+    const viewportWidth = window.innerWidth;
+    let matches = false;
+
+    const minWidthMatch = query.match(MIN_WIDTH_PATTERN);
+    if (minWidthMatch) {
+      matches = viewportWidth >= Number.parseInt(minWidthMatch[1], 10);
+    }
+
+    const maxWidthMatch = query.match(MAX_WIDTH_PATTERN);
+    if (maxWidthMatch) {
+      matches = viewportWidth <= Number.parseInt(maxWidthMatch[1], 10);
+    }
+
+    if (query === 'prefers-color-scheme: dark') {
+      matches = false;
+    }
+
+    return {
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    };
+  },
 });
 
 if (!Element.prototype.hasPointerCapture) {

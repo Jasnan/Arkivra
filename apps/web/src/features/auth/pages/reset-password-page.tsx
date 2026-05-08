@@ -11,7 +11,6 @@ import { authClient } from '@/lib/auth-client';
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? undefined;
-
   const navigate = useNavigate();
 
   const [password, setPassword] = useState('');
@@ -27,20 +26,14 @@ export function ResetPasswordPage() {
     event.preventDefault();
     setErrorMessage(null);
     setIsSubmitting(true);
-
     const { error } = await authClient.resetPassword({ token, newPassword: password });
-
     setIsSubmitting(false);
-
     if (error) {
       setErrorMessage(error.message ?? 'Unable to reset password.');
       return;
     }
-
     setIsReset(true);
-    setTimeout(() => {
-      navigate('/login');
-    }, 600);
+    setTimeout(navigate, 600, '/login');
   }
 
   return (
@@ -51,30 +44,22 @@ export function ResetPasswordPage() {
             <AlertDescription>Password updated. Redirecting to sign in...</AlertDescription>
           </Alert>
         ) : (
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
             <Field>
               <FieldLabel htmlFor="new-password">New password</FieldLabel>
-              <Input
-                id="new-password"
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
+              <Input id="new-password" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />
             </Field>
 
             {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" w="100%" disabled={isSubmitting}>
               {isSubmitting ? 'Updating password…' : 'Update password'}
             </Button>
           </form>
         )}
 
         <AuthActions>
-          <Link to="/login" className="font-medium text-foreground hover:underline">
+          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Sign in
           </Link>
         </AuthActions>

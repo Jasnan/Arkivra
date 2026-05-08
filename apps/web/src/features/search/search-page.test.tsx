@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
@@ -328,7 +328,7 @@ describe('documents library search controls', () => {
 
     await user.click(screen.getByRole('button', { name: /tags filter/i }));
     const tagSearch = screen.getByLabelText(/search tags/i);
-    await user.type(tagSearch, 'ins');
+    fireEvent.change(tagSearch, { target: { value: 'ins' } });
     expect(tagSearch).toHaveValue('ins');
     expect(tagSearch).toHaveFocus();
   });

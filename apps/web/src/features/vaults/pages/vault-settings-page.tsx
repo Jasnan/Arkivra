@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
+import { Box, Flex, Grid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -173,15 +174,15 @@ export function VaultSettingsPage() {
   });
 
   if (!vaultId) {
-    return <p className="text-sm text-destructive">Invalid vault id.</p>;
+    return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
   }
 
   if (vaultQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading vault settings...</p>;
+    return <Text fontSize="sm" color="fg.muted">Loading vault settings...</Text>;
   }
 
   if (vaultQuery.isError || !vaultQuery.data) {
-    return <p className="text-sm text-destructive">Unable to load vault settings.</p>;
+    return <Text fontSize="sm" color="fg.error">Unable to load vault settings.</Text>;
   }
 
   const vault = vaultQuery.data.vault;
@@ -215,31 +216,29 @@ export function VaultSettingsPage() {
   }
 
   return (
-    <section className="space-y-8 pb-8">
+    <Stack as="section" gap="8" pb="8">
       <PageIntro
         eyebrow="Vault Governance"
         title="Vault settings"
         description={`${vault.name} • ${vault.id}`}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Link to={`/vaults/${vaultId}/documents`} className="vault-link">
+            <Link to={`/vaults/${vaultId}/documents`} style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
               Open documents
             </Link>
-          </div>
         }
       />
-      <div className="grid gap-4 md:grid-cols-3">
+      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }}>
         <StatCard
           label="Your role"
           value={vault.role ?? 'global_admin'}
           meta="Current privilege level inside this vault."
-          icon={<ShieldCheck className="size-5" />}
+          icon={<ShieldCheck size={20} />}
         />
         <StatCard
           label="Members"
           value={members.length}
           meta="People currently attached to this vault."
-          icon={<Users className="size-5" />}
+          icon={<Users size={20} />}
         />
         <StatCard
           label="Vault control"
@@ -249,20 +248,25 @@ export function VaultSettingsPage() {
               ? 'You can invite and update members here.'
               : 'Your current permissions do not allow member management.'
           }
-          icon={<Vault className="size-5" />}
+          icon={<Vault size={20} />}
         />
-      </div>
+      </Grid>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
-          <SurfacePanel className="space-y-5">
-            <div>
-              <p className="vault-label">Rename Vault</p>
-              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+      <Grid gap="6" templateColumns={{ base: '1fr', xl: '1.1fr 0.9fr' }}>
+        <Stack gap="6">
+          <SurfacePanel display="flex" flexDirection="column" gap="5">
+            <Box>
+              <Text textStyle="label">Rename Vault</Text>
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Vault identity
-              </h2>
-            </div>
-            <form className="space-y-4" onSubmit={handleRename}>
+              </Text>
+            </Box>
+            <chakra.form
+              display="flex"
+              flexDirection="column"
+              gap="4"
+              onSubmit={handleRename}
+            >
               <Field>
                 <FieldLabel htmlFor="vault-settings-name">Name</FieldLabel>
                 <Input
@@ -291,27 +295,33 @@ export function VaultSettingsPage() {
                       description: event.target.value,
                     })
                   }
-                  className="min-h-28 resize-y"
+                  minH="7rem"
+                  resize="vertical"
                   placeholder="What belongs in this vault?"
                 />
               </Field>
               <SaveButton type="submit" disabled={renameMutation.isPending}>
                 {renameMutation.isPending ? 'Saving...' : 'Save changes'}
               </SaveButton>
-            </form>
+            </chakra.form>
           </SurfacePanel>
 
-          <SurfacePanel className="space-y-5">
-            <div>
-              <p className="vault-label">Invite Member</p>
-              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+          <SurfacePanel display="flex" flexDirection="column" gap="5">
+            <Box>
+              <Text textStyle="label">Invite Member</Text>
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Access onboarding
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              </Text>
+              <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
                 Invite by user id and assign initial permissions.
-              </p>
-            </div>
-            <form className="space-y-4" onSubmit={handleInvite}>
+              </Text>
+            </Box>
+            <chakra.form
+              display="flex"
+              flexDirection="column"
+              gap="4"
+              onSubmit={handleInvite}
+            >
               <Field>
                 <FieldLabel htmlFor="vault-invite-user-id">User ID</FieldLabel>
                 <Input
@@ -330,42 +340,48 @@ export function VaultSettingsPage() {
                 selectedPermissions={invitePermissions}
                 onSelectedPermissionsChange={setInvitePermissions}
                 disabled={!canManageMembers}
-                cardClassName="bg-secondary/55"
+                cardBg="bg.subtle"
               />
 
               <Button type="submit" disabled={!canManageMembers || inviteMutation.isPending}>
                 {inviteMutation.isPending ? 'Inviting...' : 'Invite member'}
               </Button>
-            </form>
+            </chakra.form>
           </SurfacePanel>
 
-          <SurfacePanel className="space-y-5">
-            <div>
-              <p className="vault-label">Members & Permissions</p>
-              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+          <SurfacePanel display="flex" flexDirection="column" gap="5">
+            <Box>
+              <Text textStyle="label">Members & Permissions</Text>
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Access roster
-              </h2>
-            </div>
+              </Text>
+            </Box>
 
             {membersQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading members...</p>
+              <Text fontSize="sm" color="fg.muted">Loading members...</Text>
             ) : null}
             {membersQuery.isError ? (
-              <p className="text-sm text-destructive">Unable to load members.</p>
+              <Text fontSize="sm" color="fg.error">Unable to load members.</Text>
             ) : null}
 
-            <div className="space-y-4">
+            <Stack gap="4">
               {members.map((member) => (
-                <article key={member.userId} className="rounded-lg bg-secondary/56 p-5">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-base font-semibold text-foreground">
+                <Box key={member.userId} rounded="lg" bg="bg.subtle" p="5">
+                  <Flex
+                    direction={{ base: 'column', sm: 'row' }}
+                    align={{ base: 'stretch', sm: 'center' }}
+                    justify={{ base: 'flex-start', sm: 'space-between' }}
+                    gap="3"
+                    mb="4"
+                  >
+                    <Box>
+                      <Text fontSize="base" fontWeight="semibold" color="fg">
                         {member.name ?? member.email}
-                      </h3>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      </Text>
+                      <Text mt="2" fontSize="sm" color="fg.muted">
                         {member.userId} • {member.role}
-                      </p>
-                    </div>
+                      </Text>
+                    </Box>
                     {member.role === 'member' ? (
                       <Button
                         type="button"
@@ -378,12 +394,14 @@ export function VaultSettingsPage() {
                         Remove
                       </Button>
                     ) : null}
-                  </div>
+                  </Flex>
 
                   {member.role === 'member' ? (
-                    <form
-                      className="space-y-4"
-                      onSubmit={(event) => {
+                    <chakra.form
+                      display="flex"
+                      flexDirection="column"
+                      gap="4"
+                      onSubmit={(event: FormEvent<HTMLFormElement>) => {
                         event.preventDefault();
                         const permissions = collectPermissions(event.currentTarget);
                         updateMemberMutation.mutate({
@@ -399,7 +417,7 @@ export function VaultSettingsPage() {
                         inputName="permissions"
                         defaultSelectedPermissions={member.permissions}
                         disabled={!canManageMembers}
-                        cardClassName="bg-card/80"
+                        cardBg="bg.panel"
                       />
 
                       <SaveButton
@@ -408,28 +426,28 @@ export function VaultSettingsPage() {
                       >
                         {updateMemberMutation.isPending ? 'Saving...' : 'Save changes'}
                       </SaveButton>
-                    </form>
+                    </chakra.form>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Owner has full permissions.</p>
+                    <Text fontSize="sm" color="fg.muted">Owner has full permissions.</Text>
                   )}
-                </article>
+                </Box>
               ))}
-            </div>
+            </Stack>
           </SurfacePanel>
-        </div>
+        </Stack>
 
-        <div className="space-y-6">
-          <SurfacePanel variant="soft" className="space-y-5">
-            <div>
-              <p className="vault-label">Transfer Ownership</p>
-              <h2 className="font-display mt-2 text-xl font-bold  text-foreground">
+        <Stack gap="6">
+          <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
+            <Box>
+              <Text textStyle="label">Transfer Ownership</Text>
+              <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Promote a member
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              </Text>
+              <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
                 Promote an existing member to owner when responsibility needs to change hands.
-              </p>
-            </div>
-            <div className="space-y-4">
+              </Text>
+            </Box>
+            <Stack gap="4">
               <Select
                 value={transferTargetUserId || '__none__'}
                 onValueChange={(value) =>
@@ -460,23 +478,23 @@ export function VaultSettingsPage() {
                   transferMutation.mutate({ vaultId, userId: transferTargetUserId });
                 }}
               >
-                <ArrowRightLeft className="size-4" />
+                <ArrowRightLeft size={16} />
                 {transferMutation.isPending ? 'Transferring...' : 'Transfer ownership'}
               </Button>
-            </div>
+            </Stack>
           </SurfacePanel>
 
-          <SurfacePanel variant="strong" className="space-y-5">
-            <div>
-              <p className="vault-label text-primary-foreground/70">Danger Zone</p>
-              <h2 className="font-display mt-2 text-xl font-bold ">Delete vault</h2>
-            </div>
-            <p className="text-sm leading-6 text-primary-foreground/80">
+          <SurfacePanel variant="strong" display="flex" flexDirection="column" gap="5">
+            <Box>
+              <Text textStyle="label" color="fg.inverted/70">Danger Zone</Text>
+              <Text fontSize="xl" fontWeight="bold" mt="2">Delete vault</Text>
+            </Box>
+            <Text fontSize="sm" lineHeight="6" color="fg.inverted/80">
               Delete this vault permanently from active view. This action remains owner-only.
-            </p>
+            </Text>
             <DeleteButton
               type="button"
-              className="w-full"
+              w="100%"
               disabled={deleteMutation.isPending || vault.role !== 'owner'}
               onClick={() => {
                 deleteMutation.mutate({ vaultId });
@@ -485,8 +503,8 @@ export function VaultSettingsPage() {
               {deleteMutation.isPending ? 'Deleting...' : 'Delete vault'}
             </DeleteButton>
           </SurfacePanel>
-        </div>
-      </div>
-    </section>
+        </Stack>
+      </Grid>
+    </Stack>
   );
 }

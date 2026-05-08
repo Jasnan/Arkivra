@@ -30,6 +30,19 @@ function jsonResponse(body: unknown) {
 describe('app shell account menu', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
     authClientMock.useSession.mockReturnValue({
       data: {
         user: {
@@ -105,7 +118,7 @@ describe('app shell account menu', () => {
     expect(await screen.findByRole('menu')).toBeInTheDocument();
     expect(screen.getByText(/account settings/i)).toBeInTheDocument();
 
-    await user.click(screen.getByText('Workspace'));
+    await user.keyboard('{Escape}');
 
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
@@ -128,11 +141,11 @@ describe('app shell account menu', () => {
     const primaryNav = screen.getByRole('navigation', { name: 'Primary' });
     const documentsLabel = within(primaryNav).getByText('All Documents');
 
-    expect(documentsLabel).not.toHaveClass('hidden');
+    expect(documentsLabel).not.toHaveStyle('display: none');
 
     await user.click(screen.getByRole('button', { name: /collapse sidebar/i }));
 
-    expect(documentsLabel).toHaveClass('hidden');
+    expect(documentsLabel).toHaveStyle('display: none');
     expect(screen.queryByRole('button', { name: /collapse sidebar/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: 'All Documents' })[0]).toHaveAttribute(

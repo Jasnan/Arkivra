@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { Flex } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -39,61 +40,37 @@ export function TwoFactorVerifyPage() {
   return (
     <AuthLayout>
       <AuthCard title="Two-factor verification" subtitle="Enter your authenticator or backup code.">
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant={mode === 'totp' ? 'default' : 'outline'}
-            onClick={() => setMode('totp')}
-          >
+        <Flex gap="2">
+          <Button type="button" variant={mode === 'totp' ? 'default' : 'outline'} onClick={() => setMode('totp')}>
             Authenticator
           </Button>
-          <Button
-            type="button"
-            variant={mode === 'backup' ? 'default' : 'outline'}
-            onClick={() => setMode('backup')}
-          >
+          <Button type="button" variant={mode === 'backup' ? 'default' : 'outline'} onClick={() => setMode('backup')}>
             Backup code
           </Button>
-        </div>
+        </Flex>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
           {mode === 'totp' ? (
             <Field>
               <FieldLabel htmlFor="totp-code">6-digit code</FieldLabel>
-              <Input
-                id="totp-code"
-                type="text"
-                required
-                minLength={6}
-                maxLength={6}
-                autoComplete="one-time-code"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
+              <Input id="totp-code" type="text" required minLength={6} maxLength={6} autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value)} />
             </Field>
           ) : (
             <Field>
               <FieldLabel htmlFor="backup-code">Backup code</FieldLabel>
-              <Input
-                id="backup-code"
-                type="text"
-                required
-                autoComplete="off"
-                value={backupCode}
-                onChange={(event) => setBackupCode(event.target.value)}
-              />
+              <Input id="backup-code" type="text" required autoComplete="off" value={backupCode} onChange={(event) => setBackupCode(event.target.value)} />
             </Field>
           )}
 
           {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" w="100%" disabled={isSubmitting}>
             {isSubmitting ? 'Verifying…' : 'Verify'}
           </Button>
         </form>
 
         <AuthActions>
-          <Link to="/login" className="font-medium text-foreground hover:underline">
+          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Use another account
           </Link>
         </AuthActions>

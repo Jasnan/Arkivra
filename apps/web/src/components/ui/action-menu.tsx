@@ -1,7 +1,7 @@
 import type { ComponentProps, ComponentType, ReactNode } from 'react';
+import { Icon as ChakraIcon } from '@chakra-ui/react';
 import { MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 type IconComponent = ComponentType<{ className?: string }>;
 
@@ -20,10 +20,15 @@ export function ActionMenuTriggerButton({
       variant="ghost"
       size="icon"
       aria-label={label}
-      className={cn(
-        'h-9 w-9 rounded-lg border border-border/60 bg-background/80 text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-        className,
-      )}
+      h="9"
+      w="9"
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.panel"
+      color="fg.muted"
+      _hover={{ bg: 'bg.subtle', color: 'fg' }}
+      className={className}
       {...props}
     >
       {children ?? <MoreHorizontal className="size-4" />}
@@ -32,7 +37,7 @@ export function ActionMenuTriggerButton({
 }
 
 export function ActionMenuItemIcon({
-  icon: Icon,
+  icon: MenuIcon,
   tone = 'default',
   className,
 }: {
@@ -41,12 +46,12 @@ export function ActionMenuItemIcon({
   className?: string;
 }) {
   return (
-    <Icon
-      className={cn(
-        'size-4 shrink-0',
-        tone === 'destructive' ? 'text-destructive' : 'text-primary',
-        className,
-      )}
+    <ChakraIcon
+      as={MenuIcon}
+      boxSize="4"
+      flexShrink="0"
+      color={tone === 'destructive' ? 'fg.error' : 'teal.solid'}
+      className={className}
     />
   );
 }

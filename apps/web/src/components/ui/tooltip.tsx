@@ -1,38 +1,60 @@
 import * as React from 'react';
-import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { cn } from '@/lib/utils';
+import { Portal, Tooltip as ChakraTooltip } from '@chakra-ui/react';
 
-export function TooltipProvider({
-  delayDuration = 100,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
-  return <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />;
+interface TooltipProviderProps {
+  children?: React.ReactNode;
+  delayDuration?: number;
 }
 
-export function Tooltip(props: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root {...props} />;
-}
-
-export function TooltipTrigger(props: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger {...props} />;
-}
-
-type TooltipContentProps = React.ComponentPropsWithRef<typeof TooltipPrimitive.Content>;
-
-export function TooltipContent({ className, sideOffset = 6, ref, ...props }: TooltipContentProps) {
+export function TooltipProvider({ children, delayDuration = 100 }: TooltipProviderProps) {
   return (
-    <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content
-        ref={ref}
-        sideOffset={sideOffset}
-        className={cn(
-          'z-50 max-w-64 overflow-hidden rounded-[16px] border border-border/70 bg-card px-3 py-2 text-xs leading-5 text-muted-foreground shadow-[0_18px_45px_rgba(18,29,66,0.16)] animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1',
-          className,
-        )}
-        {...props}
-      />
-    </TooltipPrimitive.Portal>
+    <ChakraTooltip.PropsProvider value={{ openDelay: delayDuration }}>
+      {children}
+    </ChakraTooltip.PropsProvider>
   );
 }
 
-TooltipContent.displayName = TooltipPrimitive.Content.displayName;
+export function Tooltip(props: React.ComponentProps<typeof ChakraTooltip.Root>) {
+  return <ChakraTooltip.Root {...props} />;
+}
+
+export function TooltipTrigger(props: React.ComponentProps<typeof ChakraTooltip.Trigger>) {
+  return <ChakraTooltip.Trigger {...props} />;
+}
+
+type TooltipContentProps = React.ComponentProps<typeof ChakraTooltip.Content> & {
+  ref?: React.Ref<HTMLDivElement>;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  sideOffset?: number;
+  align?: string;
+};
+
+export function TooltipContent({
+  ref,
+  side: _side = 'top',
+  sideOffset: _sideOffset = 6,
+  align: _align,
+  ...props
+}: TooltipContentProps) {
+  return (
+    <Portal>
+      <ChakraTooltip.Positioner>
+        <ChakraTooltip.Content
+          ref={ref}
+          maxW="64"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.panel"
+          color="fg.muted"
+          px="3"
+          py="2"
+          textStyle="xs"
+          shadow="lg"
+          {...props}
+        />
+      </ChakraTooltip.Positioner>
+    </Portal>
+  );
+}
+
+TooltipContent.displayName = 'TooltipContent';

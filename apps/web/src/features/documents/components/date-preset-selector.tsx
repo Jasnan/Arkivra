@@ -1,9 +1,9 @@
+import { Box, Flex, Text } from '@chakra-ui/react';
 import { CalendarRange } from 'lucide-react';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { cn } from '@/lib/utils';
 
 export type DatePreset = 'any' | 'last_7_days' | 'last_30_days' | 'custom';
 
@@ -23,7 +23,6 @@ export function DatePresetSelector({
   onCustomDateToChange,
   idPrefix,
   className,
-  inputClassName,
 }: {
   value: DatePreset;
   onValueChange: (value: DatePreset) => void;
@@ -33,32 +32,59 @@ export function DatePresetSelector({
   onCustomDateToChange: (value: string) => void;
   idPrefix: string;
   className?: string;
-  inputClassName?: string;
 }) {
   return (
     <>
-      <RadioGroup value={value} onValueChange={(next) => onValueChange(next as DatePreset)} className={cn('mt-3', className)}>
-        {presetOptions.map((option) => (
-          <Label
-            key={option.value}
-            htmlFor={`${idPrefix}-${option.value}`}
-            className={cn(
-              'flex cursor-pointer items-center gap-3 rounded-lg px-3.5 py-2.5 font-semibold transition',
-              value === option.value ? 'bg-secondary text-foreground' : 'hover:bg-secondary/45',
-            )}
-          >
-            <RadioGroupItem id={`${idPrefix}-${option.value}`} value={option.value} />
-            <span className="text-sm">{option.label}</span>
-          </Label>
-        ))}
-      </RadioGroup>
+      <Box mt="3" className={className}>
+        <RadioGroup value={value} onValueChange={(next) => onValueChange(next as DatePreset)}>
+          {presetOptions.map((option) => (
+            <Label
+              key={option.value}
+              htmlFor={`${idPrefix}-${option.value}`}
+              display="flex"
+              cursor="pointer"
+              alignItems="center"
+              gap="3"
+              rounded="lg"
+              px="3.5"
+              py="2.5"
+              fontWeight="semibold"
+              bg={value === option.value ? 'bg.subtle' : 'transparent'}
+              color={value === option.value ? 'fg' : 'fg.muted'}
+              transition="colors"
+              _hover={value === option.value ? undefined : { bg: 'bg.subtle', opacity: 0.6 }}
+            >
+              <RadioGroupItem id={`${idPrefix}-${option.value}`} value={option.value} />
+              <Text as="span" fontSize="sm">
+                {option.label}
+              </Text>
+            </Label>
+          ))}
+        </RadioGroup>
+      </Box>
 
       {value === 'custom' ? (
-        <div className="mt-4 grid gap-3 border-l border-border/70 pl-3 sm:grid-cols-2 sm:pl-4">
+        <Flex
+          mt="4"
+          gap="3"
+          borderLeftWidth="1px"
+          borderColor="border.subtle"
+          pl={{ base: '3', sm: '4' }}
+          direction={{ base: 'column', sm: 'row' }}
+        >
           <Field>
             <FieldLabel htmlFor={`${idPrefix}-from`}>From</FieldLabel>
-            <div className="relative">
-              <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Box position="relative">
+              <Box
+                position="absolute"
+                left="4"
+                top="50%"
+                transform="translateY(-50%)"
+                color="fg.muted"
+                pointerEvents="none"
+              >
+                <CalendarRange size={16} />
+              </Box>
               <Input
                 id={`${idPrefix}-from`}
                 aria-label="From"
@@ -66,15 +92,28 @@ export function DatePresetSelector({
                 value={customDateFrom}
                 max={customDateTo || undefined}
                 onChange={(event) => onCustomDateFromChange(event.target.value)}
-                className={cn('h-10 rounded-lg border-border/70 bg-card pl-11', inputClassName)}
+                h="10"
+                rounded="lg"
+                borderColor="border.subtle"
+                bg="bg.panel"
+                pl="11"
               />
-            </div>
+            </Box>
           </Field>
 
           <Field>
             <FieldLabel htmlFor={`${idPrefix}-to`}>To</FieldLabel>
-            <div className="relative">
-              <CalendarRange className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Box position="relative">
+              <Box
+                position="absolute"
+                left="4"
+                top="50%"
+                transform="translateY(-50%)"
+                color="fg.muted"
+                pointerEvents="none"
+              >
+                <CalendarRange size={16} />
+              </Box>
               <Input
                 id={`${idPrefix}-to`}
                 aria-label="To"
@@ -82,11 +121,15 @@ export function DatePresetSelector({
                 value={customDateTo}
                 min={customDateFrom || undefined}
                 onChange={(event) => onCustomDateToChange(event.target.value)}
-                className={cn('h-10 rounded-lg border-border/70 bg-card pl-11', inputClassName)}
+                h="10"
+                rounded="lg"
+                borderColor="border.subtle"
+                bg="bg.panel"
+                pl="11"
               />
-            </div>
+            </Box>
           </Field>
-        </div>
+        </Flex>
       ) : null}
     </>
   );

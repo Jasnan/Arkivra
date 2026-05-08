@@ -1,18 +1,18 @@
+import type { ComponentProps } from 'react';
 import * as React from 'react';
+import { Box, Flex, Text } from '@chakra-ui/react';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SidebarContext, useSidebar } from '@/components/ui/sidebar-context';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 
-type SidebarProviderProps = React.ComponentPropsWithoutRef<'div'> & {
+type SidebarProviderProps = ComponentProps<typeof Box> & {
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
 export function SidebarProvider({
-  className,
   children,
   defaultOpen = true,
   open: openProp,
@@ -49,26 +49,27 @@ export function SidebarProvider({
   return (
     <SidebarContext value={value}>
       <TooltipProvider delayDuration={0}>
-        <div
+        <Box
           data-slot="sidebar-wrapper"
           data-state={open ? 'expanded' : 'collapsed'}
-          className={cn('group/sidebar-wrapper flex min-h-screen w-full', className)}
+          display="flex"
+          minH="100vh"
+          w="full"
           {...props}
         >
           {children}
-        </div>
+        </Box>
       </TooltipProvider>
     </SidebarContext>
   );
 }
 
-type SidebarProps = React.ComponentPropsWithoutRef<'aside'> & {
+type SidebarProps = ComponentProps<typeof Box> & {
   collapsible?: 'icon' | 'offcanvas' | 'none';
   variant?: 'default' | 'inset';
 };
 
 export function Sidebar({
-  className,
   children,
   collapsible = 'icon',
   variant = 'default',
@@ -79,42 +80,50 @@ export function Sidebar({
   const isOffcanvas = collapsible === 'offcanvas' && !open;
 
   return (
-    <aside
+    <Box
+      as="aside"
       data-slot="sidebar"
       data-state={open ? 'expanded' : 'collapsed'}
       data-collapsible={isCollapsed ? 'icon' : isOffcanvas ? 'offcanvas' : ''}
       aria-hidden={isOffcanvas ? true : undefined}
-      className={cn(
-        'group/sidebar peer sticky top-0 hidden shrink-0 text-sidebar-foreground lg:block',
-        variant === 'inset' ? 'h-screen p-2' : 'h-screen',
+      display="block"
+      position="sticky"
+      top="0"
+      flexShrink={0}
+      color="fg"
+      h="100vh"
+      p={variant === 'inset' ? '2' : undefined}
+      w={
         isCollapsed
-          ? 'w-[var(--sidebar-width-icon)]'
+          ? 'var(--sidebar-width-icon)'
           : isOffcanvas
-            ? 'w-0 p-0 opacity-0'
-            : 'w-[var(--sidebar-width)]',
-        'transition-[width] duration-200 ease-linear',
-        className,
-      )}
+            ? '0'
+            : 'var(--sidebar-width)'
+      }
+      opacity={isOffcanvas ? 0 : undefined}
+      transition="width 200ms ease-linear"
       {...props}
     >
-      <div
-        className={cn(
-          'relative flex h-full flex-col bg-sidebar',
-          variant === 'inset'
-            ? 'bg-transparent'
-            : 'border-r border-sidebar-border/70 bg-[#f4f4f2] dark:bg-[#161616]',
-          isOffcanvas && 'pointer-events-none overflow-hidden opacity-0',
-        )}
+      <Flex
+        position="relative"
+        direction="column"
+        h="full"
+        bg={variant === 'inset' ? 'transparent' : 'bg.panel'}
+        borderRightWidth={variant === 'inset' ? undefined : '1px'}
+        borderColor="border.subtle"
+        pointerEvents={isOffcanvas ? 'none' : undefined}
+        overflow={isOffcanvas ? 'hidden' : undefined}
+        opacity={isOffcanvas ? 0 : undefined}
       >
         {children}
-      </div>
-    </aside>
+      </Flex>
+    </Box>
   );
 }
 
 type SidebarTriggerProps = Omit<React.ComponentProps<typeof Button>, 'aria-label' | 'title'>;
 
-export function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerProps) {
+export function SidebarTrigger({ onClick, ...props }: SidebarTriggerProps) {
   const { open, toggleSidebar } = useSidebar();
 
   return (
@@ -124,11 +133,7 @@ export function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerP
       size="icon"
       aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
       title={open ? 'Collapse sidebar' : 'Expand sidebar'}
-      className={cn(
-        'size-8 rounded-lg text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-        className,
-      )}
-      onClick={(event) => {
+      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
         onClick?.(event);
 
         if (!event.defaultPrevented) {
@@ -137,95 +142,141 @@ export function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerP
       }}
       {...props}
     >
-      {open ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+      {open ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
     </Button>
   );
 }
 
-type SidebarRailProps = React.ComponentPropsWithoutRef<'div'>;
+type SidebarRailProps = ComponentProps<typeof Box>;
 
-export function SidebarRail({ className, ...props }: SidebarRailProps) {
+export function SidebarRail(props: SidebarRailProps) {
   return (
-    <div
+    <Box
       aria-hidden="true"
-      className={cn(
-        'pointer-events-none absolute inset-y-3 right-0 hidden w-px translate-x-1/2 rounded-full bg-sidebar-border/80 lg:block',
-        className,
-      )}
+      position="absolute"
+      top="3"
+      bottom="3"
+      right="0"
+      display={{ base: 'none', lg: 'block' }}
+      w="1px"
+      transform="translateX(50%)"
+      borderRadius="full"
+      bg="border.subtle"
+      pointerEvents="none"
       {...props}
     />
   );
 }
 
-type SidebarInsetProps = React.ComponentPropsWithoutRef<'div'>;
+type SidebarInsetProps = ComponentProps<typeof Flex>;
 
-export function SidebarInset({ className, ...props }: SidebarInsetProps) {
+export function SidebarInset({ children, ...props }: SidebarInsetProps) {
   return (
-    <div
+    <Flex
       data-slot="sidebar-inset"
-      className={cn('flex min-w-0 flex-1 flex-col', className)}
+      minW="0"
+      flex="1"
+      direction="column"
       {...props}
-    />
+    >
+      {children}
+    </Flex>
   );
 }
 
-type SidebarSectionProps = React.ComponentPropsWithoutRef<'div'>;
+type SidebarSectionProps = ComponentProps<typeof Flex>;
 
-export function SidebarHeader({ className, ...props }: SidebarSectionProps) {
-  return <div data-slot="sidebar-header" className={cn('flex flex-col', className)} {...props} />;
+export function SidebarHeader({ children, ...props }: SidebarSectionProps) {
+  return (
+    <Flex data-slot="sidebar-header" direction="column" {...props}>
+      {children}
+    </Flex>
+  );
 }
 
-export function SidebarContent({ className, ...props }: SidebarSectionProps) {
+export function SidebarContent({ children, ...props }: SidebarSectionProps) {
   return (
-    <div
+    <Flex
       data-slot="sidebar-content"
-      className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden', className)}
+      minH="0"
+      flex="1"
+      direction="column"
+      overflowY="auto"
+      overflowX="hidden"
       {...props}
-    />
+    >
+      {children}
+    </Flex>
   );
 }
 
-export function SidebarFooter({ className, ...props }: SidebarSectionProps) {
+export function SidebarFooter({ children, ...props }: SidebarSectionProps) {
   return (
-    <div data-slot="sidebar-footer" className={cn('mt-auto flex flex-col', className)} {...props} />
+    <Flex data-slot="sidebar-footer" mt="auto" direction="column" {...props}>
+      {children}
+    </Flex>
   );
 }
 
-export function SidebarGroup({ className, ...props }: SidebarSectionProps) {
+type SidebarGroupProps = ComponentProps<typeof Box>;
+
+export function SidebarGroup({ children, ...props }: SidebarGroupProps) {
   return (
-    <section
+    <Box
+      as="section"
       data-slot="sidebar-group"
-      className={cn('flex flex-col gap-2', className)}
+      display="flex"
+      flexDirection="column"
+      gap="2"
       {...props}
-    />
+    >
+      {children}
+    </Box>
   );
 }
 
-type SidebarGroupLabelProps = React.ComponentPropsWithoutRef<'p'>;
+type SidebarGroupLabelProps = ComponentProps<typeof Text>;
 
-export function SidebarGroupLabel({ className, ...props }: SidebarGroupLabelProps) {
+export function SidebarGroupLabel({ children, ...props }: SidebarGroupLabelProps) {
   return (
-    <p
+    <Text
       data-slot="sidebar-group-label"
-      className={cn(
-        'px-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45',
-        className,
-      )}
+      px="3"
+      fontSize="0.7rem"
+      fontWeight="semibold"
+      textTransform="uppercase"
+      letterSpacing="0.16em"
+      color="fg.muted"
       {...props}
-    />
+    >
+      {children}
+    </Text>
   );
 }
 
-type SidebarMenuProps = React.ComponentPropsWithoutRef<'ul'>;
+type SidebarMenuProps = ComponentProps<typeof Box>;
 
-export function SidebarMenu({ className, ...props }: SidebarMenuProps) {
+export function SidebarMenu({ children, ...props }: SidebarMenuProps) {
   return (
-    <ul data-slot="sidebar-menu" className={cn('flex flex-col gap-1', className)} {...props} />
+    <Box
+      as="ul"
+      data-slot="sidebar-menu"
+      display="flex"
+      flexDirection="column"
+      gap="1"
+      {...props}
+    >
+      {children}
+    </Box>
   );
 }
 
-type SidebarMenuItemProps = React.ComponentPropsWithoutRef<'li'>;
+type SidebarMenuItemProps = ComponentProps<typeof Box>;
 
-export function SidebarMenuItem({ className, ...props }: SidebarMenuItemProps) {
-  return <li data-slot="sidebar-menu-item" className={cn('list-none', className)} {...props} />;
+export function SidebarMenuItem({ children, ...props }: SidebarMenuItemProps) {
+  return (
+    <Box as="li" data-slot="sidebar-menu-item" listStyleType="none" {...props}>
+      {children}
+    </Box>
+  );
 }

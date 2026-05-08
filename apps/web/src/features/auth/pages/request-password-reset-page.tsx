@@ -37,34 +37,25 @@ export function RequestPasswordResetPage() {
       <AuthCard title="Reset password" subtitle="Request a password reset link by email.">
         {submitted ? (
           <Alert>
-            <AlertDescription>
-              If an account exists for {email}, a reset link has been sent.
-            </AlertDescription>
+            <AlertDescription>If an account exists for {email}, a reset link has been sent.</AlertDescription>
           </Alert>
         ) : (
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
             <Field>
               <FieldLabel htmlFor="email">Email</FieldLabel>
-              <Input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
+              <Input id="email" type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
 
             {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" w="100%" disabled={isSubmitting}>
               {isSubmitting ? 'Sending reset link…' : 'Send reset link'}
             </Button>
           </form>
         )}
 
         <AuthActions>
-          <Link to="/login" className="font-medium text-foreground hover:underline">
+          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Sign in
           </Link>
         </AuthActions>

@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -19,7 +20,7 @@ export function ResetPasswordPage() {
   const [isReset, setIsReset] = useState(false);
 
   if (typeof token !== 'string') {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={ROUTES.login} replace />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -33,7 +34,7 @@ export function ResetPasswordPage() {
       return;
     }
     setIsReset(true);
-    setTimeout(navigate, 600, '/login');
+    setTimeout(navigate, 600, ROUTES.login);
   }
 
   return (
@@ -59,7 +60,7 @@ export function ResetPasswordPage() {
         )}
 
         <AuthActions>
-          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
+          <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Sign in
           </Link>
         </AuthActions>

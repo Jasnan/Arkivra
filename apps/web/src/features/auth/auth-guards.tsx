@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { Flex } from '@chakra-ui/react';
 import { Navigate } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { authClient } from '@/lib/auth-client';
 
 function AuthLoadingState() {
@@ -15,7 +16,7 @@ export function ProtectedRoute({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) return <AuthLoadingState />;
-  if (!session) return <Navigate to="/login" replace />;
+  if (!session) return <Navigate to={ROUTES.login} replace />;
 
   return <>{children}</>;
 }
@@ -24,7 +25,7 @@ export function PublicOnlyRoute({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) return <AuthLoadingState />;
-  if (session) return <Navigate to="/" replace />;
+  if (session) return <Navigate to={ROUTES.root} replace />;
 
   return <>{children}</>;
 }

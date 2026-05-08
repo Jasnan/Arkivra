@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Checkbox as ChakraCheckbox, Table, Box, Flex, Text } from '@chakra-ui/react';
 import { File } from 'lucide-react';
+import { ROUTES } from '@/app/routes';
 import { formatBytes } from '@/features/documents/documents.utils';
 import type { SearchResultTag } from '@/features/search/search.types';
 
@@ -235,7 +237,7 @@ export function DocumentLibraryTable({
         </Table.Header>
         <Table.Body>
           {documents.map((document) => {
-            const detailLink = document.documentLink ?? `/vaults/${document.vaultId}/documents/${document.documentId}`;
+            const detailLink = document.documentLink ?? ROUTES.vaultDocument(document.vaultId, document.documentId);
             const selectionKey = getDocumentSelectionKey(document.vaultId, document.documentId);
             const isSelected = selectedDocumentKeys.includes(selectionKey);
 
@@ -254,8 +256,8 @@ export function DocumentLibraryTable({
                   </Table.Cell>
                 ) : null}
                 <Table.Cell verticalAlign="top" p="0">
-                  <a
-                    href={detailLink}
+                  <Link
+                    to={detailLink}
                     style={{
                       display: 'block',
                       minWidth: 0,
@@ -289,11 +291,11 @@ export function DocumentLibraryTable({
                         ) : null}
                       </Box>
                     </Flex>
-                  </a>
+                  </Link>
                 </Table.Cell>
                 <Table.Cell verticalAlign="top" p="0">
-                  <a
-                    href={detailLink}
+                  <Link
+                    to={detailLink}
                     style={{
                       display: 'block',
                       padding: '0.75rem',
@@ -304,11 +306,11 @@ export function DocumentLibraryTable({
                     <Text fontSize="sm" color="fg">
                       {formatDateOnly(document.createdAt)}
                     </Text>
-                  </a>
+                  </Link>
                 </Table.Cell>
                 <Table.Cell verticalAlign="top" p="0">
-                  <a
-                    href={detailLink}
+                  <Link
+                    to={detailLink}
                     style={{
                       display: 'block',
                       padding: '0.75rem',
@@ -319,11 +321,11 @@ export function DocumentLibraryTable({
                     <Text fontSize="sm" color="fg">
                       {formatBytes(document.originalSize)}
                     </Text>
-                  </a>
+                  </Link>
                 </Table.Cell>
                 <Table.Cell verticalAlign="top" p="0">
-                  <a
-                    href={detailLink}
+                  <Link
+                    to={detailLink}
                     style={{
                       display: 'block',
                       padding: '0.75rem',
@@ -334,7 +336,7 @@ export function DocumentLibraryTable({
                     <Flex flexWrap="wrap" gap="1.5">
                       <VisibleTags tags={document.tags} />
                     </Flex>
-                  </a>
+                  </Link>
                 </Table.Cell>
               </Table.Row>
             );

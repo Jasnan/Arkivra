@@ -2,6 +2,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Flex } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -34,7 +35,7 @@ export function TwoFactorVerifyPage() {
       return;
     }
 
-    navigate('/');
+    navigate(ROUTES.root);
   }
 
   return (
@@ -70,7 +71,7 @@ export function TwoFactorVerifyPage() {
         </form>
 
         <AuthActions>
-          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
+          <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Use another account
           </Link>
         </AuthActions>

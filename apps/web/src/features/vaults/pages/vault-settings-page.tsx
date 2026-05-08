@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import {
   PageIntro,
   StatCard,
@@ -118,7 +119,7 @@ export function VaultSettingsPage() {
     mutationFn: deleteVault,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
-      navigate('/vaults');
+      navigate(ROUTES.vaults);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not delete vault.');
@@ -222,7 +223,7 @@ export function VaultSettingsPage() {
         title="Vault settings"
         description={`${vault.name} • ${vault.id}`}
         actions={
-            <Link to={`/vaults/${vaultId}/documents`} style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
+            <Link to={ROUTES.vaultDocuments(vaultId)} style={{ color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}>
               Open documents
             </Link>
         }

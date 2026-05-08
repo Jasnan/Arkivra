@@ -2,6 +2,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Box } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -26,7 +27,7 @@ export function RegisterPage() {
       name,
       email,
       password,
-      callbackURL: '/',
+      callbackURL: ROUTES.root,
     });
 
     setIsSubmitting(false);
@@ -36,7 +37,7 @@ export function RegisterPage() {
       return;
     }
 
-    navigate('/');
+    navigate(ROUTES.root);
   }
 
   return (
@@ -67,7 +68,7 @@ export function RegisterPage() {
 
         <Box fontSize="sm" color="fg.muted">
           Already have an account?{' '}
-          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
+          <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Sign in
           </Link>
         </Box>

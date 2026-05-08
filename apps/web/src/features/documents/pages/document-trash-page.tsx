@@ -2,6 +2,7 @@ import { Box, Flex, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import { EmptyState, PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DeleteButton, RestoreButton } from '@/components/ui/action-buttons';
@@ -152,7 +153,7 @@ export function DocumentTrashPage() {
                 <Flex direction={{ base: 'column', lg: 'row' }} align={{ lg: 'flex-start' }} justify={{ lg: 'space-between' }} gap="4">
                   <Box>
                     <Link
-                      to={`/vaults/${getResolvedVaultId(document, vaultId)}/documents/${document.id}`}
+                      to={ROUTES.vaultDocument(getResolvedVaultId(document, vaultId), document.id)}
                       style={{ color: 'inherit', textDecoration: 'none' }}
                     >
                       <Text

@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ROUTES } from '@/app/routes';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
@@ -19,7 +20,7 @@ export function RequestPasswordResetPage() {
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    const redirectTo = `${window.location.origin}/reset-password`;
+    const redirectTo = `${window.location.origin}${ROUTES.resetPassword}`;
     const { error } = await authClient.requestPasswordReset({ email, redirectTo });
 
     setIsSubmitting(false);
@@ -55,7 +56,7 @@ export function RequestPasswordResetPage() {
         )}
 
         <AuthActions>
-          <Link to="/login" style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
+          <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
             Sign in
           </Link>
         </AuthActions>

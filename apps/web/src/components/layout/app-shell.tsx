@@ -21,6 +21,7 @@ import {
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Box, Flex, HStack, Stack, Text, Input, IconButton } from '@chakra-ui/react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
+import type { SidebarNavItem } from '@/components/layout/app-sidebar';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {
   Breadcrumb,
@@ -47,6 +48,7 @@ import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries'
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
+import { ROUTES } from '@/app/routes';
 import { authClient } from '@/lib/auth-client';
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'arkivra.sidebarCollapsed';
@@ -104,63 +106,63 @@ function buildBreadcrumbs({
     return [{ label: 'Vaults' }];
   }
 
-  if (pathname === '/vaults') {
+  if (pathname === ROUTES.vaults) {
     return [{ label: 'Vaults' }];
   }
 
-  if (pathname === '/documents') {
+  if (pathname === ROUTES.documents) {
     return [{ label: 'All Documents' }];
   }
 
-  if (pathname === '/chat') {
+  if (pathname === ROUTES.chat) {
     return [{ label: 'Chat' }];
   }
 
-  if (pathname === '/documents/trash') {
-    return [{ label: 'All Documents', to: '/documents' }, { label: 'Trash' }];
+  if (pathname === ROUTES.documentsTrash) {
+    return [{ label: 'All Documents', to: ROUTES.documents }, { label: 'Trash' }];
   }
 
   if (parts[0] === 'documents' && parts[1] && parts[2]) {
-    return [{ label: 'All Documents', to: '/documents' }, { label: currentDocumentLabel }];
+    return [{ label: 'All Documents', to: ROUTES.documents }, { label: currentDocumentLabel }];
   }
 
-  if (pathname === '/tags') {
+  if (pathname === ROUTES.tags) {
     return [{ label: 'Tags' }];
   }
 
-  if (pathname === '/transfers') {
+  if (pathname === ROUTES.transfers) {
     if (transferVaultId) {
       return [
-        { label: 'Vaults', to: '/vaults' },
-        { label: vaultName ?? 'Vault', to: `/vaults/${transferVaultId}/documents` },
+        { label: 'Vaults', to: ROUTES.vaults },
+        { label: vaultName ?? 'Vault', to: ROUTES.vaultDocuments(transferVaultId) },
         { label: 'Upload' },
       ];
     }
 
-    return [{ label: 'All Documents', to: '/documents' }, { label: 'Upload' }];
+    return [{ label: 'All Documents', to: ROUTES.documents }, { label: 'Upload' }];
   }
 
-  if (pathname === '/search') {
-    return [{ label: 'All Documents', to: '/documents' }, { label: 'Search' }];
+  if (pathname === ROUTES.search) {
+    return [{ label: 'All Documents', to: ROUTES.documents }, { label: 'Search' }];
   }
 
-  if (pathname === '/settings') {
+  if (pathname === ROUTES.settings) {
     return [{ label: 'Settings' }];
   }
 
-  if (pathname === '/admin') {
+  if (pathname === ROUTES.admin) {
     return [{ label: 'Admin' }];
   }
 
-  if (pathname === '/about') {
+  if (pathname === ROUTES.about) {
     return [{ label: 'About' }];
   }
 
   if (parts[0] === 'vaults' && parts[1]) {
     const vaultLabel = vaultName ?? 'Vault';
-    const vaultDocumentsPath = `/vaults/${parts[1]}/documents`;
+    const vaultDocumentsPath = ROUTES.vaultDocuments(parts[1]);
     const base: BreadcrumbEntry[] = [
-      { label: 'Vaults', to: '/vaults' },
+      { label: 'Vaults', to: ROUTES.vaults },
       { label: vaultLabel, to: vaultDocumentsPath },
     ];
 
@@ -259,21 +261,21 @@ export function AppShell({ children }: PropsWithChildren) {
   }, [isSidebarCollapsed]);
 
   const { primaryNavItems, footerNavItems } = useMemo(() => {
-    const primaryItems = [
-      { to: '/vaults', label: 'Vaults', icon: Vault },
-      { to: '/chat', label: 'Chat', icon: MessageSquare },
-      { to: '/documents', label: 'All Documents', icon: File },
-      { to: '/tags', label: 'Tags', icon: Tags },
-      { to: '/transfers', label: 'Transfers', icon: Upload },
-      { to: '/documents/trash', label: 'Trash', icon: Trash2 },
+    const primaryItems: SidebarNavItem[] = [
+      { to: ROUTES.vaults, label: 'Vaults', icon: Vault },
+      { to: ROUTES.chat, label: 'Chat', icon: MessageSquare },
+      { to: ROUTES.documents, label: 'All Documents', icon: File },
+      { to: ROUTES.tags, label: 'Tags', icon: Tags },
+      { to: ROUTES.transfers, label: 'Transfers', icon: Upload },
+      { to: ROUTES.documentsTrash, label: 'Trash', icon: Trash2 },
     ];
-    const secondaryItems = [
-      { to: '/settings', label: 'Settings', icon: Settings },
-      { to: '/about', label: 'About', icon: Compass },
+    const secondaryItems: SidebarNavItem[] = [
+      { to: ROUTES.settings, label: 'Settings', icon: Settings },
+      { to: ROUTES.about, label: 'About', icon: Compass },
     ];
 
     if (meQuery.data?.isGlobalAdmin) {
-      secondaryItems.splice(1, 0, { to: '/admin', label: 'Admin', icon: ShieldCheck });
+      secondaryItems.splice(1, 0, { to: ROUTES.admin, label: 'Admin', icon: ShieldCheck });
     }
 
     return {
@@ -420,14 +422,14 @@ export function AppShell({ children }: PropsWithChildren) {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <NavLink to="/settings">
+                      <NavLink to={ROUTES.settings}>
                         <Settings size={16} />
                         Account settings
                       </NavLink>
                     </DropdownMenuItem>
                     {meQuery.data?.isGlobalAdmin ? (
                       <DropdownMenuItem asChild>
-                        <NavLink to="/admin">
+                        <NavLink to={ROUTES.admin}>
                           <ShieldCheck size={16} />
                           Admin
                         </NavLink>
@@ -462,7 +464,7 @@ export function AppShell({ children }: PropsWithChildren) {
               <Stack h="full" minH="0" gap={{ base: '4', md: '6' }} pt={{ base: '4', md: '6' }}>
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
                   <NavLink
-                    to="/transfers"
+                    to={ROUTES.transfers}
                     style={{ color: 'inherit', textDecoration: 'none' }}
                   >
                     <Flex
@@ -654,7 +656,7 @@ export function AppShell({ children }: PropsWithChildren) {
                     _hover={{ bg: 'teal.subtle' }}
                     onClick={() => {
                       closeQuickSearch();
-                      navigate(`/documents/${result.vaultId}/${result.documentId}`);
+                      navigate(ROUTES.documentDetail(result.vaultId, result.documentId));
                     }}
                   >
                     <Flex direction={{ base: 'column', sm: 'row' }} gap="3" alignItems={{ base: 'stretch', sm: 'flex-start' }} justifyContent="space-between">

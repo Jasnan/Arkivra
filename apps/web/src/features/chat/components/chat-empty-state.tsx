@@ -35,7 +35,7 @@ export function ChatEmptyState({
           <MessageSquare size={24} />
         </Flex>
 
-        <Flex direction="column" gap="3" mt="6">
+        <Flex direction="column" gap="1" mt="6">
           <Text as="h3" fontSize={{ base: '2xl', sm: '3xl' }} fontWeight="semibold" letterSpacing="tight" color="fg">
             {title}
           </Text>

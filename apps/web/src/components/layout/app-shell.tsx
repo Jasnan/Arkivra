@@ -459,7 +459,7 @@ export function AppShell({ children }: PropsWithChildren) {
             {isStandaloneChatRoute ? (
               children
             ) : (
-              <Stack minH="0" gap={{ base: '4', md: '6' }} pt={{ base: '4', md: '6' }}>
+              <Stack h="full" minH="0" gap={{ base: '4', md: '6' }} pt={{ base: '4', md: '6' }}>
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
                   <NavLink
                     to="/transfers"

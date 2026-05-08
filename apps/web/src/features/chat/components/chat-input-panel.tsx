@@ -1,17 +1,15 @@
 import type { RefObject } from 'react';
 import { useEffect } from 'react';
 import { Box, Flex, Text } from '@chakra-ui/react';
-import { Send } from 'lucide-react';
+import { Send, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import type { ChatResponseMode } from '../chat.api';
 
@@ -100,90 +98,51 @@ export function ChatInputPanel({
             }}
             _focusVisible={{ ring: 'none' }}
           />
-          <Button
-            type="button"
-            size="icon"
-            aria-label="Send message"
-            disabled={disabled || value.trim().length === 0}
-            style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem' }}
-            onClick={submit}
-          >
-            <Send size={16} />
-          </Button>
-        </Flex>
-
-        <Flex
-          direction={{ base: 'column', sm: 'row' }}
-          gap="3"
-          mt="3"
-          borderTopWidth="1px"
-          borderColor="border.subtle"
-          pt="3"
-          px="1"
-          sm={{ alignItems: 'flex-end', justifyContent: 'space-between' }}
-        >
-          <Flex gap="3">
-            <Checkbox
-              id="chat-show-sources"
-              checked={showSources}
-              onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
-              disabled={disabled}
-              style={{ marginTop: '0.25rem' }}
-            />
-            <Flex direction="column" gap="1">
-              <Label htmlFor="chat-show-sources">Show sources</Label>
-              <Text fontSize="sm" color="fg.muted">
-                Citations and page references will be shown in responses
-              </Text>
-            </Flex>
-          </Flex>
-
-          {hasModelPicker ? (
-            <Flex align="flex-end" gap="3">
-              <Flex direction="column" gap="2">
-                <Label
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.16em',
-                    color: 'var(--chakra-colors-fg-muted)',
-                  }}
-                >
-                  Model
-                </Label>
-                <Select
-                  value={selectedModel}
-                  onValueChange={onSelectedModelChange}
-                  disabled={disabled || isLoadingModels || (modelOptions?.length ?? 0) === 0}
-                >
-                  <SelectTrigger
-                    aria-label="Document chat model"
-                    style={{
-                      height: '2.5rem',
-                      minWidth: '13rem',
-                      borderRadius: '0.75rem',
-                      borderColor: 'var(--chakra-colors-border-subtle)',
-                      background: 'color-mix(in srgb, var(--chakra-colors-bg-subtle), transparent 80%)',
-                      fontSize: '0.875rem',
-                      boxShadow: 'none',
-                    }}
+          <Flex gap="1">
+            <Button
+              type="button"
+              size="icon"
+              aria-label="Send message"
+              disabled={disabled || value.trim().length === 0}
+              style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem' }}
+              onClick={submit}
+            >
+              <Send size={16} />
+            </Button>
+            {hasModelPicker ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Chat options"
+                    style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem' }}
                   >
-                    <SelectValue
-                      placeholder={isLoadingModels ? 'Loading models...' : 'Choose a model'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(modelOptions ?? []).map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Flex>
-            </Flex>
-          ) : null}
+                    <SlidersHorizontal size={16} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" minW="56">
+                  <DropdownMenuCheckboxItem
+                    checked={showSources}
+                    onCheckedChange={(checked) => onResponseModeChange(checked ? 'multimodal' : 'text')}
+                  >
+                    Show sources
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {(modelOptions ?? []).map((model) => (
+                    <DropdownMenuCheckboxItem
+                      key={model}
+                      checked={selectedModel === model}
+                      onCheckedChange={() => onSelectedModelChange?.(model)}
+                    >
+                      {model}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </Flex>
         </Flex>
 
         {modelOptionsError ? (

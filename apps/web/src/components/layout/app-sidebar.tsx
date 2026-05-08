@@ -1,7 +1,7 @@
 import type { ComponentProps, ComponentType } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import type { LucideProps } from 'lucide-react';
-import { Box, Flex, Image, Text } from '@chakra-ui/react';
+import { Box, Flex, Image, Text, useMediaQuery } from '@chakra-ui/react';
 import arkivraLogoUrl from '@/assets/arkivra-logo.png';
 import packageJson from '../../../package.json';
 import {
@@ -88,9 +88,10 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
 
 export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default' }: AppSidebarProps) {
   const { open } = useSidebar();
+  const [isMdAndUp] = useMediaQuery('(min-width: 768px)', { ssr: false });
 
   return (
-    <Sidebar collapsible="icon" variant={variant}>
+    <Sidebar collapsible={isMdAndUp ? 'icon' : 'offcanvas'} variant={variant}>
       <SidebarHeader px="3" py="4">
         <Link
           to="/vaults"

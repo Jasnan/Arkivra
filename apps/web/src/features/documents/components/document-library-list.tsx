@@ -1,14 +1,6 @@
 import type { ReactNode } from 'react';
 import { Checkbox as ChakraCheckbox, Table, Box, Flex, Text } from '@chakra-ui/react';
-import { Download, File, FolderOpen, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { File } from 'lucide-react';
 import { formatBytes } from '@/features/documents/documents.utils';
 import type { SearchResultTag } from '@/features/search/search.types';
 
@@ -109,7 +101,7 @@ function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
 
   return (
     <Flex
-      boxSize="10"
+      boxSize="9"
       shrink={0}
       align="center"
       justify="center"
@@ -162,48 +154,6 @@ function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
   );
 }
 
-function DocumentActionsMenu({
-  documentName,
-  documentLink,
-  downloadHref,
-  onDelete,
-  deleteDisabled,
-}: {
-  documentName: string;
-  documentLink: string;
-  downloadHref: string;
-  onDelete?: () => void;
-  deleteDisabled?: boolean;
-}) {
-  return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <ActionMenuTriggerButton label={`Open actions for ${documentName}`} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" minW="56">
-        <DropdownMenuItem asChild>
-          <Link to={documentLink}>
-            <ActionMenuItemIcon icon={FolderOpen} />
-            Open document
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a href={downloadHref}>
-            <ActionMenuItemIcon icon={Download} />
-            Download
-          </a>
-        </DropdownMenuItem>
-        {onDelete ? (
-          <DropdownMenuItem disabled={deleteDisabled} onSelect={onDelete}>
-            <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-            Move to trash
-          </DropdownMenuItem>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 function SelectionCheckbox({
   checked,
   label,
@@ -239,8 +189,6 @@ export function DocumentLibraryTable({
   selectedDocumentKeys,
   onToggleDocument,
   onToggleAllDocuments,
-  onDelete,
-  deleteDisabled,
 }: {
   documents: DocumentLibraryItem[];
   vaultName: string;
@@ -248,8 +196,6 @@ export function DocumentLibraryTable({
   selectedDocumentKeys: string[];
   onToggleDocument: (selectionKey: string, checked: boolean) => void;
   onToggleAllDocuments: (selectionKeys: string[], checked: boolean) => void;
-  onDelete?: (document: { vaultId: string; documentId: string }) => void;
-  deleteDisabled?: boolean;
 }) {
   const documentKeys = documents.map((document) =>
     getDocumentSelectionKey(document.vaultId, document.documentId),
@@ -281,17 +227,15 @@ export function DocumentLibraryTable({
                 />
               </Table.ColumnHeader>
             ) : null}
-            <Table.ColumnHeader minW="360px">Name</Table.ColumnHeader>
-            <Table.ColumnHeader minW="180px">Uploaded</Table.ColumnHeader>
-            <Table.ColumnHeader minW="120px">Size</Table.ColumnHeader>
-            <Table.ColumnHeader minW="180px">Tags</Table.ColumnHeader>
-            <Table.ColumnHeader w="20" textAlign="right">Actions</Table.ColumnHeader>
+            <Table.ColumnHeader minW="260px">Name</Table.ColumnHeader>
+            <Table.ColumnHeader minW="132px">Uploaded</Table.ColumnHeader>
+            <Table.ColumnHeader minW="88px">Size</Table.ColumnHeader>
+            <Table.ColumnHeader minW="132px">Tags</Table.ColumnHeader>
           </Table.Row>
         </Table.Header>
         <Table.Body>
           {documents.map((document) => {
             const detailLink = document.documentLink ?? `/vaults/${document.vaultId}/documents/${document.documentId}`;
-            const downloadHref = `/api/vaults/${document.vaultId}/documents/${document.documentId}/download`;
             const selectionKey = getDocumentSelectionKey(document.vaultId, document.documentId);
             const isSelected = selectedDocumentKeys.includes(selectionKey);
 
@@ -315,15 +259,16 @@ export function DocumentLibraryTable({
                     style={{
                       display: 'block',
                       minWidth: 0,
-                      padding: '0.75rem 1rem',
+                      padding: '0.75rem',
                       color: 'inherit',
                       textDecoration: 'none',
                     }}
                   >
-                    <Flex align="flex-start" gap="4" minW="0">
+                    <Flex align="flex-start" gap="3" minW="0">
                       <FileTypeIcon name={document.name} mimeType={document.mimeType} />
                       <Box minW="0">
                         <Text
+                          truncate
                           fontSize="sm"
                           fontWeight="semibold"
                           color="fg"
@@ -333,7 +278,7 @@ export function DocumentLibraryTable({
                           {document.name}
                         </Text>
                         {document.originalName && document.originalName !== document.name ? (
-                          <Text mt="1" fontSize="sm" color="fg.muted">
+                          <Text mt="1" truncate fontSize="sm" color="fg.muted">
                             {document.originalName}
                           </Text>
                         ) : null}
@@ -351,7 +296,7 @@ export function DocumentLibraryTable({
                     href={detailLink}
                     style={{
                       display: 'block',
-                      padding: '0.75rem 1rem',
+                      padding: '0.75rem',
                       color: 'inherit',
                       textDecoration: 'none',
                     }}
@@ -366,7 +311,7 @@ export function DocumentLibraryTable({
                     href={detailLink}
                     style={{
                       display: 'block',
-                      padding: '0.75rem 1rem',
+                      padding: '0.75rem',
                       color: 'inherit',
                       textDecoration: 'none',
                     }}
@@ -381,29 +326,15 @@ export function DocumentLibraryTable({
                     href={detailLink}
                     style={{
                       display: 'block',
-                      padding: '0.75rem 1rem',
+                      padding: '0.75rem',
                       color: 'inherit',
                       textDecoration: 'none',
                     }}
                   >
-                    <Flex flexWrap="wrap" gap="2">
+                    <Flex flexWrap="wrap" gap="1.5">
                       <VisibleTags tags={document.tags} />
                     </Flex>
                   </a>
-                </Table.Cell>
-                <Table.Cell verticalAlign="top" textAlign="right" onClick={(event) => event.stopPropagation()}>
-                  <Flex justify="flex-end">
-                    <DocumentActionsMenu
-                      documentName={document.name}
-                      documentLink={detailLink}
-                      downloadHref={downloadHref}
-                      onDelete={onDelete ? () => onDelete({
-                        vaultId: document.vaultId,
-                        documentId: document.documentId,
-                      }) : undefined}
-                      deleteDisabled={deleteDisabled}
-                    />
-                  </Flex>
                 </Table.Cell>
               </Table.Row>
             );

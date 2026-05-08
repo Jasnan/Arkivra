@@ -549,27 +549,24 @@ export function DocumentsPage() {
             selectedDocumentKeys={selectedDocumentKeys}
             onToggleDocument={toggleDocumentSelection}
             onToggleAllDocuments={toggleAllDocumentSelection}
-            deleteDisabled={deleteMutation.isPending}
-            onDelete={(document) => {
-              deleteMutation.mutate([document]);
-            }}
           />
         )}
 
         <Separator />
         <Flex
           direction={{ base: 'column', sm: 'row' }}
-          gap="3"
-          px="6"
-          py="4"
+          gap="2"
+          px="4"
+          py="2.5"
           alignItems={{ sm: 'center' }}
           justifyContent={{ sm: 'space-between' }}
         >
-          <Text fontSize="sm" color="fg.muted">
+          <Text fontSize="xs" color="fg.muted">
             Page {activePageIndex + 1} of {activePageCount}
           </Text>
           <Flex gap="2">
             <Button
+              size="xs"
               type="button"
               variant="outline"
               disabled={activePageIndex === 0}
@@ -578,6 +575,7 @@ export function DocumentsPage() {
               Previous
             </Button>
             <Button
+              size="xs"
               type="button"
               variant="outline"
               disabled={activePageIndex >= activePageCount - 1}

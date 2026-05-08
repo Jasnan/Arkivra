@@ -622,15 +622,15 @@ export function DocumentDetailPage() {
         direction="column"
         flex={activeTab === 'chat' ? '1' : undefined}
         minH="0"
-        gap={activeTab === 'chat' ? '6' : '6'}
+        gap={activeTab === 'chat' ? '0' : '6'}
       >
         <Flex
           direction="column"
           flex={activeTab === 'chat' ? '1' : undefined}
           minH="0"
-          gap={activeTab === 'chat' ? '5' : '5'}
+          gap={activeTab === 'chat' ? '0' : '5'}
         >
-          <Flex flexWrap="wrap" align="center" justify="flex-start" gap="3">
+          <Flex flexWrap="wrap" align="center" justify="flex-start" gap="3" mb={activeTab === 'chat' ? '5' : undefined}>
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
               <TabsList className="w-full justify-start gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
                 <TabsTrigger
@@ -667,6 +667,7 @@ export function DocumentDetailPage() {
 
           <Box
             flex={activeTab === 'chat' ? '1' : undefined}
+            h={activeTab === 'chat' ? 'full' : undefined}
             minH={activeTab === 'chat' ? '0' : { base: '720px', md: '860px' }}
           >
             {activeTab === 'preview' ? (

@@ -447,61 +447,63 @@ export function AppShell({ children }: PropsWithChildren) {
             </Flex>
           </Flex>
 
-          <Flex minH="0" flex="1" direction="column">
-            <Flex className="@container/main" minH="0" flex="1" direction="column" gap="2">
-              <Stack
-                minH="0"
-                flex="1"
-                gap={{ base: '4', md: '6' }}
-                pt={isStandaloneChatRoute ? '4' : undefined}
-                py={isStandaloneChatRoute ? undefined : { base: '4', md: '6' }}
-              >
+          <Box
+            as="main"
+            className="@container/main"
+            flex="1"
+            minH="0"
+            overflow={isStandaloneChatRoute ? 'hidden' : 'auto'}
+            px={isStandaloneChatRoute ? '0' : { base: '4', lg: '6' }}
+            py="0"
+          >
+            {isStandaloneChatRoute ? (
+              children
+            ) : (
+              <Stack minH="0" gap={{ base: '4', md: '6' }} pt={{ base: '4', md: '6' }}>
                 {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                  <Box px={{ base: '4', lg: '6' }}>
-                    <NavLink
-                      to="/transfers"
-                      style={{ color: 'inherit', textDecoration: 'none' }}
+                  <NavLink
+                    to="/transfers"
+                    style={{ color: 'inherit', textDecoration: 'none' }}
+                  >
+                    <Flex
+                      align="center"
+                      justify="space-between"
+                      rounded="xl"
+                      borderWidth="1px"
+                      borderColor="border.subtle"
+                      bg="bg.panel"
+                      px="4"
+                      py="3"
+                      fontSize="sm"
+                      color="fg.muted"
+                      shadow="sm"
+                      transition="colors"
+                      _hover={{ bg: 'teal.subtle', color: 'fg' }}
                     >
-                      <Flex
-                        align="center"
-                        justify="space-between"
-                        rounded="xl"
-                        borderWidth="1px"
-                        borderColor="border.subtle"
-                        bg="bg.panel"
-                        px="4"
-                        py="3"
-                        fontSize="sm"
-                        color="fg.muted"
-                        shadow="sm"
-                        transition="colors"
-                        _hover={{ bg: 'teal.subtle', color: 'fg' }}
-                      >
-                        <HStack gap="3">
-                          <Flex
-                            boxSize="9"
-                            align="center"
-                            justify="center"
-                            rounded="lg"
-                            bg="bg.subtle"
-                            color="fg"
-                          >
-                            <Upload size={16} />
-                          </Flex>
-                          <Text>
-                            Uploading {uploadState.activeCount + uploadState.queuedCount} file
-                            {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
-                          </Text>
-                        </HStack>
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em">
-                          View queue
+                      <HStack gap="3">
+                        <Flex
+                          boxSize="9"
+                          align="center"
+                          justify="center"
+                          rounded="lg"
+                          bg="bg.subtle"
+                          color="fg"
+                        >
+                          <Upload size={16} />
+                        </Flex>
+                        <Text>
+                          Uploading {uploadState.activeCount + uploadState.queuedCount} file
+                          {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
                         </Text>
-                      </Flex>
-                    </NavLink>
-                  </Box>
+                      </HStack>
+                      <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em">
+                        View queue
+                      </Text>
+                    </Flex>
+                  </NavLink>
                 ) : null}
 
-                <Stack gap="3" px="4" display={{ base: 'flex', lg: 'none' }}>
+                <Stack gap="3" display={{ base: 'flex', lg: 'none' }}>
                   <Box position="relative">
                     <Box
                       position="absolute"
@@ -566,19 +568,10 @@ export function AppShell({ children }: PropsWithChildren) {
                   </HStack>
                 </Stack>
 
-                <Box
-                  as="main"
-                  flex="1"
-                  minH="0"
-                  px={{ base: '4', lg: '6' }}
-                  overflow={isStandaloneChatRoute ? 'hidden' : 'auto'}
-                  pb={isStandaloneChatRoute ? '0' : { base: '4', lg: '6' }}
-                >
-                  {children}
-                </Box>
+                {children}
               </Stack>
-            </Flex>
-          </Flex>
+            )}
+          </Box>
         </SidebarInset>
       </SidebarProvider>
       <Dialog

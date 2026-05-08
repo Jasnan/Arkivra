@@ -29,7 +29,7 @@ export function ChatConversationRail({
   return (
     <>
       {showHeader ? (
-        <Flex align="center" justify="space-between" gap="3" py="2">
+        <Flex align="center" justify="space-between" gap="3" px="4" py="2">
           <Flex align="center" gap="2" fontSize="sm" fontWeight="semibold" color="fg">
             <MessageSquare size={16} color="var(--chakra-colors-teal-solid)" />
             Conversations
@@ -64,7 +64,7 @@ export function ChatConversationRail({
         minH="0"
         flex="1"
         overflowY="auto"
-        pr="1"
+        px="4"
         mt={showHeader ? '4' : '2'}
       >
         {conversationsQuery.isLoading ? (

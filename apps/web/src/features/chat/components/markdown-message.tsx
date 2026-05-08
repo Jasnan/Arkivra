@@ -3,6 +3,15 @@ import { Box, Flex, Text } from '@chakra-ui/react';
 import type { Citation } from '../chat.types';
 import { WINDOWS_NEWLINE_PATTERN, ORDERED_LIST_PREFIX_PATTERN, renderInlineMarkdown } from './chat-utils';
 
+export function normalizeChatDisplayContent(content: string) {
+  return content
+    .replace(WINDOWS_NEWLINE_PATTERN, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
 export function MarkdownMessage({
   content,
   citations,
@@ -12,7 +21,7 @@ export function MarkdownMessage({
   citations: Citation[];
   onCitationClick?: (citation: Citation) => void;
 }) {
-  const lines = content.replace(WINDOWS_NEWLINE_PATTERN, '\n').split('\n');
+  const lines = normalizeChatDisplayContent(content).split('\n');
   const blocks: ReactNode[] = [];
   let paragraphLines: string[] = [];
   let listItems: { type: 'ul' | 'ol'; content: string }[] = [];
@@ -154,7 +163,7 @@ export function MarkdownMessage({
   flushCodeFence();
 
   return (
-    <Flex direction="column" gap="4">
+    <Flex direction="column" gap="2">
       {blocks}
     </Flex>
   );

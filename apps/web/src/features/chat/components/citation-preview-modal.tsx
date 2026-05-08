@@ -291,7 +291,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                 <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                   Matched text
                 </Text>
-                <Box rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4" fontSize="sm" lineHeight="6" color="fg">
+                <Box rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4" fontSize="sm" lineHeight="1.6" color="fg">
                   {citation.snippet}
                 </Box>
               </Flex>
@@ -310,7 +310,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                             <Text color="fg.muted">{figure.pageLabel}</Text>
                           ) : null}
                         </Flex>
-                        <Text mt="2" fontSize="sm" lineHeight="6" color="fg">{figure.caption}</Text>
+                        <Text mt="2" fontSize="sm" lineHeight="1.6" color="fg">{figure.caption}</Text>
                       </Box>
                     ))}
                   </Flex>

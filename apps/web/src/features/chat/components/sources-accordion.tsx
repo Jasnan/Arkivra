@@ -30,7 +30,11 @@ export function SourcesAccordion({
         collapsible
         value={isOpen ? 'sources' : undefined}
         onValueChange={(value) => setIsOpen(value === 'sources')}
-        style={{ marginTop: '1rem', borderTop: '1px solid var(--chakra-colors-border-subtle)', paddingTop: '0.5rem' }}
+        mt="4"
+        mb={isOpen ? { base: '10rem', md: '9rem' } : '0'}
+        borderTopWidth="1px"
+        borderTopColor="border.subtle"
+        pt="2"
       >
         <AccordionItem value="sources" style={{ borderBottom: '0' }}>
           <AccordionTrigger
@@ -87,11 +91,11 @@ export function SourcesAccordion({
                           {citationSectionLabel(citation)}
                         </Text>
                       ) : null}
-                      <Text lineClamp="2" fontSize="sm" lineHeight="6" color="fg.muted">
+                      <Text lineClamp="2" fontSize="sm" lineHeight="1.6" color="fg.muted">
                         {citation.snippet}
                       </Text>
                       {figurePreview ? (
-                        <Text lineClamp="2" fontSize="xs" lineHeight="5" color="fg.muted">
+                        <Text lineClamp="2" fontSize="xs" lineHeight="1.5" color="fg.muted">
                           {figurePreview.caption}
                         </Text>
                       ) : null}

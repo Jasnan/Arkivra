@@ -62,11 +62,11 @@ export function ChatInputPanel({
   }
 
   return (
-    <Box flexShrink="0" px="4" pb="1" pt="2" sm={{ px: '6', pb: '2' }}>
+    <Box alignSelf="end" flexShrink="0" px="4" pb="4" pt="2" sm={{ px: '6', pb: '5' }}>
       <Box
         mx="auto"
         w="100%"
-        maxW="container.lg"
+        maxW="72rem"
         rounded="2xl"
         borderWidth="1px"
         borderColor="border.subtle"

@@ -51,6 +51,7 @@ export function ChatWorkspace({
   heightClassName = 'h-[calc(100vh-14rem)] min-h-[32rem]',
   showContextHeader = true,
 }: ChatWorkspaceProps) {
+  const isFullHeight = heightClassName === 'h-full';
   const { vaultId, documentId } = scope;
   const isDocumentChat = Boolean(vaultId && documentId);
   const isGlobalChat = !vaultId;
@@ -259,8 +260,9 @@ export function ChatWorkspace({
   return (
     <Box
       display="grid"
+      h={isFullHeight ? 'full' : 'calc(100vh - 14rem)'}
+      minH={isFullHeight ? '0' : '32rem'}
       overflow="hidden"
-      className={heightClassName}
       gridTemplateColumns={{
         base: '1fr',
         lg: isDesktopConversationRailCollapsed ? '0 minmax(0, 1fr)' : '18rem minmax(0, 1fr)',
@@ -300,113 +302,118 @@ export function ChatWorkspace({
         />
       </Box>
 
-      <Flex
+      <Box
         as="section"
-        direction="column"
+        display="grid"
+        gridTemplateRows="auto auto minmax(0, 1fr) auto"
+        h="100%"
         minH="0"
+        maxH="100%"
         overflow="hidden"
         lg={!isDesktopConversationRailCollapsed ? { pl: '6' } : undefined}
       >
-        {streamError ? (
-          <Flex
-            align="center"
-            gap="2"
-            borderBottomWidth="1px"
-            borderColor="border.subtle"
-            bg="bg.error"
-            px="4"
-            py="3"
-            fontSize="sm"
-            color="fg.error"
-            sm={{ px: '6' }}
-          >
-            <AlertCircle size={16} />
-            {streamError}
-          </Flex>
-        ) : null}
+        <Box minH="0">
+          {streamError ? (
+            <Flex
+              align="center"
+              gap="2"
+              borderBottomWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.error"
+              px="4"
+              py="3"
+              fontSize="sm"
+              color="fg.error"
+              sm={{ px: '6' }}
+            >
+              <AlertCircle size={16} />
+              {streamError}
+            </Flex>
+          ) : null}
 
-        {showContextHeader ? (
-          <ChatContextHeader
-            contextLabel={experience.contextLabel}
-            contextBadge={experience.contextBadge}
-            contextDescription={experience.contextDescription}
-            leadingAction={
-              <Button
-                type="button"
-                variant="ghost"
-                display={{ base: 'none', lg: 'inline-flex' }}
-                style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
-                onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
-              >
-                {isDesktopConversationRailCollapsed ? (
-                  <PanelLeftOpen size={16} />
-                ) : (
-                  <PanelLeftClose size={16} />
-                )}
-              </Button>
-            }
-          />
-        ) : null}
-
-        <Box
-          display={{ base: 'block', lg: 'none' }}
-          borderBottomWidth="1px"
-          borderColor="border.subtle"
-          px="4"
-          py="3"
-          sm={{ px: '6' }}
-        >
-          <Collapsible
-            open={isMobileConversationRailOpen}
-            onOpenChange={setIsMobileConversationRailOpen}
-          >
-            <Flex align="center" justify="space-between" gap="3">
-              <Flex align="center" gap="2" fontSize="sm" fontWeight="medium" color="fg">
-                <MessageSquare size={16} color="var(--chakra-colors-teal-solid)" />
-                Conversations
-              </Flex>
-              <CollapsibleTrigger asChild>
+          {showContextHeader ? (
+            <ChatContextHeader
+              contextLabel={experience.contextLabel}
+              contextBadge={experience.contextBadge}
+              contextDescription={experience.contextDescription}
+              leadingAction={
                 <Button
                   type="button"
                   variant="ghost"
+                  display={{ base: 'none', lg: 'inline-flex' }}
                   style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
+                  onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
                 >
-                  <PanelLeftOpen size={16} />
-                  {isMobileConversationRailOpen ? 'Hide history' : 'Show history'}
+                  {isDesktopConversationRailCollapsed ? (
+                    <PanelLeftOpen size={16} />
+                  ) : (
+                    <PanelLeftClose size={16} />
+                  )}
                 </Button>
-              </CollapsibleTrigger>
-            </Flex>
-            <CollapsibleContent
-              style={{
-                overflow: 'hidden',
-                animationTimingFunction: 'ease',
-              }}
-              _open={{ animationName: 'accordion-down' }}
-              _closed={{ animationName: 'accordion-up' }}
+              }
+            />
+          ) : null}
+
+          <Box
+            display={{ base: 'block', lg: 'none' }}
+            borderBottomWidth="1px"
+            borderColor="border.subtle"
+            px="4"
+            py="3"
+            sm={{ px: '6' }}
+          >
+            <Collapsible
+              open={isMobileConversationRailOpen}
+              onOpenChange={setIsMobileConversationRailOpen}
             >
-              <Box mt="4" borderTopWidth="1px" borderColor="border.subtle" pt="3">
-                <ChatConversationRail
-                  showHeader={false}
-                  conversationsQuery={conversationsQuery}
-                  conversationSections={conversationSections}
-                  selectedChatId={selectedChatId}
-                  effectiveSelectedChatId={effectiveSelectedChatId}
-                  createConversationPending={createConversation.isPending}
-                  onCreateConversation={() => {
-                    void handleCreateConversation();
-                  }}
-                  onSelectConversation={(chatId) => {
-                    setSelectedChatId(chatId);
-                    setIsMobileConversationRailOpen(false);
-                    resetComposerState();
-                  }}
-                  onDeleteConversation={(chatId) => {
-                    void handleDeleteConversation(chatId);
-                  }}
-                />
-              </Box>
-            </CollapsibleContent>
-          </Collapsible>
+              <Flex align="center" justify="space-between" gap="3">
+                <Flex align="center" gap="2" fontSize="sm" fontWeight="medium" color="fg">
+                  <MessageSquare size={16} color="var(--chakra-colors-teal-solid)" />
+                  Conversations
+                </Flex>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
+                  >
+                    <PanelLeftOpen size={16} />
+                    {isMobileConversationRailOpen ? 'Hide history' : 'Show history'}
+                  </Button>
+                </CollapsibleTrigger>
+              </Flex>
+              <CollapsibleContent
+                style={{
+                  overflow: 'hidden',
+                  animationTimingFunction: 'ease',
+                }}
+                _open={{ animationName: 'accordion-down' }}
+                _closed={{ animationName: 'accordion-up' }}
+              >
+                <Box mt="4" borderTopWidth="1px" borderColor="border.subtle" pt="3">
+                  <ChatConversationRail
+                    showHeader={false}
+                    conversationsQuery={conversationsQuery}
+                    conversationSections={conversationSections}
+                    selectedChatId={selectedChatId}
+                    effectiveSelectedChatId={effectiveSelectedChatId}
+                    createConversationPending={createConversation.isPending}
+                    onCreateConversation={() => {
+                      void handleCreateConversation();
+                    }}
+                    onSelectConversation={(chatId) => {
+                      setSelectedChatId(chatId);
+                      setIsMobileConversationRailOpen(false);
+                      resetComposerState();
+                    }}
+                    onDeleteConversation={(chatId) => {
+                      void handleDeleteConversation(chatId);
+                    }}
+                  />
+                </Box>
+              </CollapsibleContent>
+            </Collapsible>
+          </Box>
         </Box>
 
         <Box minH="0" flex="1" overflowY="auto">
@@ -440,11 +447,11 @@ export function ChatWorkspace({
               direction="column"
               gap="6"
               mx="auto"
-              minH="100%"
               w="100%"
-              maxW="container.lg"
+              maxW="72rem"
               px="4"
-              py="6"
+              pt="6"
+              pb="6"
               sm={{ px: '6' }}
             >
               <Box mt="auto" aria-hidden="true" />
@@ -486,7 +493,7 @@ export function ChatWorkspace({
                       px="4"
                       py="3"
                       fontSize="sm"
-                      lineHeight="6"
+                      lineHeight="1.6"
                       color="fg"
                     >
                       {streamingText.length > 0 ? (
@@ -528,7 +535,7 @@ export function ChatWorkspace({
           textareaRef={textareaRef}
           onSubmit={handleSend}
         />
-      </Flex>
+      </Box>
     </Box>
   );
 }

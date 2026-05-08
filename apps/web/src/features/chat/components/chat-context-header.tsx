@@ -17,7 +17,15 @@ export function ChatContextHeader({
 }) {
   return (
     <Box px="4" pt="4" sm={{ px: '6' }}>
-      <Flex align="center" gap="3" fontSize="sm" color="fg.muted" flexWrap="wrap">
+      <Flex
+        align="center"
+        gap="3"
+        maxW="72rem"
+        mx="auto"
+        fontSize="sm"
+        color="fg.muted"
+        flexWrap="wrap"
+      >
         {leadingAction}
         <Box as="span" srOnly>{`Context: ${contextLabel}`}</Box>
         <Text>{contextDescription}</Text>
@@ -50,7 +58,9 @@ export function ChatContextHeader({
           </Badge>
         </Flex>
       </Flex>
-      <Separator style={{ marginTop: '1rem' }} />
+      <Box maxW="72rem" mx="auto">
+        <Separator style={{ marginTop: '1rem' }} />
+      </Box>
     </Box>
   );
 }

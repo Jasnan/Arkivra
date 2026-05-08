@@ -6,7 +6,7 @@ import type { ChatApiScope } from '../chat.api';
 import type { ChatGenerationMetrics, ChatStreamStatus, Citation } from '../chat.types';
 import type { LocalMessage } from './chat-utils';
 import { formatDate, renderMetricsSummary, statusLabel } from './chat-utils';
-import { MarkdownMessage } from './markdown-message';
+import { MarkdownMessage, normalizeChatDisplayContent } from './markdown-message';
 import { SourcesAccordion } from './sources-accordion';
 import { CitationPreviewModal } from './citation-preview-modal';
 
@@ -28,6 +28,7 @@ export function MessageBubble({
   const isUser = message.role === 'user';
   const pendingStatusLabel = statusLabel(activeStatus, scope);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
+  const displayContent = normalizeChatDisplayContent(message.content);
 
   return (
     <Flex gap="3" justify={isUser ? 'flex-end' : 'flex-start'}>
@@ -50,15 +51,15 @@ export function MessageBubble({
         {isUser ? (
           <>
             <Flex direction="column" align="flex-end" w="100%">
-              <Box rounded="2xl" bg="teal.solid" px="4" py="3" fontSize="sm" lineHeight="6" color="fg.inverted" maxW="min(46rem, 100%)">
-                <Text whiteSpace="pre-wrap">{message.content}</Text>
+              <Box rounded="2xl" bg="teal.solid" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg.inverted" maxW="min(46rem, 100%)">
+                <Text whiteSpace="pre-wrap">{displayContent}</Text>
               </Box>
             </Flex>
           </>
         ) : (
-          <Box w="100%" rounded="2xl" bg="bg.subtle" px="4" py="3" fontSize="sm" lineHeight="6" color="fg">
+          <Box w="100%" rounded="2xl" bg="bg.subtle" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg">
             <MarkdownMessage
-              content={message.content}
+              content={displayContent}
               citations={message.citations}
               onCitationClick={(citation) => setSelectedCitation(citation)}
             />

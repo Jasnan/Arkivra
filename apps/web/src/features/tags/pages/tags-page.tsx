@@ -1,6 +1,18 @@
 import type { FormEvent } from 'react';
-import { useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal } from '@chakra-ui/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActionBar,
+  Box,
+  Checkbox as ChakraCheckbox,
+  Flex,
+  Grid,
+  Stack,
+  Table,
+  Text,
+  CloseButton,
+  Dialog as ChakraDialog,
+  Portal,
+} from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Pencil, Trash2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -87,6 +99,62 @@ function DeleteTagDialog({
   );
 }
 
+function DeleteTagsDialog({
+  tags,
+  isPending,
+  onClose,
+  onConfirm,
+}: {
+  tags: Tag[];
+  isPending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const attachedDocuments = tags.reduce((total, tag) => total + (tag.documentsCount ?? 0), 0);
+
+  return (
+    <ChakraDialog.Root open onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>{`Delete ${tags.length} tags?`}</ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <Stack gap="3">
+                <Text color="fg.muted" fontSize="sm">
+                  {attachedDocuments > 0
+                    ? `These tags are currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'} in total. Deleting them here will remove those tags from all attached documents.`
+                    : 'These tags are not attached to any documents right now.'}
+                </Text>
+                <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" px="4" py="3">
+                  <Text fontSize="sm" color="fg">
+                    {tags.map((tag) => tag.name).join(', ')}
+                  </Text>
+                </Box>
+              </Stack>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <ChakraDialog.ActionTrigger asChild>
+                <Button variant="outline" onClick={onClose} disabled={isPending}>
+                  Cancel
+                </Button>
+              </ChakraDialog.ActionTrigger>
+              <DeleteButton type="button" onClick={onConfirm} disabled={isPending}>
+                {isPending ? 'Deleting...' : 'Delete tags'}
+              </DeleteButton>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
+  );
+}
+
 function TagActionsMenu({
   tag,
   deletePending,
@@ -136,6 +204,30 @@ function getTagDescription(tag: Tag) {
   return description && description.length > 0 ? description : '—';
 }
 
+function SelectionCheckbox({
+  checked,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean | 'indeterminate';
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <ChakraCheckbox.Root
+      size="sm"
+      checked={checked}
+      aria-label={label}
+      onCheckedChange={(event) => onCheckedChange(event.checked === true)}
+    >
+      <ChakraCheckbox.HiddenInput />
+      <ChakraCheckbox.Control>
+        <ChakraCheckbox.Indicator />
+      </ChakraCheckbox.Control>
+    </ChakraCheckbox.Root>
+  );
+}
+
 export function TagsPage() {
   const params = useParams<{ vaultId: string }>();
   const scopedVaultId = params.vaultId;
@@ -154,6 +246,8 @@ export function TagsPage() {
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState(DEFAULT_TAG_COLOR);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagsPendingBulkDelete, setTagsPendingBulkDelete] = useState<Tag[]>([]);
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const focusRestoreTargetRef = useRef<HTMLElement | null>(null);
 
@@ -174,6 +268,14 @@ export function TagsPage() {
       );
     });
   }, [filterText, tags]);
+  const selectedTags = useMemo(
+    () => filteredTags.filter((tag) => selectedTagIds.includes(tag.id)),
+    [filteredTags, selectedTagIds],
+  );
+  const allVisibleSelected =
+    filteredTags.length > 0 && filteredTags.every((tag) => selectedTagIds.includes(tag.id));
+  const someVisibleSelected =
+    filteredTags.some((tag) => selectedTagIds.includes(tag.id)) && !allVisibleSelected;
 
   function rememberFocusTarget(target?: HTMLElement | null) {
     focusRestoreTargetRef.current =
@@ -249,17 +351,71 @@ export function TagsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteTag,
-    onSuccess: async (_, variables) => {
-      await invalidateTagQueries(variables.vaultId);
-      toast.success('Tag deleted.');
+    mutationFn: async (tagsToDelete: Array<{ vaultId: string; tagId: string }>) =>
+      Promise.all(tagsToDelete.map((tagToDelete) => deleteTag(tagToDelete))),
+    onSuccess: async (_data, variables) => {
+      const vaultIds = new Set(variables.map((item) => item.vaultId));
+      await Promise.all(
+        Array.from(vaultIds).map((vaultId) => invalidateTagQueries(vaultId)),
+      );
+      toast.success(
+        variables.length === 1 ? 'Tag deleted.' : `${variables.length} tags deleted.`,
+      );
+      const deletedTagIds = new Set(variables.map((item) => item.tagId));
+      setSelectedTagIds((current) => current.filter((id) => !deletedTagIds.has(id)));
       setTagPendingDelete(null);
+      setTagsPendingBulkDelete([]);
       restoreFocusTarget();
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not delete tag.');
     },
   });
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      if (tagPendingDelete && !deleteMutation.isPending) {
+        event.preventDefault();
+        setTagPendingDelete(null);
+        restoreFocusTarget();
+        return;
+      }
+
+      if (tagsPendingBulkDelete.length > 0 && !deleteMutation.isPending) {
+        event.preventDefault();
+        setTagsPendingBulkDelete([]);
+        restoreFocusTarget();
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [deleteMutation.isPending, tagPendingDelete, tagsPendingBulkDelete.length]);
+
+  function toggleTagSelection(tagId: string, checked: boolean) {
+    setSelectedTagIds((current) => (
+      checked
+        ? current.includes(tagId) ? current : [...current, tagId]
+        : current.filter((id) => id !== tagId)
+    ));
+  }
+
+  function toggleAllVisibleTags(checked: boolean) {
+    setSelectedTagIds((current) => {
+      if (checked) {
+        return Array.from(new Set([...current, ...filteredTags.map((tag) => tag.id)]));
+      }
+
+      const visibleTagIds = new Set(filteredTags.map((tag) => tag.id));
+      return current.filter((id) => !visibleTagIds.has(id));
+    });
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -322,24 +478,6 @@ export function TagsPage() {
       </SurfacePanel>
 
       <SurfacePanel overflow="hidden" p="0">
-        <Grid
-          display={{ base: 'none', md: 'grid' }}
-          templateColumns="180px minmax(0, 1.4fr) 140px 170px 150px 130px"
-          gap="6"
-          px="6"
-          py="4"
-          fontSize="sm"
-          fontWeight="medium"
-          color="fg.muted"
-        >
-          <Text as="span">Tag</Text>
-          <Text as="span">Description</Text>
-          <Text as="span">Documents</Text>
-          <Text as="span">Vault</Text>
-          <Text as="span">Created</Text>
-          <Text as="span" textAlign="right">Actions</Text>
-        </Grid>
-
         {tagsQuery.isLoading ? (
           <Text px="6" py="6" textStyle="sm">Loading tags...</Text>
         ) : null}
@@ -357,59 +495,101 @@ export function TagsPage() {
           </Box>
         ) : null}
 
-        <Stack gap="0" divideY="1px" divideColor="border.subtle">
-          {filteredTags.map((tag) => (
-            <Grid
-              as="article"
-              key={tag.id}
-              gap={{ base: '4', md: '6' }}
-              px="6"
-              py="5"
-              templateColumns={{ base: '1fr', md: '180px minmax(0, 1.4fr) 140px 170px 150px 130px' }}
-              alignItems={{ md: 'center' }}
+        {!tagsQuery.isLoading && filteredTags.length > 0 ? (
+          <Table.ScrollArea>
+            <Table.Root
+              size="sm"
+              variant="line"
+              interactive
+              css={{
+                '& [data-selected]': {
+                  background: 'var(--chakra-colors-bg-subtle)',
+                },
+              }}
             >
-              <Stack gap="2">
-                <Flex w="fit-content" align="center" gap="3" rounded="full" bg="bg.subtle" px="4" py="2" fontSize="sm" fontWeight="semibold" color="fg">
-                  <Box
-                    aria-hidden="true"
-                    boxSize="2.5"
-                    rounded="full"
-                    style={{ backgroundColor: tag.color ?? '#94a3b8' }}
-                  />
-                  <Text as="span">{tag.name}</Text>
-                </Flex>
-                <Text display={{ md: 'none' }} fontSize="xs" color="fg.muted">
-                  {tag.vaultName ?? 'Current vault'}
-                </Text>
-              </Stack>
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeader w="10">
+                    <SelectionCheckbox
+                      checked={someVisibleSelected ? 'indeterminate' : allVisibleSelected}
+                      label="Select all visible tags"
+                      onCheckedChange={toggleAllVisibleTags}
+                    />
+                  </Table.ColumnHeader>
+                  <Table.ColumnHeader minW="180px">Tag</Table.ColumnHeader>
+                  <Table.ColumnHeader minW="260px">Description</Table.ColumnHeader>
+                  <Table.ColumnHeader minW="120px">Documents</Table.ColumnHeader>
+                  <Table.ColumnHeader minW="170px">Vault</Table.ColumnHeader>
+                  <Table.ColumnHeader minW="150px">Created</Table.ColumnHeader>
+                  <Table.ColumnHeader w="20" textAlign="right">Actions</Table.ColumnHeader>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {filteredTags.map((tag) => {
+                  const isSelected = selectedTagIds.includes(tag.id);
 
-              <Text fontSize="sm" color="fg">{getTagDescription(tag)}</Text>
-
-              <Flex align="center" gap="2" fontSize="sm" color="fg">
-                <FileText size={16} color="var(--chakra-colors-fg-muted)" />
-                <Text as="span">{tag.documentsCount ?? 0}</Text>
-              </Flex>
-
-              <Text fontSize="sm" color="fg.muted">
-                {tag.vaultName ?? 'Current vault'}
-              </Text>
-
-              <Text fontSize="sm" color="fg.muted">{formatTagCreatedDate(tag.createdAt)}</Text>
-
-              <Flex align="center" justify="flex-end" gap="2">
-                <TagActionsMenu
-                  tag={tag}
-                  deletePending={deleteMutation.isPending}
-                  onEdit={(trigger) => openEditDialog(tag, trigger)}
-                  onDelete={(trigger) => {
-                    rememberFocusTarget(trigger);
-                    setTagPendingDelete(tag);
-                  }}
-                />
-              </Flex>
-            </Grid>
-          ))}
-        </Stack>
+                  return (
+                    <Table.Row key={tag.id} data-selected={isSelected ? '' : undefined}>
+                      <Table.Cell verticalAlign="top" w="10">
+                        <SelectionCheckbox
+                          checked={isSelected}
+                          label={`Select ${tag.name}`}
+                          onCheckedChange={(checked) => toggleTagSelection(tag.id, checked)}
+                        />
+                      </Table.Cell>
+                      <Table.Cell verticalAlign="top">
+                        <Stack gap="2">
+                          <Flex w="fit-content" align="center" gap="3" rounded="full" bg="bg.subtle" px="4" py="2" fontSize="sm" fontWeight="semibold" color="fg">
+                            <Box
+                              aria-hidden="true"
+                              boxSize="2.5"
+                              rounded="full"
+                              style={{ backgroundColor: tag.color ?? '#94a3b8' }}
+                            />
+                            <Text as="span">{tag.name}</Text>
+                          </Flex>
+                          <Text display={{ md: 'none' }} fontSize="xs" color="fg.muted">
+                            {tag.vaultName ?? 'Current vault'}
+                          </Text>
+                        </Stack>
+                      </Table.Cell>
+                      <Table.Cell verticalAlign="top">
+                        <Text fontSize="sm" color="fg">{getTagDescription(tag)}</Text>
+                      </Table.Cell>
+                      <Table.Cell verticalAlign="top">
+                        <Flex align="center" gap="2" fontSize="sm" color="fg">
+                          <FileText size={16} color="var(--chakra-colors-fg-muted)" />
+                          <Text as="span">{tag.documentsCount ?? 0}</Text>
+                        </Flex>
+                      </Table.Cell>
+                      <Table.Cell verticalAlign="top">
+                        <Text fontSize="sm" color="fg.muted">
+                          {tag.vaultName ?? 'Current vault'}
+                        </Text>
+                      </Table.Cell>
+                      <Table.Cell verticalAlign="top">
+                        <Text fontSize="sm" color="fg.muted">{formatTagCreatedDate(tag.createdAt)}</Text>
+                      </Table.Cell>
+                      <Table.Cell verticalAlign="top" textAlign="right">
+                        <Flex align="center" justify="flex-end" gap="2">
+                          <TagActionsMenu
+                            tag={tag}
+                            deletePending={deleteMutation.isPending}
+                            onEdit={(trigger) => openEditDialog(tag, trigger)}
+                            onDelete={(trigger) => {
+                              rememberFocusTarget(trigger);
+                              setTagPendingDelete(tag);
+                            }}
+                          />
+                        </Flex>
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                })}
+              </Table.Body>
+            </Table.Root>
+          </Table.ScrollArea>
+        ) : null}
       </SurfacePanel>
 
       <TagDialog
@@ -472,13 +652,56 @@ export function TagsPage() {
             restoreFocusTarget();
           }}
           onConfirm={() => {
-            deleteMutation.mutate({
+            deleteMutation.mutate([{
               vaultId: tagPendingDelete.vaultId ?? scopedVaultId ?? '',
               tagId: tagPendingDelete.id,
-            });
+            }]);
           }}
         />
       ) : null}
+
+      {tagsPendingBulkDelete.length > 0 ? (
+        <DeleteTagsDialog
+          tags={tagsPendingBulkDelete}
+          isPending={deleteMutation.isPending}
+          onClose={() => {
+            setTagsPendingBulkDelete([]);
+            restoreFocusTarget();
+          }}
+          onConfirm={() => {
+            deleteMutation.mutate(
+              tagsPendingBulkDelete.map((tag) => ({
+                vaultId: tag.vaultId ?? scopedVaultId ?? '',
+                tagId: tag.id,
+              })),
+            );
+          }}
+        />
+      ) : null}
+
+      <ActionBar.Root open={selectedTags.length > 0}>
+        <Portal>
+          <ActionBar.Positioner>
+            <ActionBar.Content>
+              <ActionBar.SelectionTrigger>
+                {selectedTags.length} selected
+              </ActionBar.SelectionTrigger>
+              <ActionBar.Separator />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  rememberFocusTarget();
+                  setTagsPendingBulkDelete(selectedTags);
+                }}
+              >
+                Delete selected
+              </Button>
+            </ActionBar.Content>
+          </ActionBar.Positioner>
+        </Portal>
+      </ActionBar.Root>
     </Stack>
   );
 }

@@ -3,6 +3,13 @@ import '@testing-library/jest-dom/vitest';
 const MIN_WIDTH_PATTERN = /min-width:\s*(\d+)px/;
 const MAX_WIDTH_PATTERN = /max-width:\s*(\d+)px/;
 
+if (!window.PointerEvent) {
+  class PointerEventMock extends MouseEvent {}
+
+  window.PointerEvent = PointerEventMock as typeof PointerEvent;
+  globalThis.PointerEvent = PointerEventMock as typeof PointerEvent;
+}
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => {

@@ -421,6 +421,112 @@ describe('documents library search controls', () => {
     expect(sherlockIndex).toBeLessThan(puzzlePalaceIndex);
   });
 
+  it('shows a bulk delete action bar for selected documents', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1') && init?.method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_2') && init?.method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 2,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Sherlock',
+              documentId: 'doc_1',
+              name: 'Alpha.pdf',
+              originalName: 'Alpha.pdf',
+              originalSize: 41000,
+              mimeType: 'application/pdf',
+              documentDate: '2026-04-10T00:00:00.000Z',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-11T10:00:00.000Z',
+              matchedChunksCount: 0,
+              bestChunk: null,
+            },
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Sherlock',
+              documentId: 'doc_2',
+              name: 'Bravo.pdf',
+              originalName: 'Bravo.pdf',
+              originalSize: 42000,
+              mimeType: 'application/pdf',
+              documentDate: '2026-04-11T00:00:00.000Z',
+              createdAt: '2026-04-11T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+              matchedChunksCount: 0,
+              bestChunk: null,
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await screen.findByText('Alpha.pdf');
+
+    await user.click(screen.getByRole('checkbox', { name: /select alpha\.pdf/i }));
+    await user.click(screen.getByRole('checkbox', { name: /select bravo\.pdf/i }));
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /delete selected/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents/doc_1',
+        expect.objectContaining({ credentials: 'include', method: 'DELETE' }),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents/doc_2',
+        expect.objectContaining({ credentials: 'include', method: 'DELETE' }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
+    });
+  });
+
   it('keeps custom date ranges valid in the global documents filters', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {

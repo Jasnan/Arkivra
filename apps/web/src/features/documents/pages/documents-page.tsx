@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, Flex, HStack, Text } from '@chakra-ui/react';
+import { ActionBar, Box, Flex, HStack, Portal, Text } from '@chakra-ui/react';
 import { Upload } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -17,10 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { softDeleteDocument } from '@/features/documents/documents.api';
+import { getDocumentDownloadUrl, softDeleteDocument } from '@/features/documents/documents.api';
 import {
-  DocumentLibraryHeader,
-  DocumentLibraryRow,
+  DocumentLibraryTable,
+  getDocumentSelectionKey,
 } from '@/features/documents/components/document-library-list';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
@@ -119,6 +119,7 @@ export function DocumentsPage() {
   const [customDateTo, setCustomDateTo] = useState('');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
+  const [selectedDocumentKeys, setSelectedDocumentKeys] = useState<string[]>([]);
   const debouncedSearchText = useDebouncedValue(searchText.trim(), 280);
   const appliedDateRange = useMemo(() => {
     if (datePreset === 'custom') {
@@ -150,9 +151,18 @@ export function DocumentsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: softDeleteDocument,
-    onSuccess: async () => {
-      toast.success('Document moved to trash.');
+    mutationFn: async (documents: Array<{ vaultId: string; documentId: string }>) =>
+      Promise.all(documents.map((document) => softDeleteDocument(document))),
+    onSuccess: async (_data, documents) => {
+      toast.success(
+        documents.length === 1
+          ? 'Document moved to trash.'
+          : `${documents.length} documents moved to trash.`,
+      );
+      const deletedKeys = new Set(
+        documents.map((document) => getDocumentSelectionKey(document.vaultId, document.documentId)),
+      );
+      setSelectedDocumentKeys((current) => current.filter((key) => !deletedKeys.has(key)));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
@@ -205,6 +215,70 @@ export function DocumentsPage() {
   const activeResultCount = usingSearch ? searchResultCount : filteredDocuments.length;
   const activePageCount = Math.max(1, Math.ceil(activeResultCount / PAGE_SIZE));
   const activePageIndex = usingSearch ? pageIndex : safePageIndex;
+  const activeDocuments = useMemo(
+    () => (
+      usingSearch
+        ? (searchQuery.data?.results ?? []).map((result) => ({
+            documentId: result.documentId,
+            vaultId,
+            name: result.name,
+            mimeType: result.mimeType,
+            originalName: result.originalName,
+            originalSize: result.originalSize,
+            createdAt: result.createdAt,
+            updatedAt: result.updatedAt,
+            tags: result.tags,
+            snippet: result.bestChunk
+              ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
+                  part.highlighted ? (
+                    <Box
+                      as="mark"
+                      key={`${result.documentId}-${part.key}`}
+                      rounded="md"
+                      bg="teal.subtle"
+                      color="fg"
+                      px="1.5"
+                      py="0.5"
+                    >
+                      {part.text}
+                    </Box>
+                  ) : (
+                    <Text as="span" key={`${result.documentId}-${part.key}`}>
+                      {part.text}
+                    </Text>
+                  ),
+                )
+              : undefined,
+          }))
+        : visibleDocuments.map((document) => ({
+            documentId: document.id,
+            vaultId,
+            name: document.name,
+            mimeType: document.mimeType,
+            originalName: document.originalName,
+            originalSize: document.originalSize,
+            createdAt: document.createdAt,
+            updatedAt: document.updatedAt,
+          }))
+    ),
+    [searchQuery.data?.results, usingSearch, vaultId, visibleDocuments],
+  );
+  const selectedDocuments = useMemo(() => {
+    const documentsByKey = new Map(
+      activeDocuments.map((document) => [
+        getDocumentSelectionKey(document.vaultId, document.documentId),
+        document,
+      ]),
+    );
+
+    return selectedDocumentKeys
+      .map((key) => documentsByKey.get(key))
+      .filter((document): document is (typeof activeDocuments)[number] => Boolean(document));
+  }, [activeDocuments, selectedDocumentKeys]);
+  const visibleDocumentKeys = useMemo(
+    () => activeDocuments.map((document) => getDocumentSelectionKey(document.vaultId, document.documentId)),
+    [activeDocuments],
+  );
   const selectedTag = (tagsQuery.data?.tags ?? []).find((tag) => tag.id === selectedTagId);
   const activeFilters = [
     ...(selectedTag
@@ -260,6 +334,11 @@ export function DocumentsPage() {
     };
   }, [queryClient, vaultId]);
 
+  useEffect(() => {
+    const visibleKeySet = new Set(visibleDocumentKeys);
+    setSelectedDocumentKeys((current) => current.filter((key) => visibleKeySet.has(key)));
+  }, [visibleDocumentKeys]);
+
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
   }
@@ -270,6 +349,37 @@ export function DocumentsPage() {
     setCustomDateFrom('');
     setCustomDateTo('');
     setPageIndex(0);
+  }
+
+  function toggleDocumentSelection(selectionKey: string, checked: boolean) {
+    setSelectedDocumentKeys((current) => (
+      checked
+        ? current.includes(selectionKey) ? current : [...current, selectionKey]
+        : current.filter((key) => key !== selectionKey)
+    ));
+  }
+
+  function toggleAllDocumentSelection(selectionKeys: string[], checked: boolean) {
+    setSelectedDocumentKeys((current) => {
+      if (checked) {
+        return Array.from(new Set([...current, ...selectionKeys]));
+      }
+
+      const selectionSet = new Set(selectionKeys);
+      return current.filter((key) => !selectionSet.has(key));
+    });
+  }
+
+  function downloadDocuments(documents: Array<{ vaultId: string; documentId: string }>) {
+    for (const document of documents) {
+      const link = window.document.createElement('a');
+      link.href = getDocumentDownloadUrl(document);
+      link.download = '';
+      link.rel = 'noopener';
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
   }
 
   return (
@@ -415,8 +525,6 @@ export function DocumentsPage() {
       </SurfacePanel>
 
       <SurfacePanel overflow="hidden" p="0">
-        <DocumentLibraryHeader />
-
         {documentsQuery.isLoading ? (
           <Text px="6" py="6" fontSize="sm" color="fg.muted">Loading documents...</Text>
         ) : null}
@@ -435,67 +543,17 @@ export function DocumentsPage() {
             No documents match the current filters.
           </Text>
         ) : (
-          <Flex direction="column" divideY="1px" divideColor="border.subtle">
-            {usingSearch
-              ? (searchQuery.data?.results ?? []).map((result) => (
-                  <DocumentLibraryRow
-                    key={result.documentId}
-                    name={result.name}
-                    mimeType={result.mimeType}
-                    originalName={result.originalName}
-                    originalSize={result.originalSize}
-                    createdAt={result.createdAt}
-                    updatedAt={result.updatedAt}
-                    tags={result.tags}
-                    snippet={
-                      result.bestChunk
-                        ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
-                            part.highlighted ? (
-                              <Box
-                                as="mark"
-                                key={`${result.documentId}-${part.key}`}
-                                rounded="md"
-                                bg="teal.subtle"
-                                color="fg"
-                                px="1.5"
-                                py="0.5"
-                              >
-                                {part.text}
-                              </Box>
-                            ) : (
-                              <Text as="span" key={`${result.documentId}-${part.key}`}>
-                                {part.text}
-                              </Text>
-                            ),
-                          )
-                        : undefined
-                    }
-                    vaultId={vaultId}
-                    documentId={result.documentId}
-                    deleteDisabled={deleteMutation.isPending}
-                    onDelete={() => {
-                      deleteMutation.mutate({ vaultId, documentId: result.documentId });
-                    }}
-                  />
-                ))
-              : visibleDocuments.map((document) => (
-                  <DocumentLibraryRow
-                    key={document.id}
-                    name={document.name}
-                    mimeType={document.mimeType}
-                    originalName={document.originalName}
-                    originalSize={document.originalSize}
-                    createdAt={document.createdAt}
-                    updatedAt={document.updatedAt}
-                    vaultId={vaultId}
-                    documentId={document.id}
-                    deleteDisabled={deleteMutation.isPending}
-                    onDelete={() => {
-                      deleteMutation.mutate({ vaultId, documentId: document.id });
-                    }}
-                  />
-                ))}
-          </Flex>
+          <DocumentLibraryTable
+            vaultName="Current vault"
+            documents={activeDocuments}
+            selectedDocumentKeys={selectedDocumentKeys}
+            onToggleDocument={toggleDocumentSelection}
+            onToggleAllDocuments={toggleAllDocumentSelection}
+            deleteDisabled={deleteMutation.isPending}
+            onDelete={(document) => {
+              deleteMutation.mutate([document]);
+            }}
+          />
         )}
 
         <Separator />
@@ -530,6 +588,49 @@ export function DocumentsPage() {
           </Flex>
         </Flex>
       </SurfacePanel>
+
+      <ActionBar.Root open={selectedDocuments.length > 0}>
+        <Portal>
+          <ActionBar.Positioner>
+            <ActionBar.Content>
+              <ActionBar.SelectionTrigger>
+                {selectedDocuments.length} selected
+              </ActionBar.SelectionTrigger>
+              <ActionBar.Separator />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  downloadDocuments(
+                    selectedDocuments.map((document) => ({
+                      vaultId: document.vaultId,
+                      documentId: document.documentId,
+                    })),
+                  );
+                }}
+              >
+                Download selected
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  deleteMutation.mutate(
+                    selectedDocuments.map((document) => ({
+                      vaultId: document.vaultId,
+                      documentId: document.documentId,
+                    })),
+                  );
+                }}
+              >
+                Delete selected
+              </Button>
+            </ActionBar.Content>
+          </ActionBar.Positioner>
+        </Portal>
+      </ActionBar.Root>
     </Flex>
   );
 }

@@ -37,6 +37,7 @@ function buildSocialProviders(config: Config) {
           github: {
             clientId: config.auth.githubClientId!,
             clientSecret: config.auth.githubClientSecret!,
+            redirectURI: config.auth.githubRedirectUri ?? getOAuthRedirectUri(config, 'github'),
           },
         }
       : {}),
@@ -55,7 +56,9 @@ export function createAuth({ db, config }: { db: Database; config: Config }) {
   }
 
   if (config.auth.githubClientId && config.auth.githubClientSecret) {
-    console.info(`GitHub OAuth redirect URI: ${getOAuthRedirectUri(config, 'github')}`);
+    console.info(
+      `GitHub OAuth redirect URI: ${config.auth.githubRedirectUri ?? getOAuthRedirectUri(config, 'github')}`,
+    );
   }
 
   const auth = betterAuth({

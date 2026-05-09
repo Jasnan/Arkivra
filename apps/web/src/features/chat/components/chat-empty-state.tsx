@@ -22,21 +22,21 @@ export function ChatEmptyState({
   const hasGuidedPrompts = Boolean(guidedPrompts?.length && onGuidedPromptSelect);
 
   return (
-    <Flex minH="100%" align="center" justify="center" px="6" py="10">
+    <Flex minH="100%" align="center" justify="center" px="6" py="6">
       <Flex direction="column" align="center" textAlign="center" maxW="container.md" mx="auto" w="100%">
         <Flex
-          boxSize="14"
+          boxSize="12"
           align="center"
           justify="center"
           rounded="lg"
           bg="teal.subtle"
           color="teal.fg"
         >
-          <MessageSquare size={24} />
+          <MessageSquare size={22} />
         </Flex>
 
-        <Flex direction="column" gap="1" mt="6">
-          <Text as="h3" fontSize={{ base: '2xl', sm: '3xl' }} fontWeight="semibold" letterSpacing="tight" color="fg">
+        <Flex direction="column" gap="1" mt="4">
+          <Text as="h3" fontSize={{ base: 'xl', sm: '2xl' }} fontWeight="semibold" letterSpacing="tight" color="fg">
             {title}
           </Text>
           <Text fontSize="sm" lineHeight="6" color="fg.muted" maxW="container.sm" mx="auto">
@@ -45,7 +45,7 @@ export function ChatEmptyState({
         </Flex>
 
         {hasGuidedPrompts ? (
-          <Flex direction={{ base: 'column', sm: 'row' }} gap="3" mt="8" w="100%" maxW="container.md" flexWrap="wrap">
+          <Flex direction={{ base: 'column', sm: 'row' }} gap="3" mt="5" w="100%" maxW="container.md" flexWrap="wrap">
             {guidedPrompts?.map((prompt) => {
               const Icon = prompt.icon;
               return (
@@ -56,7 +56,7 @@ export function ChatEmptyState({
                   borderWidth="1px"
                   borderColor="border.subtle"
                   bg="bg.surface"
-                  p="5"
+                  p="4"
                   textAlign="left"
                   shadow="xs"
                   cursor="pointer"
@@ -65,19 +65,19 @@ export function ChatEmptyState({
                   _hover={{ borderColor: 'teal.muted', bg: 'bg.subtle' }}
                   onClick={() => onGuidedPromptSelect?.(prompt)}
                 >
-                  <Flex gap="4">
+                  <Flex gap="3">
                     <Flex
-                      boxSize="11"
+                      boxSize="10"
                       shrink="0"
-                alignItems="center"
+                      alignItems="center"
                       justify="center"
                       rounded="lg"
                       bg="teal.subtle"
                       color="teal.fg"
                     >
-                      <Icon size={20} />
+                      <Icon size={18} />
                     </Flex>
-                    <Flex direction="column" gap="2" minW="0">
+                    <Flex direction="column" gap="1" minW="0">
                       <Text fontSize="sm" fontWeight="semibold" color="fg">
                         {prompt.title}
                       </Text>
@@ -94,21 +94,21 @@ export function ChatEmptyState({
             })}
           </Flex>
         ) : (
-          <Flex mt="8" w="100%" maxW="container.md" justify="center" gap="3" flexWrap="wrap">
+          <Flex mt="5" w="100%" maxW="container.md" justify="center" gap="2.5" flexWrap="wrap">
             {promptSuggestions.map(({ label, icon: Icon }) => (
               <chakra.button
                 key={label}
                 type="button"
                 display="inline-flex"
-                minH="11"
+                minH="10"
                 alignItems="center"
-                gap="3"
+                gap="2.5"
                 rounded="full"
                 borderWidth="1px"
                 borderColor="border.subtle"
                 bg="bg.surface"
-                px="4"
-                py="2.5"
+                px="3.5"
+                py="2"
                 textAlign="left"
                 fontSize="sm"
                 fontWeight="medium"
@@ -117,8 +117,8 @@ export function ChatEmptyState({
                 _hover={{ borderColor: 'teal.muted', bg: 'bg.subtle' }}
                 onClick={() => onPromptSelect(label)}
               >
-                <Flex boxSize="8" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
-                  <Icon size={16} />
+                <Flex boxSize="7" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
+                  <Icon size={15} />
                 </Flex>
                 <Text>{label}</Text>
               </chakra.button>
@@ -126,7 +126,7 @@ export function ChatEmptyState({
           </Flex>
         )}
 
-        <Flex mt="8" w="100%" maxW="container.xs" align="center" gap="4">
+        <Flex mt="5" w="100%" maxW="container.xs" align="center" gap="3">
           <Separator style={{ flex: 1 }} />
           <Text fontSize="xs" fontWeight="medium" textTransform="uppercase" letterSpacing="0.22em" color="fg.muted">
             Or
@@ -134,7 +134,7 @@ export function ChatEmptyState({
           <Separator style={{ flex: 1 }} />
         </Flex>
 
-        <Text mt="4" fontSize="sm" color="fg.muted">Start typing your question below</Text>
+        <Text mt="2.5" fontSize="sm" color="fg.muted">Start typing your question below</Text>
       </Flex>
     </Flex>
   );

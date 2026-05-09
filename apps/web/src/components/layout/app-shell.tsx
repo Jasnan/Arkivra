@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Flex, HStack, Stack, Text, Input, IconButton } from '@chakra-ui/react';
+import { Box, Button, Flex, HStack, Stack, Text, Input, IconButton } from '@chakra-ui/react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import type { SidebarNavItem } from '@/components/layout/app-sidebar';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
@@ -73,6 +73,22 @@ function persistSidebarCollapsedValue(isCollapsed: boolean) {
   try {
     window.localStorage?.setItem?.(SIDEBAR_COLLAPSED_STORAGE_KEY, isCollapsed ? 'true' : 'false');
   } catch {}
+}
+
+function getQuickSearchShortcutLabel() {
+  if (typeof navigator === 'undefined') {
+    return 'Super K';
+  }
+
+  const platform = navigator.platform.toLowerCase();
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isAppleDevice =
+    platform.includes('mac') ||
+    platform.includes('iphone') ||
+    platform.includes('ipad') ||
+    userAgent.includes('mac os');
+
+  return isAppleDevice ? '⌘ K' : 'Super K';
 }
 
 interface BreadcrumbEntry {
@@ -209,6 +225,7 @@ export function AppShell() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return getStoredSidebarCollapsedValue();
   });
+  const quickSearchShortcutLabel = useMemo(() => getQuickSearchShortcutLabel(), []);
   const deferredSearchValue = useDeferredValue(searchValue.trim());
   const transferVaultId = useMemo(
     () => (location.search as Record<string, string | undefined>).vaultId ?? null,
@@ -297,6 +314,23 @@ export function AppShell() {
     setIsQuickSearchOpen(true);
   }
 
+  useEffect(() => {
+    function handleQuickSearchShortcut(event: KeyboardEvent) {
+      if (!event.metaKey || event.key.toLowerCase() !== 'k') {
+        return;
+      }
+
+      event.preventDefault();
+      setIsQuickSearchOpen(true);
+    }
+
+    window.addEventListener('keydown', handleQuickSearchShortcut);
+
+    return () => {
+      window.removeEventListener('keydown', handleQuickSearchShortcut);
+    };
+  }, []);
+
   return (
     <Box minH="100vh" bg="bg.canvas" color="fg">
       <SidebarProvider
@@ -375,32 +409,70 @@ export function AppShell() {
                 gap="2"
                 zIndex="0"
               >
-                <Box position="relative" flex="1">
-                  <Box
-                    position="absolute"
-                    left="3"
-                    top="50%"
-                    transform="translateY(-50%)"
-                    color="fg.muted"
-                    pointerEvents="none"
+                <Button
+                  type="button"
+                  aria-label={`Quick search, ${quickSearchShortcutLabel}`}
+                  aria-keyshortcuts="Meta+K"
+                  onClick={openQuickSearch}
+                  variant="plain"
+                  alignItems="center"
+                  justifyContent="flex-start"
+                  w="full"
+                  h="9"
+                  minH="9"
+                  gap="3"
+                  rounded="xl"
+                  borderWidth="1px"
+                  borderColor="border.subtle"
+                  bg="bg.surface"
+                  px="3"
+                  color="fg.subtle"
+                  shadow="0 1px 2px rgba(15, 23, 42, 0.03)"
+                  transition="border-color 160ms ease, box-shadow 160ms ease, color 160ms ease"
+                  _hover={{
+                    borderColor: 'border.strong',
+                    color: 'fg.muted',
+                    shadow: '0 1px 3px rgba(15, 23, 42, 0.05)',
+                  }}
+                  _focusVisible={{
+                    outline: '2px solid',
+                    outlineColor: 'teal.focusRing',
+                    outlineOffset: '2px',
+                  }}
+                >
+                  <Search size={18} strokeWidth={2} />
+                  <Text
+                    flex="1"
+                    minW="0"
+                    textAlign="left"
+                    truncate
+                    fontSize="md"
+                    fontWeight="medium"
+                    color="fg.subtle"
                   >
-                    <Search size={16} />
-                  </Box>
-                  <Input
-                    aria-label="Global search"
-                    placeholder="Quick search"
-                    readOnly
-                    onFocus={openQuickSearch}
-                    onClick={openQuickSearch}
-                    h="9"
+                    Quick search...
+                  </Text>
+                  <Flex
+                    as="kbd"
+                    align="center"
+                    justify="center"
+                    minW="10"
+                    h="6"
+                    px="2"
                     rounded="md"
-                    bg="bg.muted"
-                    pl="9"
+                    borderWidth="1px"
                     borderColor="border.subtle"
-                    color="fg"
-                    _placeholder={{ color: 'fg.muted' }}
-                  />
-                </Box>
+                    bg="bg.subtle"
+                    fontFamily="body"
+                    fontSize="sm"
+                    fontWeight="medium"
+                    lineHeight="1"
+                    color="fg.muted"
+                    shadow="none"
+                  >
+                    {quickSearchShortcutLabel}
+                  </Flex>
+                </Button>
               </HStack>
 
               <HStack ml="auto" gap="2" zIndex="1">

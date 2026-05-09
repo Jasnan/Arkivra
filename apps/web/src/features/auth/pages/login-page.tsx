@@ -46,7 +46,8 @@ export function LoginPage() {
 
   async function handleOAuth(provider: 'google' | 'github') {
     setErrorMessage(null);
-    const { error } = await authClient.signIn.social({ provider, callbackURL: ROUTES.root });
+    const callbackURL = new URL(ROUTES.root, window.location.origin).toString();
+    const { error } = await authClient.signIn.social({ provider, callbackURL });
     if (error) setErrorMessage(error.message ?? 'OAuth sign in failed.');
   }
 

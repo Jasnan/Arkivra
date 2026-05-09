@@ -228,6 +228,12 @@ export const configDefinition = {
       default: 'http://localhost:5173,http://localhost:1221',
       env: 'ARKIVRA_AUTH_TRUSTED_ORIGINS',
     },
+    baseUrl: {
+      doc: 'Public base URL for Better Auth routes. Better Auth uses this to construct OAuth callback URLs, e.g. http://localhost:1221/api/auth/callback/google.',
+      schema: z.string().url().optional(),
+      default: undefined,
+      env: 'BETTER_AUTH_URL',
+    },
     googleClientId: {
       doc: 'Google OAuth client ID.',
       schema: z.string().optional(),
@@ -239,6 +245,12 @@ export const configDefinition = {
       schema: z.string().optional(),
       default: undefined,
       env: 'GOOGLE_CLIENT_SECRET',
+    },
+    googleRedirectUri: {
+      doc: 'Google OAuth redirect URI. Must exactly match an Authorized redirect URI in Google Cloud Console.',
+      schema: z.string().url().optional(),
+      default: undefined,
+      env: 'GOOGLE_REDIRECT_URI',
     },
     githubClientId: {
       doc: 'GitHub OAuth client ID.',

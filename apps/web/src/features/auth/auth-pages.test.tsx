@@ -67,7 +67,7 @@ describe('auth pages', () => {
     }));
     expect(authClientMock.signIn.social).toHaveBeenCalledWith({
       provider: 'github',
-      callbackURL: '/',
+      callbackURL: 'http://localhost:3000/',
     });
   });
 

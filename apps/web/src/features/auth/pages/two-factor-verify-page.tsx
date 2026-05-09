@@ -6,7 +6,7 @@ import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthActions, AuthCard } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function TwoFactorVerifyPage() {
@@ -39,8 +39,7 @@ export function TwoFactorVerifyPage() {
   }
 
   return (
-    <AuthLayout>
-      <AuthCard title="Two-factor verification" subtitle="Enter your authenticator or backup code.">
+    <AuthCard title="Two-factor verification" subtitle="Enter your authenticator or backup code.">
         <Flex gap="2">
           <Button type="button" variant={mode === 'totp' ? 'default' : 'outline'} onClick={() => setMode('totp')}>
             Authenticator
@@ -76,6 +75,5 @@ export function TwoFactorVerifyPage() {
           </Link>
         </AuthActions>
       </AuthCard>
-    </AuthLayout>
   );
 }

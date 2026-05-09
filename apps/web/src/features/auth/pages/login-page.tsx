@@ -6,7 +6,7 @@ import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthCard } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function LoginPage() {
@@ -51,8 +51,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout>
-      <AuthCard title="Welcome back" subtitle="Sign in to access your vaults.">
+    <AuthCard title="Welcome back" subtitle="Sign in to access your vaults.">
         <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
           <Field>
             <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -103,6 +102,5 @@ export function LoginPage() {
           </Link>
         </Flex>
       </AuthCard>
-    </AuthLayout>
   );
 }

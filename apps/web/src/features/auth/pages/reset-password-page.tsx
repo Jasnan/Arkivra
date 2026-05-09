@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { AuthActions, AuthCard, AuthLayout } from '@/features/auth/auth-layout';
+import { AuthActions, AuthCard } from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function ResetPasswordPage() {
@@ -38,8 +38,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout>
-      <AuthCard title="Set new password" subtitle="Create a new password for your account.">
+    <AuthCard title="Set new password" subtitle="Create a new password for your account.">
         {isReset ? (
           <Alert>
             <AlertDescription>Password updated. Redirecting to sign in...</AlertDescription>
@@ -65,6 +64,5 @@ export function ResetPasswordPage() {
           </Link>
         </AuthActions>
       </AuthCard>
-    </AuthLayout>
   );
 }

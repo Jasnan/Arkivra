@@ -42,13 +42,11 @@ export function SettingsPage() {
   const { data: sessionData, isPending: sessionPending } = authClient.useSession();
   const meQuery = useMeQuery();
   const isGlobalAdmin = meQuery.data?.isGlobalAdmin === true;
+  const isEmailVerified = sessionData?.user.emailVerified === true;
 
-  const [profileDraft, setProfileDraft] = useState<{
-    name: string;
-    email: string;
-  } | null>(null);
+  const [profileDraft, setProfileDraft] = useState<{ name: string } | null>(null);
   const profileName = profileDraft?.name ?? sessionData?.user.name ?? '';
-  const profileEmail = profileDraft?.email ?? sessionData?.user.email ?? '';
+  const profileEmail = sessionData?.user.email ?? '';
 
   const profileMutation = useMutation({
     mutationFn: async () => {
@@ -74,20 +72,21 @@ export function SettingsPage() {
 
   const emailMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await authClient.changeEmail({
-        newEmail: profileEmail.trim(),
-        callbackURL: '/settings',
+      const callbackURL = new URL(ROUTES.settings, window.location.origin).toString();
+      const { error } = await authClient.sendVerificationEmail({
+        email: sessionData?.user.email ?? '',
+        callbackURL,
       });
 
       if (error) {
-        throw new Error(error.message ?? 'Could not start email change.');
+        throw new Error(error.message ?? 'Could not send verification email.');
       }
     },
     onSuccess: () => {
-      toast.success('Email change started. Check your inbox to confirm the new address.');
+      toast.success('Verification email sent. Check your inbox to confirm your address.');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not start email change.');
+      toast.error(error instanceof Error ? error.message : 'Could not send verification email.');
     },
   });
 
@@ -144,7 +143,6 @@ export function SettingsPage() {
                   onChange={(event) =>
                     setProfileDraft((current) => ({
                       name: event.target.value,
-                      email: current?.email ?? sessionData?.user.email ?? '',
                     }))
                   }
                   placeholder="Your name"
@@ -156,14 +154,13 @@ export function SettingsPage() {
                   id="settings-email"
                   type="email"
                   value={profileEmail}
-                  onChange={(event) =>
-                    setProfileDraft((current) => ({
-                      name: current?.name ?? sessionData?.user.name ?? '',
-                      email: event.target.value,
-                    }))
-                  }
+                  readOnly
+                  disabled
                   placeholder="you@example.com"
                 />
+                <Text mt="2" textStyle="xs" color="fg.muted">
+                  Email changes are not supported.
+                </Text>
               </Field>
               <Box mt="auto" pt="2">
                 <SaveButton type="submit" disabled={profileMutation.isPending} w="100%">
@@ -268,12 +265,16 @@ export function SettingsPage() {
                   type="button"
                   variant="outline"
                   rounded="lg"
-                  disabled={emailMutation.isPending}
+                  disabled={isEmailVerified || emailMutation.isPending}
                   onClick={() => {
                     emailMutation.mutate();
                   }}
                 >
-                  {emailMutation.isPending ? 'Sending...' : 'Send verification email'}
+                  {isEmailVerified
+                    ? 'Email verified'
+                    : emailMutation.isPending
+                      ? 'Sending...'
+                      : 'Send verification email'}
                 </Button>
               </Stack>
             </Grid>
@@ -285,10 +286,10 @@ export function SettingsPage() {
                 <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="fg">
                   <Text as="span">Status:</Text>
                   <SecurityStatusBadge
-                    tone={sessionData?.user.emailVerified ? 'positive' : 'warning'}
+                    tone={isEmailVerified ? 'positive' : 'warning'}
                   >
-                    {sessionData?.user.emailVerified ? 'Verified' : 'Unverified'}
-                    {!sessionData?.user.emailVerified ? <AlertTriangle size={16} /> : null}
+                    {isEmailVerified ? 'Verified' : 'Unverified'}
+                    {!isEmailVerified ? <AlertTriangle size={16} /> : null}
                   </SecurityStatusBadge>
                 </Flex>
               </Stack>
@@ -298,12 +299,12 @@ export function SettingsPage() {
                   variant="outline"
                   minW="260px"
                   rounded="lg"
-                  disabled={emailMutation.isPending}
+                  disabled={isEmailVerified || emailMutation.isPending}
                   onClick={() => {
                     emailMutation.mutate();
                   }}
                 >
-                  {emailMutation.isPending ? 'Sending...' : 'Verify now'}
+                  {isEmailVerified ? 'Verified' : emailMutation.isPending ? 'Sending...' : 'Verify now'}
                 </Button>
               </Flex>
             </Grid>

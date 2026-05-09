@@ -10,6 +10,7 @@ import {
   authVerificationsTable,
 } from '../database/schema/auth.table.js';
 import { usersTable } from '../database/schema/users.table.js';
+import { createAuthEmailServices } from './auth-email.services.js';
 
 export type Auth = ReturnType<typeof createAuth>['auth'];
 
@@ -49,6 +50,8 @@ function buildPlugins() {
 }
 
 export function createAuth({ db, config }: { db: Database; config: Config }) {
+  const authEmailServices = createAuthEmailServices({ config });
+
   if (config.auth.googleClientId && config.auth.googleClientSecret) {
     console.info(
       `Google OAuth redirect URI: ${config.auth.googleRedirectUri ?? getOAuthRedirectUri(config, 'google')}`,
@@ -71,6 +74,26 @@ export function createAuth({ db, config }: { db: Database; config: Config }) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: config.auth.isEmailVerificationRequired,
+    },
+
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: config.auth.isEmailVerificationRequired,
+      autoSignInAfterVerification: true,
+      async sendVerificationEmail({ user, url }) {
+        await authEmailServices.sendEmail({
+          to: user.email,
+          subject: 'Verify your Arkivra email',
+          text: [
+            `Hi ${user.name || user.email},`,
+            '',
+            'Verify your email address to finish setting up your Arkivra account:',
+            url,
+            '',
+            'If you did not request this email, you can ignore it.',
+          ].join('\n'),
+        });
+      },
     },
 
     socialProviders: buildSocialProviders(config),

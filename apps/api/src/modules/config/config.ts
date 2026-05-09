@@ -264,6 +264,12 @@ export const configDefinition = {
       default: undefined,
       env: 'GITHUB_CLIENT_SECRET',
     },
+    githubRedirectUri: {
+      doc: 'GitHub OAuth callback URL. Must exactly match the Authorization callback URL in the GitHub OAuth app.',
+      schema: z.string().url().optional(),
+      default: undefined,
+      env: 'GITHUB_REDIRECT_URI',
+    },
   },
 } as const;
 

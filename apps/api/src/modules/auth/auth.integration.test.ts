@@ -98,6 +98,26 @@ describe('auth integration', () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  test('delegates social login route to Better Auth handler', async () => {
+    const { config } = parseConfig({ env: {} });
+    const { auth, handler } = createMockAuth();
+
+    const { app } = createServer({
+      config,
+      auth,
+      db: mockDb,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
+
+    const response = await app.request('/api/auth/sign-in/social', { method: 'POST' });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   test('delegates 2FA route to Better Auth handler', async () => {
     const { config } = parseConfig({ env: {} });
     const { auth, handler } = createMockAuth();

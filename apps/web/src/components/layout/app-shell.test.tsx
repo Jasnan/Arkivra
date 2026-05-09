@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/app-shell';
@@ -148,6 +148,33 @@ describe('app shell account menu', () => {
       'href',
       '/documents',
     );
+  });
+
+  it('opens quick search from the trigger and Meta+K shortcut', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const quickSearchTrigger = screen.getByText('Quick search...').closest('button');
+    expect(quickSearchTrigger).not.toBeNull();
+
+    fireEvent.click(quickSearchTrigger!);
+    expect(await screen.findByLabelText(/quick search modal/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /close search/i }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/quick search modal/i)).not.toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+
+    expect(await screen.findByLabelText(/quick search modal/i)).toBeInTheDocument();
   });
 
   it('shows global document breadcrumbs for all-documents detail pages', async () => {

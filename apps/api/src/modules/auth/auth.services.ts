@@ -17,20 +17,23 @@ export type Auth = ReturnType<typeof createAuth>['auth'];
 function buildPlugins(config: Config) {
   const plugins: ReturnType<typeof twoFactor>[] = [twoFactor()];
 
-  if (config.auth.googleClientId && config.auth.googleClientSecret) {
+  const hasGoogle = Boolean(config.auth.googleClientId && config.auth.googleClientSecret);
+  const hasGithub = Boolean(config.auth.githubClientId && config.auth.githubClientSecret);
+
+  if (hasGoogle) {
     plugins.push(
       google({
-        clientId: config.auth.googleClientId,
-        clientSecret: config.auth.googleClientSecret,
+        clientId: config.auth.googleClientId!,
+        clientSecret: config.auth.googleClientSecret!,
       }),
     );
   }
 
-  if (config.auth.githubClientId && config.auth.githubClientSecret) {
+  if (hasGithub) {
     plugins.push(
       github({
-        clientId: config.auth.githubClientId,
-        clientSecret: config.auth.githubClientSecret,
+        clientId: config.auth.githubClientId!,
+        clientSecret: config.auth.githubClientSecret!,
       }),
     );
   }

@@ -23,11 +23,13 @@ export function RegisterPage() {
     setErrorMessage(null);
     setIsSubmitting(true);
 
+    const callbackURL = new URL(ROUTES.root, window.location.origin).toString();
+
     const { error } = await authClient.signUp.email({
       name,
       email,
       password,
-      callbackURL: ROUTES.root,
+      callbackURL,
     });
 
     setIsSubmitting(false);

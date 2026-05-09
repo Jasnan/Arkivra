@@ -20,6 +20,7 @@ const authClientMock = vi.hoisted(() => ({
   })),
   updateUser: vi.fn(),
   changeEmail: vi.fn(),
+  sendVerificationEmail: vi.fn(),
   changePassword: vi.fn(),
   signOut: vi.fn(),
 }));
@@ -51,11 +52,12 @@ describe('settings, admin, and about pages', () => {
     });
     authClientMock.updateUser.mockResolvedValue({ error: null });
     authClientMock.changeEmail.mockResolvedValue({ error: null });
+    authClientMock.sendVerificationEmail.mockResolvedValue({ error: null });
     authClientMock.changePassword.mockResolvedValue({ error: null });
     authClientMock.signOut.mockResolvedValue({ error: null });
   });
 
-  it('updates account profile and password', async () => {
+  it('updates account profile and disables verification actions for verified emails', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -84,20 +86,55 @@ describe('settings, admin, and about pages', () => {
       name: 'Alex Rivers',
     });
 
-    const emailInput = screen.getByLabelText(/email/i);
-    await user.clear(emailInput);
-    await user.type(emailInput, 'alex.rivers@example.com');
-    await user.click(screen.getByRole('button', { name: /verify now/i }));
-
-    expect(authClientMock.changeEmail).toHaveBeenCalledWith({
-      newEmail: 'alex.rivers@example.com',
-      callbackURL: '/settings',
-    });
+    expect(screen.getByLabelText(/email/i)).toBeDisabled();
+    expect(screen.getByText(/email changes are not supported/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^verified$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /email verified/i })).toBeDisabled();
+    expect(authClientMock.sendVerificationEmail).not.toHaveBeenCalled();
 
     expect(screen.getByRole('link', { name: /change password/i })).toHaveAttribute(
       'href',
       '/request-password-reset',
     );
+  });
+
+  it('sends verification email for unverified accounts', async () => {
+    const user = userEvent.setup();
+    authClientMock.useSession.mockReturnValue({
+      data: {
+        user: {
+          name: 'Alex',
+          email: 'alex@example.com',
+          emailVerified: false,
+          twoFactorEnabled: true,
+        },
+      },
+      isPending: false,
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: true,
+          canCreateVault: true,
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /verify now/i }));
+
+    expect(authClientMock.sendVerificationEmail).toHaveBeenCalledWith({
+      email: 'alex@example.com',
+      callbackURL: 'http://localhost:3000/settings',
+    });
   });
 
   it('allows a regular user to access account settings without admin access', async () => {

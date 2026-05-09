@@ -271,6 +271,62 @@ export const configDefinition = {
       env: 'GITHUB_REDIRECT_URI',
     },
   },
+  email: {
+    delivery: {
+      doc: 'Email delivery backend. Use "console" for local development and "smtp" for production.',
+      schema: z.enum(['console', 'smtp']),
+      default: 'console' as const,
+      env: 'ARKIVRA_EMAIL_DELIVERY',
+    },
+    from: {
+      doc: 'Email address used as the sender for Arkivra auth emails.',
+      schema: z.string().optional(),
+      default: 'noreply@localhost',
+      env: 'ARKIVRA_EMAIL_FROM',
+    },
+    fromName: {
+      doc: 'Display name used as the sender for Arkivra auth emails.',
+      schema: z.string(),
+      default: 'Arkivra',
+      env: 'ARKIVRA_EMAIL_FROM_NAME',
+    },
+    smtpHost: {
+      doc: 'SMTP server host for production email delivery.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'ARKIVRA_SMTP_HOST',
+    },
+    smtpPort: {
+      doc: 'SMTP server port for production email delivery.',
+      schema: z.coerce.number().int().min(1).max(65535).optional(),
+      default: undefined,
+      env: 'ARKIVRA_SMTP_PORT',
+    },
+    smtpSecure: {
+      doc: 'Whether to connect to SMTP using implicit TLS, typically on port 465.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: false,
+      env: 'ARKIVRA_SMTP_SECURE',
+    },
+    smtpStartTls: {
+      doc: 'Whether to upgrade a plain SMTP connection with STARTTLS, typically on port 587.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: true,
+      env: 'ARKIVRA_SMTP_STARTTLS',
+    },
+    smtpUser: {
+      doc: 'SMTP username.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'ARKIVRA_SMTP_USER',
+    },
+    smtpPassword: {
+      doc: 'SMTP password.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'ARKIVRA_SMTP_PASSWORD',
+    },
+  },
 } as const;
 
 export type Config = ReturnType<typeof parseConfig>['config'];

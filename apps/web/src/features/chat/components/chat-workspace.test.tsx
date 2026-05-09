@@ -163,6 +163,27 @@ describe('chat workspace new chat drafts', () => {
     streamChatMessageMock.mockResolvedValue(undefined);
   });
 
+  it('toggles the mobile conversation history without leaving the rail mounted', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(document.getElementById('mobile-chat-conversations')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /show history/i }));
+    expect(document.getElementById('mobile-chat-conversations')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /hide history/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /hide history/i }));
+    expect(document.getElementById('mobile-chat-conversations')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /show history/i })).toBeInTheDocument();
+  });
+
   it('keeps a new chat unsaved until the first message is sent', async () => {
     const user = userEvent.setup();
 

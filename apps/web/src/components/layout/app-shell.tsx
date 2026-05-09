@@ -328,17 +328,16 @@ export function AppShell() {
             borderBottomWidth="1px"
             borderColor="border.subtle"
             bg="bg.surface"
-            backdropFilter="blur(4px)"
             transition="width,height 200ms ease-linear"
           >
-            <Flex w="full" align="center" gap="2" px={{ base: '4', lg: '6' }}>
+            <Flex position="relative" w="full" align="center" gap="2" px={{ base: '4', lg: '6' }}>
               <SidebarTrigger ml="-1" />
               <Separator
                 orientation="vertical"
                 display={{ base: 'none', lg: 'block' }}
                 h="4"
               />
-              <Breadcrumb minW="0">
+              <Breadcrumb minW="0" maxW={{ base: 'calc(100% - 7rem)', md: '35%' }}>
                 <BreadcrumbList flexWrap="nowrap">
                   {breadcrumbs.map((item, index) => {
                     const isLast = index === breadcrumbs.length - 1;
@@ -366,7 +365,16 @@ export function AppShell() {
                 </BreadcrumbList>
               </Breadcrumb>
 
-              <HStack ml="auto" maxW="sm" w="full" gap="2">
+              <HStack
+                position={{ base: 'static', md: 'absolute' }}
+                left={{ md: '50%' }}
+                transform={{ md: 'translateX(-50%)' }}
+                display={{ base: 'none', md: 'flex' }}
+                maxW={{ md: '20rem', xl: '27rem' }}
+                w="full"
+                gap="2"
+                zIndex="0"
+              >
                 <Box position="relative" flex="1">
                   <Box
                     position="absolute"
@@ -386,7 +394,7 @@ export function AppShell() {
                     onClick={openQuickSearch}
                     h="9"
                     rounded="md"
-                    bg="bg.subtle"
+                    bg="bg.muted"
                     pl="9"
                     borderColor="border.subtle"
                     color="fg"
@@ -395,7 +403,7 @@ export function AppShell() {
                 </Box>
               </HStack>
 
-              <HStack ml="auto" gap="2" md={{ ml: '0' }}>
+              <HStack ml="auto" gap="2" zIndex="1">
                 <ThemeToggle />
 
                 <DropdownMenu modal={false}>
@@ -454,6 +462,7 @@ export function AppShell() {
             overflow={isStandaloneChatRoute ? 'hidden' : 'auto'}
             px={isStandaloneChatRoute ? '0' : { base: '4', lg: '6' }}
             py="0"
+            bg="bg.subtle"
           >
             {isStandaloneChatRoute ? (
               <><RouterDebugProbe /><Outlet /></>

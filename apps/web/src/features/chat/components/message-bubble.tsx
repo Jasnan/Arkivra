@@ -31,7 +31,7 @@ export function MessageBubble({
   const displayContent = normalizeChatDisplayContent(message.content);
 
   return (
-    <Flex gap="3" justify={isUser ? 'flex-end' : 'flex-start'}>
+    <Flex gap="3" minW="0" w="full" maxW="100%" overflow="hidden" justify={isUser ? 'flex-end' : 'flex-start'}>
       {!isUser ? (
         <Flex
           mt="1"
@@ -40,24 +40,24 @@ export function MessageBubble({
           align="center"
           justify="center"
           rounded="lg"
-          bg="teal.solid"
-          color="fg.inverted"
+          bg="teal.subtle"
+          color="teal.fg"
         >
           <Bot size={16} />
         </Flex>
       ) : null}
 
-      <Box maxW="min(46rem, 100%)" w={isUser ? undefined : '100%'}>
+      <Box minW="0" maxW={isUser ? 'min(38rem, calc(100% - 3rem))' : 'min(44rem, calc(100% - 3rem))'} w={isUser ? undefined : '100%'}>
         {isUser ? (
           <>
             <Flex direction="column" align="flex-end" w="100%">
-              <Box rounded="2xl" bg="teal.solid" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg.inverted" maxW="min(46rem, 100%)">
-                <Text whiteSpace="pre-wrap">{displayContent}</Text>
+              <Box rounded="xl" bg="teal.solid" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg.inverted" maxW="min(38rem, 100%)" shadow="sm">
+                <Text whiteSpace="pre-wrap" overflowWrap="anywhere">{displayContent}</Text>
               </Box>
             </Flex>
           </>
         ) : (
-          <Box w="100%" rounded="2xl" bg="bg.elevated" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg" borderWidth="1px" borderColor="border.subtle">
+          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="lg" bg="bg.surface" px={{ base: '4', md: '5' }} py={{ base: '3', md: '4' }} fontSize="sm" lineHeight="1.75" color="fg" borderWidth="1px" borderColor="border.subtle" shadow="xs">
             <MarkdownMessage
               content={displayContent}
               citations={message.citations}
@@ -115,7 +115,7 @@ export function MessageBubble({
           justify="center"
           rounded="lg"
           bg="teal.subtle"
-          color="fg.muted"
+          color="teal.fg"
         >
           <User size={16} />
         </Flex>

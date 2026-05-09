@@ -55,7 +55,7 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
         bg={isActive ? 'teal.subtle' : 'transparent'}
         color={isActive ? 'teal.fg' : 'fg.muted'}
         transition="colors"
-        _hover={{ bg: 'teal.subtle', color: 'teal.fg' }}
+        _hover={{ bg: isActive ? 'teal.subtle' : 'bg.muted', color: isActive ? 'teal.fg' : 'fg' }}
       >
         <Flex
           shrink={0}
@@ -96,7 +96,7 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
             color="fg"
             justify={open ? 'flex-start' : 'center'}
             transition="colors"
-            _hover={{ bg: 'teal.subtle', color: 'teal.fg' }}
+            _hover={{ bg: 'bg.muted', color: 'fg' }}
           >
             <Flex
               shrink={0}

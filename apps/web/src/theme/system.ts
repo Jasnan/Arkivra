@@ -22,7 +22,7 @@ const config = defineConfig({
         // Background surfaces
         bg: {
           canvas: {
-            value: { base: '#f5f6f8', _dark: '#0b0d12' },
+            value: { base: '#f5f7f8', _dark: '#0b0d12' },
           },
 
           surface: {
@@ -38,11 +38,11 @@ const config = defineConfig({
           },
 
           subtle: {
-            value: { base: '#fafbfc', _dark: '#131720' },
+            value: { base: '#fcfcfd', _dark: '#131720' },
           },
 
           muted: {
-            value: { base: '#f1f3f5', _dark: '#0f131a' },
+            value: { base: '#f4f6f7', _dark: '#0f131a' },
           },
 
           inverted: {
@@ -110,7 +110,7 @@ const config = defineConfig({
           },
 
           subtle: {
-            value: { base: '#edf1f3', _dark: '#1c212b' },
+            value: { base: '#e8edf0', _dark: '#1c212b' },
           },
 
           strong: {
@@ -129,7 +129,7 @@ const config = defineConfig({
           },
 
           subtle: {
-            value: { base: '#dff5f0', _dark: '#17352f' },
+            value: { base: '#e4f7f3', _dark: '#17352f' },
           },
 
           fg: {

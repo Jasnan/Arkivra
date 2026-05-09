@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Box, Flex, Text } from '@chakra-ui/react';
+import { Box, Collapsible as ChakraCollapsible, Flex, Text } from '@chakra-ui/react';
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   MessageSquare,
-  PanelLeftClose,
-  PanelLeftOpen,
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { streamChatMessage } from '../chat.api';
 import type { ChatResponseMode } from '../chat.api';
 import {
@@ -259,70 +258,104 @@ export function ChatWorkspace({
     <Box
       display="grid"
       position="relative"
+      w="full"
+      maxW="full"
       h={isFullHeight ? 'full' : 'calc(100vh - 14rem)'}
       minH={isFullHeight ? '0' : '32rem'}
+      minW="0"
       overflow="hidden"
+      gap={{ base: '3', lg: '4' }}
+      bg="bg.subtle"
+      p={{ base: '3', md: '4' }}
       gridTemplateColumns={{
         base: '1fr',
-        lg: isDesktopConversationRailCollapsed ? '0 minmax(0, 1fr)' : '14rem minmax(0, 1fr)',
+        lg: isDesktopConversationRailCollapsed ? '0 minmax(0, 1fr)' : '15rem minmax(0, 1fr)',
       }}
     >
       <Box
         as="aside"
+        position="relative"
         display={{ base: 'none', lg: 'flex' }}
         flexDirection="column"
         minH="0"
         overflow="hidden"
-        borderRightWidth={isDesktopConversationRailCollapsed ? '0' : '1px'}
+        rounded="lg"
+        borderWidth={isDesktopConversationRailCollapsed ? '0' : '1px'}
         borderColor="border.subtle"
-        pb="6"
+        bg="bg.surface"
+        pb="3"
+        shadow="xs"
         transition="width,padding,opacity 200ms ease-linear"
-        width={isDesktopConversationRailCollapsed ? '0' : '14rem'}
-        pr={isDesktopConversationRailCollapsed ? '0' : '5'}
+        width={isDesktopConversationRailCollapsed ? '0' : '15rem'}
         opacity={isDesktopConversationRailCollapsed ? '0' : '1'}
         aria-hidden={isDesktopConversationRailCollapsed}
       >
-        <ChatConversationRail
-          conversationsQuery={conversationsQuery}
-          conversationSections={conversationSections}
-          selectedChatId={selectedChatId}
-          effectiveSelectedChatId={effectiveSelectedChatId}
-          createConversationPending={createConversation.isPending}
-          onCreateConversation={() => {
-            void handleCreateConversation();
-          }}
-          onSelectConversation={(chatId) => {
-            setSelectedChatId(chatId);
-            resetComposerState();
-          }}
-          onDeleteConversation={(chatId) => {
-            void handleDeleteConversation(chatId);
-          }}
-        />
+        {isDesktopConversationRailCollapsed ? null : (
+          <>
+            <ChatConversationRail
+              conversationsQuery={conversationsQuery}
+              conversationSections={conversationSections}
+              selectedChatId={selectedChatId}
+              effectiveSelectedChatId={effectiveSelectedChatId}
+              createConversationPending={createConversation.isPending}
+              onCreateConversation={() => {
+                void handleCreateConversation();
+              }}
+              onSelectConversation={(chatId) => {
+                setSelectedChatId(chatId);
+                resetComposerState();
+              }}
+              onDeleteConversation={(chatId) => {
+                void handleDeleteConversation(chatId);
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label="Hide conversation list"
+              position="absolute"
+              right="3"
+              bottom="3"
+              color="fg.muted"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.surface"
+              shadow="xs"
+              _hover={{ bg: 'bg.muted', color: 'fg' }}
+              style={{ height: '2.25rem', width: '2.25rem', borderRadius: '0.5rem', padding: 0 }}
+              onClick={() => setIsDesktopConversationRailCollapsed(true)}
+            >
+              <ChevronLeft size={16} />
+            </Button>
+          </>
+        )}
       </Box>
 
-      <Box
-        display={{ base: 'none', lg: 'flex' }}
-        position="absolute"
-        top="0.5rem"
-        left={isDesktopConversationRailCollapsed ? '0.5rem' : '12.875rem'}
-        zIndex="dropdown"
-        transition="left 200ms ease-linear"
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={isDesktopConversationRailCollapsed ? 'Show conversation list' : 'Hide conversation list'}
-          style={{ height: '2.25rem', width: '2.25rem', borderRadius: '9999px', padding: 0 }}
-          onClick={() => setIsDesktopConversationRailCollapsed((current) => !current)}
+      {isDesktopConversationRailCollapsed ? (
+        <Box
+          display={{ base: 'none', lg: 'flex' }}
+          position="absolute"
+          bottom="1.5rem"
+          left="1.5rem"
+          zIndex="dropdown"
         >
-          {isDesktopConversationRailCollapsed ? (
-            <PanelLeftOpen size={16} />
-          ) : (
-            <PanelLeftClose size={16} />
-          )}
-        </Button>
-      </Box>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label="Show conversation list"
+            color="fg.muted"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            bg="bg.surface"
+            shadow="xs"
+            _hover={{ bg: 'bg.muted', color: 'fg' }}
+            style={{ height: '2.25rem', width: '2.25rem', borderRadius: '0.5rem', padding: 0 }}
+            onClick={() => setIsDesktopConversationRailCollapsed(false)}
+          >
+            <ChevronRight size={16} />
+          </Button>
+        </Box>
+      ) : null}
 
       <Box
         as="section"
@@ -330,9 +363,15 @@ export function ChatWorkspace({
         gridTemplateRows="auto 1fr auto"
         h="100%"
         minH="0"
+        minW="0"
         maxH="100%"
+        maxW="full"
         overflow="hidden"
-        lg={!isDesktopConversationRailCollapsed ? { pl: '6' } : undefined}
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.surface"
+        shadow="xs"
       >
         <Box minH="0">
           {streamError ? (
@@ -355,67 +394,98 @@ export function ChatWorkspace({
 
           <Box
             display={{ base: 'block', lg: 'none' }}
+            w="full"
+            maxW="full"
             borderBottomWidth="1px"
-              borderColor="border"
+            borderColor="border.subtle"
             px="4"
             py="3"
+            minW="0"
+            overflowX="hidden"
             sm={{ px: '6' }}
           >
-            <Collapsible
+            <ChakraCollapsible.Root
               open={isMobileConversationRailOpen}
-              onOpenChange={setIsMobileConversationRailOpen}
+              lazyMount
+              unmountOnExit
+              onOpenChange={(event) => setIsMobileConversationRailOpen(event.open)}
             >
-              <Flex align="center" justify="space-between" gap="3">
-                <Flex align="center" gap="2" fontSize="sm" fontWeight="medium" color="fg">
-                  <MessageSquare size={16} color="var(--chakra-colors-teal-solid)" />
+              <ChakraCollapsible.Trigger
+                w="full"
+                minW="0"
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                gap="3"
+                rounded="md"
+                color="fg"
+                cursor="pointer"
+                _hover={{ color: 'teal.fg' }}
+              >
+                <Flex align="center" gap="2" minW="0" fontSize="sm" fontWeight="semibold">
+                  <MessageSquare size={16} color="var(--chakra-colors-teal-fg)" />
                   Conversations
                 </Flex>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    style={{ height: '2.25rem', borderRadius: '9999px', padding: '0 0.75rem' }}
-                  >
-                    <PanelLeftOpen size={16} />
+                <Flex align="center" gap="2" flexShrink="0" fontSize="sm" fontWeight="medium" color="fg.muted">
+                  <Text as="span">
                     {isMobileConversationRailOpen ? 'Hide history' : 'Show history'}
-                  </Button>
-                </CollapsibleTrigger>
-              </Flex>
-              <CollapsibleContent
-                style={{
-                  overflow: 'hidden',
-                  animationTimingFunction: 'ease',
-                }}
-                _open={{ animationName: 'accordion-down' }}
-                _closed={{ animationName: 'accordion-up' }}
-              >
-                <Box mt="4"                 borderTopWidth="1px" borderColor="border" pt="3">
-                  <ChatConversationRail
-                    showHeader={false}
-                    conversationsQuery={conversationsQuery}
-                    conversationSections={conversationSections}
-                    selectedChatId={selectedChatId}
-                    effectiveSelectedChatId={effectiveSelectedChatId}
-                    createConversationPending={createConversation.isPending}
-                    onCreateConversation={() => {
-                      void handleCreateConversation();
-                    }}
-                    onSelectConversation={(chatId) => {
-                      setSelectedChatId(chatId);
-                      setIsMobileConversationRailOpen(false);
-                      resetComposerState();
-                    }}
-                    onDeleteConversation={(chatId) => {
-                      void handleDeleteConversation(chatId);
-                    }}
-                  />
-                </Box>
-              </CollapsibleContent>
-            </Collapsible>
+                  </Text>
+                  <ChakraCollapsible.Indicator
+                    display="inline-flex"
+                    transition="transform 0.2s"
+                    _open={{ transform: 'rotate(90deg)' }}
+                  >
+                    <ChevronRight size={16} />
+                  </ChakraCollapsible.Indicator>
+                </Flex>
+              </ChakraCollapsible.Trigger>
+
+              {isMobileConversationRailOpen ? (
+                <ChakraCollapsible.Content
+                  id="mobile-chat-conversations"
+                  minW="0"
+                  maxW="full"
+                  overflowX="hidden"
+                >
+                  <Box
+                    mt="4"
+                    maxH="18rem"
+                    w="full"
+                    minW="0"
+                    maxW="full"
+                    overflowY="auto"
+                    overflowX="hidden"
+                    borderTopWidth="1px"
+                    borderColor="border.subtle"
+                    pt="3"
+                  >
+                    <ChatConversationRail
+                      showHeader={false}
+                      conversationsQuery={conversationsQuery}
+                      conversationSections={conversationSections}
+                      selectedChatId={selectedChatId}
+                      effectiveSelectedChatId={effectiveSelectedChatId}
+                      createConversationPending={createConversation.isPending}
+                      onCreateConversation={() => {
+                        void handleCreateConversation();
+                      }}
+                      onSelectConversation={(chatId) => {
+                        setSelectedChatId(chatId);
+                        setIsMobileConversationRailOpen(false);
+                        resetComposerState();
+                      }}
+                      onDeleteConversation={(chatId) => {
+                        void handleDeleteConversation(chatId);
+                      }}
+                    />
+                  </Box>
+                </ChakraCollapsible.Content>
+              ) : null}
+            </ChakraCollapsible.Root>
           </Box>
         </Box>
 
-        <Box minH="0" flex="1" overflowY="auto">
+        <Box minH="0" minW="0" flex="1" overflowY="auto" overflowX="hidden">
           {shouldShowEmptyState ? (
             <ChatEmptyState
               title={experience.emptyTitle}
@@ -446,11 +516,13 @@ export function ChatWorkspace({
               direction="column"
               gap="4"
               mx="auto"
+              minW="0"
               w="100%"
               maxW="72rem"
+              overflowX="hidden"
               px="4"
-              pt="6"
-              pb="20"
+              pt={{ base: '5', md: '6' }}
+              pb="12"
               sm={{ px: '6' }}
             >
               <Box mt="auto" aria-hidden="true" />
@@ -479,20 +551,20 @@ export function ChatWorkspace({
                     shrink="0"
                     align="center"
                     justify="center"
-                    rounded="xl"
-                    bg="teal.solid"
-                    color="fg.inverted"
+                    rounded="lg"
+                    bg="teal.subtle"
+                    color="teal.fg"
                   >
                     <Sparkles size={16} />
                   </Flex>
-                  <Box maxW="min(44rem, 100%)">
+                  <Box maxW="min(42rem, 100%)">
                     <Box
-                      rounded="2xl"
-                      bg="bg.elevated"
-                      px="4"
-                      py="3"
+                      rounded="lg"
+                      bg="bg.surface"
+                      px="5"
+                      py="4"
                       fontSize="sm"
-                      lineHeight="1.6"
+                      lineHeight="1.75"
                       color="fg"
                       borderWidth="1px"
                       borderColor="border.subtle"

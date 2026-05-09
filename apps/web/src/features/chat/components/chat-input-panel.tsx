@@ -64,13 +64,13 @@ export function ChatInputPanel({
       <Box
         mx="auto"
         w="100%"
-        maxW="72rem"
-        rounded="2xl"
+        maxW="54rem"
+        rounded="lg"
         borderWidth="1px"
         borderColor="border.subtle"
-        bg="bg.elevated"
+        bg="bg.surface"
         p="3"
-        boxShadow="lg"
+        boxShadow="md"
       >
         <Flex gap="3">
           <Textarea
@@ -104,7 +104,7 @@ export function ChatInputPanel({
               size="icon"
               aria-label="Send message"
               disabled={disabled || value.trim().length === 0}
-              style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem' }}
+              style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.5rem' }}
               onClick={submit}
             >
               <Send size={16} />
@@ -117,7 +117,7 @@ export function ChatInputPanel({
                     variant="ghost"
                     size="icon"
                     aria-label="Chat options"
-                    style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem' }}
+                    style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.5rem' }}
                   >
                     <SlidersHorizontal size={16} />
                   </Button>
@@ -130,6 +130,11 @@ export function ChatInputPanel({
                     Show sources
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuSeparator />
+                  {isLoadingModels ? (
+                    <Text px="3" py="2" fontSize="sm" color="fg.muted">
+                      Loading models...
+                    </Text>
+                  ) : null}
                   {(modelOptions ?? []).map((model) => (
                     <DropdownMenuCheckboxItem
                       key={model}

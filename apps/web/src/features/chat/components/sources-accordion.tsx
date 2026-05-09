@@ -35,18 +35,21 @@ export function SourcesAccordion({
         borderTopWidth="1px"
         borderTopColor="border"
         pt="2"
+        minW="0"
+        maxW="full"
+        overflowX="hidden"
       >
         <AccordionItem value="sources" style={{ borderBottom: '0' }}>
           <AccordionTrigger
             style={{ borderRadius: '0.375rem', padding: '0.75rem 0.25rem' }}
           >
-            <Flex align="center" gap="2">
+            <Flex align="center" gap="2" minW="0">
               <FileText size={16} color="var(--chakra-colors-fg-muted)" />
               <Text>{`Sources (${citations.length})`}</Text>
             </Flex>
           </AccordionTrigger>
           <AccordionContent>
-            <Flex direction="column" gap="3">
+            <Flex direction="column" gap="3" minW="0" maxW="full">
               {citations.map((citation, index) => {
                 const figurePreview = citationFigureEvidence(citation)[0] ?? null;
                 return (
@@ -56,6 +59,9 @@ export function SourcesAccordion({
                     onClick={() => setSelectedCitation(citation)}
                     display="flex"
                     w="100%"
+                    minW="0"
+                    maxW="full"
+                    overflow="hidden"
                     alignItems="flex-start"
                     gap="3"
                     rounded="2xl"
@@ -79,23 +85,23 @@ export function SourcesAccordion({
                     >
                       {index + 1}
                     </Flex>
-                    <Flex direction="column" gap="1">
-                      <Flex align="center" gap="2" fontSize="sm" flexWrap="wrap">
+                    <Flex direction="column" gap="1" minW="0" maxW="full">
+                      <Flex align="center" gap="2" minW="0" fontSize="sm" flexWrap="wrap">
                         <Text fontWeight="medium" color="fg">{pageRange(citation)}</Text>
                         {currentVaultId !== citation.vaultId ? (
-                          <Text color="fg.muted">{citation.vaultName}</Text>
+                          <Text minW="0" color="fg.muted" overflowWrap="anywhere">{citation.vaultName}</Text>
                         ) : null}
                       </Flex>
                       {citationSectionLabel(citation) ? (
-                        <Text lineClamp="1" fontSize="xs" color="fg.muted">
+                        <Text minW="0" lineClamp="1" fontSize="xs" color="fg.muted" overflowWrap="anywhere">
                           {citationSectionLabel(citation)}
                         </Text>
                       ) : null}
-                      <Text lineClamp="2" fontSize="sm" lineHeight="1.6" color="fg.muted">
+                      <Text minW="0" lineClamp="2" fontSize="sm" lineHeight="1.6" color="fg.muted" overflowWrap="anywhere">
                         {citation.snippet}
                       </Text>
                       {figurePreview ? (
-                        <Text lineClamp="2" fontSize="xs" lineHeight="1.5" color="fg.muted">
+                        <Text minW="0" lineClamp="2" fontSize="xs" lineHeight="1.5" color="fg.muted" overflowWrap="anywhere">
                           {figurePreview.caption}
                         </Text>
                       ) : null}

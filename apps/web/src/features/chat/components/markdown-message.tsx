@@ -31,7 +31,7 @@ export function MarkdownMessage({
   function flushParagraph() {
     if (paragraphLines.length === 0) return;
     blocks.push(
-      <Text key={`p-${blocks.length}`} whiteSpace="pre-wrap">
+      <Text key={`p-${blocks.length}`} minW="0" whiteSpace="pre-wrap" overflowWrap="anywhere">
         {renderInlineMarkdown({ text: paragraphLines.join(' '), citations, onCitationClick })}
       </Text>,
     );
@@ -47,11 +47,12 @@ export function MarkdownMessage({
         as={isOrdered ? 'ol' : 'ul'}
         direction="column"
         gap="1"
+        minW="0"
         pl="5"
         listStyleType={isOrdered ? 'decimal' : 'disc'}
       >
         {listItems.map((item) => (
-          <Box as="li" key={`${item.type}-${item.content}`}>
+          <Box as="li" key={`${item.type}-${item.content}`} minW="0" overflowWrap="anywhere">
             {renderInlineMarkdown({ text: item.content, citations, onCitationClick })}
           </Box>
         ))}
@@ -66,6 +67,7 @@ export function MarkdownMessage({
       <Box
         key={`code-${blocks.length}`}
         as="pre"
+        maxW="full"
         overflowX="auto"
         rounded="lg"
         bg="bg.subtle"
@@ -114,7 +116,7 @@ export function MarkdownMessage({
       const level = line.startsWith('### ') ? 3 : line.startsWith('## ') ? 2 : 1;
       const fontSize = level === 1 ? 'xl' : level === 2 ? 'lg' : 'base';
       blocks.push(
-        <Text key={`heading-${blocks.length}`} fontSize={fontSize} fontWeight="semibold">
+        <Text key={`heading-${blocks.length}`} minW="0" fontSize={fontSize} fontWeight="semibold" overflowWrap="anywhere">
           {renderInlineMarkdown({ text: headingText, citations, onCitationClick })}
         </Text>,
       );
@@ -146,6 +148,7 @@ export function MarkdownMessage({
           borderLeftWidth="2px"
           borderColor="border"
           pl="4"
+          minW="0"
           fontStyle="italic"
           color="fg.muted"
         >
@@ -163,7 +166,7 @@ export function MarkdownMessage({
   flushCodeFence();
 
   return (
-    <Flex direction="column" gap="2">
+    <Flex direction="column" gap="2" minW="0" maxW="full" overflowWrap="anywhere">
       {blocks}
     </Flex>
   );

@@ -28,9 +28,9 @@ export function ChatEmptyState({
           boxSize="14"
           align="center"
           justify="center"
-          rounded="2xl"
+          rounded="lg"
           bg="teal.subtle"
-          color="teal.solid"
+          color="teal.fg"
         >
           <MessageSquare size={24} />
         </Flex>
@@ -52,17 +52,17 @@ export function ChatEmptyState({
                 <chakra.button
                   key={prompt.id}
                   type="button"
-                  rounded="2xl"
+                  rounded="lg"
                   borderWidth="1px"
                   borderColor="border.subtle"
                   bg="bg.surface"
                   p="5"
                   textAlign="left"
-                  shadow="sm"
+                  shadow="xs"
                   cursor="pointer"
                   flex="1"
                   minW="240px"
-                  _hover={{ borderColor: 'teal.solid/35', bg: 'teal.subtle' }}
+                  _hover={{ borderColor: 'teal.muted', bg: 'bg.subtle' }}
                   onClick={() => onGuidedPromptSelect?.(prompt)}
                 >
                   <Flex gap="4">
@@ -71,9 +71,9 @@ export function ChatEmptyState({
                       shrink="0"
                 alignItems="center"
                       justify="center"
-                      rounded="xl"
+                      rounded="lg"
                       bg="teal.subtle"
-                      color="teal.solid"
+                      color="teal.fg"
                     >
                       <Icon size={20} />
                     </Flex>
@@ -114,10 +114,10 @@ export function ChatEmptyState({
                 fontWeight="medium"
                 color="fg"
                 cursor="pointer"
-                _hover={{ borderColor: 'fg/20', bg: 'teal.subtle' }}
+                _hover={{ borderColor: 'teal.muted', bg: 'bg.subtle' }}
                 onClick={() => onPromptSelect(label)}
               >
-                <Flex boxSize="8" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.solid">
+                <Flex boxSize="8" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
                   <Icon size={16} />
                 </Flex>
                 <Text>{label}</Text>

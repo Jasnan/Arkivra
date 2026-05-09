@@ -61,6 +61,25 @@ import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
 
+const documentTabTriggerStyles = {
+  h: '11',
+  roundedTop: 'md',
+  roundedBottom: '0',
+  borderBottomWidth: '2px',
+  borderColor: 'transparent',
+  px: '3',
+  pb: '3',
+  pt: '2',
+  color: 'fg.muted',
+  _hover: { bg: 'teal.subtle', color: 'fg' },
+  _selected: {
+    bg: 'teal.subtle',
+    borderColor: 'teal.solid',
+    color: 'teal.fg',
+    shadow: 'none',
+  },
+} as const;
+
 function getPreviewKind(mimeType: string): PreviewKind {
   if (mimeType === 'application/pdf') {
     return 'pdf';
@@ -421,57 +440,38 @@ export function DocumentDetailPage() {
     >
       <Flex
         as="header"
-        align="center"
-        justify="space-between"
-        gap="4"
+        direction="column"
+        align="stretch"
+        gap="5"
         borderBottomWidth="1px"
         borderColor="border.subtle"
-        pb="3"
+        pb="0"
       >
-        <Heading
-          as="h1"
-          textStyle="xl"
-          fontWeight="semibold"
-          lineHeight="short"
-          truncate
-          maxW="sm"
-        >
-          {document.name}
-        </Heading>
-
-        <Flex align="center" gap="4">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
-            <TabsList className="justify-end gap-6 rounded-none border-b border-border/70 bg-transparent p-0 text-muted-foreground">
-              <TabsTrigger
-                value="preview"
-                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-              >
-                <ImageIcon size={16} />
-                Preview
-              </TabsTrigger>
-              <TabsTrigger
-                value="content"
-                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-              >
-                <ScanText size={16} />
-                Extracted text
-              </TabsTrigger>
-              <TabsTrigger
-                value="metadata"
-                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-              >
-                <Tags size={16} />
-                Metadata
-              </TabsTrigger>
-              <TabsTrigger
-                value="chat"
-                className="rounded-none border-b-2 border-transparent px-1 pb-3 pt-0 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-              >
-                <MessageSquare size={16} />
-                Chat
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <Flex align="center" justify="space-between" gap="4" pt={{ base: '1', md: '0' }}>
+          <Flex align="center" gap="3" minW="0">
+            <Heading
+              as="h1"
+              textStyle="xl"
+              fontWeight="semibold"
+              lineHeight="short"
+              truncate
+            >
+              {document.name}
+            </Heading>
+            <Box
+              as="span"
+              flexShrink={0}
+              rounded="md"
+              bg="teal.subtle"
+              px="2"
+              py="1"
+              fontSize="xs"
+              fontWeight="medium"
+              color="teal.fg"
+            >
+              Document
+            </Box>
+          </Flex>
 
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -516,12 +516,48 @@ export function DocumentDetailPage() {
             </DropdownMenuContent>
           </DropdownMenu>
         </Flex>
+
+        <Flex align="center" justify="space-between" gap="3" overflowX="auto">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
+            <TabsList gap="2" rounded="0" bg="transparent" p="0">
+              <TabsTrigger
+                value="preview"
+                {...documentTabTriggerStyles}
+              >
+                <ImageIcon size={16} />
+                Preview
+              </TabsTrigger>
+              <TabsTrigger
+                value="content"
+                {...documentTabTriggerStyles}
+              >
+                <ScanText size={16} />
+                Extracted text
+              </TabsTrigger>
+              <TabsTrigger
+                value="metadata"
+                {...documentTabTriggerStyles}
+              >
+                <Tags size={16} />
+                Metadata
+              </TabsTrigger>
+              <TabsTrigger
+                value="chat"
+                {...documentTabTriggerStyles}
+              >
+                <MessageSquare size={16} />
+                Chat
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </Flex>
       </Flex>
 
       <Box
         flex={activeTab === 'chat' ? '1' : undefined}
         h={activeTab === 'chat' ? 'full' : undefined}
         minH={activeTab === 'chat' ? '0' : { base: '720px', md: '860px' }}
+        pt={activeTab === 'chat' ? '0' : '5'}
       >
             {activeTab === 'preview' ? (
               <Flex direction="column" gap="4">

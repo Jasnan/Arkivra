@@ -11,6 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createPrimaryKeyField, createTimestampColumns } from './helpers.js';
 import { usersTable } from './users.table.js';
+import { vaultFoldersTable } from './vault-folders.table.js';
 import { vaultsTable } from './vaults.table.js';
 
 export const documentsTable = pgTable(
@@ -22,6 +23,8 @@ export const documentsTable = pgTable(
     vaultId: text('vault_id')
       .notNull()
       .references(() => vaultsTable.id, { onDelete: 'cascade' }),
+
+    folderId: text('folder_id').references(() => vaultFoldersTable.id, { onDelete: 'set null' }),
 
     createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
 
@@ -60,6 +63,12 @@ export const documentsTable = pgTable(
       table.createdAt,
     ),
     index('documents_vault_deleted_idx').on(table.vaultId, table.isDeleted),
+    index('documents_vault_folder_deleted_created_idx').on(
+      table.vaultId,
+      table.folderId,
+      table.isDeleted,
+      table.createdAt,
+    ),
     index('documents_processing_status_idx').on(table.processingStatus),
     index('documents_hash_idx').on(table.originalSha256Hash),
     index('documents_kek_version_idx').on(table.fileEncryptionKekVersion),

@@ -548,4 +548,59 @@ describe.sequential('migrations smoke', () => {
       ]),
     );
   });
+
+  test('0006 creates vault folders and folder references', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT table_name, column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+            table_name = 'vault_folders'
+            OR (table_name = 'documents' AND column_name = 'folder_id')
+            OR (table_name = 'upload_sessions' AND column_name IN ('folder_id', 'relative_path'))
+          )
+      `,
+    );
+
+    const byKey = Object.fromEntries(
+      rows.map(row => [`${row.table_name}.${row.column_name}`, row]),
+    );
+
+    expect(byKey['vault_folders.id']?.data_type).toBe('text');
+    expect(byKey['vault_folders.vault_id']?.is_nullable).toBe('NO');
+    expect(byKey['vault_folders.parent_id']?.is_nullable).toBe('YES');
+    expect(byKey['vault_folders.name']?.is_nullable).toBe('NO');
+    expect(byKey['vault_folders.is_deleted']?.is_nullable).toBe('NO');
+    expect(byKey['documents.folder_id']?.data_type).toBe('text');
+    expect(byKey['upload_sessions.folder_id']?.data_type).toBe('text');
+    expect(byKey['upload_sessions.relative_path']?.data_type).toBe('text');
+
+    const { rows: indexRows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename IN ('vault_folders', 'documents', 'upload_sessions')
+      `,
+    );
+
+    expect(indexRows.map(row => row.indexname)).toEqual(
+      expect.arrayContaining([
+        'vault_folders_active_sibling_name_unique',
+        'vault_folders_vault_parent_deleted_name_idx',
+        'documents_vault_folder_deleted_created_idx',
+        'upload_sessions_folder_idx',
+      ]),
+    );
+  });
 });

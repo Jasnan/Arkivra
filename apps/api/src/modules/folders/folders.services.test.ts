@@ -7,6 +7,7 @@ import {
   getFolderSubtreeDepthFromRows,
   hasSiblingNameCollision,
   normalizeFolderName,
+  normalizeUploadRelativePath,
   validateFolderName,
   wouldCreateFolderCycle,
 } from './folders.services.js';
@@ -26,6 +27,39 @@ describe('folder service helpers', () => {
     expect(validateFolderName('   ')).toBe('invalid_name');
     expect(validateFolderName('Finance/2026')).toBe('invalid_path_separator');
     expect(validateFolderName('a'.repeat(256))).toBe('name_too_long');
+  });
+
+  test('normalizes upload relative paths into folder names', () => {
+    expect(
+      normalizeUploadRelativePath({
+        fileName: 'statement.pdf',
+        relativePath: '/Inbox/2026/statement.pdf',
+      }),
+    ).toEqual({
+      success: true,
+      relativePath: 'Inbox/2026/statement.pdf',
+      folderNames: ['Inbox', '2026'],
+    });
+
+    expect(
+      normalizeUploadRelativePath({
+        fileName: 'statement.pdf',
+        relativePath: 'Inbox/2026',
+      }),
+    ).toEqual({
+      success: true,
+      relativePath: 'Inbox/2026/statement.pdf',
+      folderNames: ['Inbox', '2026'],
+    });
+  });
+
+  test('rejects unsafe upload relative paths', () => {
+    expect(
+      normalizeUploadRelativePath({
+        fileName: 'statement.pdf',
+        relativePath: 'Inbox/../statement.pdf',
+      }),
+    ).toEqual({ success: false, reason: 'invalid_relative_path' });
   });
 
   test('detects active sibling name collisions case-insensitively', () => {

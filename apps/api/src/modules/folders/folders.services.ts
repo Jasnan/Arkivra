@@ -10,6 +10,7 @@ export type FolderServiceError =
   | 'invalid_name'
   | 'name_too_long'
   | 'invalid_path_separator'
+  | 'invalid_relative_path'
   | 'parent_not_found'
   | 'folder_not_found'
   | 'document_duplicate'
@@ -245,6 +246,60 @@ export function buildLogicalFolderPath(folders: FolderTreeNode[], folderId: stri
   return buildFolderAncestorsFromRows({ folders, folderId })
     .map(folder => folder.name)
     .join('/');
+}
+
+export function normalizeUploadRelativePath({
+  fileName,
+  relativePath,
+}: {
+  fileName: string;
+  relativePath?: string | null;
+}): { success: true; relativePath: string | null; folderNames: string[] }
+  | { success: false; reason: FolderServiceError } {
+  const normalizedFileName = fileName.trim();
+  const rawPath = typeof relativePath === 'string' ? relativePath.trim() : '';
+
+  if (rawPath.length === 0) {
+    return { success: true, relativePath: null, folderNames: [] };
+  }
+
+  const normalizedPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+  if (normalizedPath.length === 0) {
+    return { success: true, relativePath: null, folderNames: [] };
+  }
+
+  if (normalizedPath.length > MAX_LOGICAL_PATH_LENGTH) {
+    return { success: false, reason: 'path_too_long' };
+  }
+
+  const parts = normalizedPath.split('/');
+  if (parts.some(part => part.length === 0 || part === '.' || part === '..')) {
+    return { success: false, reason: 'invalid_relative_path' };
+  }
+
+  const pathIncludesFileName = parts.at(-1) === normalizedFileName;
+  const folderParts = pathIncludesFileName ? parts.slice(0, -1) : parts;
+  const storedRelativePath = pathIncludesFileName
+    ? parts.join('/')
+    : [...parts, normalizedFileName].join('/');
+
+  if (storedRelativePath.length > MAX_LOGICAL_PATH_LENGTH) {
+    return { success: false, reason: 'path_too_long' };
+  }
+
+  for (const part of folderParts) {
+    const folderValidation = validateFolderName(part);
+    if (folderValidation !== null) {
+      return { success: false, reason: folderValidation };
+    }
+  }
+
+  return {
+    success: true,
+    relativePath: storedRelativePath,
+    folderNames: folderParts.map(normalizeFolderName),
+  };
 }
 
 export function createFoldersServices({ db }: { db: Database }) {
@@ -507,6 +562,75 @@ export function createFoldersServices({ db }: { db: Database }) {
     }
 
     return { success: true, folder };
+  }
+
+  async function resolveUploadDestination({
+    vaultId,
+    parentId,
+    relativePath,
+    fileName,
+    createdBy,
+  }: {
+    vaultId: string;
+    parentId: string | null;
+    relativePath?: string | null;
+    fileName: string;
+    createdBy: string;
+  }): Promise<
+    | { success: true; folderId: string | null; relativePath: string | null }
+    | { success: false; reason: FolderServiceError }
+  > {
+    const normalizedPath = normalizeUploadRelativePath({ fileName, relativePath });
+    if (!normalizedPath.success) {
+      return normalizedPath;
+    }
+
+    let folders = await listActiveFoldersForVault({ vaultId });
+
+    if (parentId !== null && findFolderById(folders, parentId) === null) {
+      return { success: false, reason: 'parent_not_found' };
+    }
+
+    let currentParentId = parentId;
+
+    for (const folderName of normalizedPath.folderNames) {
+      const existingFolder = folders.find(folder =>
+        hasSameParent(folder.parentId, currentParentId)
+        && normalizeFolderName(folder.name).toLocaleLowerCase() === folderName.toLocaleLowerCase(),
+      );
+
+      if (existingFolder !== undefined) {
+        currentParentId = existingFolder.id;
+        continue;
+      }
+
+      const result = await createFolder({
+        vaultId,
+        parentId: currentParentId,
+        name: folderName,
+        createdBy,
+      });
+
+      if (!result.success) {
+        return { success: false, reason: result.reason };
+      }
+
+      folders = [
+        ...folders,
+        {
+          id: result.folder.id,
+          parentId: result.folder.parentId,
+          name: result.folder.name,
+        },
+      ];
+      currentParentId = result.folder.id;
+    }
+
+    return {
+      success: true,
+      folderId: currentParentId,
+      relativePath: normalizedPath.relativePath,
+    };
   }
 
   async function validateFolderMove({
@@ -815,6 +939,7 @@ export function createFoldersServices({ db }: { db: Database }) {
     listFolderDocuments,
     moveFolder,
     renameFolder,
+    resolveUploadDestination,
     restoreFolder,
     softDeleteFolder,
     validateFolderMove,

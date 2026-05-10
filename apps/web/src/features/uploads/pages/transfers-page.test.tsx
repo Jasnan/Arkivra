@@ -81,7 +81,11 @@ describe('transfers page', () => {
     await waitFor(() => {
       expect(uploadManager.addFiles).toHaveBeenCalledWith({
         vaultId: 'vlt_1',
-        files: [report, note],
+        folderId: null,
+        files: [
+          { file: report, relativePath: 'report.pdf' },
+          { file: note, relativePath: 'note.txt' },
+        ],
       });
     });
   });

@@ -11,6 +11,8 @@ export interface UploadSessionSummary {
   vaultId: string;
   userId: string;
   documentId: string | null;
+  folderId: string | null;
+  relativePath: string | null;
   fileName: string;
   mimeType: string;
   totalSize: number;
@@ -30,6 +32,8 @@ export interface UploadSessionSummary {
 export interface TransferItem {
   id: string;
   vaultId: string;
+  folderId: string | null;
+  relativePath: string | null;
   fileName: string;
   mimeType: string;
   size: number;
@@ -45,6 +49,11 @@ export interface TransferItem {
   documentId: string | null;
   createdAt: number;
   completedAt: number | null;
+}
+
+export interface UploadFileInput {
+  file: File;
+  relativePath?: string | null;
 }
 
 export interface TransferState {

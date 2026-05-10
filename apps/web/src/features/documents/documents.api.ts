@@ -72,12 +72,22 @@ export async function listDocumentTags({
 export async function uploadDocument({
   vaultId,
   file,
+  folderId,
+  relativePath,
 }: {
   vaultId: string;
   file: File;
+  folderId?: string | null;
+  relativePath?: string | null;
 }) {
   const formData = new FormData();
   formData.append('file', file);
+  if (folderId !== undefined && folderId !== null) {
+    formData.append('folderId', folderId);
+  }
+  if (relativePath !== undefined && relativePath !== null) {
+    formData.append('relativePath', relativePath);
+  }
 
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents`, {
     method: 'POST',

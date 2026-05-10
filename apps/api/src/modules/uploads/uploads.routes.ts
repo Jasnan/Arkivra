@@ -19,6 +19,49 @@ function getDuplicateDocumentMessage(scope: string | null | undefined) {
   return 'A document with the same content already exists in this vault';
 }
 
+function parseNullableFolderId(value: unknown) {
+  if (value === undefined || value === null || value === '' || value === 'root') {
+    return { valid: true as const, folderId: null };
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return { valid: true as const, folderId: value.trim() };
+  }
+
+  return { valid: false as const };
+}
+
+function getUploadDestinationErrorResponse(message: string) {
+  if (message === 'parent_not_found' || message === 'folder_not_found') {
+    return {
+      status: 404,
+      body: { error: { code: 'folder.not_found', message: 'Folder not found' } },
+    };
+  }
+
+  if (message === 'path_too_long') {
+    return {
+      status: 400,
+      body: { error: { code: 'folder.path_too_long', message: 'Folder path is too long' } },
+    };
+  }
+
+  if (
+    message === 'invalid_relative_path'
+    || message === 'invalid_name'
+    || message === 'name_too_long'
+    || message === 'invalid_path_separator'
+    || message === 'max_depth_exceeded'
+  ) {
+    return {
+      status: 400,
+      body: { error: { code: 'folder.invalid_relative_path', message: 'Relative path is invalid' } },
+    };
+  }
+
+  return null;
+}
+
 export function registerUploadRoutes({
   app,
   db,
@@ -53,10 +96,21 @@ export function registerUploadRoutes({
     const fileName = typeof body.fileName === 'string' ? body.fileName.trim() : '';
     const mimeType = typeof body.mimeType === 'string' ? body.mimeType : 'application/octet-stream';
     const totalSize = Number(body.totalSize);
+    const parsedFolderId = parseNullableFolderId(body.folderId);
+    const relativePath = typeof body.relativePath === 'string' && body.relativePath.trim().length > 0
+      ? body.relativePath
+      : null;
 
     if (fileName.length === 0 || !Number.isFinite(totalSize)) {
       return context.json(
         { error: { code: 'upload.invalid_payload', message: 'fileName and totalSize are required' } },
+        400,
+      );
+    }
+
+    if (!parsedFolderId.valid) {
+      return context.json(
+        { error: { code: 'folder.invalid_id', message: 'Invalid folder id' } },
         400,
       );
     }
@@ -68,6 +122,8 @@ export function registerUploadRoutes({
         fileName,
         mimeType,
         totalSize,
+        folderId: parsedFolderId.folderId,
+        relativePath,
       });
 
       return context.json({ upload }, 201);
@@ -77,6 +133,13 @@ export function registerUploadRoutes({
           { error: { code: 'upload.file_too_large', message: error.message } },
           413,
         );
+      }
+
+      const destinationError = error instanceof Error
+        ? getUploadDestinationErrorResponse(error.message)
+        : null;
+      if (destinationError !== null) {
+        return context.json(destinationError.body, destinationError.status as any);
       }
 
       return context.json(

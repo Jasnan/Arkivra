@@ -21,12 +21,12 @@ interface MockDirectoryEntry {
 
 type MockEntry = MockFileEntry | MockDirectoryEntry;
 
-function createFileEntry(file: File): MockFileEntry {
+function createFileEntry(file: File, fullPath = `/${file.name}`): MockFileEntry {
   return {
     isDirectory: false,
     isFile: true,
     name: file.name,
-    fullPath: `/${file.name}`,
+    fullPath,
     file: (successCallback: (value: File) => void) => {
       successCallback(file);
     },
@@ -60,10 +60,13 @@ describe('getDroppedFiles', () => {
   it('recursively expands directory drops into files', async () => {
     const rootFile = new File(['root'], 'root.txt', { type: 'text/plain' });
     const nestedFile = new File(['nested'], 'nested.txt', { type: 'text/plain' });
-    const nestedDirectory = createDirectoryEntry([createFileEntry(nestedFile)]);
-    const rootDirectory = createDirectoryEntry([createFileEntry(rootFile), nestedDirectory]);
+    const nestedDirectory = createDirectoryEntry([createFileEntry(nestedFile, '/folder/nested/nested.txt')]);
+    const rootDirectory = createDirectoryEntry([
+      createFileEntry(rootFile, '/folder/root.txt'),
+      nestedDirectory,
+    ]);
 
-    const files = await getDroppedFiles({
+    const droppedFiles = await getDroppedFiles({
       files: [],
       items: [
         {
@@ -74,7 +77,11 @@ describe('getDroppedFiles', () => {
       ],
     } as unknown as DataTransfer);
 
-    expect(files.map(file => file.name)).toEqual(['root.txt', 'nested.txt']);
+    expect(droppedFiles.map(item => item.file.name)).toEqual(['root.txt', 'nested.txt']);
+    expect(droppedFiles.map(item => item.relativePath)).toEqual([
+      'folder/root.txt',
+      'folder/nested/nested.txt',
+    ]);
   });
 
   it('falls back to plain file drops when directory APIs are unavailable', async () => {
@@ -85,6 +92,20 @@ describe('getDroppedFiles', () => {
       items: [],
     } as unknown as DataTransfer);
 
-    expect(files).toEqual([droppedFile]);
+    expect(files).toEqual([{ file: droppedFile, relativePath: null }]);
+  });
+
+  it('preserves webkitRelativePath values from folder picker files', async () => {
+    const file = new File(['content'], 'statement.pdf', { type: 'application/pdf' });
+    Object.defineProperty(file, 'webkitRelativePath', {
+      value: 'Inbox/2026/statement.pdf',
+    });
+
+    const files = await getDroppedFiles({
+      files: [file],
+      items: [],
+    } as unknown as DataTransfer);
+
+    expect(files).toEqual([{ file, relativePath: 'Inbox/2026/statement.pdf' }]);
   });
 });

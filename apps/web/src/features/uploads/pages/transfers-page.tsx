@@ -40,7 +40,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
-import { getDroppedFiles } from '../dropped-files';
+import { filesToDroppedFiles, getDroppedFiles } from '../dropped-files';
+import type { DroppedFile } from '../dropped-files';
 import { uploadManager } from '../upload-manager';
 import { useUploadManagerState } from '../use-upload-manager';
 
@@ -69,7 +70,9 @@ export function TransfersPage() {
   const { data } = useVaultsQuery();
   const state = useUploadManagerState();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const vaultId = search.vaultId ?? data?.vaults[0]?.id ?? '';
+  const folderId = search.folderId ?? null;
   const isVaultLocked = search.locked === 'true' && vaultId.length > 0;
   const activeVaultName = (data?.vaults ?? []).find((vault) => vault.id === vaultId)?.name ?? null;
   const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
@@ -100,13 +103,18 @@ export function TransfersPage() {
     void uploadManager.reconcileVault(vaultId);
   }, [vaultId]);
 
-  function handleFiles(files: File[]) {
+  useEffect(() => {
+    folderInputRef.current?.setAttribute('webkitdirectory', '');
+    folderInputRef.current?.setAttribute('directory', '');
+  }, []);
+
+  function handleFiles(files: DroppedFile[]) {
     if (!canUpload || files.length === 0) return;
-    uploadManager.addFiles({ vaultId, files });
+    uploadManager.addFiles({ vaultId, folderId, files });
   }
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
-    handleFiles(Array.from(event.target.files ?? []));
+    handleFiles(filesToDroppedFiles(Array.from(event.target.files ?? [])));
     event.target.value = '';
   }
 
@@ -240,6 +248,13 @@ export function TransfersPage() {
           className="hidden"
           onChange={handleInputChange}
         />
+        <input
+          ref={folderInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleInputChange}
+        />
       </Stack>
 
       {state.hydratedFromStorage &&
@@ -283,6 +298,15 @@ export function TransfersPage() {
                 >
                   <ActionMenuItemIcon icon={Plus} />
                   Add files
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!canUpload}
+                  onSelect={() => {
+                    folderInputRef.current?.click();
+                  }}
+                >
+                  <ActionMenuItemIcon icon={FileUp} />
+                  Add folder
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={completedItems.length === 0}
@@ -357,6 +381,11 @@ export function TransfersPage() {
               <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
                 <Box minW="0">
                   <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                  {item.relativePath && item.relativePath !== item.fileName ? (
+                    <Text mt="1" truncate textStyle="xs" color="fg.muted">
+                      {item.relativePath}
+                    </Text>
+                  ) : null}
                   <Box mt="2" h="2" overflow="hidden" rounded="full" bg="bg.subtle">
                     <Box
                       h="full"
@@ -452,6 +481,11 @@ export function TransfersPage() {
                   <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
                     <Box minW="0">
                       <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                      {item.relativePath && item.relativePath !== item.fileName ? (
+                        <Text mt="1" truncate textStyle="xs" color="fg.muted">
+                          {item.relativePath}
+                        </Text>
+                      ) : null}
                       <Box mt="2" h="2" overflow="hidden" rounded="full" bg="bg.subtle">
                         <Box h="full" rounded="full" bg="teal.solid" style={{ width: '100%' }} />
                       </Box>

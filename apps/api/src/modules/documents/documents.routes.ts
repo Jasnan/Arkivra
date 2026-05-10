@@ -15,6 +15,7 @@ import { createDocumentsServices } from './documents.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireVaultPermission } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
+import { createFoldersServices } from '../folders/folders.services.js';
 
 function getDuplicateDocumentMessage(scope: string | null | undefined) {
   if (scope === 'trash') {
@@ -47,6 +48,27 @@ function parseNullableFolderId(value: unknown) {
 
   const folderId = value.trim();
   return folderId.length > 0 ? { valid: true as const, folderId } : { valid: false as const };
+}
+
+function getFolderDestinationErrorResponse(reason: string) {
+  if (reason === 'parent_not_found' || reason === 'folder_not_found') {
+    return {
+      status: 404,
+      body: { error: { code: 'folder.not_found', message: 'Folder not found' } },
+    };
+  }
+
+  if (reason === 'path_too_long') {
+    return {
+      status: 400,
+      body: { error: { code: 'folder.path_too_long', message: 'Folder path is too long' } },
+    };
+  }
+
+  return {
+    status: 400,
+    body: { error: { code: 'folder.invalid_relative_path', message: 'Relative path is invalid' } },
+  };
 }
 
 function parsePageNumber(value: string | undefined) {
@@ -91,6 +113,7 @@ export function registerDocumentRoutes({
 }) {
   const documentsServices = services ?? createDocumentsServices({ db, storage, encryption });
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
+  const foldersServices = createFoldersServices({ db });
 
   app.use('/api/documents/trash', requireAuthentication());
 
@@ -200,6 +223,33 @@ export function registerDocumentRoutes({
       const fileData = Buffer.from(arrayBuffer);
       const fileName = file.name || 'untitled';
       const mimeType = file.type || 'application/octet-stream';
+      const parsedFolderId = parseNullableFolderId(formData.get('folderId'));
+      const relativePathField = formData.get('relativePath');
+      const relativePath = typeof relativePathField === 'string' && relativePathField.trim().length > 0
+        ? relativePathField
+        : null;
+
+      if (!parsedFolderId.valid || parsedFolderId.folderId === undefined) {
+        return context.json(
+          { error: { code: 'folder.invalid_id', message: 'Invalid folder id' } },
+          400,
+        );
+      }
+
+      const destination = parsedFolderId.folderId === null && relativePath === null
+        ? { success: true as const, folderId: null, relativePath: null }
+        : await foldersServices.resolveUploadDestination({
+            vaultId,
+            parentId: parsedFolderId.folderId,
+            relativePath,
+            fileName,
+            createdBy: userId,
+          });
+
+      if (!destination.success) {
+        const response = getFolderDestinationErrorResponse(destination.reason);
+        return context.json(response.body, response.status as any);
+      }
 
       const result = await documentsServices.uploadDocument({
         vaultId,
@@ -207,6 +257,7 @@ export function registerDocumentRoutes({
         fileName,
         mimeType,
         fileData,
+        folderId: destination.folderId,
       });
 
       if (result.duplicate) {

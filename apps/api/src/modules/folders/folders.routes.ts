@@ -34,6 +34,11 @@ function folderErrorResponse(error: FolderServiceError) {
         status: 400,
         body: { error: { code: 'folder.invalid_name', message: 'Folder name cannot contain path separators' } },
       };
+    case 'invalid_relative_path':
+      return {
+        status: 400,
+        body: { error: { code: 'folder.invalid_relative_path', message: 'Relative path is invalid' } },
+      };
     case 'parent_not_found':
       return {
         status: 404,

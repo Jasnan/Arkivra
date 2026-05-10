@@ -37,6 +37,8 @@ import { registerAdminUserRoutes } from '../admin/users/users.routes.js';
 import { registerAdminVaultRoutes } from '../admin/vaults/vaults.routes.js';
 import { registerAdminAiRoutes } from '../admin/ai/ai.routes.js';
 import { createAdminAiServices } from '../admin/ai/ai.services.js';
+import { createSensitiveActionServices } from '../security/sensitive-actions.services.js';
+import { registerSensitiveActionRoutes } from '../security/sensitive-actions.routes.js';
 import { createRuntimeConfiguredOllamaEmbedder } from '../parsing/ollama-embedder.js';
 import { createDocumentSearchServices } from '../search/search.services.js';
 import { createChatServices } from '../chat/chat.services.js';
@@ -87,6 +89,7 @@ export function createServer({
   const backupServices = createBackupServices({ config });
   const authzServices = authorizationServices ?? createAuthorizationServices({ db });
   const aiServices = adminAiServices ?? createAdminAiServices({ db, config });
+  const sensitiveActionServices = createSensitiveActionServices({ auth, db });
   const documentsServices = createDocumentsServices({ db, storage, encryption });
   const searchChunkEmbedder = createRuntimeConfiguredOllamaEmbedder({
     resolveSettings: async () => {
@@ -142,6 +145,7 @@ export function createServer({
 
   app.use('*', async (context, next) => {
     context.set('userId', null);
+    context.set('user', null);
     context.set('session', null);
     context.set('userDisabled', false);
     context.set('isGlobalAdmin', false);
@@ -201,6 +205,7 @@ export function createServer({
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
   registerAdminAiRoutes({ app, aiServices });
+  registerSensitiveActionRoutes({ app, services: sensitiveActionServices });
 
   // Health check endpoint
   app.get('/api/health', (c) => {
@@ -220,7 +225,7 @@ export function createServer({
     });
   });
 
-  app.get('/api/me', requireAuthentication(), (c) => {
+  app.get('/api/me', requireAuthentication(), async (c) => {
     const session = c.get('session');
 
     if (session === null) {
@@ -235,11 +240,14 @@ export function createServer({
       );
     }
 
+    const accounts = await sensitiveActionServices.listAuthAccounts({ userId: c.get('userId') ?? '' });
+
     return c.json({
       userId: c.get('userId'),
       sessionId: session.id,
       isGlobalAdmin: c.get('isGlobalAdmin'),
       canCreateVault: c.get('canCreateVault'),
+      authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),
     });
   });
 

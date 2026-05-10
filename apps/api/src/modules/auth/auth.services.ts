@@ -11,6 +11,7 @@ import {
 } from '../database/schema/auth.table.js';
 import { usersTable } from '../database/schema/users.table.js';
 import { createAuthEmailServices } from './auth-email.services.js';
+import { oauthTwoFactorChallengePlugin } from './oauth-two-factor.plugin.js';
 
 export type Auth = ReturnType<typeof createAuth>['auth'];
 
@@ -45,8 +46,13 @@ function buildSocialProviders(config: Config) {
   };
 }
 
-function buildPlugins() {
-  return [twoFactor()];
+function buildPlugins(config: Config) {
+  return [
+    twoFactor(),
+    oauthTwoFactorChallengePlugin({
+      webBaseUrl: config.server.webBaseUrl,
+    }),
+  ];
 }
 
 export function createAuth({ db, config }: { db: Database; config: Config }) {
@@ -120,7 +126,7 @@ export function createAuth({ db, config }: { db: Database; config: Config }) {
       deleteUser: { enabled: false },
     },
 
-    plugins: buildPlugins(),
+    plugins: buildPlugins(config),
   });
 
   return { auth };

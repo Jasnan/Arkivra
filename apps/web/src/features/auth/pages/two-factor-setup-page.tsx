@@ -1,5 +1,5 @@
 import type { ComponentProps, FormEvent } from 'react';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Collapsible,
@@ -36,18 +36,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { OtpCodeInput } from '@/features/auth/components/otp-code-input';
+import { useMeQuery } from '@/features/me/me.queries';
+import {
+  PENDING_SENSITIVE_ACTION_KEY,
+  getSensitiveActionVerificationMethod,
+  startTwoFactorSensitiveSetup,
+} from '@/features/security/sensitive-action-verification.types';
+import {
+  SensitiveActionVerificationStep,
+} from '@/features/security/sensitive-action-verification';
 import { authClient } from '@/lib/auth-client';
 
 const TOTP_SECRET_REGEX = /secret=([^&]+)/;
-const NON_DIGIT_REGEX = /\D/g;
-const STEPS = ['Verify password', 'Scan QR code', 'Confirm code'] as const;
-const OTP_CELL_IDS = ['otp-1', 'otp-2', 'otp-3', 'otp-4', 'otp-5', 'otp-6'] as const;
-type SetupStep = 'password' | 'scan' | 'confirm' | 'success';
+const STEPS = ['Verify identity', 'Scan QR code', 'Confirm code'] as const;
+type SetupStep = 'identity' | 'scan' | 'confirm' | 'success';
 
 function getStepIndex(step: SetupStep) {
-  if (step === 'password') return 0;
+  if (step === 'identity') return 0;
   if (step === 'scan') return 1;
   if (step === 'confirm') return 2;
   return 3;
@@ -160,14 +168,17 @@ function Panel(props: ComponentProps<typeof Box>) {
 }
 
 export function TwoFactorSetupPage() {
+  const meQuery = useMeQuery();
   const [password, setPassword] = useState('');
   const [codeDigits, setCodeDigits] = useState(['', '', '', '', '', '']);
-  const [currentStep, setCurrentStep] = useState<SetupStep>('password');
+  const [currentStep, setCurrentStep] = useState<SetupStep>('identity');
   const [isEnabling, setIsEnabling] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [totpUri, setTotpUri] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const verificationMethod = getSensitiveActionVerificationMethod(meQuery.data?.authMethods);
+  const displayedErrorMessage = errorMessage ?? (meQuery.isError ? 'Could not load your sign-in methods.' : null);
 
   const secret = useMemo(() => {
     if (!totpUri) return null;
@@ -176,26 +187,47 @@ export function TwoFactorSetupPage() {
   }, [totpUri]);
 
   const verificationCode = codeDigits.join('');
-  async function handleEnable(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const startSetup = useCallback(async (passwordValue?: string) => {
     setErrorMessage(null);
     setIsEnabling(true);
-    const { data, error } = await authClient.twoFactor.enable({ password });
-    setIsEnabling(false);
-    if (error) {
-      setErrorMessage(error.message ?? 'Could not enable 2FA.');
-      return;
-    }
 
-    if (!data?.totpURI) {
-      setErrorMessage('Could not generate a 2FA setup key.');
-      return;
-    }
+    try {
+      const data = await startTwoFactorSensitiveSetup({ password: passwordValue });
 
-    setTotpUri(data?.totpURI ?? null);
-    setBackupCodes(data?.backupCodes ?? []);
-    setCurrentStep('scan');
+      if (!data?.totpURI) {
+        setErrorMessage('Could not generate a 2FA setup key.');
+        return;
+      }
+
+      setTotpUri(data?.totpURI ?? null);
+      setBackupCodes(data?.backupCodes ?? []);
+      setCurrentStep('scan');
+      sessionStorage.removeItem(PENDING_SENSITIVE_ACTION_KEY);
+    }
+    catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not enable 2FA.');
+    }
+    finally {
+      setIsEnabling(false);
+    }
+  }, []);
+
+  async function handleEnable(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await startSetup(password);
   }
+
+  useEffect(() => {
+    if (currentStep !== 'identity' || verificationMethod.type !== 'oauth' || isEnabling) {
+      return;
+    }
+
+    if (sessionStorage.getItem(PENDING_SENSITIVE_ACTION_KEY) !== 'two-factor-setup') {
+      return;
+    }
+
+    void startSetup();
+  }, [currentStep, isEnabling, startSetup, verificationMethod.type]);
 
   async function handleVerify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -248,14 +280,16 @@ export function TwoFactorSetupPage() {
             <WizardStepper step={currentStep} />
             <Separator />
 
-            {currentStep === 'password' ? (
-              <PasswordStep
-                errorMessage={errorMessage}
-                isEnabling={isEnabling}
+            {currentStep === 'identity' ? (
+              <SensitiveActionVerificationStep
+                actionLabel="Preparing 2FA"
+                errorMessage={displayedErrorMessage}
+                isPending={isEnabling || meQuery.isPending}
+                method={verificationMethod}
                 password={password}
                 setPassword={setPassword}
                 onCancel={cancelSetup}
-                onSubmit={handleEnable}
+                onPasswordSubmit={handleEnable}
               />
             ) : null}
 
@@ -264,7 +298,7 @@ export function TwoFactorSetupPage() {
                 backupCodes={backupCodes}
                 secret={secret}
                 totpUri={totpUri}
-                onBack={() => setCurrentStep('password')}
+                onBack={() => setCurrentStep('identity')}
                 onContinue={() => {
                   setErrorMessage(null);
                   setCurrentStep('confirm');
@@ -275,7 +309,7 @@ export function TwoFactorSetupPage() {
             {currentStep === 'confirm' ? (
               <ConfirmStep
                 codeDigits={codeDigits}
-                errorMessage={errorMessage}
+                errorMessage={displayedErrorMessage}
                 isVerifying={isVerifying}
                 setCodeDigits={setCodeDigits}
                 onBack={() => {
@@ -291,61 +325,6 @@ export function TwoFactorSetupPage() {
         </CardContent>
       </Card>
     </Box>
-  );
-}
-
-function PasswordStep({
-  errorMessage,
-  isEnabling,
-  password,
-  setPassword,
-  onCancel,
-  onSubmit,
-}: {
-  errorMessage: string | null;
-  isEnabling: boolean;
-  password: string;
-  setPassword: (value: string) => void;
-  onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  return (
-    <chakra.form onSubmit={onSubmit}>
-      <VStack align="stretch" gap="5">
-        <SectionHeading
-          title="Verify your password"
-          description="For security reasons, enter your current password before continuing."
-        />
-
-        <Field maxW="sm">
-          <FieldLabel htmlFor="two-factor-password">Current password</FieldLabel>
-          <Input
-            id="two-factor-password"
-            type="password"
-            required
-            autoComplete="current-password"
-            placeholder="Current password"
-            value={password}
-            aria-invalid={errorMessage ? true : undefined}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </Field>
-
-        {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
-
-        <Separator />
-
-        <HStack justify="space-between" gap="3">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={isEnabling} loadingText="Preparing 2FA">
-            Continue
-            <ArrowRight size={16} />
-          </Button>
-        </HStack>
-      </VStack>
-    </chakra.form>
   );
 }
 
@@ -538,29 +517,6 @@ function ConfirmStep({
   onBack: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  const otpInputRef = useRef<Array<HTMLInputElement | null>>([]);
-
-  function updateDigit(index: number, value: string) {
-    const nextValue = [...codeDigits];
-    const digits = value.replace(NON_DIGIT_REGEX, '').split('');
-
-    if (digits.length > 1) {
-      digits.slice(0, 6 - index).forEach((digit, offset) => {
-        nextValue[index + offset] = digit;
-      });
-      setCodeDigits(nextValue);
-      otpInputRef.current[Math.min(index + digits.length, 5)]?.focus();
-      return;
-    }
-
-    nextValue[index] = digits[0] ?? '';
-    setCodeDigits(nextValue);
-
-    if (digits[0] && index < 5) {
-      otpInputRef.current[index + 1]?.focus();
-    }
-  }
-
   return (
     <chakra.form onSubmit={onSubmit}>
       <VStack align="stretch" gap="5">
@@ -570,45 +526,7 @@ function ConfirmStep({
             description="Enter the 6-digit verification code from your authenticator app."
           />
 
-          <Field>
-            <FieldLabel id="totp-code-label">Verification code</FieldLabel>
-            <HStack
-              aria-labelledby="totp-code-label"
-              role="group"
-              gap="2"
-              flexWrap="wrap"
-              onPaste={(event) => {
-                event.preventDefault();
-                updateDigit(0, event.clipboardData.getData('text'));
-              }}
-            >
-              {OTP_CELL_IDS.map((cellId, index) => (
-                <Input
-                  key={cellId}
-                  ref={(node) => {
-                    otpInputRef.current[index] = node;
-                  }}
-                  aria-label={`Digit ${index + 1}`}
-                  autoComplete={index === 0 ? 'one-time-code' : 'off'}
-                  autoFocus={index === 0}
-                  inputMode="numeric"
-                  maxLength={1}
-                  pattern="[0-9]*"
-                  value={codeDigits[index] ?? ''}
-                  textAlign="center"
-                  fontSize="lg"
-                  fontWeight="semibold"
-                  boxSize="11"
-                  onChange={(event) => updateDigit(index, event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Backspace' && !codeDigits[index] && index > 0) {
-                      otpInputRef.current[index - 1]?.focus();
-                    }
-                  }}
-                />
-              ))}
-            </HStack>
-          </Field>
+          <OtpCodeInput value={codeDigits} onChange={setCodeDigits} />
 
           <Text fontSize="sm" color="fg.muted">
             Codes refresh every 30 seconds.

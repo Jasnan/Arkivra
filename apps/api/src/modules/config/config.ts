@@ -45,6 +45,12 @@ export const configDefinition = {
       default: 'http://localhost:5173',
       env: 'ARKIVRA_CORS_ORIGINS',
     },
+    webBaseUrl: {
+      doc: 'Public base URL of the Arkivra web app. Security-sensitive auth redirects, such as OAuth 2FA verification, use this origin.',
+      schema: z.string().url(),
+      default: 'http://localhost:5173',
+      env: 'ARKIVRA_WEB_BASE_URL',
+    },
   },
   database: {
     url: {

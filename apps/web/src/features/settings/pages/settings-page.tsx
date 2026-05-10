@@ -140,11 +140,7 @@ export function SettingsPage() {
                 <Input
                   id="settings-name"
                   value={profileName}
-                  onChange={(event) =>
-                    setProfileDraft((current) => ({
-                      name: event.target.value,
-                    }))
-                  }
+                  onChange={(event) => setProfileDraft({ name: event.target.value })}
                   placeholder="Your name"
                 />
               </Field>
@@ -238,8 +234,7 @@ export function SettingsPage() {
                   <SecurityStatusBadge
                     tone={sessionData?.user.twoFactorEnabled ? 'positive' : 'warning'}
                   >
-                    {sessionData?.user.twoFactorEnabled ? 'Enabled' : 'Off'}
-                    {!sessionData?.user.twoFactorEnabled ? <AlertTriangle size={16} /> : null}
+                    {sessionData?.user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}
                   </SecurityStatusBadge>
                 </Flex>
               </Stack>
@@ -261,21 +256,6 @@ export function SettingsPage() {
                 >
                   {sessionData?.user.twoFactorEnabled ? 'Manage 2FA' : 'Enable 2FA'}
                 </Link>
-                <Button
-                  type="button"
-                  variant="outline"
-                  rounded="lg"
-                  disabled={isEmailVerified || emailMutation.isPending}
-                  onClick={() => {
-                    emailMutation.mutate();
-                  }}
-                >
-                  {isEmailVerified
-                    ? 'Email verified'
-                    : emailMutation.isPending
-                      ? 'Sending...'
-                      : 'Send verification email'}
-                </Button>
               </Stack>
             </Grid>
 

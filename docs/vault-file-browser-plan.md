@@ -96,12 +96,12 @@ permissions can be added later without replacing the tree.
 
 Suggested task branch naming:
 
-- `feature/vault-file-browser/schema`
-- `feature/vault-file-browser/folder-api`
-- `feature/vault-file-browser/upload-paths`
-- `feature/vault-file-browser/browser-ui`
-- `feature/vault-file-browser/context-menu`
-- `feature/vault-file-browser/move-workflows`
+- `feature/vault-file-browser-schema`
+- `feature/vault-file-browser-folder-api`
+- `feature/vault-file-browser-upload-paths`
+- `feature/vault-file-browser-browser-ui`
+- `feature/vault-file-browser-context-menu`
+- `feature/vault-file-browser-move-workflows`
 
 ## Phases
 

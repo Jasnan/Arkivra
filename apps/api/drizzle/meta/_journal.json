@@ -43,6 +43,13 @@
       "when": 1778457600000,
       "tag": "0005_chunk_lineage_and_asset_source",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778544000000,
+      "tag": "0006_vault_folders",
+      "breakpoints": true
     }
   ]
 }

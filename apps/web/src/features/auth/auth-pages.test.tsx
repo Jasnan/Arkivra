@@ -31,9 +31,17 @@ vi.mock('@/lib/auth-client', () => ({
   authClient: authClientMock,
 }));
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 describe('auth pages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     authClientMock.useSession.mockReturnValue({ data: null, isPending: false });
     authClientMock.signIn.email.mockResolvedValue({ data: null, error: null });
     authClientMock.signIn.social.mockResolvedValue({ error: null });
@@ -118,12 +126,43 @@ describe('auth pages', () => {
 
   it('enables and verifies two-factor auth', async () => {
     const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+        });
+      }
+
+      if (url === '/api/security/two-factor/setup' && init?.method === 'POST') {
+        return jsonResponse({
+          totpURI: 'otpauth://totp/Arkivra?secret=ABC123&issuer=Arkivra',
+          backupCodes: ['backup-1', 'backup-2'],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
     await renderWithProviders(<TwoFactorSetupPage />);
 
-    await user.type(screen.getByLabelText(/current password/i), 'secret123');
+    await user.type(await screen.findByLabelText(/current password/i), 'secret123');
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
-    expect(authClientMock.twoFactor.enable).toHaveBeenCalledWith({ password: 'secret123' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/security/two-factor/setup', expect.objectContaining({
+      body: JSON.stringify({ password: 'secret123' }),
+      method: 'POST',
+    }));
     expect(await screen.findByRole('img', { name: /authenticator setup qr code/i })).toBeInTheDocument();
     expect(screen.getByText('backup-1')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('ABC123')).not.toBeInTheDocument();
@@ -140,9 +179,48 @@ describe('auth pages', () => {
     expect(await screen.findByText(/two-factor authentication enabled/i)).toBeInTheDocument();
   });
 
+  it('uses OAuth reauthentication for OAuth-only 2FA setup', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: false,
+            oauthProviders: ['github'],
+            primaryOAuthProvider: 'github',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<TwoFactorSetupPage />);
+
+    expect(await screen.findByText(/confirm your github account/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /continue with github/i }));
+
+    expect(authClientMock.signIn.social).toHaveBeenCalledWith({
+      provider: 'github',
+      callbackURL: 'http://localhost:3000/',
+    });
+    expect(sessionStorage.getItem('arkivra.pendingSensitiveAction')).toBe('two-factor-setup');
+  });
+
   it('accepts backup codes on the verification page', async () => {
     const user = userEvent.setup();
     await renderWithProviders(<TwoFactorVerifyPage />);
+
+    expect(screen.getByRole('checkbox', { name: /trust this device for 30 days/i })).not.toBeChecked();
 
     await user.click(screen.getByRole('button', { name: /backup code/i }));
     await user.type(screen.getByLabelText(/backup code/i), 'backup-1');
@@ -151,6 +229,24 @@ describe('auth pages', () => {
     await waitFor(() => {
       expect(authClientMock.twoFactor.verifyBackupCode).toHaveBeenCalledWith({
         code: 'backup-1',
+        trustDevice: false,
+      });
+    });
+  });
+
+  it('accepts authenticator codes in segmented inputs on the verification page', async () => {
+    const user = userEvent.setup();
+    await renderWithProviders(<TwoFactorVerifyPage />);
+
+    for (const [index, digit] of ['1', '2', '3', '4', '5', '6'].entries()) {
+      await user.type(screen.getByLabelText(new RegExp(`digit ${index + 1}`, 'i')), digit);
+    }
+    await user.click(screen.getByRole('checkbox', { name: /trust this device for 30 days/i }));
+    await user.click(screen.getByRole('button', { name: /^verify$/i }));
+
+    await waitFor(() => {
+      expect(authClientMock.twoFactor.verifyTotp).toHaveBeenCalledWith({
+        code: '123456',
         trustDevice: true,
       });
     });

@@ -89,7 +89,6 @@ describe('settings, admin, and about pages', () => {
     expect(screen.getByLabelText(/email/i)).toBeDisabled();
     expect(screen.getByText(/email changes are not supported/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^verified$/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /email verified/i })).toBeDisabled();
     expect(authClientMock.sendVerificationEmail).not.toHaveBeenCalled();
 
     expect(screen.getByRole('link', { name: /change password/i })).toHaveAttribute(
@@ -164,6 +163,40 @@ describe('settings, admin, and about pages', () => {
       'href',
       '/request-password-reset',
     );
+  });
+
+  it('shows 2FA as not enabled without the old off label', async () => {
+    authClientMock.useSession.mockReturnValue({
+      data: {
+        user: {
+          name: 'Alex',
+          email: 'alex@example.com',
+          emailVerified: true,
+          twoFactorEnabled: false,
+        },
+      },
+      isPending: false,
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SettingsPage />);
+
+    expect(await screen.findByText(/not enabled/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^off$/i)).not.toBeInTheDocument();
   });
 
   it('loads admin data and triggers backup and user actions', async () => {

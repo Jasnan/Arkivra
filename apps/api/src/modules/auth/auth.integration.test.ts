@@ -28,6 +28,15 @@ function createMockAuth() {
 }
 
 const mockDb = {} as Database;
+function createMockDbWithAccounts(accounts: Array<{ password: string | null; providerId: string }>) {
+  return {
+    select: () => ({
+      from: () => ({
+        where: vi.fn(async () => accounts),
+      }),
+    }),
+  } as unknown as Database;
+}
 const mockStorage = {
   write: vi.fn(),
   read: vi.fn(),
@@ -168,6 +177,7 @@ describe('auth integration', () => {
 
     getSession.mockResolvedValue({
       user: {
+        email: 'alex@example.com',
         id: 'usr_test_1',
       },
       session: {
@@ -178,7 +188,10 @@ describe('auth integration', () => {
     const { app } = createServer({
       config,
       auth,
-      db: mockDb,
+      db: createMockDbWithAccounts([
+        { password: 'hashed_password', providerId: 'credential' },
+        { password: null, providerId: 'github' },
+      ]),
       storage: mockStorage,
       encryption: mockEncryption,
       authorizationServices: mockAuthorizationServices as any,
@@ -192,6 +205,11 @@ describe('auth integration', () => {
       sessionId: 'ses_test_1',
       isGlobalAdmin: false,
       canCreateVault: false,
+      authMethods: {
+        hasPassword: true,
+        oauthProviders: ['github'],
+        primaryOAuthProvider: 'github',
+      },
     });
   });
 });

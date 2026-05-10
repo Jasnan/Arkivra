@@ -3,4 +3,9 @@ export interface MeResponse {
   sessionId: string;
   isGlobalAdmin: boolean;
   canCreateVault: boolean;
+  authMethods: {
+    hasPassword: boolean;
+    oauthProviders: string[];
+    primaryOAuthProvider: string | null;
+  };
 }

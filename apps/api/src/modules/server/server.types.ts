@@ -10,6 +10,7 @@ export type AuthSessionData = {
 export type ServerContext = {
   Variables: {
     userId: string | null;
+    user: User | null;
     session: Session | null;
     userDisabled: boolean;
     isGlobalAdmin: boolean;

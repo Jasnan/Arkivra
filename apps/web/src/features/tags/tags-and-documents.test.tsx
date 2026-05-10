@@ -13,6 +13,25 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function folderItemsResponse(
+  overrides: Partial<{
+    folder: unknown;
+    breadcrumbs: unknown[];
+    folders: unknown[];
+    documents: unknown[];
+    items: unknown[];
+  }> = {},
+) {
+  return {
+    folder: null,
+    breadcrumbs: [],
+    folders: [],
+    documents: [],
+    items: [],
+    ...overrides,
+  };
+}
+
 async function selectRadixOption({
   user,
   trigger,
@@ -390,6 +409,10 @@ describe('tags and documents pages', () => {
         });
       }
 
+      if (url.includes('/api/vaults/vlt_1/folders/items')) {
+        return jsonResponse(folderItemsResponse());
+      }
+
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
         return jsonResponse({
           tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
@@ -402,8 +425,8 @@ describe('tags and documents pages', () => {
 
     const user = userEvent.setup();
     await renderWithProviders(<DocumentsPage />, {
-      initialEntries: ['/vaults/vlt_1/documents'],
-      routePath: '/vaults/:vaultId/documents',
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
     });
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
@@ -419,7 +442,7 @@ describe('tags and documents pages', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/vaults/vlt_1/documents?tagId=tag_1&sortBy=created_desc',
+        '/api/vaults/vlt_1/documents?tagId=tag_1&sortBy=created_desc&folderId=root',
         expect.objectContaining({
           credentials: 'include',
         }),
@@ -464,6 +487,10 @@ describe('tags and documents pages', () => {
         });
       }
 
+      if (url.includes('/api/vaults/vlt_1/folders/items')) {
+        return jsonResponse(folderItemsResponse());
+      }
+
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
         return jsonResponse({ tags: [] });
       }
@@ -474,8 +501,8 @@ describe('tags and documents pages', () => {
 
     const user = userEvent.setup();
     await renderWithProviders(<DocumentsPage />, {
-      initialEntries: ['/vaults/vlt_1/documents'],
-      routePath: '/vaults/:vaultId/documents',
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
     });
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
@@ -522,6 +549,10 @@ describe('tags and documents pages', () => {
         });
       }
 
+      if (url.includes('/api/vaults/vlt_1/folders/items')) {
+        return jsonResponse(folderItemsResponse());
+      }
+
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
         return jsonResponse({ tags: [] });
       }
@@ -550,6 +581,139 @@ describe('tags and documents pages', () => {
         expect.objectContaining({
           credentials: 'include',
           method: 'DELETE',
+        }),
+      ),
+    );
+  });
+
+  it('browses folders, switches views, and creates folders on the vault documents page', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.includes('/api/vaults/vlt_1/documents') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          documents: url.includes('folderId=fld_1')
+            ? []
+            : [
+                {
+                  id: 'doc_1',
+                  name: 'Invoice April.pdf',
+                  originalName: 'invoice.pdf',
+                  originalSize: 2048,
+                  mimeType: 'application/pdf',
+                  documentDate: null,
+                  folderId: null,
+                  createdAt: '2026-04-10T10:00:00.000Z',
+                  updatedAt: '2026-04-10T10:00:00.000Z',
+                  isDeleted: false,
+                  deletedAt: null,
+                },
+              ],
+        });
+      }
+
+      if (url.includes('/api/vaults/vlt_1/folders/items')) {
+        if (url.includes('folderId=fld_1')) {
+          return jsonResponse(
+            folderItemsResponse({
+              folder: {
+                id: 'fld_1',
+                vaultId: 'vlt_1',
+                parentId: null,
+                name: 'Finance',
+                createdBy: 'user_1',
+                isDeleted: false,
+                deletedAt: null,
+                deletedBy: null,
+                createdAt: '2026-04-09T10:00:00.000Z',
+                updatedAt: '2026-04-09T10:00:00.000Z',
+              },
+              breadcrumbs: [{ id: 'fld_1', parentId: null, name: 'Finance' }],
+            }),
+          );
+        }
+
+        return jsonResponse(
+          folderItemsResponse({
+            folders: [
+              {
+                id: 'fld_1',
+                vaultId: 'vlt_1',
+                parentId: null,
+                name: 'Finance',
+                createdBy: 'user_1',
+                isDeleted: false,
+                deletedAt: null,
+                deletedBy: null,
+                createdAt: '2026-04-09T10:00:00.000Z',
+                updatedAt: '2026-04-09T10:00:00.000Z',
+              },
+            ],
+          }),
+        );
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/folders') && init?.method === 'POST') {
+        expect(init.body).toBe(JSON.stringify({ parentId: 'fld_1', name: 'Projects' }));
+        return jsonResponse(
+          {
+            folder: {
+              id: 'fld_2',
+              vaultId: 'vlt_1',
+              parentId: 'fld_1',
+              name: 'Projects',
+              createdBy: 'user_1',
+              isDeleted: false,
+              deletedAt: null,
+              deletedBy: null,
+              createdAt: '2026-04-12T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+            },
+          },
+          201,
+        );
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    expect(await screen.findByRole('button', { name: /finance/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /invoice april/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /grid view/i }));
+
+    await user.click(screen.getByRole('button', { name: /finance/i }));
+
+    expect(await screen.findByText(/^Finance$/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/documents?sortBy=created_desc&folderId=fld_1',
+        expect.objectContaining({ credentials: 'include' }),
+      );
+    });
+
+    await user.click(screen.getAllByRole('button', { name: /new folder/i })[0]);
+    const createDialog = await screen.findByRole('dialog', { name: /new folder/i });
+    await user.type(within(createDialog).getByLabelText(/^name$/i), 'Projects');
+    await user.click(within(createDialog).getByRole('button', { name: /^create folder$/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/folders',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
         }),
       ),
     );

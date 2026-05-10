@@ -1,16 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, Flex, HStack, Portal, Text } from '@chakra-ui/react';
-import { Upload } from 'lucide-react';
-import { Link, useParams } from '@tanstack/react-router';
+import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
+import { File, Folder, FolderPlus, Grid3X3, Home, List, Trash2, Upload } from 'lucide-react';
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import {
+  EmptyState,
   PageIntro,
   SurfacePanel,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -19,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getDocumentDownloadUrl, softDeleteDocument } from '@/features/documents/documents.api';
+import { formatBytes } from '@/features/documents/documents.utils';
 import {
   DocumentLibraryTable,
   getDocumentSelectionKey,
@@ -29,6 +47,10 @@ import {
   DocumentSearchControls,
 } from '@/features/documents/components/document-search-controls';
 import { documentQueryKeys, useDocumentsQuery } from '@/features/documents/documents.queries';
+import type { DocumentSummary } from '@/features/documents/documents.types';
+import { createFolder } from '@/features/file-browser/file-browser.api';
+import { fileBrowserQueryKeys, useFolderItemsQuery } from '@/features/file-browser/file-browser.queries';
+import type { FolderSummary } from '@/features/file-browser/file-browser.types';
 import { searchQueryKeys, useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -36,12 +58,374 @@ import { useTagsQuery } from '@/features/tags/tags.queries';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 
 const PAGE_SIZE = 8;
+const FILE_BROWSER_VIEW_STORAGE_KEY = 'arkivra:file-browser:view';
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
   { value: 'created_desc', label: 'Newest' },
   { value: 'created_asc', label: 'Oldest upload' },
   { value: 'name_asc', label: 'Name (A-Z)' },
   { value: 'name_desc', label: 'Name (Z-A)' },
 ];
+
+type FileBrowserView = 'list' | 'grid';
+interface BrowserDocumentItem {
+  type: 'document';
+  document: DocumentSummary;
+}
+interface BrowserFolderItem {
+  type: 'folder';
+  folder: FolderSummary;
+}
+type BrowserItem = BrowserFolderItem | BrowserDocumentItem;
+
+function getInitialBrowserView(): FileBrowserView {
+  if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
+    return 'list';
+  }
+
+  try {
+    return window.localStorage.getItem(FILE_BROWSER_VIEW_STORAGE_KEY) === 'grid' ? 'grid' : 'list';
+  } catch {
+    return 'list';
+  }
+}
+
+function formatDateOnly(value: string | null) {
+  if (!value) {
+    return 'Not set';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+  }).format(new Date(value));
+}
+
+function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
+  const extension = name.split('.').pop()?.trim().toUpperCase();
+
+  if (extension && extension.length <= 5) {
+    return extension;
+  }
+
+  if (mimeType === 'application/pdf') {
+    return 'PDF';
+  }
+
+  if (mimeType.startsWith('image/')) {
+    return 'IMG';
+  }
+
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) {
+    return 'XLS';
+  }
+
+  if (mimeType.includes('word') || mimeType.includes('document')) {
+    return 'DOC';
+  }
+
+  if (mimeType.startsWith('text/')) {
+    return 'TXT';
+  }
+
+  return 'FILE';
+}
+
+function getItemName(item: BrowserItem) {
+  return item.type === 'folder' ? item.folder.name : item.document.name;
+}
+
+function FileBrowserIcon({ item }: { item: BrowserItem }) {
+  if (item.type === 'folder') {
+    return (
+      <Flex boxSize="10" shrink={0} align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg">
+        <Folder size={20} />
+      </Flex>
+    );
+  }
+
+  const label = getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
+
+  return (
+    <Flex boxSize="10" shrink={0} align="center" justify="center" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" color="fg">
+      <Stack align="center" gap="0" lineHeight="none">
+        <File size={14} />
+        <Text as="span" fontSize="0.58rem" fontWeight="bold" letterSpacing="normal">
+          {label}
+        </Text>
+      </Stack>
+    </Flex>
+  );
+}
+
+function FolderBreadcrumbs({
+  currentFolderId,
+  breadcrumbs,
+  onNavigateFolder,
+}: {
+  currentFolderId: string | null;
+  breadcrumbs: Array<{ id: string; name: string }>;
+  onNavigateFolder: (folderId: string | null) => void;
+}) {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          {currentFolderId === null ? (
+            <BreadcrumbPage display="inline-flex" alignItems="center" gap="1.5">
+              <Home size={14} />
+              Root
+            </BreadcrumbPage>
+          ) : (
+            <BreadcrumbLink
+              as="button"
+              type="button"
+              display="inline-flex"
+              alignItems="center"
+              gap="1.5"
+              onClick={() => onNavigateFolder(null)}
+            >
+              <Home size={14} />
+              Root
+            </BreadcrumbLink>
+          )}
+        </BreadcrumbItem>
+        {breadcrumbs.map((folder, index) => {
+          const isCurrent = index === breadcrumbs.length - 1;
+          return (
+            <Fragment key={folder.id}>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                {isCurrent ? (
+                  <BreadcrumbPage>{folder.name}</BreadcrumbPage>
+                ) : (
+                  <BreadcrumbLink as="button" type="button" onClick={() => onNavigateFolder(folder.id)}>
+                    {folder.name}
+                  </BreadcrumbLink>
+                )}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+function DocumentItemActions({
+  document,
+  onDeleteDocument,
+  disabled,
+}: {
+  document: DocumentSummary;
+  onDeleteDocument: (document: DocumentSummary) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <ActionMenuTriggerButton
+          label={`Open actions for ${document.name}`}
+          disabled={disabled}
+          onClick={(event) => event.stopPropagation()}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" minW="48">
+        <DropdownMenuItem
+          value="move-to-trash"
+          color="fg.error"
+          onClick={(event) => event.stopPropagation()}
+          onSelect={() => onDeleteDocument(document)}
+        >
+          <ActionMenuItemIcon icon={Trash2} tone="destructive" />
+          Move to trash
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function BrowserItemList({
+  items,
+  vaultId,
+  onOpenFolder,
+  onDeleteDocument,
+  isDeleting,
+}: {
+  items: BrowserItem[];
+  vaultId: string;
+  onOpenFolder: (folderId: string) => void;
+  onDeleteDocument: (document: DocumentSummary) => void;
+  isDeleting?: boolean;
+}) {
+  return (
+    <SurfacePanel overflow="hidden" p="0">
+      <Grid
+        display={{ base: 'none', md: 'grid' }}
+        templateColumns="minmax(0, 1.4fr) 140px 132px 44px"
+        gap="4"
+        borderBottomWidth="1px"
+        borderColor="border.subtle"
+        px="6"
+        py="3"
+        fontSize="sm"
+        color="fg.muted"
+      >
+        <Text as="span">Name</Text>
+        <Text as="span">Updated</Text>
+        <Text as="span">Size</Text>
+        <Text as="span" srOnly>Actions</Text>
+      </Grid>
+
+      {items.map((item) => {
+        const name = getItemName(item);
+        const updatedAt = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
+
+        return (
+          <Box key={item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`} borderBottomWidth="1px" borderColor="border.subtle" _last={{ borderBottomWidth: 0 }}>
+            {item.type === 'folder' ? (
+              <chakra.button
+                type="button"
+                display="grid"
+                w="full"
+                gridTemplateColumns={{ base: '1fr', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
+                gap="4"
+                alignItems="center"
+                px="6"
+                py="3.5"
+                textAlign="left"
+                transition="background-color 0.15s ease"
+                _hover={{ bg: 'bg.subtle' }}
+                onClick={() => onOpenFolder(item.folder.id)}
+              >
+                <Flex minW="0" align="center" gap="3">
+                  <FileBrowserIcon item={item} />
+                  <Box minW="0">
+                    <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                    <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
+                      Folder • Updated {formatDateOnly(updatedAt)}
+                    </Text>
+                  </Box>
+                </Flex>
+                <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
+                <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
+                <Box display={{ base: 'none', md: 'block' }} />
+              </chakra.button>
+            ) : (
+              <Grid
+                templateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
+                gap="4"
+                alignItems="center"
+                px="6"
+                py="3.5"
+                transition="background-color 0.15s ease"
+                _hover={{ bg: 'bg.subtle' }}
+              >
+                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
+                  <Flex minW="0" align="center" gap="3">
+                    <FileBrowserIcon item={item} />
+                    <Box minW="0">
+                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                      {item.document.originalName !== item.document.name ? (
+                        <Text mt="1" truncate textStyle="xs" color="fg.muted">
+                          {item.document.originalName}
+                        </Text>
+                      ) : null}
+                    </Box>
+                  </Flex>
+                </Link>
+                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+                  <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
+                </Link>
+                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+                  <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
+                </Link>
+                <DocumentItemActions
+                  document={item.document}
+                  disabled={isDeleting}
+                  onDeleteDocument={onDeleteDocument}
+                />
+              </Grid>
+            )}
+          </Box>
+        );
+      })}
+    </SurfacePanel>
+  );
+}
+
+function BrowserItemGrid({
+  items,
+  vaultId,
+  onOpenFolder,
+  onDeleteDocument,
+  isDeleting,
+}: {
+  items: BrowserItem[];
+  vaultId: string;
+  onOpenFolder: (folderId: string) => void;
+  onDeleteDocument: (document: DocumentSummary) => void;
+  isDeleting?: boolean;
+}) {
+  return (
+    <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} gap="3">
+      {items.map((item) => {
+        const name = getItemName(item);
+        const key = item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`;
+        const body = item.type === 'folder' ? (
+          <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
+            <Stack minH="8.5rem" justify="space-between" gap="4">
+              <Stack gap="3">
+                <FileBrowserIcon item={item} />
+                <Box minW="0">
+                  <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                  <Text mt="1" textStyle="xs" color="fg.muted">
+                    Folder
+                  </Text>
+                </Box>
+              </Stack>
+              <Text textStyle="xs" color="fg.muted">
+                Updated {formatDateOnly(item.folder.updatedAt)}
+              </Text>
+            </Stack>
+          </SurfacePanel>
+        ) : (
+          <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
+            <Stack minH="8.5rem" justify="space-between" gap="4">
+              <Stack gap="3">
+                <Flex align="flex-start" justify="space-between" gap="3">
+                  <FileBrowserIcon item={item} />
+                  <DocumentItemActions
+                    document={item.document}
+                    disabled={isDeleting}
+                    onDeleteDocument={onDeleteDocument}
+                  />
+                </Flex>
+                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <Box minW="0">
+                    <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                    <Text mt="1" textStyle="xs" color="fg.muted">
+                      {`${formatBytes(item.document.originalSize)} • ${getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType })}`}
+                    </Text>
+                  </Box>
+                </Link>
+              </Stack>
+              <Text textStyle="xs" color="fg.muted">
+                Updated {formatDateOnly(item.document.updatedAt)}
+              </Text>
+            </Stack>
+          </SurfacePanel>
+        );
+
+        return item.type === 'folder' ? (
+          <chakra.button key={key} type="button" textAlign="left" onClick={() => onOpenFolder(item.folder.id)}>
+            {body}
+          </chakra.button>
+        ) : (
+          <Box key={key}>{body}</Box>
+        );
+      })}
+    </SimpleGrid>
+  );
+}
 function toInputDateValue(value: Date) {
   const year = value.getFullYear();
   const month = `${value.getMonth() + 1}`.padStart(2, '0');
@@ -109,7 +493,10 @@ function getDateFilterLabel({
 
 export function DocumentsPage() {
   const params = useParams({ strict: false }) as { vaultId?: string };
+  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const navigate = useNavigate();
   const vaultId = params.vaultId ?? '';
+  const currentFolderId = search.folderId ?? null;
   const queryClient = useQueryClient();
 
   const [searchText, setSearchText] = useState('');
@@ -121,6 +508,9 @@ export function DocumentsPage() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedDocumentKeys, setSelectedDocumentKeys] = useState<string[]>([]);
+  const [browserView, setBrowserView] = useState<FileBrowserView>(getInitialBrowserView);
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const [folderName, setFolderName] = useState('');
   const debouncedSearchText = useDebouncedValue(searchText.trim(), 280);
   const appliedDateRange = useMemo(() => {
     if (datePreset === 'custom') {
@@ -133,10 +523,17 @@ export function DocumentsPage() {
     return buildPresetRange(datePreset);
   }, [customDateFrom, customDateTo, datePreset]);
 
+  const folderItemsQuery = useFolderItemsQuery({
+    vaultId,
+    folderId: currentFolderId,
+    enabled: debouncedSearchText.length === 0,
+  });
   const documentsQuery = useDocumentsQuery({
     vaultId,
     tagId: selectedTagId || undefined,
     sortBy,
+    folderId: currentFolderId,
+    enabled: debouncedSearchText.length === 0,
   });
   const tagsQuery = useTagsQuery({ vaultId });
   const searchQuery = useVaultSearchDocumentsQuery({
@@ -166,11 +563,28 @@ export function DocumentsPage() {
       setSelectedDocumentKeys((current) => current.filter((key) => !deletedKeys.has(key)));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
       ]);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not delete document.');
+    },
+  });
+  const createFolderMutation = useMutation({
+    mutationFn: () => createFolder({
+      vaultId,
+      parentId: currentFolderId,
+      name: folderName,
+    }),
+    onSuccess: async () => {
+      toast.success('Folder created.');
+      setFolderName('');
+      setIsCreateFolderOpen(false);
+      await queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not create folder.');
     },
   });
 
@@ -212,10 +626,33 @@ export function DocumentsPage() {
     (safePageIndex + 1) * PAGE_SIZE,
   );
   const usingSearch = debouncedSearchText.length > 0;
+  const folderItems = useMemo(
+    () => folderItemsQuery.data?.folders ?? [],
+    [folderItemsQuery.data?.folders],
+  );
+  const browserItems = useMemo<BrowserItem[]>(
+    () => [
+      ...folderItems.map(folder => ({ type: 'folder' as const, folder })),
+      ...visibleDocuments.map(document => ({ type: 'document' as const, document })),
+    ].sort((left, right) => {
+      if (left.type !== right.type) {
+        return left.type === 'folder' ? -1 : 1;
+      }
+
+      return getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
+    }),
+    [folderItems, visibleDocuments],
+  );
   const searchResultCount = searchQuery.data?.resultsCount ?? 0;
-  const activeResultCount = usingSearch ? searchResultCount : filteredDocuments.length;
-  const activePageCount = Math.max(1, Math.ceil(activeResultCount / PAGE_SIZE));
+  const activeResultCount = usingSearch ? searchResultCount : filteredDocuments.length + folderItems.length;
+  const activePageCount = Math.max(1, Math.ceil((usingSearch ? searchResultCount : filteredDocuments.length) / PAGE_SIZE));
   const activePageIndex = usingSearch ? pageIndex : safePageIndex;
+  const activeIsLoading = usingSearch
+    ? searchQuery.isLoading
+    : documentsQuery.isLoading || folderItemsQuery.isLoading;
+  const activeIsError = usingSearch
+    ? searchQuery.isError
+    : documentsQuery.isError || folderItemsQuery.isError;
   const activeDocuments = useMemo(
     () => (
       usingSearch
@@ -276,10 +713,6 @@ export function DocumentsPage() {
       .map((key) => documentsByKey.get(key))
       .filter((document): document is (typeof activeDocuments)[number] => Boolean(document));
   }, [activeDocuments, selectedDocumentKeys]);
-  const visibleDocumentKeys = useMemo(
-    () => activeDocuments.map((document) => getDocumentSelectionKey(document.vaultId, document.documentId)),
-    [activeDocuments],
-  );
   const selectedTag = (tagsQuery.data?.tags ?? []).find((tag) => tag.id === selectedTagId);
   const activeFilters = [
     ...(selectedTag
@@ -314,9 +747,9 @@ export function DocumentsPage() {
       : []),
   ];
   const emptyState =
-    !documentsQuery.isLoading &&
-    !searchQuery.isLoading &&
-    (usingSearch ? (searchQuery.data?.results.length ?? 0) === 0 : filteredDocuments.length === 0);
+    !activeIsLoading &&
+    !activeIsError &&
+    (usingSearch ? (searchQuery.data?.results.length ?? 0) === 0 : browserItems.length === 0);
 
   useEffect(() => {
     async function handleUploadCompleted(event: Event) {
@@ -326,7 +759,10 @@ export function DocumentsPage() {
         return;
       }
 
-      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+      ]);
     }
 
     window.addEventListener('arkivra:uploads-completed', handleUploadCompleted);
@@ -336,9 +772,11 @@ export function DocumentsPage() {
   }, [queryClient, vaultId]);
 
   useEffect(() => {
-    const visibleKeySet = new Set(visibleDocumentKeys);
-    setSelectedDocumentKeys((current) => current.filter((key) => visibleKeySet.has(key)));
-  }, [visibleDocumentKeys]);
+    try {
+      window.localStorage?.setItem?.(FILE_BROWSER_VIEW_STORAGE_KEY, browserView);
+    } catch {
+    }
+  }, [browserView]);
 
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
@@ -383,6 +821,29 @@ export function DocumentsPage() {
     }
   }
 
+  function navigateToFolder(folderId: string | null) {
+    setPageIndex(0);
+    setSelectedDocumentKeys([]);
+    void navigate({
+      to: ROUTES.vaultRoot(vaultId),
+      search: folderId === null ? {} : { folderId },
+      replace: false,
+    } as any);
+  }
+
+  function deleteDocument(document: DocumentSummary) {
+    deleteMutation.mutate([{ vaultId, documentId: document.id }]);
+  }
+
+  function handleCreateFolderSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (folderName.trim().length === 0) {
+      return;
+    }
+
+    createFolderMutation.mutate();
+  }
+
   return (
     <Flex as="section" direction="column" gap="6" pb="8">
       <PageIntro
@@ -395,7 +856,11 @@ export function DocumentsPage() {
             <Link to={ROUTES.vaultTags(vaultId)} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
               Tags
             </Link>
-            <Link to={ROUTES.transfersWithLock(vaultId)} style={{ textDecoration: 'none' }}>
+            <Button type="button" variant="outline" onClick={() => setIsCreateFolderOpen(true)}>
+              <FolderPlus size={16} />
+              New folder
+            </Button>
+            <Link to={ROUTES.transfersWithLock(vaultId, currentFolderId)} style={{ textDecoration: 'none' }}>
               <Flex
                 display="inline-flex"
                 h="11"
@@ -519,31 +984,71 @@ export function DocumentsPage() {
         }
       />
 
-      <SurfacePanel>
-        <Text fontSize="sm" color="fg.muted">
-          {activeResultCount} document{activeResultCount === 1 ? '' : 's'}
-        </Text>
+      <SurfacePanel display="flex" flexDirection={{ base: 'column', lg: 'row' }} alignItems={{ lg: 'center' }} justifyContent="space-between" gap="3">
+        <Stack gap="2" minW="0">
+          <FolderBreadcrumbs
+            currentFolderId={currentFolderId}
+            breadcrumbs={folderItemsQuery.data?.breadcrumbs ?? []}
+            onNavigateFolder={navigateToFolder}
+          />
+          <Text fontSize="sm" color="fg.muted">
+            {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
+          </Text>
+        </Stack>
+        <Flex align="center" gap="2">
+          <Button
+            type="button"
+            size="sm"
+            variant={browserView === 'list' ? 'solid' : 'outline'}
+            aria-label="List view"
+            onClick={() => setBrowserView('list')}
+          >
+            <List size={16} />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={browserView === 'grid' ? 'solid' : 'outline'}
+            aria-label="Grid view"
+            onClick={() => setBrowserView('grid')}
+          >
+            <Grid3X3 size={16} />
+          </Button>
+        </Flex>
       </SurfacePanel>
 
-      <SurfacePanel overflow="hidden" p="0">
-        {documentsQuery.isLoading ? (
-          <Text px="6" py="6" fontSize="sm" color="fg.muted">Loading documents...</Text>
-        ) : null}
-        {documentsQuery.isError ? (
-          <Text px="6" py="6" fontSize="sm" color="fg.error">Unable to load documents.</Text>
-        ) : null}
-        {searchQuery.isLoading ? (
-          <Text px="6" py="6" fontSize="sm" color="fg.muted">Searching documents...</Text>
-        ) : null}
-        {searchQuery.isError ? (
-          <Text px="6" py="6" fontSize="sm" color="fg.error">Unable to search this vault.</Text>
-        ) : null}
-
-        {emptyState ? (
-          <Text px="6" py="8" fontSize="sm" color="fg.muted">
-            No documents match the current filters.
+      {activeIsLoading ? (
+        <SurfacePanel>
+          <Text fontSize="sm" color="fg.muted">
+            {usingSearch ? 'Searching documents...' : 'Loading folder...'}
           </Text>
-        ) : (
+        </SurfacePanel>
+      ) : null}
+      {activeIsError ? (
+        <SurfacePanel>
+          <Text fontSize="sm" color="fg.error">
+            {usingSearch ? 'Unable to search this vault.' : 'Unable to load this folder.'}
+          </Text>
+        </SurfacePanel>
+      ) : null}
+
+      {!activeIsLoading && emptyState ? (
+        <EmptyState
+          icon={<Folder size={24} />}
+          title={usingSearch ? 'No matches' : 'This folder is empty'}
+          description={usingSearch ? 'No documents match the current filters.' : 'Create a folder or upload documents here.'}
+          action={!usingSearch ? (
+            <Button type="button" variant="outline" onClick={() => setIsCreateFolderOpen(true)}>
+              <FolderPlus size={16} />
+              New folder
+            </Button>
+          ) : undefined}
+        />
+      ) : null}
+
+      {!activeIsLoading && !activeIsError && !emptyState ? (
+        usingSearch ? (
+          <SurfacePanel overflow="hidden" p="0">
           <DocumentLibraryTable
             vaultName="Current vault"
             documents={activeDocuments}
@@ -551,42 +1056,101 @@ export function DocumentsPage() {
             onToggleDocument={toggleDocumentSelection}
             onToggleAllDocuments={toggleAllDocumentSelection}
           />
-        )}
+          </SurfacePanel>
+        ) : browserView === 'list' ? (
+          <BrowserItemList
+            items={browserItems}
+            vaultId={vaultId}
+            onOpenFolder={navigateToFolder}
+            onDeleteDocument={deleteDocument}
+            isDeleting={deleteMutation.isPending}
+          />
+        ) : (
+          <BrowserItemGrid
+            items={browserItems}
+            vaultId={vaultId}
+            onOpenFolder={navigateToFolder}
+            onDeleteDocument={deleteDocument}
+            isDeleting={deleteMutation.isPending}
+          />
+        )
+      ) : null}
 
-        <Separator />
-        <Flex
-          direction={{ base: 'column', sm: 'row' }}
-          gap="2"
-          px="4"
-          py="2.5"
-          alignItems={{ sm: 'center' }}
-          justifyContent={{ sm: 'space-between' }}
-        >
-          <Text fontSize="xs" color="fg.muted">
-            Page {activePageIndex + 1} of {activePageCount}
-          </Text>
-          <Flex gap="2">
-            <Button
-              size="xs"
-              type="button"
-              variant="outline"
-              disabled={activePageIndex === 0}
-              onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              size="xs"
-              type="button"
-              variant="outline"
-              disabled={activePageIndex >= activePageCount - 1}
-              onClick={() => setPageIndex((current) => Math.min(activePageCount - 1, current + 1))}
-            >
-              Next
-            </Button>
-          </Flex>
+      <SurfacePanel display="flex" flexDirection={{ base: 'column', sm: 'row' }} gap="2" alignItems={{ sm: 'center' }} justifyContent={{ sm: 'space-between' }} p="3">
+        <Text fontSize="xs" color="fg.muted">
+          Page {activePageIndex + 1} of {activePageCount}
+        </Text>
+        <Flex gap="2">
+          <Button
+            size="xs"
+            type="button"
+            variant="outline"
+            disabled={activePageIndex === 0}
+            onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            size="xs"
+            type="button"
+            variant="outline"
+            disabled={activePageIndex >= activePageCount - 1}
+            onClick={() => setPageIndex((current) => Math.min(activePageCount - 1, current + 1))}
+          >
+            Next
+          </Button>
         </Flex>
       </SurfacePanel>
+
+      <ChakraDialog.Root
+        open={isCreateFolderOpen}
+        onOpenChange={(event) => {
+          setIsCreateFolderOpen(event.open);
+          if (!event.open) {
+            setFolderName('');
+          }
+        }}
+        size={{ mdDown: 'full', md: 'md' }}
+      >
+        <Portal>
+          <ChakraDialog.Backdrop />
+          <ChakraDialog.Positioner>
+            <ChakraDialog.Content>
+              <form onSubmit={handleCreateFolderSubmit}>
+                <ChakraDialog.Header>
+                  <ChakraDialog.Title>New folder</ChakraDialog.Title>
+                  <ChakraDialog.CloseTrigger asChild>
+                    <CloseButton size="sm" />
+                  </ChakraDialog.CloseTrigger>
+                </ChakraDialog.Header>
+                <ChakraDialog.Body>
+                  <Stack gap="2">
+                    <chakra.label htmlFor="folder-name" fontSize="sm" fontWeight="medium" color="fg">
+                      Name
+                    </chakra.label>
+                    <Input
+                      id="folder-name"
+                      value={folderName}
+                      onChange={(event) => setFolderName(event.target.value)}
+                      autoFocus
+                    />
+                  </Stack>
+                </ChakraDialog.Body>
+                <ChakraDialog.Footer>
+                  <ChakraDialog.ActionTrigger asChild>
+                    <Button type="button" variant="outline" disabled={createFolderMutation.isPending}>
+                      Cancel
+                    </Button>
+                  </ChakraDialog.ActionTrigger>
+                  <Button type="submit" disabled={folderName.trim().length === 0 || createFolderMutation.isPending}>
+                    {createFolderMutation.isPending ? 'Creating...' : 'Create folder'}
+                  </Button>
+                </ChakraDialog.Footer>
+              </form>
+            </ChakraDialog.Content>
+          </ChakraDialog.Positioner>
+        </Portal>
+      </ChakraDialog.Root>
 
       <ActionBar.Root open={selectedDocuments.length > 0}>
         <Portal>

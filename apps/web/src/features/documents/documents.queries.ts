@@ -5,8 +5,16 @@ import { getDocument, listDeletedDocuments, listDocuments, listDocumentTags } fr
 
 export const documentQueryKeys = {
   all: ['documents'] as const,
-  list: (vaultId: string, options?: { includeDeleted?: boolean; tagId?: string; sortBy?: SearchSortBy }) =>
-    [...documentQueryKeys.all, 'list', vaultId, options?.includeDeleted ?? false, options?.tagId ?? 'all', options?.sortBy ?? 'created_desc'] as const,
+  list: (vaultId: string, options?: { includeDeleted?: boolean; tagId?: string; sortBy?: SearchSortBy; folderId?: string | null }) =>
+    [
+      ...documentQueryKeys.all,
+      'list',
+      vaultId,
+      options?.includeDeleted ?? false,
+      options?.tagId ?? 'all',
+      options?.sortBy ?? 'created_desc',
+      options?.folderId === undefined ? 'all-folders' : options.folderId ?? 'root',
+    ] as const,
   deletedList: () => [...documentQueryKeys.all, 'deleted-list'] as const,
   detail: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'detail', vaultId, documentId] as const,
@@ -19,17 +27,19 @@ export function useDocumentsQuery({
   includeDeleted = false,
   tagId,
   sortBy = 'created_desc',
+  folderId,
   enabled = true,
 }: {
   vaultId: string;
   includeDeleted?: boolean;
   tagId?: string;
   sortBy?: SearchSortBy;
+  folderId?: string | null;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: documentQueryKeys.list(vaultId, { includeDeleted, tagId, sortBy }),
-    queryFn: () => listDocuments({ vaultId, includeDeleted, tagId, sortBy }),
+    queryKey: documentQueryKeys.list(vaultId, { includeDeleted, tagId, sortBy, folderId }),
+    queryFn: () => listDocuments({ vaultId, includeDeleted, tagId, sortBy, folderId }),
     enabled: enabled && vaultId.length > 0,
   });
 }

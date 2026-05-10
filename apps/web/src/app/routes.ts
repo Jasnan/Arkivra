@@ -34,8 +34,8 @@ export const ROUTES = {
 
   // Transfers
   transfers: '/transfers',
-  transfersWithLock: (vaultId: string) =>
-    `/transfers?vaultId=${vaultId}&locked=true` as const,
+  transfersWithLock: (vaultId: string, folderId?: string | null) =>
+    `/transfers?vaultId=${vaultId}&locked=true${folderId ? `&folderId=${folderId}` : ''}` as const,
 
   // Settings
   settings: '/settings',

@@ -25,11 +25,13 @@ export async function listDocuments({
   includeDeleted = false,
   tagId,
   sortBy,
+  folderId,
 }: {
   vaultId: string;
   includeDeleted?: boolean;
   tagId?: string;
   sortBy?: SearchSortBy;
+  folderId?: string | null;
 }) {
   const params = new URLSearchParams();
 
@@ -43,6 +45,10 @@ export async function listDocuments({
 
   if (sortBy) {
     params.set('sortBy', sortBy);
+  }
+
+  if (folderId !== undefined) {
+    params.set('folderId', folderId ?? 'root');
   }
 
   const query = params.toString();

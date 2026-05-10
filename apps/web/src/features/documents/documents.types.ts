@@ -2,6 +2,7 @@ export interface DocumentSummary {
   id: string;
   name: string;
   originalName: string;
+  folderId: string | null;
   originalSize: number;
   mimeType: string;
   processingStatus?:

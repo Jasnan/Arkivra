@@ -1,6 +1,6 @@
 import type { Database } from '../database/database.js';
-import { and, asc, eq, isNull } from 'drizzle-orm';
-import { vaultFoldersTable } from '../database/schema/index.js';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { documentsTable, vaultFoldersTable } from '../database/schema/index.js';
 
 export const MAX_FOLDER_DEPTH = 50;
 export const MAX_FOLDER_NAME_LENGTH = 255;
@@ -12,6 +12,7 @@ export type FolderServiceError =
   | 'invalid_path_separator'
   | 'parent_not_found'
   | 'folder_not_found'
+  | 'document_duplicate'
   | 'duplicate_name'
   | 'max_depth_exceeded'
   | 'cycle_detected'
@@ -20,6 +21,48 @@ export type FolderServiceError =
 export type FolderMutationResult<T> =
   | { success: true; folder: T }
   | { success: false; reason: FolderServiceError };
+
+export type FolderItemsResult =
+  | {
+    success: true;
+    folder: typeof vaultFoldersTable.$inferSelect | null;
+    breadcrumbs: FolderTreeNode[];
+    folders: (typeof vaultFoldersTable.$inferSelect)[];
+    documents: {
+      id: string;
+      name: string;
+      originalName: string;
+      folderId: string | null;
+      originalSize: number;
+      mimeType: string;
+      processingStatus: string;
+      documentDate: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+      isDeleted: boolean;
+      deletedAt: Date | null;
+    }[];
+    items: (
+      | { type: 'folder'; folder: typeof vaultFoldersTable.$inferSelect }
+      | { type: 'document'; document: FolderItemsResultDocument }
+    )[];
+  }
+  | { success: false; reason: FolderServiceError };
+
+type FolderItemsResultDocument = {
+  id: string;
+  name: string;
+  originalName: string;
+  folderId: string | null;
+  originalSize: number;
+  mimeType: string;
+  processingStatus: string;
+  documentDate: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  isDeleted: boolean;
+  deletedAt: Date | null;
+};
 
 export type FolderRecord = {
   id: string;
@@ -222,6 +265,18 @@ export function createFoldersServices({ db }: { db: Database }) {
       .orderBy(asc(vaultFoldersTable.name));
   }
 
+  async function listFoldersForVault({ vaultId }: { vaultId: string }) {
+    return db
+      .select({
+        id: vaultFoldersTable.id,
+        parentId: vaultFoldersTable.parentId,
+        name: vaultFoldersTable.name,
+      })
+      .from(vaultFoldersTable)
+      .where(eq(vaultFoldersTable.vaultId, vaultId))
+      .orderBy(asc(vaultFoldersTable.name));
+  }
+
   async function getFolder({
     vaultId,
     folderId,
@@ -276,6 +331,76 @@ export function createFoldersServices({ db }: { db: Database }) {
       .orderBy(asc(vaultFoldersTable.name));
   }
 
+  async function listFolderDocuments({
+    vaultId,
+    folderId,
+    includeDeleted = false,
+  }: {
+    vaultId: string;
+    folderId: string | null;
+    includeDeleted?: boolean;
+  }) {
+    const conditions = [
+      eq(documentsTable.vaultId, vaultId),
+      isRootParent(folderId)
+        ? isNull(documentsTable.folderId)
+        : eq(documentsTable.folderId, folderId),
+    ];
+
+    if (!includeDeleted) {
+      conditions.push(eq(documentsTable.isDeleted, false));
+    }
+
+    return db
+      .select({
+        id: documentsTable.id,
+        name: documentsTable.name,
+        originalName: documentsTable.originalName,
+        folderId: documentsTable.folderId,
+        originalSize: documentsTable.originalSize,
+        mimeType: documentsTable.mimeType,
+        processingStatus: documentsTable.processingStatus,
+        documentDate: documentsTable.documentDate,
+        createdAt: documentsTable.createdAt,
+        updatedAt: documentsTable.updatedAt,
+        isDeleted: documentsTable.isDeleted,
+        deletedAt: documentsTable.deletedAt,
+      })
+      .from(documentsTable)
+      .where(and(...conditions))
+      .orderBy(asc(documentsTable.name), desc(documentsTable.createdAt));
+  }
+
+  function getSubtreeIds(folders: FolderTreeNode[], folderId: string) {
+    const childrenByParentId = new Map<string | null, FolderTreeNode[]>();
+
+    for (const folder of folders) {
+      const children = childrenByParentId.get(folder.parentId) ?? [];
+      children.push(folder);
+      childrenByParentId.set(folder.parentId, children);
+    }
+
+    const ids: string[] = [];
+    const stack = [folderId];
+    const seen = new Set<string>();
+
+    while (stack.length > 0) {
+      const currentId = stack.pop()!;
+      if (seen.has(currentId)) {
+        continue;
+      }
+
+      seen.add(currentId);
+      ids.push(currentId);
+
+      for (const child of childrenByParentId.get(currentId) ?? []) {
+        stack.push(child.id);
+      }
+    }
+
+    return ids;
+  }
+
   async function getFolderAncestors({
     vaultId,
     folderId,
@@ -290,6 +415,42 @@ export function createFoldersServices({ db }: { db: Database }) {
     }
 
     return buildFolderAncestorsFromRows({ folders, folderId });
+  }
+
+  async function listFolderItems({
+    vaultId,
+    folderId,
+  }: {
+    vaultId: string;
+    folderId: string | null;
+  }): Promise<FolderItemsResult> {
+    const folder = folderId === null ? null : await getFolder({ vaultId, folderId });
+
+    if (folderId !== null && folder === null) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    const [breadcrumbs, folders, documents] = await Promise.all([
+      folderId === null ? Promise.resolve([]) : getFolderAncestors({ vaultId, folderId }),
+      listFolderChildren({ vaultId, parentId: folderId }),
+      listFolderDocuments({ vaultId, folderId }),
+    ]);
+
+    if (breadcrumbs === null) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    return {
+      success: true,
+      folder,
+      breadcrumbs,
+      folders,
+      documents,
+      items: [
+        ...folders.map(child => ({ type: 'folder' as const, folder: child })),
+        ...documents.map(document => ({ type: 'document' as const, document })),
+      ],
+    };
   }
 
   async function createFolder({
@@ -399,12 +560,263 @@ export function createFoldersServices({ db }: { db: Database }) {
     return { valid: true };
   }
 
+  async function renameFolder({
+    vaultId,
+    folderId,
+    name,
+  }: {
+    vaultId: string;
+    folderId: string;
+    name: string;
+  }): Promise<FolderMutationResult<typeof vaultFoldersTable.$inferSelect>> {
+    const normalizedName = normalizeFolderName(name);
+    const validationError = validateFolderName(normalizedName);
+
+    if (validationError !== null) {
+      return { success: false, reason: validationError };
+    }
+
+    const folders = await listActiveFoldersForVault({ vaultId });
+    const folder = findFolderById(folders, folderId);
+
+    if (folder === null) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    if (
+      hasSiblingNameCollision({
+        folders,
+        parentId: folder.parentId,
+        name: normalizedName,
+        excludeFolderId: folderId,
+      })
+    ) {
+      return { success: false, reason: 'duplicate_name' };
+    }
+
+    const [updatedFolder] = await db
+      .update(vaultFoldersTable)
+      .set({ name: normalizedName, updatedAt: new Date() })
+      .where(
+        and(
+          eq(vaultFoldersTable.vaultId, vaultId),
+          eq(vaultFoldersTable.id, folderId),
+          eq(vaultFoldersTable.isDeleted, false),
+        ),
+      )
+      .returning();
+
+    if (updatedFolder === undefined) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    return { success: true, folder: updatedFolder };
+  }
+
+  async function moveFolder({
+    vaultId,
+    folderId,
+    parentId,
+  }: {
+    vaultId: string;
+    folderId: string;
+    parentId: string | null;
+  }): Promise<FolderMutationResult<typeof vaultFoldersTable.$inferSelect>> {
+    const validation = await validateFolderMove({
+      vaultId,
+      folderId,
+      targetParentId: parentId,
+    });
+
+    if (!validation.valid) {
+      return { success: false, reason: validation.reason };
+    }
+
+    const [folder] = await db
+      .update(vaultFoldersTable)
+      .set({ parentId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(vaultFoldersTable.vaultId, vaultId),
+          eq(vaultFoldersTable.id, folderId),
+          eq(vaultFoldersTable.isDeleted, false),
+        ),
+      )
+      .returning();
+
+    if (folder === undefined) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    return { success: true, folder };
+  }
+
+  async function softDeleteFolder({
+    vaultId,
+    folderId,
+    deletedBy,
+  }: {
+    vaultId: string;
+    folderId: string;
+    deletedBy: string;
+  }): Promise<FolderMutationResult<{ id: string }>> {
+    const folders = await listActiveFoldersForVault({ vaultId });
+
+    if (findFolderById(folders, folderId) === null) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    const subtreeIds = getSubtreeIds(folders, folderId);
+    const now = new Date();
+
+    await db
+      .update(documentsTable)
+      .set({
+        isDeleted: true,
+        deletedAt: now,
+        deletedBy,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+          inArray(documentsTable.folderId, subtreeIds),
+        ),
+      );
+
+    await db
+      .update(vaultFoldersTable)
+      .set({
+        isDeleted: true,
+        deletedAt: now,
+        deletedBy,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(vaultFoldersTable.vaultId, vaultId),
+          eq(vaultFoldersTable.isDeleted, false),
+          inArray(vaultFoldersTable.id, subtreeIds),
+        ),
+      );
+
+    return { success: true, folder: { id: folderId } };
+  }
+
+  async function restoreFolder({
+    vaultId,
+    folderId,
+  }: {
+    vaultId: string;
+    folderId: string;
+  }): Promise<FolderMutationResult<{ id: string }>> {
+    const folder = await getFolder({ vaultId, folderId, includeDeleted: true });
+
+    if (folder === null || !folder.isDeleted) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    const allFolders = await listFoldersForVault({ vaultId });
+    const activeFolders = await listActiveFoldersForVault({ vaultId });
+
+    if (folder.parentId !== null && findFolderById(activeFolders, folder.parentId) === null) {
+      return { success: false, reason: 'parent_not_found' };
+    }
+
+    if (
+      hasSiblingNameCollision({
+        folders: activeFolders,
+        parentId: folder.parentId,
+        name: folder.name,
+      })
+    ) {
+      return { success: false, reason: 'duplicate_name' };
+    }
+
+    const subtreeIds = getSubtreeIds(allFolders, folderId);
+    const deletedDocumentRows = await db
+      .select({
+        id: documentsTable.id,
+        originalSha256Hash: documentsTable.originalSha256Hash,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, true),
+          inArray(documentsTable.folderId, subtreeIds),
+        ),
+      );
+
+    if (deletedDocumentRows.length > 0) {
+      const hashes = [...new Set(deletedDocumentRows.map(document => document.originalSha256Hash))];
+      if (hashes.length > 0) {
+        const [duplicate] = await db
+          .select({ id: documentsTable.id })
+          .from(documentsTable)
+          .where(
+            and(
+              eq(documentsTable.vaultId, vaultId),
+              eq(documentsTable.isDeleted, false),
+              inArray(documentsTable.originalSha256Hash, hashes),
+            ),
+          )
+          .limit(1);
+
+        if (duplicate !== undefined) {
+          return { success: false, reason: 'document_duplicate' };
+        }
+      }
+    }
+
+    const now = new Date();
+    await db
+      .update(vaultFoldersTable)
+      .set({
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(vaultFoldersTable.vaultId, vaultId),
+          inArray(vaultFoldersTable.id, subtreeIds),
+        ),
+      );
+
+    await db
+      .update(documentsTable)
+      .set({
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, true),
+          inArray(documentsTable.folderId, subtreeIds),
+        ),
+      );
+
+    return { success: true, folder: { id: folderId } };
+  }
+
   return {
     createFolder,
     getFolder,
     getFolderAncestors,
+    listFolderItems,
     listActiveFoldersForVault,
     listFolderChildren,
+    listFolderDocuments,
+    moveFolder,
+    renameFolder,
+    restoreFolder,
+    softDeleteFolder,
     validateFolderMove,
   };
 }

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, isNull, ne, sql } from 'drizzle-orm';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
@@ -10,6 +10,7 @@ import {
   documentsTable,
   tagsTable,
   usersTable,
+  vaultFoldersTable,
   vaultsTable,
 } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
@@ -35,6 +36,14 @@ export type RestoreDocumentResult =
   | { success: true; id: string }
   | { success: false; reason: 'not_found' }
   | { success: false; reason: 'duplicate'; existingId: string };
+
+export type RenameDocumentResult =
+  | { success: true; document: { id: string; name: string; updatedAt: Date } }
+  | { success: false; reason: 'not_found' | 'duplicate_name'; existingId?: string };
+
+export type MoveDocumentResult =
+  | { success: true; document: { id: string; folderId: string | null; updatedAt: Date } }
+  | { success: false; reason: 'not_found' | 'folder_not_found' | 'duplicate_name'; existingId?: string };
 
 export type DuplicateDocumentScope = 'active' | 'trash';
 
@@ -97,6 +106,68 @@ export function createDocumentsServices({
       .trim();
 
     return normalized.length > 0 ? normalized : baseName || 'untitled';
+  }
+
+  function getFolderCondition(folderId: string | null) {
+    return folderId === null ? isNull(documentsTable.folderId) : eq(documentsTable.folderId, folderId);
+  }
+
+  async function getActiveFolderInVault({
+    vaultId,
+    folderId,
+  }: {
+    vaultId: string;
+    folderId: string | null;
+  }) {
+    if (folderId === null) {
+      return { id: null };
+    }
+
+    const [folder] = await db
+      .select({ id: vaultFoldersTable.id })
+      .from(vaultFoldersTable)
+      .where(
+        and(
+          eq(vaultFoldersTable.id, folderId),
+          eq(vaultFoldersTable.vaultId, vaultId),
+          eq(vaultFoldersTable.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    return folder ?? null;
+  }
+
+  async function findActiveDocumentNameCollision({
+    vaultId,
+    folderId,
+    name,
+    excludeDocumentId,
+  }: {
+    vaultId: string;
+    folderId: string | null;
+    name: string;
+    excludeDocumentId?: string;
+  }) {
+    const normalizedName = name.trim().toLocaleLowerCase();
+    const conditions = [
+      eq(documentsTable.vaultId, vaultId),
+      eq(documentsTable.isDeleted, false),
+      getFolderCondition(folderId),
+      sql`LOWER(${documentsTable.name}) = ${normalizedName}`,
+    ];
+
+    if (excludeDocumentId !== undefined) {
+      conditions.push(ne(documentsTable.id, excludeDocumentId));
+    }
+
+    const [existing] = await db
+      .select({ id: documentsTable.id })
+      .from(documentsTable)
+      .where(and(...conditions))
+      .limit(1);
+
+    return existing ?? null;
   }
 
   async function getActiveDocumentRecord({
@@ -165,15 +236,18 @@ export function createDocumentsServices({
     fileName,
     mimeType,
     fileData,
+    folderId = null,
   }: {
     vaultId: string;
     userId: string;
     fileName: string;
     mimeType: string;
     fileData: Buffer;
+    folderId?: string | null;
   }) {
     const sha256Hash = computeSha256(fileData);
     const fileSize = fileData.length;
+    const displayName = deriveDisplayName(fileName);
 
     const [existing] = await db
       .select({
@@ -196,6 +270,21 @@ export function createDocumentsServices({
         duplicate: true,
         existingId: existing.id,
         duplicateScope: existing.isDeleted ? 'trash' : 'active',
+      };
+    }
+
+    const existingName = await findActiveDocumentNameCollision({
+      vaultId,
+      folderId,
+      name: displayName,
+    });
+
+    if (existingName !== null) {
+      return {
+        document: null,
+        duplicate: true,
+        existingId: existingName.id,
+        duplicateScope: 'active' as const,
       };
     }
 
@@ -224,12 +313,13 @@ export function createDocumentsServices({
       .values({
         id: docId,
         vaultId,
+        folderId,
         createdBy: userId,
         originalName: fileName,
         originalSize: fileSize,
         originalStorageKey: storageKey,
         originalSha256Hash: sha256Hash,
-        name: deriveDisplayName(fileName),
+        name: displayName,
         mimeType,
         processingStatus: 'pending',
         fileEncryptionKeyWrapped: wrappedDek,
@@ -251,12 +341,14 @@ export function createDocumentsServices({
     fileName,
     mimeType,
     fileData,
+    folderId = null,
   }: {
     vaultId: string;
     userId: string;
     fileName: string;
     mimeType: string;
     fileData: Buffer;
+    folderId?: string | null;
   }) {
     return finalizeUploadedDocument({
       vaultId,
@@ -264,6 +356,7 @@ export function createDocumentsServices({
       fileName,
       mimeType,
       fileData,
+      folderId,
     });
   }
 
@@ -429,11 +522,13 @@ export function createDocumentsServices({
     includeDeleted = false,
     tagId,
     sortBy = 'created_desc',
+    folderId,
   }: {
     vaultId: string;
     includeDeleted?: boolean;
     tagId?: string;
     sortBy?: SearchSortBy;
+    folderId?: string | null;
   }) {
     const conditions = [eq(documentsTable.vaultId, vaultId)];
 
@@ -459,6 +554,10 @@ export function createDocumentsServices({
       );
     }
 
+    if (folderId !== undefined) {
+      conditions.push(getFolderCondition(folderId));
+    }
+
     const orderBy =
       sortBy === 'created_asc'
         ? [asc(documentsTable.createdAt), asc(documentsTable.name)]
@@ -473,6 +572,7 @@ export function createDocumentsServices({
         id: documentsTable.id,
         name: documentsTable.name,
         originalName: documentsTable.originalName,
+        folderId: documentsTable.folderId,
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         processingStatus: documentsTable.processingStatus,
@@ -493,6 +593,7 @@ export function createDocumentsServices({
         id: documentsTable.id,
         name: documentsTable.name,
         originalName: documentsTable.originalName,
+        folderId: documentsTable.folderId,
         originalSize: documentsTable.originalSize,
         originalSha256Hash: documentsTable.originalSha256Hash,
         mimeType: documentsTable.mimeType,
@@ -532,6 +633,7 @@ export function createDocumentsServices({
         vaultName: vaultsTable.name,
         name: documentsTable.name,
         originalName: documentsTable.originalName,
+        folderId: documentsTable.folderId,
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         documentDate: documentsTable.documentDate,
@@ -559,10 +661,42 @@ export function createDocumentsServices({
     documentId: string;
     vaultId: string;
     name: string;
-  }) {
+  }): Promise<RenameDocumentResult> {
+    const normalizedName = name.trim();
+
+    const [existingDoc] = await db
+      .select({
+        id: documentsTable.id,
+        folderId: documentsTable.folderId,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (existingDoc === undefined) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    const collision = await findActiveDocumentNameCollision({
+      vaultId,
+      folderId: existingDoc.folderId,
+      name: normalizedName,
+      excludeDocumentId: documentId,
+    });
+
+    if (collision !== null) {
+      return { success: false, reason: 'duplicate_name', existingId: collision.id };
+    }
+
     const [doc] = await db
       .update(documentsTable)
-      .set({ name, updatedAt: new Date() })
+      .set({ name: normalizedName, updatedAt: new Date() })
       .where(
         and(
           eq(documentsTable.id, documentId),
@@ -576,7 +710,80 @@ export function createDocumentsServices({
         updatedAt: documentsTable.updatedAt,
       });
 
-    return doc ?? null;
+    if (doc === undefined) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    return { success: true, document: doc };
+  }
+
+  async function moveDocument({
+    documentId,
+    vaultId,
+    folderId,
+  }: {
+    documentId: string;
+    vaultId: string;
+    folderId: string | null;
+  }): Promise<MoveDocumentResult> {
+    if (await getActiveFolderInVault({ vaultId, folderId }) === null) {
+      return { success: false, reason: 'folder_not_found' };
+    }
+
+    const [existingDoc] = await db
+      .select({
+        id: documentsTable.id,
+        name: documentsTable.name,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (existingDoc === undefined) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    const collision = await findActiveDocumentNameCollision({
+      vaultId,
+      folderId,
+      name: existingDoc.name,
+      excludeDocumentId: documentId,
+    });
+
+    if (collision !== null) {
+      return { success: false, reason: 'duplicate_name', existingId: collision.id };
+    }
+
+    const [doc] = await db
+      .update(documentsTable)
+      .set({
+        folderId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .returning({
+        id: documentsTable.id,
+        folderId: documentsTable.folderId,
+        updatedAt: documentsTable.updatedAt,
+      });
+
+    if (doc === undefined) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    return { success: true, document: doc };
   }
 
   async function updateDocumentDate({
@@ -647,6 +854,8 @@ export function createDocumentsServices({
       .select({
         id: documentsTable.id,
         originalSha256Hash: documentsTable.originalSha256Hash,
+        folderId: documentsTable.folderId,
+        name: documentsTable.name,
       })
       .from(documentsTable)
       .where(
@@ -676,6 +885,17 @@ export function createDocumentsServices({
 
     if (existing !== undefined) {
       return { success: false, reason: 'duplicate', existingId: existing.id };
+    }
+
+    const existingName = await findActiveDocumentNameCollision({
+      vaultId,
+      folderId: deletedDoc.folderId,
+      name: deletedDoc.name,
+      excludeDocumentId: deletedDoc.id,
+    });
+
+    if (existingName !== null) {
+      return { success: false, reason: 'duplicate', existingId: existingName.id };
     }
 
     const [doc] = await db
@@ -800,6 +1020,7 @@ export function createDocumentsServices({
     hardDeleteDocument,
     listDeletedDocuments,
     listDocuments,
+    moveDocument,
     renameDocument,
     renderDocumentPagePreview,
     restoreDocument,

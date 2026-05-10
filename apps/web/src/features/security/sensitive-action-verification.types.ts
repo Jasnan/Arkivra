@@ -19,6 +19,10 @@ export const OAUTH_PROVIDERS: Record<OAuthProviderId, { label: string }> = {
 };
 
 export const PENDING_SENSITIVE_ACTION_KEY = 'arkivra.pendingSensitiveAction';
+export const TWO_FACTOR_SETUP_ACTION = 'two-factor-setup';
+export const TWO_FACTOR_REPLACE_AUTHENTICATOR_ACTION = 'two-factor-replace-authenticator';
+export const TWO_FACTOR_REGENERATE_CODES_ACTION = 'two-factor-regenerate-codes';
+export const TWO_FACTOR_DISABLE_ACTION = 'two-factor-disable';
 
 function isKnownOAuthProvider(provider: string | null | undefined): provider is OAuthProviderId {
   return provider === 'google' || provider === 'github';
@@ -43,6 +47,22 @@ export function getSensitiveActionVerificationMethod(
 
 export async function startTwoFactorSensitiveSetup({ password }: { password?: string }) {
   return fetchJson<{ backupCodes: string[]; totpURI: string }>('/api/security/two-factor/setup', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+}
+
+export async function regenerateTwoFactorBackupCodes({ password }: { password?: string }) {
+  return fetchJson<{ backupCodes: string[]; backupCodeCount: number }>('/api/security/two-factor/backup-codes/regenerate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+}
+
+export async function disableTwoFactor({ password }: { password?: string }) {
+  return fetchJson<{ status: boolean }>('/api/security/two-factor/disable', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ password }),

@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { authClient } from '@/lib/auth-client';
-import { OAUTH_PROVIDERS, PENDING_SENSITIVE_ACTION_KEY } from './sensitive-action-verification.types';
+import {
+  OAUTH_PROVIDERS,
+  PENDING_SENSITIVE_ACTION_KEY,
+  TWO_FACTOR_SETUP_ACTION,
+} from './sensitive-action-verification.types';
 
 export function SensitiveActionVerificationStep({
   actionLabel,
@@ -14,6 +18,9 @@ export function SensitiveActionVerificationStep({
   isPending,
   method,
   password,
+  oauthCallbackURL,
+  oauthPendingAction = TWO_FACTOR_SETUP_ACTION,
+  oauthReturnDescription = 'You will return to this flow after confirming your account.',
   setPassword,
   onCancel,
   onPasswordSubmit,
@@ -22,6 +29,9 @@ export function SensitiveActionVerificationStep({
   errorMessage: string | null;
   isPending: boolean;
   method: SensitiveActionVerificationMethod;
+  oauthCallbackURL?: string;
+  oauthPendingAction?: string;
+  oauthReturnDescription?: string;
   password: string;
   setPassword: (value: string) => void;
   onCancel: () => void;
@@ -75,7 +85,7 @@ export function SensitiveActionVerificationStep({
         />
 
         <Text fontSize="sm" color="fg.muted" maxW="lg">
-          You will return to this setup flow after confirming your account.
+          {oauthReturnDescription}
         </Text>
 
         <VerificationActions
@@ -87,10 +97,10 @@ export function SensitiveActionVerificationStep({
             loading={isPending}
             loadingText={`Opening ${provider.label}`}
             onClick={async () => {
-              sessionStorage.setItem(PENDING_SENSITIVE_ACTION_KEY, 'two-factor-setup');
+              sessionStorage.setItem(PENDING_SENSITIVE_ACTION_KEY, oauthPendingAction);
               await authClient.signIn.social({
                 provider: method.provider,
-                callbackURL: window.location.href,
+                callbackURL: oauthCallbackURL ?? window.location.href,
               });
             }}
           >

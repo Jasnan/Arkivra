@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminPage } from '@/features/admin/pages/admin-page';
 import { AboutPage } from '@/features/about/pages/about-page';
 import { SettingsPage } from '@/features/settings/pages/settings-page';
+import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-management-page';
 import { renderWithProviders } from '@/test/utils';
 
 const authClientMock = vi.hoisted(() => ({
@@ -197,6 +198,123 @@ describe('settings, admin, and about pages', () => {
 
     expect(await screen.findByText(/not enabled/i)).toBeInTheDocument();
     expect(screen.queryByText(/^off$/i)).not.toBeInTheDocument();
+  });
+
+  it('links to the dedicated 2FA management page from settings', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SettingsPage />);
+
+    expect(await screen.findByRole('link', { name: /manage 2fa/i })).toHaveAttribute(
+      'href',
+      '/two-factor/manage',
+    );
+  });
+
+  it('renders 2FA management without exposing existing backup codes', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+          twoFactor: {
+            authenticatorLinkedAt: '2026-05-10T08:24:00.000Z',
+            backupCodeCount: 10,
+            backupCodesUpdatedAt: '2026-05-10T08:24:00.000Z',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<TwoFactorManagementPage />);
+
+    expect(await screen.findByRole('heading', { name: /^two-factor authentication$/i })).toBeInTheDocument();
+    expect(screen.getByText(/2fa is enabled/i)).toBeInTheDocument();
+    expect(screen.getByText(/authenticator app linked/i)).toBeInTheDocument();
+    expect(await screen.findByText(/10 backup codes available/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /regenerate backup codes/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /view backup codes/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /download backup codes/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /authenticator setup qr code/i })).not.toBeInTheDocument();
+  });
+
+  it('reveals backup codes only after regenerating them', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+          twoFactor: {
+            authenticatorLinkedAt: '2026-05-10T08:24:00.000Z',
+            backupCodeCount: 10,
+            backupCodesUpdatedAt: '2026-05-10T08:24:00.000Z',
+          },
+        });
+      }
+
+      if (url === '/api/security/two-factor/backup-codes/regenerate' && init?.method === 'POST') {
+        return jsonResponse({
+          backupCodeCount: 2,
+          backupCodes: ['NEW11-AAAAA', 'NEW22-BBBBB'],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<TwoFactorManagementPage />);
+
+    await user.click(await screen.findByRole('button', { name: /regenerate backup codes/i }));
+    expect(screen.getByText(/invalidate all existing backup codes/i)).toBeInTheDocument();
+    expect(screen.queryByText('NEW11-AAAAA')).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/current password/i), 'secret123');
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/security/two-factor/backup-codes/regenerate', expect.objectContaining({
+      body: JSON.stringify({ password: 'secret123' }),
+      method: 'POST',
+    }));
+    expect(await screen.findByText('NEW11-AAAAA')).toBeInTheDocument();
+    expect(screen.getByText('NEW22-BBBBB')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download codes/i })).toBeInTheDocument();
   });
 
   it('loads admin data and triggers backup and user actions', async () => {

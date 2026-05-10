@@ -216,6 +216,39 @@ describe('auth pages', () => {
     expect(sessionStorage.getItem('arkivra.pendingSensitiveAction')).toBe('two-factor-setup');
   });
 
+  it('warns before replacing an existing authenticator', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<TwoFactorSetupPage />, {
+      initialEntries: ['/two-factor/setup?mode=replace'],
+      routePath: '/two-factor/setup',
+    });
+
+    expect(await screen.findByRole('heading', { name: /reconnect authenticator/i })).toBeInTheDocument();
+    expect(screen.getByText(/previous authenticator app will stop working/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/current password/i)).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /authenticator setup qr code/i })).not.toBeInTheDocument();
+  });
+
   it('accepts backup codes on the verification page', async () => {
     const user = userEvent.setup();
     await renderWithProviders(<TwoFactorVerifyPage />);

@@ -6,6 +6,7 @@ export const ROUTES = {
   resetPassword: '/reset-password',
   twoFactorVerify: '/two-factor/verify',
   twoFactorSetup: '/two-factor/setup',
+  twoFactorManage: '/two-factor/manage',
 
   // Vaults
   vaults: '/vaults',

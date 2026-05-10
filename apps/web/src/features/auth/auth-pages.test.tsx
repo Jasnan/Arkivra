@@ -121,17 +121,23 @@ describe('auth pages', () => {
     await renderWithProviders(<TwoFactorSetupPage />);
 
     await user.type(screen.getByLabelText(/current password/i), 'secret123');
-    await user.click(screen.getByRole('button', { name: /generate setup key/i }));
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
     expect(authClientMock.twoFactor.enable).toHaveBeenCalledWith({ password: 'secret123' });
-    expect(await screen.findByText('ABC123')).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: /authenticator setup qr code/i })).toBeInTheDocument();
     expect(screen.getByText('backup-1')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('ABC123')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /can't scan/i }));
+    expect(await screen.findByDisplayValue('ABC123')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/enter authenticator code/i), '123456');
-    await user.click(screen.getByRole('button', { name: /verify and enable/i }));
+    await user.click(screen.getByRole('button', { name: /continue to verify code/i }));
+    for (const [index, digit] of ['1', '2', '3', '4', '5', '6'].entries()) {
+      await user.type(screen.getByLabelText(new RegExp(`digit ${index + 1}`, 'i')), digit);
+    }
+    await user.click(screen.getByRole('button', { name: /enable two-factor authentication/i }));
 
     expect(authClientMock.twoFactor.verifyTotp).toHaveBeenCalledWith({ code: '123456' });
-    expect(await screen.findByText(/two-factor authentication is enabled/i)).toBeInTheDocument();
+    expect(await screen.findByText(/two-factor authentication enabled/i)).toBeInTheDocument();
   });
 
   it('accepts backup codes on the verification page', async () => {

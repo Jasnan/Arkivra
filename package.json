@@ -26,6 +26,7 @@
     "typecheck": "pnpm --filter './apps/*' typecheck",
     "db:generate": "pnpm --filter @arkivra/api db:generate",
     "db:migrate": "pnpm --filter @arkivra/api db:migrate",
+    "db:reset:dev": "bash scripts/reset-dev-data.sh",
     "db:studio": "pnpm --filter @arkivra/api db:studio"
   },
   "devDependencies": {

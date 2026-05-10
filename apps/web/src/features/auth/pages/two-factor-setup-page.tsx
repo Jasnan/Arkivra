@@ -22,11 +22,14 @@ import {
   ClipboardCopy,
   Download,
   KeyRound,
+  ShieldAlert,
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -42,6 +45,8 @@ import { OtpCodeInput } from '@/features/auth/components/otp-code-input';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
   PENDING_SENSITIVE_ACTION_KEY,
+  TWO_FACTOR_REPLACE_AUTHENTICATOR_ACTION,
+  TWO_FACTOR_SETUP_ACTION,
   getSensitiveActionVerificationMethod,
   startTwoFactorSensitiveSetup,
 } from '@/features/security/sensitive-action-verification.types';
@@ -53,6 +58,15 @@ import { authClient } from '@/lib/auth-client';
 const TOTP_SECRET_REGEX = /secret=([^&]+)/;
 const STEPS = ['Verify identity', 'Scan QR code', 'Confirm code'] as const;
 type SetupStep = 'identity' | 'scan' | 'confirm' | 'success';
+type SetupMode = 'setup' | 'replace';
+
+function getSetupMode(): SetupMode {
+  return new URLSearchParams(window.location.search).get('mode') === 'replace' ? 'replace' : 'setup';
+}
+
+function getSetupModeFromSearch(search: Record<string, unknown>): SetupMode {
+  return search.mode === 'replace' ? 'replace' : getSetupMode();
+}
 
 function getStepIndex(step: SetupStep) {
   if (step === 'identity') return 0;
@@ -169,6 +183,12 @@ function Panel(props: ComponentProps<typeof Box>) {
 
 export function TwoFactorSetupPage() {
   const meQuery = useMeQuery();
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const mode = getSetupModeFromSearch(search);
+  const isReplaceMode = mode === 'replace';
+  const pendingSetupAction = isReplaceMode
+    ? TWO_FACTOR_REPLACE_AUTHENTICATOR_ACTION
+    : TWO_FACTOR_SETUP_ACTION;
   const [password, setPassword] = useState('');
   const [codeDigits, setCodeDigits] = useState(['', '', '', '', '', '']);
   const [currentStep, setCurrentStep] = useState<SetupStep>('identity');
@@ -205,7 +225,7 @@ export function TwoFactorSetupPage() {
       sessionStorage.removeItem(PENDING_SENSITIVE_ACTION_KEY);
     }
     catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not enable 2FA.');
+      setErrorMessage(error instanceof Error ? error.message : 'Could not prepare 2FA.');
     }
     finally {
       setIsEnabling(false);
@@ -222,12 +242,12 @@ export function TwoFactorSetupPage() {
       return;
     }
 
-    if (sessionStorage.getItem(PENDING_SENSITIVE_ACTION_KEY) !== 'two-factor-setup') {
+    if (sessionStorage.getItem(PENDING_SENSITIVE_ACTION_KEY) !== pendingSetupAction) {
       return;
     }
 
     void startSetup();
-  }, [currentStep, isEnabling, startSetup, verificationMethod.type]);
+  }, [currentStep, isEnabling, pendingSetupAction, startSetup, verificationMethod.type]);
 
   async function handleVerify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -267,9 +287,13 @@ export function TwoFactorSetupPage() {
               </Flex>
               <Stack gap="1">
                 <CardTitle as="h1" fontSize={{ base: 'xl', md: '2xl' }}>
-                  Set up two-factor authentication
+                  {isReplaceMode ? 'Reconnect authenticator' : 'Set up two-factor authentication'}
                 </CardTitle>
-                <CardDescription>Protect your account with TOTP verification.</CardDescription>
+                <CardDescription>
+                  {isReplaceMode
+                    ? 'Replace the authenticator app connected to your account.'
+                    : 'Protect your account with TOTP verification.'}
+                </CardDescription>
               </Stack>
             </HStack>
           </Flex>
@@ -277,15 +301,34 @@ export function TwoFactorSetupPage() {
 
         <CardContent px="0" pb="0">
           <Stack gap={{ base: '5', md: '6' }}>
+            {isReplaceMode ? (
+              <Alert
+                display="flex"
+                alignItems="flex-start"
+                gap="3"
+                borderColor="orange.300"
+                bg="orange.50"
+                color="orange.800"
+              >
+                <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '0.125rem' }} />
+                <Stack gap="1">
+                  <AlertTitle>Replacing your current authenticator</AlertTitle>
+                  <AlertDescription color="orange.800">
+                    Your previous authenticator app will stop working after the new setup key is created.
+                  </AlertDescription>
+                </Stack>
+              </Alert>
+            ) : null}
             <WizardStepper step={currentStep} />
             <Separator />
 
             {currentStep === 'identity' ? (
               <SensitiveActionVerificationStep
-                actionLabel="Preparing 2FA"
+                actionLabel={isReplaceMode ? 'Preparing replacement' : 'Preparing 2FA'}
                 errorMessage={displayedErrorMessage}
                 isPending={isEnabling || meQuery.isPending}
                 method={verificationMethod}
+                oauthPendingAction={pendingSetupAction}
                 password={password}
                 setPassword={setPassword}
                 onCancel={cancelSetup}
@@ -296,6 +339,7 @@ export function TwoFactorSetupPage() {
             {currentStep === 'scan' && totpUri ? (
               <ScanStep
                 backupCodes={backupCodes}
+                isReplaceMode={isReplaceMode}
                 secret={secret}
                 totpUri={totpUri}
                 onBack={() => setCurrentStep('identity')}
@@ -311,6 +355,7 @@ export function TwoFactorSetupPage() {
                 codeDigits={codeDigits}
                 errorMessage={displayedErrorMessage}
                 isVerifying={isVerifying}
+                isReplaceMode={isReplaceMode}
                 setCodeDigits={setCodeDigits}
                 onBack={() => {
                   setErrorMessage(null);
@@ -320,7 +365,7 @@ export function TwoFactorSetupPage() {
               />
             ) : null}
 
-            {currentStep === 'success' ? <SuccessStep /> : null}
+            {currentStep === 'success' ? <SuccessStep isReplaceMode={isReplaceMode} /> : null}
           </Stack>
         </CardContent>
       </Card>
@@ -330,12 +375,14 @@ export function TwoFactorSetupPage() {
 
 function ScanStep({
   backupCodes,
+  isReplaceMode,
   secret,
   totpUri,
   onBack,
   onContinue,
 }: {
   backupCodes: string[];
+  isReplaceMode: boolean;
   secret: string | null;
   totpUri: string;
   onBack: () => void;
@@ -352,7 +399,9 @@ function ScanStep({
           <VStack align="stretch" gap="5" h="full">
             <SectionHeading
               title="Scan this QR code"
-              description="Open your authenticator app and scan the QR code below."
+              description={isReplaceMode
+                ? 'Open your new authenticator app and scan the QR code below.'
+                : 'Open your authenticator app and scan the QR code below.'}
             />
 
             <Flex justify="center" align="center" flex="1" minH={{ md: '220px' }}>
@@ -450,8 +499,8 @@ function ScanStep({
         <Panel h="full" minH={{ md: '430px' }}>
           <VStack align="stretch" gap="5" h="full">
             <SectionHeading
-              title="Backup codes"
-              description="Save these codes in a safe place. You can use them to access your account if you lose your device. Each code can only be used once."
+              title={isReplaceMode ? 'New backup codes' : 'Backup codes'}
+              description="Save these codes now. You will not be able to view them again after leaving this screen, and each code can only be used once."
             />
 
             <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }} gap="2" alignContent="start">
@@ -505,6 +554,7 @@ function ScanStep({
 function ConfirmStep({
   codeDigits,
   errorMessage,
+  isReplaceMode,
   isVerifying,
   setCodeDigits,
   onBack,
@@ -512,6 +562,7 @@ function ConfirmStep({
 }: {
   codeDigits: string[];
   errorMessage: string | null;
+  isReplaceMode: boolean;
   isVerifying: boolean;
   setCodeDigits: (value: string[]) => void;
   onBack: () => void;
@@ -542,8 +593,8 @@ function ConfirmStep({
             <ArrowLeft size={16} />
             Back
           </Button>
-          <Button type="submit" loading={isVerifying} loadingText="Enabling...">
-            Enable two-factor authentication
+          <Button type="submit" loading={isVerifying} loadingText={isReplaceMode ? 'Reconnecting...' : 'Enabling...'}>
+            {isReplaceMode ? 'Reconnect authenticator' : 'Enable two-factor authentication'}
           </Button>
         </HStack>
       </VStack>
@@ -551,7 +602,7 @@ function ConfirmStep({
   );
 }
 
-function SuccessStep() {
+function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
   return (
     <VStack align="stretch" gap="7">
       <VStack gap="4" textAlign="center" py={{ base: '2', md: '3' }}>
@@ -568,10 +619,12 @@ function SuccessStep() {
 
         <Stack gap="2">
           <CardTitle as="h2" fontSize={{ base: 'xl', md: '2xl' }} textAlign="center">
-            Two-factor authentication enabled
+            {isReplaceMode ? 'Authenticator reconnected' : 'Two-factor authentication enabled'}
           </CardTitle>
           <CardDescription fontSize="md">
-            Your account is now protected with an additional security layer.
+            {isReplaceMode
+              ? 'Your account now uses the new authenticator app.'
+              : 'Your account is now protected with an additional security layer.'}
           </CardDescription>
         </Stack>
       </VStack>
@@ -593,10 +646,12 @@ function SuccessStep() {
           </Flex>
           <Stack gap="1">
             <Text fontWeight="semibold" color="fg">
-              Authenticator linked
+              {isReplaceMode ? 'New authenticator linked' : 'Authenticator linked'}
             </Text>
             <Text fontSize="sm" color="fg.muted">
-              Your authenticator app has been successfully connected.
+              {isReplaceMode
+                ? 'Your previous authenticator app will no longer approve sign-ins.'
+                : 'Your authenticator app has been successfully connected.'}
             </Text>
           </Stack>
         </HStack>

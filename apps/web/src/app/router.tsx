@@ -20,6 +20,7 @@ import { DocumentTrashPage } from '@/features/documents/pages/document-trash-pag
 import { AdminPage } from '@/features/admin/pages/admin-page'
 import { AboutPage } from '@/features/about/pages/about-page'
 import { SettingsPage } from '@/features/settings/pages/settings-page'
+import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-management-page'
 import { TagsPage } from '@/features/tags/pages/tags-page'
 import { TransfersPage } from '@/features/uploads/pages/transfers-page'
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page'
@@ -113,6 +114,12 @@ const twoFactorSetupRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/two-factor/setup',
   component: TwoFactorSetupPage,
+})
+
+const twoFactorManageRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/two-factor/manage',
+  component: TwoFactorManagementPage,
 })
 
 const vaultsRoute = createRoute({
@@ -230,6 +237,7 @@ const routeTree = rootRoute.addChildren([
   protectedLayoutRoute.addChildren([
     indexRoute,
     twoFactorSetupRoute,
+    twoFactorManageRoute,
     vaultsRoute,
     vaultRoute,
     vaultSettingsRoute,

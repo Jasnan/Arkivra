@@ -8,4 +8,9 @@ export interface MeResponse {
     oauthProviders: string[];
     primaryOAuthProvider: string | null;
   };
+  twoFactor?: {
+    authenticatorLinkedAt: string | null;
+    backupCodeCount: number | null;
+    backupCodesUpdatedAt: string | null;
+  };
 }

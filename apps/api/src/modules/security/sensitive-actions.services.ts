@@ -2,8 +2,8 @@ import type { Auth } from '../auth/auth.services.js';
 import type { Database } from '../database/database.js';
 import type { Session } from 'better-auth';
 import { eq } from 'drizzle-orm';
-import { generateRandomString, symmetricEncrypt } from 'better-auth/crypto';
-import { authAccountsTable, authTwoFactorTable } from '../database/schema/index.js';
+import { generateRandomString, symmetricDecrypt, symmetricEncrypt } from 'better-auth/crypto';
+import { authAccountsTable, authTwoFactorTable, usersTable } from '../database/schema/index.js';
 
 const RECENT_OAUTH_REAUTH_MS = 10 * 60 * 1000;
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -27,6 +27,18 @@ function generateBackupCodes() {
     const code = generateRandomString(10, 'a-z', '0-9', 'A-Z');
     return `${code.slice(0, 5)}-${code.slice(5)}`;
   });
+}
+
+function parseBackupCodes(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+      ? parsed
+      : null;
+  }
+  catch {
+    return null;
+  }
 }
 
 function toBase32(value: string) {
@@ -185,8 +197,132 @@ export function createSensitiveActionServices({
     };
   }
 
+  async function getTwoFactorSummary({ userId }: { userId: string }) {
+    const authContext = await auth.$context;
+    const [twoFactor] = await db
+      .select({
+        backupCodes: authTwoFactorTable.backupCodes,
+        createdAt: authTwoFactorTable.createdAt,
+        updatedAt: authTwoFactorTable.updatedAt,
+      })
+      .from(authTwoFactorTable)
+      .where(eq(authTwoFactorTable.userId, userId))
+      .limit(1);
+
+    if (twoFactor === undefined) {
+      return {
+        authenticatorLinkedAt: null,
+        backupCodeCount: null,
+        backupCodesUpdatedAt: null,
+      };
+    }
+
+    const decryptedBackupCodes = await symmetricDecrypt({
+      key: authContext.secretConfig,
+      data: twoFactor.backupCodes,
+    }).catch(() => null);
+    const backupCodes = decryptedBackupCodes ? parseBackupCodes(decryptedBackupCodes) : null;
+
+    return {
+      authenticatorLinkedAt: twoFactor.createdAt.toISOString(),
+      backupCodeCount: backupCodes?.length ?? null,
+      backupCodesUpdatedAt: twoFactor.updatedAt.toISOString(),
+    };
+  }
+
+  async function regenerateBackupCodes({
+    password,
+    session,
+    userId,
+  }: {
+    password?: string;
+    session: Session;
+    userId: string;
+  }) {
+    const accounts = await listAuthAccounts({ userId });
+    const verified = await verifySensitiveAction({
+      accounts,
+      password,
+      session,
+      userId,
+    });
+
+    if (!verified) {
+      return null;
+    }
+
+    const [twoFactor] = await db
+      .select({ id: authTwoFactorTable.id })
+      .from(authTwoFactorTable)
+      .where(eq(authTwoFactorTable.userId, userId))
+      .limit(1);
+
+    if (twoFactor === undefined) {
+      return null;
+    }
+
+    const authContext = await auth.$context;
+    const backupCodes = generateBackupCodes();
+    const encryptedBackupCodes = await symmetricEncrypt({
+      key: authContext.secretConfig,
+      data: JSON.stringify(backupCodes),
+    });
+
+    await db
+      .update(authTwoFactorTable)
+      .set({
+        backupCodes: encryptedBackupCodes,
+        updatedAt: new Date(),
+      })
+      .where(eq(authTwoFactorTable.id, twoFactor.id));
+
+    return {
+      backupCodeCount: backupCodes.length,
+      backupCodes,
+    };
+  }
+
+  async function disableTwoFactor({
+    password,
+    session,
+    userId,
+  }: {
+    password?: string;
+    session: Session;
+    userId: string;
+  }) {
+    const accounts = await listAuthAccounts({ userId });
+    const verified = await verifySensitiveAction({
+      accounts,
+      password,
+      session,
+      userId,
+    });
+
+    if (!verified) {
+      return false;
+    }
+
+    await db
+      .delete(authTwoFactorTable)
+      .where(eq(authTwoFactorTable.userId, userId));
+
+    await db
+      .update(usersTable)
+      .set({
+        twoFactorEnabled: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(usersTable.id, userId));
+
+    return true;
+  }
+
   return {
+    disableTwoFactor,
+    getTwoFactorSummary,
     listAuthAccounts,
+    regenerateBackupCodes,
     startTwoFactorSetup,
     summarizeAuthMethods,
   };

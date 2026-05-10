@@ -240,14 +240,19 @@ export function createServer({
       );
     }
 
-    const accounts = await sensitiveActionServices.listAuthAccounts({ userId: c.get('userId') ?? '' });
+    const userId = c.get('userId') ?? '';
+    const [accounts, twoFactor] = await Promise.all([
+      sensitiveActionServices.listAuthAccounts({ userId }),
+      sensitiveActionServices.getTwoFactorSummary({ userId }),
+    ]);
 
     return c.json({
-      userId: c.get('userId'),
+      userId,
       sessionId: session.id,
       isGlobalAdmin: c.get('isGlobalAdmin'),
       canCreateVault: c.get('canCreateVault'),
       authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),
+      twoFactor,
     });
   });
 

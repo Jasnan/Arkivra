@@ -43,6 +43,7 @@ export function SettingsPage() {
   const meQuery = useMeQuery();
   const isGlobalAdmin = meQuery.data?.isGlobalAdmin === true;
   const isEmailVerified = sessionData?.user.emailVerified === true;
+  const isTwoFactorEnabled = sessionData?.user.twoFactorEnabled === true;
 
   const [profileDraft, setProfileDraft] = useState<{ name: string } | null>(null);
   const profileName = profileDraft?.name ?? sessionData?.user.name ?? '';
@@ -232,30 +233,50 @@ export function SettingsPage() {
                 <Flex flexWrap="wrap" align="center" gap="2" fontSize="sm" color="fg">
                   <Text as="span">Status:</Text>
                   <SecurityStatusBadge
-                    tone={sessionData?.user.twoFactorEnabled ? 'positive' : 'warning'}
+                    tone={isTwoFactorEnabled ? 'positive' : 'warning'}
                   >
-                    {sessionData?.user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}
+                    {isTwoFactorEnabled ? 'Enabled' : 'Not enabled'}
                   </SecurityStatusBadge>
                 </Flex>
               </Stack>
               <Stack gap="3">
-                <Link
-                  to={ROUTES.twoFactorSetup}
-                  style={{
-                    display: 'inline-flex',
-                    height: '2.5rem',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--chakra-colors-teal-solid)',
-                    padding: '0 1.25rem',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    color: 'var(--chakra-colors-fg-inverted)',
-                  }}
-                >
-                  {sessionData?.user.twoFactorEnabled ? 'Manage 2FA' : 'Enable 2FA'}
-                </Link>
+                {isTwoFactorEnabled ? (
+                  <Link
+                    to={ROUTES.twoFactorManage}
+                    style={{
+                      display: 'inline-flex',
+                      height: '2.5rem',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'var(--chakra-colors-teal-solid)',
+                      padding: '0 1.25rem',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      color: 'var(--chakra-colors-fg-inverted)',
+                    }}
+                  >
+                    Manage 2FA
+                  </Link>
+                ) : (
+                  <Link
+                    to={ROUTES.twoFactorSetup}
+                    style={{
+                      display: 'inline-flex',
+                      height: '2.5rem',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'var(--chakra-colors-teal-solid)',
+                      padding: '0 1.25rem',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      color: 'var(--chakra-colors-fg-inverted)',
+                    }}
+                  >
+                    Enable 2FA
+                  </Link>
+                )}
               </Stack>
             </Grid>
 

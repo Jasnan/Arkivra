@@ -8,6 +8,10 @@ const startTwoFactorSetupSchema = z.object({
   password: z.string().optional(),
 });
 
+const verifySensitiveActionSchema = z.object({
+  password: z.string().optional(),
+});
+
 export function registerSensitiveActionRoutes({
   app,
   services,
@@ -55,5 +59,83 @@ export function registerSensitiveActionRoutes({
     }
 
     return context.json(setup);
+  });
+
+  app.post('/api/security/two-factor/backup-codes/regenerate', requireAuthentication(), async (context) => {
+    const body = await context.req.json().catch(() => null);
+    const parsed = verifySensitiveActionSchema.safeParse(body);
+    const session = context.get('session');
+    const user = context.get('user');
+
+    if (!parsed.success || session === null || user === null) {
+      return context.json(
+        {
+          error: {
+            code: 'security.invalid_request',
+            message: 'Could not verify your identity.',
+          },
+        },
+        400,
+      );
+    }
+
+    const result = await services.regenerateBackupCodes({
+      password: parsed.data.password,
+      session,
+      userId: user.id,
+    });
+
+    if (result === null) {
+      return context.json(
+        {
+          error: {
+            code: 'security.identity_verification_failed',
+            message: 'Could not verify your identity.',
+          },
+        },
+        403,
+      );
+    }
+
+    return context.json(result);
+  });
+
+  app.post('/api/security/two-factor/disable', requireAuthentication(), async (context) => {
+    const body = await context.req.json().catch(() => null);
+    const parsed = verifySensitiveActionSchema.safeParse(body);
+    const session = context.get('session');
+    const user = context.get('user');
+
+    if (!parsed.success || session === null || user === null) {
+      return context.json(
+        {
+          error: {
+            code: 'security.invalid_request',
+            message: 'Could not verify your identity.',
+          },
+        },
+        400,
+      );
+    }
+
+    const disabled = await services.disableTwoFactor({
+      password: parsed.data.password,
+      session,
+      userId: user.id,
+    });
+
+    if (!disabled) {
+      return context.json(
+        {
+          error: {
+            code: 'security.identity_verification_failed',
+            message: 'Could not verify your identity.',
+          },
+        },
+        403,
+      );
+    }
+
+    return context.json({ status: true });
   });
 }

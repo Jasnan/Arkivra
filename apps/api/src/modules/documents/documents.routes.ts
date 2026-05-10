@@ -32,6 +32,23 @@ function parseSortBy(value: string | undefined) {
   return SEARCH_SORT_VALUES.includes(value as any) ? value as (typeof SEARCH_SORT_VALUES)[number] : null;
 }
 
+function parseNullableFolderId(value: unknown) {
+  if (value === undefined) {
+    return { valid: true as const, folderId: undefined };
+  }
+
+  if (value === null || value === '' || value === 'root') {
+    return { valid: true as const, folderId: null };
+  }
+
+  if (typeof value !== 'string') {
+    return { valid: false as const };
+  }
+
+  const folderId = value.trim();
+  return folderId.length > 0 ? { valid: true as const, folderId } : { valid: false as const };
+}
+
 function parsePageNumber(value: string | undefined) {
   if (value === undefined) {
     return null;
@@ -115,6 +132,7 @@ export function registerDocumentRoutes({
       const includeDeleted = context.req.query('includeDeleted') === 'true';
       const tagId = context.req.query('tagId');
       const sortBy = parseSortBy(context.req.query('sortBy'));
+      const parsedFolderId = parseNullableFolderId(context.req.query('folderId'));
 
       if (sortBy === null) {
         return context.json(
@@ -128,7 +146,20 @@ export function registerDocumentRoutes({
         );
       }
 
-      const documents = await documentsServices.listDocuments({ vaultId, includeDeleted, tagId, sortBy });
+      if (!parsedFolderId.valid) {
+        return context.json(
+          { error: { code: 'folder.invalid_id', message: 'Invalid folder id' } },
+          400,
+        );
+      }
+
+      const documents = await documentsServices.listDocuments({
+        vaultId,
+        includeDeleted,
+        tagId,
+        sortBy,
+        folderId: parsedFolderId.folderId,
+      });
 
       return context.json({ documents, retentionDays });
     },
@@ -458,16 +489,29 @@ export function registerDocumentRoutes({
           );
         }
 
-        const doc = await documentsServices.renameDocument({ documentId, vaultId, name });
+        const result = await documentsServices.renameDocument({ documentId, vaultId, name });
 
-        if (doc === null) {
+        if (!result.success && result.reason === 'duplicate_name') {
+          return context.json(
+            {
+              error: {
+                code: 'document.duplicate_name',
+                message: 'A document with this name already exists here',
+                existingId: result.existingId,
+              },
+            },
+            409,
+          );
+        }
+
+        if (!result.success) {
           return context.json(
             { error: { code: 'document.not_found', message: 'Document not found' } },
             404,
           );
         }
 
-        return context.json({ document: doc });
+        return context.json({ document: result.document });
       }
 
       if (body.documentDate !== undefined) {
@@ -500,6 +544,64 @@ export function registerDocumentRoutes({
         { error: { code: 'document.invalid_payload', message: 'Provide name or documentDate' } },
         400,
       );
+    },
+  );
+
+  app.post(
+    '/api/vaults/:vaultId/documents/:documentId/move',
+    requireVaultPermission('documents.update'),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const documentId = context.req.param('documentId');
+      const body = await context.req.json();
+      const parsedFolderId = parseNullableFolderId(body.folderId);
+
+      if (!parsedFolderId.valid || parsedFolderId.folderId === undefined) {
+        return context.json(
+          { error: { code: 'folder.invalid_id', message: 'Invalid folder id' } },
+          400,
+        );
+      }
+
+      const result = await documentsServices.moveDocument({
+        documentId,
+        vaultId,
+        folderId: parsedFolderId.folderId,
+      });
+
+      if (!result.success && result.reason === 'folder_not_found') {
+        return context.json(
+          { error: { code: 'folder.not_found', message: 'Folder not found' } },
+          404,
+        );
+      }
+
+      if (!result.success && result.reason === 'duplicate_name') {
+        return context.json(
+          {
+            error: {
+              code: 'document.duplicate_name',
+              message: 'A document with this name already exists here',
+              existingId: result.existingId,
+            },
+          },
+          409,
+        );
+      }
+
+      if (!result.success) {
+        return context.json(
+          { error: { code: 'document.not_found', message: 'Document not found' } },
+          404,
+        );
+      }
+
+      return context.json({ document: result.document });
     },
   );
 

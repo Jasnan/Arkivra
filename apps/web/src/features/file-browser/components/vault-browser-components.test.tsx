@@ -1,9 +1,25 @@
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { MoveItemDialog } from './vault-browser-components';
+import { BrowserItemList, MoveItemDialog } from './vault-browser-components';
 import type { BrowserItem, MoveDestination } from './vault-browser.types';
 import { renderWithProviders } from '@/test/utils';
+
+const folderTarget: BrowserItem = {
+  type: 'folder',
+  folder: {
+    id: 'fld_projects',
+    vaultId: 'vlt_1',
+    parentId: null,
+    name: 'Projects',
+    createdBy: 'usr_1',
+    isDeleted: false,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+};
 
 const documentTarget: BrowserItem = {
   type: 'document',
@@ -62,5 +78,46 @@ describe('move item dialog', () => {
     await user.click(invoiceDestination);
 
     expect(onValueChange).toHaveBeenCalledWith('fld_invoices');
+  });
+
+  it('marks selected list rows and exposes folder drop interactions', async () => {
+    const user = userEvent.setup();
+    const onSelectItem = vi.fn();
+    const onDragOverFolder = vi.fn();
+
+    await renderWithProviders(
+      <BrowserItemList
+        items={[folderTarget, documentTarget]}
+        vaultId="vlt_1"
+        selectedItemKeys={new Set(['document-doc_1'])}
+        draggedItemKeys={new Set(['document-doc_1'])}
+        dropTarget={{ folderId: 'fld_projects', state: 'valid' }}
+        onOpenItem={vi.fn()}
+        onSelectItem={onSelectItem}
+        getItemActions={() => []}
+        onDragStartItem={vi.fn()}
+        onDragEndItem={vi.fn()}
+        onDragOverFolder={onDragOverFolder}
+        onDragLeaveFolder={vi.fn()}
+        onDropOnFolder={vi.fn()}
+        onOpenContextMenu={vi.fn()}
+      />,
+    );
+
+    const documentRow = await screen.findByRole('option', { name: 'Budget.pdf' });
+    expect(documentRow).toHaveAttribute('aria-selected', 'true');
+
+    await user.click(documentRow);
+    expect(onSelectItem.mock.calls.at(-1)?.[1]).toEqual(documentTarget);
+
+    const folderRow = screen.getByRole('option', { name: 'Projects' });
+    fireEvent.dragOver(folderRow, {
+      dataTransfer: {
+        dropEffect: 'move',
+        types: ['application/x-arkivra-browser-items'],
+      },
+    });
+
+    expect(onDragOverFolder.mock.calls.at(-1)?.[1]).toBe('fld_projects');
   });
 });

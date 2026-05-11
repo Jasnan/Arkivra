@@ -1,4 +1,4 @@
-import type { FormEvent, MouseEvent } from 'react';
+import type { DragEvent, FormEvent, KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
@@ -38,12 +38,16 @@ import {
   FILE_BROWSER_VIEW_STORAGE_KEY,
   getInitialBrowserSort,
   getInitialBrowserView,
+  getBrowserItemKey,
+  getBrowserItemParentId,
   getItemName,
   getMoveDestinations,
+  isFolderDescendant,
 } from '@/features/file-browser/components/vault-browser.types';
 import type {
   BrowserAction,
   BrowserContextItem,
+  BrowserDropTarget,
   BrowserItem,
   ContextMenuState,
   FileBrowserSort,
@@ -66,6 +70,15 @@ const browserSortOptions: Array<{ value: FileBrowserSort; label: string }> = [
   { value: 'size_desc', label: 'Largest first' },
   { value: 'size_asc', label: 'Smallest first' },
 ];
+
+const INTERNAL_BROWSER_DRAG_TYPE = 'application/x-arkivra-browser-items';
+const EMPTY_SELECTED_ITEM_KEYS = new Set<string>();
+
+interface BrowserSelectionState {
+  folderId: string | null;
+  keys: Set<string>;
+  lastKey: string | null;
+}
 
 function hasVaultPermission({
   vault,
@@ -138,6 +151,17 @@ function getMoveErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Could not move item.';
 }
 
+function hasInternalBrowserDrag(event: DragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes(INTERNAL_BROWSER_DRAG_TYPE);
+}
+
+function serializeBrowserDragItems(items: BrowserItem[]) {
+  return JSON.stringify(items.map((item) => ({
+    id: item.type === 'folder' ? item.folder.id : item.document.id,
+    type: item.type,
+  })));
+}
+
 export function DocumentsPage() {
   const params = useParams({ strict: false }) as { vaultId?: string };
   const search = useSearch({ strict: false }) as Record<string, string | undefined>;
@@ -157,6 +181,13 @@ export function DocumentsPage() {
   const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
   const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [selection, setSelection] = useState<BrowserSelectionState>(() => ({
+    folderId: currentFolderId,
+    keys: new Set(),
+    lastKey: null,
+  }));
+  const [draggedItems, setDraggedItems] = useState<BrowserItem[]>([]);
+  const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null);
 
   const folderItemsQuery = useFolderItemsQuery({
     vaultId,
@@ -164,9 +195,23 @@ export function DocumentsPage() {
   });
   const folderTreeQuery = useFolderTreeQuery({
     vaultId,
-    enabled: moveTarget !== null || infoTarget?.type === 'folder' || (infoTarget?.type === 'document' && infoTarget.document.folderId !== null),
+    enabled: true,
   });
   const vaultQuery = useVaultQuery({ vaultId });
+
+  async function moveBrowserItem({
+    target,
+    destinationId,
+  }: {
+    target: BrowserItem;
+    destinationId: string | null;
+  }) {
+    if (target.type === 'folder') {
+      return moveFolder({ vaultId, folderId: target.folder.id, parentId: destinationId });
+    }
+
+    return moveDocument({ vaultId, documentId: target.document.id, folderId: destinationId });
+  }
 
   const deleteMutation = useMutation({
     mutationFn: async (documents: Array<{ vaultId: string; documentId: string }>) =>
@@ -177,6 +222,7 @@ export function DocumentsPage() {
           ? 'Document moved to trash.'
           : `${documents.length} documents moved to trash.`,
       );
+      clearSelection();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
@@ -227,17 +273,12 @@ export function DocumentsPage() {
     },
   });
   const moveMutation = useMutation({
-    mutationFn: async ({ target, destinationId }: { target: BrowserItem; destinationId: string | null }) => {
-      if (target.type === 'folder') {
-        return moveFolder({ vaultId, folderId: target.folder.id, parentId: destinationId });
-      }
-
-      return moveDocument({ vaultId, documentId: target.document.id, folderId: destinationId });
-    },
+    mutationFn: moveBrowserItem,
     onSuccess: async (_data, variables) => {
       toast.success(`${variables.target.type === 'folder' ? 'Folder' : 'Document'} moved.`);
       setMoveTarget(null);
       setMoveDestinationId(null);
+      clearSelection();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
@@ -252,10 +293,41 @@ export function DocumentsPage() {
       }
     },
   });
+  const moveItemsMutation = useMutation({
+    mutationFn: async ({ targets, destinationId }: { targets: BrowserItem[]; destinationId: string | null }) => {
+      const targetsToMove = targets.filter(target => getBrowserItemParentId(target) !== destinationId);
+      await Promise.all(targetsToMove.map(target => moveBrowserItem({ target, destinationId })));
+      return { movedCount: targetsToMove.length };
+    },
+    onSuccess: async ({ movedCount }) => {
+      if (movedCount > 0) {
+        toast.success(movedCount === 1 ? 'Item moved.' : `${movedCount} items moved.`);
+      }
+      clearSelection();
+      setDraggedItems([]);
+      setDropTarget(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(getMoveErrorMessage(error));
+      setDraggedItems([]);
+      setDropTarget(null);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+      ]);
+    },
+  });
   const deleteFolderMutation = useMutation({
     mutationFn: (folder: FolderSummary) => softDeleteFolder({ vaultId, folderId: folder.id }),
     onSuccess: async () => {
       toast.success('Folder moved to trash.');
+      clearSelection();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
@@ -270,6 +342,16 @@ export function DocumentsPage() {
   const browserItems = useMemo<BrowserItem[]>(
     () => [...(folderItemsQuery.data?.items ?? [])].sort((left, right) => compareBrowserItems(left, right, browserSort)),
     [browserSort, folderItemsQuery.data?.items],
+  );
+  const selectedItemKeys = selection.folderId === currentFolderId ? selection.keys : EMPTY_SELECTED_ITEM_KEYS;
+  const selectedItems = useMemo(
+    () => browserItems.filter(item => selectedItemKeys.has(getBrowserItemKey(item))),
+    [browserItems, selectedItemKeys],
+  );
+  const selectedCount = selectedItems.length;
+  const draggedItemKeys = useMemo(
+    () => new Set(draggedItems.map(item => getBrowserItemKey(item))),
+    [draggedItems],
   );
   const activeResultCount = browserItems.length;
   const activeIsLoading = folderItemsQuery.isLoading;
@@ -286,7 +368,8 @@ export function DocumentsPage() {
   const itemMutationPending = deleteMutation.isPending
     || deleteFolderMutation.isPending
     || renameMutation.isPending
-    || moveMutation.isPending;
+    || moveMutation.isPending
+    || moveItemsMutation.isPending;
   const moveDestinations = useMemo(
     () => getMoveDestinations({ folders: folderTreeQuery.data?.folders ?? [], target: moveTarget }),
     [folderTreeQuery.data?.folders, moveTarget],
@@ -345,6 +428,208 @@ export function DocumentsPage() {
     }
   }, [browserSort]);
 
+  function clearSelection() {
+    setSelection({
+      folderId: currentFolderId,
+      keys: new Set(),
+      lastKey: null,
+    });
+  }
+
+  function selectSingleItem(item: BrowserItem) {
+    setSelection({
+      folderId: currentFolderId,
+      keys: new Set([getBrowserItemKey(item)]),
+      lastKey: getBrowserItemKey(item),
+    });
+  }
+
+  function getRangeSelectionKeys(anchorKey: string, itemKey: string) {
+    const itemKeys = browserItems.map(item => getBrowserItemKey(item));
+    const anchorIndex = itemKeys.indexOf(anchorKey);
+    const itemIndex = itemKeys.indexOf(itemKey);
+
+    if (anchorIndex === -1 || itemIndex === -1) {
+      return new Set([itemKey]);
+    }
+
+    const startIndex = Math.min(anchorIndex, itemIndex);
+    const endIndex = Math.max(anchorIndex, itemIndex);
+    return new Set(itemKeys.slice(startIndex, endIndex + 1));
+  }
+
+  function selectBrowserItem(
+    event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>,
+    item: BrowserItem,
+  ) {
+    const itemKey = getBrowserItemKey(item);
+    const shouldToggle = event.metaKey || event.ctrlKey;
+    const shouldSelectRange = event.shiftKey;
+
+    setContextMenu(null);
+    setSelection((previousSelection) => {
+      const isSameFolder = previousSelection.folderId === currentFolderId;
+      const previousKeys = isSameFolder ? previousSelection.keys : EMPTY_SELECTED_ITEM_KEYS;
+      const previousLastKey = isSameFolder ? previousSelection.lastKey : null;
+
+      if (shouldSelectRange && previousLastKey !== null) {
+        return {
+          folderId: currentFolderId,
+          keys: getRangeSelectionKeys(previousLastKey, itemKey),
+          lastKey: itemKey,
+        };
+      }
+
+      if (shouldToggle) {
+        const nextKeys = new Set(previousKeys);
+        if (nextKeys.has(itemKey)) {
+          nextKeys.delete(itemKey);
+        } else {
+          nextKeys.add(itemKey);
+        }
+
+        return {
+          folderId: currentFolderId,
+          keys: nextKeys,
+          lastKey: itemKey,
+        };
+      }
+
+      return {
+        folderId: currentFolderId,
+        keys: new Set([itemKey]),
+        lastKey: itemKey,
+      };
+    });
+  }
+
+  function getDropValidation({
+    destinationId,
+    targets,
+  }: {
+    destinationId: string | null;
+    targets: BrowserItem[];
+  }): { valid: true } | { valid: false; message: string } {
+    if (!canUpdateItems) {
+      return { valid: false, message: 'You do not have permission to move items.' };
+    }
+
+    if (itemMutationPending) {
+      return { valid: false, message: 'Wait for the current file operation to finish.' };
+    }
+
+    if (targets.length === 0) {
+      return { valid: false, message: 'No items selected to move.' };
+    }
+
+    if (targets.every(target => getBrowserItemParentId(target) === destinationId)) {
+      return { valid: false, message: 'Items are already in that folder.' };
+    }
+
+    for (const target of targets) {
+      if (target.type !== 'folder') {
+        continue;
+      }
+
+      if (destinationId === target.folder.id) {
+        return { valid: false, message: 'A folder cannot be moved into itself.' };
+      }
+
+      if (
+        destinationId !== null
+        && folderTreeQuery.data?.folders
+        && isFolderDescendant({
+          folders: folderTreeQuery.data.folders,
+          folderId: target.folder.id,
+          candidateId: destinationId,
+        })
+      ) {
+        return { valid: false, message: 'A folder cannot be moved into one of its descendants.' };
+      }
+    }
+
+    return { valid: true };
+  }
+
+  function setActiveDropTarget(folderId: string | null, state: BrowserDropTarget['state']) {
+    setDropTarget((previousDropTarget) => {
+      if (previousDropTarget?.folderId === folderId && previousDropTarget.state === state) {
+        return previousDropTarget;
+      }
+
+      return { folderId, state };
+    });
+  }
+
+  function handleItemDragStart(event: DragEvent<HTMLElement>, item: BrowserItem) {
+    if (!canUpdateItems || itemMutationPending) {
+      event.preventDefault();
+      return;
+    }
+
+    const itemKey = getBrowserItemKey(item);
+    const dragItems = selectedItemKeys.has(itemKey) && selectedItems.length > 0
+      ? selectedItems
+      : [item];
+
+    if (!selectedItemKeys.has(itemKey)) {
+      selectSingleItem(item);
+    }
+
+    setDraggedItems(dragItems);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(INTERNAL_BROWSER_DRAG_TYPE, serializeBrowserDragItems(dragItems));
+    event.dataTransfer.setData('text/plain', dragItems.map(target => getItemName(target)).join(', '));
+  }
+
+  function handleItemDragEnd() {
+    setDraggedItems([]);
+    setDropTarget(null);
+  }
+
+  function handleDragOverFolder(event: DragEvent<HTMLElement>, folderId: string | null) {
+    if (!hasInternalBrowserDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const validation = getDropValidation({ destinationId: folderId, targets: draggedItems });
+    event.dataTransfer.dropEffect = validation.valid ? 'move' : 'none';
+    setActiveDropTarget(folderId, validation.valid ? 'valid' : 'invalid');
+  }
+
+  function handleDragLeaveFolder(event: DragEvent<HTMLElement>, folderId: string | null) {
+    if (!hasInternalBrowserDrag(event)) {
+      return;
+    }
+
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) {
+      return;
+    }
+
+    setDropTarget(previousDropTarget => previousDropTarget?.folderId === folderId ? null : previousDropTarget);
+  }
+
+  function handleDropOnFolder(event: DragEvent<HTMLElement>, folderId: string | null) {
+    if (!hasInternalBrowserDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const validation = getDropValidation({ destinationId: folderId, targets: draggedItems });
+    setDropTarget(null);
+
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
+    moveItemsMutation.mutate({ targets: draggedItems, destinationId: folderId });
+  }
+
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
   }
@@ -362,6 +647,9 @@ export function DocumentsPage() {
   }
 
   function navigateToFolder(folderId: string | null) {
+    clearSelection();
+    setDraggedItems([]);
+    setDropTarget(null);
     void navigate({
       to: ROUTES.vaultRoot(vaultId),
       search: folderId === null ? {} : { folderId },
@@ -418,6 +706,9 @@ export function DocumentsPage() {
 
     event.preventDefault();
     event.stopPropagation();
+    if (item.type !== 'root' && !selectedItemKeys.has(getBrowserItemKey(item))) {
+      selectSingleItem(item);
+    }
     setContextMenu({
       item,
       x: Math.min(event.clientX, window.innerWidth - 224),
@@ -567,12 +858,22 @@ export function DocumentsPage() {
             breadcrumbs={folderItemsQuery.data?.breadcrumbs ?? []}
             onNavigateFolder={navigateToFolder}
             onOpenRootContextMenu={(event) => openContextMenu(event, { type: 'root', vaultId })}
+            dropTarget={dropTarget}
+            onDragOverFolder={handleDragOverFolder}
+            onDragLeaveFolder={handleDragLeaveFolder}
+            onDropOnFolder={handleDropOnFolder}
           />
           <Text fontSize="sm" color="fg.muted">
             {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
+            {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
           </Text>
         </Stack>
         <Flex align="center" gap="2" wrap="wrap">
+          {selectedCount > 0 ? (
+            <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
+              Clear selection
+            </Button>
+          ) : null}
           <Flex
             align="center"
             gap="2"
@@ -664,8 +965,17 @@ export function DocumentsPage() {
           <BrowserItemList
             items={browserItems}
             vaultId={vaultId}
-            onOpenFolder={navigateToFolder}
+            selectedItemKeys={selectedItemKeys}
+            draggedItemKeys={draggedItemKeys}
+            dropTarget={dropTarget}
+            onOpenItem={openItem}
+            onSelectItem={selectBrowserItem}
             getItemActions={getItemActions}
+            onDragStartItem={handleItemDragStart}
+            onDragEndItem={handleItemDragEnd}
+            onDragOverFolder={handleDragOverFolder}
+            onDragLeaveFolder={handleDragLeaveFolder}
+            onDropOnFolder={handleDropOnFolder}
             onOpenContextMenu={openContextMenu}
             isMutating={itemMutationPending}
           />
@@ -673,8 +983,17 @@ export function DocumentsPage() {
           <BrowserItemGrid
             items={browserItems}
             vaultId={vaultId}
-            onOpenFolder={navigateToFolder}
+            selectedItemKeys={selectedItemKeys}
+            draggedItemKeys={draggedItemKeys}
+            dropTarget={dropTarget}
+            onOpenItem={openItem}
+            onSelectItem={selectBrowserItem}
             getItemActions={getItemActions}
+            onDragStartItem={handleItemDragStart}
+            onDragEndItem={handleItemDragEnd}
+            onDragOverFolder={handleDragOverFolder}
+            onDragLeaveFolder={handleDragLeaveFolder}
+            onDropOnFolder={handleDropOnFolder}
             onOpenContextMenu={openContextMenu}
             isMutating={itemMutationPending}
           />

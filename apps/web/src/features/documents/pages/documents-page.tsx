@@ -1,7 +1,7 @@
 import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, Folder, FolderPlus, Grid3X3, Home, Info, List, MoveRight, Pencil, Tags, Trash2, Upload } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -21,16 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getDocumentDownloadUrl, moveDocument, renameDocument, softDeleteDocument } from '@/features/documents/documents.api';
-import {
-  DocumentLibraryTable,
-  getDocumentSelectionKey,
-} from '@/features/documents/components/document-library-list';
-import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
-import type { DatePreset } from '@/features/documents/components/date-preset-selector';
-import {
-  DocumentSearchControls,
-} from '@/features/documents/components/document-search-controls';
-import { documentQueryKeys, useDocumentsQuery } from '@/features/documents/documents.queries';
+import { documentQueryKeys } from '@/features/documents/documents.queries';
 import type { DocumentSummary } from '@/features/documents/documents.types';
 import {
   BrowserContextMenu,
@@ -42,7 +33,9 @@ import {
   RenameItemDialog,
 } from '@/features/file-browser/components/vault-browser-components';
 import {
+  FILE_BROWSER_SORT_STORAGE_KEY,
   FILE_BROWSER_VIEW_STORAGE_KEY,
+  getInitialBrowserSort,
   getInitialBrowserView,
   getItemName,
   getMoveDestinations,
@@ -52,6 +45,7 @@ import type {
   BrowserContextItem,
   BrowserItem,
   ContextMenuState,
+  FileBrowserSort,
   FileBrowserView,
   InfoDialogTarget,
   ItemDialogTarget,
@@ -59,20 +53,17 @@ import type {
 import { createFolder, moveFolder, renameFolder, softDeleteFolder } from '@/features/file-browser/file-browser.api';
 import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import type { FolderSummary } from '@/features/file-browser/file-browser.types';
-import { searchQueryKeys, useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
-import type { SearchSortBy } from '@/features/search/search.types';
-import { tokenizeSnippet } from '@/features/search/search.utils';
-import { useTagsQuery } from '@/features/tags/tags.queries';
+import { searchQueryKeys } from '@/features/search/search.queries';
 import { useVaultQuery } from '@/features/vaults/vaults.queries';
 import type { VaultMemberPermission } from '@/features/vaults/vaults.types';
-import { useDebouncedValue } from '@/lib/use-debounced-value';
 
-const PAGE_SIZE = 8;
-const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
-  { value: 'created_desc', label: 'Newest' },
-  { value: 'created_asc', label: 'Oldest upload' },
-  { value: 'name_asc', label: 'Name (A-Z)' },
-  { value: 'name_desc', label: 'Name (Z-A)' },
+const browserSortOptions: Array<{ value: FileBrowserSort; label: string }> = [
+  { value: 'name_asc', label: 'Name A-Z' },
+  { value: 'name_desc', label: 'Name Z-A' },
+  { value: 'updated_desc', label: 'Recently updated' },
+  { value: 'updated_asc', label: 'Oldest updated' },
+  { value: 'size_desc', label: 'Largest first' },
+  { value: 'size_asc', label: 'Smallest first' },
 ];
 
 function hasVaultPermission({
@@ -89,69 +80,45 @@ function hasVaultPermission({
   );
 }
 
-function toInputDateValue(value: Date) {
-  const year = value.getFullYear();
-  const month = `${value.getMonth() + 1}`.padStart(2, '0');
-  const day = `${value.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function getBrowserItemUpdatedTime(item: BrowserItem) {
+  const value = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
+  return new Date(value).getTime();
 }
 
-function buildPresetRange(preset: Exclude<DatePreset, 'custom'>) {
-  const today = new Date();
-  const dateTo = toInputDateValue(today);
-
-  if (preset === 'any') {
-    return { dateFrom: undefined, dateTo: undefined };
-  }
-
-  const start = new Date(today);
-  start.setDate(start.getDate() - (preset === 'last_7_days' ? 6 : 29));
-
-  return {
-    dateFrom: toInputDateValue(start),
-    dateTo,
-  };
+function getBrowserItemSize(item: BrowserItem) {
+  return item.type === 'folder' ? 0 : item.document.originalSize;
 }
 
-function formatDateRangeLabel(dateFrom?: string, dateTo?: string) {
-  if (!dateFrom && !dateTo) {
-    return 'Any time';
+function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: FileBrowserSort) {
+  if (left.type !== right.type) {
+    return left.type === 'folder' ? -1 : 1;
   }
 
-  const formatter = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-
-  const fromLabel = dateFrom ? formatter.format(new Date(`${dateFrom}T00:00:00`)) : 'Start';
-  const toLabel = dateTo ? formatter.format(new Date(`${dateTo}T00:00:00`)) : 'Now';
-
-  return `${fromLabel} - ${toLabel}`;
-}
-
-function getDateFilterLabel({
-  preset,
-  dateFrom,
-  dateTo,
-}: {
-  preset: DatePreset;
-  dateFrom?: string;
-  dateTo?: string;
-}) {
-  if (preset === 'last_7_days') {
-    return 'Last 7 days';
+  if (sortBy === 'updated_desc') {
+    return getBrowserItemUpdatedTime(right) - getBrowserItemUpdatedTime(left)
+      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
   }
 
-  if (preset === 'last_30_days') {
-    return 'Last 30 days';
+  if (sortBy === 'updated_asc') {
+    return getBrowserItemUpdatedTime(left) - getBrowserItemUpdatedTime(right)
+      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
   }
 
-  if (preset === 'custom') {
-    return formatDateRangeLabel(dateFrom, dateTo);
+  if (sortBy === 'size_desc') {
+    return getBrowserItemSize(right) - getBrowserItemSize(left)
+      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
   }
 
-  return 'Any time';
+  if (sortBy === 'size_asc') {
+    return getBrowserItemSize(left) - getBrowserItemSize(right)
+      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
+  }
+
+  if (sortBy === 'name_desc') {
+    return getItemName(right).localeCompare(getItemName(left), undefined, { sensitivity: 'base' });
+  }
+
+  return getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
 }
 
 export function DocumentsPage() {
@@ -162,16 +129,8 @@ export function DocumentsPage() {
   const currentFolderId = search.folderId ?? null;
   const queryClient = useQueryClient();
 
-  const [searchText, setSearchText] = useState('');
-  const [sortBy, setSortBy] = useState<SearchSortBy>('created_desc');
-  const [selectedTagId, setSelectedTagId] = useState('');
-  const [datePreset, setDatePreset] = useState<DatePreset>('any');
-  const [customDateFrom, setCustomDateFrom] = useState('');
-  const [customDateTo, setCustomDateTo] = useState('');
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [selectedDocumentKeys, setSelectedDocumentKeys] = useState<string[]>([]);
   const [browserView, setBrowserView] = useState<FileBrowserView>(getInitialBrowserView);
+  const [browserSort, setBrowserSort] = useState<FileBrowserSort>(getInitialBrowserSort);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
@@ -181,47 +140,16 @@ export function DocumentsPage() {
   const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
   const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
-  const debouncedSearchText = useDebouncedValue(searchText.trim(), 280);
-  const appliedDateRange = useMemo(() => {
-    if (datePreset === 'custom') {
-      return {
-        dateFrom: customDateFrom || undefined,
-        dateTo: customDateTo || undefined,
-      };
-    }
-
-    return buildPresetRange(datePreset);
-  }, [customDateFrom, customDateTo, datePreset]);
 
   const folderItemsQuery = useFolderItemsQuery({
     vaultId,
     folderId: currentFolderId,
-    enabled: debouncedSearchText.length === 0,
   });
   const folderTreeQuery = useFolderTreeQuery({
     vaultId,
     enabled: moveTarget !== null || infoTarget?.type === 'folder' || (infoTarget?.type === 'document' && infoTarget.document.folderId !== null),
   });
   const vaultQuery = useVaultQuery({ vaultId });
-  const documentsQuery = useDocumentsQuery({
-    vaultId,
-    tagId: selectedTagId || undefined,
-    sortBy,
-    folderId: currentFolderId,
-    enabled: debouncedSearchText.length === 0,
-  });
-  const tagsQuery = useTagsQuery({ vaultId });
-  const searchQuery = useVaultSearchDocumentsQuery({
-    vaultId,
-    query: debouncedSearchText,
-    pageIndex,
-    pageSize: PAGE_SIZE,
-    tagId: selectedTagId || undefined,
-    dateFrom: appliedDateRange.dateFrom,
-    dateTo: appliedDateRange.dateTo,
-    sortBy,
-    enabled: debouncedSearchText.length > 0,
-  });
 
   const deleteMutation = useMutation({
     mutationFn: async (documents: Array<{ vaultId: string; documentId: string }>) =>
@@ -232,10 +160,6 @@ export function DocumentsPage() {
           ? 'Document moved to trash.'
           : `${documents.length} documents moved to trash.`,
       );
-      const deletedKeys = new Set(
-        documents.map((document) => getDocumentSelectionKey(document.vaultId, document.documentId)),
-      );
-      setSelectedDocumentKeys((current) => current.filter((key) => !deletedKeys.has(key)));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
@@ -322,168 +246,17 @@ export function DocumentsPage() {
     },
   });
 
-  const filteredDocuments = useMemo(
-    () =>
-      (documentsQuery.data?.documents ?? []).filter((document) => {
-        const documentDateValue = document.documentDate
-          ? new Date(document.documentDate)
-          : document.createdAt
-            ? new Date(document.createdAt)
-            : null;
-        const dateFromValue = appliedDateRange.dateFrom
-          ? new Date(appliedDateRange.dateFrom)
-          : null;
-        const dateToValue = appliedDateRange.dateTo ? new Date(appliedDateRange.dateTo) : null;
-
-        if (dateFromValue && (!documentDateValue || documentDateValue < dateFromValue)) {
-          return false;
-        }
-
-        if (dateToValue) {
-          const inclusiveDateTo = new Date(dateToValue);
-          inclusiveDateTo.setHours(23, 59, 59, 999);
-
-          if (!documentDateValue || documentDateValue > inclusiveDateTo) {
-            return false;
-          }
-        }
-
-        return true;
-      }),
-    [appliedDateRange.dateFrom, appliedDateRange.dateTo, documentsQuery.data?.documents],
-  );
-
-  const pageCount = Math.max(1, Math.ceil(filteredDocuments.length / PAGE_SIZE));
-  const safePageIndex = Math.min(pageIndex, pageCount - 1);
-  const visibleDocuments = filteredDocuments.slice(
-    safePageIndex * PAGE_SIZE,
-    (safePageIndex + 1) * PAGE_SIZE,
-  );
-  const usingSearch = debouncedSearchText.length > 0;
-  const folderItems = useMemo(
-    () => folderItemsQuery.data?.folders ?? [],
-    [folderItemsQuery.data?.folders],
-  );
   const browserItems = useMemo<BrowserItem[]>(
-    () => [
-      ...folderItems.map(folder => ({ type: 'folder' as const, folder })),
-      ...visibleDocuments.map(document => ({ type: 'document' as const, document })),
-    ].sort((left, right) => {
-      if (left.type !== right.type) {
-        return left.type === 'folder' ? -1 : 1;
-      }
-
-      return getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
-    }),
-    [folderItems, visibleDocuments],
+    () => [...(folderItemsQuery.data?.items ?? [])].sort((left, right) => compareBrowserItems(left, right, browserSort)),
+    [browserSort, folderItemsQuery.data?.items],
   );
-  const searchResultCount = searchQuery.data?.resultsCount ?? 0;
-  const activeResultCount = usingSearch ? searchResultCount : filteredDocuments.length + folderItems.length;
-  const activePageCount = Math.max(1, Math.ceil((usingSearch ? searchResultCount : filteredDocuments.length) / PAGE_SIZE));
-  const activePageIndex = usingSearch ? pageIndex : safePageIndex;
-  const activeIsLoading = usingSearch
-    ? searchQuery.isLoading
-    : documentsQuery.isLoading || folderItemsQuery.isLoading;
-  const activeIsError = usingSearch
-    ? searchQuery.isError
-    : documentsQuery.isError || folderItemsQuery.isError;
-  const activeDocuments = useMemo(
-    () => (
-      usingSearch
-        ? (searchQuery.data?.results ?? []).map((result) => ({
-            documentId: result.documentId,
-            vaultId,
-            name: result.name,
-            mimeType: result.mimeType,
-            originalName: result.originalName,
-            originalSize: result.originalSize,
-            createdAt: result.createdAt,
-            updatedAt: result.updatedAt,
-            tags: result.tags,
-            snippet: result.bestChunk
-              ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
-                  part.highlighted ? (
-                    <Box
-                      as="mark"
-                      key={`${result.documentId}-${part.key}`}
-                      rounded="md"
-                      bg="teal.subtle"
-                      color="fg"
-                      px="1.5"
-                      py="0.5"
-                    >
-                      {part.text}
-                    </Box>
-                  ) : (
-                    <Text as="span" key={`${result.documentId}-${part.key}`}>
-                      {part.text}
-                    </Text>
-                  ),
-                )
-              : undefined,
-          }))
-        : visibleDocuments.map((document) => ({
-            documentId: document.id,
-            vaultId,
-            name: document.name,
-            mimeType: document.mimeType,
-            originalName: document.originalName,
-            originalSize: document.originalSize,
-            createdAt: document.createdAt,
-            updatedAt: document.updatedAt,
-          }))
-    ),
-    [searchQuery.data?.results, usingSearch, vaultId, visibleDocuments],
-  );
-  const selectedDocuments = useMemo(() => {
-    const documentsByKey = new Map(
-      activeDocuments.map((document) => [
-        getDocumentSelectionKey(document.vaultId, document.documentId),
-        document,
-      ]),
-    );
-
-    return selectedDocumentKeys
-      .map((key) => documentsByKey.get(key))
-      .filter((document): document is (typeof activeDocuments)[number] => Boolean(document));
-  }, [activeDocuments, selectedDocumentKeys]);
-  const selectedTag = (tagsQuery.data?.tags ?? []).find((tag) => tag.id === selectedTagId);
-  const activeFilters = [
-    ...(selectedTag
-      ? [
-          {
-            key: `tag-${selectedTag.id}`,
-            label: selectedTag.name,
-            onRemove: () => {
-              setSelectedTagId('');
-              setPageIndex(0);
-            },
-          },
-        ]
-      : []),
-    ...(datePreset !== 'any'
-      ? [
-          {
-            key: 'date-range',
-            label: getDateFilterLabel({
-              preset: datePreset,
-              dateFrom: appliedDateRange.dateFrom,
-              dateTo: appliedDateRange.dateTo,
-            }),
-            onRemove: () => {
-              setDatePreset('any');
-              setCustomDateFrom('');
-              setCustomDateTo('');
-              setPageIndex(0);
-            },
-          },
-        ]
-      : []),
-  ];
+  const activeResultCount = browserItems.length;
+  const activeIsLoading = folderItemsQuery.isLoading;
+  const activeIsError = folderItemsQuery.isError;
   const emptyState =
     !activeIsLoading &&
     !activeIsError &&
-    (usingSearch ? (searchQuery.data?.results.length ?? 0) === 0 : browserItems.length === 0);
+    browserItems.length === 0;
   const canUpdateItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.update' });
   const canDeleteItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.delete' });
   const canDownloadItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.download' });
@@ -544,35 +317,15 @@ export function DocumentsPage() {
     }
   }, [browserView]);
 
+  useEffect(() => {
+    try {
+      window.localStorage?.setItem?.(FILE_BROWSER_SORT_STORAGE_KEY, browserSort);
+    } catch {
+    }
+  }, [browserSort]);
+
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
-  }
-
-  function clearFilters() {
-    setSelectedTagId('');
-    setDatePreset('any');
-    setCustomDateFrom('');
-    setCustomDateTo('');
-    setPageIndex(0);
-  }
-
-  function toggleDocumentSelection(selectionKey: string, checked: boolean) {
-    setSelectedDocumentKeys((current) => (
-      checked
-        ? current.includes(selectionKey) ? current : [...current, selectionKey]
-        : current.filter((key) => key !== selectionKey)
-    ));
-  }
-
-  function toggleAllDocumentSelection(selectionKeys: string[], checked: boolean) {
-    setSelectedDocumentKeys((current) => {
-      if (checked) {
-        return Array.from(new Set([...current, ...selectionKeys]));
-      }
-
-      const selectionSet = new Set(selectionKeys);
-      return current.filter((key) => !selectionSet.has(key));
-    });
   }
 
   function downloadDocuments(documents: Array<{ vaultId: string; documentId: string }>) {
@@ -588,8 +341,6 @@ export function DocumentsPage() {
   }
 
   function navigateToFolder(folderId: string | null) {
-    setPageIndex(0);
-    setSelectedDocumentKeys([]);
     void navigate({
       to: ROUTES.vaultRoot(vaultId),
       search: folderId === null ? {} : { folderId },
@@ -782,108 +533,6 @@ export function DocumentsPage() {
           </HStack>
         }
       />
-      <DocumentSearchControls
-        query={searchText}
-        onQueryChange={(value) => {
-          setSearchText(value);
-          setPageIndex(0);
-        }}
-        searchPlaceholder="Search documents"
-        searchAriaLabel="Search documents"
-        isFiltersOpen={isFiltersOpen}
-        onOpenFilters={() => setIsFiltersOpen(true)}
-        onCloseFilters={() => setIsFiltersOpen(false)}
-        onResetFilters={clearFilters}
-        activeFilterCount={activeFilters.length}
-        activeFilters={activeFilters}
-        onClearFilters={clearFilters}
-        sortBy={sortBy}
-        onSortChange={(value) => {
-          setSortBy(value);
-          setPageIndex(0);
-        }}
-        sortOptions={sortOptions}
-        sortSelectId="vault-documents-sort"
-        sortAriaLabel="Sort documents"
-        filtersTitle="Filters"
-        filtersContent={
-          <>
-            <Box gap="3">
-              <Text
-                as="span"
-                id="vault-documents-tag-filter-label"
-                fontSize="sm"
-                fontWeight="semibold"
-                color="fg"
-              >
-                Tag
-              </Text>
-              <Select
-                value={selectedTagId || '__all__'}
-                onValueChange={(value) => {
-                  setSelectedTagId(value === '__all__' ? '' : value);
-                  setPageIndex(0);
-                }}
-              >
-                <SelectTrigger
-                  aria-label="Tag filter"
-                  aria-labelledby="vault-documents-tag-filter-label"
-                  h="10"
-                  rounded="lg"
-                  borderColor="border.subtle"
-                  bg="bg.surface"
-                  mt="3"
-                >
-                  <SelectValue placeholder="All tags" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All tags</SelectItem>
-                  {(tagsQuery.data?.tags ?? []).map((tag) => (
-                    <SelectItem key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Box>
-
-            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
-              <Text fontSize="sm" fontWeight="semibold" color="fg">
-                Date
-              </Text>
-
-              <DatePresetSelector
-                idPrefix="vault-documents-date-filter"
-                value={datePreset}
-                onValueChange={(value) => {
-                  setDatePreset(value);
-                  setPageIndex(0);
-                }}
-                customDateFrom={customDateFrom}
-                customDateTo={customDateTo}
-                onCustomDateFromChange={(nextValue) => {
-                  setCustomDateFrom(nextValue);
-
-                  if (customDateTo && nextValue && nextValue > customDateTo) {
-                    setCustomDateTo(nextValue);
-                  }
-
-                  setPageIndex(0);
-                }}
-                onCustomDateToChange={(nextValue) => {
-                  setCustomDateTo(nextValue);
-
-                  if (customDateFrom && nextValue && nextValue < customDateFrom) {
-                    setCustomDateFrom(nextValue);
-                  }
-
-                  setPageIndex(0);
-                }}
-              />
-            </Box>
-          </>
-        }
-      />
 
       <SurfacePanel display="flex" flexDirection={{ base: 'column', lg: 'row' }} alignItems={{ lg: 'center' }} justifyContent="space-between" gap="3">
         <Stack gap="2" minW="0">
@@ -897,7 +546,43 @@ export function DocumentsPage() {
             {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
           </Text>
         </Stack>
-        <Flex align="center" gap="2">
+        <Flex align="center" gap="2" wrap="wrap">
+          <Flex
+            align="center"
+            gap="2"
+            rounded="lg"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            bg="bg.surface"
+            px="3"
+            py="1.5"
+          >
+            <Text as="span" id="vault-browser-sort" fontSize="sm" fontWeight="semibold" color="fg.muted">
+              Sort
+            </Text>
+            <Select value={browserSort} onValueChange={(value) => setBrowserSort(value as FileBrowserSort)}>
+              <SelectTrigger
+                aria-label="Sort folder items"
+                aria-labelledby="vault-browser-sort"
+                h="9"
+                minW="40"
+                border="0"
+                bg="transparent"
+                px="0"
+                shadow="none"
+                focusRing="none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {browserSortOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Flex>
           <Button
             type="button"
             size="sm"
@@ -922,14 +607,14 @@ export function DocumentsPage() {
       {activeIsLoading ? (
         <SurfacePanel>
           <Text fontSize="sm" color="fg.muted">
-            {usingSearch ? 'Searching documents...' : 'Loading folder...'}
+            Loading folder...
           </Text>
         </SurfacePanel>
       ) : null}
       {activeIsError ? (
         <SurfacePanel>
           <Text fontSize="sm" color="fg.error">
-            {usingSearch ? 'Unable to search this vault.' : 'Unable to load this folder.'}
+            Unable to load this folder.
           </Text>
         </SurfacePanel>
       ) : null}
@@ -937,29 +622,19 @@ export function DocumentsPage() {
       {!activeIsLoading && emptyState ? (
         <EmptyState
           icon={<Folder size={24} />}
-          title={usingSearch ? 'No matches' : 'This folder is empty'}
-          description={usingSearch ? 'No documents match the current filters.' : 'Create a folder or upload documents here.'}
-          action={!usingSearch ? (
+          title="This folder is empty"
+          description="Create a folder or upload documents here."
+          action={(
             <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
               <FolderPlus size={16} />
               New folder
             </Button>
-          ) : undefined}
+          )}
         />
       ) : null}
 
       {!activeIsLoading && !activeIsError && !emptyState ? (
-        usingSearch ? (
-          <SurfacePanel overflow="hidden" p="0">
-          <DocumentLibraryTable
-            vaultName="Current vault"
-            documents={activeDocuments}
-            selectedDocumentKeys={selectedDocumentKeys}
-            onToggleDocument={toggleDocumentSelection}
-            onToggleAllDocuments={toggleAllDocumentSelection}
-          />
-          </SurfacePanel>
-        ) : browserView === 'list' ? (
+        browserView === 'list' ? (
           <BrowserItemList
             items={browserItems}
             vaultId={vaultId}
@@ -979,32 +654,6 @@ export function DocumentsPage() {
           />
         )
       ) : null}
-
-      <SurfacePanel display="flex" flexDirection={{ base: 'column', sm: 'row' }} gap="2" alignItems={{ sm: 'center' }} justifyContent={{ sm: 'space-between' }} p="3">
-        <Text fontSize="xs" color="fg.muted">
-          Page {activePageIndex + 1} of {activePageCount}
-        </Text>
-        <Flex gap="2">
-          <Button
-            size="xs"
-            type="button"
-            variant="outline"
-            disabled={activePageIndex === 0}
-            onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            size="xs"
-            type="button"
-            variant="outline"
-            disabled={activePageIndex >= activePageCount - 1}
-            onClick={() => setPageIndex((current) => Math.min(activePageCount - 1, current + 1))}
-          >
-            Next
-          </Button>
-        </Flex>
-      </SurfacePanel>
 
       <ChakraDialog.Root
         open={isCreateFolderOpen}
@@ -1096,49 +745,6 @@ export function DocumentsPage() {
           onClose={() => setContextMenu(null)}
         />
       ) : null}
-
-      <ActionBar.Root open={selectedDocuments.length > 0}>
-        <Portal>
-          <ActionBar.Positioner>
-            <ActionBar.Content>
-              <ActionBar.SelectionTrigger>
-                {selectedDocuments.length} selected
-              </ActionBar.SelectionTrigger>
-              <ActionBar.Separator />
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  downloadDocuments(
-                    selectedDocuments.map((document) => ({
-                      vaultId: document.vaultId,
-                      documentId: document.documentId,
-                    })),
-                  );
-                }}
-              >
-                Download selected
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  deleteMutation.mutate(
-                    selectedDocuments.map((document) => ({
-                      vaultId: document.vaultId,
-                      documentId: document.documentId,
-                    })),
-                  );
-                }}
-              >
-                Delete selected
-              </Button>
-            </ActionBar.Content>
-          </ActionBar.Positioner>
-        </Portal>
-      </ActionBar.Root>
     </Flex>
   );
 }

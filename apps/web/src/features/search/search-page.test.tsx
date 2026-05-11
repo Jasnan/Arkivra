@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
+import { SearchPage } from '@/features/search/pages/search-page';
 import { renderWithProviders } from '@/test/utils';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -15,6 +16,75 @@ async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, trigg
   await user.click(screen.getByRole('combobox', { name: triggerName }));
   await user.click(await screen.findByRole('option', { name: optionName }));
 }
+
+describe('global search page', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses the migrated search and filter controls', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url === '/api/tags?vaultId=vlt_1') {
+        return jsonResponse({
+          tags: [
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },
+          ],
+        });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 0,
+          pageSize: 10,
+          resultsCount: 0,
+          filters: {
+            vaultId: 'vlt_1',
+            tagId: 'tag_1',
+            tagIds: [],
+            dateFrom: '2026-04-01',
+            dateTo: '2026-04-30',
+            sortBy: 'name_asc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?q=invoice&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc'],
+      routePath: '/search',
+    });
+
+    expect(screen.getByLabelText(/search documents/i)).toHaveValue('invoice');
+    expect(await screen.findByText('Sherlock')).toBeInTheDocument();
+    expect(await screen.findByText('Invoices')).toBeInTheDocument();
+    expect(screen.getByText(/1 Apr 2026 - 30 Apr 2026/i)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /sort/i })).toHaveTextContent(/name a-z/i);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url, init]) =>
+          String(url).includes('/api/search?pageIndex=0&pageSize=10&q=invoice&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
+          && (init as RequestInit | undefined)?.credentials === 'include'
+        ),
+      ).toBe(true);
+    });
+  });
+});
 
 describe('documents library search controls', () => {
   beforeEach(() => {

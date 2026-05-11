@@ -22,12 +22,18 @@ function folderItemsResponse(
     items: unknown[];
   }> = {},
 ) {
+  const folders = overrides.folders ?? [];
+  const documents = overrides.documents ?? [];
+
   return {
     folder: null,
     breadcrumbs: [],
-    folders: [],
-    documents: [],
-    items: [],
+    folders,
+    documents,
+    items: overrides.items ?? [
+      ...folders.map((folder) => ({ type: 'folder', folder })),
+      ...documents.map((document) => ({ type: 'document', document })),
+    ],
     ...overrides,
   };
 }
@@ -52,6 +58,23 @@ function vaultDetailResponse() {
       ],
       isGlobalAdmin: false,
     },
+  };
+}
+
+function documentSummary(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'doc_1',
+    name: 'Invoice April.pdf',
+    originalName: 'invoice.pdf',
+    originalSize: 2048,
+    mimeType: 'application/pdf',
+    documentDate: null,
+    folderId: null,
+    createdAt: '2026-04-10T10:00:00.000Z',
+    updatedAt: '2026-04-10T10:00:00.000Z',
+    isDeleted: false,
+    deletedAt: null,
+    ...overrides,
   };
 }
 
@@ -378,7 +401,7 @@ describe('tags and documents pages', () => {
     });
   });
 
-  it('filters the document list by tag', async () => {
+  it('renders the vault browser without document-library search filters', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -437,7 +460,21 @@ describe('tags and documents pages', () => {
       }
 
       if (url.includes('/api/vaults/vlt_1/folders/items')) {
-        return jsonResponse(folderItemsResponse());
+        return jsonResponse(
+          folderItemsResponse({
+            documents: [
+              documentSummary(),
+              documentSummary({
+                id: 'doc_2',
+                name: 'Contract.pdf',
+                originalName: 'contract.pdf',
+                originalSize: 4096,
+                createdAt: '2026-04-12T10:00:00.000Z',
+                updatedAt: '2026-04-12T10:00:00.000Z',
+              }),
+            ],
+          }),
+        );
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
@@ -450,7 +487,6 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const user = userEvent.setup();
     await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1'],
       routePath: '/vaults/:vaultId',
@@ -458,28 +494,15 @@ describe('tags and documents pages', () => {
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /contract/i })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /filter/i }));
-    await screen.findByRole('dialog', { name: /filters/i });
-    await selectRadixOption({
-      user,
-      trigger: screen.getByLabelText(/tag filter/i),
-      optionName: /invoices/i,
-    });
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/vaults/vlt_1/documents?tagId=tag_1&sortBy=created_desc&folderId=root',
-        expect.objectContaining({
-          credentials: 'include',
-        }),
-      );
-    });
-    expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /contract/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/search documents/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^filter$/i })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/vaults/vlt_1/documents?tagId='),
+      expect.anything(),
+    );
   });
 
-  it('supports preset and custom date filtering on the vault documents page', async () => {
+  it('keeps date filtering out of the vault browser surface', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -519,7 +542,22 @@ describe('tags and documents pages', () => {
       }
 
       if (url.includes('/api/vaults/vlt_1/folders/items')) {
-        return jsonResponse(folderItemsResponse());
+        return jsonResponse(
+          folderItemsResponse({
+            documents: [
+              documentSummary(),
+              documentSummary({
+                id: 'doc_2',
+                name: 'Contract.pdf',
+                originalName: 'contract.pdf',
+                originalSize: 4096,
+                documentDate: '2026-02-12T00:00:00.000Z',
+                createdAt: '2026-02-12T10:00:00.000Z',
+                updatedAt: '2026-02-12T10:00:00.000Z',
+              }),
+            ],
+          }),
+        );
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
@@ -530,7 +568,6 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const user = userEvent.setup();
     await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1'],
       routePath: '/vaults/:vaultId',
@@ -538,22 +575,8 @@ describe('tags and documents pages', () => {
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /contract/i })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /filter/i }));
-    await screen.findByRole('dialog', { name: /filters/i });
-
-    expect(screen.getByLabelText(/any time/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/last 7 days/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/last 30 days/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/custom range/i)).toBeInTheDocument();
-
-    await user.click(screen.getByLabelText(/custom range/i));
-    await user.type(screen.getByLabelText(/^from$/i), '2026-04-01');
-    await user.type(screen.getByLabelText(/^to$/i), '2026-04-30');
-    await user.click(screen.getByRole('button', { name: /^done$/i }));
-
-    expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /contract/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/any time/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/custom range/i)).not.toBeInTheDocument();
   });
 
   it('deletes a document from the vault documents action menu', async () => {
@@ -585,7 +608,7 @@ describe('tags and documents pages', () => {
       }
 
       if (url.includes('/api/vaults/vlt_1/folders/items')) {
-        return jsonResponse(folderItemsResponse());
+        return jsonResponse(folderItemsResponse({ documents: [documentSummary()] }));
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
@@ -656,7 +679,7 @@ describe('tags and documents pages', () => {
       }
 
       if (url.includes('/api/vaults/vlt_1/folders/items')) {
-        return jsonResponse(folderItemsResponse());
+        return jsonResponse(folderItemsResponse({ documents: [documentSummary()] }));
       }
 
       if (url.endsWith('/api/vaults/vlt_1/tags')) {
@@ -829,6 +852,7 @@ describe('tags and documents pages', () => {
                 updatedAt: '2026-04-09T10:00:00.000Z',
               },
             ],
+            documents: [documentSummary()],
           }),
         );
       }
@@ -875,12 +899,12 @@ describe('tags and documents pages', () => {
     await user.click(screen.getByRole('button', { name: /open folder finance/i }));
 
     expect(await screen.findByText(/^Finance$/)).toBeInTheDocument();
-    await waitFor(() => {
+    await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/vaults/vlt_1/documents?sortBy=created_desc&folderId=fld_1',
+        '/api/vaults/vlt_1/folders/items?folderId=fld_1',
         expect.objectContaining({ credentials: 'include' }),
-      );
-    });
+      ),
+    );
 
     await user.click(screen.getAllByRole('button', { name: /new folder/i })[0]);
     const createDialog = await screen.findByRole('dialog', { name: /new folder/i });

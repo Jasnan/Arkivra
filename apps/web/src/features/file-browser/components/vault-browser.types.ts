@@ -3,8 +3,16 @@ import type { DocumentSummary } from '@/features/documents/documents.types';
 import type { FolderSummary, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 
 export const FILE_BROWSER_VIEW_STORAGE_KEY = 'arkivra:file-browser:view';
+export const FILE_BROWSER_SORT_STORAGE_KEY = 'arkivra:file-browser:sort';
 
 export type FileBrowserView = 'list' | 'grid';
+export type FileBrowserSort =
+  | 'name_asc'
+  | 'name_desc'
+  | 'updated_desc'
+  | 'updated_asc'
+  | 'size_desc'
+  | 'size_asc';
 
 export interface BrowserDocumentItem {
   type: 'document';
@@ -54,6 +62,25 @@ export function getInitialBrowserView(): FileBrowserView {
     return window.localStorage.getItem(FILE_BROWSER_VIEW_STORAGE_KEY) === 'grid' ? 'grid' : 'list';
   } catch {
     return 'list';
+  }
+}
+
+export function getInitialBrowserSort(): FileBrowserSort {
+  if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
+    return 'name_asc';
+  }
+
+  try {
+    const value = window.localStorage.getItem(FILE_BROWSER_SORT_STORAGE_KEY);
+    return value === 'name_desc'
+      || value === 'updated_desc'
+      || value === 'updated_asc'
+      || value === 'size_desc'
+      || value === 'size_asc'
+      ? value
+      : 'name_asc';
+  } catch {
+    return 'name_asc';
   }
 }
 

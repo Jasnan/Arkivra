@@ -1,6 +1,7 @@
-import type { FormEvent, MouseEvent } from 'react';
+import type { ComponentPropsWithoutRef, FormEvent, MouseEvent, Ref } from 'react';
 import { Fragment, useEffect, useRef } from 'react';
-import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
+import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
+import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { File, Folder, Home } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
@@ -32,6 +33,32 @@ import {
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getDocumentTypeLabel, getItemName } from './vault-browser.types';
 import type { BrowserAction, BrowserContextItem, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget } from './vault-browser.types';
+
+const BROWSER_SCROLL_HEIGHT = 'clamp(24rem, calc(100vh - 18rem), 46rem)';
+const LIST_ROW_HEIGHT = 72;
+
+function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) {
+  return (
+    <Box
+      ref={ref}
+      {...props}
+      style={style}
+      display="grid"
+      gridTemplateColumns={{ base: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' }}
+      gap="3"
+      p="0.5"
+    />
+  );
+}
+
+const virtuosoGridComponents = {
+  List: VirtuosoGridList,
+  Item: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => (
+    <Box {...props} minW="0">
+      {children}
+    </Box>
+  ),
+};
 
 function formatDateOnly(value: string | null) {
   if (!value) {
@@ -319,92 +346,100 @@ export function BrowserItemList({
         <Text as="span" srOnly>Actions</Text>
       </Grid>
 
-      {items.map((item) => {
-        const name = getItemName(item);
-        const updatedAt = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
-        const actions = getItemActions(item);
+      <Box h={BROWSER_SCROLL_HEIGHT}>
+        <Virtuoso
+          data={items}
+          fixedItemHeight={LIST_ROW_HEIGHT}
+          computeItemKey={(_, item) => getItemKey(item)}
+          initialItemCount={Math.min(items.length, 24)}
+          style={{ height: '100%' }}
+          itemContent={(_, item) => {
+            const name = getItemName(item);
+            const updatedAt = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
+            const actions = getItemActions(item);
 
-        return (
-          <Box
-            key={getItemKey(item)}
-            borderBottomWidth="1px"
-            borderColor="border.subtle"
-            _last={{ borderBottomWidth: 0 }}
-            onContextMenu={(event) => onOpenContextMenu(event, item)}
-          >
-            {item.type === 'folder' ? (
-              <Grid
-                display="grid"
-                w="full"
-                gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
-                gap="4"
-                alignItems="center"
-                px="6"
-                py="3.5"
-                textAlign="left"
-                transition="background-color 0.15s ease"
-                _hover={{ bg: 'bg.subtle' }}
+            return (
+              <Box
+                h={`${LIST_ROW_HEIGHT}px`}
+                borderBottomWidth="1px"
+                borderColor="border.subtle"
+                onContextMenu={(event) => onOpenContextMenu(event, item)}
               >
-                <chakra.button
-                  type="button"
-                  minW="0"
-                  textAlign="left"
-                  aria-label={`Open folder ${item.folder.name}`}
-                  onClick={() => onOpenFolder(item.folder.id)}
-                >
-                  <Flex minW="0" align="center" gap="3">
-                    <FileBrowserIcon item={item} />
-                    <Box minW="0">
-                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
-                      <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
-                        Folder - Updated {formatDateOnly(updatedAt)}
-                      </Text>
-                    </Box>
-                  </Flex>
-                </chakra.button>
-                <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
-                <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
-                <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
-              </Grid>
-            ) : (
-              <Grid
-                templateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
-                gap="4"
-                alignItems="center"
-                px="6"
-                py="3.5"
-                transition="background-color 0.15s ease"
-                _hover={{ bg: 'bg.subtle' }}
-              >
-                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
-                  <Flex minW="0" align="center" gap="3">
-                    <FileBrowserIcon item={item} />
-                    <Box minW="0">
-                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
-                      {item.document.originalName !== item.document.name ? (
-                        <Text mt="1" truncate textStyle="xs" color="fg.muted">
-                          {item.document.originalName}
-                        </Text>
-                      ) : null}
-                    </Box>
-                  </Flex>
-                </Link>
-                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
-                  <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
-                </Link>
-                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
-                  <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
-                </Link>
-                <BrowserItemActions
-                  item={item}
-                  actions={actions}
-                  disabled={isMutating}
-                />
-              </Grid>
-            )}
-          </Box>
-        );
-      })}
+                {item.type === 'folder' ? (
+                  <Grid
+                    display="grid"
+                    h="full"
+                    w="full"
+                    gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
+                    gap="4"
+                    alignItems="center"
+                    px="6"
+                    textAlign="left"
+                    transition="background-color 0.15s ease"
+                    _hover={{ bg: 'bg.subtle' }}
+                  >
+                    <chakra.button
+                      type="button"
+                      minW="0"
+                      textAlign="left"
+                      aria-label={`Open folder ${item.folder.name}`}
+                      onClick={() => onOpenFolder(item.folder.id)}
+                    >
+                      <Flex minW="0" align="center" gap="3">
+                        <FileBrowserIcon item={item} />
+                        <Box minW="0">
+                          <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                          <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
+                            Folder - Updated {formatDateOnly(updatedAt)}
+                          </Text>
+                        </Box>
+                      </Flex>
+                    </chakra.button>
+                    <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
+                    <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
+                    <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
+                  </Grid>
+                ) : (
+                  <Grid
+                    h="full"
+                    templateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
+                    gap="4"
+                    alignItems="center"
+                    px="6"
+                    transition="background-color 0.15s ease"
+                    _hover={{ bg: 'bg.subtle' }}
+                  >
+                    <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
+                      <Flex minW="0" align="center" gap="3">
+                        <FileBrowserIcon item={item} />
+                        <Box minW="0">
+                          <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                          {item.document.originalName !== item.document.name ? (
+                            <Text mt="1" truncate textStyle="xs" color="fg.muted">
+                              {item.document.originalName}
+                            </Text>
+                          ) : null}
+                        </Box>
+                      </Flex>
+                    </Link>
+                    <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
+                    </Link>
+                    <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
+                    </Link>
+                    <BrowserItemActions
+                      item={item}
+                      actions={actions}
+                      disabled={isMutating}
+                    />
+                  </Grid>
+                )}
+              </Box>
+            );
+          }}
+        />
+      </Box>
     </SurfacePanel>
   );
 }
@@ -425,89 +460,95 @@ export function BrowserItemGrid({
   isMutating?: boolean;
 }) {
   return (
-    <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} gap="3">
-      {items.map((item) => {
-        const name = getItemName(item);
-        const key = getItemKey(item);
-        const actions = getItemActions(item);
-        const body = item.type === 'folder' ? (
-          <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
-            <Stack minH="8.5rem" justify="space-between" gap="4">
-              <Stack gap="3">
-                <Flex align="flex-start" justify="space-between" gap="3">
-                  <FileBrowserIcon item={item} />
-                  <BrowserItemActions
-                    item={item}
-                    actions={actions}
-                    disabled={isMutating}
-                  />
-                </Flex>
-                <Box minW="0">
-                  <Text truncate fontWeight="semibold" color="fg">{name}</Text>
-                  <Text mt="1" textStyle="xs" color="fg.muted">
-                    Folder
-                  </Text>
-                </Box>
-              </Stack>
-              <Text textStyle="xs" color="fg.muted">
-                Updated {formatDateOnly(item.folder.updatedAt)}
-              </Text>
-            </Stack>
-          </SurfacePanel>
-        ) : (
-          <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
-            <Stack minH="8.5rem" justify="space-between" gap="4">
-              <Stack gap="3">
-                <Flex align="flex-start" justify="space-between" gap="3">
-                  <FileBrowserIcon item={item} />
-                  <BrowserItemActions
-                    item={item}
-                    actions={actions}
-                    disabled={isMutating}
-                  />
-                </Flex>
-                <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ color: 'inherit', textDecoration: 'none' }}>
+    <Box h={BROWSER_SCROLL_HEIGHT}>
+      <VirtuosoGrid
+        data={items}
+        components={virtuosoGridComponents}
+        computeItemKey={(_, item) => getItemKey(item)}
+        initialItemCount={Math.min(items.length, 24)}
+        style={{ height: '100%' }}
+        itemContent={(_, item) => {
+          const name = getItemName(item);
+          const actions = getItemActions(item);
+          const body = item.type === 'folder' ? (
+            <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
+              <Stack minH="8.5rem" justify="space-between" gap="4">
+                <Stack gap="3">
+                  <Flex align="flex-start" justify="space-between" gap="3">
+                    <FileBrowserIcon item={item} />
+                    <BrowserItemActions
+                      item={item}
+                      actions={actions}
+                      disabled={isMutating}
+                    />
+                  </Flex>
                   <Box minW="0">
                     <Text truncate fontWeight="semibold" color="fg">{name}</Text>
                     <Text mt="1" textStyle="xs" color="fg.muted">
-                      {`${formatBytes(item.document.originalSize)} - ${getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType })}`}
+                      Folder
                     </Text>
                   </Box>
-                </Link>
+                </Stack>
+                <Text textStyle="xs" color="fg.muted">
+                  Updated {formatDateOnly(item.folder.updatedAt)}
+                </Text>
               </Stack>
-              <Text textStyle="xs" color="fg.muted">
-                Updated {formatDateOnly(item.document.updatedAt)}
-              </Text>
-            </Stack>
-          </SurfacePanel>
-        );
+            </SurfacePanel>
+          ) : (
+            <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
+              <Stack minH="8.5rem" justify="space-between" gap="4">
+                <Stack gap="3">
+                  <Flex align="flex-start" justify="space-between" gap="3">
+                    <FileBrowserIcon item={item} />
+                    <BrowserItemActions
+                      item={item}
+                      actions={actions}
+                      disabled={isMutating}
+                    />
+                  </Flex>
+                  <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ color: 'inherit', textDecoration: 'none' }}>
+                    <Box minW="0">
+                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                      <Text mt="1" textStyle="xs" color="fg.muted">
+                        {`${formatBytes(item.document.originalSize)} - ${getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType })}`}
+                      </Text>
+                    </Box>
+                  </Link>
+                </Stack>
+                <Text textStyle="xs" color="fg.muted">
+                  Updated {formatDateOnly(item.document.updatedAt)}
+                </Text>
+              </Stack>
+            </SurfacePanel>
+          );
 
-        return item.type === 'folder' ? (
-          <Box
-            key={key}
-            role="button"
-            tabIndex={0}
-            aria-label={`Open folder ${item.folder.name}`}
-            textAlign="left"
-            cursor="pointer"
-            onClick={() => onOpenFolder(item.folder.id)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                onOpenFolder(item.folder.id);
-              }
-            }}
-            onContextMenu={(event) => onOpenContextMenu(event, item)}
-          >
-            {body}
-          </Box>
-        ) : (
-          <Box key={key} onContextMenu={(event) => onOpenContextMenu(event, item)}>
-            {body}
-          </Box>
-        );
-      })}
-    </SimpleGrid>
+          return item.type === 'folder' ? (
+            <Box
+              h="10rem"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open folder ${item.folder.name}`}
+              textAlign="left"
+              cursor="pointer"
+              onClick={() => onOpenFolder(item.folder.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onOpenFolder(item.folder.id);
+                }
+              }}
+              onContextMenu={(event) => onOpenContextMenu(event, item)}
+            >
+              {body}
+            </Box>
+          ) : (
+            <Box h="10rem" onContextMenu={(event) => onOpenContextMenu(event, item)}>
+              {body}
+            </Box>
+          );
+        }}
+      />
+    </Box>
   );
 }
 

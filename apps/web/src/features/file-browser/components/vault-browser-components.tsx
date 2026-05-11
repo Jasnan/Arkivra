@@ -1,8 +1,8 @@
 import type { ComponentPropsWithoutRef, FormEvent, MouseEvent, Ref } from 'react';
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { File, Folder, Home } from 'lucide-react';
+import { Check, File, Folder, FolderOpen, Home, Search } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { SurfacePanel } from '@/components/layout/vault-ui';
@@ -23,16 +23,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getDocumentTypeLabel, getItemName } from './vault-browser.types';
-import type { BrowserAction, BrowserContextItem, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget } from './vault-browser.types';
+import type { BrowserAction, BrowserContextItem, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
 
 const BROWSER_SCROLL_HEIGHT = 'clamp(24rem, calc(100vh - 18rem), 46rem)';
 const LIST_ROW_HEIGHT = 72;
@@ -632,24 +625,72 @@ export function MoveItemDialog({
   onValueChange,
   onClose,
   onSubmit,
-}: {
+}: MoveItemDialogProps) {
+  if (target === null) {
+    return null;
+  }
+
+  return (
+    <OpenMoveItemDialog
+      key={getItemKey(target)}
+      target={target}
+      value={value}
+      destinations={destinations}
+      isPending={isPending}
+      isLoading={isLoading}
+      onValueChange={onValueChange}
+      onClose={onClose}
+      onSubmit={onSubmit}
+    />
+  );
+}
+
+interface MoveItemDialogProps {
   target: ItemDialogTarget;
   value: string | null;
-  destinations: Array<{ id: string | null; label: string }>;
+  destinations: MoveDestination[];
   isPending: boolean;
   isLoading: boolean;
   onValueChange: (value: string | null) => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  if (target === null) {
-    return null;
-  }
+}
+
+interface OpenMoveItemDialogProps extends Omit<MoveItemDialogProps, 'target'> {
+  target: BrowserItem;
+}
+
+function OpenMoveItemDialog({
+  target,
+  value,
+  destinations,
+  isPending,
+  isLoading,
+  onValueChange,
+  onClose,
+  onSubmit,
+}: OpenMoveItemDialogProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredDestinations = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+
+    if (normalizedQuery.length === 0) {
+      return destinations;
+    }
+
+    return destinations.filter((destination) => {
+      const searchableText = `${destination.name} ${destination.label}`.toLocaleLowerCase();
+      return searchableText.includes(normalizedQuery);
+    });
+  }, [destinations, searchQuery]);
 
   const currentDestinationId = target.type === 'folder' ? target.folder.parentId : target.document.folderId;
+  const selectedDestination = destinations.find(destination => destination.id === value) ?? destinations[0] ?? null;
+  const canSubmitMove = !isLoading && !isPending && selectedDestination !== null && value === selectedDestination.id && value !== currentDestinationId;
 
   return (
-    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
+    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -662,24 +703,141 @@ export function MoveItemDialog({
             </ChakraDialog.Header>
             <ChakraDialog.Body>
               <chakra.form id="move-item-form" display="flex" flexDirection="column" gap="4" onSubmit={onSubmit}>
-                <chakra.label htmlFor="move-item-destination" fontSize="sm" fontWeight="medium" color="fg">
-                  Destination
+                <chakra.label htmlFor="move-item-folder-search" fontSize="sm" fontWeight="medium" color="fg">
+                  Search folders
                 </chakra.label>
-                <Select
-                  value={value ?? '__root__'}
-                  onValueChange={(nextValue) => onValueChange(nextValue === '__root__' ? null : nextValue)}
+                <Box position="relative">
+                  <Flex
+                    position="absolute"
+                    top="0"
+                    bottom="0"
+                    left="3"
+                    align="center"
+                    color="fg.muted"
+                    pointerEvents="none"
+                  >
+                    <Search size={16} />
+                  </Flex>
+                  <Input
+                    id="move-item-folder-search"
+                    autoFocus
+                    value={searchQuery}
+                    disabled={isLoading || isPending}
+                    pl="9"
+                    placeholder="Find a destination"
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                      }
+                    }}
+                  />
+                </Box>
+                <Box
+                  role="listbox"
+                  aria-label="Move destination"
+                  h={{ base: '18rem', md: '20rem' }}
+                  overflow="hidden"
+                  rounded="lg"
+                  borderWidth="1px"
+                  borderColor="border.subtle"
+                  bg="bg.surface"
                 >
-                  <SelectTrigger id="move-item-destination" aria-label="Destination" disabled={isLoading || isPending}>
-                    <SelectValue placeholder="Choose a folder" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {destinations.map((destination) => (
-                      <SelectItem key={destination.id ?? '__root__'} value={destination.id ?? '__root__'}>
-                        {destination.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {isLoading ? (
+                    <Flex h="full" align="center" justify="center" px="4">
+                      <Text fontSize="sm" color="fg.muted">Loading folders...</Text>
+                    </Flex>
+                  ) : filteredDestinations.length === 0 ? (
+                    <Flex h="full" align="center" justify="center" px="4">
+                      <Text fontSize="sm" color="fg.muted">No folders found.</Text>
+                    </Flex>
+                  ) : (
+                    <Virtuoso
+                      data={filteredDestinations}
+                      computeItemKey={(index, destination) => destination?.id ?? `__destination_${index}`}
+                      initialItemCount={Math.min(filteredDestinations.length, 32)}
+                      style={{ height: '100%' }}
+                      itemContent={(_, destination) => {
+                        if (destination === undefined) {
+                          return null;
+                        }
+
+                        const isSelected = destination.id === value;
+                        const isCurrent = destination.id === currentDestinationId;
+                        const icon = destination.id === null ? <Home size={16} /> : <FolderOpen size={16} />;
+
+                        return (
+                          <chakra.button
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            disabled={isPending}
+                            display="flex"
+                            w="full"
+                            minH="3rem"
+                            alignItems="center"
+                            gap="3"
+                            borderBottomWidth="1px"
+                            borderColor="border.subtle"
+                            bg={isSelected ? 'teal.subtle' : 'transparent'}
+                            px="3"
+                            py="2"
+                            textAlign="left"
+                            transition="background-color 0.15s ease"
+                            _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.subtle' }}
+                            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
+                            onClick={() => onValueChange(destination.id)}
+                          >
+                            <Flex
+                              minW="0"
+                              flex="1"
+                              align="center"
+                              gap="3"
+                              ps={`${Math.min(destination.depth, 8) * 0.75}rem`}
+                            >
+                              <Flex
+                                boxSize="7"
+                                shrink={0}
+                                align="center"
+                                justify="center"
+                                rounded="md"
+                                bg={destination.id === null ? 'bg.subtle' : 'teal.subtle'}
+                                color={destination.id === null ? 'fg.muted' : 'teal.fg'}
+                              >
+                                {icon}
+                              </Flex>
+                              <Box minW="0">
+                                <Flex minW="0" align="center" gap="2">
+                                  <Text truncate fontSize="sm" fontWeight="semibold" color="fg">
+                                    {destination.name}
+                                  </Text>
+                                  {isCurrent ? (
+                                    <Text as="span" flexShrink={0} textStyle="xs" color="fg.muted">
+                                      Current
+                                    </Text>
+                                  ) : null}
+                                </Flex>
+                                {destination.label !== destination.name ? (
+                                  <Text mt="0.5" truncate textStyle="xs" color="fg.muted">
+                                    {destination.label}
+                                  </Text>
+                                ) : null}
+                              </Box>
+                            </Flex>
+                            <Flex boxSize="5" shrink={0} align="center" justify="center" color={isSelected ? 'teal.fg' : 'transparent'}>
+                              <Check size={16} />
+                            </Flex>
+                          </chakra.button>
+                        );
+                      }}
+                    />
+                  )}
+                </Box>
+                {selectedDestination !== null ? (
+                  <Text fontSize="sm" color="fg.muted">
+                    Destination: {selectedDestination.label}
+                  </Text>
+                ) : null}
               </chakra.form>
             </ChakraDialog.Body>
             <ChakraDialog.Footer>
@@ -691,7 +849,7 @@ export function MoveItemDialog({
               <Button
                 type="submit"
                 form="move-item-form"
-                disabled={isLoading || isPending || value === currentDestinationId}
+                disabled={!canSubmitMove}
               >
                 {isPending ? 'Moving...' : 'Move'}
               </Button>

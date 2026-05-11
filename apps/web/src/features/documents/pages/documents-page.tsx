@@ -13,6 +13,7 @@ import {
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ApiError } from '@/lib/api';
 import {
   Select,
   SelectContent,
@@ -119,6 +120,22 @@ function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: File
   }
 
   return getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
+}
+
+function getMoveErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.status === 403) {
+      return 'You do not have permission to move this item.';
+    }
+
+    if (error.status === 404) {
+      return 'The item or destination folder is no longer available.';
+    }
+
+    return error.message;
+  }
+
+  return error instanceof Error ? error.message : 'Could not move item.';
 }
 
 export function DocumentsPage() {
@@ -228,7 +245,11 @@ export function DocumentsPage() {
       ]);
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not move item.');
+      toast.error(getMoveErrorMessage(error));
+
+      if (error instanceof ApiError && error.status === 404) {
+        void queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all });
+      }
     },
   });
   const deleteFolderMutation = useMutation({
@@ -481,6 +502,11 @@ export function DocumentsPage() {
     event.preventDefault();
 
     if (moveTarget === null) {
+      return;
+    }
+
+    const currentDestinationId = moveTarget.type === 'folder' ? moveTarget.folder.parentId : moveTarget.document.folderId;
+    if (moveDestinationId === currentDestinationId) {
       return;
     }
 

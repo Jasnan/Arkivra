@@ -45,6 +45,13 @@ export interface BrowserAction {
 export type ItemDialogTarget = BrowserItem | null;
 export type InfoDialogTarget = BrowserContextItem | null;
 
+export interface MoveDestination {
+  id: string | null;
+  name: string;
+  label: string;
+  depth: number;
+}
+
 export interface ContextMenuPosition {
   item: BrowserContextItem;
   x: number;
@@ -166,10 +173,12 @@ export function getMoveDestinations({
     : folders;
 
   return [
-    { id: null, label: 'Vault root' },
+    { id: null, name: 'Vault root', label: 'Vault root', depth: 0 },
     ...allowedFolders.map(folder => ({
       id: folder.id,
+      name: folder.name,
       label: folder.path,
+      depth: folder.depth + 1,
     })),
   ];
 }

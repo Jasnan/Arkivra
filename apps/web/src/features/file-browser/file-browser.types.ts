@@ -19,6 +19,11 @@ export interface FolderBreadcrumb {
   name: string;
 }
 
+export interface FolderTreeEntry extends FolderBreadcrumb {
+  path: string;
+  depth: number;
+}
+
 export type FileBrowserItem =
   | { type: 'folder'; folder: FolderSummary }
   | { type: 'document'; document: DocumentSummary };
@@ -29,4 +34,8 @@ export interface FolderItemsResponse {
   folders: FolderSummary[];
   documents: DocumentSummary[];
   items: FileBrowserItem[];
+}
+
+export interface FolderTreeResponse {
+  folders: FolderTreeEntry[];
 }

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
@@ -29,6 +29,29 @@ function folderItemsResponse(
     documents: [],
     items: [],
     ...overrides,
+  };
+}
+
+function vaultDetailResponse() {
+  return {
+    vault: {
+      id: 'vlt_1',
+      name: 'Personal',
+      description: null,
+      fileCount: 1,
+      totalSize: 2048,
+      createdAt: '2026-04-10T10:00:00.000Z',
+      role: 'owner',
+      permissions: [
+        'documents.read',
+        'documents.create',
+        'documents.update',
+        'documents.delete',
+        'documents.download',
+        'tags.manage',
+      ],
+      isGlobalAdmin: false,
+    },
   };
 }
 
@@ -359,6 +382,10 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse(vaultDetailResponse());
+      }
+
       if (url.includes('/api/vaults/vlt_1/documents')) {
         if (url.includes('tagId=tag_1')) {
           return jsonResponse({
@@ -456,6 +483,10 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse(vaultDetailResponse());
+      }
+
       if (url.includes('/api/vaults/vlt_1/documents')) {
         return jsonResponse({
           documents: [
@@ -530,6 +561,10 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse(vaultDetailResponse());
+      }
+
       if (url.includes('/api/vaults/vlt_1/documents') && (!init || init.method === undefined)) {
         return jsonResponse({
           documents: [
@@ -572,6 +607,11 @@ describe('tags and documents pages', () => {
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
 
+    fireEvent.contextMenu(screen.getByRole('link', { name: /invoice april/i }));
+    expect(screen.getByRole('menu', { name: /actions for invoice april\.pdf/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /preview\/open/i })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     await user.click(screen.getByRole('menuitem', { name: /move to trash/i }));
 
@@ -586,10 +626,149 @@ describe('tags and documents pages', () => {
     );
   });
 
+  it('reopens the document context menu after dismissing a dialog action', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse(vaultDetailResponse());
+      }
+
+      if (url.includes('/api/vaults/vlt_1/documents') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          documents: [
+            {
+              id: 'doc_1',
+              name: 'Invoice April.pdf',
+              originalName: 'invoice.pdf',
+              originalSize: 2048,
+              mimeType: 'application/pdf',
+              documentDate: null,
+              folderId: null,
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-10T10:00:00.000Z',
+              isDeleted: false,
+              deletedAt: null,
+            },
+          ],
+        });
+      }
+
+      if (url.includes('/api/vaults/vlt_1/folders/items')) {
+        return jsonResponse(folderItemsResponse());
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1/documents'],
+      routePath: '/vaults/:vaultId/documents',
+    });
+
+    const documentLink = await screen.findByRole('link', { name: /invoice april/i });
+    fireEvent.contextMenu(documentLink);
+    await user.click(screen.getByRole('menuitem', { name: /^rename$/i }));
+
+    const renameDialog = await screen.findByRole('dialog', { name: /rename document/i });
+    await user.click(within(renameDialog).getByRole('button', { name: /close/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /rename document/i })).not.toBeInTheDocument();
+    });
+
+    fireEvent.contextMenu(documentLink);
+    expect(screen.getByRole('menu', { name: /actions for invoice april\.pdf/i })).toBeInTheDocument();
+  });
+
+  it('opens root folder actions from the vault root breadcrumb context menu', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse(vaultDetailResponse());
+      }
+
+      if (url.includes('/api/vaults/vlt_1/documents') && (!init || init.method === undefined)) {
+        return jsonResponse({ documents: [] });
+      }
+
+      if (url.includes('/api/vaults/vlt_1/folders/items')) {
+        return jsonResponse(folderItemsResponse());
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/folders') && init?.method === 'POST') {
+        expect(init.body).toBe(JSON.stringify({ parentId: null, name: 'Root Projects' }));
+        return jsonResponse(
+          {
+            folder: {
+              id: 'fld_root_project',
+              vaultId: 'vlt_1',
+              parentId: null,
+              name: 'Root Projects',
+              createdBy: 'user_1',
+              isDeleted: false,
+              deletedAt: null,
+              deletedBy: null,
+              createdAt: '2026-04-12T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+            },
+          },
+          201,
+        );
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    fireEvent.contextMenu(await screen.findByText(/^Root$/));
+    const menu = screen.getByRole('menu', { name: /actions for vault root/i });
+    expect(within(menu).getByRole('menuitem', { name: /new folder/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /upload/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /info/i })).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /rename/i })).not.toBeInTheDocument();
+
+    await user.click(within(menu).getByRole('menuitem', { name: /new folder/i }));
+    const createDialog = await screen.findByRole('dialog', { name: /new folder/i });
+    await user.type(within(createDialog).getByLabelText(/^name$/i), 'Root Projects');
+    await user.click(within(createDialog).getByRole('button', { name: /^create folder$/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1/folders',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      ),
+    );
+  });
+
   it('browses folders, switches views, and creates folders on the vault documents page', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse(vaultDetailResponse());
+      }
 
       if (url.includes('/api/vaults/vlt_1/documents') && (!init || init.method === undefined)) {
         return jsonResponse({
@@ -688,12 +867,12 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId',
     });
 
-    expect(await screen.findByRole('button', { name: /finance/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /open folder finance/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /invoice april/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /grid view/i }));
 
-    await user.click(screen.getByRole('button', { name: /finance/i }));
+    await user.click(screen.getByRole('button', { name: /open folder finance/i }));
 
     expect(await screen.findByText(/^Finance$/)).toBeInTheDocument();
     await waitFor(() => {
@@ -788,6 +967,7 @@ describe('tags and documents pages', () => {
     await screen.findByRole('tab', { name: /extracted text/i });
     await user.click(screen.getByRole('tab', { name: /extracted text/i }));
     expect(await screen.findByText(/parsed text/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /metadata/i }));
     await user.click(screen.getByRole('button', { name: /add tag/i }));
     await user.click(await screen.findByRole('menuitemcheckbox', { name: /urgent/i }));
 
@@ -879,6 +1059,7 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
+    await user.click(await screen.findByRole('tab', { name: /metadata/i }));
     await user.click(await screen.findByRole('button', { name: /add tag/i }));
     await user.type(screen.getByPlaceholderText(/filter tags/i), 'Testing');
     await user.click(screen.getByRole('menuitem', { name: /create new tag "testing"/i }));
@@ -1114,19 +1295,14 @@ describe('tags and documents pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await renderWithProviders(<DocumentDetailPage />, {
-      initialEntries: ['/vaults/vlt_1/documents/doc_1'],
-      routePath: '/vaults/:vaultId/documents/:documentId',
+      initialEntries: ['/vaults/vlt_1/doc_1/chat'],
+      routePath: '/vaults/:vaultId/:documentId/chat',
     });
 
     await screen.findByRole('tab', { name: /preview/i });
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('tab', { name: /^chat$/i }));
-
-    expect(await screen.findByText(/context: invoice april\.pdf/i)).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: /ask anything about this document/i })).toBeInTheDocument();
-    expect(await screen.findByText(/no conversations yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^chat$/i })).toHaveAttribute('aria-selected', 'true');
   });
 });

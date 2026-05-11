@@ -120,6 +120,25 @@ export async function renameDocument({
   );
 }
 
+export async function moveDocument({
+  vaultId,
+  documentId,
+  folderId,
+}: {
+  vaultId: string;
+  documentId: string;
+  folderId: string | null;
+}) {
+  return fetchJson<{ document: { id: string; folderId: string | null; updatedAt: string } }>(
+    `/api/vaults/${vaultId}/documents/${documentId}/move`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ folderId }),
+    },
+  );
+}
+
 export async function updateDocumentDate({
   vaultId,
   documentId,

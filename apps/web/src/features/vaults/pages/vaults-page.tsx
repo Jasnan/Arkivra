@@ -1,6 +1,6 @@
-import type { FormEvent } from 'react';
-import { useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, Heading, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal } from '@chakra-ui/react';
+import type { FormEvent, MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Flex, Grid, Heading, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderKanban, FolderOpen, Settings2, ShieldCheck, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
@@ -29,6 +29,20 @@ import { formatBytes } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
+import type { VaultSummary } from '@/features/vaults/vaults.types';
+
+type VaultContextMenuState = {
+  vault: VaultSummary;
+  x: number;
+  y: number;
+} | null;
+
+type VaultAction = {
+  key: string;
+  label: string;
+  icon: typeof FolderOpen;
+  onSelect: () => void;
+};
 
 function formatVaultCreatedDate(value: string | null) {
   if (!value) {
@@ -68,6 +82,109 @@ function getVaultDescription(value: string | null) {
   return value;
 }
 
+function VaultContextMenu({
+  state,
+  actions,
+  onClose,
+}: {
+  state: Exclude<VaultContextMenuState, null>;
+  actions: VaultAction[];
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    function closeOnOutsideContextMenu(event: globalThis.MouseEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, { capture: true });
+    window.document.addEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+    window.document.addEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onClose, { capture: true });
+      window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+    };
+  }, [onClose]);
+
+  return (
+    <Portal>
+      <Box
+        ref={menuRef}
+        role="menu"
+        aria-label={`Vault actions for ${state.vault.name}`}
+        position="fixed"
+        zIndex="popover"
+        minW="12rem"
+        left={`${state.x}px`}
+        top={`${state.y}px`}
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.surface"
+        p="1.5"
+        shadow="xl"
+        onClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        {actions.map((action) => (
+          <chakra.button
+            key={action.key}
+            type="button"
+            role="menuitem"
+            display="flex"
+            w="full"
+            alignItems="center"
+            gap="3"
+            rounded="md"
+            px="3"
+            py="2"
+            textAlign="left"
+            fontSize="sm"
+            fontWeight="medium"
+            color="fg.muted"
+            _hover={{ bg: 'bg.subtle', color: 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+            onClick={() => {
+              onClose();
+              window.setTimeout(action.onSelect, 0);
+            }}
+          >
+            <ActionMenuItemIcon icon={action.icon} />
+            {action.label}
+          </chakra.button>
+        ))}
+      </Box>
+    </Portal>
+  );
+}
+
 export function VaultsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -77,6 +194,7 @@ export function VaultsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [contextMenu, setContextMenu] = useState<VaultContextMenuState>(null);
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -155,6 +273,23 @@ export function VaultsPage() {
     return `${value.slice(0, 277).trimEnd()}...`;
   }
 
+  function getVaultActions(vault: VaultSummary): VaultAction[] {
+    return [
+      { key: 'open', label: 'Open', icon: FolderOpen, onSelect: () => navigate({ to: ROUTES.vaultRoot(vault.id) }) },
+      { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vault.id) }) },
+    ];
+  }
+
+  function openContextMenu(event: MouseEvent<HTMLElement>, vault: VaultSummary) {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      vault,
+      x: Math.min(event.clientX, window.innerWidth - 192),
+      y: Math.min(event.clientY, window.innerHeight - 160),
+    });
+  }
+
   return (
     <Stack as="section" gap="8" pb="8">
       <PageIntro
@@ -229,6 +364,7 @@ export function VaultsPage() {
                 _hover={{ bg: 'bg.subtle' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
                 onClick={() => navigate({ to: ROUTES.vaultRoot(vault.id) })}
+                onContextMenu={(event) => openContextMenu(event, vault)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
@@ -355,6 +491,14 @@ export function VaultsPage() {
           </ChakraDialog.Positioner>
         </Portal>
       </ChakraDialog.Root>
+
+      {contextMenu !== null ? (
+        <VaultContextMenu
+          state={contextMenu}
+          actions={getVaultActions(contextMenu.vault)}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
     </Stack>
   );
 }

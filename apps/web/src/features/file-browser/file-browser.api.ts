@@ -1,5 +1,5 @@
 import { fetchJson } from '@/lib/api';
-import type { FolderItemsResponse, FolderSummary } from './file-browser.types';
+import type { FolderItemsResponse, FolderSummary, FolderTreeResponse } from './file-browser.types';
 
 interface FolderResponse {
   folder: FolderSummary;
@@ -18,6 +18,10 @@ export async function listFolderItems({
   return fetchJson<FolderItemsResponse>(`/api/vaults/${vaultId}/folders/items?${params.toString()}`);
 }
 
+export async function listFolderTree({ vaultId }: { vaultId: string }) {
+  return fetchJson<FolderTreeResponse>(`/api/vaults/${vaultId}/folders/tree`);
+}
+
 export async function createFolder({
   vaultId,
   parentId,
@@ -31,5 +35,49 @@ export async function createFolder({
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ parentId, name }),
+  });
+}
+
+export async function renameFolder({
+  vaultId,
+  folderId,
+  name,
+}: {
+  vaultId: string;
+  folderId: string;
+  name: string;
+}) {
+  return fetchJson<FolderResponse>(`/api/vaults/${vaultId}/folders/${folderId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function moveFolder({
+  vaultId,
+  folderId,
+  parentId,
+}: {
+  vaultId: string;
+  folderId: string;
+  parentId: string | null;
+}) {
+  return fetchJson<FolderResponse>(`/api/vaults/${vaultId}/folders/${folderId}/move`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ parentId }),
+  });
+}
+
+export async function softDeleteFolder({
+  vaultId,
+  folderId,
+}: {
+  vaultId: string;
+  folderId: string;
+}) {
+  return fetchJson<void>(`/api/vaults/${vaultId}/folders/${folderId}`, {
+    method: 'DELETE',
   });
 }

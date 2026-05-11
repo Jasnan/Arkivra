@@ -17,6 +17,49 @@ function parseNullableFolderId(value: unknown) {
   return { valid: false as const };
 }
 
+function buildFolderTreeEntries(
+  folders: Array<{ id: string; parentId: string | null; name: string }>,
+) {
+  const byId = new Map(folders.map(folder => [folder.id, folder]));
+  const cache = new Map<string, { path: string; depth: number }>();
+
+  function resolve(folderId: string, seen = new Set<string>()): { path: string; depth: number } {
+    const cached = cache.get(folderId);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const folder = byId.get(folderId);
+    if (folder === undefined || seen.has(folderId)) {
+      return { path: '', depth: 0 };
+    }
+
+    const nextSeen = new Set(seen);
+    nextSeen.add(folderId);
+
+    const parent: { path: string; depth: number } | null = folder.parentId === null ? null : resolve(folder.parentId, nextSeen);
+    const entry: { path: string; depth: number } = parent === null || parent.path.length === 0
+      ? { path: folder.name, depth: 0 }
+      : { path: `${parent.path}/${folder.name}`, depth: parent.depth + 1 };
+
+    cache.set(folderId, entry);
+    return entry;
+  }
+
+  return folders
+    .map((folder) => {
+      const entry = resolve(folder.id);
+      return {
+        id: folder.id,
+        parentId: folder.parentId,
+        name: folder.name,
+        path: entry.path,
+        depth: entry.depth,
+      };
+    })
+    .sort((left, right) => left.path.localeCompare(right.path, undefined, { sensitivity: 'base' }));
+}
+
 function folderErrorResponse(error: FolderServiceError) {
   switch (error) {
     case 'invalid_name':
@@ -123,6 +166,22 @@ export function registerFolderRoutes({
         documents: result.documents,
         items: result.items,
       });
+    },
+  );
+
+  app.get(
+    '/api/vaults/:vaultId/folders/tree',
+    requireVaultPermission('documents.read'),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const folders = await foldersServices.listActiveFoldersForVault({ vaultId });
+
+      return context.json({ folders: buildFolderTreeEntries(folders) });
     },
   );
 

@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, FormEvent, MouseEvent, Ref } from 'react';
+import type { ComponentPropsWithoutRef, DragEvent, FormEvent, KeyboardEvent, MouseEvent, Ref } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { formatBytes } from '@/features/documents/documents.utils';
-import { getDocumentTypeLabel, getItemName } from './vault-browser.types';
-import type { BrowserAction, BrowserContextItem, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
+import { getBrowserItemKey, getDocumentTypeLabel, getItemName } from './vault-browser.types';
+import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
 
 const BROWSER_SCROLL_HEIGHT = 'clamp(24rem, calc(100vh - 18rem), 46rem)';
 const LIST_ROW_HEIGHT = 72;
@@ -61,10 +61,6 @@ function formatDateOnly(value: string | null) {
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
   }).format(new Date(value));
-}
-
-function getItemKey(item: BrowserItem) {
-  return item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`;
 }
 
 function getItemId(item: BrowserContextItem) {
@@ -106,23 +102,94 @@ function FileBrowserIcon({ item }: { item: BrowserItem }) {
   );
 }
 
+function isDropTargetForFolder(dropTarget: BrowserDropTarget | null, folderId: string | null) {
+  return dropTarget !== null && dropTarget.folderId === folderId;
+}
+
+function getDropTargetStyles(dropTarget: BrowserDropTarget | null, folderId: string | null) {
+  if (dropTarget === null || dropTarget.folderId !== folderId) {
+    return {};
+  }
+
+  return dropTarget.state === 'valid'
+    ? { bg: 'teal.subtle' }
+    : { bg: 'red.subtle' };
+}
+
+function getBrowserItemSurfaceStyles({
+  isSelected,
+  isDragSource,
+}: {
+  isSelected: boolean;
+  isDragSource: boolean;
+}) {
+  return {
+    bg: isSelected ? 'teal.subtle' : undefined,
+    opacity: isDragSource ? 0.65 : 1,
+  };
+}
+
+function handleItemKeyboardSelection({
+  event,
+  item,
+  onOpenItem,
+  onSelectItem,
+}: {
+  event: KeyboardEvent<HTMLElement>;
+  item: BrowserItem;
+  onOpenItem: (item: BrowserItem) => void;
+  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
+}) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    onOpenItem(item);
+    return;
+  }
+
+  if (event.key === ' ') {
+    event.preventDefault();
+    onSelectItem(event, item);
+  }
+}
+
 export function FolderBreadcrumbs({
   currentFolderId,
   breadcrumbs,
   onNavigateFolder,
   onOpenRootContextMenu,
+  dropTarget,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
 }: {
   currentFolderId: string | null;
   breadcrumbs: Array<{ id: string; name: string }>;
   onNavigateFolder: (folderId: string | null) => void;
   onOpenRootContextMenu: (event: MouseEvent<HTMLElement>) => void;
+  dropTarget: BrowserDropTarget | null;
+  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
 }) {
+  function getBreadcrumbDropProps(folderId: string | null) {
+    return {
+      rounded: 'md',
+      px: '1',
+      borderWidth: '1px',
+      borderColor: isDropTargetForFolder(dropTarget, folderId) ? undefined : 'transparent',
+      ...getDropTargetStyles(dropTarget, folderId),
+      onDragOver: (event: DragEvent<HTMLElement>) => onDragOverFolder(event, folderId),
+      onDragLeave: (event: DragEvent<HTMLElement>) => onDragLeaveFolder(event, folderId),
+      onDrop: (event: DragEvent<HTMLElement>) => onDropOnFolder(event, folderId),
+    };
+  }
+
   return (
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
           {currentFolderId === null ? (
-            <BreadcrumbPage display="inline-flex" alignItems="center" gap="1.5" onContextMenu={onOpenRootContextMenu}>
+            <BreadcrumbPage display="inline-flex" alignItems="center" gap="1.5" onContextMenu={onOpenRootContextMenu} {...getBreadcrumbDropProps(null)}>
               <Home size={14} />
               Root
             </BreadcrumbPage>
@@ -135,6 +202,7 @@ export function FolderBreadcrumbs({
               gap="1.5"
               onClick={() => onNavigateFolder(null)}
               onContextMenu={onOpenRootContextMenu}
+              {...getBreadcrumbDropProps(null)}
             >
               <Home size={14} />
               Root
@@ -148,9 +216,14 @@ export function FolderBreadcrumbs({
               <BreadcrumbSeparator />
               <BreadcrumbItem>
                 {isCurrent ? (
-                  <BreadcrumbPage>{folder.name}</BreadcrumbPage>
+                  <BreadcrumbPage {...getBreadcrumbDropProps(folder.id)}>{folder.name}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink as="button" type="button" onClick={() => onNavigateFolder(folder.id)}>
+                  <BreadcrumbLink
+                    as="button"
+                    type="button"
+                    onClick={() => onNavigateFolder(folder.id)}
+                    {...getBreadcrumbDropProps(folder.id)}
+                  >
                     {folder.name}
                   </BreadcrumbLink>
                 )}
@@ -308,20 +381,38 @@ export function BrowserContextMenu({
 export function BrowserItemList({
   items,
   vaultId,
-  onOpenFolder,
+  selectedItemKeys,
+  draggedItemKeys,
+  dropTarget,
+  onOpenItem,
+  onSelectItem,
   getItemActions,
+  onDragStartItem,
+  onDragEndItem,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
   onOpenContextMenu,
   isMutating,
 }: {
   items: BrowserItem[];
   vaultId: string;
-  onOpenFolder: (folderId: string) => void;
+  selectedItemKeys: Set<string>;
+  draggedItemKeys: Set<string>;
+  dropTarget: BrowserDropTarget | null;
+  onOpenItem: (item: BrowserItem) => void;
+  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
   getItemActions: (item: BrowserItem) => BrowserAction[];
+  onDragStartItem: (event: DragEvent<HTMLElement>, item: BrowserItem) => void;
+  onDragEndItem: () => void;
+  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
   isMutating?: boolean;
 }) {
   return (
-    <SurfacePanel overflow="hidden" p="0">
+    <SurfacePanel role="listbox" aria-label="Folder items" aria-multiselectable="true" overflow="hidden" p="0">
       <Grid
         display={{ base: 'none', md: 'grid' }}
         templateColumns="minmax(0, 1.4fr) 140px 132px 44px"
@@ -343,19 +434,46 @@ export function BrowserItemList({
         <Virtuoso
           data={items}
           fixedItemHeight={LIST_ROW_HEIGHT}
-          computeItemKey={(_, item) => getItemKey(item)}
+          computeItemKey={(index, item) => item ? getBrowserItemKey(item) : `__item_${index}`}
           initialItemCount={Math.min(items.length, 24)}
           style={{ height: '100%' }}
           itemContent={(_, item) => {
+            if (item === undefined) {
+              return null;
+            }
+
             const name = getItemName(item);
             const updatedAt = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
             const actions = getItemActions(item);
+            const itemKey = getBrowserItemKey(item);
+            const isSelected = selectedItemKeys.has(itemKey);
+            const isDragSource = draggedItemKeys.has(itemKey);
+            const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource });
+            const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
 
             return (
               <Box
+                role="option"
+                aria-selected={isSelected}
+                aria-label={name}
+                tabIndex={0}
+                draggable={!isMutating}
                 h={`${LIST_ROW_HEIGHT}px`}
                 borderBottomWidth="1px"
                 borderColor="border.subtle"
+                cursor="default"
+                outline="none"
+                {...itemSurfaceStyles}
+                {...folderDropStyles}
+                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
+                onClick={(event) => onSelectItem(event, item)}
+                onDoubleClick={() => onOpenItem(item)}
+                onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
+                onDragStart={(event) => onDragStartItem(event, item)}
+                onDragEnd={onDragEndItem}
+                onDragOver={item.type === 'folder' ? (event) => onDragOverFolder(event, item.folder.id) : undefined}
+                onDragLeave={item.type === 'folder' ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined}
+                onDrop={item.type === 'folder' ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
                 onContextMenu={(event) => onOpenContextMenu(event, item)}
               >
                 {item.type === 'folder' ? (
@@ -376,7 +494,10 @@ export function BrowserItemList({
                       minW="0"
                       textAlign="left"
                       aria-label={`Open folder ${item.folder.name}`}
-                      onClick={() => onOpenFolder(item.folder.id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenItem(item);
+                      }}
                     >
                       <Flex minW="0" align="center" gap="3">
                         <FileBrowserIcon item={item} />
@@ -402,7 +523,11 @@ export function BrowserItemList({
                     transition="background-color 0.15s ease"
                     _hover={{ bg: 'bg.subtle' }}
                   >
-                    <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
+                    <Link
+                      to={ROUTES.vaultDocument(vaultId, item.document.id)}
+                      style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <Flex minW="0" align="center" gap="3">
                         <FileBrowserIcon item={item} />
                         <Box minW="0">
@@ -415,10 +540,18 @@ export function BrowserItemList({
                         </Box>
                       </Flex>
                     </Link>
-                    <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+                    <Link
+                      to={ROUTES.vaultDocument(vaultId, item.document.id)}
+                      style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
                     </Link>
-                    <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+                    <Link
+                      to={ROUTES.vaultDocument(vaultId, item.document.id)}
+                      style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
                     </Link>
                     <BrowserItemActions
@@ -440,31 +573,65 @@ export function BrowserItemList({
 export function BrowserItemGrid({
   items,
   vaultId,
-  onOpenFolder,
+  selectedItemKeys,
+  draggedItemKeys,
+  dropTarget,
+  onOpenItem,
+  onSelectItem,
   getItemActions,
+  onDragStartItem,
+  onDragEndItem,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
   onOpenContextMenu,
   isMutating,
 }: {
   items: BrowserItem[];
   vaultId: string;
-  onOpenFolder: (folderId: string) => void;
+  selectedItemKeys: Set<string>;
+  draggedItemKeys: Set<string>;
+  dropTarget: BrowserDropTarget | null;
+  onOpenItem: (item: BrowserItem) => void;
+  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
   getItemActions: (item: BrowserItem) => BrowserAction[];
+  onDragStartItem: (event: DragEvent<HTMLElement>, item: BrowserItem) => void;
+  onDragEndItem: () => void;
+  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
   isMutating?: boolean;
 }) {
   return (
-    <Box h={BROWSER_SCROLL_HEIGHT}>
+    <Box h={BROWSER_SCROLL_HEIGHT} role="listbox" aria-label="Folder items" aria-multiselectable="true">
       <VirtuosoGrid
         data={items}
         components={virtuosoGridComponents}
-        computeItemKey={(_, item) => getItemKey(item)}
+        computeItemKey={(index, item) => item ? getBrowserItemKey(item) : `__item_${index}`}
         initialItemCount={Math.min(items.length, 24)}
         style={{ height: '100%' }}
         itemContent={(_, item) => {
+          if (item === undefined) {
+            return null;
+          }
+
           const name = getItemName(item);
           const actions = getItemActions(item);
+          const itemKey = getBrowserItemKey(item);
+          const isSelected = selectedItemKeys.has(itemKey);
+          const isDragSource = draggedItemKeys.has(itemKey);
+          const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource });
+          const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
           const body = item.type === 'folder' ? (
-            <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
+            <SurfacePanel
+              h="full"
+              p="4"
+              transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
+              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.subtle', borderColor: isSelected ? 'teal.muted' : 'border' }}
+              {...itemSurfaceStyles}
+              {...folderDropStyles}
+            >
               <Stack minH="8.5rem" justify="space-between" gap="4">
                 <Stack gap="3">
                   <Flex align="flex-start" justify="space-between" gap="3">
@@ -475,12 +642,23 @@ export function BrowserItemGrid({
                       disabled={isMutating}
                     />
                   </Flex>
-                  <Box minW="0">
-                    <Text truncate fontWeight="semibold" color="fg">{name}</Text>
-                    <Text mt="1" textStyle="xs" color="fg.muted">
-                      Folder
-                    </Text>
-                  </Box>
+                  <chakra.button
+                    type="button"
+                    minW="0"
+                    textAlign="left"
+                    aria-label={`Open folder ${item.folder.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenItem(item);
+                    }}
+                  >
+                    <Box minW="0">
+                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                      <Text mt="1" textStyle="xs" color="fg.muted">
+                        Folder
+                      </Text>
+                    </Box>
+                  </chakra.button>
                 </Stack>
                 <Text textStyle="xs" color="fg.muted">
                   Updated {formatDateOnly(item.folder.updatedAt)}
@@ -488,7 +666,13 @@ export function BrowserItemGrid({
               </Stack>
             </SurfacePanel>
           ) : (
-            <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
+            <SurfacePanel
+              h="full"
+              p="4"
+              transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
+              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.subtle', borderColor: isSelected ? 'teal.muted' : 'border' }}
+              {...itemSurfaceStyles}
+            >
               <Stack minH="8.5rem" justify="space-between" gap="4">
                 <Stack gap="3">
                   <Flex align="flex-start" justify="space-between" gap="3">
@@ -499,7 +683,11 @@ export function BrowserItemGrid({
                       disabled={isMutating}
                     />
                   </Flex>
-                  <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <Link
+                    to={ROUTES.vaultDocument(vaultId, item.document.id)}
+                    style={{ color: 'inherit', textDecoration: 'none' }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <Box minW="0">
                       <Text truncate fontWeight="semibold" color="fg">{name}</Text>
                       <Text mt="1" textStyle="xs" color="fg.muted">
@@ -518,24 +706,45 @@ export function BrowserItemGrid({
           return item.type === 'folder' ? (
             <Box
               h="10rem"
-              role="button"
+              role="option"
+              aria-selected={isSelected}
               tabIndex={0}
-              aria-label={`Open folder ${item.folder.name}`}
+              aria-label={item.folder.name}
+              draggable={!isMutating}
               textAlign="left"
-              cursor="pointer"
-              onClick={() => onOpenFolder(item.folder.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onOpenFolder(item.folder.id);
-                }
-              }}
+              cursor="default"
+              outline="none"
+              onClick={(event) => onSelectItem(event, item)}
+              onDoubleClick={() => onOpenItem(item)}
+              onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
+              onDragStart={(event) => onDragStartItem(event, item)}
+              onDragEnd={onDragEndItem}
+              onDragOver={(event) => onDragOverFolder(event, item.folder.id)}
+              onDragLeave={(event) => onDragLeaveFolder(event, item.folder.id)}
+              onDrop={(event) => onDropOnFolder(event, item.folder.id)}
               onContextMenu={(event) => onOpenContextMenu(event, item)}
+              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
             >
               {body}
             </Box>
           ) : (
-            <Box h="10rem" onContextMenu={(event) => onOpenContextMenu(event, item)}>
+            <Box
+              h="10rem"
+              role="option"
+              aria-selected={isSelected}
+              tabIndex={0}
+              aria-label={item.document.name}
+              draggable={!isMutating}
+              cursor="default"
+              outline="none"
+              onClick={(event) => onSelectItem(event, item)}
+              onDoubleClick={() => onOpenItem(item)}
+              onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
+              onDragStart={(event) => onDragStartItem(event, item)}
+              onDragEnd={onDragEndItem}
+              onContextMenu={(event) => onOpenContextMenu(event, item)}
+              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+            >
               {body}
             </Box>
           );
@@ -632,7 +841,7 @@ export function MoveItemDialog({
 
   return (
     <OpenMoveItemDialog
-      key={getItemKey(target)}
+      key={getBrowserItemKey(target)}
       target={target}
       value={value}
       destinations={destinations}

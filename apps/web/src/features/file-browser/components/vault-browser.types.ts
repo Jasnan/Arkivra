@@ -52,6 +52,13 @@ export interface MoveDestination {
   depth: number;
 }
 
+export type BrowserDropTargetState = 'valid' | 'invalid';
+
+export interface BrowserDropTarget {
+  folderId: string | null;
+  state: BrowserDropTargetState;
+}
+
 export interface ContextMenuPosition {
   item: BrowserContextItem;
   x: number;
@@ -129,7 +136,15 @@ export function getItemName(item: BrowserContextItem) {
   return item.type === 'folder' ? item.folder.name : item.document.name;
 }
 
-function isFolderDescendant({
+export function getBrowserItemKey(item: BrowserItem) {
+  return item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`;
+}
+
+export function getBrowserItemParentId(item: BrowserItem) {
+  return item.type === 'folder' ? item.folder.parentId : item.document.folderId;
+}
+
+export function isFolderDescendant({
   folders,
   folderId,
   candidateId,

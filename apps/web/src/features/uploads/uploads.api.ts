@@ -11,11 +11,15 @@ interface UploadListResponse {
 
 export async function initUploadSession({
   vaultId,
+  folderId,
+  relativePath,
   fileName,
   mimeType,
   totalSize,
 }: {
   vaultId: string;
+  folderId?: string | null;
+  relativePath?: string | null;
   fileName: string;
   mimeType: string;
   totalSize: number;
@@ -23,7 +27,7 @@ export async function initUploadSession({
   return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/init`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ fileName, mimeType, totalSize }),
+    body: JSON.stringify({ fileName, mimeType, totalSize, folderId, relativePath }),
   });
 }
 

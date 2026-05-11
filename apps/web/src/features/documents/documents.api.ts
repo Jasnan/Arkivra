@@ -25,11 +25,13 @@ export async function listDocuments({
   includeDeleted = false,
   tagId,
   sortBy,
+  folderId,
 }: {
   vaultId: string;
   includeDeleted?: boolean;
   tagId?: string;
   sortBy?: SearchSortBy;
+  folderId?: string | null;
 }) {
   const params = new URLSearchParams();
 
@@ -43,6 +45,10 @@ export async function listDocuments({
 
   if (sortBy) {
     params.set('sortBy', sortBy);
+  }
+
+  if (folderId !== undefined) {
+    params.set('folderId', folderId ?? 'root');
   }
 
   const query = params.toString();
@@ -72,12 +78,22 @@ export async function listDocumentTags({
 export async function uploadDocument({
   vaultId,
   file,
+  folderId,
+  relativePath,
 }: {
   vaultId: string;
   file: File;
+  folderId?: string | null;
+  relativePath?: string | null;
 }) {
   const formData = new FormData();
   formData.append('file', file);
+  if (folderId !== undefined && folderId !== null) {
+    formData.append('folderId', folderId);
+  }
+  if (relativePath !== undefined && relativePath !== null) {
+    formData.append('relativePath', relativePath);
+  }
 
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents`, {
     method: 'POST',
@@ -100,6 +116,25 @@ export async function renameDocument({
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name }),
+    },
+  );
+}
+
+export async function moveDocument({
+  vaultId,
+  documentId,
+  folderId,
+}: {
+  vaultId: string;
+  documentId: string;
+  folderId: string | null;
+}) {
+  return fetchJson<{ document: { id: string; folderId: string | null; updatedAt: string } }>(
+    `/api/vaults/${vaultId}/documents/${documentId}/move`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ folderId }),
     },
   );
 }

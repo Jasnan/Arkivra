@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
@@ -44,6 +44,12 @@ describe('vault pages', () => {
     expect(await screen.findByRole('heading', { name: 'Personal' })).toBeInTheDocument();
     expect(screen.getByText('Household records')).toBeInTheDocument();
     expect(screen.getByText(/3 files/i)).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole('link', { name: /personal/i }));
+    const contextMenu = screen.getByRole('menu', { name: /vault actions for personal/i });
+    expect(within(contextMenu).getByRole('menuitem', { name: /^open$/i })).toBeInTheDocument();
+    expect(within(contextMenu).getByRole('menuitem', { name: /^settings$/i })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
 
     await user.click(screen.getByRole('button', { name: /vault actions for personal/i }));
     await user.click(screen.getByRole('menuitem', { name: /settings/i }));
@@ -98,7 +104,7 @@ describe('vault pages', () => {
     });
   });
 
-  it('returns focus to the create vault button after dismissing the dialog with escape', async () => {
+  it('returns focus to the create vault button after dismissing the dialog', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -125,9 +131,9 @@ describe('vault pages', () => {
 
     const createButton = await screen.findByRole('button', { name: /create vault/i });
     await user.click(createButton);
-    expect(await screen.findByRole('dialog', { name: /new vault/i })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: /new vault/i });
 
-    await user.keyboard('{Escape}');
+    await user.click(within(dialog).getByRole('button', { name: /close/i }));
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /new vault/i })).not.toBeInTheDocument();

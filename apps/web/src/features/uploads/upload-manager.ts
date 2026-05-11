@@ -7,7 +7,7 @@ import {
   listUploadSessions,
 } from './uploads.api';
 import { loadPersistedTransfers, savePersistedTransfers } from './upload-persistence';
-import type { TransferItem, TransferState, UploadSessionSummary } from './uploads.types';
+import type { TransferItem, TransferState, UploadFileInput, UploadSessionSummary } from './uploads.types';
 
 const MAX_CONCURRENT_UPLOADS = 3;
 const COMPLETED_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -56,6 +56,8 @@ function buildTransferFromSession(upload: UploadSessionSummary): TransferItem {
   return {
     id: createClientTransferId(),
     vaultId: upload.vaultId,
+    folderId: upload.folderId,
+    relativePath: upload.relativePath,
     fileName: upload.fileName,
     mimeType: upload.mimeType,
     size: upload.totalSize,
@@ -113,10 +115,20 @@ export class UploadManager {
     return this.state;
   }
 
-  addFiles({ vaultId, files }: { vaultId: string; files: File[] }) {
-    const nextItems = files.map<TransferItem>(file => ({
+  addFiles({
+    vaultId,
+    files,
+    folderId = null,
+  }: {
+    vaultId: string;
+    files: UploadFileInput[];
+    folderId?: string | null;
+  }) {
+    const nextItems = files.map<TransferItem>(({ file, relativePath }) => ({
       id: createClientTransferId(),
       vaultId,
+      folderId,
+      relativePath: relativePath ?? null,
       fileName: file.name,
       mimeType: file.type || 'application/octet-stream',
       size: file.size,
@@ -135,7 +147,7 @@ export class UploadManager {
     }));
 
     for (const [index, item] of nextItems.entries()) {
-      this.files.set(item.id, files[index]!);
+      this.files.set(item.id, files[index]!.file);
     }
 
     this.setState({
@@ -280,6 +292,8 @@ export class UploadManager {
       const persistedItems = pruneExpiredCompletedItems(await loadPersistedTransfers());
       const items = persistedItems.map<TransferItem>(item => ({
         ...item,
+        folderId: item.folderId ?? null,
+        relativePath: item.relativePath ?? null,
         status: ['completed', 'pending', 'processing'].includes(item.status)
           ? 'completed'
           : 'paused',
@@ -392,6 +406,8 @@ export class UploadManager {
     this.updateTransfer(existing.id, item => ({
       ...item,
       vaultId: upload.vaultId,
+      folderId: upload.folderId,
+      relativePath: upload.relativePath,
       fileName: upload.fileName,
       mimeType: upload.mimeType,
       size: upload.totalSize,
@@ -462,6 +478,8 @@ export class UploadManager {
       if (item.uploadId === null) {
         const response = await initUploadSession({
           vaultId: item.vaultId,
+          folderId: item.folderId,
+          relativePath: item.relativePath,
           fileName: item.fileName,
           mimeType: item.mimeType,
           totalSize: item.size,
@@ -469,6 +487,8 @@ export class UploadManager {
 
         this.updateTransfer(id, current => ({
           ...current,
+          folderId: response.upload.folderId,
+          relativePath: response.upload.relativePath,
           uploadId: response.upload.id,
           partSize: response.upload.partSize,
           partCount: response.upload.partCount,
@@ -515,6 +535,8 @@ export class UploadManager {
           detail: {
             vaultId: response.upload.vaultId,
             documentId: response.upload.documentId,
+            folderId: response.upload.folderId,
+            relativePath: response.upload.relativePath,
           },
         }),
       );

@@ -8,11 +8,8 @@ import {
   SectionTitle,
   StatCard,
   SurfacePanel,
-  vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -20,24 +17,110 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
+import type { DatePreset } from '@/features/documents/components/date-preset-selector';
+import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
+import type { DocumentSearchControlFilter } from '@/features/documents/components/document-search-controls';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { stripSnippetMarkup, tokenizeSnippet } from '@/features/search/search.utils';
-import { useTagsQuery } from '@/features/tags/tags.queries';
+import type { SearchSortBy } from '@/features/search/search.types';
+import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 const PAGE_SIZE = 10;
+const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
+  { value: 'created_desc', label: 'Newest' },
+  { value: 'created_asc', label: 'Oldest upload' },
+  { value: 'name_asc', label: 'Name A-Z' },
+  { value: 'name_desc', label: 'Name Z-A' },
+];
+
+function isSearchSortBy(value: string | undefined): value is SearchSortBy {
+  return value === 'created_desc'
+    || value === 'created_asc'
+    || value === 'name_asc'
+    || value === 'name_desc';
+}
+
+function toInputDateValue(value: Date) {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, '0');
+  const day = `${value.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildPresetRange(preset: Exclude<DatePreset, 'custom'>) {
+  const today = new Date();
+  const dateTo = toInputDateValue(today);
+
+  if (preset === 'any') {
+    return { dateFrom: '', dateTo: '' };
+  }
+
+  const start = new Date(today);
+  start.setDate(start.getDate() - (preset === 'last_7_days' ? 6 : 29));
+
+  return {
+    dateFrom: toInputDateValue(start),
+    dateTo,
+  };
+}
+
+function formatDateRangeLabel(dateFrom?: string, dateTo?: string) {
+  if (!dateFrom && !dateTo) {
+    return 'Any time';
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const fromLabel = dateFrom ? formatter.format(new Date(`${dateFrom}T00:00:00`)) : 'Start';
+  const toLabel = dateTo ? formatter.format(new Date(`${dateTo}T00:00:00`)) : 'Now';
+
+  return `${fromLabel} - ${toLabel}`;
+}
+
+function getDateFilterLabel({
+  preset,
+  dateFrom,
+  dateTo,
+}: {
+  preset: DatePreset;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  if (preset === 'last_7_days') {
+    return 'Last 7 days';
+  }
+
+  if (preset === 'last_30_days') {
+    return 'Last 30 days';
+  }
+
+  if (preset === 'custom') {
+    return formatDateRangeLabel(dateFrom, dateTo);
+  }
+
+  return 'Any time';
+}
 
 export function SearchPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Record<string, string>;
   const [query, setQuery] = useState(search.q ?? '');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [datePreset, setDatePreset] = useState<DatePreset>(search.dateFrom || search.dateTo ? 'custom' : 'any');
   const deferredQuery = useDeferredValue(query.trim());
 
   const vaultId = search.vaultId ?? '';
   const tagId = search.tagId ?? '';
   const dateFrom = search.dateFrom ?? '';
   const dateTo = search.dateTo ?? '';
+  const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
   const pageIndex = Number.parseInt(search.pageIndex ?? '0', 10) || 0;
 
   useEffect(() => {
@@ -57,7 +140,7 @@ export function SearchPage() {
   }, [query, navigate]);
 
   const vaultsQuery = useVaultsQuery();
-  const tagsQuery = useTagsQuery({ vaultId });
+  const tagsQuery = useAccessibleTagsQuery({ vaultId: vaultId || undefined });
   const searchQuery = useGlobalSearchDocumentsQuery({
     query: deferredQuery,
     pageIndex,
@@ -66,6 +149,7 @@ export function SearchPage() {
     tagId: tagId || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
+    sortBy,
     enabled:
       deferredQuery.length > 0 ||
       vaultId.length > 0 ||
@@ -78,6 +162,9 @@ export function SearchPage() {
     const count = searchQuery.data?.resultsCount ?? 0;
     return Math.max(1, Math.ceil(count / PAGE_SIZE));
   }, [searchQuery.data?.resultsCount]);
+
+  const selectedVault = (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === vaultId);
+  const selectedTag = (tagsQuery.data?.tags ?? []).find((tag) => tag.id === tagId);
 
   function updateFilters(nextValues: Record<string, string>) {
     navigate({
@@ -93,6 +180,50 @@ export function SearchPage() {
       replace: true,
     } as any)
   }
+
+  function resetFilters() {
+    setDatePreset('any');
+    updateFilters({ vaultId: '', tagId: '', dateFrom: '', dateTo: '', sortBy: 'created_desc' });
+  }
+
+  function setPresetDateFilter(value: DatePreset) {
+    setDatePreset(value);
+
+    if (value === 'custom') {
+      return;
+    }
+
+    const range = buildPresetRange(value);
+    updateFilters(range);
+  }
+
+  const activeFilters: DocumentSearchControlFilter[] = [
+    ...(selectedVault
+      ? [{
+          key: `vault-${selectedVault.id}`,
+          label: selectedVault.name,
+          onRemove: () => updateFilters({ vaultId: '', tagId: '' }),
+        }]
+      : []),
+    ...(selectedTag
+      ? [{
+          key: `tag-${selectedTag.id}`,
+          label: selectedTag.name,
+          onRemove: () => updateFilters({ tagId: '' }),
+        }]
+      : []),
+    ...(dateFrom || dateTo
+      ? [{
+          key: 'date-range',
+          label: getDateFilterLabel({ preset: datePreset, dateFrom, dateTo }),
+          onRemove: () => {
+            setDatePreset('any');
+            updateFilters({ dateFrom: '', dateTo: '' });
+          },
+        }]
+      : []),
+  ];
+  const hasActiveSearch = deferredQuery.length > 0 || activeFilters.length > 0;
 
   return (
     <Stack as="section" gap="8" pb="8">
@@ -121,9 +252,9 @@ export function SearchPage() {
         />
         <StatCard
           label="Matches"
-          value={deferredQuery.length > 0 ? (searchQuery.data?.resultsCount ?? 0) : 0}
+          value={hasActiveSearch ? (searchQuery.data?.resultsCount ?? 0) : 0}
           meta={
-            deferredQuery.length > 0
+            hasActiveSearch
               ? 'Count updates as search terms and filters change.'
               : 'Start typing to query extracted text.'
           }
@@ -131,106 +262,98 @@ export function SearchPage() {
         />
       </Grid>
 
-      <SurfacePanel display="flex" flexDirection="column" gap="5">
-        <SectionTitle eyebrow="Search Controls" title="Query and refine" />
-
-        <Grid gap="4" templateColumns={{ base: '1fr', lg: '2fr 1fr 1fr 1fr' }}>
-          <Field>
-            <FieldLabel htmlFor="global-search">Search text</FieldLabel>
-            <Box position="relative">
-              <Box
-                position="absolute"
-                left="4"
-                top="50%"
-                transform="translateY(-50%)"
-                pointerEvents="none"
-                color="fg.muted"
+      <DocumentSearchControls
+        query={query}
+        onQueryChange={setQuery}
+        searchPlaceholder="Search invoices, clauses, names..."
+        searchAriaLabel="Search documents"
+        isFiltersOpen={isFiltersOpen}
+        onOpenFilters={() => setIsFiltersOpen(true)}
+        onCloseFilters={() => setIsFiltersOpen(false)}
+        onResetFilters={resetFilters}
+        activeFilterCount={activeFilters.length}
+        activeFilters={activeFilters}
+        onClearFilters={resetFilters}
+        sortBy={sortBy}
+        onSortChange={(value) => updateFilters({ sortBy: value })}
+        sortOptions={sortOptions}
+        sortSelectId="global-search-sort"
+        sortAriaLabel="Sort search results"
+        filtersTitle="Search filters"
+        filtersContent={
+          <>
+            <Box>
+              <Text as="span" id="search-vault-label" fontSize="sm" fontWeight="semibold" color="fg">
+                Vault
+              </Text>
+              <Select
+                value={vaultId || '__all__'}
+                onValueChange={(value) => {
+                  const nextVaultId = value === '__all__' ? '' : value;
+                  updateFilters({ vaultId: nextVaultId, tagId: nextVaultId === vaultId ? tagId : '' });
+                }}
               >
-                <SearchIcon size={16} />
-              </Box>
-              <Input
-                id="global-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search invoices, clauses, names..."
-                className={vaultInputClassName}
-                pl="11"
+                <SelectTrigger aria-labelledby="search-vault-label" h="10" rounded="lg" borderColor="border.subtle" bg="bg.surface" mt="3">
+                  <SelectValue placeholder="All vaults" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All vaults</SelectItem>
+                  {(vaultsQuery.data?.vaults ?? []).map((vault) => (
+                    <SelectItem key={vault.id} value={vault.id}>
+                      {vault.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Box>
+
+            <Box>
+              <Text as="span" id="search-tag-label" fontSize="sm" fontWeight="semibold" color="fg">
+                Tag
+              </Text>
+              <Select
+                value={tagId || '__all__'}
+                onValueChange={(value) => updateFilters({ tagId: value === '__all__' ? '' : value })}
+              >
+                <SelectTrigger aria-labelledby="search-tag-label" h="10" rounded="lg" borderColor="border.subtle" bg="bg.surface" mt="3">
+                  <SelectValue placeholder="All tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All tags</SelectItem>
+                  {(tagsQuery.data?.tags ?? []).map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Box>
+
+            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
+              <Text fontSize="sm" fontWeight="semibold" color="fg">
+                Date
+              </Text>
+              <DatePresetSelector
+                idPrefix="global-search-date-filter"
+                value={datePreset}
+                onValueChange={setPresetDateFilter}
+                customDateFrom={dateFrom}
+                customDateTo={dateTo}
+                onCustomDateFromChange={(nextValue) => {
+                  setDatePreset('custom');
+                  updateFilters({ dateFrom: nextValue });
+                }}
+                onCustomDateToChange={(nextValue) => {
+                  setDatePreset('custom');
+                  updateFilters({ dateTo: nextValue });
+                }}
               />
             </Box>
-          </Field>
+          </>
+        }
+      />
 
-          <Field>
-            <FieldLabel id="search-vault-label">Vault scope</FieldLabel>
-            <Select
-              value={vaultId || '__all__'}
-              onValueChange={(value) => {
-                const nextVaultId = value === '__all__' ? '' : value;
-                updateFilters({ vaultId: nextVaultId, tagId: nextVaultId ? tagId : '' });
-              }}
-            >
-              <SelectTrigger aria-labelledby="search-vault-label" className={vaultInputClassName}>
-                <SelectValue placeholder="All vaults" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All vaults</SelectItem>
-                {(vaultsQuery.data?.vaults ?? []).map((vault) => (
-                  <SelectItem key={vault.id} value={vault.id}>
-                    {vault.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field>
-            <FieldLabel id="search-tag-label">Tag filter</FieldLabel>
-            <Select
-              value={tagId || '__all__'}
-              onValueChange={(value) => updateFilters({ tagId: value === '__all__' ? '' : value })}
-              disabled={!vaultId}
-            >
-              <SelectTrigger aria-labelledby="search-tag-label" className={vaultInputClassName}>
-                <SelectValue placeholder={vaultId ? 'All tags' : 'Choose a vault first'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">
-                  {vaultId ? 'All tags' : 'Choose a vault first'}
-                </SelectItem>
-                {(tagsQuery.data?.tags ?? []).map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id}>
-                    {tag.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Grid gap="4" templateColumns={{ base: '1fr 1fr', lg: '1fr' }}>
-            <Field>
-              <FieldLabel htmlFor="date-from">Date from</FieldLabel>
-              <Input
-                id="date-from"
-                type="date"
-                value={dateFrom}
-                onChange={(event) => updateFilters({ dateFrom: event.target.value })}
-                className={vaultInputClassName}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="date-to">Date to</FieldLabel>
-              <Input
-                id="date-to"
-                type="date"
-                value={dateTo}
-                onChange={(event) => updateFilters({ dateTo: event.target.value })}
-                className={vaultInputClassName}
-              />
-            </Field>
-          </Grid>
-        </Grid>
-      </SurfacePanel>
-
-      {deferredQuery.length === 0 ? (
+      {!hasActiveSearch ? (
         <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="3">
           <Text textStyle="label">Discovery Idle</Text>
           <Text fontSize="sm" lineHeight="6" color="fg.muted">

@@ -125,6 +125,12 @@ export function DocumentDetailPage() {
   const [createTagDescriptionValue, setCreateTagDescriptionValue] = useState('');
 
   useEffect(() => {
+    if (location.pathname.endsWith('/chat')) {
+      setActiveTab('chat');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     async function handleUploadCompleted(event: Event) {
       const detail = (event as CustomEvent<{ vaultId?: string; documentId?: string }>).detail;
 

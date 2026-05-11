@@ -28,6 +28,7 @@ import { createAuthorizationServices } from '../authorization/authorization.serv
 import { registerVaultRoutes } from '../vaults/vaults.routes.js';
 import { registerDocumentRoutes } from '../documents/documents.routes.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
+import { registerFolderRoutes } from '../folders/folders.routes.js';
 import { registerUploadRoutes } from '../uploads/uploads.routes.js';
 import { registerSearchRoutes } from '../search/search.routes.js';
 import { registerTagRoutes } from '../tags/tags.routes.js';
@@ -182,6 +183,7 @@ export function createServer({
 
   registerAuthRoutes({ app, auth, authorizationServices: authzServices });
   registerVaultRoutes({ app, db });
+  registerFolderRoutes({ app, db });
   registerDocumentRoutes({
     app,
     db,

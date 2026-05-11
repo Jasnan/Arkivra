@@ -17,6 +17,24 @@ interface FileSystemDirectoryHandleLike extends FileSystemHandleLike {
   values: () => AsyncIterable<FileSystemHandleLike>;
 }
 
+const PATH_EDGE_SLASHES_PATTERN = /^\/+|\/+$/g;
+
+export interface DroppedFile {
+  file: File;
+  relativePath: string | null;
+}
+
+type FileWithRelativePath = File & {
+  webkitRelativePath?: string;
+};
+
+function joinPath(...parts: string[]) {
+  return parts
+    .map(part => part.replace(PATH_EDGE_SLASHES_PATTERN, ''))
+    .filter(Boolean)
+    .join('/');
+}
+
 async function readFileEntry(entry: FileSystemFileEntry) {
   return new Promise<File>((resolve, reject) => {
     entry.file(resolve, reject);
@@ -39,9 +57,17 @@ async function readDirectoryEntries(reader: FileSystemDirectoryReader) {
   }
 }
 
-async function filesFromEntry(entry: FileSystemEntry): Promise<File[]> {
+async function filesFromEntry(entry: FileSystemEntry): Promise<DroppedFile[]> {
   if (entry.isFile) {
-    return [await readFileEntry(entry as FileSystemFileEntry)];
+    const file = await readFileEntry(entry as FileSystemFileEntry);
+    const fullPath = 'fullPath' in entry && typeof entry.fullPath === 'string'
+      ? entry.fullPath
+      : file.name;
+
+    return [{
+      file,
+      relativePath: joinPath(fullPath) || file.name,
+    }];
   }
 
   if (!entry.isDirectory) {
@@ -54,20 +80,25 @@ async function filesFromEntry(entry: FileSystemEntry): Promise<File[]> {
   return files.flat();
 }
 
-async function filesFromHandle(handle: FileSystemHandleLike): Promise<File[]> {
+async function filesFromHandle(handle: FileSystemHandleLike, parentPath = ''): Promise<DroppedFile[]> {
   if (handle.kind === 'file') {
-    return [(await (handle as FileSystemFileHandleLike).getFile())];
+    const file = await (handle as FileSystemFileHandleLike).getFile();
+    return [{
+      file,
+      relativePath: joinPath(parentPath, file.name) || file.name,
+    }];
   }
 
-  const files: File[] = [];
+  const directoryPath = joinPath(parentPath, handle.name);
+  const files: DroppedFile[] = [];
   for await (const entry of (handle as FileSystemDirectoryHandleLike).values()) {
-    files.push(...await filesFromHandle(entry));
+    files.push(...await filesFromHandle(entry, directoryPath));
   }
 
   return files;
 }
 
-async function filesFromItem(item: DataTransferItemWithFileSystemHandle): Promise<File[]> {
+async function filesFromItem(item: DataTransferItemWithFileSystemHandle): Promise<DroppedFile[]> {
   if (item.kind !== 'file') {
     return [];
   }
@@ -83,15 +114,30 @@ async function filesFromItem(item: DataTransferItemWithFileSystemHandle): Promis
   }
 
   const file = item.getAsFile();
-  return file ? [file] : [];
+  return file ? [fileToDroppedFile(file)] : [];
+}
+
+export function fileToDroppedFile(file: File): DroppedFile {
+  const relativePath = (file as FileWithRelativePath).webkitRelativePath;
+
+  return {
+    file,
+    relativePath: typeof relativePath === 'string' && relativePath.length > 0
+      ? relativePath
+      : null,
+  };
+}
+
+export function filesToDroppedFiles(files: File[]) {
+  return files.map(fileToDroppedFile);
 }
 
 export async function getDroppedFiles(dataTransfer: DataTransfer) {
   const items = Array.from(dataTransfer.items ?? []) as DataTransferItemWithFileSystemHandle[];
   if (items.length === 0) {
-    return Array.from(dataTransfer.files ?? []);
+    return filesToDroppedFiles(Array.from(dataTransfer.files ?? []));
   }
 
   const files = (await Promise.all(items.map(filesFromItem))).flat();
-  return files.length > 0 ? files : Array.from(dataTransfer.files ?? []);
+  return files.length > 0 ? files : filesToDroppedFiles(Array.from(dataTransfer.files ?? []));
 }

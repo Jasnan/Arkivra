@@ -5,6 +5,7 @@ import type { Database } from '../database/database.js';
 import { uploadSessionsTable } from '../database/schema/index.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
 import { generateId } from '../database/schema/helpers.js';
+import { createFoldersServices } from '../folders/folders.services.js';
 
 export type UploadSessionStatus =
   | 'initialized'
@@ -42,6 +43,8 @@ function toPublicUploadSession(row: UploadSessionRow) {
     vaultId: row.vaultId,
     userId: row.userId,
     documentId: row.documentId,
+    folderId: row.folderId,
+    relativePath: row.relativePath,
     fileName: row.fileName,
     mimeType: row.mimeType,
     totalSize: row.totalSize,
@@ -82,6 +85,8 @@ export function createUploadsServices({
   maxFileSizeBytes: number;
   sessionTtlHours: number;
 }) {
+  const foldersServices = createFoldersServices({ db });
+
   function buildStagingKey(vaultId: string, uploadId: string) {
     return `${vaultId}/${uploadId}`;
   }
@@ -120,12 +125,16 @@ export function createUploadsServices({
     fileName,
     mimeType,
     totalSize,
+    folderId = null,
+    relativePath = null,
   }: {
     vaultId: string;
     userId: string;
     fileName: string;
     mimeType: string;
     totalSize: number;
+    folderId?: string | null;
+    relativePath?: string | null;
   }) {
     if (fileName.trim().length === 0) {
       throw new Error('File name is required');
@@ -141,6 +150,20 @@ export function createUploadsServices({
       throw error;
     }
 
+    const destination = folderId === null && relativePath === null
+      ? { success: true as const, folderId: null, relativePath: null }
+      : await foldersServices.resolveUploadDestination({
+          vaultId,
+          parentId: folderId,
+          relativePath,
+          fileName,
+          createdBy: userId,
+        });
+
+    if (!destination.success) {
+      throw new Error(destination.reason);
+    }
+
     const uploadId = generateId({ prefix: 'upl' });
     const stagingKey = buildStagingKey(vaultId, uploadId);
     const partCount = Math.max(1, Math.ceil(totalSize / partSizeBytes));
@@ -152,7 +175,9 @@ export function createUploadsServices({
         id: uploadId,
         vaultId,
         userId,
+        folderId: destination.folderId,
         fileName,
+        relativePath: destination.relativePath,
         mimeType: mimeType || 'application/octet-stream',
         totalSize,
         partSize: partSizeBytes,
@@ -320,6 +345,7 @@ export function createUploadsServices({
       fileName: row.fileName,
       mimeType: row.mimeType,
       fileData,
+      folderId: row.folderId,
     });
 
     const [updatedRow] = await db

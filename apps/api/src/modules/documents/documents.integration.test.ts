@@ -51,6 +51,7 @@ function createMockDocumentsServices() {
         id: 'doc_1',
         name: 'report.pdf',
         originalName: 'report.pdf',
+        folderId: null,
         originalSize: 1024,
         mimeType: 'application/pdf',
         documentDate: null,
@@ -64,6 +65,7 @@ function createMockDocumentsServices() {
       id: 'doc_1',
       name: 'report.pdf',
       originalName: 'report.pdf',
+      folderId: null,
       originalSize: 1024,
       originalSha256Hash: 'abc123',
       mimeType: 'application/pdf',
@@ -76,9 +78,20 @@ function createMockDocumentsServices() {
       createdBy: 'Jane Doe',
     })),
     renameDocument: vi.fn(async ({ name }) => ({
-      id: 'doc_1',
-      name,
-      updatedAt: '2025-01-01T00:00:00.000Z',
+      success: true,
+      document: {
+        id: 'doc_1',
+        name,
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+    })),
+    moveDocument: vi.fn(async ({ folderId }) => ({
+      success: true,
+      document: {
+        id: 'doc_1',
+        folderId,
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
     })),
     updateDocumentDate: vi.fn(async ({ documentDate }) => ({
       id: 'doc_1',
@@ -262,6 +275,7 @@ describe('documents integration', () => {
       includeDeleted: false,
       tagId: undefined,
       sortBy: 'created_desc',
+      folderId: undefined,
     });
   });
 
@@ -320,6 +334,7 @@ describe('documents integration', () => {
       includeDeleted: false,
       tagId: 'tag_1',
       sortBy: 'created_desc',
+      folderId: undefined,
     });
   });
 
@@ -337,6 +352,25 @@ describe('documents integration', () => {
       includeDeleted: false,
       tagId: undefined,
       sortBy: 'name_desc',
+      folderId: undefined,
+    });
+  });
+
+  test('filters documents by root folder id sentinel', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents?folderId=root', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(docServices.listDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      includeDeleted: false,
+      tagId: undefined,
+      sortBy: 'created_desc',
+      folderId: null,
     });
   });
 
@@ -581,6 +615,74 @@ describe('documents integration', () => {
       vaultId: 'vlt_1',
       name: 'new-name.pdf',
     });
+  });
+
+  test('moves a document into a folder', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/move', {
+      method: 'POST',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ folderId: 'fld_1' }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.document.folderId).toBe('fld_1');
+    expect(docServices.moveDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      folderId: 'fld_1',
+    });
+  });
+
+  test('moves a document back to vault root', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/move', {
+      method: 'POST',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ folderId: null }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(docServices.moveDocument).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      folderId: null,
+    });
+  });
+
+  test('returns 409 when moving a document into a folder with the same name', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).moveDocument = vi.fn(async () => ({
+      success: false,
+      reason: 'duplicate_name',
+      existingId: 'doc_existing_1',
+    }));
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/move', {
+      method: 'POST',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ folderId: 'fld_1' }),
+    });
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as any;
+    expect(body.error.code).toBe('document.duplicate_name');
+    expect(body.error.existingId).toBe('doc_existing_1');
   });
 
   test('queues source-file reprocessing for an existing document', async () => {

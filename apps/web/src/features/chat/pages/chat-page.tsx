@@ -13,6 +13,7 @@ export function ChatPage() {
         vaultId ? 'Ask about documents in this vault...' : 'Ask across your documents...'
       }
       heightClassName="h-full"
+      renderConversationRailInSecondary
     />
   );
 }

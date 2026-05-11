@@ -5,7 +5,6 @@ import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Te
 import { Check, File, Folder, FolderOpen, Home, Search } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
-import { SurfacePanel } from '@/components/layout/vault-ui';
 import { Button } from '@/components/ui/button';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
@@ -27,7 +26,7 @@ import { formatBytes } from '@/features/documents/documents.utils';
 import { getBrowserItemKey, getDocumentTypeLabel, getItemName } from './vault-browser.types';
 import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
 
-const BROWSER_SCROLL_HEIGHT = 'clamp(24rem, calc(100vh - 18rem), 46rem)';
+const BROWSER_SCROLL_HEIGHT = '100%';
 const LIST_ROW_HEIGHT = 72;
 
 function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) {
@@ -37,9 +36,10 @@ function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'di
       {...props}
       style={style}
       display="grid"
-      gridTemplateColumns={{ base: '1fr', sm: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' }}
-      gap="3"
-      p="0.5"
+      gridTemplateColumns="repeat(auto-fill, minmax(13.5rem, 13.5rem))"
+      gap="8"
+      alignContent="start"
+      p={{ base: '4', md: '6' }}
     />
   );
 }
@@ -82,8 +82,8 @@ function getItemKindLabel(item: BrowserContextItem) {
 function FileBrowserIcon({ item }: { item: BrowserItem }) {
   if (item.type === 'folder') {
     return (
-      <Flex boxSize="10" shrink={0} align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg">
-        <Folder size={20} />
+      <Flex boxSize="16" shrink={0} align="center" justify="center" rounded="md" bg="blue.100" color="blue.500" _dark={{ bg: 'blue.950', color: 'blue.300' }}>
+        <Folder size={42} fill="currentColor" strokeWidth={1.5} />
       </Flex>
     );
   }
@@ -91,10 +91,10 @@ function FileBrowserIcon({ item }: { item: BrowserItem }) {
   const label = getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
 
   return (
-    <Flex boxSize="10" shrink={0} align="center" justify="center" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" color="fg">
+    <Flex boxSize="16" shrink={0} align="center" justify="center" rounded="md" borderWidth="1px" borderColor="border.subtle" bg="blue.100" color="blue.500" _dark={{ bg: 'blue.950', color: 'blue.300' }}>
       <Stack align="center" gap="0" lineHeight="none">
-        <File size={14} />
-        <Text as="span" fontSize="0.58rem" fontWeight="bold" letterSpacing="normal">
+        <File size={32} fill="currentColor" strokeWidth={1.5} />
+        <Text as="span" fontSize="0.78rem" fontWeight="bold" letterSpacing="normal" color="fg.inverted">
           {label}
         </Text>
       </Stack>
@@ -124,7 +124,7 @@ function getBrowserItemSurfaceStyles({
   isDragSource: boolean;
 }) {
   return {
-    bg: isSelected ? 'teal.subtle' : undefined,
+    backgroundColor: isSelected ? 'var(--chakra-colors-teal-subtle)' : undefined,
     opacity: isDragSource ? 0.65 : 1,
   };
 }
@@ -412,10 +412,20 @@ export function BrowserItemList({
   isMutating?: boolean;
 }) {
   return (
-    <SurfacePanel role="listbox" aria-label="Folder items" aria-multiselectable="true" overflow="hidden" p="0">
+    <Box
+      role="listbox"
+      aria-label="Folder items"
+      aria-multiselectable="true"
+      flex="1"
+      minH="0"
+      overflow="hidden"
+      borderTopWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.workspace"
+    >
       <Grid
         display={{ base: 'none', md: 'grid' }}
-        templateColumns="minmax(0, 1.4fr) 140px 132px 44px"
+        templateColumns="minmax(0, 1.4fr) 132px 220px 44px"
         gap="4"
         borderBottomWidth="1px"
         borderColor="border.subtle"
@@ -425,8 +435,8 @@ export function BrowserItemList({
         color="fg.muted"
       >
         <Text as="span">Name</Text>
-        <Text as="span">Updated</Text>
         <Text as="span">Size</Text>
+        <Text as="span">Modified</Text>
         <Text as="span" srOnly>Actions</Text>
       </Grid>
 
@@ -481,7 +491,7 @@ export function BrowserItemList({
                     display="grid"
                     h="full"
                     w="full"
-                    gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
+                    gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 132px 220px 44px' }}
                     gap="4"
                     alignItems="center"
                     px="6"
@@ -509,14 +519,14 @@ export function BrowserItemList({
                         </Box>
                       </Flex>
                     </chakra.button>
-                    <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
                     <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
+                    <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
                     <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
                   </Grid>
                 ) : (
                   <Grid
                     h="full"
-                    templateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
+                    templateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 132px 220px 44px' }}
                     gap="4"
                     alignItems="center"
                     px="6"
@@ -545,14 +555,14 @@ export function BrowserItemList({
                       style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
+                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
                     </Link>
                     <Link
                       to={ROUTES.vaultDocument(vaultId, item.document.id)}
                       style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
+                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
                     </Link>
                     <BrowserItemActions
                       item={item}
@@ -566,7 +576,7 @@ export function BrowserItemList({
           }}
         />
       </Box>
-    </SurfacePanel>
+    </Box>
   );
 }
 
@@ -604,7 +614,17 @@ export function BrowserItemGrid({
   isMutating?: boolean;
 }) {
   return (
-    <Box h={BROWSER_SCROLL_HEIGHT} role="listbox" aria-label="Folder items" aria-multiselectable="true">
+    <Box
+      h={BROWSER_SCROLL_HEIGHT}
+      minH="0"
+      flex="1"
+      role="listbox"
+      aria-label="Folder items"
+      aria-multiselectable="true"
+      borderTopWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.workspace"
+    >
       <VirtuosoGrid
         data={items}
         components={virtuosoGridComponents}
@@ -624,28 +644,35 @@ export function BrowserItemGrid({
           const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource });
           const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
           const body = item.type === 'folder' ? (
-            <SurfacePanel
+            <Box
               h="full"
-              p="4"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              p="5"
+              rounded="md"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.workspace"
               transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.subtle', borderColor: isSelected ? 'teal.muted' : 'border' }}
+              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.workspaceMuted', borderColor: isSelected ? 'teal.muted' : 'border.strong' }}
               {...itemSurfaceStyles}
               {...folderDropStyles}
             >
-              <Stack minH="8.5rem" justify="space-between" gap="4">
-                <Stack gap="3">
-                  <Flex align="flex-start" justify="space-between" gap="3">
-                    <FileBrowserIcon item={item} />
-                    <BrowserItemActions
-                      item={item}
-                      actions={actions}
-                      disabled={isMutating}
-                    />
-                  </Flex>
+              <Stack align="center" justify="center" gap="4" w="full" h="full" textAlign="center">
+                <Box position="absolute" top="3" right="3">
+                  <BrowserItemActions
+                    item={item}
+                    actions={actions}
+                    disabled={isMutating}
+                  />
+                </Box>
+                <Stack align="center" gap="4">
+                  <FileBrowserIcon item={item} />
                   <chakra.button
                     type="button"
                     minW="0"
-                    textAlign="left"
+                    textAlign="center"
                     aria-label={`Open folder ${item.folder.name}`}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -653,59 +680,55 @@ export function BrowserItemGrid({
                     }}
                   >
                     <Box minW="0">
-                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
-                      <Text mt="1" textStyle="xs" color="fg.muted">
-                        Folder
-                      </Text>
+                      <Text truncate fontSize="lg" fontWeight="medium" color="fg">{name}</Text>
                     </Box>
                   </chakra.button>
                 </Stack>
-                <Text textStyle="xs" color="fg.muted">
-                  Updated {formatDateOnly(item.folder.updatedAt)}
-                </Text>
               </Stack>
-            </SurfacePanel>
+            </Box>
           ) : (
-            <SurfacePanel
+            <Box
               h="full"
-              p="4"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              p="5"
+              rounded="md"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.workspace"
               transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.subtle', borderColor: isSelected ? 'teal.muted' : 'border' }}
+              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.workspaceMuted', borderColor: isSelected ? 'teal.muted' : 'border.strong' }}
               {...itemSurfaceStyles}
             >
-              <Stack minH="8.5rem" justify="space-between" gap="4">
-                <Stack gap="3">
-                  <Flex align="flex-start" justify="space-between" gap="3">
-                    <FileBrowserIcon item={item} />
-                    <BrowserItemActions
-                      item={item}
-                      actions={actions}
-                      disabled={isMutating}
-                    />
-                  </Flex>
+              <Stack align="center" justify="center" gap="4" w="full" h="full" textAlign="center">
+                <Box position="absolute" top="3" right="3">
+                  <BrowserItemActions
+                    item={item}
+                    actions={actions}
+                    disabled={isMutating}
+                  />
+                </Box>
+                <Stack align="center" gap="4">
+                  <FileBrowserIcon item={item} />
                   <Link
                     to={ROUTES.vaultDocument(vaultId, item.document.id)}
                     style={{ color: 'inherit', textDecoration: 'none' }}
                     onClick={(event) => event.stopPropagation()}
                   >
                     <Box minW="0">
-                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
-                      <Text mt="1" textStyle="xs" color="fg.muted">
-                        {`${formatBytes(item.document.originalSize)} - ${getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType })}`}
-                      </Text>
+                      <Text truncate fontSize="lg" fontWeight="medium" color="fg">{name}</Text>
                     </Box>
                   </Link>
                 </Stack>
-                <Text textStyle="xs" color="fg.muted">
-                  Updated {formatDateOnly(item.document.updatedAt)}
-                </Text>
               </Stack>
-            </SurfacePanel>
+            </Box>
           );
 
           return item.type === 'folder' ? (
             <Box
-              h="10rem"
+              position="relative"
+              h="14rem"
               role="option"
               aria-selected={isSelected}
               tabIndex={0}
@@ -729,7 +752,8 @@ export function BrowserItemGrid({
             </Box>
           ) : (
             <Box
-              h="10rem"
+              position="relative"
+              h="14rem"
               role="option"
               aria-selected={isSelected}
               tabIndex={0}

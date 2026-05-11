@@ -1,13 +1,16 @@
-import type { CSSProperties } from 'react';
-import { Fragment, useEffect, useDeferredValue, useMemo, useState } from 'react';
+import type { ComponentType, FormEvent, ReactNode } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Compass,
   FileSearch,
+  Folder,
+  FolderKanban,
   LogOut,
   MessageSquare,
-  SearchX,
+  Plus,
   Search,
+  SearchX,
   Settings,
   ShieldCheck,
   Tags,
@@ -17,11 +20,12 @@ import {
   Vault,
   X,
 } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Button, Flex, HStack, Stack, Text, Input, IconButton } from '@chakra-ui/react';
-import { AppSidebar } from '@/components/layout/app-sidebar';
-import type { SidebarNavItem } from '@/components/layout/app-sidebar';
-import { ThemeToggle } from '@/components/navigation/theme-toggle';
+import { Box, Button as ChakraButton, Flex, HStack, IconButton, Image, Input, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import arkivraLogoUrl from '@/assets/arkivra-logo.png';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,6 +33,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,43 +42,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ThemeToggle } from '@/components/navigation/theme-toggle';
+import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
+import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-context';
+import { ROUTES } from '@/app/routes';
+import { RouterDebugProbe } from '@/features/auth/auth-guards';
+import { authClient } from '@/lib/auth-client';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useDocumentQuery } from '@/features/documents/documents.queries';
+import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import type { FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
-import { useVaultsQuery } from '@/features/vaults/vaults.queries';
-import { ROUTES } from '@/app/routes';
-import { authClient } from '@/lib/auth-client';
-import { RouterDebugProbe } from '@/features/auth/auth-guards';
-
-const SIDEBAR_COLLAPSED_STORAGE_KEY = 'arkivra.sidebarCollapsed';
-
-function getStoredSidebarCollapsedValue() {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  try {
-    return window.localStorage?.getItem?.(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function persistSidebarCollapsedValue(isCollapsed: boolean) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage?.setItem?.(SIDEBAR_COLLAPSED_STORAGE_KEY, isCollapsed ? 'true' : 'false');
-  } catch {}
-}
+import { createVault } from '@/features/vaults/vaults.api';
+import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 
 function getQuickSearchShortcutLabel() {
   if (typeof navigator === 'undefined') {
@@ -95,6 +80,20 @@ interface BreadcrumbEntry {
   label: string;
   to?: string;
 }
+
+interface PrimaryNavItem {
+  id: 'vaults' | 'chat' | 'search' | 'transfers';
+  to: string;
+  label: string;
+  icon: ComponentType<LucideProps>;
+}
+
+const primaryNavItems: PrimaryNavItem[] = [
+  { id: 'vaults', to: ROUTES.vaults, label: 'Vaults', icon: Vault },
+  { id: 'chat', to: ROUTES.chat, label: 'Chat', icon: MessageSquare },
+  { id: 'search', to: ROUTES.search, label: 'Search', icon: Search },
+  { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
+];
 
 function truncateBreadcrumbLabel(label: string, maxLength = 36) {
   if (label.length <= maxLength) {
@@ -118,52 +117,23 @@ function buildBreadcrumbs({
   const parts = pathname.split('/').filter(Boolean);
   const currentDocumentLabel = truncateBreadcrumbLabel(documentName ?? 'Document');
 
-  if (parts.length === 0) {
-    return [{ label: 'Vaults' }];
-  }
-
-  if (pathname === ROUTES.vaults) {
-    return [{ label: 'Vaults' }];
-  }
-
-  if (pathname === ROUTES.chat) {
-    return [{ label: 'Chat' }];
-  }
-
-  if (pathname === ROUTES.trash) {
-    return [{ label: 'Trash' }];
-  }
-
-  if (pathname === ROUTES.tags) {
-    return [{ label: 'Tags' }];
-  }
+  if (parts.length === 0 || pathname === ROUTES.vaults) return [{ label: 'Vaults' }];
+  if (pathname === ROUTES.chat) return [{ label: 'Chat' }];
+  if (pathname === ROUTES.trash) return [{ label: 'Trash' }];
+  if (pathname === ROUTES.tags) return [{ label: 'Tags' }];
+  if (pathname === ROUTES.search) return [{ label: 'Search' }];
+  if (pathname === ROUTES.settings) return [{ label: 'Settings' }];
+  if (pathname === ROUTES.admin) return [{ label: 'Admin' }];
+  if (pathname === ROUTES.about) return [{ label: 'About' }];
 
   if (pathname === ROUTES.transfers) {
-    if (transferVaultId) {
-      return [
-        { label: 'Vaults', to: ROUTES.vaults },
-        { label: vaultName ?? 'Vault', to: ROUTES.vaultRoot(transferVaultId) },
-        { label: 'Upload' },
-      ];
-    }
+    if (!transferVaultId) return [{ label: 'Upload' }];
 
-    return [{ label: 'Upload' }];
-  }
-
-  if (pathname === ROUTES.search) {
-    return [{ label: 'Search' }];
-  }
-
-  if (pathname === ROUTES.settings) {
-    return [{ label: 'Settings' }];
-  }
-
-  if (pathname === ROUTES.admin) {
-    return [{ label: 'Admin' }];
-  }
-
-  if (pathname === ROUTES.about) {
-    return [{ label: 'About' }];
+    return [
+      { label: 'Vaults', to: ROUTES.vaults },
+      { label: vaultName ?? 'Vault', to: ROUTES.vaultRoot(transferVaultId) },
+      { label: 'Upload' },
+    ];
   }
 
   if (parts[0] === 'vaults' && parts[1]) {
@@ -174,33 +144,13 @@ function buildBreadcrumbs({
       { label: vaultLabel, to: vaultRootPath },
     ];
 
-    if (parts.length === 2) {
-      return base;
-    }
-
-    if (parts[2] === 'settings') {
-      return [...base, { label: 'Settings' }];
-    }
-
-    if (parts[2] === 'tags') {
-      return [...base, { label: 'Tags' }];
-    }
-
-    if (parts[2] === 'chat') {
-      return [...base, { label: 'Chat' }];
-    }
-
-    if (parts[2] === 'trash') {
-      return [...base, { label: 'Trash' }];
-    }
-
-    if (parts[3] === 'chat') {
-      return [...base, { label: currentDocumentLabel }, { label: 'Chat' }];
-    }
-
-    if (parts[2]) {
-      return [...base, { label: currentDocumentLabel }];
-    }
+    if (parts.length === 2) return base;
+    if (parts[2] === 'settings') return [...base, { label: 'Settings' }];
+    if (parts[2] === 'tags') return [...base, { label: 'Tags' }];
+    if (parts[2] === 'chat') return [...base, { label: 'Chat' }];
+    if (parts[2] === 'trash') return [...base, { label: 'Trash' }];
+    if (parts[3] === 'chat') return [...base, { label: currentDocumentLabel }, { label: 'Chat' }];
+    if (parts[2]) return [...base, { label: currentDocumentLabel }];
 
     return base;
   }
@@ -208,45 +158,559 @@ function buildBreadcrumbs({
   return [{ label: 'Arkivra' }];
 }
 
+function primaryNavId(pathname: string): PrimaryNavItem['id'] {
+  const parts = pathname.split('/').filter(Boolean);
+
+  if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
+  if (pathname === ROUTES.search) return 'search';
+  if (pathname === ROUTES.transfers) return 'transfers';
+
+  return 'vaults';
+}
+
+function RailTooltip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function RailLink({ item, active }: { item: PrimaryNavItem; active: boolean }) {
+  const Icon = item.icon;
+
+  return (
+    <RailTooltip label={item.label}>
+      <Link to={item.to} aria-label={item.label} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Flex
+          boxSize="11"
+          align="center"
+          justify="center"
+          rounded="lg"
+          color={active ? 'fg' : 'fg.muted'}
+          bg={active ? 'bg.sidebar' : 'transparent'}
+          borderWidth="1px"
+          borderColor={active ? 'border.subtle' : 'transparent'}
+          transition="background-color 120ms ease, color 120ms ease"
+          _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
+        >
+          <Icon size={23} strokeWidth={2.1} />
+        </Flex>
+      </Link>
+    </RailTooltip>
+  );
+}
+
+function PrimarySidebar({
+  activeNavId,
+  sessionEmail,
+  isGlobalAdmin,
+}: {
+  activeNavId: PrimaryNavItem['id'];
+  sessionEmail?: string | null;
+  isGlobalAdmin?: boolean;
+}) {
+  return (
+    <Flex
+      as="aside"
+      w="4.75rem"
+      h="100vh"
+      shrink={0}
+      direction="column"
+      align="center"
+      borderRightWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.rail"
+      py="4"
+    >
+      <RailTooltip label="Arkivra">
+        <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit' }}>
+          <Flex boxSize="11" align="center" justify="center" rounded="lg" bg="bg.sidebar" borderWidth="1px" borderColor="border.subtle">
+            <Image src={arkivraLogoUrl} alt="Arkivra" boxSize="7" objectFit="contain" />
+          </Flex>
+        </Link>
+      </RailTooltip>
+
+      <Stack as="nav" aria-label="Primary" gap="2.5" mt="7" align="center">
+        {primaryNavItems.map((item) => (
+          <RailLink key={item.id} item={item} active={activeNavId === item.id} />
+        ))}
+      </Stack>
+
+      <Stack mt="auto" gap="2.5" align="center">
+        <RailTooltip label="Toggle color theme">
+          <Box>
+            <ThemeToggle />
+          </Box>
+        </RailTooltip>
+
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <chakra.button
+              type="button"
+              aria-label="Open account menu"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              boxSize="11"
+              rounded="lg"
+              color="fg.muted"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.sidebar"
+              cursor="pointer"
+              _hover={{ color: 'fg', bg: 'bg.muted' }}
+            >
+              <UserCircle2 size={22} />
+            </chakra.button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent minW="60">
+            <DropdownMenuLabel style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+              <Text fontWeight="medium" color="fg">
+                {sessionEmail ?? 'Signed in'}
+              </Text>
+              <Text fontSize="xs" color="fg.muted">
+                {isGlobalAdmin ? 'Admin' : 'Vault member'}
+              </Text>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to={ROUTES.settings}>
+                <Settings size={16} />
+                Account settings
+              </Link>
+            </DropdownMenuItem>
+            {isGlobalAdmin ? (
+              <DropdownMenuItem asChild>
+                <Link to={ROUTES.admin}>
+                  <ShieldCheck size={16} />
+                  Admin
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem asChild>
+              <Link to={ROUTES.about}>
+                <Compass size={16} />
+                About
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => void authClient.signOut()}>
+              <LogOut size={16} />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </Stack>
+    </Flex>
+  );
+}
+
+function SecondaryNavLink({
+  to,
+  label,
+  icon,
+  active,
+  depth = 0,
+  search,
+}: {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  active?: boolean;
+  depth?: number;
+  search?: Record<string, string>;
+}) {
+  return (
+    <Link
+      to={to}
+      search={search as any}
+      style={{ color: 'inherit', textDecoration: 'none' }}
+    >
+      <Flex
+        align="center"
+        gap="2.5"
+        minH="9"
+        rounded="md"
+        px="2.5"
+        ml={`${Math.min(depth, 6) * 0.8}rem`}
+        fontSize="sm"
+        color={active ? 'fg' : 'fg.muted'}
+        bg={active ? 'bg.muted' : 'transparent'}
+        _hover={{ bg: 'bg.muted', color: 'fg' }}
+      >
+        <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
+          {icon}
+        </Flex>
+        <Text truncate>{label}</Text>
+      </Flex>
+    </Link>
+  );
+}
+
+function VaultRootIcon() {
+  return <FolderKanban size={16} strokeWidth={2.1} />;
+}
+
+function VaultNodeIcon() {
+  return <FolderKanban size={16} strokeWidth={2.1} />;
+}
+
+function getVisibleVaultTreeFolders(folders: FolderTreeEntry[], currentFolderId: string | null) {
+  const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
+  const expandedFolderIds = new Set<string>();
+  let cursor = currentFolderId;
+
+  while (cursor) {
+    const folder = foldersById.get(cursor);
+    if (!folder) break;
+
+    expandedFolderIds.add(folder.id);
+    cursor = folder.parentId;
+  }
+
+  return folders.filter((folder) => folder.parentId === null || expandedFolderIds.has(folder.parentId));
+}
+
+function VaultTree({
+  folders,
+  vaultId,
+  currentFolderId,
+  depth = 0,
+}: {
+  folders: FolderTreeEntry[];
+  vaultId: string;
+  currentFolderId: string | null;
+  depth?: number;
+}) {
+  const visibleFolders = getVisibleVaultTreeFolders(folders, currentFolderId);
+
+  return (
+    <Stack gap="1">
+      {visibleFolders.map((folder) => (
+        <SecondaryNavLink
+          key={folder.id}
+          to={ROUTES.vaultRoot(vaultId)}
+          search={{ folderId: folder.id }}
+          label={folder.name}
+          icon={<Folder size={16} />}
+          active={currentFolderId === folder.id}
+          depth={depth + folder.depth}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+function VaultSidebarTree({
+  vaults,
+  activeVaultId,
+  currentFolderId,
+  folders,
+}: {
+  vaults: Array<{ id: string; name: string }>;
+  activeVaultId?: string | null;
+  currentFolderId: string | null;
+  folders: FolderTreeEntry[];
+}) {
+  return (
+    <Stack gap="1">
+      <SecondaryNavLink
+        to={ROUTES.vaults}
+        label="Vaults"
+        icon={<VaultRootIcon />}
+        active={!activeVaultId}
+      />
+      {vaults.map((vault) => {
+        const isActiveVault = activeVaultId === vault.id;
+
+        return (
+          <Fragment key={vault.id}>
+            <SecondaryNavLink
+              to={ROUTES.vaultRoot(vault.id)}
+              label={vault.name}
+              icon={<VaultNodeIcon />}
+              active={isActiveVault && currentFolderId === null}
+              depth={1}
+            />
+            {isActiveVault ? (
+              <VaultTree
+                folders={folders}
+                vaultId={vault.id}
+                currentFolderId={currentFolderId}
+                depth={2}
+              />
+            ) : null}
+          </Fragment>
+        );
+      })}
+    </Stack>
+  );
+}
+
+function SecondarySidebar({
+  title,
+  kind,
+  activeVaultId,
+  currentFolderId,
+  customContent,
+  canCreateVault,
+  onCreateVault,
+}: {
+  title: string;
+  kind: 'vault' | 'chat' | 'standard';
+  activeVaultId?: string | null;
+  currentFolderId: string | null;
+  customContent: ReactNode | null;
+  canCreateVault?: boolean;
+  onCreateVault?: () => void;
+}) {
+  const vaultsQuery = useVaultsQuery();
+  const folderTreeQuery = useFolderTreeQuery({
+    vaultId: activeVaultId ?? '',
+    enabled: kind === 'vault' && Boolean(activeVaultId),
+  });
+  const vaults = vaultsQuery.data?.vaults ?? [];
+
+  return (
+    <Flex
+      as="aside"
+      display={{ base: 'none', md: 'flex' }}
+      w={{ md: '17rem', xl: '18.5rem' }}
+      h="100vh"
+      shrink={0}
+      direction="column"
+      borderRightWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.sidebar"
+      overflow="hidden"
+    >
+      <Flex h="3.5rem" align="center" borderBottomWidth="1px" borderColor="border.subtle" px="5">
+        <Text truncate fontSize="xl" fontWeight="medium" color="fg">
+          {title}
+        </Text>
+      </Flex>
+
+      <Box flex="1" minH="0" overflowY="auto" px="3" py="4">
+        {kind === 'vault' ? (
+          <Stack gap="4">
+            {canCreateVault ? (
+              <ChakraButton
+                type="button"
+                size="sm"
+                h="9"
+                w="full"
+                justifyContent="flex-start"
+                rounded="md"
+                colorPalette="teal"
+                onClick={onCreateVault}
+              >
+                <Plus size={16} />
+                Create vault
+              </ChakraButton>
+            ) : null}
+            {customContent ?? (
+              <>
+                <VaultSidebarTree
+                  vaults={vaults}
+                  activeVaultId={activeVaultId}
+                  currentFolderId={currentFolderId}
+                  folders={folderTreeQuery.data?.folders ?? []}
+                />
+                {activeVaultId ? (
+                  <Box borderTopWidth="1px" borderColor="border.subtle" pt="4">
+                    <Stack gap="1">
+                      <SecondaryNavLink
+                        to={ROUTES.vaultTrash(activeVaultId)}
+                        label="Trash"
+                        icon={<Trash2 size={16} />}
+                      />
+                      <SecondaryNavLink
+                        to={ROUTES.vaultTags(activeVaultId)}
+                        label="Tags"
+                        icon={<Tags size={16} />}
+                      />
+                    </Stack>
+                  </Box>
+                ) : null}
+              </>
+            )}
+          </Stack>
+        ) : customContent ?? (
+          kind === 'chat' ? (
+            <Text px="2" py="4" fontSize="sm" color="fg.muted">
+              Open a chat to see conversation history.
+            </Text>
+          ) : (
+            <Stack gap="1">
+              <SecondaryNavLink to={ROUTES.settings} label="Settings" icon={<Settings size={16} />} />
+              <SecondaryNavLink to={ROUTES.about} label="About" icon={<Compass size={16} />} />
+            </Stack>
+          )
+        )}
+      </Box>
+    </Flex>
+  );
+}
+
+function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] }) {
+  return (
+    <Breadcrumb minW="0">
+      <BreadcrumbList flexWrap="nowrap">
+        {breadcrumbs.map((item, index) => {
+          const isLast = index === breadcrumbs.length - 1;
+
+          return (
+            <Fragment key={`${item.to ?? item.label}-${item.label}`}>
+              {index > 0 ? <BreadcrumbSeparator /> : null}
+              <BreadcrumbItem minW="0">
+                {item.to && !isLast ? (
+                  <Link to={item.to} style={{ color: 'inherit' }}>
+                    <Text truncate fontWeight="medium" transition="colors" _hover={{ color: 'fg' }}>
+                      {item.label}
+                    </Text>
+                  </Link>
+                ) : (
+                  <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+function WorkspaceHeader({
+  breadcrumbs,
+  headerConfig,
+  quickSearchShortcutLabel,
+  onOpenQuickSearch,
+}: {
+  breadcrumbs: BreadcrumbEntry[];
+  headerConfig: WorkspaceHeaderConfig | null;
+  quickSearchShortcutLabel: string;
+  onOpenQuickSearch: () => void;
+}) {
+  if (headerConfig?.hidden) return null;
+
+  return (
+    <Flex
+      as="header"
+      h="3.5rem"
+      shrink={0}
+      align="center"
+      borderBottomWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.workspace"
+      px={{ base: '4', md: '5' }}
+    >
+      <Flex minW="0" flex="1" align="center" gap="3">
+        <Box minW="0" flex="1">
+          {headerConfig?.left ?? <DefaultBreadcrumbs breadcrumbs={breadcrumbs} />}
+          {headerConfig?.meta ? (
+            <Box mt="0.5" color="fg.muted">
+              {headerConfig.meta}
+            </Box>
+          ) : null}
+        </Box>
+      </Flex>
+
+      <HStack
+        display={{ base: 'none', lg: 'flex' }}
+        position="absolute"
+        left="50%"
+        transform="translateX(-50%)"
+        maxW={{ lg: '21rem', xl: '28rem' }}
+        w="full"
+      >
+        <ChakraButton
+          type="button"
+          aria-label={`Quick search, ${quickSearchShortcutLabel}`}
+          aria-keyshortcuts="Meta+K"
+          onClick={onOpenQuickSearch}
+          variant="plain"
+          justifyContent="flex-start"
+          w="full"
+          h="10"
+          gap="3"
+          rounded="md"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.workspace"
+          px="3"
+          color="fg.subtle"
+          _hover={{ borderColor: 'border.strong', color: 'fg.muted' }}
+          _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+        >
+          <Search size={18} strokeWidth={2} />
+          <Text flex="1" minW="0" textAlign="left" truncate fontSize="md" fontWeight="medium">
+            Quick search...
+          </Text>
+        </ChakraButton>
+      </HStack>
+
+      <HStack ml="4" gap="2" zIndex="1">
+        {headerConfig?.actions}
+        <IconButton
+          display={{ base: 'inline-flex', lg: 'none' }}
+          type="button"
+          aria-label={`Quick search, ${quickSearchShortcutLabel}`}
+          variant="ghost"
+          color="fg.muted"
+          onClick={onOpenQuickSearch}
+        >
+          <Search size={18} />
+        </IconButton>
+      </HStack>
+    </Flex>
+  );
+}
+
+function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'standard' {
+  const parts = pathname.split('/').filter(Boolean);
+  if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
+  if (parts[0] === 'vaults' || pathname === ROUTES.vaults) return 'vault';
+  return 'standard';
+}
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    console.log('[AppShell] render', { pathname: location.pathname });
-  });
-
+  const queryClient = useQueryClient();
   const meQuery = useMeQuery();
   const vaultsQuery = useVaultsQuery();
   const uploadState = useUploadManagerState();
   const { data: sessionData } = authClient.useSession();
   const [searchValue, setSearchValue] = useState('');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    return getStoredSidebarCollapsedValue();
-  });
+  const [isCreateVaultOpen, setIsCreateVaultOpen] = useState(false);
+  const [newVaultName, setNewVaultName] = useState('');
+  const [newVaultDescription, setNewVaultDescription] = useState('');
+  const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
+  const [secondaryContent, setSecondaryContent] = useState<ReactNode | null>(null);
   const quickSearchShortcutLabel = useMemo(() => getQuickSearchShortcutLabel(), []);
   const deferredSearchValue = useDeferredValue(searchValue.trim());
+  const pathParts = location.pathname.split('/').filter(Boolean);
   const transferVaultId = useMemo(
     () => (location.search as Record<string, string | undefined>).vaultId ?? null,
     [location.search],
   );
-  const pathParts = location.pathname.split('/').filter(Boolean);
-  const isStandaloneChatRoute =
-    location.pathname === '/chat' || (pathParts[0] === 'vaults' && pathParts[2] === 'chat');
+  const currentFolderId = (location.search as Record<string, string | undefined>).folderId ?? null;
+  const isChatRoute =
+    location.pathname === ROUTES.chat || (pathParts[0] === 'vaults' && (pathParts[2] === 'chat' || pathParts[3] === 'chat'));
+  const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]
-      : pathParts[0] === 'documents' && pathParts.length >= 3
-        ? pathParts[1]
-        : transferVaultId;
+      : transferVaultId;
   const activeDocumentRoute = useMemo(() => {
-    if (pathParts[0] === 'vaults' && pathParts[2] === 'documents' && pathParts[3]) {
-      return { vaultId: pathParts[1] ?? '', documentId: pathParts[3] ?? '' };
-    }
-
-    if (pathParts[0] === 'documents' && pathParts[1] && pathParts[2]) {
-      return { vaultId: pathParts[1], documentId: pathParts[2] };
+    if (pathParts[0] === 'vaults' && pathParts[2] && !['settings', 'tags', 'chat', 'trash'].includes(pathParts[2])) {
+      return { vaultId: pathParts[1] ?? '', documentId: pathParts[2] ?? '' };
     }
 
     return null;
@@ -269,40 +733,29 @@ export function AppShell() {
       }),
     [activeDocumentQuery.data?.document.name, activeVaultName, location.pathname, transferVaultId],
   );
-
-  useEffect(() => {
-    persistSidebarCollapsedValue(isSidebarCollapsed);
-  }, [isSidebarCollapsed]);
-
-  const { primaryNavItems, footerNavItems } = useMemo(() => {
-    const primaryItems: SidebarNavItem[] = [
-      { to: ROUTES.vaults, label: 'Vaults', icon: Vault },
-      { to: ROUTES.chat, label: 'Chat', icon: MessageSquare },
-      { to: ROUTES.trash, label: 'Trash', icon: Trash2 },
-      { to: ROUTES.tags, label: 'Tags', icon: Tags },
-      { to: ROUTES.search, label: 'Search', icon: Search },
-      { to: ROUTES.transfers, label: 'Transfers', icon: Upload },
-    ];
-    const secondaryItems: SidebarNavItem[] = [
-      { to: ROUTES.settings, label: 'Settings', icon: Settings },
-      { to: ROUTES.about, label: 'About', icon: Compass },
-    ];
-
-    if (meQuery.data?.isGlobalAdmin) {
-      secondaryItems.splice(1, 0, { to: ROUTES.admin, label: 'Admin', icon: ShieldCheck });
-    }
-
-    return {
-      primaryNavItems: primaryItems,
-      footerNavItems: secondaryItems,
-    };
-  }, [meQuery.data?.isGlobalAdmin]);
-
+  const layoutContextValue = useMemo(
+    () => ({ setHeaderConfig, setSecondaryContent }),
+    [],
+  );
   const quickSearchQuery = useGlobalSearchDocumentsQuery({
     query: deferredSearchValue,
     pageIndex: 0,
     pageSize: 8,
     enabled: isQuickSearchOpen && deferredSearchValue.length > 0,
+  });
+  const createVaultMutation = useMutation({
+    mutationFn: createVault,
+    onSuccess: async ({ vault }) => {
+      await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
+      setIsCreateVaultOpen(false);
+      setNewVaultName('');
+      setNewVaultDescription('');
+      toast.success('Vault created.');
+      navigate({ to: ROUTES.vaultSettings(vault.id) });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not create vault.');
+    },
   });
 
   function closeQuickSearch() {
@@ -314,261 +767,103 @@ export function AppShell() {
     setIsQuickSearchOpen(true);
   }
 
+  function closeCreateVault() {
+    if (createVaultMutation.isPending) return;
+
+    setIsCreateVaultOpen(false);
+    setNewVaultName('');
+    setNewVaultDescription('');
+  }
+
+  function handleCreateVaultSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (meQuery.data?.canCreateVault !== true) {
+      toast.error('A global admin must grant vault creation before this account can create a workspace.');
+      return;
+    }
+
+    const normalizedName = newVaultName.trim();
+    if (!normalizedName) {
+      toast.error('Vault name is required.');
+      return;
+    }
+
+    createVaultMutation.mutate({
+      name: normalizedName,
+      description: newVaultDescription.trim() || null,
+    });
+  }
+
   useEffect(() => {
     function handleQuickSearchShortcut(event: KeyboardEvent) {
-      if (!event.metaKey || event.key.toLowerCase() !== 'k') {
-        return;
-      }
-
+      if (!event.metaKey || event.key.toLowerCase() !== 'k') return;
       event.preventDefault();
       setIsQuickSearchOpen(true);
     }
 
     window.addEventListener('keydown', handleQuickSearchShortcut);
-
-    return () => {
-      window.removeEventListener('keydown', handleQuickSearchShortcut);
-    };
+    return () => window.removeEventListener('keydown', handleQuickSearchShortcut);
   }, []);
 
+  const secondaryKind = getSecondaryKind(location.pathname);
+  const contentPadding = isChatRoute || isVaultBrowserRoute ? '0' : { base: '4', lg: '6' };
+
   return (
-    <Box minH="100vh" bg="bg.canvas" color="fg">
-      <SidebarProvider
-        open={!isSidebarCollapsed}
-        onOpenChange={(open) => setIsSidebarCollapsed(!open)}
-        style={
-          {
-            '--sidebar-width': '14rem',
-            '--sidebar-width-icon': '4.75rem',
-            '--header-height': '3.5rem',
-          } as CSSProperties
-        }
-      >
-        <AppSidebar
-          variant="default"
-          primaryNavItems={primaryNavItems}
-          footerNavItems={footerNavItems}
-        />
+    <TooltipProvider delayDuration={100}>
+      <WorkspaceLayoutContext value={layoutContextValue}>
+        <Flex minH="100vh" bg="bg.workspace" color="fg" overflow="hidden">
+          <PrimarySidebar
+            activeNavId={primaryNavId(location.pathname)}
+            sessionEmail={sessionData?.user.email}
+            isGlobalAdmin={meQuery.data?.isGlobalAdmin}
+          />
+          <SecondarySidebar
+            title={secondaryKind === 'chat' ? 'Chat' : 'Arkivra'}
+            kind={secondaryKind}
+            activeVaultId={activeVaultId}
+            currentFolderId={currentFolderId}
+            customContent={secondaryContent}
+            canCreateVault={meQuery.data?.canCreateVault === true}
+            onCreateVault={() => setIsCreateVaultOpen(true)}
+          />
 
-        <SidebarInset h="100vh" minH="0" overflow="hidden">
-          <Flex
-            as="header"
-            position="sticky"
-            top="0"
-            zIndex={40}
-            h={isSidebarCollapsed ? '12' : 'var(--header-height)'}
-            shrink={0}
-            align="center"
-            borderBottomWidth="1px"
-            borderColor="border.subtle"
-            bg="bg.surface"
-            transition="width,height 200ms ease-linear"
-          >
-            <Flex position="relative" w="full" align="center" gap="2" px={{ base: '4', lg: '6' }}>
-              <SidebarTrigger ml="-1" />
-              <Separator
-                orientation="vertical"
-                display={{ base: 'none', lg: 'block' }}
-                h="4"
-              />
-              <Breadcrumb minW="0" maxW={{ base: 'calc(100% - 7rem)', md: '35%' }}>
-                <BreadcrumbList flexWrap="nowrap">
-                  {breadcrumbs.map((item, index) => {
-                    const isLast = index === breadcrumbs.length - 1;
+          <Flex minW="0" flex="1" h="100vh" direction="column" overflow="hidden">
+            <WorkspaceHeader
+              breadcrumbs={breadcrumbs}
+              headerConfig={isChatRoute ? { hidden: true } : headerConfig}
+              quickSearchShortcutLabel={quickSearchShortcutLabel}
+              onOpenQuickSearch={openQuickSearch}
+            />
 
-                    return (
-                      <Fragment key={`${item.to ?? item.label}-${item.label}`}>
-                        {index > 0 ? <BreadcrumbSeparator /> : null}
-                        <BreadcrumbItem minW="0">
-                          {item.to && !isLast ? (
-                            <Link
-                              to={item.to}
-                              style={{ color: 'inherit' }}
-                            >
-                              <Text truncate fontWeight="medium" transition="colors" _hover={{ color: 'fg' }}>
-                                {item.label}
-                              </Text>
-                            </Link>
-                          ) : (
-                            <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
-                          )}
-                        </BreadcrumbItem>
-                      </Fragment>
-                    );
-                  })}
-                </BreadcrumbList>
-              </Breadcrumb>
-
-              <HStack
-                position={{ base: 'static', md: 'absolute' }}
-                left={{ md: '50%' }}
-                transform={{ md: 'translateX(-50%)' }}
-                display={{ base: 'none', md: 'flex' }}
-                maxW={{ md: '20rem', xl: '27rem' }}
-                w="full"
-                gap="2"
-                zIndex="0"
-              >
-                <Button
-                  type="button"
-                  aria-label={`Quick search, ${quickSearchShortcutLabel}`}
-                  aria-keyshortcuts="Meta+K"
-                  onClick={openQuickSearch}
-                  variant="plain"
-                  alignItems="center"
-                  justifyContent="flex-start"
-                  w="full"
-                  h="9"
-                  minH="9"
-                  gap="3"
-                  rounded="xl"
-                  borderWidth="1px"
-                  borderColor="border.subtle"
-                  bg="bg.surface"
-                  px="3"
-                  color="fg.subtle"
-                  shadow="0 1px 2px rgba(15, 23, 42, 0.03)"
-                  transition="border-color 160ms ease, box-shadow 160ms ease, color 160ms ease"
-                  _hover={{
-                    borderColor: 'border.strong',
-                    color: 'fg.muted',
-                    shadow: '0 1px 3px rgba(15, 23, 42, 0.05)',
-                  }}
-                  _focusVisible={{
-                    outline: '2px solid',
-                    outlineColor: 'teal.focusRing',
-                    outlineOffset: '2px',
-                  }}
-                >
-                  <Search size={18} strokeWidth={2} />
-                  <Text
-                    flex="1"
-                    minW="0"
-                    textAlign="left"
-                    truncate
-                    fontSize="md"
-                    fontWeight="medium"
-                    color="fg.subtle"
-                  >
-                    Quick search...
-                  </Text>
-                  <Flex
-                    as="kbd"
-                    align="center"
-                    justify="center"
-                    minW="10"
-                    h="6"
-                    px="2"
-                    rounded="md"
-                    borderWidth="1px"
-                    borderColor="border.subtle"
-                    bg="bg.subtle"
-                    fontFamily="body"
-                    fontSize="sm"
-                    fontWeight="medium"
-                    lineHeight="1"
-                    color="fg.muted"
-                    shadow="none"
-                  >
-                    {quickSearchShortcutLabel}
-                  </Flex>
-                </Button>
-              </HStack>
-
-              <HStack ml="auto" gap="2" zIndex="1">
-                <ThemeToggle />
-
-                <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Open account menu"
-                      className="h-9 w-9 cursor-pointer flex items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
-                    >
-                      <UserCircle2 size={18} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" minW="56">
-                    <DropdownMenuLabel style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-                      <Text fontWeight="medium" color="fg">
-                        {sessionData?.user.email ?? 'Signed in'}
-                      </Text>
-                      <Text fontSize="xs" color="fg.muted">
-                        {meQuery.data?.isGlobalAdmin ? 'Admin' : 'Vault member'}
-                      </Text>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                        <Link to={ROUTES.settings}>
-                          <Settings size={16} />
-                          Account settings
-                        </Link>
-                    </DropdownMenuItem>
-                    {meQuery.data?.isGlobalAdmin ? (
-                      <DropdownMenuItem asChild>
-                        <Link to={ROUTES.admin}>
-                          <ShieldCheck size={16} />
-                          Admin
-                        </Link>
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        void authClient.signOut();
-                      }}
-                    >
-                      <LogOut size={16} />
-                      Sign out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </HStack>
-            </Flex>
-          </Flex>
-
-          <Box
-            as="main"
-            className="@container/main"
-            flex="1"
-            minH="0"
-            overflow={isStandaloneChatRoute ? 'hidden' : 'auto'}
-            px={isStandaloneChatRoute ? '0' : { base: '4', lg: '6' }}
-            py="0"
-            bg="bg.subtle"
-          >
-            {isStandaloneChatRoute ? (
-              <><RouterDebugProbe /><Outlet /></>
-            ) : (
-              <Stack h="full" minH="0" gap={{ base: '4', md: '6' }} pt={{ base: '4', md: '6' }}>
-                {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                    <Link
-                      to={ROUTES.transfers}
-                      style={{ color: 'inherit', textDecoration: 'none' }}
-                    >
+            <Box
+              as="main"
+              className="@container/main"
+              flex="1"
+              minH="0"
+              overflow={isChatRoute || isVaultBrowserRoute ? 'hidden' : 'auto'}
+              bg="bg.workspace"
+              px={contentPadding}
+              py="0"
+            >
+              {uploadState.activeCount + uploadState.queuedCount > 0 ? (
+                <Box px={contentPadding} pt={isChatRoute || isVaultBrowserRoute ? '3' : '4'}>
+                  <Link to={ROUTES.transfers} style={{ color: 'inherit', textDecoration: 'none' }}>
                     <Flex
                       align="center"
                       justify="space-between"
-                      rounded="xl"
                       borderWidth="1px"
                       borderColor="border.subtle"
-                      bg="bg.surface"
+                      bg="bg.workspace"
                       px="4"
                       py="3"
                       fontSize="sm"
                       color="fg.muted"
-                      shadow="sm"
                       transition="colors"
-                      _hover={{ bg: 'teal.subtle', color: 'fg' }}
+                      _hover={{ bg: 'bg.workspaceMuted', color: 'fg' }}
                     >
                       <HStack gap="3">
-                        <Flex
-                          boxSize="9"
-                          align="center"
-                          justify="center"
-                          rounded="lg"
-                    bg="bg.elevated"
-                          color="fg"
-                        >
+                        <Flex boxSize="8" align="center" justify="center" color="fg">
                           <Upload size={16} />
                         </Flex>
                         <Text>
@@ -576,217 +871,246 @@ export function AppShell() {
                           {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
                         </Text>
                       </HStack>
-                      <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em">
+                      <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.12em">
                         View queue
                       </Text>
-                      </Flex>
-                    </Link>
-                  ) : null}
+                    </Flex>
+                  </Link>
+                </Box>
+              ) : null}
+              <RouterDebugProbe />
+              <Outlet />
+            </Box>
+          </Flex>
+        </Flex>
 
+        <Dialog
+          open={isQuickSearchOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              openQuickSearch();
+              return;
+            }
 
-
-                <RouterDebugProbe />
-                <Outlet />
-              </Stack>
-            )}
-          </Box>
-        </SidebarInset>
-      </SidebarProvider>
-      <Dialog
-        open={isQuickSearchOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            openQuickSearch();
-            return;
-          }
-
-          closeQuickSearch();
-        }}
-      >
-        <DialogContent
-          hideCloseButton
-          maxW="4xl"
-          overflow="hidden"
-          bg="bg.panel"
-          p="0"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
+            closeQuickSearch();
           }}
         >
-          <Flex
-            borderBottomWidth="1px"
-            borderColor="border.subtle"
-            p={{ base: '4', sm: '5' }}
+          <DialogContent
+            hideCloseButton
+            maxW="4xl"
+            overflow="hidden"
+            bg="bg.surface"
+            p="0"
+            onOpenAutoFocus={(event) => event.preventDefault()}
           >
-            <HStack w="full" gap="3">
-              <Box position="relative" flex="1">
-                <Box
-                  position="absolute"
-                  left="4"
-                  top="50%"
-                  transform="translateY(-50%)"
-                  color="fg.muted"
-                  pointerEvents="none"
-                >
-                  <Search size={16} />
-                </Box>
-                <Input
-                  aria-label="Quick search modal"
-                  value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
-                  placeholder="Search across all accessible documents..."
-                  pl="11"
-                  pr="11"
-                  borderColor="border.subtle"
-                  color="fg"
-                  _placeholder={{ color: 'fg.muted' }}
-                  autoFocus
-                />
-                {searchValue.length > 0 ? (
-                  <IconButton
-                    type="button"
-                    aria-label="Clear search"
-                    position="absolute"
-                    right="3"
-                    top="50%"
-                    transform="translateY(-50%)"
-                    variant="ghost"
-                    h="8"
-                    w="8"
-                    rounded="lg"
-                    color="fg.muted"
-                    _hover={{ bg: 'teal.subtle', color: 'fg' }}
-                    onClick={() => setSearchValue('')}
-                  >
-                    <X size={16} />
-                  </IconButton>
-                ) : null}
-              </Box>
-              <IconButton
-                type="button"
-                aria-label="Close search"
-                variant="outline"
-                h="10"
-                w="10"
-                rounded="lg"
-                borderColor="border.subtle"
-                bg="bg.surface"
-                color="fg.muted"
-                _hover={{ color: 'fg' }}
-                onClick={closeQuickSearch}
-              >
-                <X size={16} />
-              </IconButton>
-            </HStack>
-          </Flex>
-
-          <Box maxH="70vh" overflowY="auto" p={{ base: '4', sm: '5' }}>
-            {deferredSearchValue.length === 0 ? (
-              <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
-                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="bg.subtle" color="teal.solid">
-                  <FileSearch size={20} />
-                </Flex>
-                <Box>
-                  <Text fontWeight="medium" color="fg">
-                    Start typing to search
-                  </Text>
-                  <Text mt="1" fontSize="sm" color="fg.muted">
-                    Results will appear here without leaving the current page.
-                  </Text>
-                </Box>
-              </Stack>
-            ) : quickSearchQuery.isLoading ? (
-              <Text px="2" py="10" fontSize="sm" color="fg.muted">
-                Searching documents...
-              </Text>
-            ) : quickSearchQuery.isError ? (
-              <Text px="2" py="10" fontSize="sm" color="fg.error">
-                Unable to run quick search.
-              </Text>
-            ) : (quickSearchQuery.data?.results.length ?? 0) === 0 ? (
-              <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
-                <Flex boxSize="12" align="center" justify="center" rounded="lg" bg="bg.subtle" color="fg.muted">
-                  <SearchX size={20} />
-                </Flex>
-                <Box>
-                  <Text fontWeight="medium" color="fg">
-                    No matching documents
-                  </Text>
-                  <Text mt="1" fontSize="sm" color="fg.muted">
-                    Try a different name, phrase, or keyword.
-                  </Text>
-                </Box>
-              </Stack>
-            ) : (
-              <Stack gap="2">
-                {(quickSearchQuery.data?.results ?? []).map((result) => (
-                  <Box
-                    key={`${result.vaultId}-${result.documentId}`}
-                    as="button"
-                    w="full"
-                    rounded="lg"
-                    borderWidth="1px"
-                    borderColor="border.subtle"
-                    bg="bg.surface"
-                    px="4"
-                    py="4"
-                    textAlign="left"
-                    transition="colors"
-                    _hover={{ bg: 'teal.subtle' }}
-                    onClick={() => {
-                      closeQuickSearch();
-                      navigate({ to: ROUTES.vaultDocument(result.vaultId, result.documentId) });
-                    }}
-                  >
-                    <Flex direction={{ base: 'column', sm: 'row' }} gap="3" alignItems={{ base: 'stretch', sm: 'flex-start' }} justifyContent="space-between">
-                      <Box minW="0">
-                        <Flex align="center" gap="2">
-                          <Text truncate fontSize="base" fontWeight="semibold" color="fg">
-                            {result.name}
-                          </Text>
-                          <ArrowRight size={16} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
-                        </Flex>
-                        <Text mt="1" fontSize="sm" color="fg.muted">
-                          {result.vaultName} &bull; {result.mimeType} &bull; Updated{' '}
-                          {formatDate(result.updatedAt)}
-                        </Text>
-                        {result.bestChunk ? (
-                          <Text mt="2" fontSize="sm" color="fg.muted">
-                            {tokenizeSnippet(result.bestChunk.snippet).map((part) =>
-                              part.highlighted ? (
-                                <Box
-                                  as="mark"
-                                  key={`${result.documentId}-${part.key}`}
-                                  rounded="sm"
-                                  bg="teal.subtle"
-                                  color="teal.fg"
-                                  px="1"
-                                >
-                                  {part.text}
-                                </Box>
-                              ) : (
-                                <Text as="span" key={`${result.documentId}-${part.key}`}>
-                                  {part.text}
-                                </Text>
-                              ),
-                            )}
-                          </Text>
-                        ) : null}
-                      </Box>
-                      <Text flexShrink={0} fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
-                        {result.bestChunk?.pageNumber !== null &&
-                        result.bestChunk?.pageNumber !== undefined
-                          ? `Page ${result.bestChunk.pageNumber}`
-                          : 'Match'}
-                      </Text>
-                    </Flex>
+            <Flex borderBottomWidth="1px" borderColor="border.subtle" p={{ base: '4', sm: '5' }}>
+              <HStack w="full" gap="3">
+                <Box position="relative" flex="1">
+                  <Box position="absolute" left="4" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
+                    <Search size={16} />
                   </Box>
-                ))}
+                  <Input
+                    aria-label="Quick search modal"
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
+                    placeholder="Search across all accessible documents..."
+                    pl="11"
+                    pr="11"
+                    borderColor="border.subtle"
+                    color="fg"
+                    _placeholder={{ color: 'fg.muted' }}
+                    autoFocus
+                  />
+                  {searchValue.length > 0 ? (
+                    <IconButton
+                      type="button"
+                      aria-label="Clear search"
+                      position="absolute"
+                      right="3"
+                      top="50%"
+                      transform="translateY(-50%)"
+                      variant="ghost"
+                      h="8"
+                      w="8"
+                      rounded="md"
+                      color="fg.muted"
+                      _hover={{ bg: 'teal.subtle', color: 'fg' }}
+                      onClick={() => setSearchValue('')}
+                    >
+                      <X size={16} />
+                    </IconButton>
+                  ) : null}
+                </Box>
+                <IconButton
+                  type="button"
+                  aria-label="Close search"
+                  variant="outline"
+                  h="10"
+                  w="10"
+                  rounded="md"
+                  borderColor="border.subtle"
+                  bg="bg.surface"
+                  color="fg.muted"
+                  _hover={{ color: 'fg' }}
+                  onClick={closeQuickSearch}
+                >
+                  <X size={16} />
+                </IconButton>
+              </HStack>
+            </Flex>
+
+            <Box maxH="70vh" overflowY="auto" p={{ base: '4', sm: '5' }}>
+              {deferredSearchValue.length === 0 ? (
+                <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
+                  <Flex boxSize="12" align="center" justify="center" rounded="md" bg="bg.subtle" color="teal.solid">
+                    <FileSearch size={20} />
+                  </Flex>
+                  <Box>
+                    <Text fontWeight="medium" color="fg">Start typing to search</Text>
+                    <Text mt="1" fontSize="sm" color="fg.muted">
+                      Results will appear here without leaving the current page.
+                    </Text>
+                  </Box>
+                </Stack>
+              ) : quickSearchQuery.isLoading ? (
+                <Text px="2" py="10" fontSize="sm" color="fg.muted">Searching documents...</Text>
+              ) : quickSearchQuery.isError ? (
+                <Text px="2" py="10" fontSize="sm" color="fg.error">Unable to run quick search.</Text>
+              ) : (quickSearchQuery.data?.results.length ?? 0) === 0 ? (
+                <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
+                  <Flex boxSize="12" align="center" justify="center" rounded="md" bg="bg.subtle" color="fg.muted">
+                    <SearchX size={20} />
+                  </Flex>
+                  <Box>
+                    <Text fontWeight="medium" color="fg">No matching documents</Text>
+                    <Text mt="1" fontSize="sm" color="fg.muted">Try a different name, phrase, or keyword.</Text>
+                  </Box>
+                </Stack>
+              ) : (
+                <Stack gap="2">
+                  {(quickSearchQuery.data?.results ?? []).map((result) => (
+                    <Box
+                      key={`${result.vaultId}-${result.documentId}`}
+                      as="button"
+                      w="full"
+                      rounded="md"
+                      borderWidth="1px"
+                      borderColor="border.subtle"
+                      bg="bg.surface"
+                      px="4"
+                      py="4"
+                      textAlign="left"
+                      transition="colors"
+                      _hover={{ bg: 'bg.workspaceMuted' }}
+                      onClick={() => {
+                        closeQuickSearch();
+                        navigate({ to: ROUTES.vaultDocument(result.vaultId, result.documentId) });
+                      }}
+                    >
+                      <Flex direction={{ base: 'column', sm: 'row' }} gap="3" alignItems={{ base: 'stretch', sm: 'flex-start' }} justifyContent="space-between">
+                        <Box minW="0">
+                          <Flex align="center" gap="2">
+                            <Text truncate fontSize="base" fontWeight="semibold" color="fg">{result.name}</Text>
+                            <ArrowRight size={16} style={{ flexShrink: 0 }} />
+                          </Flex>
+                          <Text mt="1" fontSize="sm" color="fg.muted">
+                            {result.vaultName} &bull; {result.mimeType} &bull; Updated {formatDate(result.updatedAt)}
+                          </Text>
+                          {result.bestChunk ? (
+                            <Text mt="2" fontSize="sm" color="fg.muted">
+                              {tokenizeSnippet(result.bestChunk.snippet).map((part) =>
+                                part.highlighted ? (
+                                  <Box as="mark" key={`${result.documentId}-${part.key}`} rounded="sm" bg="teal.subtle" color="teal.fg" px="1">
+                                    {part.text}
+                                  </Box>
+                                ) : (
+                                  <Text as="span" key={`${result.documentId}-${part.key}`}>{part.text}</Text>
+                                ),
+                              )}
+                            </Text>
+                          ) : null}
+                        </Box>
+                        <Text flexShrink={0} fontSize="xs" textTransform="uppercase" letterSpacing="0.12em" color="fg.muted">
+                          {result.bestChunk?.pageNumber !== null && result.bestChunk?.pageNumber !== undefined
+                            ? `Page ${result.bestChunk.pageNumber}`
+                            : 'Match'}
+                        </Text>
+                      </Flex>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={isCreateVaultOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setIsCreateVaultOpen(true);
+              return;
+            }
+
+            closeCreateVault();
+          }}
+        >
+          <DialogContent maxW="lg" overflow="hidden" bg="bg.surface" p="0">
+            <Box borderBottomWidth="1px" borderColor="border.subtle" px="5" py="4">
+              <Text fontSize="lg" fontWeight="semibold" color="fg">
+                New vault
+              </Text>
+            </Box>
+            <chakra.form style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.25rem' }} onSubmit={handleCreateVaultSubmit}>
+              <Stack gap="2">
+                <chakra.label htmlFor="shell-create-vault-name" fontSize="sm" fontWeight="medium" color="fg">
+                  Name
+                </chakra.label>
+                <Input
+                  id="shell-create-vault-name"
+                  type="text"
+                  required
+                  autoFocus
+                  value={newVaultName}
+                  onChange={(event) => setNewVaultName(event.target.value)}
+                  placeholder="Personal Vault"
+                />
               </Stack>
-            )}
-          </Box>
-        </DialogContent>
-      </Dialog>
-    </Box>
+
+              <Stack gap="2">
+                <chakra.label htmlFor="shell-create-vault-description" fontSize="sm" fontWeight="medium" color="fg">
+                  Description
+                </chakra.label>
+                <Textarea
+                  id="shell-create-vault-description"
+                  value={newVaultDescription}
+                  onChange={(event) => setNewVaultDescription(event.target.value)}
+                  minH="6rem"
+                  resize="vertical"
+                  placeholder="Optional"
+                />
+                <Text fontSize="xs" color="fg.muted">
+                  Optional context to help identify this vault later.
+                </Text>
+              </Stack>
+
+              <Flex justify="flex-end" gap="3" pt="2">
+                <ChakraButton
+                  type="button"
+                  variant="outline"
+                  disabled={createVaultMutation.isPending}
+                  onClick={closeCreateVault}
+                >
+                  Cancel
+                </ChakraButton>
+                <ChakraButton type="submit" colorPalette="teal" disabled={createVaultMutation.isPending}>
+                  <Plus size={16} />
+                  {createVaultMutation.isPending ? 'Creating...' : 'Create vault'}
+                </ChakraButton>
+              </Flex>
+            </chakra.form>
+          </DialogContent>
+        </Dialog>
+      </WorkspaceLayoutContext>
+    </TooltipProvider>
   );
 }

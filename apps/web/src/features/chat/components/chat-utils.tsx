@@ -16,6 +16,7 @@ export interface ChatWorkspaceProps {
   documentName?: string;
   inputPlaceholder: string;
   heightClassName?: string;
+  renderConversationRailInSecondary?: boolean;
 }
 
 export interface LocalMessage extends ChatMessage {

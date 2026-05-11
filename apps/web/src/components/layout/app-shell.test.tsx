@@ -63,13 +63,27 @@ describe('app shell account menu', () => {
             userId: 'usr_member',
             sessionId: 'ses_member',
             isGlobalAdmin: false,
-            canCreateVault: false,
+            canCreateVault: true,
           });
         }
 
         if (url === '/api/vaults') {
           return jsonResponse({
-            vaults: [{ id: 'vlt_1', name: 'Puzzle Palace', role: 'owner' }],
+            vaults: [
+              { id: 'vlt_1', name: 'MyDocs', role: 'owner' },
+              { id: 'vlt_2', name: 'MyFiles', role: 'member' },
+            ],
+          });
+        }
+
+        if (url === '/api/vaults/vlt_1/folders/tree') {
+          return jsonResponse({
+            folders: [
+              { id: 'fld_1', parentId: null, name: 'Insurance', path: 'Insurance', depth: 0 },
+              { id: 'fld_2', parentId: 'fld_1', name: 'Policies', path: 'Insurance/Policies', depth: 1 },
+              { id: 'fld_3', parentId: 'fld_2', name: 'Claims', path: 'Insurance/Policies/Claims', depth: 2 },
+              { id: 'fld_4', parentId: null, name: 'Invoices', path: 'Invoices', depth: 0 },
+            ],
           });
         }
 
@@ -110,7 +124,7 @@ describe('app shell account menu', () => {
       },
     );
 
-    expect(screen.getAllByRole('link', { name: /tags/i })[0]).toHaveAttribute('href', '/tags');
+    expect(screen.getAllByRole('link', { name: /search/i })[0]).toHaveAttribute('href', '/search');
 
     await user.click(screen.getByRole('button', { name: /open account menu/i }));
     expect(await screen.findByRole('menu')).toBeInTheDocument();
@@ -123,9 +137,7 @@ describe('app shell account menu', () => {
     });
   });
 
-  it('collapses the desktop sidebar to icon-only navigation', async () => {
-    const user = userEvent.setup();
-
+  it('keeps the primary sidebar fixed as icon-only navigation', async () => {
     await renderWithProviders(
       <AppShell />,
       {
@@ -135,19 +147,76 @@ describe('app shell account menu', () => {
     );
 
     const primaryNav = screen.getByRole('navigation', { name: 'Primary' });
-    const documentsLabel = within(primaryNav).getByText('All Documents');
-
-    expect(documentsLabel).not.toHaveStyle('display: none');
-
-    await user.click(screen.getByRole('button', { name: /collapse sidebar/i }));
-
-    expect(documentsLabel).toHaveStyle('display: none');
+    expect(within(primaryNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
+    expect(within(primaryNav).getByRole('link', { name: 'Chat' })).toHaveAttribute('href', '/chat');
+    expect(within(primaryNav).queryByRole('link', { name: 'Trash' })).not.toBeInTheDocument();
+    expect(within(primaryNav).queryByRole('link', { name: 'Tags' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /collapse sidebar/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'All Documents' })[0]).toHaveAttribute(
-      'href',
-      '/documents',
+    expect(screen.queryByRole('button', { name: /expand sidebar/i })).not.toBeInTheDocument();
+  });
+
+  it('shows vaults under the secondary sidebar root on the vault index', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
     );
+
+    expect(await screen.findByRole('button', { name: /create vault/i, hidden: true })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'MyDocs', hidden: true })).toHaveAttribute('href', '/vaults/vlt_1');
+    expect(screen.getByRole('link', { name: 'MyFiles', hidden: true })).toHaveAttribute('href', '/vaults/vlt_2');
+    expect(screen.getAllByRole('link', { name: 'Vaults', hidden: true })).toHaveLength(2);
+  });
+
+  it('keeps all vaults visible and expands the active vault tree', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1'],
+        routePath: '/vaults/:vaultId',
+      },
+    );
+
+    expect(await screen.findByRole('button', { name: /create vault/i, hidden: true })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'MyDocs', hidden: true })).toHaveAttribute('href', '/vaults/vlt_1');
+    expect(screen.getByRole('link', { name: 'MyFiles', hidden: true })).toHaveAttribute('href', '/vaults/vlt_2');
+    expect(screen.queryByRole('link', { name: 'Cloud Drive', hidden: true })).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Insurance', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_1',
+    );
+    expect(screen.getByRole('link', { name: 'Invoices', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_4',
+    );
+    expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('expands only the selected folder branch in the vault sidebar', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1?folderId=fld_1'],
+        routePath: '/vaults/:vaultId',
+      },
+    );
+
+    expect(await screen.findByRole('link', { name: 'Insurance', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_1',
+    );
+    expect(screen.getByRole('link', { name: 'Invoices', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_4',
+    );
+    expect(screen.getByRole('link', { name: 'Policies', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_2',
+    );
+    expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
   });
 
   it('opens quick search from the trigger and Meta+K shortcut', async () => {
@@ -177,38 +246,34 @@ describe('app shell account menu', () => {
     expect(await screen.findByLabelText(/quick search modal/i)).toBeInTheDocument();
   });
 
-  it('shows global document breadcrumbs for all-documents detail pages', async () => {
+  it('shows simple breadcrumbs for top-level workspace pages', async () => {
     await renderWithProviders(
       <AppShell />,
       {
-        initialEntries: ['/documents/vlt_1/doc_1'],
-        routePath: '/documents/:vaultId/:documentId',
+        initialEntries: ['/search'],
+        routePath: '/search',
       },
     );
 
     const breadcrumbNav = await screen.findByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(breadcrumbNav).getByRole('link', { name: 'All Documents' })).toHaveAttribute(
-      'href',
-      '/documents',
-    );
-    expect(await within(breadcrumbNav).findByText('Quarterly Budget Summary.pdf')).toBeInTheDocument();
-    expect(within(breadcrumbNav).queryByRole('link', { name: 'Puzzle Palace' })).not.toBeInTheDocument();
+    expect(within(breadcrumbNav).getByText('Search')).toBeInTheDocument();
+    expect(within(breadcrumbNav).queryByRole('link', { name: 'MyDocs' })).not.toBeInTheDocument();
   });
 
   it('shows vault-scoped breadcrumbs for vault document detail pages', async () => {
     await renderWithProviders(
       <AppShell />,
       {
-        initialEntries: ['/vaults/vlt_1/documents/doc_1'],
-        routePath: '/vaults/:vaultId/documents/:documentId',
+        initialEntries: ['/vaults/vlt_1/doc_1'],
+        routePath: '/vaults/:vaultId/:documentId',
       },
     );
 
     const breadcrumbNav = await screen.findByRole('navigation', { name: 'Breadcrumb' });
     expect(within(breadcrumbNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
-    expect(await within(breadcrumbNav).findByRole('link', { name: 'Puzzle Palace' })).toHaveAttribute(
+    expect(await within(breadcrumbNav).findByRole('link', { name: 'MyDocs' })).toHaveAttribute(
       'href',
-      '/vaults/vlt_1/documents',
+      '/vaults/vlt_1',
     );
     expect(within(breadcrumbNav).queryByRole('link', { name: 'Documents' })).not.toBeInTheDocument();
     expect(await within(breadcrumbNav).findByText('Quarterly Budget Summary.pdf')).toBeInTheDocument();

@@ -1,16 +1,12 @@
 import type { DragEvent, FormEvent, KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, Folder, FolderPlus, Grid3X3, Home, Info, List, MoveRight, Pencil, Tags, Trash2, Upload } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
-import {
-  EmptyState,
-  PageIntro,
-  SurfacePanel,
-} from '@/components/layout/vault-ui';
+import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ApiError } from '@/lib/api';
@@ -630,10 +626,6 @@ export function DocumentsPage() {
     moveItemsMutation.mutate({ targets: draggedItems, destinationId: folderId });
   }
 
-  if (!vaultId) {
-    return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
-  }
-
   function downloadDocuments(documents: Array<{ vaultId: string; documentId: string }>) {
     for (const document of documents) {
       const link = window.document.createElement('a');
@@ -813,151 +805,146 @@ export function DocumentsPage() {
     createFolderMutation.mutate();
   }
 
-  return (
-    <Flex as="section" direction="column" gap="6" pb="8">
-      <PageIntro
-        title="Documents"
-        actions={
-          <HStack flexWrap="wrap" gap="3">
-            <Link to={ROUTES.vaultTrash(vaultId)} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
-              Deleted documents
-            </Link>
-            <Link to={ROUTES.vaultTags(vaultId)} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
-              Tags
-            </Link>
-            <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
-              <FolderPlus size={16} />
-              New folder
-            </Button>
-            <Link to={ROUTES.transfersWithLock(vaultId, currentFolderId)} style={{ textDecoration: 'none' }}>
-              <Flex
-                display="inline-flex"
-                h="11"
-                align="center"
-                justify="center"
-                gap="2"
-                rounded="xl"
-                bg="teal.solid"
-                px="5"
-                fontSize="sm"
-                fontWeight="semibold"
-                color="fg.inverted"
-              >
-                <Upload size={16} />
-                Upload
-              </Flex>
-            </Link>
-          </HStack>
-        }
+  const workspaceHeader = useMemo(() => ({
+    left: (
+      <FolderBreadcrumbs
+        currentFolderId={currentFolderId}
+        breadcrumbs={folderItemsQuery.data?.breadcrumbs ?? []}
+        onNavigateFolder={navigateToFolder}
+        onOpenRootContextMenu={(event) => openContextMenu(event, { type: 'root', vaultId })}
+        dropTarget={dropTarget}
+        onDragOverFolder={handleDragOverFolder}
+        onDragLeaveFolder={handleDragLeaveFolder}
+        onDropOnFolder={handleDropOnFolder}
       />
-
-      <SurfacePanel display="flex" flexDirection={{ base: 'column', lg: 'row' }} alignItems={{ lg: 'center' }} justifyContent="space-between" gap="3">
-        <Stack gap="2" minW="0">
-          <FolderBreadcrumbs
-            currentFolderId={currentFolderId}
-            breadcrumbs={folderItemsQuery.data?.breadcrumbs ?? []}
-            onNavigateFolder={navigateToFolder}
-            onOpenRootContextMenu={(event) => openContextMenu(event, { type: 'root', vaultId })}
-            dropTarget={dropTarget}
-            onDragOverFolder={handleDragOverFolder}
-            onDragLeaveFolder={handleDragLeaveFolder}
-            onDropOnFolder={handleDropOnFolder}
-          />
-          <Text fontSize="sm" color="fg.muted">
-            {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
-            {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
+    ),
+    meta: (
+      <Text fontSize="xs" color="fg.muted">
+        {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
+        {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
+      </Text>
+    ),
+    actions: (
+      <HStack gap="2">
+        {selectedCount > 0 ? (
+          <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
+            Clear
+          </Button>
+        ) : null}
+        <Flex
+          display={{ base: 'none', xl: 'flex' }}
+          align="center"
+          gap="2"
+          rounded="md"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.workspace"
+          px="2.5"
+          h="9"
+        >
+          <Text as="span" id="vault-browser-sort" fontSize="xs" fontWeight="medium" color="fg.muted">
+            Sort
           </Text>
-        </Stack>
-        <Flex align="center" gap="2" wrap="wrap">
-          {selectedCount > 0 ? (
-            <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
-              Clear selection
-            </Button>
-          ) : null}
-          <Flex
-            align="center"
-            gap="2"
-            rounded="lg"
-            borderWidth="1px"
-            borderColor="border.subtle"
-            bg="bg.surface"
-            px="3"
-            py="1.5"
-          >
-            <Text as="span" id="vault-browser-sort" fontSize="sm" fontWeight="semibold" color="fg.muted">
-              Sort
-            </Text>
-            <Select value={browserSort} onValueChange={(value) => setBrowserSort(value as FileBrowserSort)}>
-              <SelectTrigger
-                aria-label="Sort folder items"
-                aria-labelledby="vault-browser-sort"
-                h="9"
-                minW="40"
-                border="0"
-                bg="transparent"
-                px="0"
-                shadow="none"
-                focusRing="none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {browserSortOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Flex>
-          <Button
-            type="button"
-            size="sm"
-            variant={browserView === 'list' ? 'solid' : 'outline'}
-            aria-label="List view"
-            onClick={() => setBrowserView('list')}
-          >
-            <List size={16} />
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={browserView === 'grid' ? 'solid' : 'outline'}
-            aria-label="Grid view"
-            onClick={() => setBrowserView('grid')}
-          >
-            <Grid3X3 size={16} />
-          </Button>
+          <Select value={browserSort} onValueChange={(value) => setBrowserSort(value as FileBrowserSort)}>
+            <SelectTrigger
+              aria-label="Sort folder items"
+              aria-labelledby="vault-browser-sort"
+              h="8"
+              minW="36"
+              border="0"
+              bg="transparent"
+              px="0"
+              shadow="none"
+              focusRing="none"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {browserSortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Flex>
-      </SurfacePanel>
+        <Button
+          type="button"
+          size="icon"
+          variant={browserView === 'list' ? 'solid' : 'ghost'}
+          aria-label="List view"
+          onClick={() => setBrowserView('list')}
+        >
+          <List size={17} />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={browserView === 'grid' ? 'solid' : 'ghost'}
+          aria-label="Grid view"
+          onClick={() => setBrowserView('grid')}
+        >
+          <Grid3X3 size={17} />
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
+          <FolderPlus size={16} />
+          New
+        </Button>
+        <Link to={ROUTES.transfersWithLock(vaultId, currentFolderId)} style={{ textDecoration: 'none' }}>
+          <Button type="button" size="sm">
+            <Upload size={16} />
+            Upload
+          </Button>
+        </Link>
+      </HStack>
+    ),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- header registration follows browser state; handlers are local event delegates.
+  }), [
+    activeResultCount,
+    browserSort,
+    browserView,
+    currentFolderId,
+    dropTarget,
+    folderItemsQuery.data?.breadcrumbs,
+    selectedCount,
+    vaultId,
+  ]);
 
+  useWorkspaceHeader(workspaceHeader);
+
+  if (!vaultId) {
+    return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
+  }
+
+  return (
+    <Flex as="section" h="full" minH="0" direction="column" overflow="hidden">
       {activeIsLoading ? (
-        <SurfacePanel>
+        <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
           <Text fontSize="sm" color="fg.muted">
             Loading folder...
           </Text>
-        </SurfacePanel>
+        </Box>
       ) : null}
       {activeIsError ? (
-        <SurfacePanel>
+        <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
           <Text fontSize="sm" color="fg.error">
             Unable to load this folder.
           </Text>
-        </SurfacePanel>
+        </Box>
       ) : null}
 
       {!activeIsLoading && emptyState ? (
-        <EmptyState
-          icon={<Folder size={24} />}
-          title="This folder is empty"
-          description="Create a folder or upload documents here."
-          action={(
+        <Flex flex="1" minH="0" direction="column" align="center" justify="center" gap="3" color="fg.muted">
+          <Folder size={28} />
+          <Text fontWeight="medium" color="fg">This folder is empty</Text>
+          <Text fontSize="sm">Create a folder or upload documents here.</Text>
+          <HStack gap="2">
             <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
               <FolderPlus size={16} />
               New folder
             </Button>
-          )}
-        />
+          </HStack>
+        </Flex>
       ) : null}
 
       {!activeIsLoading && !activeIsError && !emptyState ? (

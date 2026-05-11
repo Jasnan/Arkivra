@@ -3,14 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Box, Collapsible as ChakraCollapsible, Flex, Text } from '@chakra-ui/react';
 import {
   AlertCircle,
-  ChevronLeft,
   ChevronRight,
   Loader2,
   MessageSquare,
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { streamChatMessage } from '../chat.api';
 import type { ChatResponseMode } from '../chat.api';
 import {
@@ -47,6 +46,7 @@ export function ChatWorkspace({
   documentName,
   inputPlaceholder,
   heightClassName = 'h-[calc(100vh-14rem)] min-h-[32rem]',
+  renderConversationRailInSecondary = false,
 }: ChatWorkspaceProps) {
   const isFullHeight = heightClassName === 'h-full';
   const { vaultId, documentId } = scope;
@@ -68,8 +68,6 @@ export function ChatWorkspace({
   const [composerValue, setComposerValue] = useState('');
   const [currentIntent, setCurrentIntent] = useState<ChatIntent | null>(null);
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
-  const [isDesktopConversationRailCollapsed, setIsDesktopConversationRailCollapsed] =
-    useState(false);
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -254,6 +252,40 @@ export function ChatWorkspace({
     }
   }
 
+  const secondaryConversationRail = useMemo(() => {
+    if (!renderConversationRailInSecondary) return null;
+
+    return (
+      <ChatConversationRail
+        conversationsQuery={conversationsQuery}
+        conversationSections={conversationSections}
+        selectedChatId={selectedChatId}
+        effectiveSelectedChatId={effectiveSelectedChatId}
+        createConversationPending={createConversation.isPending}
+        onCreateConversation={() => {
+          void handleCreateConversation();
+        }}
+        onSelectConversation={(chatId) => {
+          setSelectedChatId(chatId);
+          resetComposerState();
+        }}
+        onDeleteConversation={(chatId) => {
+          void handleDeleteConversation(chatId);
+        }}
+      />
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the shell registration should follow semantic chat state, not every local handler identity.
+  }, [
+    conversationSections,
+    conversationsQuery,
+    createConversation.isPending,
+    effectiveSelectedChatId,
+    renderConversationRailInSecondary,
+    selectedChatId,
+  ]);
+
+  useWorkspaceSecondary(secondaryConversationRail);
+
   return (
     <Box
       display="grid"
@@ -264,96 +296,44 @@ export function ChatWorkspace({
       minH={isFullHeight ? '0' : '32rem'}
       minW="0"
       overflow="hidden"
-      gap={{ base: '3', lg: '4' }}
-      bg="bg.subtle"
-      p={{ base: '3', md: '4' }}
+      gap="0"
+      bg="bg.workspace"
+      p="0"
       gridTemplateColumns={{
         base: '1fr',
-        lg: isDesktopConversationRailCollapsed ? '0 minmax(0, 1fr)' : '15rem minmax(0, 1fr)',
+        lg: renderConversationRailInSecondary ? 'minmax(0, 1fr)' : '15rem minmax(0, 1fr)',
       }}
     >
-      <Box
-        as="aside"
-        position="relative"
-        display={{ base: 'none', lg: 'flex' }}
-        flexDirection="column"
-        minH="0"
-        overflow="hidden"
-        rounded="lg"
-        borderWidth={isDesktopConversationRailCollapsed ? '0' : '1px'}
-        borderColor="border.subtle"
-        bg="bg.surface"
-        pb="3"
-        shadow="xs"
-        transition="width,padding,opacity 200ms ease-linear"
-        width={isDesktopConversationRailCollapsed ? '0' : '15rem'}
-        opacity={isDesktopConversationRailCollapsed ? '0' : '1'}
-        aria-hidden={isDesktopConversationRailCollapsed}
-      >
-        {isDesktopConversationRailCollapsed ? null : (
-          <>
-            <ChatConversationRail
-              conversationsQuery={conversationsQuery}
-              conversationSections={conversationSections}
-              selectedChatId={selectedChatId}
-              effectiveSelectedChatId={effectiveSelectedChatId}
-              createConversationPending={createConversation.isPending}
-              onCreateConversation={() => {
-                void handleCreateConversation();
-              }}
-              onSelectConversation={(chatId) => {
-                setSelectedChatId(chatId);
-                resetComposerState();
-              }}
-              onDeleteConversation={(chatId) => {
-                void handleDeleteConversation(chatId);
-              }}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              aria-label="Hide conversation list"
-              position="absolute"
-              right="3"
-              bottom="3"
-              color="fg.muted"
-              borderWidth="1px"
-              borderColor="border.subtle"
-              bg="bg.surface"
-              shadow="xs"
-              _hover={{ bg: 'bg.muted', color: 'fg' }}
-              style={{ height: '2.25rem', width: '2.25rem', borderRadius: '0.5rem', padding: 0 }}
-              onClick={() => setIsDesktopConversationRailCollapsed(true)}
-            >
-              <ChevronLeft size={16} />
-            </Button>
-          </>
-        )}
-      </Box>
-
-      {isDesktopConversationRailCollapsed ? (
+      {!renderConversationRailInSecondary ? (
         <Box
+          as="aside"
+          position="relative"
           display={{ base: 'none', lg: 'flex' }}
-          position="absolute"
-          bottom="1.5rem"
-          left="1.5rem"
-          zIndex="dropdown"
+          flexDirection="column"
+          minH="0"
+          overflow="hidden"
+          borderRightWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.sidebar"
+          pb="3"
         >
-          <Button
-            type="button"
-            variant="ghost"
-            aria-label="Show conversation list"
-            color="fg.muted"
-            borderWidth="1px"
-            borderColor="border.subtle"
-            bg="bg.surface"
-            shadow="xs"
-            _hover={{ bg: 'bg.muted', color: 'fg' }}
-            style={{ height: '2.25rem', width: '2.25rem', borderRadius: '0.5rem', padding: 0 }}
-            onClick={() => setIsDesktopConversationRailCollapsed(false)}
-          >
-            <ChevronRight size={16} />
-          </Button>
+          <ChatConversationRail
+            conversationsQuery={conversationsQuery}
+            conversationSections={conversationSections}
+            selectedChatId={selectedChatId}
+            effectiveSelectedChatId={effectiveSelectedChatId}
+            createConversationPending={createConversation.isPending}
+            onCreateConversation={() => {
+              void handleCreateConversation();
+            }}
+            onSelectConversation={(chatId) => {
+              setSelectedChatId(chatId);
+              resetComposerState();
+            }}
+            onDeleteConversation={(chatId) => {
+              void handleDeleteConversation(chatId);
+            }}
+          />
         </Box>
       ) : null}
 
@@ -367,11 +347,11 @@ export function ChatWorkspace({
         maxH="100%"
         maxW="full"
         overflow="hidden"
-        rounded="lg"
-        borderWidth="1px"
+        rounded="0"
+        borderWidth="0"
         borderColor="border.subtle"
-        bg="bg.surface"
-        shadow="xs"
+        bg="bg.workspace"
+        shadow="none"
       >
         <Box minH="0">
           {streamError ? (

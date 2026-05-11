@@ -1,18 +1,12 @@
 import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, Heading, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
+import { Box, Flex, Grid, HStack, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderKanban, FolderOpen, Settings2, ShieldCheck, Vault } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
+import { FolderKanban, FolderOpen, Grid3X3, List, Settings2 } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
-import {
-  PageIntro,
-  SectionTitle,
-  StatCard,
-  SurfacePanel,
-  EmptyState,
-} from '@/components/layout/vault-ui';
+import { useWorkspaceHeader, useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { CreateButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -31,18 +25,34 @@ import { createVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { VaultSummary } from '@/features/vaults/vaults.types';
 
+type VaultsView = 'list' | 'grid';
+
+const VAULTS_VIEW_STORAGE_KEY = 'arkivra.vaults.view';
+
 type VaultContextMenuState = {
   vault: VaultSummary;
   x: number;
   y: number;
 } | null;
 
-type VaultAction = {
+interface VaultAction {
   key: string;
   label: string;
   icon: typeof FolderOpen;
   onSelect: () => void;
-};
+}
+
+function getStoredVaultsView(): VaultsView {
+  if (typeof window === 'undefined') {
+    return 'list';
+  }
+
+  try {
+    return window.localStorage?.getItem?.(VAULTS_VIEW_STORAGE_KEY) === 'grid' ? 'grid' : 'list';
+  } catch {
+    return 'list';
+  }
+}
 
 function formatVaultCreatedDate(value: string | null) {
   if (!value) {
@@ -195,14 +205,9 @@ export function VaultsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState>(null);
+  const [vaultsView, setVaultsView] = useState<VaultsView>(() => getStoredVaultsView());
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  const ownedVaults = useMemo(
-    () => vaults.filter((vault) => vault.role === 'owner').length,
-    [vaults],
-  );
-  const memberVaults = Math.max(0, vaults.length - ownedVaults);
 
   const createMutation = useMutation({
     mutationFn: createVault,
@@ -231,6 +236,12 @@ export function VaultsPage() {
   function openCreateModal() {
     setIsCreateModalOpen(true);
   }
+
+  useEffect(() => {
+    try {
+      window.localStorage?.setItem?.(VAULTS_VIEW_STORAGE_KEY, vaultsView);
+    } catch {}
+  }, [vaultsView]);
 
   function closeCreateModal() {
     if (createMutation.isPending) {
@@ -266,11 +277,11 @@ export function VaultsPage() {
   }
 
   function getDescriptionPreview(value: string) {
-    if (value.length <= 280) {
+    if (value.length <= 120) {
       return value;
     }
 
-    return `${value.slice(0, 277).trimEnd()}...`;
+    return `${value.slice(0, 117).trimEnd()}...`;
   }
 
   function getVaultActions(vault: VaultSummary): VaultAction[] {
@@ -290,78 +301,130 @@ export function VaultsPage() {
     });
   }
 
+  const vaultSidebarContent = useMemo(() => (
+    <Stack gap="1">
+      <Link to={ROUTES.vaults} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Flex
+          align="center"
+          gap="2.5"
+          minH="9"
+          rounded="md"
+          px="2.5"
+          fontSize="sm"
+          color="fg"
+          bg="bg.muted"
+          _hover={{ bg: 'bg.muted', color: 'fg' }}
+        >
+          <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
+            <FolderKanban size={16} strokeWidth={2.1} />
+          </Flex>
+          <Text truncate>Vaults</Text>
+        </Flex>
+      </Link>
+      {vaults.map((vault) => (
+        <Link
+          key={vault.id}
+          to={ROUTES.vaultRoot(vault.id)}
+          style={{ color: 'inherit', textDecoration: 'none' }}
+        >
+          <Flex
+            align="center"
+            gap="2.5"
+            minH="9"
+            rounded="md"
+            px="2.5"
+            fontSize="sm"
+            color="fg.muted"
+            _hover={{ bg: 'bg.muted', color: 'fg' }}
+            ml="0.8rem"
+          >
+            <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
+              <FolderKanban size={16} strokeWidth={2.1} />
+            </Flex>
+            <Text truncate>{vault.name}</Text>
+          </Flex>
+        </Link>
+      ))}
+    </Stack>
+  ), [vaults]);
+  const workspaceHeader = useMemo(() => ({
+    actions: (
+      <HStack gap="2">
+        <Button
+          type="button"
+          size="icon"
+          variant={vaultsView === 'list' ? 'solid' : 'ghost'}
+          aria-label="List view"
+          onClick={() => setVaultsView('list')}
+        >
+          <List size={17} />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={vaultsView === 'grid' ? 'solid' : 'ghost'}
+          aria-label="Grid view"
+          onClick={() => setVaultsView('grid')}
+        >
+          <Grid3X3 size={17} />
+        </Button>
+      </HStack>
+    ),
+  }), [vaultsView]);
+  useWorkspaceHeader(workspaceHeader);
+  const isInWorkspaceShell = useWorkspaceSecondary(vaultSidebarContent);
+
   return (
-    <Stack as="section" gap="8" pb="8">
-      <PageIntro
-        title="Vaults"
-        description="Manage and access your vaults."
-        actions={
-          meQuery.data?.canCreateVault ? (
+    <Stack as="section" gap="0" h="full" minH="0">
+      {!isInWorkspaceShell && canCreateVault ? (
+        <Box px={{ base: '4', lg: '6' }} pt={{ base: '4', lg: '6' }} pb="4">
+          <Flex justify="flex-start">
             <CreateButton ref={createButtonRef} onClick={openCreateModal}>
               Create vault
             </CreateButton>
-          ) : undefined
-        }
-      />
+          </Flex>
+        </Box>
+      ) : null}
 
-      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))' }}>
-        <StatCard
-          label="Vaults"
-          value={vaults.length}
-          icon={<Vault size={20} />}
-        />
-        <StatCard
-          label="Owned"
-          value={ownedVaults}
-          icon={<ShieldCheck size={20} />}
-        />
-        <StatCard
-          label="Shared"
-          value={memberVaults}
-          icon={<FolderKanban size={20} />}
-        />
-      </Grid>
-
-      <SurfacePanel display="flex" flexDirection="column" gap="5">
-        <SectionTitle
-          eyebrow="Vaults"
-          title={`${vaults.length} ${vaults.length === 1 ? 'vault' : 'vaults'}`}
-        />
-
+      <Box flex="1" minH="0" overflowY="auto" px={{ base: '4', lg: '6' }} py={isInWorkspaceShell ? '4' : '0'}>
         {vaultsQuery.isLoading ? (
-          <Text textStyle="sm">Loading vaults...</Text>
+          <Text px="3" py="4" textStyle="sm">Loading vaults...</Text>
         ) : null}
         {vaultsQuery.isError ? (
-          <Text textStyle="sm" color="fg.error">Unable to load vaults.</Text>
+          <Text px="3" py="4" textStyle="sm" color="fg.error">Unable to load vaults.</Text>
         ) : null}
 
         {!vaultsQuery.isLoading && vaults.length === 0 ? (
-          <EmptyState
-            description={
-              meQuery.data?.canCreateVault
+          <Flex minH="44" align="center" justify="center" textAlign="center">
+            <Text maxW="sm" fontSize="sm" color="fg.muted">
+              {meQuery.data?.canCreateVault
                 ? 'No vaults yet. Create your first vault to start storing documents.'
-                : 'No vaults available yet. A global admin must grant vault creation before you can open a new workspace.'
-            }
-          />
-        ) : (
-          <Grid gap="5" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}>
+                : 'No vaults available yet. A global admin must grant vault creation before you can open a new workspace.'}
+            </Text>
+          </Flex>
+        ) : vaultsView === 'grid' ? (
+          <Grid gap="4" templateColumns={{ base: 'repeat(1, minmax(0, 1fr))', md: 'repeat(auto-fill, minmax(14rem, 1fr))' }}>
             {vaults.map((vault) => (
-              <Box
+              <Flex
                 key={vault.id}
                 as="article"
                 role="link"
                 tabIndex={0}
-                display="flex"
-                h="full"
+                position="relative"
+                direction="column"
+                align="center"
+                justify="center"
+                minH="13rem"
                 cursor="pointer"
-                flexDirection="column"
-                rounded="lg"
+                rounded="md"
                 borderWidth="1px"
                 borderColor="border.subtle"
-                bg="bg.surface"
-                p={{ base: '4', sm: '5' }}
+                bg="bg.workspace"
+                px="5"
+                py="4"
+                textAlign="center"
                 transition="background-color 0.15s ease, border-color 0.15s ease"
-                _hover={{ bg: 'bg.subtle' }}
+                _hover={{ bg: 'bg.workspaceMuted', borderColor: 'border.strong' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
                 onClick={() => navigate({ to: ROUTES.vaultRoot(vault.id) })}
                 onContextMenu={(event) => openContextMenu(event, vault)}
@@ -372,75 +435,147 @@ export function VaultsPage() {
                   }
                 }}
               >
-                <Flex h="full" minH="40" gap="4">
-                    <Flex mt="0.5" boxSize="10" shrink="0" align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg">
-                      <FolderOpen size={18} />
-                    </Flex>
-                  <Stack minW="0" flex="1" gap="0">
-                    <Flex align="flex-start" justify="space-between" gap="4">
-                      <Heading as="h2" truncate fontSize="md" fontWeight="semibold" lineHeight="tight" color="fg">
-                        {vault.name}
-                      </Heading>
-                      <Flex shrink="0" align="flex-start" gap="2">
-                      <Flex
-                        display="inline-flex"
-                        align="center"
-                        gap="1.5"
-                        rounded="md"
-                        borderWidth="1px"
-                        borderColor="border.subtle"
-                        bg="bg.subtle"
-                        px="2.5"
-                        py="1"
-                        fontSize="xs"
-                        fontWeight="medium"
-                        color="fg.muted"
-                        shrink="0"
-                      >
-                        {formatVaultRole(vault.role)}
-                      </Flex>
-                        <Box
-                          position="relative"
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <DropdownMenu modal={false}>
-                            <DropdownMenuTrigger asChild>
-                              <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" minWidth="9rem">
-                              <DropdownMenuItem
-                                onSelect={() => navigate({ to: ROUTES.vaultSettings(vault.id) })}
-                              >
-                                <ActionMenuItemIcon icon={Settings2} />
-                                Settings
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </Box>
-                      </Flex>
-                    </Flex>
-                    {getVaultDescription(vault.description) ? (
-                      <Text mt="2" textStyle="sm" color="fg.muted">
-                        {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
-                      </Text>
-                    ) : null}
-                    <Box mt="auto" pt="4">
-                      <Text fontSize="sm" fontWeight="medium" color="fg.muted">
-                        {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} •{' '}
-                        {formatBytes(vault.totalSize)}
-                      </Text>
-                      <Text mt="1" textStyle="sm">
-                        Created {formatVaultCreatedDate(vault.createdAt)}
-                      </Text>
-                    </Box>
-                  </Stack>
+                <Box
+                  position="absolute"
+                  top="3"
+                  right="3"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" minWidth="9rem">
+                      <DropdownMenuItem onSelect={() => navigate({ to: ROUTES.vaultSettings(vault.id) })}>
+                        <ActionMenuItemIcon icon={Settings2} />
+                        Settings
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </Box>
+
+                <Flex boxSize="16" align="center" justify="center" color="teal.fg">
+                  <FolderKanban size={48} strokeWidth={1.7} />
                 </Flex>
-              </Box>
+                <Text mt="4" maxW="full" truncate fontSize="md" fontWeight="semibold" color="fg">
+                  {vault.name}
+                </Text>
+                {getVaultDescription(vault.description) ? (
+                  <Text mt="1" maxW="full" truncate fontSize="sm" color="fg.muted">
+                    {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
+                  </Text>
+                ) : null}
+                <Text mt="3" fontSize="sm" color="fg.muted">
+                  {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
+                </Text>
+              </Flex>
             ))}
           </Grid>
+        ) : (
+          <Stack gap="0" borderTopWidth={vaults.length > 0 ? '1px' : '0'} borderColor="border.subtle">
+            {vaults.map((vault) => (
+              <Flex
+                key={vault.id}
+                as="article"
+                role="link"
+                tabIndex={0}
+                align="center"
+                gap="4"
+                minH="4.5rem"
+                cursor="pointer"
+                borderBottomWidth="1px"
+                borderColor="border.subtle"
+                bg="bg.workspace"
+                px="3"
+                py="3"
+                transition="background-color 0.15s ease, border-color 0.15s ease"
+                _hover={{ bg: 'bg.workspaceMuted' }}
+                _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
+                onClick={() => navigate({ to: ROUTES.vaultRoot(vault.id) })}
+                onContextMenu={(event) => openContextMenu(event, vault)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    navigate({ to: ROUTES.vaultRoot(vault.id) });
+                  }
+                }}
+              >
+                <Flex boxSize="10" shrink="0" align="center" justify="center" color="teal.fg">
+                  <FolderKanban size={24} strokeWidth={1.8} />
+                </Flex>
+
+                <Stack minW="0" flex="1" gap="1">
+                  <Flex align="center" gap="3" minW="0">
+                    <Text truncate fontSize="md" fontWeight="semibold" color="fg">
+                      {vault.name}
+                    </Text>
+                    <Flex
+                      display={{ base: 'none', sm: 'inline-flex' }}
+                      align="center"
+                      gap="1.5"
+                      rounded="md"
+                      borderWidth="1px"
+                      borderColor="border.subtle"
+                      bg="bg.workspaceMuted"
+                      px="2.5"
+                      py="1"
+                      fontSize="xs"
+                      fontWeight="medium"
+                      color="fg.muted"
+                      shrink="0"
+                    >
+                      {formatVaultRole(vault.role)}
+                    </Flex>
+                  </Flex>
+                  {getVaultDescription(vault.description) ? (
+                    <Text truncate fontSize="sm" color="fg.muted">
+                      {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
+                    </Text>
+                  ) : null}
+                </Stack>
+
+                <Flex
+                  display={{ base: 'none', md: 'flex' }}
+                  direction="column"
+                  align="flex-start"
+                  w="11rem"
+                  shrink="0"
+                  color="fg.muted"
+                >
+                  <Text fontSize="sm" fontWeight="medium">
+                    {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
+                  </Text>
+                  <Text mt="1" fontSize="sm">
+                    Created {formatVaultCreatedDate(vault.createdAt)}
+                  </Text>
+                </Flex>
+
+                <Box
+                  position="relative"
+                  flexShrink="0"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" minWidth="9rem">
+                      <DropdownMenuItem
+                        onSelect={() => navigate({ to: ROUTES.vaultSettings(vault.id) })}
+                      >
+                        <ActionMenuItemIcon icon={Settings2} />
+                        Settings
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </Box>
+              </Flex>
+            ))}
+          </Stack>
         )}
-      </SurfacePanel>
+      </Box>
 
       <ChakraDialog.Root
         open={isCreateModalOpen}

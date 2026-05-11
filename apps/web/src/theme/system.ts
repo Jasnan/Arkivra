@@ -22,11 +22,27 @@ const config = defineConfig({
         // Background surfaces
         bg: {
           canvas: {
-            value: { base: '#f5f7f8', _dark: '#0b0d12' },
+            value: { base: '#ffffff', _dark: '#0b0d12' },
           },
 
           surface: {
             value: { base: '#ffffff', _dark: '#11141b' },
+          },
+
+          rail: {
+            value: { base: '#f2f3f5', _dark: '#0f1117' },
+          },
+
+          sidebar: {
+            value: { base: '#ffffff', _dark: '#11141b' },
+          },
+
+          workspace: {
+            value: { base: '#ffffff', _dark: '#0b0d12' },
+          },
+
+          workspaceMuted: {
+            value: { base: '#fafafa', _dark: '#10131a' },
           },
 
           elevated: {

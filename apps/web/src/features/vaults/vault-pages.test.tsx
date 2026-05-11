@@ -41,7 +41,7 @@ describe('vault pages', () => {
 
     await renderWithProviders(<VaultsPage />);
 
-    expect(await screen.findByRole('heading', { name: 'Personal' })).toBeInTheDocument();
+    expect(await screen.findByText('Personal')).toBeInTheDocument();
     expect(screen.getByText('Household records')).toBeInTheDocument();
     expect(screen.getByText(/3 files/i)).toBeInTheDocument();
 

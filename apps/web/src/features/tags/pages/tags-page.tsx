@@ -286,12 +286,14 @@ export function TagsPage() {
     const target = focusRestoreTargetRef.current;
     focusRestoreTargetRef.current = null;
     if (target) {
-      requestAnimationFrame(() => target.focus());
+      requestAnimationFrame(() => {
+        setTimeout(() => target.focus(), 80);
+      });
     }
   }
 
-  function openCreateDialog() {
-    rememberFocusTarget(createButtonRef.current);
+  function openCreateDialog(trigger?: HTMLButtonElement | null) {
+    rememberFocusTarget(trigger ?? createButtonRef.current);
     setDialogMode('create');
     setEditingTagId(null);
     setFormVaultId(scopedVaultId ?? vaults[0]?.id ?? '');
@@ -452,7 +454,7 @@ export function TagsPage() {
             <CreateButton
               ref={createButtonRef}
               type="button"
-              onClick={openCreateDialog}
+              onClick={(event) => openCreateDialog(event.currentTarget)}
               disabled={vaultsQuery.isLoading || vaults.length === 0}
             >
               Create tag

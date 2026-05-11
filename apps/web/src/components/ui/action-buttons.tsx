@@ -1,19 +1,23 @@
+import { forwardRef } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { ArchiveRestore, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-type ActionButtonProps = Omit<ComponentProps<typeof Button>, 'children'> & {
+type ActionButtonProps = Omit<ComponentProps<typeof Button>, 'children' | 'ref'> & {
   children: ReactNode;
 };
 
-export function CreateButton({ children, className, ...props }: ActionButtonProps) {
+export const CreateButton = forwardRef<HTMLButtonElement, ActionButtonProps>(function CreateButton(
+  { children, className, ...props },
+  ref,
+) {
   return (
-    <Button className={className} {...props}>
+    <Button ref={ref} className={className} {...props}>
       <Plus className="size-4" />
       {children}
     </Button>
   );
-}
+});
 
 export function SaveButton({ children, className, ...props }: ActionButtonProps) {
   return (

@@ -1,8 +1,8 @@
-import type { FormEvent } from 'react';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
-import { File, Folder, FolderPlus, Grid3X3, Home, List, Trash2, Upload } from 'lucide-react';
+import { Download, Eye, File, Folder, FolderPlus, Grid3X3, Home, Info, List, MoveRight, Pencil, Tags, Trash2, Upload } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getDocumentDownloadUrl, softDeleteDocument } from '@/features/documents/documents.api';
+import { getDocumentDownloadUrl, moveDocument, renameDocument, softDeleteDocument } from '@/features/documents/documents.api';
 import { formatBytes } from '@/features/documents/documents.utils';
 import {
   DocumentLibraryTable,
@@ -48,13 +48,15 @@ import {
 } from '@/features/documents/components/document-search-controls';
 import { documentQueryKeys, useDocumentsQuery } from '@/features/documents/documents.queries';
 import type { DocumentSummary } from '@/features/documents/documents.types';
-import { createFolder } from '@/features/file-browser/file-browser.api';
-import { fileBrowserQueryKeys, useFolderItemsQuery } from '@/features/file-browser/file-browser.queries';
-import type { FolderSummary } from '@/features/file-browser/file-browser.types';
+import { createFolder, moveFolder, renameFolder, softDeleteFolder } from '@/features/file-browser/file-browser.api';
+import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import type { FolderSummary, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 import { searchQueryKeys, useVaultSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useTagsQuery } from '@/features/tags/tags.queries';
+import { useVaultQuery } from '@/features/vaults/vaults.queries';
+import type { VaultMemberPermission } from '@/features/vaults/vaults.types';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 
 const PAGE_SIZE = 8;
@@ -75,7 +77,28 @@ interface BrowserFolderItem {
   type: 'folder';
   folder: FolderSummary;
 }
+interface BrowserRootItem {
+  type: 'root';
+  vaultId: string;
+}
 type BrowserItem = BrowserFolderItem | BrowserDocumentItem;
+type BrowserContextItem = BrowserItem | BrowserRootItem;
+type BrowserActionTone = 'default' | 'destructive';
+type BrowserAction = {
+  key: string;
+  label: string;
+  icon: typeof Eye;
+  tone?: BrowserActionTone;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+type ItemDialogTarget = BrowserItem | null;
+type InfoDialogTarget = BrowserContextItem | null;
+type ContextMenuState = {
+  item: BrowserContextItem;
+  x: number;
+  y: number;
+} | null;
 
 function getInitialBrowserView(): FileBrowserView {
   if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
@@ -129,8 +152,32 @@ function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: stri
   return 'FILE';
 }
 
-function getItemName(item: BrowserItem) {
+function getItemName(item: BrowserContextItem) {
+  if (item.type === 'root') {
+    return 'Vault root';
+  }
+
   return item.type === 'folder' ? item.folder.name : item.document.name;
+}
+
+function getItemKey(item: BrowserItem) {
+  return item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`;
+}
+
+function getItemId(item: BrowserContextItem) {
+  if (item.type === 'root') {
+    return item.vaultId;
+  }
+
+  return item.type === 'folder' ? item.folder.id : item.document.id;
+}
+
+function getItemKindLabel(item: BrowserContextItem) {
+  if (item.type === 'root') {
+    return 'Folder';
+  }
+
+  return item.type === 'folder' ? 'Folder' : getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
 }
 
 function FileBrowserIcon({ item }: { item: BrowserItem }) {
@@ -160,17 +207,19 @@ function FolderBreadcrumbs({
   currentFolderId,
   breadcrumbs,
   onNavigateFolder,
+  onOpenRootContextMenu,
 }: {
   currentFolderId: string | null;
   breadcrumbs: Array<{ id: string; name: string }>;
   onNavigateFolder: (folderId: string | null) => void;
+  onOpenRootContextMenu: (event: MouseEvent<HTMLElement>) => void;
 }) {
   return (
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
           {currentFolderId === null ? (
-            <BreadcrumbPage display="inline-flex" alignItems="center" gap="1.5">
+            <BreadcrumbPage display="inline-flex" alignItems="center" gap="1.5" onContextMenu={onOpenRootContextMenu}>
               <Home size={14} />
               Root
             </BreadcrumbPage>
@@ -182,6 +231,7 @@ function FolderBreadcrumbs({
               alignItems="center"
               gap="1.5"
               onClick={() => onNavigateFolder(null)}
+              onContextMenu={onOpenRootContextMenu}
             >
               <Home size={14} />
               Root
@@ -210,36 +260,145 @@ function FolderBreadcrumbs({
   );
 }
 
-function DocumentItemActions({
-  document,
-  onDeleteDocument,
+function BrowserItemActions({
+  item,
+  actions,
   disabled,
 }: {
-  document: DocumentSummary;
-  onDeleteDocument: (document: DocumentSummary) => void;
+  item: BrowserItem;
+  actions: BrowserAction[];
   disabled?: boolean;
 }) {
+  const availableActions = actions.filter(action => !action.disabled);
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <ActionMenuTriggerButton
-          label={`Open actions for ${document.name}`}
-          disabled={disabled}
+          label={`Open actions for ${getItemName(item)}`}
+          disabled={disabled || availableActions.length === 0}
           onClick={(event) => event.stopPropagation()}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" minW="48">
-        <DropdownMenuItem
-          value="move-to-trash"
-          color="fg.error"
-          onClick={(event) => event.stopPropagation()}
-          onSelect={() => onDeleteDocument(document)}
-        >
-          <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-          Move to trash
-        </DropdownMenuItem>
+        {availableActions.map((action) => (
+          <DropdownMenuItem
+            key={action.key}
+            value={action.key}
+            color={action.tone === 'destructive' ? 'fg.error' : undefined}
+            onClick={(event) => event.stopPropagation()}
+            onSelect={action.onSelect}
+          >
+            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+            {action.label}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function BrowserContextMenu({
+  state,
+  actions,
+  onClose,
+}: {
+  state: Exclude<ContextMenuState, null>;
+  actions: BrowserAction[];
+  onClose: () => void;
+}) {
+  const availableActions = actions.filter(action => !action.disabled);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    function closeOnOutsideContextMenu(event: globalThis.MouseEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, { capture: true });
+    window.document.addEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+    window.document.addEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onClose, { capture: true });
+      window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+    };
+  }, [onClose]);
+
+  return (
+    <Portal>
+      <Box
+        ref={menuRef}
+        role="menu"
+        aria-label={`Actions for ${getItemName(state.item)}`}
+        position="fixed"
+        zIndex="popover"
+        minW="13rem"
+        left={`${state.x}px`}
+        top={`${state.y}px`}
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.surface"
+        p="1.5"
+        shadow="xl"
+        onClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        {availableActions.map((action) => (
+          <chakra.button
+            key={action.key}
+            type="button"
+            role="menuitem"
+            display="flex"
+            w="full"
+            alignItems="center"
+            gap="3"
+            rounded="md"
+            px="3"
+            py="2"
+            textAlign="left"
+            fontSize="sm"
+            fontWeight="medium"
+            color={action.tone === 'destructive' ? 'fg.error' : 'fg.muted'}
+            _hover={{ bg: 'bg.subtle', color: action.tone === 'destructive' ? 'fg.error' : 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+            onClick={() => {
+              onClose();
+              window.setTimeout(action.onSelect, 0);
+            }}
+          >
+            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+            {action.label}
+          </chakra.button>
+        ))}
+      </Box>
+    </Portal>
   );
 }
 
@@ -247,14 +406,16 @@ function BrowserItemList({
   items,
   vaultId,
   onOpenFolder,
-  onDeleteDocument,
-  isDeleting,
+  getItemActions,
+  onOpenContextMenu,
+  isMutating,
 }: {
   items: BrowserItem[];
   vaultId: string;
   onOpenFolder: (folderId: string) => void;
-  onDeleteDocument: (document: DocumentSummary) => void;
-  isDeleting?: boolean;
+  getItemActions: (item: BrowserItem) => BrowserAction[];
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
+  isMutating?: boolean;
 }) {
   return (
     <SurfacePanel overflow="hidden" p="0">
@@ -278,15 +439,21 @@ function BrowserItemList({
       {items.map((item) => {
         const name = getItemName(item);
         const updatedAt = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
+        const actions = getItemActions(item);
 
         return (
-          <Box key={item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`} borderBottomWidth="1px" borderColor="border.subtle" _last={{ borderBottomWidth: 0 }}>
+          <Box
+            key={getItemKey(item)}
+            borderBottomWidth="1px"
+            borderColor="border.subtle"
+            _last={{ borderBottomWidth: 0 }}
+            onContextMenu={(event) => onOpenContextMenu(event, item)}
+          >
             {item.type === 'folder' ? (
-              <chakra.button
-                type="button"
+              <Grid
                 display="grid"
                 w="full"
-                gridTemplateColumns={{ base: '1fr', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
+                gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
                 gap="4"
                 alignItems="center"
                 px="6"
@@ -294,21 +461,28 @@ function BrowserItemList({
                 textAlign="left"
                 transition="background-color 0.15s ease"
                 _hover={{ bg: 'bg.subtle' }}
-                onClick={() => onOpenFolder(item.folder.id)}
               >
-                <Flex minW="0" align="center" gap="3">
-                  <FileBrowserIcon item={item} />
-                  <Box minW="0">
-                    <Text truncate fontWeight="semibold" color="fg">{name}</Text>
-                    <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
-                      Folder • Updated {formatDateOnly(updatedAt)}
-                    </Text>
-                  </Box>
-                </Flex>
+                <chakra.button
+                  type="button"
+                  minW="0"
+                  textAlign="left"
+                  aria-label={`Open folder ${item.folder.name}`}
+                  onClick={() => onOpenFolder(item.folder.id)}
+                >
+                  <Flex minW="0" align="center" gap="3">
+                    <FileBrowserIcon item={item} />
+                    <Box minW="0">
+                      <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                      <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
+                        Folder • Updated {formatDateOnly(updatedAt)}
+                      </Text>
+                    </Box>
+                  </Flex>
+                </chakra.button>
                 <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
                 <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
-                <Box display={{ base: 'none', md: 'block' }} />
-              </chakra.button>
+                <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
+              </Grid>
             ) : (
               <Grid
                 templateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 140px 132px 44px' }}
@@ -338,10 +512,10 @@ function BrowserItemList({
                 <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
                   <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
                 </Link>
-                <DocumentItemActions
-                  document={item.document}
-                  disabled={isDeleting}
-                  onDeleteDocument={onDeleteDocument}
+                <BrowserItemActions
+                  item={item}
+                  actions={actions}
+                  disabled={isMutating}
                 />
               </Grid>
             )}
@@ -356,25 +530,35 @@ function BrowserItemGrid({
   items,
   vaultId,
   onOpenFolder,
-  onDeleteDocument,
-  isDeleting,
+  getItemActions,
+  onOpenContextMenu,
+  isMutating,
 }: {
   items: BrowserItem[];
   vaultId: string;
   onOpenFolder: (folderId: string) => void;
-  onDeleteDocument: (document: DocumentSummary) => void;
-  isDeleting?: boolean;
+  getItemActions: (item: BrowserItem) => BrowserAction[];
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
+  isMutating?: boolean;
 }) {
   return (
     <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} gap="3">
       {items.map((item) => {
         const name = getItemName(item);
-        const key = item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`;
+        const key = getItemKey(item);
+        const actions = getItemActions(item);
         const body = item.type === 'folder' ? (
           <SurfacePanel h="full" p="4" transition="background-color 0.15s ease, border-color 0.15s ease" _hover={{ bg: 'bg.subtle', borderColor: 'border' }}>
             <Stack minH="8.5rem" justify="space-between" gap="4">
               <Stack gap="3">
-                <FileBrowserIcon item={item} />
+                <Flex align="flex-start" justify="space-between" gap="3">
+                  <FileBrowserIcon item={item} />
+                  <BrowserItemActions
+                    item={item}
+                    actions={actions}
+                    disabled={isMutating}
+                  />
+                </Flex>
                 <Box minW="0">
                   <Text truncate fontWeight="semibold" color="fg">{name}</Text>
                   <Text mt="1" textStyle="xs" color="fg.muted">
@@ -393,10 +577,10 @@ function BrowserItemGrid({
               <Stack gap="3">
                 <Flex align="flex-start" justify="space-between" gap="3">
                   <FileBrowserIcon item={item} />
-                  <DocumentItemActions
-                    document={item.document}
-                    disabled={isDeleting}
-                    onDeleteDocument={onDeleteDocument}
+                  <BrowserItemActions
+                    item={item}
+                    actions={actions}
+                    disabled={isMutating}
                   />
                 </Flex>
                 <Link to={ROUTES.vaultDocument(vaultId, item.document.id)} style={{ color: 'inherit', textDecoration: 'none' }}>
@@ -416,16 +600,309 @@ function BrowserItemGrid({
         );
 
         return item.type === 'folder' ? (
-          <chakra.button key={key} type="button" textAlign="left" onClick={() => onOpenFolder(item.folder.id)}>
+          <Box
+            key={key}
+            role="button"
+            tabIndex={0}
+            aria-label={`Open folder ${item.folder.name}`}
+            textAlign="left"
+            cursor="pointer"
+            onClick={() => onOpenFolder(item.folder.id)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onOpenFolder(item.folder.id);
+              }
+            }}
+            onContextMenu={(event) => onOpenContextMenu(event, item)}
+          >
             {body}
-          </chakra.button>
+          </Box>
         ) : (
-          <Box key={key}>{body}</Box>
+          <Box key={key} onContextMenu={(event) => onOpenContextMenu(event, item)}>
+            {body}
+          </Box>
         );
       })}
     </SimpleGrid>
   );
 }
+
+function hasVaultPermission({
+  vault,
+  permission,
+}: {
+  vault: { role: 'owner' | 'member' | null; permissions: VaultMemberPermission[]; isGlobalAdmin: boolean } | null | undefined;
+  permission: VaultMemberPermission;
+}) {
+  return Boolean(
+    vault?.isGlobalAdmin
+    || vault?.role === 'owner'
+    || vault?.permissions.includes(permission),
+  );
+}
+
+function isFolderDescendant({
+  folders,
+  folderId,
+  candidateId,
+}: {
+  folders: FolderTreeEntry[];
+  folderId: string;
+  candidateId: string;
+}) {
+  const byId = new Map(folders.map(folder => [folder.id, folder]));
+  let current = byId.get(candidateId) ?? null;
+  const seen = new Set<string>();
+
+  while (current !== null) {
+    if (current.id === folderId) {
+      return true;
+    }
+
+    if (current.parentId === null || seen.has(current.id)) {
+      return false;
+    }
+
+    seen.add(current.id);
+    current = byId.get(current.parentId) ?? null;
+  }
+
+  return false;
+}
+
+function getMoveDestinations({
+  folders,
+  target,
+}: {
+  folders: FolderTreeEntry[];
+  target: ItemDialogTarget;
+}) {
+  const allowedFolders = target?.type === 'folder'
+    ? folders.filter(folder =>
+        folder.id !== target.folder.id
+        && !isFolderDescendant({ folders, folderId: target.folder.id, candidateId: folder.id }),
+      )
+    : folders;
+
+  return [
+    { id: null, label: 'Vault root' },
+    ...allowedFolders.map(folder => ({
+      id: folder.id,
+      label: folder.path,
+    })),
+  ];
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Grid templateColumns="8rem minmax(0, 1fr)" gap="4" alignItems="start">
+      <Text fontSize="sm" color="fg.muted">{label}</Text>
+      <Text minW="0" fontSize="sm" color="fg" wordBreak="break-word">{value}</Text>
+    </Grid>
+  );
+}
+
+function RenameItemDialog({
+  target,
+  value,
+  isPending,
+  onValueChange,
+  onClose,
+  onSubmit,
+}: {
+  target: ItemDialogTarget;
+  value: string;
+  isPending: boolean;
+  onValueChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  if (target === null) {
+    return null;
+  }
+
+  return (
+    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>{`Rename ${target.type}`}</ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <chakra.form id="rename-item-form" display="flex" flexDirection="column" gap="4" onSubmit={onSubmit}>
+                <chakra.label htmlFor="rename-item-name" fontSize="sm" fontWeight="medium" color="fg">
+                  Name
+                </chakra.label>
+                <Input
+                  id="rename-item-name"
+                  autoFocus
+                  value={value}
+                  maxLength={255}
+                  onChange={(event) => onValueChange(event.target.value)}
+                />
+              </chakra.form>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <ChakraDialog.ActionTrigger asChild>
+                <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+                  Cancel
+                </Button>
+              </ChakraDialog.ActionTrigger>
+              <Button type="submit" form="rename-item-form" disabled={value.trim().length === 0 || isPending}>
+                {isPending ? 'Renaming...' : 'Rename'}
+              </Button>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
+  );
+}
+
+function MoveItemDialog({
+  target,
+  value,
+  destinations,
+  isPending,
+  isLoading,
+  onValueChange,
+  onClose,
+  onSubmit,
+}: {
+  target: ItemDialogTarget;
+  value: string | null;
+  destinations: Array<{ id: string | null; label: string }>;
+  isPending: boolean;
+  isLoading: boolean;
+  onValueChange: (value: string | null) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  if (target === null) {
+    return null;
+  }
+
+  const currentDestinationId = target.type === 'folder' ? target.folder.parentId : target.document.folderId;
+
+  return (
+    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>{`Move ${getItemName(target)}`}</ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <chakra.form id="move-item-form" display="flex" flexDirection="column" gap="4" onSubmit={onSubmit}>
+                <chakra.label htmlFor="move-item-destination" fontSize="sm" fontWeight="medium" color="fg">
+                  Destination
+                </chakra.label>
+                <Select
+                  value={value ?? '__root__'}
+                  onValueChange={(nextValue) => onValueChange(nextValue === '__root__' ? null : nextValue)}
+                >
+                  <SelectTrigger id="move-item-destination" aria-label="Destination" disabled={isLoading || isPending}>
+                    <SelectValue placeholder="Choose a folder" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {destinations.map((destination) => (
+                      <SelectItem key={destination.id ?? '__root__'} value={destination.id ?? '__root__'}>
+                        {destination.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </chakra.form>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <ChakraDialog.ActionTrigger asChild>
+                <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+                  Cancel
+                </Button>
+              </ChakraDialog.ActionTrigger>
+              <Button
+                type="submit"
+                form="move-item-form"
+                disabled={isLoading || isPending || value === currentDestinationId}
+              >
+                {isPending ? 'Moving...' : 'Move'}
+              </Button>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
+  );
+}
+
+function ItemInfoDialog({
+  target,
+  folderPath,
+  onClose,
+}: {
+  target: InfoDialogTarget;
+  folderPath: string;
+  onClose: () => void;
+}) {
+  if (target === null) {
+    return null;
+  }
+
+  return (
+    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>Info</ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <Stack gap="3">
+                <InfoRow label="Name" value={getItemName(target)} />
+                <InfoRow label="Type" value={getItemKindLabel(target)} />
+                {target.type !== 'root' ? <InfoRow label="Location" value={folderPath} /> : null}
+                {target.type === 'document' ? (
+                  <>
+                    <InfoRow label="Size" value={formatBytes(target.document.originalSize)} />
+                    <InfoRow label="Original file" value={target.document.originalName} />
+                    <InfoRow label="MIME type" value={target.document.mimeType} />
+                  </>
+                ) : null}
+                {target.type !== 'root' ? (
+                  <>
+                    <InfoRow label="Created" value={formatDateOnly(target.type === 'folder' ? target.folder.createdAt : target.document.createdAt)} />
+                    <InfoRow label="Updated" value={formatDateOnly(target.type === 'folder' ? target.folder.updatedAt : target.document.updatedAt)} />
+                  </>
+                ) : null}
+                <InfoRow label={target.type === 'root' ? 'Vault ID' : 'ID'} value={getItemId(target)} />
+              </Stack>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <Button type="button" onClick={onClose}>
+                Close
+              </Button>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
+  );
+}
+
 function toInputDateValue(value: Date) {
   const year = value.getFullYear();
   const month = `${value.getMonth() + 1}`.padStart(2, '0');
@@ -510,7 +987,14 @@ export function DocumentsPage() {
   const [selectedDocumentKeys, setSelectedDocumentKeys] = useState<string[]>([]);
   const [browserView, setBrowserView] = useState<FileBrowserView>(getInitialBrowserView);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
+  const [renameTarget, setRenameTarget] = useState<ItemDialogTarget>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [moveTarget, setMoveTarget] = useState<ItemDialogTarget>(null);
+  const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
+  const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const debouncedSearchText = useDebouncedValue(searchText.trim(), 280);
   const appliedDateRange = useMemo(() => {
     if (datePreset === 'custom') {
@@ -528,6 +1012,11 @@ export function DocumentsPage() {
     folderId: currentFolderId,
     enabled: debouncedSearchText.length === 0,
   });
+  const folderTreeQuery = useFolderTreeQuery({
+    vaultId,
+    enabled: moveTarget !== null || infoTarget?.type === 'folder' || (infoTarget?.type === 'document' && infoTarget.document.folderId !== null),
+  });
+  const vaultQuery = useVaultQuery({ vaultId });
   const documentsQuery = useDocumentsQuery({
     vaultId,
     tagId: selectedTagId || undefined,
@@ -574,17 +1063,76 @@ export function DocumentsPage() {
   const createFolderMutation = useMutation({
     mutationFn: () => createFolder({
       vaultId,
-      parentId: currentFolderId,
+      parentId: createFolderParentId,
       name: folderName,
     }),
     onSuccess: async () => {
       toast.success('Folder created.');
       setFolderName('');
+      setCreateFolderParentId(null);
       setIsCreateFolderOpen(false);
       await queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not create folder.');
+    },
+  });
+  const renameMutation = useMutation({
+    mutationFn: async ({ target, name }: { target: BrowserItem; name: string }) => {
+      if (target.type === 'folder') {
+        return renameFolder({ vaultId, folderId: target.folder.id, name });
+      }
+
+      return renameDocument({ vaultId, documentId: target.document.id, name });
+    },
+    onSuccess: async (_data, variables) => {
+      toast.success(`${variables.target.type === 'folder' ? 'Folder' : 'Document'} renamed.`);
+      setRenameTarget(null);
+      setRenameValue('');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not rename item.');
+    },
+  });
+  const moveMutation = useMutation({
+    mutationFn: async ({ target, destinationId }: { target: BrowserItem; destinationId: string | null }) => {
+      if (target.type === 'folder') {
+        return moveFolder({ vaultId, folderId: target.folder.id, parentId: destinationId });
+      }
+
+      return moveDocument({ vaultId, documentId: target.document.id, folderId: destinationId });
+    },
+    onSuccess: async (_data, variables) => {
+      toast.success(`${variables.target.type === 'folder' ? 'Folder' : 'Document'} moved.`);
+      setMoveTarget(null);
+      setMoveDestinationId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not move item.');
+    },
+  });
+  const deleteFolderMutation = useMutation({
+    mutationFn: (folder: FolderSummary) => softDeleteFolder({ vaultId, folderId: folder.id }),
+    onSuccess: async () => {
+      toast.success('Folder moved to trash.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not delete folder.');
     },
   });
 
@@ -750,6 +1298,38 @@ export function DocumentsPage() {
     !activeIsLoading &&
     !activeIsError &&
     (usingSearch ? (searchQuery.data?.results.length ?? 0) === 0 : browserItems.length === 0);
+  const canUpdateItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.update' });
+  const canDeleteItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.delete' });
+  const canDownloadItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.download' });
+  const canManageTags = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'tags.manage' });
+  const canCreateItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.create' });
+  const itemMutationPending = deleteMutation.isPending
+    || deleteFolderMutation.isPending
+    || renameMutation.isPending
+    || moveMutation.isPending;
+  const moveDestinations = useMemo(
+    () => getMoveDestinations({ folders: folderTreeQuery.data?.folders ?? [], target: moveTarget }),
+    [folderTreeQuery.data?.folders, moveTarget],
+  );
+  const infoFolderPath = useMemo(() => {
+    if (infoTarget === null) {
+      return 'Vault root';
+    }
+
+    if (infoTarget.type === 'root') {
+      return 'Vault root';
+    }
+
+    if (infoTarget.type === 'document') {
+      if (infoTarget.document.folderId === null) {
+        return 'Vault root';
+      }
+
+      return folderTreeQuery.data?.folders.find(folder => folder.id === infoTarget.document.folderId)?.path ?? 'Folder';
+    }
+
+    return folderTreeQuery.data?.folders.find(folder => folder.id === infoTarget.folder.id)?.path ?? 'Folder';
+  }, [folderTreeQuery.data?.folders, infoTarget]);
 
   useEffect(() => {
     async function handleUploadCompleted(event: Event) {
@@ -835,6 +1415,141 @@ export function DocumentsPage() {
     deleteMutation.mutate([{ vaultId, documentId: document.id }]);
   }
 
+  function openCreateFolderDialog(parentId: string | null) {
+    setCreateFolderParentId(parentId);
+    setIsCreateFolderOpen(true);
+  }
+
+  function openItem(item: BrowserContextItem) {
+    if (item.type === 'root') {
+      navigateToFolder(null);
+      return;
+    }
+
+    if (item.type === 'folder') {
+      navigateToFolder(item.folder.id);
+      return;
+    }
+
+    void navigate({ to: ROUTES.vaultDocument(vaultId, item.document.id) } as any);
+  }
+
+  function openRenameDialog(item: BrowserItem) {
+    setContextMenu(null);
+    setRenameTarget(item);
+    setRenameValue(getItemName(item));
+  }
+
+  function openMoveDialog(item: BrowserItem) {
+    setContextMenu(null);
+    setMoveTarget(item);
+    setMoveDestinationId(item.type === 'folder' ? item.folder.parentId : item.document.folderId);
+  }
+
+  function openInfoDialog(item: BrowserContextItem) {
+    setContextMenu(null);
+    setInfoTarget(item);
+  }
+
+  function openContextMenu(event: MouseEvent<HTMLElement>, item: BrowserContextItem) {
+    const actions = getItemActions(item).filter(action => !action.disabled);
+
+    if (actions.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      item,
+      x: Math.min(event.clientX, window.innerWidth - 224),
+      y: Math.min(event.clientY, window.innerHeight - 320),
+    });
+  }
+
+  function getItemActions(item: BrowserContextItem): BrowserAction[] {
+    if (item.type === 'root') {
+      return [
+        { key: 'open', label: 'Open root', icon: Home, disabled: currentFolderId === null, onSelect: () => openItem(item) },
+        { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(null) },
+        {
+          key: 'upload',
+          label: 'Upload',
+          icon: Upload,
+          disabled: !canCreateItems,
+          onSelect: () => void navigate({ to: ROUTES.transfersWithLock(vaultId, null) } as any),
+        },
+        { key: 'info', label: 'Info', icon: Info, onSelect: () => openInfoDialog(item) },
+      ];
+    }
+
+    if (item.type === 'folder') {
+      return [
+        { key: 'open', label: 'Open', icon: Folder, onSelect: () => openItem(item) },
+        { key: 'rename', label: 'Rename', icon: Pencil, disabled: !canUpdateItems, onSelect: () => openRenameDialog(item) },
+        { key: 'move', label: 'Move to', icon: MoveRight, disabled: !canUpdateItems, onSelect: () => openMoveDialog(item) },
+        { key: 'info', label: 'Info', icon: Info, onSelect: () => openInfoDialog(item) },
+        {
+          key: 'trash',
+          label: 'Move to trash',
+          icon: Trash2,
+          tone: 'destructive',
+          disabled: !canDeleteItems || deleteFolderMutation.isPending,
+          onSelect: () => deleteFolderMutation.mutate(item.folder),
+        },
+      ];
+    }
+
+    return [
+      { key: 'open', label: 'Preview/open', icon: Eye, onSelect: () => openItem(item) },
+      {
+        key: 'download',
+        label: 'Download',
+        icon: Download,
+        disabled: !canDownloadItems,
+        onSelect: () => downloadDocuments([{ vaultId, documentId: item.document.id }]),
+      },
+      { key: 'rename', label: 'Rename', icon: Pencil, disabled: !canUpdateItems, onSelect: () => openRenameDialog(item) },
+      { key: 'move', label: 'Move to', icon: MoveRight, disabled: !canUpdateItems, onSelect: () => openMoveDialog(item) },
+      {
+        key: 'tags',
+        label: 'Tags',
+        icon: Tags,
+        disabled: !canManageTags,
+        onSelect: () => void navigate({ to: ROUTES.vaultDocument(vaultId, item.document.id) } as any),
+      },
+      { key: 'info', label: 'Info', icon: Info, onSelect: () => openInfoDialog(item) },
+      {
+        key: 'trash',
+        label: 'Move to trash',
+        icon: Trash2,
+        tone: 'destructive',
+        disabled: !canDeleteItems || deleteMutation.isPending,
+        onSelect: () => deleteDocument(item.document),
+      },
+    ];
+  }
+
+  function handleRenameSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (renameTarget === null || renameValue.trim().length === 0) {
+      return;
+    }
+
+    renameMutation.mutate({ target: renameTarget, name: renameValue });
+  }
+
+  function handleMoveSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (moveTarget === null) {
+      return;
+    }
+
+    moveMutation.mutate({ target: moveTarget, destinationId: moveDestinationId });
+  }
+
   function handleCreateFolderSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (folderName.trim().length === 0) {
@@ -856,7 +1571,7 @@ export function DocumentsPage() {
             <Link to={ROUTES.vaultTags(vaultId)} style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 4, fontSize: '0.875rem', fontWeight: 500 }}>
               Tags
             </Link>
-            <Button type="button" variant="outline" onClick={() => setIsCreateFolderOpen(true)}>
+            <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
               <FolderPlus size={16} />
               New folder
             </Button>
@@ -990,6 +1705,7 @@ export function DocumentsPage() {
             currentFolderId={currentFolderId}
             breadcrumbs={folderItemsQuery.data?.breadcrumbs ?? []}
             onNavigateFolder={navigateToFolder}
+            onOpenRootContextMenu={(event) => openContextMenu(event, { type: 'root', vaultId })}
           />
           <Text fontSize="sm" color="fg.muted">
             {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
@@ -1038,7 +1754,7 @@ export function DocumentsPage() {
           title={usingSearch ? 'No matches' : 'This folder is empty'}
           description={usingSearch ? 'No documents match the current filters.' : 'Create a folder or upload documents here.'}
           action={!usingSearch ? (
-            <Button type="button" variant="outline" onClick={() => setIsCreateFolderOpen(true)}>
+            <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
               <FolderPlus size={16} />
               New folder
             </Button>
@@ -1062,16 +1778,18 @@ export function DocumentsPage() {
             items={browserItems}
             vaultId={vaultId}
             onOpenFolder={navigateToFolder}
-            onDeleteDocument={deleteDocument}
-            isDeleting={deleteMutation.isPending}
+            getItemActions={getItemActions}
+            onOpenContextMenu={openContextMenu}
+            isMutating={itemMutationPending}
           />
         ) : (
           <BrowserItemGrid
             items={browserItems}
             vaultId={vaultId}
             onOpenFolder={navigateToFolder}
-            onDeleteDocument={deleteDocument}
-            isDeleting={deleteMutation.isPending}
+            getItemActions={getItemActions}
+            onOpenContextMenu={openContextMenu}
+            isMutating={itemMutationPending}
           />
         )
       ) : null}
@@ -1108,6 +1826,7 @@ export function DocumentsPage() {
           setIsCreateFolderOpen(event.open);
           if (!event.open) {
             setFolderName('');
+            setCreateFolderParentId(null);
           }
         }}
         size={{ mdDown: 'full', md: 'md' }}
@@ -1151,6 +1870,46 @@ export function DocumentsPage() {
           </ChakraDialog.Positioner>
         </Portal>
       </ChakraDialog.Root>
+
+      <RenameItemDialog
+        target={renameTarget}
+        value={renameValue}
+        isPending={renameMutation.isPending}
+        onValueChange={setRenameValue}
+        onClose={() => {
+          setRenameTarget(null);
+          setRenameValue('');
+        }}
+        onSubmit={handleRenameSubmit}
+      />
+
+      <MoveItemDialog
+        target={moveTarget}
+        value={moveDestinationId}
+        destinations={moveDestinations}
+        isPending={moveMutation.isPending}
+        isLoading={folderTreeQuery.isLoading}
+        onValueChange={setMoveDestinationId}
+        onClose={() => {
+          setMoveTarget(null);
+          setMoveDestinationId(null);
+        }}
+        onSubmit={handleMoveSubmit}
+      />
+
+      <ItemInfoDialog
+        target={infoTarget}
+        folderPath={infoFolderPath}
+        onClose={() => setInfoTarget(null)}
+      />
+
+      {contextMenu !== null ? (
+        <BrowserContextMenu
+          state={contextMenu}
+          actions={getItemActions(contextMenu.item)}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
 
       <ActionBar.Root open={selectedDocuments.length > 0}>
         <Portal>

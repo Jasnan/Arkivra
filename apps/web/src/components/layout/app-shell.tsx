@@ -367,6 +367,7 @@ function SecondarySidebar({
   kind,
   activeVaultId,
   currentFolderId,
+  currentDocumentId,
   customContent,
   canCreateVault,
   onCreateVault,
@@ -375,6 +376,7 @@ function SecondarySidebar({
   kind: 'vault' | 'chat' | 'standard';
   activeVaultId?: string | null;
   currentFolderId: string | null;
+  currentDocumentId?: string | null;
   customContent: ReactNode | null;
   canCreateVault?: boolean;
   onCreateVault?: () => void;
@@ -456,7 +458,9 @@ function SecondarySidebar({
                   vaults={vaults}
                   activeVaultId={activeVaultId}
                   currentFolderId={currentFolderId}
+                  currentDocumentId={currentDocumentId}
                   folders={folderTreeQuery.data?.folders ?? []}
+                  documents={folderTreeQuery.data?.documents ?? []}
                 />
               </Box>
               <Box flexShrink={0} borderTopWidth="1px" borderColor="border.subtle" pt="4">
@@ -830,6 +834,7 @@ export function AppShell() {
             kind={secondaryKind}
             activeVaultId={activeVaultId}
             currentFolderId={currentFolderId}
+            currentDocumentId={activeDocumentRoute?.documentId ?? null}
             customContent={secondaryContent}
             canCreateVault={meQuery.data?.canCreateVault === true}
             onCreateVault={() => setIsCreateVaultOpen(true)}

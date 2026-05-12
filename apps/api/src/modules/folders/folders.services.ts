@@ -357,6 +357,32 @@ export function createFoldersServices({ db }: { db: Database }) {
       .orderBy(asc(vaultFoldersTable.name));
   }
 
+  async function listActiveDocumentsForVault({ vaultId }: { vaultId: string }) {
+    return db
+      .select({
+        id: documentsTable.id,
+        name: documentsTable.name,
+        originalName: documentsTable.originalName,
+        folderId: documentsTable.folderId,
+        originalSize: documentsTable.originalSize,
+        mimeType: documentsTable.mimeType,
+        processingStatus: documentsTable.processingStatus,
+        documentDate: documentsTable.documentDate,
+        createdAt: documentsTable.createdAt,
+        updatedAt: documentsTable.updatedAt,
+        isDeleted: documentsTable.isDeleted,
+        deletedAt: documentsTable.deletedAt,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .orderBy(asc(documentsTable.name), desc(documentsTable.createdAt));
+  }
+
   async function listFoldersForVault({ vaultId }: { vaultId: string }) {
     return db
       .select({
@@ -995,6 +1021,7 @@ export function createFoldersServices({ db }: { db: Database }) {
     createFolder,
     getFolder,
     getFolderAncestors,
+    listActiveDocumentsForVault,
     listFolderItems,
     listActiveFoldersForVault,
     listFolderChildren,

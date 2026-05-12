@@ -44,8 +44,24 @@ function createMockFoldersServices() {
     isDeleted: false,
     deletedAt: null,
   };
+  const nestedDocument = {
+    id: 'doc_2',
+    name: 'Tax Return',
+    originalName: 'tax-return.pdf',
+    folderId: 'fld_tax',
+    originalSize: 2048,
+    mimeType: 'application/pdf',
+    processingStatus: 'completed',
+    documentDate: null,
+    createdAt: new Date('2025-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+    isDeleted: false,
+    deletedAt: null,
+  };
 
   return {
+    listActiveFoldersForVault: vi.fn(async () => [rootFolder, childFolder]),
+    listActiveDocumentsForVault: vi.fn(async () => [document, nestedDocument]),
     listFolderItems: vi.fn(async () => ({
       success: true,
       folder: null,
@@ -183,6 +199,44 @@ describe('folders integration', () => {
       vaultId: 'vlt_1',
       folderId: null,
     });
+  });
+
+  test('lists folder tree entries with active documents for a readable vault', async () => {
+    const folderServices = createMockFoldersServices();
+    const vaultServices = createMockVaultsServices({
+      role: 'member',
+      permissions: ['documents.read'],
+    });
+    const app = createTestApp({ folderServices, vaultServices });
+
+    const response = await app.request('/api/vaults/vlt_1/folders/tree', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.folders).toEqual([
+      { id: 'fld_finance', parentId: null, name: 'Finance', path: 'Finance', depth: 0 },
+      { id: 'fld_tax', parentId: 'fld_finance', name: 'Tax', path: 'Finance/Tax', depth: 1 },
+    ]);
+    expect(body.documents).toEqual([
+      expect.objectContaining({
+        id: 'doc_2',
+        folderId: 'fld_tax',
+        name: 'Tax Return',
+        path: 'Finance/Tax/Tax Return',
+        depth: 2,
+      }),
+      expect.objectContaining({
+        id: 'doc_1',
+        folderId: null,
+        name: 'Report',
+        path: 'Report',
+        depth: 0,
+      }),
+    ]);
+    expect(folderServices.listActiveFoldersForVault).toHaveBeenCalledWith({ vaultId: 'vlt_1' });
+    expect(folderServices.listActiveDocumentsForVault).toHaveBeenCalledWith({ vaultId: 'vlt_1' });
   });
 
   test('creates a folder under the vault root', async () => {

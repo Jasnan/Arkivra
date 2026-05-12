@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
 import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 import { renderWithProviders } from '@/test/utils';
@@ -53,6 +54,44 @@ describe('vault pages', () => {
 
     await user.click(screen.getByRole('button', { name: /vault actions for personal/i }));
     await user.click(screen.getByRole('menuitem', { name: /settings/i }));
+  });
+
+  it('uses the shared app-shell vault tree instead of overriding secondary content', async () => {
+    const setHeaderConfig = vi.fn();
+    const setSecondaryContent = vi.fn();
+
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/vaults') {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner' },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(
+      <WorkspaceLayoutContext value={{ setHeaderConfig, setSecondaryContent }}>
+        <VaultsPage />
+      </WorkspaceLayoutContext>,
+    );
+
+    expect(await screen.findByText('Personal')).toBeInTheDocument();
+    expect(setSecondaryContent).toHaveBeenCalledWith(null);
+    expect(setSecondaryContent.mock.calls.every(([content]) => content === null)).toBe(true);
   });
 
   it('validates and submits vault creation from the vaults modal', async () => {

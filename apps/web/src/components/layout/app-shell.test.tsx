@@ -1,7 +1,9 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Link } from '@tanstack/react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/app-shell';
+import { ROUTES } from '@/app/routes';
 import { renderWithProviders } from '@/test/utils';
 
 const authClientMock = vi.hoisted(() => ({
@@ -165,9 +167,21 @@ describe('app shell account menu', () => {
     );
 
     expect(await screen.findByRole('button', { name: /create vault/i, hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse Vaults', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByRole('link', { name: 'MyDocs', hidden: true })).toHaveAttribute('href', '/vaults/vlt_1');
+    expect(screen.getByRole('button', { name: 'Expand MyDocs', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('link', { name: 'MyFiles', hidden: true })).toHaveAttribute('href', '/vaults/vlt_2');
+    expect(screen.getByRole('button', { name: 'Expand MyFiles', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getAllByRole('link', { name: 'Vaults', hidden: true })).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Vaults', hidden: true }));
+    expect(screen.getByRole('button', { name: 'Expand Vaults', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('link', { name: 'MyDocs', hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'MyFiles', hidden: true })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Vaults', hidden: true }));
     expect(await screen.findByRole('link', { name: 'MyDocs', hidden: true })).toHaveAttribute('href', '/vaults/vlt_1');
     expect(screen.getByRole('link', { name: 'MyFiles', hidden: true })).toHaveAttribute('href', '/vaults/vlt_2');
-    expect(screen.getAllByRole('link', { name: 'Vaults', hidden: true })).toHaveLength(2);
   });
 
   it('keeps all vaults visible and expands the active vault tree', async () => {
@@ -181,7 +195,9 @@ describe('app shell account menu', () => {
 
     expect(await screen.findByRole('button', { name: /create vault/i, hidden: true })).toBeInTheDocument();
     expect(await screen.findByRole('link', { name: 'MyDocs', hidden: true })).toHaveAttribute('href', '/vaults/vlt_1');
+    expect(screen.getByRole('button', { name: 'Collapse MyDocs', hidden: true })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: 'MyFiles', hidden: true })).toHaveAttribute('href', '/vaults/vlt_2');
+    expect(screen.getByRole('button', { name: 'Expand MyFiles', hidden: true })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('link', { name: 'Cloud Drive', hidden: true })).not.toBeInTheDocument();
     expect(await screen.findByRole('link', { name: 'Insurance', hidden: true })).toHaveAttribute(
       'href',
@@ -195,11 +211,11 @@ describe('app shell account menu', () => {
     expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
   });
 
-  it('expands only the selected folder branch in the vault sidebar', async () => {
+  it('reveals the selected nested folder branch in the vault sidebar', async () => {
     await renderWithProviders(
       <AppShell />,
       {
-        initialEntries: ['/vaults/vlt_1?folderId=fld_1'],
+        initialEntries: ['/vaults/vlt_1?folderId=fld_3'],
         routePath: '/vaults/:vaultId',
       },
     );
@@ -208,15 +224,142 @@ describe('app shell account menu', () => {
       'href',
       '/vaults/vlt_1?folderId=fld_1',
     );
-    expect(screen.getByRole('link', { name: 'Invoices', hidden: true })).toHaveAttribute(
-      'href',
-      '/vaults/vlt_1?folderId=fld_4',
-    );
+    expect(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: 'Policies', hidden: true })).toHaveAttribute(
       'href',
       '/vaults/vlt_1?folderId=fld_2',
     );
+    expect(screen.getByRole('button', { name: 'Collapse Policies', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: 'Claims', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_3',
+    );
+    expect(screen.getByRole('link', { name: 'Invoices', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_4',
+    );
+  });
+
+  it('toggles folders from node clicks and prunes nested expansion state', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1'],
+        routePath: '/vaults/:vaultId',
+      },
+    );
+
+    const vaultLink = await screen.findByRole('link', { name: 'MyDocs', hidden: true });
+    expect(screen.getByRole('button', { name: 'Collapse MyDocs', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByRole('link', { name: 'Insurance', hidden: true })).toBeInTheDocument();
+
+    fireEvent.click(vaultLink);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Expand MyDocs', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByRole('link', { name: 'Insurance', hidden: true })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(vaultLink);
+
+    const insuranceLink = await screen.findByRole('link', { name: 'Insurance', hidden: true });
+    expect(screen.getByRole('button', { name: 'Collapse MyDocs', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Expand Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
+
+    fireEvent.click(insuranceLink);
+
+    expect(await screen.findByRole('link', { name: 'Policies', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Expand Policies', hidden: true })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
+
+    fireEvent.click(insuranceLink);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Expand Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Insurance', hidden: true }));
+    const expandedPoliciesLink = await screen.findByRole('link', { name: 'Policies', hidden: true });
+    expect(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(expandedPoliciesLink);
+
+    expect(await screen.findByRole('link', { name: 'Claims', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse Policies', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Expand Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Insurance', hidden: true }));
+
+    expect(await screen.findByRole('link', { name: 'Policies', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Policies', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('collapses sibling branches when navigating to another folder', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1'],
+        routePath: '/vaults/:vaultId',
+      },
+    );
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Insurance', hidden: true }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Policies', hidden: true }));
+
+    expect(await screen.findByRole('link', { name: 'Claims', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Collapse Policies', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Invoices', hidden: true }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Expand Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
+    });
+  });
+
+  it('reveals the current folder after navigation outside the sidebar', async () => {
+    await renderWithProviders(
+      <>
+        <AppShell />
+        <Link to={ROUTES.vaultRoot('vlt_1')} search={{ folderId: 'fld_3' } as any}>
+          Open claims from pane
+        </Link>
+      </>,
+      {
+        initialEntries: ['/vaults/vlt_1'],
+        routePath: '/vaults/:vaultId',
+      },
+    );
+
+    const insuranceLink = await screen.findByRole('link', { name: 'Insurance', hidden: true });
+
+    fireEvent.click(insuranceLink);
+    expect(await screen.findByRole('link', { name: 'Policies', hidden: true })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true }));
+    expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open claims from pane' }));
+
+    expect(await screen.findByRole('link', { name: 'Claims', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_3',
+    );
+    expect(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Collapse Policies', hidden: true })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('opens quick search from the trigger and Meta+K shortcut', async () => {

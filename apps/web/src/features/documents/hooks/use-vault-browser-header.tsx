@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FolderBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
+import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
+import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
 import type { BrowserDropTarget, FileBrowserSort, FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
 import type { FolderBreadcrumb } from '@/features/file-browser/file-browser.types';
 
@@ -28,6 +29,7 @@ const browserSortOptions: Array<{ value: FileBrowserSort; label: string }> = [
 
 export function useVaultBrowserHeader({
   vaultId,
+  vaultName,
   currentFolderId,
   breadcrumbs,
   activeResultCount,
@@ -46,6 +48,7 @@ export function useVaultBrowserHeader({
   onDropOnFolder,
 }: {
   vaultId: string;
+  vaultName: string;
   currentFolderId: string | null;
   breadcrumbs: FolderBreadcrumb[];
   activeResultCount: number;
@@ -63,26 +66,69 @@ export function useVaultBrowserHeader({
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
 }) {
+  const breadcrumbEntries = useMemo<VaultBreadcrumbEntry[]>(() => [
+    { key: 'vaults', label: 'Vaults', to: ROUTES.vaults },
+    {
+      key: `vault-${vaultId}`,
+      label: vaultName || 'Vault',
+      to: ROUTES.vaultRoot(vaultId),
+      onClick: currentFolderId === null ? undefined : () => onNavigateFolder(null),
+      onContextMenu: onOpenRootContextMenu,
+      dropFolderId: null,
+    },
+    ...breadcrumbs.map((folder, index) => {
+      const isCurrent = index === breadcrumbs.length - 1;
+
+      return {
+        key: `folder-${folder.id}`,
+        label: folder.name,
+        onClick: isCurrent ? undefined : () => onNavigateFolder(folder.id),
+        onContextMenu: undefined,
+        dropFolderId: folder.id,
+      };
+    }),
+  ], [
+    breadcrumbs,
+    currentFolderId,
+    onNavigateFolder,
+    onOpenRootContextMenu,
+    vaultId,
+    vaultName,
+  ]);
+
   const workspaceHeader = useMemo(() => ({
     left: (
-      <FolderBreadcrumbs
-        currentFolderId={currentFolderId}
-        breadcrumbs={breadcrumbs}
-        onNavigateFolder={onNavigateFolder}
-        onOpenRootContextMenu={onOpenRootContextMenu}
+      <VaultRouteBreadcrumbs
+        entries={breadcrumbEntries}
         dropTarget={dropTarget}
         onDragOverFolder={onDragOverFolder}
         onDragLeaveFolder={onDragLeaveFolder}
         onDropOnFolder={onDropOnFolder}
       />
     ),
-    meta: (
+  }), [
+    breadcrumbEntries,
+    dropTarget,
+    onDragLeaveFolder,
+    onDragOverFolder,
+    onDropOnFolder,
+  ]);
+
+  const secondaryHeader = useMemo(() => (
+    <Flex
+      align="center"
+      justify="space-between"
+      gap="3"
+      borderBottomWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.workspace"
+      px={{ base: '4', lg: '6' }}
+      py="3"
+    >
       <Text fontSize="xs" color="fg.muted">
         {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
         {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
       </Text>
-    ),
-    actions: (
       <HStack gap="2">
         {selectedCount > 0 ? (
           <Button type="button" size="sm" variant="outline" onClick={onClearSelection}>
@@ -155,16 +201,17 @@ export function useVaultBrowserHeader({
           </Button>
         </Link>
       </HStack>
-    ),
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- shell registration follows browser state; handlers are local event delegates.
-  }), [
+    </Flex>
+  ), [
     activeResultCount,
-    breadcrumbs,
     browserSort,
     browserView,
     currentFolderId,
-    dropTarget,
+    onClearSelection,
+    onOpenCreateFolderDialog,
     selectedCount,
+    setBrowserSort,
+    setBrowserView,
     vaultId,
   ]);
 
@@ -172,6 +219,7 @@ export function useVaultBrowserHeader({
 
   return {
     isInWorkspaceShell,
+    secondaryHeader,
     workspaceHeader,
   };
 }

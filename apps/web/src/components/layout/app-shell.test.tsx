@@ -419,6 +419,9 @@ describe('app shell account menu', () => {
       '/vaults/vlt_1',
     );
     expect(within(breadcrumbNav).queryByRole('link', { name: 'Documents' })).not.toBeInTheDocument();
-    expect(await within(breadcrumbNav).findByText('Quarterly Budget Summary.pdf')).toBeInTheDocument();
+    expect(await within(breadcrumbNav).findByText('Quarter...')).toHaveAttribute(
+      'title',
+      'Quarterly Budget Summary.pdf',
+    );
   });
 });

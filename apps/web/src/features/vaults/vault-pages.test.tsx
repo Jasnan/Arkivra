@@ -44,7 +44,12 @@ describe('vault pages', () => {
 
     expect(await screen.findByText('Personal')).toBeInTheDocument();
     expect(screen.getByText('Household records')).toBeInTheDocument();
-    expect(screen.getByText(/3 files/i)).toBeInTheDocument();
+    expect(screen.getByText('Files')).toBeInTheDocument();
+    expect(screen.getByText('Size')).toBeInTheDocument();
+    expect(screen.getByText('Modified')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('6.0 KB')).toBeInTheDocument();
+    expect(screen.getByText('Jan 1, 2025')).toBeInTheDocument();
 
     fireEvent.contextMenu(screen.getByRole('link', { name: /personal/i }));
     const contextMenu = screen.getByRole('menu', { name: /vault actions for personal/i });

@@ -18,6 +18,7 @@ export interface VaultSummary {
   fileCount: number;
   totalSize: number;
   createdAt: string;
+  updatedAt?: string;
   role: 'owner' | 'member' | null;
 }
 

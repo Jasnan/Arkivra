@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Box, Flex, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra, Heading } from '@chakra-ui/react';
 import {
@@ -18,6 +18,7 @@ import {
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
+import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,10 @@ import {
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
+import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
+import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
+import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import { useVaultQuery } from '@/features/vaults/vaults.queries';
 
 type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
@@ -108,6 +113,8 @@ export function DocumentDetailPage() {
   const documentQuery = useDocumentQuery({ vaultId, documentId });
   const documentTagsQuery = useDocumentTagsQuery({ vaultId, documentId });
   const tagsQuery = useTagsQuery({ vaultId });
+  const vaultQuery = useVaultQuery({ vaultId });
+  const folderTreeQuery = useFolderTreeQuery({ vaultId, enabled: vaultId.length > 0 });
 
   const [renameValue, setRenameValue] = useState<string | null>(null);
   const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
@@ -123,6 +130,59 @@ export function DocumentDetailPage() {
   const [createTagNameValue, setCreateTagNameValue] = useState('');
   const [createTagColorValue, setCreateTagColorValue] = useState('#D8FF75');
   const [createTagDescriptionValue, setCreateTagDescriptionValue] = useState('');
+
+  const documentBreadcrumbFolders = useMemo(() => {
+    const folderId = documentQuery.data?.document.folderId;
+    const folders = folderTreeQuery.data?.folders ?? [];
+
+    if (!folderId) {
+      return [];
+    }
+
+    const foldersById = new Map(folders.map(folder => [folder.id, folder]));
+    const path: typeof folders = [];
+    let current = foldersById.get(folderId);
+
+    while (current) {
+      path.unshift(current);
+      current = current.parentId ? foldersById.get(current.parentId) : undefined;
+    }
+
+    return path;
+  }, [documentQuery.data?.document.folderId, folderTreeQuery.data?.folders]);
+
+  const documentBreadcrumbEntries = useMemo<VaultBreadcrumbEntry[]>(() => [
+    { key: 'vaults', label: 'Vaults', to: ROUTES.vaults },
+    {
+      key: `vault-${vaultId}`,
+      label: vaultQuery.data?.vault.name ?? 'Vault',
+      onClick: () => navigate({ to: ROUTES.vaultRoot(vaultId) }),
+    },
+    ...documentBreadcrumbFolders.map(folder => ({
+      key: `folder-${folder.id}`,
+      label: folder.name,
+      onClick: () => navigate({
+        to: ROUTES.vaultRoot(vaultId),
+        search: { folderId: folder.id } as any,
+      }),
+    })),
+    {
+      key: `document-${documentId}`,
+      label: documentQuery.data?.document.name ?? 'Document',
+    },
+  ], [
+    documentBreadcrumbFolders,
+    documentId,
+    documentQuery.data?.document.name,
+    navigate,
+    vaultId,
+    vaultQuery.data?.vault.name,
+  ]);
+
+  const documentWorkspaceHeader = useMemo(() => ({
+    left: <VaultRouteBreadcrumbs entries={documentBreadcrumbEntries} />,
+  }), [documentBreadcrumbEntries]);
+  useWorkspaceHeader(documentWorkspaceHeader);
 
   useEffect(() => {
     if (location.pathname.endsWith('/chat')) {

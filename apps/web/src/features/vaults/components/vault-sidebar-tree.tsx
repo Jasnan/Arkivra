@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useReducer } from 'react';
 import { Stack } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';
-import { FileText, Folder, FolderDot, FolderOpenDot } from 'lucide-react';
+import { FileText, Folder, FolderDot, FolderOpen, FolderOpenDot } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
 import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
@@ -20,6 +20,10 @@ function VaultRootIcon({ isExpanded }: { isExpanded: boolean }) {
 
 function VaultNodeIcon({ isExpanded }: { isExpanded: boolean }) {
   return isExpanded ? <FolderOpenDot size={16} strokeWidth={2.1} /> : <FolderDot size={16} strokeWidth={2.1} />;
+}
+
+function VaultFolderIcon({ isExpanded }: { isExpanded: boolean }) {
+  return isExpanded ? <FolderOpen size={16} strokeWidth={2.1} /> : <Folder size={16} strokeWidth={2.1} />;
 }
 
 function VaultTree({
@@ -74,7 +78,7 @@ function VaultTree({
             to={ROUTES.vaultRoot(vaultId)}
             search={{ folderId: folder.id }}
             label={folder.name}
-            icon={<Folder size={16} />}
+            icon={<VaultFolderIcon isExpanded={isExpanded} />}
             active={currentFolderId === folder.id}
             depth={depth + folder.depth}
             expansionState={canExpand ? (isExpanded ? 'expanded' : 'collapsed') : undefined}

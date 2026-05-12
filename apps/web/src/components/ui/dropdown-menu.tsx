@@ -90,11 +90,22 @@ export function DropdownMenuSubTrigger({
   return (
     <ChakraMenu.TriggerItem
       ref={ref}
-      className={cn(
-        'flex cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[state=open]:bg-secondary/70 data-[state=open]:text-foreground',
-        inset && 'pl-8',
-        className,
-      )}
+      className={className}
+      cursor="default"
+      display="flex"
+      alignItems="center"
+      gap="2"
+      rounded="md"
+      px="3"
+      py="2"
+      ps={inset ? '8' : undefined}
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg.muted"
+      outline="none"
+      transition="background-color 120ms ease, color 120ms ease"
+      _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+      _open={{ bg: 'bg.subtle', color: 'fg' }}
       {...props}
     >
       {children}
@@ -107,16 +118,24 @@ type DropdownMenuSubContentProps = React.ComponentPropsWithRef<typeof ChakraMenu
 
 export function DropdownMenuSubContent({ className, ref, ...props }: DropdownMenuSubContentProps) {
   return (
-    <ChakraMenu.Positioner>
-      <ChakraMenu.Content
-        ref={ref}
-        className={cn(
-          'z-50 min-w-36 overflow-hidden rounded-lg border border-border/70 bg-card p-1.5 shadow-lg',
-          className,
-        )}
-        {...props}
-      />
-    </ChakraMenu.Positioner>
+    <Portal>
+      <ChakraMenu.Positioner>
+        <ChakraMenu.Content
+          ref={ref}
+          className={className}
+          zIndex="dropdown"
+          minW="9rem"
+          overflow="hidden"
+          rounded="lg"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.surface"
+          p="1.5"
+          shadow="lg"
+          {...props}
+        />
+      </ChakraMenu.Positioner>
+    </Portal>
   );
 }
 
@@ -136,32 +155,40 @@ export function DropdownMenuContent({
   ...props
 }: DropdownMenuContentProps) {
   return (
-    <ChakraMenu.Positioner>
-      <ChakraMenu.Content
-        ref={ref}
-        className={cn(
-          'z-50 min-w-36 overflow-hidden rounded-lg border border-border/70 bg-card p-1.5 shadow-lg',
-          className,
-        )}
-        onKeyDownCapture={(event) => {
-          onKeyDownCapture?.(event);
-          if (!event.defaultPrevented && isTextEntryElement(event.target)) {
-            event.stopPropagation();
-          }
-        }}
-        onPointerDownCapture={(event) => {
-          if (isTextEntryElement(event.target)) {
-            event.stopPropagation();
-          }
-        }}
-        onClickCapture={(event) => {
-          if (isTextEntryElement(event.target)) {
-            event.stopPropagation();
-          }
-        }}
-        {...(props as any)}
-      />
-    </ChakraMenu.Positioner>
+    <Portal>
+      <ChakraMenu.Positioner>
+        <ChakraMenu.Content
+          ref={ref}
+          className={className}
+          zIndex="dropdown"
+          minW="9rem"
+          overflow="hidden"
+          rounded="lg"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.surface"
+          p="1.5"
+          shadow="lg"
+          onKeyDownCapture={(event) => {
+            onKeyDownCapture?.(event);
+            if (!event.defaultPrevented && isTextEntryElement(event.target)) {
+              event.stopPropagation();
+            }
+          }}
+          onPointerDownCapture={(event) => {
+            if (isTextEntryElement(event.target)) {
+              event.stopPropagation();
+            }
+          }}
+          onClickCapture={(event) => {
+            if (isTextEntryElement(event.target)) {
+              event.stopPropagation();
+            }
+          }}
+          {...(props as any)}
+        />
+      </ChakraMenu.Positioner>
+    </Portal>
   );
 }
 
@@ -187,11 +214,23 @@ export function DropdownMenuItem({
     <ChakraMenu.Item
       ref={ref}
       value={value ?? textValue(children)}
-      className={cn(
-        'relative flex cursor-default select-none items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        inset && 'pl-8',
-        className,
-      )}
+      className={className}
+      cursor="default"
+      userSelect="none"
+      display="flex"
+      alignItems="center"
+      gap="3"
+      rounded="md"
+      px="3"
+      py="2"
+      ps={inset ? '8' : undefined}
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg.muted"
+      outline="none"
+      transition="background-color 120ms ease, color 120ms ease"
+      _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+      _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       onClick={(event) => {
         onClick?.(event);
         onSelect?.();
@@ -225,10 +264,23 @@ export function DropdownMenuCheckboxItem({
     <ChakraMenu.CheckboxItem
       ref={ref}
       value={value ?? textValue(children)}
-      className={cn(
-        'relative flex cursor-default select-none items-center gap-3 rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        className,
-      )}
+      className={className}
+      cursor="default"
+      userSelect="none"
+      display="flex"
+      alignItems="center"
+      gap="3"
+      rounded="md"
+      py="2"
+      ps="9"
+      pe="3"
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg.muted"
+      outline="none"
+      transition="background-color 120ms ease, color 120ms ease"
+      _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+      _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       checked={checked}
       closeOnSelect={closeOnSelect}
       onClick={() => onSelect?.({ preventDefault: () => {} })}
@@ -257,10 +309,23 @@ export function DropdownMenuRadioItem({
     <ChakraMenu.RadioItem
       ref={ref}
       value={value}
-      className={cn(
-        'relative flex cursor-default select-none items-center gap-3 rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        className,
-      )}
+      className={className}
+      cursor="default"
+      userSelect="none"
+      display="flex"
+      alignItems="center"
+      gap="3"
+      rounded="md"
+      py="2"
+      ps="9"
+      pe="3"
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg.muted"
+      outline="none"
+      transition="background-color 120ms ease, color 120ms ease"
+      _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+      _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       {...props}
     >
       <AbsoluteCenter axis="horizontal" insetStart="3">

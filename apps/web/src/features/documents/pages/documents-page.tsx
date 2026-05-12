@@ -2,7 +2,7 @@ import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { Download, Eye, Folder, FolderPlus, Home, Info, MoveRight, Pencil, Tags, Trash2, Upload } from 'lucide-react';
+import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, Home, Info, MoveRight, Pencil, Tags, Trash2 } from 'lucide-react';
 import { useParams, useSearch } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -161,6 +161,10 @@ export function DocumentsPage() {
     browserItems,
     onBeforeSelect: () => setContextMenu(null),
   });
+  const contextItemKey =
+    contextMenu?.item.type === 'folder' || contextMenu?.item.type === 'document'
+      ? getBrowserItemKey(contextMenu.item)
+      : null;
   const {
     deleteMutation,
     createFolderMutation,
@@ -343,9 +347,6 @@ export function DocumentsPage() {
 
     event.preventDefault();
     event.stopPropagation();
-    if (item.type !== 'root' && item.type !== 'background' && !selectedItemKeys.has(getBrowserItemKey(item))) {
-      selectSingleItem(item);
-    }
     setContextMenu({
       item,
       x: Math.min(event.clientX, window.innerWidth - 224),
@@ -361,14 +362,14 @@ export function DocumentsPage() {
         {
           key: 'upload-files',
           label: 'Upload files',
-          icon: Upload,
+          icon: FileUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadFilesPicker(null),
         },
         {
           key: 'upload-directory',
-          label: 'Upload directory',
-          icon: Upload,
+          label: 'Upload folder',
+          icon: FolderUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadDirectoryPicker(null),
         },
@@ -381,15 +382,15 @@ export function DocumentsPage() {
         { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(currentFolderId) },
         {
           key: 'upload-directory',
-          label: 'Upload directory',
-          icon: Upload,
+          label: 'Upload folder',
+          icon: FolderUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadDirectoryPicker(currentFolderId),
         },
         {
           key: 'upload-files',
           label: 'Upload files',
-          icon: Upload,
+          icon: FileUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadFilesPicker(currentFolderId),
         },
@@ -494,6 +495,7 @@ export function DocumentsPage() {
     onOpenRootContextMenu: event => openContextMenu(event, { type: 'root', vaultId }),
     onOpenCreateFolderDialog: openCreateFolderDialog,
     onOpenUploadFiles: () => openUploadFilesPicker(currentFolderId),
+    onOpenUploadDirectory: () => openUploadDirectoryPicker(currentFolderId),
     onDragOverFolder: handleDragOverFolder,
     onDragLeaveFolder: handleDragLeaveFolder,
     onDropOnFolder: handleDropOnFolder,
@@ -588,6 +590,7 @@ export function DocumentsPage() {
             items={browserItems}
             vaultId={vaultId}
             selectedItemKeys={selectedItemKeys}
+            contextItemKey={contextItemKey}
             draggedItemKeys={draggedItemKeys}
             dropTarget={dropTarget}
             onOpenItem={openItem}
@@ -607,6 +610,7 @@ export function DocumentsPage() {
             items={browserItems}
             vaultId={vaultId}
             selectedItemKeys={selectedItemKeys}
+            contextItemKey={contextItemKey}
             draggedItemKeys={draggedItemKeys}
             dropTarget={dropTarget}
             onOpenItem={openItem}

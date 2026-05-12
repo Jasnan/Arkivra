@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderKanban, FolderOpen, Grid3X3, List, Settings2 } from 'lucide-react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader, useWorkspaceSecondary } from '@/components/layout/workspace-context';
@@ -301,52 +301,6 @@ export function VaultsPage() {
     });
   }
 
-  const vaultSidebarContent = useMemo(() => (
-    <Stack gap="1">
-      <Link to={ROUTES.vaults} style={{ color: 'inherit', textDecoration: 'none' }}>
-        <Flex
-          align="center"
-          gap="2.5"
-          minH="9"
-          rounded="md"
-          px="2.5"
-          fontSize="sm"
-          color="fg"
-          bg="bg.muted"
-          _hover={{ bg: 'bg.muted', color: 'fg' }}
-        >
-          <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
-            <FolderKanban size={16} strokeWidth={2.1} />
-          </Flex>
-          <Text truncate>Vaults</Text>
-        </Flex>
-      </Link>
-      {vaults.map((vault) => (
-        <Link
-          key={vault.id}
-          to={ROUTES.vaultRoot(vault.id)}
-          style={{ color: 'inherit', textDecoration: 'none' }}
-        >
-          <Flex
-            align="center"
-            gap="2.5"
-            minH="9"
-            rounded="md"
-            px="2.5"
-            fontSize="sm"
-            color="fg.muted"
-            _hover={{ bg: 'bg.muted', color: 'fg' }}
-            ml="0.8rem"
-          >
-            <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
-              <FolderKanban size={16} strokeWidth={2.1} />
-            </Flex>
-            <Text truncate>{vault.name}</Text>
-          </Flex>
-        </Link>
-      ))}
-    </Stack>
-  ), [vaults]);
   const workspaceHeader = useMemo(() => ({
     actions: (
       <HStack gap="2">
@@ -372,7 +326,7 @@ export function VaultsPage() {
     ),
   }), [vaultsView]);
   useWorkspaceHeader(workspaceHeader);
-  const isInWorkspaceShell = useWorkspaceSecondary(vaultSidebarContent);
+  const isInWorkspaceShell = useWorkspaceSecondary(null);
 
   return (
     <Stack as="section" gap="0" h="full" minH="0">

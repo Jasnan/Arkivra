@@ -1,10 +1,13 @@
 import type { ComponentType, FormEvent, ReactNode } from 'react';
-import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
   Compass,
   FileSearch,
   Folder,
+  FolderOpen,
   FolderKanban,
   LogOut,
   MessageSquare,
@@ -316,6 +319,10 @@ function SecondaryNavLink({
   active,
   depth = 0,
   search,
+  expansionState,
+  onExpand,
+  onCollapse,
+  reserveDisclosureSpace = false,
 }: {
   to: string;
   label: string;
@@ -323,31 +330,90 @@ function SecondaryNavLink({
   active?: boolean;
   depth?: number;
   search?: Record<string, string>;
+  expansionState?: 'expanded' | 'collapsed';
+  onExpand?: () => void;
+  onCollapse?: () => void;
+  reserveDisclosureSpace?: boolean;
 }) {
+  const hasExpansionState = expansionState !== undefined;
+  const isExpanded = expansionState === 'expanded';
+  const showDisclosureSlot = hasExpansionState || reserveDisclosureSpace;
+
   return (
-    <Link
-      to={to}
-      search={search as any}
-      style={{ color: 'inherit', textDecoration: 'none' }}
+    <Flex
+      align="center"
+      gap="2"
+      minH="9"
+      rounded="md"
+      px="2.5"
+      ml={`${Math.min(depth, 6) * 0.8}rem`}
+      fontSize="sm"
+      color={active ? 'fg' : 'fg.muted'}
+      bg={active ? 'bg.muted' : 'transparent'}
+      _hover={{ bg: 'bg.muted', color: 'fg' }}
     >
-      <Flex
-        align="center"
-        gap="2.5"
-        minH="9"
-        rounded="md"
-        px="2.5"
-        ml={`${Math.min(depth, 6) * 0.8}rem`}
-        fontSize="sm"
-        color={active ? 'fg' : 'fg.muted'}
-        bg={active ? 'bg.muted' : 'transparent'}
-        _hover={{ bg: 'bg.muted', color: 'fg' }}
+      {showDisclosureSlot ? (
+        hasExpansionState ? (
+          <chakra.button
+            type="button"
+            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${label}`}
+            aria-expanded={isExpanded}
+            onClick={() => {
+              if (isExpanded) {
+                onCollapse?.();
+              } else {
+                onExpand?.();
+              }
+            }}
+            display="inline-flex"
+            alignItems="center"
+            justifyContent="center"
+            flexShrink={0}
+            width="5"
+            height="5"
+            rounded="sm"
+            color={active ? 'fg' : 'fg.subtle'}
+            _hover={{ color: 'fg', bg: 'bg.subtle' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+          >
+            {isExpanded
+              ? <ChevronDown size={15} strokeWidth={2.25} />
+              : <ChevronRight size={15} strokeWidth={2.25} />}
+          </chakra.button>
+        ) : (
+          <Box boxSize="5" flexShrink={0} aria-hidden="true" />
+        )
+      ) : null}
+      <Link
+        to={to}
+        search={search as any}
+        onClick={(event) => {
+          if (!hasExpansionState) return;
+          if (
+            event.defaultPrevented ||
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) return;
+
+          if (isExpanded) {
+            onCollapse?.();
+          } else {
+            onExpand?.();
+          }
+        }}
+        style={{ color: 'inherit', textDecoration: 'none', minWidth: 0, flex: 1 }}
       >
-        <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
-          {icon}
+        <Flex align="center" gap="2.5" minW="0">
+          <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
+            {icon}
+          </Flex>
+          <Text truncate>{label}</Text>
         </Flex>
-        <Text truncate>{label}</Text>
-      </Flex>
-    </Link>
+      </Link>
+    </Flex>
   );
 }
 
@@ -359,19 +425,76 @@ function VaultNodeIcon() {
   return <FolderKanban size={16} strokeWidth={2.1} />;
 }
 
-function getVisibleVaultTreeFolders(folders: FolderTreeEntry[], currentFolderId: string | null) {
+function getExpandableFolderIds(folders: FolderTreeEntry[]) {
+  const expandableFolderIds = new Set<string>();
+
+  for (const folder of folders) {
+    if (folder.parentId) {
+      expandableFolderIds.add(folder.parentId);
+    }
+  }
+
+  return expandableFolderIds;
+}
+
+function getCurrentFolderAncestorIds(folders: FolderTreeEntry[], currentFolderId: string | null) {
   const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
-  const expandedFolderIds = new Set<string>();
+  const ancestorIds = new Set<string>();
   let cursor = currentFolderId;
 
   while (cursor) {
     const folder = foldersById.get(cursor);
     if (!folder) break;
 
-    expandedFolderIds.add(folder.id);
+    if (folder.parentId) {
+      ancestorIds.add(folder.parentId);
+    }
+
     cursor = folder.parentId;
   }
 
+  return ancestorIds;
+}
+
+function getDescendantFolderIds(folders: FolderTreeEntry[], folderId: string) {
+  const childrenByParentId = new Map<string, string[]>();
+  const descendantIds = new Set<string>();
+  const queue = [folderId];
+
+  for (const folder of folders) {
+    if (!folder.parentId) continue;
+
+    const children = childrenByParentId.get(folder.parentId) ?? [];
+    children.push(folder.id);
+    childrenByParentId.set(folder.parentId, children);
+  }
+
+  while (queue.length > 0) {
+    const parentId = queue.shift();
+    if (!parentId) continue;
+
+    for (const childId of childrenByParentId.get(parentId) ?? []) {
+      if (descendantIds.has(childId)) continue;
+
+      descendantIds.add(childId);
+      queue.push(childId);
+    }
+  }
+
+  return descendantIds;
+}
+
+function areSetsEqual<T>(left: Set<T>, right: Set<T>) {
+  if (left.size !== right.size) return false;
+
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+
+  return true;
+}
+
+function getVisibleVaultTreeFolders(folders: FolderTreeEntry[], expandedFolderIds: Set<string>) {
   return folders.filter((folder) => folder.parentId === null || expandedFolderIds.has(folder.parentId));
 }
 
@@ -379,28 +502,42 @@ function VaultTree({
   folders,
   vaultId,
   currentFolderId,
+  expandedFolderIds,
+  onToggleFolder,
   depth = 0,
 }: {
   folders: FolderTreeEntry[];
   vaultId: string;
   currentFolderId: string | null;
+  expandedFolderIds: Set<string>;
+  onToggleFolder: (folderId: string, isExpanded: boolean) => void;
   depth?: number;
 }) {
-  const visibleFolders = getVisibleVaultTreeFolders(folders, currentFolderId);
+  const expandableFolderIds = useMemo(() => getExpandableFolderIds(folders), [folders]);
+  const visibleFolders = getVisibleVaultTreeFolders(folders, expandedFolderIds);
 
   return (
     <Stack gap="1">
-      {visibleFolders.map((folder) => (
-        <SecondaryNavLink
-          key={folder.id}
-          to={ROUTES.vaultRoot(vaultId)}
-          search={{ folderId: folder.id }}
-          label={folder.name}
-          icon={<Folder size={16} />}
-          active={currentFolderId === folder.id}
-          depth={depth + folder.depth}
-        />
-      ))}
+      {visibleFolders.map((folder) => {
+        const canExpand = expandableFolderIds.has(folder.id);
+        const isExpanded = expandedFolderIds.has(folder.id);
+
+        return (
+          <SecondaryNavLink
+            key={folder.id}
+            to={ROUTES.vaultRoot(vaultId)}
+            search={{ folderId: folder.id }}
+            label={folder.name}
+            icon={isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />}
+            active={currentFolderId === folder.id}
+            depth={depth + folder.depth}
+            expansionState={canExpand ? (isExpanded ? 'expanded' : 'collapsed') : undefined}
+            onExpand={canExpand ? () => onToggleFolder(folder.id, false) : undefined}
+            onCollapse={canExpand ? () => onToggleFolder(folder.id, true) : undefined}
+            reserveDisclosureSpace
+          />
+        );
+      })}
     </Stack>
   );
 }
@@ -416,6 +553,131 @@ function VaultSidebarTree({
   currentFolderId: string | null;
   folders: FolderTreeEntry[];
 }) {
+  const navigate = useNavigate();
+  const pendingExpandedFolderIdRef = useRef<string | null>(null);
+  const [isVaultRootExpanded, setIsVaultRootExpanded] = useState(true);
+  const [expandedVaultIds, setExpandedVaultIds] = useState<Set<string>>(() => new Set());
+  const [collapsedVaultIds, setCollapsedVaultIds] = useState<Set<string>>(() => new Set());
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
+
+  const currentFolderAncestorIds = useMemo(
+    () => getCurrentFolderAncestorIds(folders, currentFolderId),
+    [currentFolderId, folders],
+  );
+
+  const visibleExpandedFolderIds = useMemo(() => {
+    const next = new Set(expandedFolderIds);
+
+    for (const folderId of currentFolderAncestorIds) {
+      next.add(folderId);
+    }
+
+    return next;
+  }, [currentFolderAncestorIds, expandedFolderIds]);
+
+  useEffect(() => {
+    const next = new Set(currentFolderAncestorIds);
+    const pendingExpandedFolderId = pendingExpandedFolderIdRef.current;
+
+    if (pendingExpandedFolderId && pendingExpandedFolderId === currentFolderId) {
+      next.add(pendingExpandedFolderId);
+    }
+
+    pendingExpandedFolderIdRef.current = null;
+
+    // Keep route-driven navigation authoritative: when the right pane changes
+    // folders, sibling branches in the sidebar should fold away.
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setExpandedFolderIds((current) => areSetsEqual(current, next) ? current : next);
+  }, [currentFolderAncestorIds, currentFolderId]);
+
+  useEffect(() => {
+    if (!activeVaultId) return;
+
+    // A route change into a vault should reveal the active vault even if the
+    // root was collapsed on the index page.
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setIsVaultRootExpanded(true);
+  }, [activeVaultId]);
+
+  function toggleVaultRoot(isExpanded: boolean) {
+    setIsVaultRootExpanded(!isExpanded);
+  }
+
+  function toggleVault(vaultId: string, isExpanded: boolean) {
+    if (isExpanded) {
+      setExpandedVaultIds((current) => {
+        if (!current.has(vaultId)) return current;
+
+        const next = new Set(current);
+        next.delete(vaultId);
+        return next;
+      });
+      setCollapsedVaultIds((current) => {
+        if (current.has(vaultId)) return current;
+
+        const next = new Set(current);
+        next.add(vaultId);
+        return next;
+      });
+
+      if (activeVaultId === vaultId && currentFolderId !== null) {
+        void navigate({ to: ROUTES.vaultRoot(vaultId) });
+      }
+    } else {
+      setCollapsedVaultIds((current) => {
+        if (!current.has(vaultId)) return current;
+
+        const next = new Set(current);
+        next.delete(vaultId);
+        return next;
+      });
+      setExpandedVaultIds(() => {
+        const next = new Set<string>();
+        next.add(vaultId);
+        return next;
+      });
+
+      if (activeVaultId !== vaultId) {
+        void navigate({ to: ROUTES.vaultRoot(vaultId) });
+      }
+    }
+  }
+
+  function toggleFolder(folderId: string, isExpanded: boolean) {
+    const descendantFolderIds = getDescendantFolderIds(folders, folderId);
+
+    if (isExpanded) {
+      setExpandedFolderIds((current) => {
+        const next = new Set(current);
+        next.delete(folderId);
+
+        for (const descendantFolderId of descendantFolderIds) {
+          next.delete(descendantFolderId);
+        }
+
+        return next;
+      });
+
+      if (activeVaultId && currentFolderId && descendantFolderIds.has(currentFolderId)) {
+        pendingExpandedFolderIdRef.current = null;
+        void navigate({ to: ROUTES.vaultRoot(activeVaultId), search: { folderId } as any });
+      }
+    } else {
+      pendingExpandedFolderIdRef.current = folderId;
+      setExpandedFolderIds((current) => {
+        const next = new Set(current);
+
+        for (const descendantFolderId of descendantFolderIds) {
+          next.delete(descendantFolderId);
+        }
+
+        next.add(folderId);
+        return next;
+      });
+    }
+  }
+
   return (
     <Stack gap="1">
       <SecondaryNavLink
@@ -423,9 +685,15 @@ function VaultSidebarTree({
         label="Vaults"
         icon={<VaultRootIcon />}
         active={!activeVaultId}
+        expansionState={isVaultRootExpanded ? 'expanded' : 'collapsed'}
+        onExpand={() => toggleVaultRoot(false)}
+        onCollapse={() => toggleVaultRoot(true)}
       />
-      {vaults.map((vault) => {
+      {isVaultRootExpanded ? vaults.map((vault) => {
         const isActiveVault = activeVaultId === vault.id;
+        const isExpandedVault =
+          (isActiveVault && expandedVaultIds.has(vault.id)) ||
+          (isActiveVault && (currentFolderId !== null || !collapsedVaultIds.has(vault.id)));
 
         return (
           <Fragment key={vault.id}>
@@ -435,18 +703,23 @@ function VaultSidebarTree({
               icon={<VaultNodeIcon />}
               active={isActiveVault && currentFolderId === null}
               depth={1}
+              expansionState={isExpandedVault ? 'expanded' : 'collapsed'}
+              onExpand={() => toggleVault(vault.id, false)}
+              onCollapse={() => toggleVault(vault.id, true)}
             />
-            {isActiveVault ? (
+            {isActiveVault && isExpandedVault ? (
               <VaultTree
                 folders={folders}
                 vaultId={vault.id}
                 currentFolderId={currentFolderId}
+                expandedFolderIds={visibleExpandedFolderIds}
+                onToggleFolder={toggleFolder}
                 depth={2}
               />
             ) : null}
           </Fragment>
         );
-      })}
+      }) : null}
     </Stack>
   );
 }

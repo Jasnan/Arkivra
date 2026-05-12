@@ -1,5 +1,5 @@
-import type { FormEvent, MouseEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, Folder, FolderPlus, Home, Info, MoveRight, Pencil, Tags, Trash2, Upload } from 'lucide-react';
@@ -12,6 +12,9 @@ import { useBrowserSelection } from '@/features/documents/hooks/use-browser-sele
 import { useFileBrowserMutations } from '@/features/documents/hooks/use-file-browser-mutations';
 import { useFolderNavigation } from '@/features/documents/hooks/use-folder-navigation';
 import { useVaultBrowserHeader } from '@/features/documents/hooks/use-vault-browser-header';
+import { filesToDroppedFiles } from '@/features/uploads/dropped-files';
+import { filterAllowedUploadFiles } from '@/features/uploads/upload-file-rules';
+import { uploadManager } from '@/features/uploads/upload-manager';
 import {
   BrowserContextMenu,
   BrowserItemGrid,
@@ -116,6 +119,9 @@ export function DocumentsPage() {
   const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
   const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const directoryInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
 
   const folderItemsQuery = useFolderItemsQuery({
     vaultId,
@@ -205,7 +211,6 @@ export function DocumentsPage() {
   const {
     navigateToFolder,
     navigateToDocument,
-    navigateToUpload,
     openItem,
   } = useFolderNavigation({
     vaultId,
@@ -225,6 +230,12 @@ export function DocumentsPage() {
 
     if (infoTarget.type === 'root') {
       return 'Vault root';
+    }
+
+    if (infoTarget.type === 'background') {
+      return infoTarget.folderId === null
+        ? 'Vault root'
+        : folderTreeQuery.data?.folders.find(folder => folder.id === infoTarget.folderId)?.path ?? 'Folder';
     }
 
     if (infoTarget.type === 'document') {
@@ -272,6 +283,35 @@ export function DocumentsPage() {
     }
   }, [browserSort]);
 
+  useEffect(() => {
+    directoryInputRef.current?.setAttribute('webkitdirectory', '');
+    directoryInputRef.current?.setAttribute('directory', '');
+  }, []);
+
+  function uploadSelectedFiles(fileList: FileList | null) {
+    const files = filterAllowedUploadFiles(filesToDroppedFiles(Array.from(fileList ?? [])));
+    if (files.length === 0 || !canCreateItems) {
+      return;
+    }
+
+    uploadManager.addFiles({ vaultId, folderId: uploadTargetFolderIdRef.current, files });
+  }
+
+  function handleUploadInputChange(event: ChangeEvent<HTMLInputElement>) {
+    uploadSelectedFiles(event.target.files);
+    event.target.value = '';
+  }
+
+  function openUploadFilesPicker(folderId = currentFolderId) {
+    uploadTargetFolderIdRef.current = folderId;
+    fileInputRef.current?.click();
+  }
+
+  function openUploadDirectoryPicker(folderId = currentFolderId) {
+    uploadTargetFolderIdRef.current = folderId;
+    directoryInputRef.current?.click();
+  }
+
   function openCreateFolderDialog(parentId: string | null) {
     setCreateFolderParentId(parentId);
     setIsCreateFolderOpen(true);
@@ -303,7 +343,7 @@ export function DocumentsPage() {
 
     event.preventDefault();
     event.stopPropagation();
-    if (item.type !== 'root' && !selectedItemKeys.has(getBrowserItemKey(item))) {
+    if (item.type !== 'root' && item.type !== 'background' && !selectedItemKeys.has(getBrowserItemKey(item))) {
       selectSingleItem(item);
     }
     setContextMenu({
@@ -319,13 +359,40 @@ export function DocumentsPage() {
         { key: 'open', label: 'Open root', icon: Home, disabled: currentFolderId === null, onSelect: () => openItem(item) },
         { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(null) },
         {
-          key: 'upload',
-          label: 'Upload',
+          key: 'upload-files',
+          label: 'Upload files',
           icon: Upload,
           disabled: !canCreateItems,
-          onSelect: () => navigateToUpload(null),
+          onSelect: () => openUploadFilesPicker(null),
+        },
+        {
+          key: 'upload-directory',
+          label: 'Upload directory',
+          icon: Upload,
+          disabled: !canCreateItems,
+          onSelect: () => openUploadDirectoryPicker(null),
         },
         { key: 'info', label: 'Info', icon: Info, onSelect: () => openInfoDialog(item) },
+      ];
+    }
+
+    if (item.type === 'background') {
+      return [
+        { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(currentFolderId) },
+        {
+          key: 'upload-directory',
+          label: 'Upload directory',
+          icon: Upload,
+          disabled: !canCreateItems,
+          onSelect: () => openUploadDirectoryPicker(currentFolderId),
+        },
+        {
+          key: 'upload-files',
+          label: 'Upload files',
+          icon: Upload,
+          disabled: !canCreateItems,
+          onSelect: () => openUploadFilesPicker(currentFolderId),
+        },
       ];
     }
 
@@ -426,6 +493,7 @@ export function DocumentsPage() {
     onNavigateFolder: navigateToFolder,
     onOpenRootContextMenu: event => openContextMenu(event, { type: 'root', vaultId }),
     onOpenCreateFolderDialog: openCreateFolderDialog,
+    onOpenUploadFiles: () => openUploadFilesPicker(currentFolderId),
     onDragOverFolder: handleDragOverFolder,
     onDragLeaveFolder: handleDragLeaveFolder,
     onDropOnFolder: handleDropOnFolder,
@@ -434,6 +502,13 @@ export function DocumentsPage() {
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
   }
+
+  const backgroundContextItem: BrowserContextItem = {
+    type: 'background',
+    vaultId,
+    folderId: currentFolderId,
+    name: currentFolderId === null ? 'Vault root' : folderItemsQuery.data?.folder?.name ?? 'Folder',
+  };
 
   return (
     <Flex as="section" h="full" minH="0" direction="column" overflow="hidden">
@@ -467,8 +542,32 @@ export function DocumentsPage() {
         </Box>
       ) : null}
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={handleUploadInputChange}
+      />
+      <input
+        ref={directoryInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={handleUploadInputChange}
+      />
+
       {!activeIsLoading && emptyState ? (
-        <Flex flex="1" minH="0" direction="column" align="center" justify="center" gap="3" color="fg.muted">
+        <Flex
+          flex="1"
+          minH="0"
+          direction="column"
+          align="center"
+          justify="center"
+          gap="3"
+          color="fg.muted"
+          onContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
+        >
           <Folder size={28} />
           <Text fontWeight="medium" color="fg">
             {currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
@@ -500,6 +599,7 @@ export function DocumentsPage() {
             onDragLeaveFolder={handleDragLeaveFolder}
             onDropOnFolder={handleDropOnFolder}
             onOpenContextMenu={openContextMenu}
+            onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
             isMutating={itemMutationPending}
           />
         ) : (
@@ -518,6 +618,7 @@ export function DocumentsPage() {
             onDragLeaveFolder={handleDragLeaveFolder}
             onDropOnFolder={handleDropOnFolder}
             onOpenContextMenu={openContextMenu}
+            onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
             isMutating={itemMutationPending}
           />
         )

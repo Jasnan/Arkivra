@@ -79,12 +79,32 @@ export type FolderRecord = {
 
 export type FolderTreeNode = Pick<FolderRecord, 'id' | 'parentId' | 'name'>;
 
+const ACTIVE_SIBLING_NAME_CONSTRAINT = 'vault_folders_active_sibling_name_unique';
+
 function isRootParent(parentId: string | null | undefined) {
   return parentId === null || parentId === undefined;
 }
 
 function hasSameParent(left: string | null | undefined, right: string | null | undefined) {
   return (left ?? null) === (right ?? null);
+}
+
+function getErrorField(error: unknown, field: 'code' | 'constraint' | 'constraint_name') {
+  if (typeof error !== 'object' || error === null || !(field in error)) {
+    return null;
+  }
+
+  const value = (error as Record<typeof field, unknown>)[field];
+  return typeof value === 'string' ? value : null;
+}
+
+function isActiveSiblingNameUniqueError(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  const constraint = getErrorField(error, 'constraint') ?? getErrorField(error, 'constraint_name');
+
+  return message.includes(ACTIVE_SIBLING_NAME_CONSTRAINT)
+    || constraint === ACTIVE_SIBLING_NAME_CONSTRAINT
+    || (getErrorField(error, 'code') === '23505' && constraint === ACTIVE_SIBLING_NAME_CONSTRAINT);
 }
 
 export function normalizeFolderName(name: string) {
@@ -131,6 +151,23 @@ export function hasSiblingNameCollision({
     && hasSameParent(folder.parentId, parentId)
     && normalizeFolderName(folder.name).toLocaleLowerCase() === normalizedName,
   );
+}
+
+function findSiblingFolderByName({
+  folders,
+  parentId,
+  name,
+}: {
+  folders: FolderTreeNode[];
+  parentId: string | null;
+  name: string;
+}) {
+  const normalizedName = normalizeFolderName(name).toLocaleLowerCase();
+
+  return folders.find(folder =>
+    hasSameParent(folder.parentId, parentId)
+    && normalizeFolderName(folder.name).toLocaleLowerCase() === normalizedName,
+  ) ?? null;
 }
 
 export function buildFolderAncestorsFromRows({
@@ -547,15 +584,25 @@ export function createFoldersServices({ db }: { db: Database }) {
       return { success: false, reason: 'path_too_long' };
     }
 
-    const [folder] = await db
-      .insert(vaultFoldersTable)
-      .values({
-        vaultId,
-        parentId,
-        createdBy,
-        name: normalizedName,
-      })
-      .returning();
+    let folder: typeof vaultFoldersTable.$inferSelect | undefined;
+
+    try {
+      [folder] = await db
+        .insert(vaultFoldersTable)
+        .values({
+          vaultId,
+          parentId,
+          createdBy,
+          name: normalizedName,
+        })
+        .returning();
+    } catch (error) {
+      if (isActiveSiblingNameUniqueError(error)) {
+        return { success: false, reason: 'duplicate_name' };
+      }
+
+      throw error;
+    }
 
     if (folder === undefined) {
       throw new Error('Failed to create folder');
@@ -594,12 +641,13 @@ export function createFoldersServices({ db }: { db: Database }) {
     let currentParentId = parentId;
 
     for (const folderName of normalizedPath.folderNames) {
-      const existingFolder = folders.find(folder =>
-        hasSameParent(folder.parentId, currentParentId)
-        && normalizeFolderName(folder.name).toLocaleLowerCase() === folderName.toLocaleLowerCase(),
-      );
+      const existingFolder = findSiblingFolderByName({
+        folders,
+        parentId: currentParentId,
+        name: folderName,
+      });
 
-      if (existingFolder !== undefined) {
+      if (existingFolder !== null) {
         currentParentId = existingFolder.id;
         continue;
       }
@@ -612,6 +660,20 @@ export function createFoldersServices({ db }: { db: Database }) {
       });
 
       if (!result.success) {
+        if (result.reason === 'duplicate_name') {
+          folders = await listActiveFoldersForVault({ vaultId });
+          const concurrentlyCreatedFolder = findSiblingFolderByName({
+            folders,
+            parentId: currentParentId,
+            name: folderName,
+          });
+
+          if (concurrentlyCreatedFolder !== null) {
+            currentParentId = concurrentlyCreatedFolder.id;
+            continue;
+          }
+        }
+
         return { success: false, reason: result.reason };
       }
 

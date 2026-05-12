@@ -29,6 +29,7 @@ vi.mock('../upload-manager', () => ({
     addFiles: vi.fn(),
     reconcileVault: vi.fn().mockResolvedValue(undefined),
     clearAll: vi.fn().mockResolvedValue(undefined),
+    clearSettled: vi.fn(),
   },
 }));
 

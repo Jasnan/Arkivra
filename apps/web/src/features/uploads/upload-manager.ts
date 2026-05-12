@@ -6,29 +6,68 @@ import {
   initUploadSession,
   listUploadSessions,
 } from './uploads.api';
-import { loadPersistedTransfers, savePersistedTransfers } from './upload-persistence';
+import { clearPersistedTransfers, loadPersistedTransfers, savePersistedTransfers } from './upload-persistence';
+import { filterAllowedUploadFiles, getUploadSourceRootName } from './upload-file-rules';
 import type { TransferItem, TransferState, UploadFileInput, UploadSessionSummary } from './uploads.types';
 
 const MAX_CONCURRENT_UPLOADS = 3;
-const COMPLETED_RETENTION_MS = 24 * 60 * 60 * 1000;
+const PATH_SEPARATOR_PATTERN = /[\\/]+/;
+const DUPLICATE_FOLDER_CONSTRAINT = 'vault_folders_active_sibling_name_unique';
+const DUPLICATE_FOLDER_MESSAGE = 'A folder with this name already exists here';
+const DUPLICATE_FILE_MESSAGE = 'This file already exists in this vault';
+const DUPLICATE_TRASH_FILE_MESSAGE = 'This file already exists in the vault trash';
+const CLEARABLE_TRANSFER_STATUSES = new Set<TransferItem['status']>([
+  'completed',
+  'failed',
+  'canceled',
+  'paused',
+]);
 
 function createClientTransferId() {
   return `transfer_${crypto.randomUUID()}`;
+}
+
+function createTransferBatchId() {
+  return `transfer_batch_${crypto.randomUUID()}`;
 }
 
 function clampProgress(progress: number) {
   return Math.max(0, Math.min(100, progress));
 }
 
-function pruneExpiredCompletedItems(items: TransferItem[]) {
-  const now = Date.now();
-  return items.filter((item) => {
-    if (item.status !== 'completed' || item.completedAt === null) {
-      return true;
+function getUploadErrorMessage(error: unknown) {
+  const message = typeof error === 'string'
+    ? error
+    : error instanceof Error
+      ? error.message
+      : 'Upload failed';
+  const normalizedMessage = message.toLocaleLowerCase();
+
+  if (
+    message === 'duplicate_name'
+    || message.includes(DUPLICATE_FOLDER_CONSTRAINT)
+    || normalizedMessage.includes('duplicate key value violates unique constraint')
+  ) {
+    return DUPLICATE_FOLDER_MESSAGE;
+  }
+
+  if (
+    message === 'document.duplicate'
+    || normalizedMessage.includes('a document with the same content already exists')
+    || normalizedMessage.includes('a document with the same content is already')
+  ) {
+    if (normalizedMessage.includes('trash')) {
+      return DUPLICATE_TRASH_FILE_MESSAGE;
     }
 
-    return (now - item.completedAt) < COMPLETED_RETENTION_MS;
-  });
+    return DUPLICATE_FILE_MESSAGE;
+  }
+
+  return message;
+}
+
+function getOptionalUploadErrorMessage(message: string | null | undefined) {
+  return message === null || message === undefined ? null : getUploadErrorMessage(message);
 }
 
 function mapUploadStatusToTransferStatus(status: string): TransferItem['status'] {
@@ -52,9 +91,24 @@ function mapUploadStatusToTransferStatus(status: string): TransferItem['status']
   }
 }
 
+function getFallbackBatchId(upload: UploadSessionSummary) {
+  return `server_${upload.vaultId}_${upload.id}`;
+}
+
+function getSourceRootNameFromRelativePath(relativePath: string | null) {
+  if (!relativePath) {
+    return null;
+  }
+
+  const parts = relativePath.split(PATH_SEPARATOR_PATTERN).filter(Boolean);
+  return parts.length > 1 ? parts[0] ?? null : null;
+}
+
 function buildTransferFromSession(upload: UploadSessionSummary): TransferItem {
   return {
     id: createClientTransferId(),
+    batchId: getFallbackBatchId(upload),
+    sourceRootName: getSourceRootNameFromRelativePath(upload.relativePath),
     vaultId: upload.vaultId,
     folderId: upload.folderId,
     relativePath: upload.relativePath,
@@ -69,7 +123,7 @@ function buildTransferFromSession(upload: UploadSessionSummary): TransferItem {
     partCount: upload.partCount,
     retries: 0,
     error: upload.status === 'failed'
-      ? upload.errorMessage ?? 'Upload failed'
+      ? getUploadErrorMessage(upload.errorMessage ?? 'Upload failed')
       : upload.status === 'paused'
         ? 'Previous upload session found. Select the file again to continue.'
         : null,
@@ -78,6 +132,50 @@ function buildTransferFromSession(upload: UploadSessionSummary): TransferItem {
     createdAt: Date.parse(upload.createdAt) || Date.now(),
     completedAt: upload.completedAt ? Date.parse(upload.completedAt) : null,
   };
+}
+
+function normalizeTransferItem(item: TransferItem): TransferItem {
+  return {
+    ...item,
+    batchId: item.batchId ?? `legacy_${item.vaultId}_${item.uploadId ?? item.id}`,
+    sourceRootName: item.sourceRootName ?? getSourceRootNameFromRelativePath(item.relativePath),
+    folderId: item.folderId ?? null,
+    relativePath: item.relativePath ?? null,
+  };
+}
+
+function hydrateTransferItem(item: TransferItem): TransferItem {
+  const normalizedItem = normalizeTransferItem(item);
+
+  if (['completed', 'pending', 'processing'].includes(normalizedItem.status)) {
+    return {
+      ...normalizedItem,
+      status: 'completed',
+      error: getOptionalUploadErrorMessage(normalizedItem.error),
+    };
+  }
+
+  if (normalizedItem.status === 'failed') {
+    return {
+      ...normalizedItem,
+      status: 'failed',
+      error: getUploadErrorMessage(normalizedItem.error ?? 'Upload failed'),
+    };
+  }
+
+  return {
+    ...normalizedItem,
+    status: 'paused',
+    error: 'Previous upload session found. Select the file again to continue.',
+  };
+}
+
+function requestTransfersDrawerOpen() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('arkivra:transfers-open'));
 }
 
 function createEmptyState(): TransferState {
@@ -124,8 +222,16 @@ export class UploadManager {
     files: UploadFileInput[];
     folderId?: string | null;
   }) {
-    const nextItems = files.map<TransferItem>(({ file, relativePath }) => ({
+    const acceptedFiles = filterAllowedUploadFiles(files);
+    if (acceptedFiles.length === 0) {
+      return;
+    }
+
+    const batchId = createTransferBatchId();
+    const nextItems = acceptedFiles.map<TransferItem>(({ file, relativePath }) => ({
       id: createClientTransferId(),
+      batchId,
+      sourceRootName: getUploadSourceRootName({ file, relativePath }),
       vaultId,
       folderId,
       relativePath: relativePath ?? null,
@@ -147,13 +253,14 @@ export class UploadManager {
     }));
 
     for (const [index, item] of nextItems.entries()) {
-      this.files.set(item.id, files[index]!.file);
+      this.files.set(item.id, acceptedFiles[index]!.file);
     }
 
     this.setState({
       ...this.state,
       items: [...nextItems, ...this.state.items].sort((a, b) => b.createdAt - a.createdAt),
     });
+    requestTransfersDrawerOpen();
     void this.kick();
   }
 
@@ -230,6 +337,19 @@ export class UploadManager {
     });
   }
 
+  clearSettled() {
+    for (const item of this.state.items) {
+      if (CLEARABLE_TRANSFER_STATUSES.has(item.status)) {
+        this.files.delete(item.id);
+      }
+    }
+
+    this.setState({
+      ...this.state,
+      items: this.state.items.filter(item => !CLEARABLE_TRANSFER_STATUSES.has(item.status)),
+    });
+  }
+
   async clearAll() {
     const items = [...this.state.items];
 
@@ -254,6 +374,11 @@ export class UploadManager {
     });
   }
 
+  async clearForLogout() {
+    await this.clearAll();
+    await clearPersistedTransfers().catch(() => undefined);
+  }
+
   async reconcileVault(vaultId: string) {
     if (vaultId.length === 0) {
       return;
@@ -269,7 +394,7 @@ export class UploadManager {
       if (unseenItems.length > 0) {
         this.setState({
           ...this.state,
-          items: pruneExpiredCompletedItems([...unseenItems, ...this.state.items]).sort((a, b) => b.createdAt - a.createdAt),
+          items: [...unseenItems, ...this.state.items].sort((a, b) => b.createdAt - a.createdAt),
         });
       }
 
@@ -281,7 +406,7 @@ export class UploadManager {
   }
 
   private async hydrate() {
-    if (this.hydrated || typeof window === 'undefined' || typeof indexedDB === 'undefined') {
+    if (this.hydrated || typeof window === 'undefined' || typeof window.sessionStorage === 'undefined') {
       this.setState({ ...this.state, hydratedFromStorage: true });
       return;
     }
@@ -289,18 +414,8 @@ export class UploadManager {
     this.hydrated = true;
 
     try {
-      const persistedItems = pruneExpiredCompletedItems(await loadPersistedTransfers());
-      const items = persistedItems.map<TransferItem>(item => ({
-        ...item,
-        folderId: item.folderId ?? null,
-        relativePath: item.relativePath ?? null,
-        status: ['completed', 'pending', 'processing'].includes(item.status)
-          ? 'completed'
-          : 'paused',
-        error: ['completed', 'pending', 'processing'].includes(item.status)
-          ? item.error
-          : 'Previous upload session found. Select the file again to continue.',
-      }));
+      const persistedItems = await loadPersistedTransfers();
+      const items = persistedItems.map(hydrateTransferItem);
 
       this.setState({
         ...this.state,
@@ -329,11 +444,11 @@ export class UploadManager {
   }
 
   private persist() {
-    if (typeof window === 'undefined' || typeof indexedDB === 'undefined') {
+    if (typeof window === 'undefined' || typeof window.sessionStorage === 'undefined') {
       return;
     }
 
-    const items = pruneExpiredCompletedItems(this.state.items
+    const items = this.state.items
       .filter(item => item.status !== 'canceled')
       .map<TransferItem>(item => ({
         ...item,
@@ -341,7 +456,7 @@ export class UploadManager {
           item.status === 'uploading' || item.status === 'queued'
             ? 'paused'
             : item.status,
-      })));
+      }));
 
     void savePersistedTransfers(items).catch(() => undefined);
   }
@@ -357,7 +472,7 @@ export class UploadManager {
   private setState(nextState: TransferState) {
     this.state = this.computeSummary({
       ...nextState,
-      items: pruneExpiredCompletedItems(nextState.items),
+      items: nextState.items.map(normalizeTransferItem),
     });
     this.persist();
     for (const listener of this.listeners) {
@@ -408,6 +523,7 @@ export class UploadManager {
       vaultId: upload.vaultId,
       folderId: upload.folderId,
       relativePath: upload.relativePath,
+      sourceRootName: item.sourceRootName ?? getSourceRootNameFromRelativePath(upload.relativePath),
       fileName: upload.fileName,
       mimeType: upload.mimeType,
       size: upload.totalSize,
@@ -420,7 +536,7 @@ export class UploadManager {
       uploadId: upload.id,
       documentId: upload.documentId,
       error: nextStatus === 'failed'
-        ? upload.errorMessage ?? item.error ?? 'Upload failed'
+        ? getUploadErrorMessage(upload.errorMessage ?? item.error ?? 'Upload failed')
         : nextStatus === 'paused' && !this.files.has(item.id)
           ? 'Previous upload session found. Select the file again to continue.'
           : null,
@@ -546,7 +662,7 @@ export class UploadManager {
         this.updateTransfer(id, current => ({
           ...current,
           status: 'failed',
-          error: error instanceof Error ? error.message : 'Upload failed',
+          error: getUploadErrorMessage(error),
           completedAt: null,
         }));
       }
@@ -619,7 +735,7 @@ export class UploadManager {
       this.updateTransfer(id, current => ({
         ...current,
         status: isPause ? 'paused' : 'failed',
-        error: isPause ? null : error instanceof Error ? error.message : 'Upload failed',
+        error: isPause ? null : getUploadErrorMessage(error),
         completedAt: null,
       }));
       throw error;

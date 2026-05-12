@@ -35,6 +35,10 @@ function joinPath(...parts: string[]) {
     .join('/');
 }
 
+function isHiddenPathPart(name: string) {
+  return name.trim().startsWith('.');
+}
+
 async function readFileEntry(entry: FileSystemFileEntry) {
   return new Promise<File>((resolve, reject) => {
     entry.file(resolve, reject);
@@ -58,6 +62,10 @@ async function readDirectoryEntries(reader: FileSystemDirectoryReader) {
 }
 
 async function filesFromEntry(entry: FileSystemEntry): Promise<DroppedFile[]> {
+  if (isHiddenPathPart(entry.name)) {
+    return [];
+  }
+
   if (entry.isFile) {
     const file = await readFileEntry(entry as FileSystemFileEntry);
     const fullPath = 'fullPath' in entry && typeof entry.fullPath === 'string'
@@ -81,6 +89,10 @@ async function filesFromEntry(entry: FileSystemEntry): Promise<DroppedFile[]> {
 }
 
 async function filesFromHandle(handle: FileSystemHandleLike, parentPath = ''): Promise<DroppedFile[]> {
+  if (isHiddenPathPart(handle.name)) {
+    return [];
+  }
+
   if (handle.kind === 'file') {
     const file = await (handle as FileSystemFileHandleLike).getFile();
     return [{

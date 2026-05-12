@@ -1,7 +1,6 @@
 import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
 import { Flex, HStack, Text } from '@chakra-ui/react';
-import { Link } from '@tanstack/react-router';
 import { FolderPlus, Grid3X3, List, Upload } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
@@ -43,6 +42,7 @@ export function useVaultBrowserHeader({
   onNavigateFolder,
   onOpenRootContextMenu,
   onOpenCreateFolderDialog,
+  onOpenUploadFiles,
   onDragOverFolder,
   onDragLeaveFolder,
   onDropOnFolder,
@@ -62,6 +62,7 @@ export function useVaultBrowserHeader({
   onNavigateFolder: (folderId: string | null) => void;
   onOpenRootContextMenu: (event: MouseEvent<HTMLElement>) => void;
   onOpenCreateFolderDialog: (parentId: string | null) => void;
+  onOpenUploadFiles: () => void;
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -194,12 +195,10 @@ export function useVaultBrowserHeader({
           <FolderPlus size={16} />
           New
         </Button>
-        <Link to={ROUTES.transfersWithLock(vaultId, currentFolderId)} style={{ textDecoration: 'none' }}>
-          <Button type="button" size="sm">
-            <Upload size={16} />
-            Upload
-          </Button>
-        </Link>
+        <Button type="button" size="sm" onClick={onOpenUploadFiles}>
+          <Upload size={16} />
+          Upload
+        </Button>
       </HStack>
     </Flex>
   ), [
@@ -209,10 +208,10 @@ export function useVaultBrowserHeader({
     currentFolderId,
     onClearSelection,
     onOpenCreateFolderDialog,
+    onOpenUploadFiles,
     selectedCount,
     setBrowserSort,
     setBrowserView,
-    vaultId,
   ]);
 
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);

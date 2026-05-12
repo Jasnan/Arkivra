@@ -307,7 +307,7 @@ describe('documents integration', () => {
 
     const app = createTestApp({ docServices, vaultServices });
 
-    const response = await app.request('/api/documents/trash', {
+    const response = await app.request('/api/trash', {
       headers: { 'x-test-user-id': 'usr_1' },
     });
 
@@ -317,6 +317,44 @@ describe('documents integration', () => {
     expect(body.retentionDays).toBe(30);
     expect(docServices.listDeletedDocuments).toHaveBeenCalledWith({
       vaultIds: ['vlt_1', 'vlt_2'],
+    });
+  });
+
+  test('filters deleted documents by requested accessible vault', async () => {
+    const docServices = createMockDocumentsServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).listUserVaults = vi.fn(async () => [
+      {
+        id: 'vlt_1',
+        name: 'Vault One',
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+        deletedAt: null,
+        role: 'owner',
+        permissions: [],
+        isGlobalAdmin: false,
+      },
+      {
+        id: 'vlt_2',
+        name: 'Vault Two',
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+        deletedAt: null,
+        role: 'member',
+        permissions: ['documents.read'],
+        isGlobalAdmin: false,
+      },
+    ]);
+
+    const app = createTestApp({ docServices, vaultServices });
+
+    const response = await app.request('/api/trash?vaultId=vlt_2', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(docServices.listDeletedDocuments).toHaveBeenCalledWith({
+      vaultIds: ['vlt_2'],
     });
   });
 

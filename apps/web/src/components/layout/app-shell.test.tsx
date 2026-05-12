@@ -172,6 +172,8 @@ describe('app shell account menu', () => {
     expect(screen.getByRole('button', { name: 'Expand MyDocs', hidden: true })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('link', { name: 'MyFiles', hidden: true })).toHaveAttribute('href', '/vaults/vlt_2');
     expect(screen.getByRole('button', { name: 'Expand MyFiles', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('link', { name: 'Trash', hidden: true })).toHaveAttribute('href', '/trash');
+    expect(screen.getByRole('link', { name: 'Tags', hidden: true })).toHaveAttribute('href', '/tags');
     expect(screen.getAllByRole('link', { name: 'Vaults', hidden: true })).toHaveLength(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse Vaults', hidden: true }));
@@ -209,6 +211,23 @@ describe('app shell account menu', () => {
     );
     expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Trash', hidden: true })).toHaveAttribute('href', '/trash');
+    expect(screen.getByRole('link', { name: 'Tags', hidden: true })).toHaveAttribute('href', '/tags');
+  });
+
+  it('keeps the vault sidebar available on global taxonomy pages', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/tags'],
+        routePath: '/tags',
+      },
+    );
+
+    expect(await screen.findByRole('link', { name: 'MyDocs', hidden: true })).toHaveAttribute('href', '/vaults/vlt_1');
+    expect(screen.getByRole('link', { name: 'MyFiles', hidden: true })).toHaveAttribute('href', '/vaults/vlt_2');
+    expect(screen.getByRole('link', { name: 'Trash', hidden: true })).toHaveAttribute('href', '/trash');
+    expect(screen.getByRole('link', { name: 'Tags', hidden: true })).toHaveAttribute('href', '/tags');
   });
 
   it('reveals the selected nested folder branch in the vault sidebar', async () => {

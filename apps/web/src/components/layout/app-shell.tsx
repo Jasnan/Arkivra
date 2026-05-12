@@ -365,51 +365,76 @@ function SecondarySidebar({
         </Text>
       </Flex>
 
-      <Box flex="1" minH="0" overflowY="auto" px="3" py="4">
+      <Box
+        flex="1"
+        minH="0"
+        overflowY={kind === 'vault' && customContent === null ? 'hidden' : 'auto'}
+        px="3"
+        py="4"
+        display={kind === 'vault' && customContent === null ? 'flex' : undefined}
+        flexDirection={kind === 'vault' && customContent === null ? 'column' : undefined}
+      >
         {kind === 'vault' ? (
-          <Stack gap="4">
-            {canCreateVault ? (
-              <ChakraButton
-                type="button"
-                size="sm"
-                h="9"
-                w="full"
-                justifyContent="flex-start"
-                rounded="md"
-                colorPalette="teal"
-                onClick={onCreateVault}
-              >
-                <Plus size={16} />
-                Create vault
-              </ChakraButton>
-            ) : null}
-            {customContent ?? (
-              <>
+          customContent ? (
+            <Stack gap="4">
+              {canCreateVault ? (
+                <ChakraButton
+                  type="button"
+                  size="sm"
+                  h="9"
+                  w="full"
+                  justifyContent="flex-start"
+                  rounded="md"
+                  colorPalette="teal"
+                  onClick={onCreateVault}
+                >
+                  <Plus size={16} />
+                  Create vault
+                </ChakraButton>
+              ) : null}
+              {customContent}
+            </Stack>
+          ) : (
+            <Flex direction="column" gap="4" minH="0" flex="1">
+              {canCreateVault ? (
+                <ChakraButton
+                  type="button"
+                  size="sm"
+                  h="9"
+                  w="full"
+                  justifyContent="flex-start"
+                  rounded="md"
+                  colorPalette="teal"
+                  onClick={onCreateVault}
+                >
+                  <Plus size={16} />
+                  Create vault
+                </ChakraButton>
+              ) : null}
+              <Box flex="1" minH="0" overflowY="auto" pr="1" mr="-1">
                 <VaultSidebarTree
                   vaults={vaults}
                   activeVaultId={activeVaultId}
                   currentFolderId={currentFolderId}
                   folders={folderTreeQuery.data?.folders ?? []}
                 />
-                {activeVaultId ? (
-                  <Box borderTopWidth="1px" borderColor="border.subtle" pt="4">
-                    <Stack gap="1">
-                      <SecondaryNavLink
-                        to={ROUTES.vaultTrash(activeVaultId)}
-                        label="Trash"
-                        icon={<Trash2 size={16} />}
-                      />
-                      <SecondaryNavLink
-                        to={ROUTES.vaultTags(activeVaultId)}
-                        label="Tags"
-                        icon={<Tags size={16} />}
-                      />
-                    </Stack>
-                  </Box>
-                ) : null}
-              </>
-            )}
-          </Stack>
+              </Box>
+              <Box flexShrink={0} borderTopWidth="1px" borderColor="border.subtle" pt="4">
+                <Stack gap="1">
+                  <SecondaryNavLink
+                    to={ROUTES.tags}
+                    label="Tags"
+                    icon={<Tags size={16} />}
+                  />
+                  <SecondaryNavLink
+                    to={ROUTES.trash}
+                    label="Trash"
+                    icon={<Trash2 size={16} />}
+                  />
+                </Stack>
+              </Box>
+            </Flex>
+          )
         ) : customContent ?? (
           kind === 'chat' ? (
             <Text px="2" py="4" fontSize="sm" color="fg.muted">
@@ -560,6 +585,7 @@ function WorkspaceHeader({
 function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'standard' {
   const parts = pathname.split('/').filter(Boolean);
   if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
+  if (pathname === ROUTES.trash || pathname === ROUTES.tags) return 'vault';
   if (parts[0] === 'vaults' || pathname === ROUTES.vaults) return 'vault';
   return 'standard';
 }

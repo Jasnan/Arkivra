@@ -1,24 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
-import { listAccessibleTags, listTags } from './tags.api';
+import { listTags } from './tags.api';
 
 export const tagQueryKeys = {
   all: ['tags'] as const,
-  list: (vaultId: string) => [...tagQueryKeys.all, 'list', vaultId] as const,
-  accessible: (vaultId?: string) => [...tagQueryKeys.all, 'accessible', vaultId ?? 'all'] as const,
+  list: () => [...tagQueryKeys.all, 'list'] as const,
+  accessible: () => [...tagQueryKeys.all, 'accessible'] as const,
 };
 
-export function useTagsQuery({ vaultId }: { vaultId: string }) {
+export function useTagsQuery(_args?: { vaultId?: string }) {
   return useQuery({
-    queryKey: tagQueryKeys.list(vaultId),
-    queryFn: () => listTags({ vaultId }),
-    enabled: vaultId.length > 0,
+    queryKey: tagQueryKeys.list(),
+    queryFn: listTags,
+    staleTime: 30_000,
   });
 }
 
-export function useAccessibleTagsQuery({ vaultId }: { vaultId?: string } = {}) {
+export function useAccessibleTagsQuery(_args: { vaultId?: string } = {}) {
   return useQuery({
-    queryKey: tagQueryKeys.accessible(vaultId),
-    queryFn: () => listAccessibleTags({ vaultId }),
+    queryKey: tagQueryKeys.accessible(),
+    queryFn: listTags,
     staleTime: 30_000,
   });
 }

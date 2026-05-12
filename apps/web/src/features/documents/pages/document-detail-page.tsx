@@ -112,7 +112,7 @@ export function DocumentDetailPage() {
 
   const documentQuery = useDocumentQuery({ vaultId, documentId });
   const documentTagsQuery = useDocumentTagsQuery({ vaultId, documentId });
-  const tagsQuery = useTagsQuery({ vaultId });
+  const tagsQuery = useTagsQuery();
   const vaultQuery = useVaultQuery({ vaultId });
   const folderTreeQuery = useFolderTreeQuery({ vaultId, enabled: vaultId.length > 0 });
 
@@ -211,7 +211,7 @@ export function DocumentDetailPage() {
 
   const invalidateDocument = async () => {
     await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
-    await queryClient.invalidateQueries({ queryKey: tagQueryKeys.list(vaultId) });
+    await queryClient.invalidateQueries({ queryKey: tagQueryKeys.list() });
   };
 
   const invalidateDocumentTags = async () => {
@@ -221,7 +221,7 @@ export function DocumentDetailPage() {
     await queryClient.invalidateQueries({
       queryKey: [...documentQueryKeys.all, 'list', vaultId],
     });
-    await queryClient.invalidateQueries({ queryKey: tagQueryKeys.list(vaultId) });
+    await queryClient.invalidateQueries({ queryKey: tagQueryKeys.list() });
   };
 
   const renameMutation = useMutation({
@@ -412,7 +412,6 @@ export function DocumentDetailPage() {
 
     try {
       const result = await createTagMutation.mutateAsync({
-        vaultId,
         name: normalizedCreateTagName,
         color: createTagColorValue,
         description: createTagDescription.length > 0 ? createTagDescription : null,

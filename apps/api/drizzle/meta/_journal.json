@@ -50,6 +50,13 @@
       "when": 1778544000000,
       "tag": "0006_vault_folders",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778630400000,
+      "tag": "0007_global_tags",
+      "breakpoints": true
     }
   ]
 }

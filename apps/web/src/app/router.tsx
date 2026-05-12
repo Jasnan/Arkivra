@@ -4,6 +4,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  useParams,
 } from '@tanstack/react-router'
 import { Flex } from '@chakra-ui/react'
 import { AuthLayout } from '@/features/auth/auth-layout'
@@ -58,6 +59,22 @@ function ProtectedAppShell() {
   if (!session) return <Navigate to={ROUTES.login} />
 
   return <AppShell />
+}
+
+function VaultTrashRedirect() {
+  const { vaultId } = useParams({ strict: false }) as { vaultId?: string }
+
+  return (
+    <Navigate
+      to={ROUTES.trash}
+      search={{ vaultId: vaultId ?? '' } as any}
+      replace
+    />
+  )
+}
+
+function VaultTagsRedirect() {
+  return <Navigate to={ROUTES.tags} replace />
 }
 
 const rootRoute = createRootRoute()
@@ -143,7 +160,7 @@ const vaultSettingsRoute = createRoute({
 const vaultTrashRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/trash',
-  component: DocumentTrashPage,
+  component: VaultTrashRedirect,
 })
 
 const vaultChatRoute = createRoute({
@@ -155,7 +172,7 @@ const vaultChatRoute = createRoute({
 const vaultTagsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/tags',
-  component: TagsPage,
+  component: VaultTagsRedirect,
 })
 
 const documentRoute = createRoute({
@@ -179,6 +196,7 @@ const chatRoute = createRoute({
 const trashRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/trash',
+  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
   component: DocumentTrashPage,
 })
 

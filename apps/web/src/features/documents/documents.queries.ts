@@ -15,7 +15,7 @@ export const documentQueryKeys = {
       options?.sortBy ?? 'created_desc',
       options?.folderId === undefined ? 'all-folders' : options.folderId ?? 'root',
     ] as const,
-  deletedList: () => [...documentQueryKeys.all, 'deleted-list'] as const,
+  deletedList: (vaultId?: string) => [...documentQueryKeys.all, 'deleted-list', vaultId ?? 'all'] as const,
   detail: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'detail', vaultId, documentId] as const,
   tags: (vaultId: string, documentId: string) =>
@@ -44,10 +44,16 @@ export function useDocumentsQuery({
   });
 }
 
-export function useDeletedDocumentsQuery({ enabled = true }: { enabled?: boolean } = {}) {
+export function useDeletedDocumentsQuery({
+  vaultId,
+  enabled = true,
+}: {
+  vaultId?: string;
+  enabled?: boolean;
+} = {}) {
   return useQuery({
-    queryKey: documentQueryKeys.deletedList(),
-    queryFn: listDeletedDocuments,
+    queryKey: documentQueryKeys.deletedList(vaultId),
+    queryFn: () => listDeletedDocuments({ vaultId }),
     enabled,
   });
 }

@@ -370,7 +370,7 @@ describe.sequential('document upload processing e2e', () => {
     expect(searchBody.results[0]?.documentId).toBe(testContext.documentId);
     expect(searchBody.results[0]?.bestChunk.snippet).toContain('Docling');
 
-    const createTagResponse = await app.request(`/api/vaults/${testContext.vaultId}/tags`, {
+    const createTagResponse = await app.request('/api/tags', {
       method: 'POST',
       headers: {
         cookie: sessionCookie,

@@ -15,13 +15,11 @@ import {
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Pencil, Trash2 } from 'lucide-react';
-import { useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import {
   PageIntro,
   SurfacePanel,
   EmptyState,
-  vaultInputClassName,
 } from '@/components/layout/vault-ui';
 import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
@@ -34,18 +32,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
-import { tagQueryKeys, useAccessibleTagsQuery, useTagsQuery } from '@/features/tags/tags.queries';
+import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 import type { Tag } from '@/features/tags/tags.types';
-import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 type DialogMode = 'create' | 'edit';
 
@@ -229,20 +219,14 @@ function SelectionCheckbox({
 }
 
 export function TagsPage() {
-  const params = useParams({ strict: false }) as { vaultId?: string };
-  const scopedVaultId = params.vaultId;
-  const isVaultScoped = scopedVaultId !== undefined && scopedVaultId.length > 0;
   const queryClient = useQueryClient();
-  const vaultsQuery = useVaultsQuery();
-  const scopedTagsQuery = useTagsQuery({ vaultId: scopedVaultId ?? '' });
-  const accessibleTagsQuery = useAccessibleTagsQuery();
+  const tagsQuery = useTagsQuery();
 
   const [filterText, setFilterText] = useState('');
   const [dialogMode, setDialogMode] = useState<DialogMode>('create');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagPendingDelete, setTagPendingDelete] = useState<Tag | null>(null);
-  const [formVaultId, setFormVaultId] = useState(scopedVaultId ?? '');
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState(DEFAULT_TAG_COLOR);
@@ -251,9 +235,7 @@ export function TagsPage() {
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const focusRestoreTargetRef = useRef<HTMLElement | null>(null);
 
-  const tagsQuery = isVaultScoped ? scopedTagsQuery : accessibleTagsQuery;
   const tags = useMemo(() => tagsQuery.data?.tags ?? [], [tagsQuery.data?.tags]);
-  const vaults = vaultsQuery.data?.vaults ?? [];
   const selectedTag = useMemo(
     () => tags.find((tag) => tag.id === editingTagId) ?? null,
     [editingTagId, tags],
@@ -263,7 +245,7 @@ export function TagsPage() {
     const normalizedFilter = filterText.trim().toLowerCase();
     return tags.filter((tag) => {
       if (normalizedFilter.length === 0) return true;
-      return [tag.name, tag.description ?? '', tag.vaultName ?? ''].some((value) =>
+      return [tag.name, tag.description ?? ''].some((value) =>
         value.toLowerCase().includes(normalizedFilter),
       );
     });
@@ -296,7 +278,6 @@ export function TagsPage() {
     rememberFocusTarget(trigger ?? createButtonRef.current);
     setDialogMode('create');
     setEditingTagId(null);
-    setFormVaultId(scopedVaultId ?? vaults[0]?.id ?? '');
     setFormName('');
     setFormDescription('');
     setFormColor(DEFAULT_TAG_COLOR);
@@ -307,7 +288,6 @@ export function TagsPage() {
     rememberFocusTarget(trigger);
     setDialogMode('edit');
     setEditingTagId(tag.id);
-    setFormVaultId(tag.vaultId ?? scopedVaultId ?? '');
     setFormName(tag.name);
     setFormDescription(tag.description ?? '');
     setFormColor(tag.color ?? DEFAULT_TAG_COLOR);
@@ -319,19 +299,14 @@ export function TagsPage() {
     restoreFocusTarget();
   }
 
-  async function invalidateTagQueries(targetVaultId?: string) {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: tagQueryKeys.all }),
-      targetVaultId
-        ? queryClient.invalidateQueries({ queryKey: tagQueryKeys.list(targetVaultId) })
-        : Promise.resolve(),
-    ]);
+  async function invalidateTagQueries() {
+    await queryClient.invalidateQueries({ queryKey: tagQueryKeys.all });
   }
 
   const createMutation = useMutation({
     mutationFn: createTag,
-    onSuccess: async (_, variables) => {
-      await invalidateTagQueries(variables.vaultId);
+    onSuccess: async () => {
+      await invalidateTagQueries();
       toast.success('Tag created.');
       closeDialog();
     },
@@ -342,8 +317,8 @@ export function TagsPage() {
 
   const updateMutation = useMutation({
     mutationFn: updateTag,
-    onSuccess: async (_, variables) => {
-      await invalidateTagQueries(variables.vaultId);
+    onSuccess: async () => {
+      await invalidateTagQueries();
       toast.success('Tag updated.');
       closeDialog();
     },
@@ -353,13 +328,10 @@ export function TagsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (tagsToDelete: Array<{ vaultId: string; tagId: string }>) =>
+    mutationFn: async (tagsToDelete: Array<{ tagId: string }>) =>
       Promise.all(tagsToDelete.map((tagToDelete) => deleteTag(tagToDelete))),
     onSuccess: async (_data, variables) => {
-      const vaultIds = new Set(variables.map((item) => item.vaultId));
-      await Promise.all(
-        Array.from(vaultIds).map((vaultId) => invalidateTagQueries(vaultId)),
-      );
+      await invalidateTagQueries();
       toast.success(
         variables.length === 1 ? 'Tag deleted.' : `${variables.length} tags deleted.`,
       );
@@ -421,13 +393,7 @@ export function TagsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const targetVaultId = (isVaultScoped ? scopedVaultId : formVaultId)?.trim() ?? '';
-    if (targetVaultId.length === 0) {
-      toast.error('Choose a vault before saving this tag.');
-      return;
-    }
     const payload = {
-      vaultId: targetVaultId,
       name: formName.trim(),
       color: formColor || null,
       description: formDescription.trim() || null,
@@ -437,10 +403,6 @@ export function TagsPage() {
       return;
     }
     await createMutation.mutateAsync(payload);
-  }
-
-  if (isVaultScoped && !scopedVaultId) {
-    return <Text textStyle="sm" color="fg.error">Invalid vault id.</Text>;
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -455,7 +417,6 @@ export function TagsPage() {
               ref={createButtonRef}
               type="button"
               onClick={(event) => openCreateDialog(event.currentTarget)}
-              disabled={vaultsQuery.isLoading || vaults.length === 0}
             >
               Create tag
             </CreateButton>
@@ -521,7 +482,6 @@ export function TagsPage() {
                   <Table.ColumnHeader minW="180px">Tag</Table.ColumnHeader>
                   <Table.ColumnHeader minW="260px">Description</Table.ColumnHeader>
                   <Table.ColumnHeader minW="120px">Documents</Table.ColumnHeader>
-                  <Table.ColumnHeader minW="170px">Vault</Table.ColumnHeader>
                   <Table.ColumnHeader minW="150px">Created</Table.ColumnHeader>
                   <Table.ColumnHeader w="20" textAlign="right">Actions</Table.ColumnHeader>
                 </Table.Row>
@@ -550,9 +510,6 @@ export function TagsPage() {
                             />
                             <Text as="span">{tag.name}</Text>
                           </Flex>
-                          <Text display={{ md: 'none' }} fontSize="xs" color="fg.muted">
-                            {tag.vaultName ?? 'Current vault'}
-                          </Text>
                         </Stack>
                       </Table.Cell>
                       <Table.Cell verticalAlign="top">
@@ -563,11 +520,6 @@ export function TagsPage() {
                           <FileText size={16} color="var(--chakra-colors-fg-muted)" />
                           <Text as="span">{tag.documentsCount ?? 0}</Text>
                         </Flex>
-                      </Table.Cell>
-                      <Table.Cell verticalAlign="top">
-                        <Text fontSize="sm" color="fg.muted">
-                          {tag.vaultName ?? 'Current vault'}
-                        </Text>
                       </Table.Cell>
                       <Table.Cell verticalAlign="top">
                         <Text fontSize="sm" color="fg.muted">{formatTagCreatedDate(tag.createdAt)}</Text>
@@ -600,39 +552,9 @@ export function TagsPage() {
         submitLabel={dialogMode === 'create' ? 'Create tag' : 'Save changes'}
         pendingLabel={dialogMode === 'create' ? 'Creating...' : 'Saving...'}
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
-        extraFields={
-          !isVaultScoped ? (
-            <Field gap="3">
-              <FieldLabel id="tag-dialog-vault-label">Vault</FieldLabel>
-              <Select
-                value={formVaultId || '__none__'}
-                onValueChange={(value) => setFormVaultId(value === '__none__' ? '' : value)}
-              >
-                <SelectTrigger
-                  aria-labelledby="tag-dialog-vault-label"
-                  className={vaultInputClassName}
-                  h="10"
-                  rounded="lg"
-                  fontSize="sm"
-                >
-                  <SelectValue placeholder="Choose a vault" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Choose a vault</SelectItem>
-                  {vaults.map((vault) => (
-                    <SelectItem key={vault.id} value={vault.id}>
-                      {vault.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          ) : null
-        }
         isPending={isSubmitting}
         isSubmitDisabled={
           formName.trim().length === 0 ||
-          (!isVaultScoped && formVaultId.trim().length === 0) ||
           isSubmitting
         }
         nameValue={formName}
@@ -655,7 +577,6 @@ export function TagsPage() {
           }}
           onConfirm={() => {
             deleteMutation.mutate([{
-              vaultId: tagPendingDelete.vaultId ?? scopedVaultId ?? '',
               tagId: tagPendingDelete.id,
             }]);
           }}
@@ -673,7 +594,6 @@ export function TagsPage() {
           onConfirm={() => {
             deleteMutation.mutate(
               tagsPendingBulkDelete.map((tag) => ({
-                vaultId: tag.vaultId ?? scopedVaultId ?? '',
                 tagId: tag.id,
               })),
             );

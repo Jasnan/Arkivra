@@ -12,7 +12,6 @@ function createMockTagsServices() {
     listTags: vi.fn(async () => [
       {
         id: 'tag_1',
-        vaultId: 'vlt_1',
         name: 'Important',
         color: '#FF0000',
         description: 'Flagged for follow-up',
@@ -21,18 +20,16 @@ function createMockTagsServices() {
         updatedAt: '2025-01-01T00:00:00.000Z',
       },
     ]),
-    createTag: vi.fn(async ({ vaultId, name, color, description }) => ({
+    createTag: vi.fn(async ({ name, color, description }) => ({
       id: 'tag_new',
-      vaultId,
       name,
       color,
       description,
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
     })),
-    updateTag: vi.fn(async ({ tagId, vaultId, name, color, description }) => ({
+    updateTag: vi.fn(async ({ tagId, name, color, description }) => ({
       id: tagId,
-      vaultId,
       name,
       color,
       description,
@@ -43,7 +40,6 @@ function createMockTagsServices() {
     listDocumentTags: vi.fn(async () => [
       {
         id: 'tag_1',
-        vaultId: 'vlt_1',
         name: 'Important',
         color: '#FF0000',
         description: 'Flagged for follow-up',
@@ -55,7 +51,6 @@ function createMockTagsServices() {
       success: true,
       tag: {
         id: 'tag_1',
-        vaultId: 'vlt_1',
         name: 'Important',
         color: '#FF0000',
         description: 'Flagged for follow-up',
@@ -135,11 +130,11 @@ function createTestApp({
 }
 
 describe('tags integration', () => {
-  test('lists tags for an authenticated vault member', async () => {
+  test('lists global tags for an authenticated user', async () => {
     const tagsServices = createMockTagsServices();
     const app = createTestApp({ tagsServices });
 
-    const response = await app.request('/api/vaults/vlt_1/tags', {
+    const response = await app.request('/api/tags', {
       headers: { 'x-test-user-id': 'usr_1' },
     });
 
@@ -148,14 +143,14 @@ describe('tags integration', () => {
     expect(body.tags).toHaveLength(1);
     expect(body.tags[0].id).toBe('tag_1');
     expect(body.tags[0].documentsCount).toBe(2);
-    expect((tagsServices as any).listTags).toHaveBeenCalledWith({ vaultId: 'vlt_1' });
+    expect((tagsServices as any).listTags).toHaveBeenCalledWith({ vaultIds: [] });
   });
 
-  test('creates a tag for owner role', async () => {
+  test('creates a global tag', async () => {
     const tagsServices = createMockTagsServices();
     const app = createTestApp({ tagsServices });
 
-    const response = await app.request('/api/vaults/vlt_1/tags', {
+    const response = await app.request('/api/tags', {
       method: 'POST',
       headers: {
         'x-test-user-id': 'usr_1',
@@ -166,29 +161,18 @@ describe('tags integration', () => {
 
     expect(response.status).toBe(201);
     expect((tagsServices as any).createTag).toHaveBeenCalledWith({
-      vaultId: 'vlt_1',
       name: 'Important',
       color: '#FF0000',
       description: 'Flagged for follow-up',
     });
   });
 
-  test('allows member with tags.manage permission to create a tag', async () => {
+  test('allows authenticated members to create global tags', async () => {
     const tagsServices = createMockTagsServices();
     const vaultServices = createMockVaultsServices('member');
-    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
-      id: 'vlt_1',
-      name: 'Test Vault',
-      createdAt: new Date('2025-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
-      deletedAt: null,
-      role: 'member',
-      permissions: ['documents.read', 'tags.manage'],
-      isGlobalAdmin: false,
-    }));
 
     const app = createTestApp({ tagsServices, vaultServices });
-    const response = await app.request('/api/vaults/vlt_1/tags', {
+    const response = await app.request('/api/tags', {
       method: 'POST',
       headers: {
         'x-test-user-id': 'usr_1',
@@ -204,7 +188,7 @@ describe('tags integration', () => {
     const tagsServices = createMockTagsServices();
     const app = createTestApp({ tagsServices });
 
-    const response = await app.request('/api/vaults/vlt_1/tags', {
+    const response = await app.request('/api/tags', {
       method: 'POST',
       headers: {
         'x-test-user-id': 'usr_1',
@@ -226,7 +210,7 @@ describe('tags integration', () => {
     const tagsServices = createMockTagsServices();
     const app = createTestApp({ tagsServices });
 
-    const response = await app.request('/api/vaults/vlt_1/tags/tag_1', {
+    const response = await app.request('/api/tags/tag_1', {
       method: 'PATCH',
       headers: {
         'x-test-user-id': 'usr_1',
@@ -238,7 +222,6 @@ describe('tags integration', () => {
     expect(response.status).toBe(200);
     expect((tagsServices as any).updateTag).toHaveBeenCalledWith({
       tagId: 'tag_1',
-      vaultId: 'vlt_1',
       name: 'Urgent',
       color: '#00FF00',
       description: 'Needs action today',
@@ -249,7 +232,7 @@ describe('tags integration', () => {
     const tagsServices = createMockTagsServices();
     const app = createTestApp({ tagsServices });
 
-    const response = await app.request('/api/vaults/vlt_1/tags/tag_1', {
+    const response = await app.request('/api/tags/tag_1', {
       method: 'DELETE',
       headers: { 'x-test-user-id': 'usr_1' },
     });
@@ -257,7 +240,6 @@ describe('tags integration', () => {
     expect(response.status).toBe(204);
     expect((tagsServices as any).deleteTag).toHaveBeenCalledWith({
       tagId: 'tag_1',
-      vaultId: 'vlt_1',
     });
   });
 
@@ -316,22 +298,18 @@ describe('tags integration', () => {
     });
   });
 
-  test('forbids tag creation for member role', async () => {
+  test('requires authentication to create a tag', async () => {
     const tagsServices = createMockTagsServices();
-    const app = createTestApp({
-      tagsServices,
-      vaultServices: createMockVaultsServices('member'),
-    });
+    const app = createTestApp({ tagsServices });
 
-    const response = await app.request('/api/vaults/vlt_1/tags', {
+    const response = await app.request('/api/tags', {
       method: 'POST',
       headers: {
-        'x-test-user-id': 'usr_member',
         'content-type': 'application/json',
       },
       body: JSON.stringify({ name: 'Blocked' }),
     });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
   });
 });

@@ -1,19 +1,26 @@
 import { Box, Flex, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
-import { EmptyState, PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
+import { EmptyState, PageIntro, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DeleteButton, RestoreButton } from '@/components/ui/action-buttons';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
 import {
   documentQueryKeys,
   useDeletedDocumentsQuery,
-  useDocumentsQuery,
 } from '@/features/documents/documents.queries';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import type { DeletedDocumentSummary, DocumentSummary } from '@/features/documents/documents.types';
+import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 function getPermanentDeletionLabel(deletedAt: string | null, retentionDays: number) {
   if (!deletedAt) {
@@ -38,16 +45,12 @@ function getResolvedVaultName(document: DocumentSummary | DeletedDocumentSummary
 }
 
 export function DocumentTrashPage() {
-  const params = useParams({ strict: false }) as { vaultId?: string };
-  const vaultId = params.vaultId;
-  const isVaultScoped = typeof vaultId === 'string' && vaultId.length > 0;
+  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const navigate = useNavigate();
+  const vaultId = search.vaultId?.trim() || undefined;
   const queryClient = useQueryClient();
-  const vaultDocumentsQuery = useDocumentsQuery({
-    vaultId: vaultId ?? '',
-    includeDeleted: true,
-    enabled: isVaultScoped,
-  });
-  const deletedDocumentsQuery = useDeletedDocumentsQuery({ enabled: !isVaultScoped });
+  const vaultsQuery = useVaultsQuery();
+  const deletedDocumentsQuery = useDeletedDocumentsQuery({ vaultId });
 
   const restoreMutation = useMutation({
     mutationFn: restoreDocument,
@@ -73,14 +76,10 @@ export function DocumentTrashPage() {
     },
   });
 
-  const deletedDocuments = isVaultScoped
-    ? (vaultDocumentsQuery.data?.documents ?? []).filter((document) => document.isDeleted)
-    : (deletedDocumentsQuery.data?.documents ?? []);
-  const retentionDays = isVaultScoped
-    ? (vaultDocumentsQuery.data?.retentionDays ?? 30)
-    : (deletedDocumentsQuery.data?.retentionDays ?? 30);
-  const isLoading = isVaultScoped ? vaultDocumentsQuery.isLoading : deletedDocumentsQuery.isLoading;
-  const isError = isVaultScoped ? vaultDocumentsQuery.isError : deletedDocumentsQuery.isError;
+  const deletedDocuments = deletedDocumentsQuery.data?.documents ?? [];
+  const retentionDays = deletedDocumentsQuery.data?.retentionDays ?? 30;
+  const isLoading = deletedDocumentsQuery.isLoading;
+  const isError = deletedDocumentsQuery.isError;
   const deleteAllMutation = useMutation({
     mutationFn: async () => {
       await Promise.all(
@@ -102,6 +101,15 @@ export function DocumentTrashPage() {
       );
     },
   });
+  const vaults = vaultsQuery.data?.vaults ?? [];
+
+  function updateVaultFilter(nextVaultId: string) {
+    navigate({
+      to: ROUTES.trash,
+      search: nextVaultId.length > 0 ? { vaultId: nextVaultId } : {},
+      replace: true,
+    } as any);
+  }
 
   return (
     <Stack as="section" gap="8" pb="8">
@@ -118,6 +126,29 @@ export function DocumentTrashPage() {
       </Alert>
 
       <SurfacePanel display="flex" flexDirection="column" gap="5">
+        <Flex justify="space-between" align={{ base: 'stretch', sm: 'center' }} direction={{ base: 'column', sm: 'row' }} gap="3">
+          <Text fontSize="sm" fontWeight="medium" color="fg">
+            Vault
+          </Text>
+          <Box w={{ base: 'full', sm: '16rem' }}>
+            <Select
+              value={vaultId ?? '__all__'}
+              onValueChange={(value) => updateVaultFilter(value === '__all__' ? '' : value)}
+            >
+              <SelectTrigger className={vaultInputClassName} h="10" rounded="lg" fontSize="sm">
+                <SelectValue placeholder="All vaults" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All vaults</SelectItem>
+                {vaults.map((vault) => (
+                  <SelectItem key={vault.id} value={vault.id}>
+                    {vault.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Box>
+        </Flex>
         {isLoading ? (
           <Text textStyle="sm">Loading deleted documents...</Text>
         ) : null}

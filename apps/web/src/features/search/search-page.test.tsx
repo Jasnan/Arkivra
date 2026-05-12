@@ -34,7 +34,7 @@ describe('global search page', () => {
         });
       }
 
-      if (url === '/api/tags?vaultId=vlt_1') {
+      if (url === '/api/tags') {
         return jsonResponse({
           tags: [
             { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },
@@ -279,7 +279,7 @@ describe('documents library search controls', () => {
         });
       }
 
-      if (url === '/api/tags' || url === '/api/tags?vaultId=vlt_1') {
+      if (url === '/api/tags') {
         return jsonResponse({
           tags: [
             { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },
@@ -352,7 +352,7 @@ describe('documents library search controls', () => {
         });
       }
 
-      if (url === '/api/tags' || url === '/api/tags?vaultId=vlt_1') {
+      if (url === '/api/tags') {
         return jsonResponse({
           tags: [
             { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },

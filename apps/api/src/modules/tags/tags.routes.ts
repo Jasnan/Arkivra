@@ -53,6 +53,10 @@ function parseTagDescription(value: unknown) {
   return description;
 }
 
+function isDuplicateTagError(error: unknown) {
+  return error instanceof Error && error.message.includes('tags_name_unique');
+}
+
 export function registerTagRoutes({
   app,
   db,
@@ -68,12 +72,9 @@ export function registerTagRoutes({
   const tagsServices = services ?? createTagsServices({ db });
 
   app.use('/api/tags', requireAuthentication());
-  app.use('/api/vaults/:vaultId/tags', requireAuthentication());
-  app.use('/api/vaults/:vaultId/tags/*', requireAuthentication());
+  app.use('/api/tags/*', requireAuthentication());
   app.use('/api/vaults/:vaultId/documents/:documentId/tags', requireAuthentication());
   app.use('/api/vaults/:vaultId/documents/:documentId/tags/*', requireAuthentication());
-  app.use('/api/vaults/:vaultId/tags', requireVaultAccess({ services: vaultsServices }));
-  app.use('/api/vaults/:vaultId/tags/*', requireVaultAccess({ services: vaultsServices }));
   app.use(
     '/api/vaults/:vaultId/documents/:documentId/tags',
     requireVaultAccess({ services: vaultsServices }),
@@ -83,17 +84,6 @@ export function registerTagRoutes({
     requireVaultAccess({ services: vaultsServices }),
   );
 
-  app.get('/api/vaults/:vaultId/tags', async (context) => {
-    const vaultId = context.get('vaultId');
-
-    if (vaultId === null) {
-      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
-    }
-
-    const tags = await tagsServices.listTags({ vaultId });
-    return context.json({ tags });
-  });
-
   app.get('/api/tags', async (context) => {
     const userId = context.get('userId');
 
@@ -101,33 +91,20 @@ export function registerTagRoutes({
       return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
     }
 
-    const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
     const vaults = await vaultsServices.listUserVaults({ userId });
-    const readableVaults = vaults.filter(vault =>
-      vault.isGlobalAdmin
-      || vault.role === 'owner'
-      || vault.permissions.includes('documents.read'),
-    );
-    const allowedVaultIds = readableVaults.map(vault => vault.id);
-
-    if (requestedVaultId && !allowedVaultIds.includes(requestedVaultId)) {
-      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
-    }
-
-    const tags = await tagsServices.listAccessibleTags({
-      vaultIds: requestedVaultId ? [requestedVaultId] : allowedVaultIds,
-    });
+    const readableVaultIds = vaults
+      .filter(vault =>
+        vault.isGlobalAdmin
+        || vault.role === 'owner'
+        || vault.permissions.includes('documents.read'),
+      )
+      .map(vault => vault.id);
+    const tags = await tagsServices.listTags({ vaultIds: readableVaultIds });
 
     return context.json({ tags });
   });
 
-  app.post('/api/vaults/:vaultId/tags', requireVaultPermission('tags.manage'), async (context) => {
-    const vaultId = context.get('vaultId');
-
-    if (vaultId === null) {
-      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
-    }
-
+  app.post('/api/tags', async (context) => {
     const body = await context.req.json();
     const name = parseTagName(body.name);
     const color = parseTagColor(body.color);
@@ -165,15 +142,15 @@ export function registerTagRoutes({
     }
 
     try {
-      const tag = await tagsServices.createTag({ vaultId, name, color, description });
+      const tag = await tagsServices.createTag({ name, color, description });
       return context.json({ tag }, 201);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('tags_vault_name_unique')) {
+      if (isDuplicateTagError(error)) {
         return context.json(
           {
             error: {
               code: 'tag.duplicate',
-              message: 'A tag with this name already exists in the vault',
+              message: 'A tag with this name already exists',
             },
           },
           409,
@@ -185,15 +162,8 @@ export function registerTagRoutes({
   });
 
   app.patch(
-    '/api/vaults/:vaultId/tags/:tagId',
-    requireVaultPermission('tags.manage'),
+    '/api/tags/:tagId',
     async (context) => {
-      const vaultId = context.get('vaultId');
-
-      if (vaultId === null) {
-        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
-      }
-
       const tagId = context.req.param('tagId');
       const body = await context.req.json();
       const name = parseTagName(body.name);
@@ -232,7 +202,7 @@ export function registerTagRoutes({
       }
 
       try {
-        const tag = await tagsServices.updateTag({ tagId, vaultId, name, color, description });
+        const tag = await tagsServices.updateTag({ tagId, name, color, description });
 
         if (tag === null) {
           return context.json({ error: { code: 'tag.not_found', message: 'Tag not found' } }, 404);
@@ -240,12 +210,12 @@ export function registerTagRoutes({
 
         return context.json({ tag });
       } catch (error) {
-        if (error instanceof Error && error.message.includes('tags_vault_name_unique')) {
+        if (isDuplicateTagError(error)) {
           return context.json(
             {
               error: {
                 code: 'tag.duplicate',
-                message: 'A tag with this name already exists in the vault',
+                message: 'A tag with this name already exists',
               },
             },
             409,
@@ -258,17 +228,10 @@ export function registerTagRoutes({
   );
 
   app.delete(
-    '/api/vaults/:vaultId/tags/:tagId',
-    requireVaultPermission('tags.manage'),
+    '/api/tags/:tagId',
     async (context) => {
-      const vaultId = context.get('vaultId');
-
-      if (vaultId === null) {
-        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
-      }
-
       const tagId = context.req.param('tagId');
-      const tag = await tagsServices.deleteTag({ tagId, vaultId });
+      const tag = await tagsServices.deleteTag({ tagId });
 
       if (tag === null) {
         return context.json({ error: { code: 'tag.not_found', message: 'Tag not found' } }, 404);

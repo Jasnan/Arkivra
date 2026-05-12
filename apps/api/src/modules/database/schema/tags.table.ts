@@ -1,6 +1,6 @@
-import { pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createPrimaryKeyField, createTimestampColumns } from './helpers.js';
-import { vaultsTable } from './vaults.table.js';
 import { documentsTable } from './documents.table.js';
 
 export const tagsTable = pgTable(
@@ -9,15 +9,13 @@ export const tagsTable = pgTable(
     ...createPrimaryKeyField({ prefix: 'tag' }),
     ...createTimestampColumns(),
 
-    vaultId: text('vault_id')
-      .notNull()
-      .references(() => vaultsTable.id, { onDelete: 'cascade' }),
-
     name: text('name').notNull(),
     color: text('color'),
     description: text('description'),
   },
-  (table) => [unique('tags_vault_name_unique').on(table.vaultId, table.name)],
+  (table) => [
+    uniqueIndex('tags_name_unique').using('btree', sql`lower(${table.name})`),
+  ],
 );
 
 export const documentTagsTable = pgTable(

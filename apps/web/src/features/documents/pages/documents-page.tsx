@@ -412,6 +412,7 @@ export function DocumentsPage() {
 
   const browserHeader = useVaultBrowserHeader({
     vaultId,
+    vaultName: vaultQuery.data?.vault.name ?? 'Vault',
     currentFolderId,
     breadcrumbs: folderItemsQuery.data?.breadcrumbs ?? [],
     activeResultCount,
@@ -448,12 +449,9 @@ export function DocumentsPage() {
           <Box minW="0" flex="1">
             {browserHeader.workspaceHeader.left}
           </Box>
-          <HStack gap="3" flexShrink={0}>
-            {browserHeader.workspaceHeader.meta}
-            {browserHeader.workspaceHeader.actions}
-          </HStack>
         </Flex>
       ) : null}
+      {browserHeader.secondaryHeader}
       {activeIsLoading ? (
         <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
           <Text fontSize="sm" color="fg.muted">
@@ -472,7 +470,9 @@ export function DocumentsPage() {
       {!activeIsLoading && emptyState ? (
         <Flex flex="1" minH="0" direction="column" align="center" justify="center" gap="3" color="fg.muted">
           <Folder size={28} />
-          <Text fontWeight="medium" color="fg">This folder is empty</Text>
+          <Text fontWeight="medium" color="fg">
+            {currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
+          </Text>
           <Text fontSize="sm">Create a folder or upload documents here.</Text>
           <HStack gap="2">
             <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>

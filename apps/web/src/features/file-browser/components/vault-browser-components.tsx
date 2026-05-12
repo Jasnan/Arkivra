@@ -2,13 +2,15 @@ import type { ComponentPropsWithoutRef, DragEvent, FormEvent, KeyboardEvent, Mou
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { Check, File, Folder, FolderOpen, Home, Search } from 'lucide-react';
+import { Check, File, FileText, FileType, Folder, Home, Search } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
   Breadcrumb,
+  BreadcrumbEllipsis,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
@@ -28,18 +30,38 @@ import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem,
 
 const BROWSER_SCROLL_HEIGHT = '100%';
 const LIST_ROW_HEIGHT = 72;
+const BREADCRUMB_LABEL_MAX_LENGTH = 10;
+const LIST_GRID_COLUMNS = 'minmax(0, 1fr) 6rem 8.5rem 2.75rem';
+const gridItemNameStyles = {
+  display: '-webkit-box',
+  overflow: 'hidden',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: '2',
+  whiteSpace: 'normal',
+  wordBreak: 'break-word',
+} as const;
+
+export interface VaultBreadcrumbEntry {
+  key: string;
+  label: string;
+  to?: string;
+  onClick?: () => void;
+  onContextMenu?: (event: MouseEvent<HTMLElement>) => void;
+  dropFolderId?: string | null;
+}
 
 function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) {
   return (
     <Box
       ref={ref}
       {...props}
-      style={style}
+      style={{ ...style, paddingTop: '1rem' }}
       display="grid"
       gridTemplateColumns="repeat(auto-fill, minmax(13.5rem, 13.5rem))"
       gap="8"
       alignContent="start"
-      p={{ base: '4', md: '6' }}
+      px={{ base: '4', lg: '6' }}
+      pb="4"
     />
   );
 }
@@ -79,25 +101,85 @@ function getItemKindLabel(item: BrowserContextItem) {
   return item.type === 'folder' ? 'Folder' : getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
 }
 
-function FileBrowserIcon({ item }: { item: BrowserItem }) {
+function getDocumentIconMeta({ name, mimeType }: { name: string; mimeType: string }): {
+  badgeBg: string;
+  badgeColor: string;
+  color: string;
+  icon: LucideIcon;
+  label: string;
+} {
+  const extension = name.split('.').pop()?.trim().toLowerCase();
+  const neutralMeta = {
+    badgeBg: 'teal.subtle',
+    badgeColor: 'teal.fg',
+    color: 'teal.fg',
+  };
+
+  if (mimeType === 'application/pdf' || extension === 'pdf') {
+    return { ...neutralMeta, icon: FileText, label: 'PDF' };
+  }
+
+  if (
+    extension === 'doc'
+    || extension === 'docx'
+    || mimeType.includes('word')
+    || mimeType.includes('officedocument.wordprocessingml')
+  ) {
+    return { ...neutralMeta, icon: FileType, label: extension === 'doc' ? 'DOC' : 'DOCX' };
+  }
+
+  if (extension === 'txt' || extension === 'md' || mimeType.startsWith('text/')) {
+    return { ...neutralMeta, icon: FileText, label: extension === 'md' ? 'MD' : 'TXT' };
+  }
+
+  return {
+    ...neutralMeta,
+    icon: File,
+    label: getDocumentTypeLabel({ name, mimeType }),
+  };
+}
+
+function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' }) {
+  const isList = size === 'list';
+
   if (item.type === 'folder') {
     return (
-      <Flex boxSize="16" shrink={0} align="center" justify="center" rounded="md" bg="blue.100" color="blue.500" _dark={{ bg: 'blue.950', color: 'blue.300' }}>
-        <Folder size={42} fill="currentColor" strokeWidth={1.5} />
+      <Flex boxSize={isList ? '10' : '16'} shrink={0} align="center" justify="center" color="teal.fg">
+        <Folder size={isList ? 30 : 42} strokeWidth={1.5} />
       </Flex>
     );
   }
 
-  const label = getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
+  const { badgeBg, badgeColor, color, icon: DocumentIcon, label } = getDocumentIconMeta({
+    name: item.document.name,
+    mimeType: item.document.mimeType,
+  });
 
   return (
-    <Flex boxSize="16" shrink={0} align="center" justify="center" rounded="md" borderWidth="1px" borderColor="border.subtle" bg="blue.100" color="blue.500" _dark={{ bg: 'blue.950', color: 'blue.300' }}>
-      <Stack align="center" gap="0" lineHeight="none">
-        <File size={32} fill="currentColor" strokeWidth={1.5} />
-        <Text as="span" fontSize="0.78rem" fontWeight="bold" letterSpacing="normal" color="fg.inverted">
+    <Flex boxSize={isList ? '10' : '16'} shrink={0} align="center" justify="center" color={color}>
+      <Box position="relative" boxSize={isList ? '9' : '11'} color={color}>
+        <DocumentIcon size={isList ? 36 : 44} strokeWidth={1.5} />
+        <Text
+          as="span"
+          position="absolute"
+          left="50%"
+          top="64%"
+          transform="translate(-50%, -50%)"
+          maxW="9"
+          truncate
+          rounded="2px"
+          bg={badgeBg}
+          px="1"
+          py="0.5"
+          fontSize={isList ? '0.46rem' : '0.52rem'}
+          fontWeight="bold"
+          letterSpacing="normal"
+          lineHeight="1"
+          color={badgeColor}
+        >
           {label}
         </Text>
-      </Stack>
+      </Box>
     </Flex>
   );
 }
@@ -150,6 +232,153 @@ function handleItemKeyboardSelection({
     event.preventDefault();
     onSelectItem(event, item);
   }
+}
+
+function truncateBreadcrumbLabel(label: string) {
+  if (label.length <= BREADCRUMB_LABEL_MAX_LENGTH) {
+    return label;
+  }
+
+  return `${label.slice(0, BREADCRUMB_LABEL_MAX_LENGTH - 3).trimEnd()}...`;
+}
+
+function getVisibleVaultBreadcrumbs(entries: VaultBreadcrumbEntry[]) {
+  if (entries.length <= 4) {
+    return entries;
+  }
+
+  return [
+    entries[0],
+    entries[1],
+    null,
+    entries.at(-2)!,
+    entries.at(-1)!,
+  ];
+}
+
+export function VaultRouteBreadcrumbs({
+  entries,
+  dropTarget,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
+}: {
+  entries: VaultBreadcrumbEntry[];
+  dropTarget?: BrowserDropTarget | null;
+  onDragOverFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDragLeaveFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDropOnFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+}) {
+  const visibleEntries = getVisibleVaultBreadcrumbs(entries);
+
+  function getBreadcrumbDropProps(entry: VaultBreadcrumbEntry) {
+    if (!('dropFolderId' in entry)) {
+      return {};
+    }
+
+    const folderId = entry.dropFolderId ?? null;
+
+    return {
+      rounded: 'md',
+      px: '1',
+      borderWidth: '1px',
+      borderColor: dropTarget && isDropTargetForFolder(dropTarget, folderId) ? undefined : 'transparent',
+      ...getDropTargetStyles(dropTarget ?? null, folderId),
+      onDragOver: onDragOverFolder ? (event: DragEvent<HTMLElement>) => onDragOverFolder(event, folderId) : undefined,
+      onDragLeave: onDragLeaveFolder ? (event: DragEvent<HTMLElement>) => onDragLeaveFolder(event, folderId) : undefined,
+      onDrop: onDropOnFolder ? (event: DragEvent<HTMLElement>) => onDropOnFolder(event, folderId) : undefined,
+    };
+  }
+
+  return (
+    <Breadcrumb minW="0">
+      <BreadcrumbList flexWrap="nowrap">
+        {visibleEntries.map((entry, index) => {
+          const isLast = index === visibleEntries.length - 1;
+
+          if (entry === null) {
+            return (
+              <Fragment key="breadcrumb-ellipsis">
+                {index > 0 ? <BreadcrumbSeparator /> : null}
+                <BreadcrumbItem flexShrink={0}>
+                  <BreadcrumbEllipsis boxSize="auto" px="0.5" />
+                </BreadcrumbItem>
+              </Fragment>
+            );
+          }
+
+          const label = truncateBreadcrumbLabel(entry.label);
+
+          return (
+            <Fragment key={entry.key}>
+              {index > 0 ? <BreadcrumbSeparator /> : null}
+              <BreadcrumbItem minW="0" flexShrink={isLast ? 1 : 0}>
+                {entry.onClick && !isLast ? (
+                  <BreadcrumbLink
+                    as="button"
+                    type="button"
+                    title={entry.label}
+                    minW="0"
+                    onClick={entry.onClick}
+                    onContextMenu={entry.onContextMenu}
+                    {...getBreadcrumbDropProps(entry)}
+                  >
+                    <Text as="span" display="block" truncate>
+                      {label}
+                    </Text>
+                  </BreadcrumbLink>
+                ) : entry.to && !isLast ? (
+                  <Link to={entry.to} style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
+                    <Text
+                      title={entry.label}
+                      truncate
+                      fontWeight="medium"
+                      transition="colors"
+                      _hover={{ color: 'fg' }}
+                      onContextMenu={entry.onContextMenu}
+                      {...getBreadcrumbDropProps(entry)}
+                    >
+                      {label}
+                    </Text>
+                  </Link>
+                ) : (
+                  <BreadcrumbPage
+                    title={entry.label}
+                    minW="0"
+                    onContextMenu={entry.onContextMenu}
+                    {...getBreadcrumbDropProps(entry)}
+                  >
+                    <Text as="span" display="block" truncate>
+                      {label}
+                    </Text>
+                  </BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+            </Fragment>
+          );
+        })}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+function handleBrowserItemClick({
+  event,
+  item,
+  onOpenItem,
+  onSelectItem,
+}: {
+  event: MouseEvent<HTMLElement>;
+  item: BrowserItem;
+  onOpenItem: (item: BrowserItem) => void;
+  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
+}) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey) {
+    onSelectItem(event, item);
+    return;
+  }
+
+  onOpenItem(item);
 }
 
 export function FolderBreadcrumbs({
@@ -425,7 +654,7 @@ export function BrowserItemList({
     >
       <Grid
         display={{ base: 'none', md: 'grid' }}
-        templateColumns="minmax(0, 1.4fr) 132px 220px 44px"
+        templateColumns={LIST_GRID_COLUMNS}
         gap="4"
         borderBottomWidth="1px"
         borderColor="border.subtle"
@@ -471,13 +700,12 @@ export function BrowserItemList({
                 h={`${LIST_ROW_HEIGHT}px`}
                 borderBottomWidth="1px"
                 borderColor="border.subtle"
-                cursor="default"
+                cursor="pointer"
                 outline="none"
                 {...itemSurfaceStyles}
                 {...folderDropStyles}
                 _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
-                onClick={(event) => onSelectItem(event, item)}
-                onDoubleClick={() => onOpenItem(item)}
+                onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
                 onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
                 onDragStart={(event) => onDragStartItem(event, item)}
                 onDragEnd={onDragEndItem}
@@ -491,7 +719,7 @@ export function BrowserItemList({
                     display="grid"
                     h="full"
                     w="full"
-                    gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 132px 220px 44px' }}
+                    gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: LIST_GRID_COLUMNS }}
                     gap="4"
                     alignItems="center"
                     px="6"
@@ -503,6 +731,7 @@ export function BrowserItemList({
                       type="button"
                       minW="0"
                       textAlign="left"
+                      cursor="pointer"
                       aria-label={`Open folder ${item.folder.name}`}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -510,7 +739,7 @@ export function BrowserItemList({
                       }}
                     >
                       <Flex minW="0" align="center" gap="3">
-                        <FileBrowserIcon item={item} />
+                        <FileBrowserIcon item={item} size="list" />
                         <Box minW="0">
                           <Text truncate fontWeight="semibold" color="fg">{name}</Text>
                           <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
@@ -520,13 +749,13 @@ export function BrowserItemList({
                       </Flex>
                     </chakra.button>
                     <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
-                    <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
+                    <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatDateOnly(updatedAt)}</Text>
                     <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
                   </Grid>
                 ) : (
                   <Grid
                     h="full"
-                    templateColumns={{ base: 'minmax(0, 1fr) auto', md: 'minmax(0, 1.4fr) 132px 220px 44px' }}
+                    templateColumns={{ base: 'minmax(0, 1fr) auto', md: LIST_GRID_COLUMNS }}
                     gap="4"
                     alignItems="center"
                     px="6"
@@ -535,11 +764,11 @@ export function BrowserItemList({
                   >
                     <Link
                       to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}
+                      style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <Flex minW="0" align="center" gap="3">
-                        <FileBrowserIcon item={item} />
+                        <FileBrowserIcon item={item} size="list" />
                         <Box minW="0">
                           <Text truncate fontWeight="semibold" color="fg">{name}</Text>
                           {item.document.originalName !== item.document.name ? (
@@ -552,17 +781,17 @@ export function BrowserItemList({
                     </Link>
                     <Link
                       to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
+                      style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
+                      <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
                     </Link>
                     <Link
                       to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
+                      style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <Text display={{ base: 'none', md: 'block' }} textStyle="sm">{formatDateOnly(updatedAt)}</Text>
+                      <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatDateOnly(updatedAt)}</Text>
                     </Link>
                     <BrowserItemActions
                       item={item}
@@ -667,20 +896,21 @@ export function BrowserItemGrid({
                     disabled={isMutating}
                   />
                 </Box>
-                <Stack align="center" gap="4">
+                <Stack align="center" gap="4" w="full" minW="0">
                   <FileBrowserIcon item={item} />
                   <chakra.button
                     type="button"
                     minW="0"
                     textAlign="center"
+                    cursor="pointer"
                     aria-label={`Open folder ${item.folder.name}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpenItem(item);
                     }}
                   >
-                    <Box minW="0">
-                      <Text truncate fontSize="lg" fontWeight="medium" color="fg">{name}</Text>
+                    <Box minW="0" maxW="full" px="2">
+                      <Text fontSize="lg" fontWeight="medium" color="fg" {...gridItemNameStyles}>{name}</Text>
                     </Box>
                   </chakra.button>
                 </Stack>
@@ -709,15 +939,15 @@ export function BrowserItemGrid({
                     disabled={isMutating}
                   />
                 </Box>
-                <Stack align="center" gap="4">
+                <Stack align="center" gap="4" w="full" minW="0">
                   <FileBrowserIcon item={item} />
                   <Link
                     to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                    style={{ color: 'inherit', textDecoration: 'none' }}
+                    style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <Box minW="0">
-                      <Text truncate fontSize="lg" fontWeight="medium" color="fg">{name}</Text>
+                    <Box minW="0" maxW="full" px="2">
+                      <Text fontSize="lg" fontWeight="medium" color="fg" {...gridItemNameStyles}>{name}</Text>
                     </Box>
                   </Link>
                 </Stack>
@@ -735,10 +965,9 @@ export function BrowserItemGrid({
               aria-label={item.folder.name}
               draggable={!isMutating}
               textAlign="left"
-              cursor="default"
+              cursor="pointer"
               outline="none"
-              onClick={(event) => onSelectItem(event, item)}
-              onDoubleClick={() => onOpenItem(item)}
+              onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
               onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
               onDragStart={(event) => onDragStartItem(event, item)}
               onDragEnd={onDragEndItem}
@@ -759,10 +988,9 @@ export function BrowserItemGrid({
               tabIndex={0}
               aria-label={item.document.name}
               draggable={!isMutating}
-              cursor="default"
+              cursor="pointer"
               outline="none"
-              onClick={(event) => onSelectItem(event, item)}
-              onDoubleClick={() => onOpenItem(item)}
+              onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
               onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
               onDragStart={(event) => onDragStartItem(event, item)}
               onDragEnd={onDragEndItem}
@@ -997,7 +1225,7 @@ function OpenMoveItemDialog({
 
                         const isSelected = destination.id === value;
                         const isCurrent = destination.id === currentDestinationId;
-                        const icon = destination.id === null ? <Home size={16} /> : <FolderOpen size={16} />;
+                        const icon = destination.id === null ? <Home size={16} /> : <Folder size={16} />;
 
                         return (
                           <chakra.button

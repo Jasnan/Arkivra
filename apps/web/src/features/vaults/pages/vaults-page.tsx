@@ -2,11 +2,11 @@ import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderKanban, FolderOpen, Grid3X3, List, Settings2 } from 'lucide-react';
+import { FolderDot, FolderOpen, Grid3X3, List, Settings2 } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
-import { useWorkspaceHeader, useWorkspaceSecondary } from '@/components/layout/workspace-context';
+import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { CreateButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import type { VaultSummary } from '@/features/vaults/vaults.types';
 type VaultsView = 'list' | 'grid';
 
 const VAULTS_VIEW_STORAGE_KEY = 'arkivra.vaults.view';
+const VAULTS_LIST_GRID_COLUMNS = 'minmax(0, 1fr) 4rem 5.75rem 7.5rem 2.5rem';
 
 type VaultContextMenuState = {
   vault: VaultSummary;
@@ -54,7 +55,7 @@ function getStoredVaultsView(): VaultsView {
   }
 }
 
-function formatVaultCreatedDate(value: string | null) {
+function formatVaultDate(value: string | null | undefined) {
   if (!value) {
     return 'Not set';
   }
@@ -62,22 +63,6 @@ function formatVaultCreatedDate(value: string | null) {
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
   }).format(new Date(value));
-}
-
-function formatVaultRole(role: string | null | undefined) {
-  if (role === 'owner') {
-    return 'Owner';
-  }
-
-  if (role === 'member') {
-    return 'Member';
-  }
-
-  if (role === 'global_admin') {
-    return 'Global admin';
-  }
-
-  return 'Access';
 }
 
 function getVaultDescription(value: string | null) {
@@ -227,8 +212,9 @@ export function VaultsPage() {
   function restoreCreateButtonFocus() {
     const button = createButtonRef.current;
     if (button) {
+      button.focus();
       requestAnimationFrame(() => {
-        button.focus();
+        window.setTimeout(() => button.focus(), 0);
       });
     }
   }
@@ -301,35 +287,42 @@ export function VaultsPage() {
     });
   }
 
-  const workspaceHeader = useMemo(() => ({
-    actions: (
-      <HStack gap="2">
-        <Button
-          type="button"
-          size="icon"
-          variant={vaultsView === 'list' ? 'solid' : 'ghost'}
-          aria-label="List view"
-          onClick={() => setVaultsView('list')}
-        >
-          <List size={17} />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant={vaultsView === 'grid' ? 'solid' : 'ghost'}
-          aria-label="Grid view"
-          onClick={() => setVaultsView('grid')}
-        >
-          <Grid3X3 size={17} />
-        </Button>
-      </HStack>
-    ),
-  }), [vaultsView]);
-  useWorkspaceHeader(workspaceHeader);
   const isInWorkspaceShell = useWorkspaceSecondary(null);
 
   return (
     <Stack as="section" gap="0" h="full" minH="0">
+      <Flex
+        align="center"
+        justify="flex-end"
+        gap="3"
+        borderBottomWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.workspace"
+        px={{ base: '4', lg: '6' }}
+        py="3"
+      >
+        <HStack gap="2">
+          <Button
+            type="button"
+            size="icon"
+            variant={vaultsView === 'list' ? 'solid' : 'ghost'}
+            aria-label="List view"
+            onClick={() => setVaultsView('list')}
+          >
+            <List size={17} />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={vaultsView === 'grid' ? 'solid' : 'ghost'}
+            aria-label="Grid view"
+            onClick={() => setVaultsView('grid')}
+          >
+            <Grid3X3 size={17} />
+          </Button>
+        </HStack>
+      </Flex>
+
       {!isInWorkspaceShell && canCreateVault ? (
         <Box px={{ base: '4', lg: '6' }} pt={{ base: '4', lg: '6' }} pb="4">
           <Flex justify="flex-start">
@@ -340,7 +333,13 @@ export function VaultsPage() {
         </Box>
       ) : null}
 
-      <Box flex="1" minH="0" overflowY="auto" px={{ base: '4', lg: '6' }} py={isInWorkspaceShell ? '4' : '0'}>
+      <Box
+        flex="1"
+        minH="0"
+        overflowY="auto"
+        px={vaultsView === 'grid' ? { base: '4', lg: '6' } : '0'}
+        py={vaultsView === 'grid' && isInWorkspaceShell ? '4' : '0'}
+      >
         {vaultsQuery.isLoading ? (
           <Text px="3" py="4" textStyle="sm">Loading vaults...</Text>
         ) : null}
@@ -410,7 +409,7 @@ export function VaultsPage() {
                 </Box>
 
                 <Flex boxSize="16" align="center" justify="center" color="teal.fg">
-                  <FolderKanban size={48} strokeWidth={1.7} />
+                  <FolderDot size={48} strokeWidth={1.7} />
                 </Flex>
                 <Text mt="4" maxW="full" truncate fontSize="md" fontWeight="semibold" color="fg">
                   {vault.name}
@@ -428,20 +427,44 @@ export function VaultsPage() {
           </Grid>
         ) : (
           <Stack gap="0" borderTopWidth={vaults.length > 0 ? '1px' : '0'} borderColor="border.subtle">
+            {vaults.length > 0 ? (
+              <Grid
+                display={{ base: 'none', md: 'grid' }}
+                templateColumns={VAULTS_LIST_GRID_COLUMNS}
+                gap="3"
+                position="sticky"
+                top="0"
+                zIndex="1"
+                borderBottomWidth="1px"
+                borderColor="border.subtle"
+                bg="bg.workspace"
+                px="6"
+                py="3"
+                fontSize="sm"
+                color="fg.muted"
+              >
+                <Text as="span">Name</Text>
+                <Text as="span">Files</Text>
+                <Text as="span">Size</Text>
+                <Text as="span">Modified</Text>
+                <Text as="span" srOnly>Actions</Text>
+              </Grid>
+            ) : null}
             {vaults.map((vault) => (
-              <Flex
+              <Grid
                 key={vault.id}
                 as="article"
                 role="link"
                 tabIndex={0}
-                align="center"
-                gap="4"
+                alignItems="center"
+                templateColumns={{ base: 'minmax(0, 1fr) auto', md: VAULTS_LIST_GRID_COLUMNS }}
+                gap="3"
                 minH="4.5rem"
                 cursor="pointer"
                 borderBottomWidth="1px"
                 borderColor="border.subtle"
                 bg="bg.workspace"
-                px="3"
+                px="6"
                 py="3"
                 transition="background-color 0.15s ease, border-color 0.15s ease"
                 _hover={{ bg: 'bg.workspaceMuted' }}
@@ -455,55 +478,41 @@ export function VaultsPage() {
                   }
                 }}
               >
-                <Flex boxSize="10" shrink="0" align="center" justify="center" color="teal.fg">
-                  <FolderKanban size={24} strokeWidth={1.8} />
-                </Flex>
+                <Flex minW="0" align="center" gap="3">
+                  <Flex boxSize="10" shrink="0" align="center" justify="center" color="teal.fg">
+                    <FolderDot size={30} strokeWidth={1.5} />
+                  </Flex>
 
-                <Stack minW="0" flex="1" gap="1">
-                  <Flex align="center" gap="3" minW="0">
+                  <Stack minW="0" flex="1" gap="1">
                     <Text truncate fontSize="md" fontWeight="semibold" color="fg">
                       {vault.name}
                     </Text>
-                    <Flex
-                      display={{ base: 'none', sm: 'inline-flex' }}
-                      align="center"
-                      gap="1.5"
-                      rounded="md"
-                      borderWidth="1px"
-                      borderColor="border.subtle"
-                      bg="bg.workspaceMuted"
-                      px="2.5"
-                      py="1"
-                      fontSize="xs"
-                      fontWeight="medium"
-                      color="fg.muted"
-                      shrink="0"
-                    >
-                      {formatVaultRole(vault.role)}
-                    </Flex>
-                  </Flex>
-                  {getVaultDescription(vault.description) ? (
-                    <Text truncate fontSize="sm" color="fg.muted">
-                      {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
-                    </Text>
-                  ) : null}
-                </Stack>
+                    {getVaultDescription(vault.description) ? (
+                      <Text truncate fontSize="sm" color="fg.muted">
+                        {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
+                      </Text>
+                    ) : null}
+                  </Stack>
+                </Flex>
 
                 <Flex
                   display={{ base: 'none', md: 'flex' }}
-                  direction="column"
                   align="flex-start"
-                  w="11rem"
-                  shrink="0"
+                  minW="0"
                   color="fg.muted"
                 >
-                  <Text fontSize="sm" fontWeight="medium">
-                    {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
-                  </Text>
-                  <Text mt="1" fontSize="sm">
-                    Created {formatVaultCreatedDate(vault.createdAt)}
+                  <Text truncate fontSize="sm" fontWeight="medium">
+                    {vault.fileCount}
                   </Text>
                 </Flex>
+
+                <Text display={{ base: 'none', md: 'block' }} truncate fontSize="sm" color="fg.muted">
+                  {formatBytes(vault.totalSize)}
+                </Text>
+
+                <Text display={{ base: 'none', md: 'block' }} truncate fontSize="sm" color="fg.muted">
+                  {formatVaultDate(vault.updatedAt ?? vault.createdAt)}
+                </Text>
 
                 <Box
                   position="relative"
@@ -525,7 +534,7 @@ export function VaultsPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Box>
-              </Flex>
+              </Grid>
             ))}
           </Stack>
         )}

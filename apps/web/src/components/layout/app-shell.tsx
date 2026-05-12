@@ -94,12 +94,26 @@ const primaryNavItems: PrimaryNavItem[] = [
   { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
 ];
 
-function truncateBreadcrumbLabel(label: string, maxLength = 36) {
+function truncateBreadcrumbLabel(label: string, maxLength = 10) {
   if (label.length <= maxLength) {
     return label;
   }
 
   return `${label.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function getVisibleBreadcrumbs(breadcrumbs: BreadcrumbEntry[]) {
+  if (breadcrumbs.length <= 4) {
+    return breadcrumbs;
+  }
+
+  return [
+    breadcrumbs[0],
+    breadcrumbs[1],
+    null,
+    breadcrumbs.at(-2)!,
+    breadcrumbs.at(-1)!,
+  ];
 }
 
 function buildBreadcrumbs({
@@ -114,7 +128,7 @@ function buildBreadcrumbs({
   documentName?: string;
 }): BreadcrumbEntry[] {
   const parts = pathname.split('/').filter(Boolean);
-  const currentDocumentLabel = truncateBreadcrumbLabel(documentName ?? 'Document');
+  const currentDocumentLabel = documentName ?? 'Document';
 
   if (parts.length === 0 || pathname === ROUTES.vaults) return [{ label: 'Vaults' }];
   if (pathname === ROUTES.chat) return [{ label: 'Chat' }];
@@ -414,24 +428,39 @@ function SecondarySidebar({
 }
 
 function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] }) {
+  const visibleBreadcrumbs = getVisibleBreadcrumbs(breadcrumbs);
+
   return (
     <Breadcrumb minW="0">
       <BreadcrumbList flexWrap="nowrap">
-        {breadcrumbs.map((item, index) => {
-          const isLast = index === breadcrumbs.length - 1;
+        {visibleBreadcrumbs.map((item, index) => {
+          const isLast = index === visibleBreadcrumbs.length - 1;
+
+          if (item === null) {
+            return (
+              <Fragment key="breadcrumb-ellipsis">
+                {index > 0 ? <BreadcrumbSeparator /> : null}
+                <BreadcrumbItem flexShrink={0}>
+                  <Text aria-hidden="true" color="fg.muted">...</Text>
+                </BreadcrumbItem>
+              </Fragment>
+            );
+          }
+
+          const label = truncateBreadcrumbLabel(item.label);
 
           return (
             <Fragment key={`${item.to ?? item.label}-${item.label}`}>
               {index > 0 ? <BreadcrumbSeparator /> : null}
-              <BreadcrumbItem minW="0">
+              <BreadcrumbItem minW="0" flexShrink={isLast ? 1 : 0}>
                 {item.to && !isLast ? (
-                  <Link to={item.to} style={{ color: 'inherit' }}>
-                    <Text truncate fontWeight="medium" transition="colors" _hover={{ color: 'fg' }}>
-                      {item.label}
+                  <Link to={item.to} style={{ minWidth: 0, color: 'inherit' }}>
+                    <Text title={item.label} truncate fontWeight="medium" transition="colors" _hover={{ color: 'fg' }}>
+                      {label}
                     </Text>
                   </Link>
                 ) : (
-                  <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
+                  <BreadcrumbPage title={item.label} className="truncate">{label}</BreadcrumbPage>
                 )}
               </BreadcrumbItem>
             </Fragment>
@@ -560,7 +589,9 @@ export function AppShell() {
   const currentFolderId = (location.search as Record<string, string | undefined>).folderId ?? null;
   const isChatRoute =
     location.pathname === ROUTES.chat || (pathParts[0] === 'vaults' && (pathParts[2] === 'chat' || pathParts[3] === 'chat'));
+  const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
+  const isFlushVaultRoute = isVaultIndexRoute || isVaultBrowserRoute;
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]
@@ -664,7 +695,7 @@ export function AppShell() {
   }, []);
 
   const secondaryKind = getSecondaryKind(location.pathname);
-  const contentPadding = isChatRoute || isVaultBrowserRoute ? '0' : { base: '4', lg: '6' };
+  const contentPadding = isChatRoute || isFlushVaultRoute ? '0' : { base: '4', lg: '6' };
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -698,13 +729,13 @@ export function AppShell() {
               className="@container/main"
               flex="1"
               minH="0"
-              overflow={isChatRoute || isVaultBrowserRoute ? 'hidden' : 'auto'}
+              overflow={isChatRoute || isFlushVaultRoute ? 'hidden' : 'auto'}
               bg="bg.workspace"
               px={contentPadding}
               py="0"
             >
               {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                <Box px={contentPadding} pt={isChatRoute || isVaultBrowserRoute ? '3' : '4'}>
+                <Box px={contentPadding} pt={isChatRoute || isFlushVaultRoute ? '3' : '4'}>
                   <Link to={ROUTES.transfers} style={{ color: 'inherit', textDecoration: 'none' }}>
                     <Flex
                       align="center"

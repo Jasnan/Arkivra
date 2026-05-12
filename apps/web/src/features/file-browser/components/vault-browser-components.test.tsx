@@ -82,6 +82,7 @@ describe('move item dialog', () => {
 
   it('marks selected list rows and exposes folder drop interactions', async () => {
     const user = userEvent.setup();
+    const onOpenItem = vi.fn();
     const onSelectItem = vi.fn();
     const onDragOverFolder = vi.fn();
 
@@ -92,7 +93,7 @@ describe('move item dialog', () => {
         selectedItemKeys={new Set(['document-doc_1'])}
         draggedItemKeys={new Set(['document-doc_1'])}
         dropTarget={{ folderId: 'fld_projects', state: 'valid' }}
-        onOpenItem={vi.fn()}
+        onOpenItem={onOpenItem}
         onSelectItem={onSelectItem}
         getItemActions={() => []}
         onDragStartItem={vi.fn()}
@@ -108,6 +109,9 @@ describe('move item dialog', () => {
     expect(documentRow).toHaveAttribute('aria-selected', 'true');
 
     await user.click(documentRow);
+    expect(onOpenItem).toHaveBeenCalledWith(documentTarget);
+
+    fireEvent.click(documentRow, { ctrlKey: true });
     expect(onSelectItem.mock.calls.at(-1)?.[1]).toEqual(documentTarget);
 
     const folderRow = screen.getByRole('option', { name: 'Projects' });

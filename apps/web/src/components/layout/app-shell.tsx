@@ -1,5 +1,5 @@
 import type { ComponentType, FormEvent, ReactNode } from 'react';
-import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Compass,
@@ -54,6 +54,8 @@ import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
+import { TransfersDrawer } from '@/features/uploads/components/transfers-drawer';
+import { uploadManager } from '@/features/uploads/upload-manager';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
 import { VaultSidebarTree } from '@/features/vaults/components/vault-sidebar-tree';
 import { createVault } from '@/features/vaults/vaults.api';
@@ -192,8 +194,42 @@ function RailTooltip({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-function RailLink({ item, active }: { item: PrimaryNavItem; active: boolean }) {
+function RailLink({
+  item,
+  active,
+  onOpenTransfers,
+}: {
+  item: PrimaryNavItem;
+  active: boolean;
+  onOpenTransfers: () => void;
+}) {
   const Icon = item.icon;
+
+  if (item.id === 'transfers') {
+    return (
+      <RailTooltip label={item.label}>
+        <chakra.button
+          type="button"
+          aria-label={item.label}
+          display="flex"
+          boxSize="11"
+          alignItems="center"
+          justifyContent="center"
+          rounded="lg"
+          color={active ? 'fg' : 'fg.muted'}
+          bg={active ? 'bg.sidebar' : 'transparent'}
+          borderWidth="1px"
+          borderColor={active ? 'border.subtle' : 'transparent'}
+          cursor="pointer"
+          transition="background-color 120ms ease, color 120ms ease"
+          _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
+          onClick={onOpenTransfers}
+        >
+          <Icon size={23} strokeWidth={2.1} />
+        </chakra.button>
+      </RailTooltip>
+    );
+  }
 
   return (
     <RailTooltip label={item.label}>
@@ -221,10 +257,14 @@ function PrimarySidebar({
   activeNavId,
   sessionEmail,
   isGlobalAdmin,
+  onOpenTransfers,
+  onSignOut,
 }: {
   activeNavId: PrimaryNavItem['id'];
   sessionEmail?: string | null;
   isGlobalAdmin?: boolean;
+  onOpenTransfers: () => void;
+  onSignOut: () => void;
 }) {
   return (
     <Flex
@@ -249,7 +289,7 @@ function PrimarySidebar({
 
       <Stack as="nav" aria-label="Primary" gap="2.5" mt="7" align="center">
         {primaryNavItems.map((item) => (
-          <RailLink key={item.id} item={item} active={activeNavId === item.id} />
+          <RailLink key={item.id} item={item} active={activeNavId === item.id} onOpenTransfers={onOpenTransfers} />
         ))}
       </Stack>
 
@@ -311,7 +351,7 @@ function PrimarySidebar({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => void authClient.signOut()}>
+            <DropdownMenuItem onSelect={onSignOut}>
               <LogOut size={16} />
               Sign out
             </DropdownMenuItem>
@@ -605,6 +645,8 @@ export function AppShell() {
   const [newVaultDescription, setNewVaultDescription] = useState('');
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
   const [secondaryContent, setSecondaryContent] = useState<ReactNode | null>(null);
+  const [isTransfersDrawerOpen, setIsTransfersDrawerOpen] = useState(false);
+  const previousLocationKeyRef = useRef<string | null>(null);
   const quickSearchShortcutLabel = useMemo(() => getQuickSearchShortcutLabel(), []);
   const deferredSearchValue = useDeferredValue(searchValue.trim());
   const pathParts = location.pathname.split('/').filter(Boolean);
@@ -672,6 +714,11 @@ export function AppShell() {
     },
   });
 
+  async function handleSignOut() {
+    await uploadManager.clearForLogout();
+    await authClient.signOut();
+  }
+
   function closeQuickSearch() {
     setSearchValue('');
     setIsQuickSearchOpen(false);
@@ -720,6 +767,50 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', handleQuickSearchShortcut);
   }, []);
 
+  useEffect(() => {
+    function handleOpenTransfers() {
+      setIsTransfersDrawerOpen(true);
+    }
+
+    window.addEventListener('arkivra:transfers-open', handleOpenTransfers);
+    return () => window.removeEventListener('arkivra:transfers-open', handleOpenTransfers);
+  }, []);
+
+  useEffect(() => {
+    const hasUnfinishedUploads = uploadState.items.some(item =>
+      item.status === 'queued' || item.status === 'uploading' || item.status === 'paused',
+    );
+
+    if (!hasUnfinishedUploads) {
+      return undefined;
+    }
+
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [uploadState.items]);
+
+  const locationKey = useMemo(
+    () => `${location.pathname}:${JSON.stringify(location.search)}`,
+    [location.pathname, location.search],
+  );
+
+  useEffect(() => {
+    if (previousLocationKeyRef.current === null) {
+      previousLocationKeyRef.current = locationKey;
+      return;
+    }
+
+    if (previousLocationKeyRef.current !== locationKey) {
+      previousLocationKeyRef.current = locationKey;
+      setIsTransfersDrawerOpen(false);
+    }
+  }, [locationKey]);
+
   const secondaryKind = getSecondaryKind(location.pathname);
   const contentPadding = isChatRoute || isFlushVaultRoute ? '0' : { base: '4', lg: '6' };
 
@@ -728,9 +819,11 @@ export function AppShell() {
       <WorkspaceLayoutContext value={layoutContextValue}>
         <Flex minH="100vh" bg="bg.workspace" color="fg" overflow="hidden">
           <PrimarySidebar
-            activeNavId={primaryNavId(location.pathname)}
+            activeNavId={isTransfersDrawerOpen ? 'transfers' : primaryNavId(location.pathname)}
             sessionEmail={sessionData?.user.email}
             isGlobalAdmin={meQuery.data?.isGlobalAdmin}
+            onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
+            onSignOut={() => void handleSignOut()}
           />
           <SecondarySidebar
             title={secondaryKind === 'chat' ? 'Chat' : 'Arkivra'}
@@ -762,34 +855,36 @@ export function AppShell() {
             >
               {uploadState.activeCount + uploadState.queuedCount > 0 ? (
                 <Box px={contentPadding} pt={isChatRoute || isFlushVaultRoute ? '3' : '4'}>
-                  <Link to={ROUTES.transfers} style={{ color: 'inherit', textDecoration: 'none' }}>
-                    <Flex
-                      align="center"
-                      justify="space-between"
-                      borderWidth="1px"
-                      borderColor="border.subtle"
-                      bg="bg.workspace"
-                      px="4"
-                      py="3"
-                      fontSize="sm"
-                      color="fg.muted"
-                      transition="colors"
-                      _hover={{ bg: 'bg.workspaceMuted', color: 'fg' }}
-                    >
-                      <HStack gap="3">
-                        <Flex boxSize="8" align="center" justify="center" color="fg">
-                          <Upload size={16} />
-                        </Flex>
-                        <Text>
-                          Uploading {uploadState.activeCount + uploadState.queuedCount} file
-                          {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
-                        </Text>
-                      </HStack>
-                      <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.12em">
-                        View queue
+                  <chakra.button
+                    type="button"
+                    display="flex"
+                    w="full"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    borderWidth="1px"
+                    borderColor="border.subtle"
+                    bg="bg.workspace"
+                    px="4"
+                    py="3"
+                    fontSize="sm"
+                    color="fg.muted"
+                    transition="colors"
+                    _hover={{ bg: 'bg.workspaceMuted', color: 'fg' }}
+                    onClick={() => setIsTransfersDrawerOpen(true)}
+                  >
+                    <HStack gap="3">
+                      <Flex boxSize="8" align="center" justify="center" color="fg">
+                        <Upload size={16} />
+                      </Flex>
+                      <Text>
+                        Uploading {uploadState.activeCount + uploadState.queuedCount} file
+                        {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
                       </Text>
-                    </Flex>
-                  </Link>
+                    </HStack>
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.12em">
+                      View queue
+                    </Text>
+                  </chakra.button>
                 </Box>
               ) : null}
               <RouterDebugProbe />
@@ -957,6 +1052,11 @@ export function AppShell() {
             </Box>
           </DialogContent>
         </Dialog>
+
+        <TransfersDrawer
+          open={isTransfersDrawerOpen}
+          onOpenChange={setIsTransfersDrawerOpen}
+        />
         <Dialog
           open={isCreateVaultOpen}
           onOpenChange={(open) => {

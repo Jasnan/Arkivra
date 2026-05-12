@@ -16,6 +16,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
+import { uploadManager } from '@/features/uploads/upload-manager';
 import { authClient } from '@/lib/auth-client';
 
 function SecurityStatusBadge({
@@ -93,6 +94,7 @@ export function SettingsPage() {
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
+      await uploadManager.clearForLogout();
       const { error } = await authClient.signOut();
 
       if (error) {

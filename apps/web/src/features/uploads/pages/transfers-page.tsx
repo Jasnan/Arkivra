@@ -42,6 +42,7 @@ import { formatBytes } from '@/features/documents/documents.utils';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { filesToDroppedFiles, getDroppedFiles } from '../dropped-files';
 import type { DroppedFile } from '../dropped-files';
+import { filterAllowedUploadFiles } from '../upload-file-rules';
 import { uploadManager } from '../upload-manager';
 import { useUploadManagerState } from '../use-upload-manager';
 
@@ -97,6 +98,15 @@ export function TransfersPage() {
     () => state.items.filter((item) => item.status === 'completed'),
     [state.items],
   );
+  const hasClearableStatus = useMemo(
+    () => state.items.some((item) =>
+      item.status === 'completed'
+      || item.status === 'failed'
+      || item.status === 'canceled'
+      || item.status === 'paused',
+    ),
+    [state.items],
+  );
 
   useEffect(() => {
     if (!vaultId) return;
@@ -109,8 +119,9 @@ export function TransfersPage() {
   }, []);
 
   function handleFiles(files: DroppedFile[]) {
-    if (!canUpload || files.length === 0) return;
-    uploadManager.addFiles({ vaultId, folderId, files });
+    const acceptedFiles = filterAllowedUploadFiles(files);
+    if (!canUpload || acceptedFiles.length === 0) return;
+    uploadManager.addFiles({ vaultId, folderId, files: acceptedFiles });
   }
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
@@ -273,8 +284,8 @@ export function TransfersPage() {
             <Stack gap="1">
               <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">Upload queue</Heading>
               <Text textStyle="sm" color="fg.muted">
-                This page only tracks the file upload itself. Completed uploads are kept for 24
-                hours.
+                This page only tracks the file upload itself. Transfer status is kept for this tab
+                until sign out or close.
               </Text>
             </Stack>
             <Flex flexWrap="wrap" align="center" gap="3" fontSize="sm" color="fg.muted">
@@ -309,13 +320,13 @@ export function TransfersPage() {
                   Add folder
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  disabled={completedItems.length === 0}
+                  disabled={!hasClearableStatus}
                   onSelect={() => {
-                    uploadManager.clearCompleted();
+                    uploadManager.clearSettled();
                   }}
                 >
                   <ActionMenuItemIcon icon={CheckCircle2} />
-                  Clear completed
+                  Clear status
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={state.items.length === 0}
@@ -461,7 +472,7 @@ export function TransfersPage() {
                 <Box>
                   <Text fontWeight="medium" color="fg">Completed ({completedItems.length})</Text>
                   <Text mt="1" textStyle="sm">
-                    Recent completed uploads remain visible here for up to 24 hours.
+                    Recent completed uploads remain visible for this tab.
                   </Text>
                 </Box>
                 <ChevronDown

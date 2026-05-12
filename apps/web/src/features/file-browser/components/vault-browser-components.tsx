@@ -90,11 +90,19 @@ function getItemId(item: BrowserContextItem) {
     return item.vaultId;
   }
 
+  if (item.type === 'background') {
+    return item.folderId ?? item.vaultId;
+  }
+
   return item.type === 'folder' ? item.folder.id : item.document.id;
 }
 
 function getItemKindLabel(item: BrowserContextItem) {
   if (item.type === 'root') {
+    return 'Folder';
+  }
+
+  if (item.type === 'background') {
     return 'Folder';
   }
 
@@ -622,6 +630,7 @@ export function BrowserItemList({
   onDragLeaveFolder,
   onDropOnFolder,
   onOpenContextMenu,
+  onOpenBackgroundContextMenu,
   isMutating,
 }: {
   items: BrowserItem[];
@@ -638,6 +647,7 @@ export function BrowserItemList({
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
+  onOpenBackgroundContextMenu: (event: MouseEvent<HTMLElement>) => void;
   isMutating?: boolean;
 }) {
   return (
@@ -651,6 +661,7 @@ export function BrowserItemList({
       borderTopWidth="1px"
       borderColor="border.subtle"
       bg="bg.workspace"
+      onContextMenu={onOpenBackgroundContextMenu}
     >
       <Grid
         display={{ base: 'none', md: 'grid' }}
@@ -824,6 +835,7 @@ export function BrowserItemGrid({
   onDragLeaveFolder,
   onDropOnFolder,
   onOpenContextMenu,
+  onOpenBackgroundContextMenu,
   isMutating,
 }: {
   items: BrowserItem[];
@@ -840,6 +852,7 @@ export function BrowserItemGrid({
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
+  onOpenBackgroundContextMenu: (event: MouseEvent<HTMLElement>) => void;
   isMutating?: boolean;
 }) {
   return (
@@ -853,6 +866,7 @@ export function BrowserItemGrid({
       borderTopWidth="1px"
       borderColor="border.subtle"
       bg="bg.workspace"
+      onContextMenu={onOpenBackgroundContextMenu}
     >
       <VirtuosoGrid
         data={items}
@@ -1351,7 +1365,7 @@ export function ItemInfoDialog({
               <Stack gap="3">
                 <InfoRow label="Name" value={getItemName(target)} />
                 <InfoRow label="Type" value={getItemKindLabel(target)} />
-                {target.type !== 'root' ? <InfoRow label="Location" value={folderPath} /> : null}
+                {target.type !== 'root' && target.type !== 'background' ? <InfoRow label="Location" value={folderPath} /> : null}
                 {target.type === 'document' ? (
                   <>
                     <InfoRow label="Size" value={formatBytes(target.document.originalSize)} />
@@ -1359,7 +1373,7 @@ export function ItemInfoDialog({
                     <InfoRow label="MIME type" value={target.document.mimeType} />
                   </>
                 ) : null}
-                {target.type !== 'root' ? (
+                {target.type === 'folder' || target.type === 'document' ? (
                   <>
                     <InfoRow label="Created" value={formatDateOnly(target.type === 'folder' ? target.folder.createdAt : target.document.createdAt)} />
                     <InfoRow label="Updated" value={formatDateOnly(target.type === 'folder' ? target.folder.updatedAt : target.document.updatedAt)} />

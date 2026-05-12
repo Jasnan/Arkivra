@@ -102,6 +102,7 @@ describe('move item dialog', () => {
         onDragLeaveFolder={vi.fn()}
         onDropOnFolder={vi.fn()}
         onOpenContextMenu={vi.fn()}
+        onOpenBackgroundContextMenu={vi.fn()}
       />,
     );
 

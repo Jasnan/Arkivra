@@ -33,12 +33,12 @@ function createFileEntry(file: File, fullPath = `/${file.name}`): MockFileEntry 
   };
 }
 
-function createDirectoryEntry(entries: MockEntry[]): MockDirectoryEntry {
+function createDirectoryEntry(entries: MockEntry[], name = 'folder'): MockDirectoryEntry {
   return {
     isDirectory: true,
     isFile: false,
-    name: 'folder',
-    fullPath: '/folder',
+    name,
+    fullPath: `/${name}`,
     createReader: () => {
       let isRead = false;
       return {
@@ -107,5 +107,29 @@ describe('getDroppedFiles', () => {
     } as unknown as DataTransfer);
 
     expect(files).toEqual([{ file, relativePath: 'Inbox/2026/statement.pdf' }]);
+  });
+
+  it('skips hidden dropped files and directories while expanding folders', async () => {
+    const visibleFile = new File(['visible'], 'visible.txt', { type: 'text/plain' });
+    const hiddenFile = new File(['hidden'], '.hidden.txt', { type: 'text/plain' });
+    const hiddenNestedFile = new File(['secret'], 'secret.txt', { type: 'text/plain' });
+    const rootDirectory = createDirectoryEntry([
+      createFileEntry(visibleFile, '/folder/visible.txt'),
+      createFileEntry(hiddenFile, '/folder/.hidden.txt'),
+      createDirectoryEntry([createFileEntry(hiddenNestedFile, '/folder/.cache/secret.txt')], '.cache'),
+    ]);
+
+    const droppedFiles = await getDroppedFiles({
+      files: [],
+      items: [
+        {
+          kind: 'file',
+          getAsFile: () => null,
+          webkitGetAsEntry: () => rootDirectory,
+        },
+      ],
+    } as unknown as DataTransfer);
+
+    expect(droppedFiles).toEqual([{ file: visibleFile, relativePath: 'folder/visible.txt' }]);
   });
 });

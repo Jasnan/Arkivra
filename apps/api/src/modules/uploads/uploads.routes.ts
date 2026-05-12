@@ -13,10 +13,10 @@ type DocumentQueue = {
 
 function getDuplicateDocumentMessage(scope: string | null | undefined) {
   if (scope === 'trash') {
-    return 'A document with the same content is already in this vault trash';
+    return 'This file already exists in the vault trash';
   }
 
-  return 'A document with the same content already exists in this vault';
+  return 'This file already exists in this vault';
 }
 
 function parseNullableFolderId(value: unknown) {
@@ -43,6 +43,13 @@ function getUploadDestinationErrorResponse(message: string) {
     return {
       status: 400,
       body: { error: { code: 'folder.path_too_long', message: 'Folder path is too long' } },
+    };
+  }
+
+  if (message === 'duplicate_name') {
+    return {
+      status: 409,
+      body: { error: { code: 'folder.duplicate_name', message: 'A folder with this name already exists here' } },
     };
   }
 

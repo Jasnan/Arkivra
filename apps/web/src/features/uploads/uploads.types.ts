@@ -31,6 +31,8 @@ export interface UploadSessionSummary {
 
 export interface TransferItem {
   id: string;
+  batchId: string;
+  sourceRootName: string | null;
   vaultId: string;
   folderId: string | null;
   relativePath: string | null;

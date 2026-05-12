@@ -64,10 +64,10 @@ function toPublicUploadSession(row: UploadSessionRow) {
 
 function getDuplicateDocumentMessage(scope: string | null | undefined) {
   if (scope === 'trash') {
-    return 'A document with the same content is already in this vault trash';
+    return 'This file already exists in the vault trash';
   }
 
-  return 'A document with the same content already exists in this vault';
+  return 'This file already exists in this vault';
 }
 
 export function createUploadsServices({

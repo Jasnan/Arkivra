@@ -34,6 +34,11 @@ export function useFolderNavigation({
       return;
     }
 
+    if (item.type === 'background') {
+      navigateToFolder(item.folderId);
+      return;
+    }
+
     if (item.type === 'folder') {
       navigateToFolder(item.folder.id);
       return;

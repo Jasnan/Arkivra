@@ -746,7 +746,8 @@ describe('tags and documents pages', () => {
     fireEvent.contextMenu(await screen.findByText(/^Personal$/));
     const menu = screen.getByRole('menu', { name: /actions for vault root/i });
     expect(within(menu).getByRole('menuitem', { name: /new folder/i })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /upload/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /upload files/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /upload directory/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /info/i })).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /rename/i })).not.toBeInTheDocument();
 

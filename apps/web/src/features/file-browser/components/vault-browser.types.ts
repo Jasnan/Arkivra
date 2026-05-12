@@ -29,8 +29,15 @@ export interface BrowserRootItem {
   vaultId: string;
 }
 
+export interface BrowserBackgroundItem {
+  type: 'background';
+  vaultId: string;
+  folderId: string | null;
+  name: string;
+}
+
 export type BrowserItem = BrowserFolderItem | BrowserDocumentItem;
-export type BrowserContextItem = BrowserItem | BrowserRootItem;
+export type BrowserContextItem = BrowserItem | BrowserRootItem | BrowserBackgroundItem;
 export type BrowserActionTone = 'default' | 'destructive';
 
 export interface BrowserAction {
@@ -131,6 +138,10 @@ export function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeTyp
 export function getItemName(item: BrowserContextItem) {
   if (item.type === 'root') {
     return 'Vault root';
+  }
+
+  if (item.type === 'background') {
+    return item.name;
   }
 
   return item.type === 'folder' ? item.folder.name : item.document.name;

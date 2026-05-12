@@ -700,7 +700,7 @@ export function BrowserItemList({
                 h={`${LIST_ROW_HEIGHT}px`}
                 borderBottomWidth="1px"
                 borderColor="border.subtle"
-                cursor="default"
+                cursor="pointer"
                 outline="none"
                 {...itemSurfaceStyles}
                 {...folderDropStyles}
@@ -731,6 +731,7 @@ export function BrowserItemList({
                       type="button"
                       minW="0"
                       textAlign="left"
+                      cursor="pointer"
                       aria-label={`Open folder ${item.folder.name}`}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -763,7 +764,7 @@ export function BrowserItemList({
                   >
                     <Link
                       to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}
+                      style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <Flex minW="0" align="center" gap="3">
@@ -780,14 +781,14 @@ export function BrowserItemList({
                     </Link>
                     <Link
                       to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ display: 'block', minWidth: 0, color: 'inherit', textDecoration: 'none' }}
+                      style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
                     </Link>
                     <Link
                       to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ display: 'block', minWidth: 0, color: 'inherit', textDecoration: 'none' }}
+                      style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatDateOnly(updatedAt)}</Text>
@@ -901,6 +902,7 @@ export function BrowserItemGrid({
                     type="button"
                     minW="0"
                     textAlign="center"
+                    cursor="pointer"
                     aria-label={`Open folder ${item.folder.name}`}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -941,7 +943,7 @@ export function BrowserItemGrid({
                   <FileBrowserIcon item={item} />
                   <Link
                     to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                    style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}
+                    style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                     onClick={(event) => event.stopPropagation()}
                   >
                     <Box minW="0" maxW="full" px="2">
@@ -963,7 +965,7 @@ export function BrowserItemGrid({
               aria-label={item.folder.name}
               draggable={!isMutating}
               textAlign="left"
-              cursor="default"
+              cursor="pointer"
               outline="none"
               onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
               onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
@@ -986,7 +988,7 @@ export function BrowserItemGrid({
               tabIndex={0}
               aria-label={item.document.name}
               draggable={!isMutating}
-              cursor="default"
+              cursor="pointer"
               outline="none"
               onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
               onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}

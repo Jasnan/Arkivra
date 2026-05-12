@@ -1,0 +1,177 @@
+import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
+import { useMemo } from 'react';
+import { Flex, HStack, Text } from '@chakra-ui/react';
+import { Link } from '@tanstack/react-router';
+import { FolderPlus, Grid3X3, List, Upload } from 'lucide-react';
+import { ROUTES } from '@/app/routes';
+import { useWorkspaceHeader } from '@/components/layout/workspace-context';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { FolderBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
+import type { BrowserDropTarget, FileBrowserSort, FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
+import type { FolderBreadcrumb } from '@/features/file-browser/file-browser.types';
+
+const browserSortOptions: Array<{ value: FileBrowserSort; label: string }> = [
+  { value: 'name_asc', label: 'Name A-Z' },
+  { value: 'name_desc', label: 'Name Z-A' },
+  { value: 'updated_desc', label: 'Recently updated' },
+  { value: 'updated_asc', label: 'Oldest updated' },
+  { value: 'size_desc', label: 'Largest first' },
+  { value: 'size_asc', label: 'Smallest first' },
+];
+
+export function useVaultBrowserHeader({
+  vaultId,
+  currentFolderId,
+  breadcrumbs,
+  activeResultCount,
+  selectedCount,
+  browserView,
+  setBrowserView,
+  browserSort,
+  setBrowserSort,
+  dropTarget,
+  onClearSelection,
+  onNavigateFolder,
+  onOpenRootContextMenu,
+  onOpenCreateFolderDialog,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
+}: {
+  vaultId: string;
+  currentFolderId: string | null;
+  breadcrumbs: FolderBreadcrumb[];
+  activeResultCount: number;
+  selectedCount: number;
+  browserView: FileBrowserView;
+  setBrowserView: Dispatch<SetStateAction<FileBrowserView>>;
+  browserSort: FileBrowserSort;
+  setBrowserSort: Dispatch<SetStateAction<FileBrowserSort>>;
+  dropTarget: BrowserDropTarget | null;
+  onClearSelection: () => void;
+  onNavigateFolder: (folderId: string | null) => void;
+  onOpenRootContextMenu: (event: MouseEvent<HTMLElement>) => void;
+  onOpenCreateFolderDialog: (parentId: string | null) => void;
+  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+}) {
+  const workspaceHeader = useMemo(() => ({
+    left: (
+      <FolderBreadcrumbs
+        currentFolderId={currentFolderId}
+        breadcrumbs={breadcrumbs}
+        onNavigateFolder={onNavigateFolder}
+        onOpenRootContextMenu={onOpenRootContextMenu}
+        dropTarget={dropTarget}
+        onDragOverFolder={onDragOverFolder}
+        onDragLeaveFolder={onDragLeaveFolder}
+        onDropOnFolder={onDropOnFolder}
+      />
+    ),
+    meta: (
+      <Text fontSize="xs" color="fg.muted">
+        {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
+        {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
+      </Text>
+    ),
+    actions: (
+      <HStack gap="2">
+        {selectedCount > 0 ? (
+          <Button type="button" size="sm" variant="outline" onClick={onClearSelection}>
+            Clear
+          </Button>
+        ) : null}
+        <Flex
+          display={{ base: 'none', xl: 'flex' }}
+          align="center"
+          gap="2"
+          rounded="md"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.workspace"
+          px="2.5"
+          h="9"
+        >
+          <Text as="span" id="vault-browser-sort" fontSize="xs" fontWeight="medium" color="fg.muted">
+            Sort
+          </Text>
+          <Select value={browserSort} onValueChange={(value) => setBrowserSort(value as FileBrowserSort)}>
+            <SelectTrigger
+              aria-label="Sort folder items"
+              aria-labelledby="vault-browser-sort"
+              h="8"
+              minW="36"
+              border="0"
+              bg="transparent"
+              px="0"
+              shadow="none"
+              focusRing="none"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {browserSortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Flex>
+        <Button
+          type="button"
+          size="icon"
+          variant={browserView === 'list' ? 'solid' : 'ghost'}
+          aria-label="List view"
+          onClick={() => setBrowserView('list')}
+        >
+          <List size={17} />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={browserView === 'grid' ? 'solid' : 'ghost'}
+          aria-label="Grid view"
+          onClick={() => setBrowserView('grid')}
+        >
+          <Grid3X3 size={17} />
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => onOpenCreateFolderDialog(currentFolderId)}>
+          <FolderPlus size={16} />
+          New
+        </Button>
+        <Link to={ROUTES.transfersWithLock(vaultId, currentFolderId)} style={{ textDecoration: 'none' }}>
+          <Button type="button" size="sm">
+            <Upload size={16} />
+            Upload
+          </Button>
+        </Link>
+      </HStack>
+    ),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- shell registration follows browser state; handlers are local event delegates.
+  }), [
+    activeResultCount,
+    breadcrumbs,
+    browserSort,
+    browserView,
+    currentFolderId,
+    dropTarget,
+    selectedCount,
+    vaultId,
+  ]);
+
+  const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
+
+  return {
+    isInWorkspaceShell,
+    workspaceHeader,
+  };
+}

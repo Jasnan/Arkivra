@@ -1,4 +1,4 @@
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { StorageDriver } from '../storage/storage.types.js';
@@ -115,9 +115,10 @@ export function registerDocumentRoutes({
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
   const foldersServices = createFoldersServices({ db });
 
+  app.use('/api/trash', requireAuthentication());
   app.use('/api/documents/trash', requireAuthentication());
 
-  app.get('/api/documents/trash', async (context) => {
+  async function getTrashResponse(context: Context<ServerContext>) {
     const userId = context.get('userId');
 
     if (userId === null) {
@@ -135,11 +136,21 @@ export function registerDocumentRoutes({
         || vault.permissions.includes('documents.read'),
       )
       .map(vault => vault.id);
+    const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
 
-    const documents = await documentsServices.listDeletedDocuments({ vaultIds: readableVaultIds });
+    if (requestedVaultId !== undefined && !readableVaultIds.includes(requestedVaultId)) {
+      return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+    }
+
+    const documents = await documentsServices.listDeletedDocuments({
+      vaultIds: requestedVaultId === undefined ? readableVaultIds : [requestedVaultId],
+    });
 
     return context.json({ documents, retentionDays });
-  });
+  }
+
+  app.get('/api/trash', getTrashResponse);
+  app.get('/api/documents/trash', getTrashResponse);
 
   // List documents in vault
   app.get(

@@ -61,8 +61,16 @@ export async function getDocument({ vaultId, documentId }: { vaultId: string; do
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents/${documentId}`);
 }
 
-export async function listDeletedDocuments() {
-  return fetchJson<DeletedDocumentsResponse>('/api/documents/trash');
+export async function listDeletedDocuments({ vaultId }: { vaultId?: string } = {}) {
+  const params = new URLSearchParams();
+
+  if (vaultId) {
+    params.set('vaultId', vaultId);
+  }
+
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : '';
+
+  return fetchJson<DeletedDocumentsResponse>(`/api/trash${suffix}`);
 }
 
 export async function listDocumentTags({

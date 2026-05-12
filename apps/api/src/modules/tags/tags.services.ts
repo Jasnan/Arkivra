@@ -1,48 +1,24 @@
 import type { Database } from '../database/database.js';
-import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
-import { documentTagsTable, documentsTable, tagsTable, vaultsTable } from '../database/schema/index.js';
+import { and, asc, eq, exists, inArray, sql } from 'drizzle-orm';
+import { documentTagsTable, documentsTable, tagsTable } from '../database/schema/index.js';
 
 export function createTagsServices({ db }: { db: Database }) {
-  async function listTags({ vaultId }: { vaultId: string }) {
+  async function listTags({ vaultIds }: { vaultIds?: string[] } = {}) {
     const documentsCount = sql<number>`count(${documentsTable.id})::int`;
+    const documentJoinConditions = [
+      eq(documentTagsTable.documentId, documentsTable.id),
+      eq(documentsTable.isDeleted, false),
+    ];
 
-    return db
-      .select({
-        id: tagsTable.id,
-        vaultId: tagsTable.vaultId,
-        name: tagsTable.name,
-        color: tagsTable.color,
-        description: tagsTable.description,
-        documentsCount,
-        createdAt: tagsTable.createdAt,
-        updatedAt: tagsTable.updatedAt,
-      })
-      .from(tagsTable)
-      .leftJoin(documentTagsTable, eq(documentTagsTable.tagId, tagsTable.id))
-      .leftJoin(
-        documentsTable,
-        and(
-          eq(documentTagsTable.documentId, documentsTable.id),
-          eq(documentsTable.isDeleted, false),
-        ),
-      )
-      .where(eq(tagsTable.vaultId, vaultId))
-      .groupBy(tagsTable.id)
-      .orderBy(desc(tagsTable.createdAt), tagsTable.name);
-  }
-
-  async function listAccessibleTags({ vaultIds }: { vaultIds: string[] }) {
-    if (vaultIds.length === 0) {
-      return [];
+    if (vaultIds !== undefined) {
+      documentJoinConditions.push(
+        vaultIds.length > 0 ? inArray(documentsTable.vaultId, vaultIds) : sql`false`,
+      );
     }
 
-    const documentsCount = sql<number>`count(${documentsTable.id})::int`;
-
     return db
       .select({
         id: tagsTable.id,
-        vaultId: tagsTable.vaultId,
-        vaultName: vaultsTable.name,
         name: tagsTable.name,
         color: tagsTable.color,
         description: tagsTable.description,
@@ -51,45 +27,33 @@ export function createTagsServices({ db }: { db: Database }) {
         updatedAt: tagsTable.updatedAt,
       })
       .from(tagsTable)
-      .innerJoin(vaultsTable, eq(tagsTable.vaultId, vaultsTable.id))
       .leftJoin(documentTagsTable, eq(documentTagsTable.tagId, tagsTable.id))
-      .leftJoin(
-        documentsTable,
-        and(
-          eq(documentTagsTable.documentId, documentsTable.id),
-          eq(documentsTable.isDeleted, false),
-        ),
-      )
-      .where(inArray(tagsTable.vaultId, vaultIds))
-      .groupBy(tagsTable.id, vaultsTable.name)
-      .orderBy(asc(tagsTable.name), asc(vaultsTable.name));
+      .leftJoin(documentsTable, and(...documentJoinConditions))
+      .groupBy(tagsTable.id)
+      .orderBy(asc(tagsTable.name));
   }
 
   async function createTag({
-    vaultId,
     name,
     color,
     description,
   }: {
-    vaultId: string;
     name: string;
     color: string | null;
     description: string | null;
   }) {
-    const [tag] = await db.insert(tagsTable).values({ vaultId, name, color, description }).returning();
+    const [tag] = await db.insert(tagsTable).values({ name, color, description }).returning();
 
     return tag ?? null;
   }
 
   async function updateTag({
     tagId,
-    vaultId,
     name,
     color,
     description,
   }: {
     tagId: string;
-    vaultId: string;
     name: string;
     color: string | null;
     description: string | null;
@@ -102,10 +66,9 @@ export function createTagsServices({ db }: { db: Database }) {
         description,
         updatedAt: new Date(),
       })
-      .where(and(eq(tagsTable.id, tagId), eq(tagsTable.vaultId, vaultId)))
+      .where(eq(tagsTable.id, tagId))
       .returning({
         id: tagsTable.id,
-        vaultId: tagsTable.vaultId,
         name: tagsTable.name,
         color: tagsTable.color,
         description: tagsTable.description,
@@ -116,10 +79,10 @@ export function createTagsServices({ db }: { db: Database }) {
     return tag ?? null;
   }
 
-  async function deleteTag({ tagId, vaultId }: { tagId: string; vaultId: string }) {
+  async function deleteTag({ tagId }: { tagId: string }) {
     const [tag] = await db
       .delete(tagsTable)
-      .where(and(eq(tagsTable.id, tagId), eq(tagsTable.vaultId, vaultId)))
+      .where(eq(tagsTable.id, tagId))
       .returning({ id: tagsTable.id });
 
     return tag ?? null;
@@ -153,7 +116,6 @@ export function createTagsServices({ db }: { db: Database }) {
     const [tag] = await db
       .select({
         id: tagsTable.id,
-        vaultId: tagsTable.vaultId,
         name: tagsTable.name,
         color: tagsTable.color,
         description: tagsTable.description,
@@ -161,7 +123,7 @@ export function createTagsServices({ db }: { db: Database }) {
         updatedAt: tagsTable.updatedAt,
       })
       .from(tagsTable)
-      .where(and(eq(tagsTable.id, tagId), eq(tagsTable.vaultId, vaultId)))
+      .where(eq(tagsTable.id, tagId))
       .limit(1);
 
     if (tag === undefined) {
@@ -190,9 +152,14 @@ export function createTagsServices({ db }: { db: Database }) {
           eq(documentTagsTable.tagId, tagId),
           exists(
             db
-              .select({ id: tagsTable.id })
-              .from(tagsTable)
-              .where(and(eq(tagsTable.id, tagId), eq(tagsTable.vaultId, vaultId))),
+              .select({ id: documentsTable.id })
+              .from(documentsTable)
+              .where(
+                and(
+                  eq(documentsTable.id, documentId),
+                  eq(documentsTable.vaultId, vaultId),
+                ),
+              ),
           ),
         ),
       )
@@ -211,7 +178,6 @@ export function createTagsServices({ db }: { db: Database }) {
     return db
       .select({
         id: tagsTable.id,
-        vaultId: tagsTable.vaultId,
         name: tagsTable.name,
         color: tagsTable.color,
         description: tagsTable.description,
@@ -220,7 +186,13 @@ export function createTagsServices({ db }: { db: Database }) {
       })
       .from(documentTagsTable)
       .innerJoin(tagsTable, eq(documentTagsTable.tagId, tagsTable.id))
-      .where(and(eq(documentTagsTable.documentId, documentId), eq(tagsTable.vaultId, vaultId)))
+      .innerJoin(documentsTable, eq(documentTagsTable.documentId, documentsTable.id))
+      .where(
+        and(
+          eq(documentTagsTable.documentId, documentId),
+          eq(documentsTable.vaultId, vaultId),
+        ),
+      )
       .orderBy(tagsTable.name);
   }
 
@@ -228,7 +200,6 @@ export function createTagsServices({ db }: { db: Database }) {
     assignTagToDocument,
     createTag,
     deleteTag,
-    listAccessibleTags,
     listDocumentTags,
     listTags,
     removeTagFromDocument,

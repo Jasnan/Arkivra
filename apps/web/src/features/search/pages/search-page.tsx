@@ -202,7 +202,7 @@ export function SearchPage() {
       ? [{
           key: `vault-${selectedVault.id}`,
           label: selectedVault.name,
-          onRemove: () => updateFilters({ vaultId: '', tagId: '' }),
+          onRemove: () => updateFilters({ vaultId: '' }),
         }]
       : []),
     ...(selectedTag
@@ -290,7 +290,7 @@ export function SearchPage() {
                 value={vaultId || '__all__'}
                 onValueChange={(value) => {
                   const nextVaultId = value === '__all__' ? '' : value;
-                  updateFilters({ vaultId: nextVaultId, tagId: nextVaultId === vaultId ? tagId : '' });
+                  updateFilters({ vaultId: nextVaultId });
                 }}
               >
                 <SelectTrigger aria-labelledby="search-vault-label" h="10" rounded="lg" borderColor="border.subtle" bg="bg.surface" mt="3">

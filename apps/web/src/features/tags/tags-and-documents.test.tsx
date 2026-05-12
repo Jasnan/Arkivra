@@ -78,19 +78,6 @@ function documentSummary(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function selectRadixOption({
-  user,
-  trigger,
-  optionName,
-}: {
-  user: ReturnType<typeof userEvent.setup>;
-  trigger: HTMLElement;
-  optionName: RegExp;
-}) {
-  await user.click(trigger);
-  await user.click(await screen.findByRole('option', { name: optionName }));
-}
-
 describe('tags and documents pages', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -134,20 +121,20 @@ describe('tags and documents pages', () => {
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && init?.method === 'POST') {
+      if (url.endsWith('/api/tags') && init?.method === 'POST') {
         return jsonResponse(
           { tag: { id: 'tag_2', name: 'Receipts', color: '#22c55e', vaultId: 'vlt_1' } },
           201,
         );
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags/tag_1') && init?.method === 'PATCH') {
+      if (url.endsWith('/api/tags/tag_1') && init?.method === 'PATCH') {
         return jsonResponse({
           tag: { id: 'tag_1', name: 'Bills', color: '#2563eb', vaultId: 'vlt_1' },
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags/tag_1') && init?.method === 'DELETE') {
+      if (url.endsWith('/api/tags/tag_1') && init?.method === 'DELETE') {
         return new Response(null, { status: 204 });
       }
 
@@ -165,16 +152,11 @@ describe('tags and documents pages', () => {
 
     await user.click(screen.getByRole('button', { name: /create tag/i }));
     const createDialog = screen.getByRole('dialog', { name: /create tag/i });
-    await selectRadixOption({
-      user,
-      trigger: within(createDialog).getByLabelText(/^vault$/i),
-      optionName: /personal/i,
-    });
     await user.type(within(createDialog).getByLabelText(/^name$/i), 'Receipts');
     await user.click(within(createDialog).getByRole('button', { name: /^create tag$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/vaults/vlt_1/tags',
+        '/api/tags',
         expect.objectContaining({
           credentials: 'include',
           method: 'POST',
@@ -191,7 +173,7 @@ describe('tags and documents pages', () => {
     await user.click(within(editDialog).getByRole('button', { name: /save changes/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/vaults/vlt_1/tags/tag_1',
+        '/api/tags/tag_1',
         expect.objectContaining({
           credentials: 'include',
           method: 'PATCH',
@@ -210,7 +192,7 @@ describe('tags and documents pages', () => {
     await user.click(screen.getByRole('button', { name: /^delete tag$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/vaults/vlt_1/tags/tag_1',
+        '/api/tags/tag_1',
         expect.objectContaining({
           credentials: 'include',
           method: 'DELETE',
@@ -477,7 +459,7 @@ describe('tags and documents pages', () => {
         );
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.endsWith('/api/tags')) {
         return jsonResponse({
           tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
         });
@@ -560,7 +542,7 @@ describe('tags and documents pages', () => {
         );
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.endsWith('/api/tags')) {
         return jsonResponse({ tags: [] });
       }
 
@@ -611,7 +593,7 @@ describe('tags and documents pages', () => {
         return jsonResponse(folderItemsResponse({ documents: [documentSummary()] }));
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.endsWith('/api/tags')) {
         return jsonResponse({ tags: [] });
       }
 
@@ -682,7 +664,7 @@ describe('tags and documents pages', () => {
         return jsonResponse(folderItemsResponse({ documents: [documentSummary()] }));
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.endsWith('/api/tags')) {
         return jsonResponse({ tags: [] });
       }
 
@@ -748,7 +730,7 @@ describe('tags and documents pages', () => {
         );
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.endsWith('/api/tags')) {
         return jsonResponse({ tags: [] });
       }
 
@@ -761,7 +743,7 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId',
     });
 
-    fireEvent.contextMenu(await screen.findByText(/^Root$/));
+    fireEvent.contextMenu(await screen.findByText(/^Personal$/));
     const menu = screen.getByRole('menu', { name: /actions for vault root/i });
     expect(within(menu).getByRole('menuitem', { name: /new folder/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /upload/i })).toBeInTheDocument();
@@ -878,7 +860,7 @@ describe('tags and documents pages', () => {
         );
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.endsWith('/api/tags')) {
         return jsonResponse({ tags: [] });
       }
 
@@ -959,7 +941,7 @@ describe('tags and documents pages', () => {
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags')) {
+      if (url.endsWith('/api/tags')) {
         return jsonResponse({
           tags: [
             { id: 'tag_1', name: 'Invoices', color: '#2563eb' },
@@ -1054,13 +1036,13 @@ describe('tags and documents pages', () => {
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+      if (url.endsWith('/api/tags') && (!init || init.method === undefined)) {
         return jsonResponse({
           tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
         });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && init?.method === 'POST') {
+      if (url.endsWith('/api/tags') && init?.method === 'POST') {
         return jsonResponse(
           { tag: { id: 'tag_2', name: 'Testing', color: '#D8FF75', description: '' } },
           201,
@@ -1092,7 +1074,7 @@ describe('tags and documents pages', () => {
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/vaults/vlt_1/tags',
+        '/api/tags',
         expect.objectContaining({
           credentials: 'include',
           method: 'POST',
@@ -1171,7 +1153,7 @@ describe('tags and documents pages', () => {
         return jsonResponse({ tags: [] });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+      if (url.endsWith('/api/tags') && (!init || init.method === undefined)) {
         return jsonResponse({ tags: [] });
       }
 
@@ -1243,7 +1225,7 @@ describe('tags and documents pages', () => {
         return jsonResponse({ tags: [] });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+      if (url.endsWith('/api/tags') && (!init || init.method === undefined)) {
         return jsonResponse({ tags: [] });
       }
 
@@ -1303,7 +1285,7 @@ describe('tags and documents pages', () => {
         return jsonResponse({ tags: [] });
       }
 
-      if (url.endsWith('/api/vaults/vlt_1/tags') && (!init || init.method === undefined)) {
+      if (url.endsWith('/api/tags') && (!init || init.method === undefined)) {
         return jsonResponse({ tags: [] });
       }
 

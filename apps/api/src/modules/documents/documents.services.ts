@@ -8,7 +8,6 @@ import {
   documentChunksTable,
   documentTagsTable,
   documentsTable,
-  tagsTable,
   usersTable,
   vaultFoldersTable,
   vaultsTable,
@@ -542,12 +541,10 @@ export function createDocumentsServices({
           db
             .select({ documentId: documentTagsTable.documentId })
             .from(documentTagsTable)
-            .innerJoin(tagsTable, eq(documentTagsTable.tagId, tagsTable.id))
             .where(
               and(
                 eq(documentTagsTable.documentId, documentsTable.id),
                 eq(documentTagsTable.tagId, tagId),
-                eq(tagsTable.vaultId, vaultId),
               ),
             ),
         ),

@@ -271,10 +271,7 @@ export function AllDocumentsPage() {
       return availableTags;
     }
 
-    return availableTags.filter((tag) => {
-      const haystacks = [tag.name, tag.vaultName ?? ''];
-      return haystacks.some((value) => value.toLowerCase().includes(normalizedQuery));
-    });
+    return availableTags.filter((tag) => tag.name.toLowerCase().includes(normalizedQuery));
   }, [availableTags, tagSearchQuery]);
 
   const groupedDocuments = useMemo(() => {

@@ -86,6 +86,40 @@ describe('app shell account menu', () => {
               { id: 'fld_3', parentId: 'fld_2', name: 'Claims', path: 'Insurance/Policies/Claims', depth: 2 },
               { id: 'fld_4', parentId: null, name: 'Invoices', path: 'Invoices', depth: 0 },
             ],
+            documents: [
+              {
+                id: 'doc_1',
+                name: 'Quarterly Budget Summary.pdf',
+                originalName: 'quarterly-budget-summary.pdf',
+                folderId: 'fld_2',
+                originalSize: 2048,
+                mimeType: 'application/pdf',
+                processingStatus: 'completed',
+                documentDate: null,
+                createdAt: '2026-04-10T10:00:00.000Z',
+                updatedAt: '2026-04-10T10:05:00.000Z',
+                isDeleted: false,
+                deletedAt: null,
+                path: 'Insurance/Policies/Quarterly Budget Summary.pdf',
+                depth: 2,
+              },
+              {
+                id: 'doc_root',
+                name: 'Vault Overview.pdf',
+                originalName: 'vault-overview.pdf',
+                folderId: null,
+                originalSize: 1024,
+                mimeType: 'application/pdf',
+                processingStatus: 'completed',
+                documentDate: null,
+                createdAt: '2026-04-09T10:00:00.000Z',
+                updatedAt: '2026-04-09T10:05:00.000Z',
+                isDeleted: false,
+                deletedAt: null,
+                path: 'Vault Overview.pdf',
+                depth: 0,
+              },
+            ],
           });
         }
 
@@ -95,6 +129,7 @@ describe('app shell account menu', () => {
               id: 'doc_1',
               name: 'Quarterly Budget Summary.pdf',
               originalName: 'quarterly-budget-summary.pdf',
+              folderId: 'fld_2',
               originalSize: 2048,
               originalSha256Hash: 'abc123',
               mimeType: 'application/pdf',
@@ -209,7 +244,12 @@ describe('app shell account menu', () => {
       'href',
       '/vaults/vlt_1?folderId=fld_4',
     );
+    expect(screen.getByRole('link', { name: 'Vault Overview.pdf', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1/doc_root',
+    );
     expect(screen.queryByRole('link', { name: 'Policies', hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Quarterly Budget Summary.pdf', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Claims', hidden: true })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Trash', hidden: true })).toHaveAttribute('href', '/trash');
     expect(screen.getByRole('link', { name: 'Tags', hidden: true })).toHaveAttribute('href', '/tags');
@@ -256,6 +296,31 @@ describe('app shell account menu', () => {
     expect(screen.getByRole('link', { name: 'Invoices', hidden: true })).toHaveAttribute(
       'href',
       '/vaults/vlt_1?folderId=fld_4',
+    );
+  });
+
+  it('reveals and links the active document in the vault sidebar', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1/doc_1'],
+        routePath: '/vaults/:vaultId/:documentId',
+      },
+    );
+
+    expect(await screen.findByRole('link', { name: 'Insurance', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_1',
+    );
+    expect(screen.getByRole('button', { name: 'Collapse Insurance', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: 'Policies', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1?folderId=fld_2',
+    );
+    expect(screen.getByRole('button', { name: 'Collapse Policies', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('link', { name: 'Quarterly Budget Summary.pdf', hidden: true })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1/doc_1',
     );
   });
 

@@ -1,4 +1,4 @@
-import type { FolderTreeEntry } from '@/features/file-browser/file-browser.types';
+import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 
 export interface VaultSidebarTreeState {
   isVaultRootExpanded: boolean;
@@ -18,6 +18,7 @@ export type VaultSidebarTreeAction =
     type: 'routeChanged';
     activeVaultId?: string | null;
     currentFolderId: string | null;
+    currentDocumentFolderId?: string | null;
     folders: FolderTreeEntry[];
   }
   | { type: 'toggleVaultRoot'; isExpanded: boolean }
@@ -27,6 +28,7 @@ export type VaultSidebarTreeAction =
     isExpanded: boolean;
     activeVaultId?: string | null;
     currentFolderId: string | null;
+    hasActiveDocument?: boolean;
   }
   | {
     type: 'toggleFolder';
@@ -34,6 +36,7 @@ export type VaultSidebarTreeAction =
     isExpanded: boolean;
     activeVaultId?: string | null;
     currentFolderId: string | null;
+    hasActiveDocument?: boolean;
     folders: FolderTreeEntry[];
   }
   | { type: 'navigationHandled' };
@@ -41,16 +44,22 @@ export type VaultSidebarTreeAction =
 export function createVaultSidebarTreeState({
   folders,
   currentFolderId,
+  currentDocumentFolderId = null,
 }: {
   activeVaultId?: string | null;
   currentFolderId: string | null;
+  currentDocumentFolderId?: string | null;
   folders: FolderTreeEntry[];
 }): VaultSidebarTreeState {
   return {
     isVaultRootExpanded: true,
     expandedVaultIds: new Set(),
     collapsedVaultIds: new Set(),
-    expandedFolderIds: getCurrentFolderAncestorIds(folders, currentFolderId),
+    expandedFolderIds: getCurrentRouteExpandedFolderIds({
+      folders,
+      currentFolderId,
+      currentDocumentFolderId,
+    }),
     pendingExpandedFolderId: null,
     navigation: null,
   };
@@ -83,12 +92,21 @@ export function vaultSidebarTreeReducer(
   }
 }
 
-export function getExpandableFolderIds(folders: FolderTreeEntry[]) {
+export function getExpandableFolderIds(
+  folders: FolderTreeEntry[],
+  documents: FolderTreeDocumentEntry[] = [],
+) {
   const expandableFolderIds = new Set<string>();
 
   for (const folder of folders) {
     if (folder.parentId) {
       expandableFolderIds.add(folder.parentId);
+    }
+  }
+
+  for (const document of documents) {
+    if (document.folderId) {
+      expandableFolderIds.add(document.folderId);
     }
   }
 
@@ -146,13 +164,19 @@ export function getVisibleExpandedFolderIds({
   expandedFolderIds,
   folders,
   currentFolderId,
+  currentDocumentFolderId = null,
 }: {
   expandedFolderIds: Set<string>;
   folders: FolderTreeEntry[];
   currentFolderId: string | null;
+  currentDocumentFolderId?: string | null;
 }) {
   const visibleExpandedFolderIds = new Set(expandedFolderIds);
-  const currentFolderAncestorIds = getCurrentFolderAncestorIds(folders, currentFolderId);
+  const currentFolderAncestorIds = getCurrentRouteExpandedFolderIds({
+    folders,
+    currentFolderId,
+    currentDocumentFolderId,
+  });
 
   for (const folderId of currentFolderAncestorIds) {
     visibleExpandedFolderIds.add(folderId);
@@ -161,8 +185,64 @@ export function getVisibleExpandedFolderIds({
   return visibleExpandedFolderIds;
 }
 
+export type VisibleVaultTreeItem =
+  | { type: 'folder'; folder: FolderTreeEntry }
+  | { type: 'document'; document: FolderTreeDocumentEntry };
+
+function sortTreeEntriesByName<T extends { name: string; id: string }>(entries: T[]) {
+  return [...entries].sort((left, right) => {
+    const nameComparison = left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+    return nameComparison === 0 ? left.id.localeCompare(right.id) : nameComparison;
+  });
+}
+
+export function getVisibleVaultTreeItems({
+  folders,
+  documents,
+  expandedFolderIds,
+}: {
+  folders: FolderTreeEntry[];
+  documents: FolderTreeDocumentEntry[];
+  expandedFolderIds: Set<string>;
+}) {
+  const foldersByParentId = new Map<string | null, FolderTreeEntry[]>();
+  const documentsByFolderId = new Map<string | null, FolderTreeDocumentEntry[]>();
+  const visibleItems: VisibleVaultTreeItem[] = [];
+
+  for (const folder of folders) {
+    const siblings = foldersByParentId.get(folder.parentId) ?? [];
+    siblings.push(folder);
+    foldersByParentId.set(folder.parentId, siblings);
+  }
+
+  for (const document of documents) {
+    const siblings = documentsByFolderId.get(document.folderId) ?? [];
+    siblings.push(document);
+    documentsByFolderId.set(document.folderId, siblings);
+  }
+
+  function appendChildren(parentId: string | null) {
+    for (const folder of sortTreeEntriesByName(foldersByParentId.get(parentId) ?? [])) {
+      visibleItems.push({ type: 'folder', folder });
+
+      if (expandedFolderIds.has(folder.id)) {
+        appendChildren(folder.id);
+      }
+    }
+
+    for (const document of sortTreeEntriesByName(documentsByFolderId.get(parentId) ?? [])) {
+      visibleItems.push({ type: 'document', document });
+    }
+  }
+
+  appendChildren(null);
+  return visibleItems;
+}
+
 export function getVisibleVaultTreeFolders(folders: FolderTreeEntry[], expandedFolderIds: Set<string>) {
-  return folders.filter((folder) => folder.parentId === null || expandedFolderIds.has(folder.parentId));
+  return getVisibleVaultTreeItems({ folders, documents: [], expandedFolderIds })
+    .filter((item): item is Extract<VisibleVaultTreeItem, { type: 'folder' }> => item.type === 'folder')
+    .map(item => item.folder);
 }
 
 export function isVaultExpanded({
@@ -170,17 +250,19 @@ export function isVaultExpanded({
   vaultId,
   activeVaultId,
   currentFolderId,
+  hasActiveDocument = false,
 }: {
   state: VaultSidebarTreeState;
   vaultId: string;
   activeVaultId?: string | null;
   currentFolderId: string | null;
+  hasActiveDocument?: boolean;
 }) {
   const isActiveVault = activeVaultId === vaultId;
 
   return (
     (isActiveVault && state.expandedVaultIds.has(vaultId)) ||
-    (isActiveVault && (currentFolderId !== null || !state.collapsedVaultIds.has(vaultId)))
+    (isActiveVault && (currentFolderId !== null || hasActiveDocument || !state.collapsedVaultIds.has(vaultId)))
   );
 }
 
@@ -188,7 +270,11 @@ function applyRouteChange(
   state: VaultSidebarTreeState,
   action: Extract<VaultSidebarTreeAction, { type: 'routeChanged' }>,
 ): VaultSidebarTreeState {
-  const expandedFolderIds = getCurrentFolderAncestorIds(action.folders, action.currentFolderId);
+  const expandedFolderIds = getCurrentRouteExpandedFolderIds({
+    folders: action.folders,
+    currentFolderId: action.currentFolderId,
+    currentDocumentFolderId: action.currentDocumentFolderId ?? null,
+  });
   const isVaultRootExpanded = action.activeVaultId ? true : state.isVaultRootExpanded;
 
   if (state.pendingExpandedFolderId && state.pendingExpandedFolderId === action.currentFolderId) {
@@ -227,7 +313,7 @@ function toggleVault(
       ...state,
       expandedVaultIds,
       collapsedVaultIds,
-      navigation: action.activeVaultId === action.vaultId && action.currentFolderId !== null
+      navigation: action.activeVaultId === action.vaultId && (action.currentFolderId !== null || action.hasActiveDocument)
         ? { type: 'vaultRoot', vaultId: action.vaultId }
         : null,
     };
@@ -264,7 +350,10 @@ function toggleFolder(
       ...state,
       expandedFolderIds,
       pendingExpandedFolderId: null,
-      navigation: action.activeVaultId && action.currentFolderId && descendantFolderIds.has(action.currentFolderId)
+      navigation: action.activeVaultId && action.currentFolderId && (
+        descendantFolderIds.has(action.currentFolderId) ||
+        (action.hasActiveDocument === true && action.currentFolderId === action.folderId)
+      )
         ? { type: 'folder', vaultId: action.activeVaultId, folderId: action.folderId }
         : null,
     };
@@ -284,6 +373,25 @@ function toggleFolder(
     pendingExpandedFolderId: action.folderId,
     navigation: null,
   };
+}
+
+function getCurrentRouteExpandedFolderIds({
+  folders,
+  currentFolderId,
+  currentDocumentFolderId,
+}: {
+  folders: FolderTreeEntry[];
+  currentFolderId: string | null;
+  currentDocumentFolderId: string | null;
+}) {
+  const routeFolderId = currentFolderId ?? currentDocumentFolderId;
+  const expandedFolderIds = getCurrentFolderAncestorIds(folders, routeFolderId);
+
+  if (currentDocumentFolderId !== null) {
+    expandedFolderIds.add(currentDocumentFolderId);
+  }
+
+  return expandedFolderIds;
 }
 
 function areSetsEqual<T>(left: Set<T>, right: Set<T>) {

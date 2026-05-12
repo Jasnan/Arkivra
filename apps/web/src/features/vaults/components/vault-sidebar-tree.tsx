@@ -1,15 +1,15 @@
 import { Fragment, useEffect, useMemo, useReducer } from 'react';
 import { Stack } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';
-import { Folder, FolderDot, FolderOpenDot } from 'lucide-react';
+import { FileText, Folder, FolderDot, FolderOpenDot } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
-import type { FolderTreeEntry } from '@/features/file-browser/file-browser.types';
+import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 import {
   createVaultSidebarTreeState,
   getExpandableFolderIds,
   getVisibleExpandedFolderIds,
-  getVisibleVaultTreeFolders,
+  getVisibleVaultTreeItems,
   isVaultExpanded,
   vaultSidebarTreeReducer,
 } from './vault-sidebar-tree-state';
@@ -24,25 +24,47 @@ function VaultNodeIcon({ isExpanded }: { isExpanded: boolean }) {
 
 function VaultTree({
   folders,
+  documents,
   vaultId,
   currentFolderId,
+  currentDocumentId,
   expandedFolderIds,
   onToggleFolder,
   depth = 0,
 }: {
   folders: FolderTreeEntry[];
+  documents: FolderTreeDocumentEntry[];
   vaultId: string;
   currentFolderId: string | null;
+  currentDocumentId: string | null;
   expandedFolderIds: Set<string>;
   onToggleFolder: (folderId: string, isExpanded: boolean) => void;
   depth?: number;
 }) {
-  const expandableFolderIds = useMemo(() => getExpandableFolderIds(folders), [folders]);
-  const visibleFolders = getVisibleVaultTreeFolders(folders, expandedFolderIds);
+  const expandableFolderIds = useMemo(() => getExpandableFolderIds(folders, documents), [documents, folders]);
+  const visibleItems = useMemo(
+    () => getVisibleVaultTreeItems({ folders, documents, expandedFolderIds }),
+    [documents, expandedFolderIds, folders],
+  );
 
   return (
     <Stack gap="1">
-      {visibleFolders.map((folder) => {
+      {visibleItems.map((item) => {
+        if (item.type === 'document') {
+          return (
+            <SecondaryNavLink
+              key={item.document.id}
+              to={ROUTES.vaultDocument(vaultId, item.document.id)}
+              label={item.document.name}
+              icon={<FileText size={16} />}
+              active={currentDocumentId === item.document.id}
+              depth={depth + item.document.depth}
+              reserveDisclosureSpace
+            />
+          );
+        }
+
+        const folder = item.folder;
         const canExpand = expandableFolderIds.has(folder.id);
         const isExpanded = expandedFolderIds.has(folder.id);
 
@@ -70,17 +92,28 @@ export function VaultSidebarTree({
   vaults,
   activeVaultId,
   currentFolderId,
+  currentDocumentId,
   folders,
+  documents,
 }: {
   vaults: Array<{ id: string; name: string }>;
   activeVaultId?: string | null;
   currentFolderId: string | null;
+  currentDocumentId?: string | null;
   folders: FolderTreeEntry[];
+  documents: FolderTreeDocumentEntry[];
 }) {
   const navigate = useNavigate();
+  const activeDocumentId = currentDocumentId ?? null;
+  const currentDocumentFolderId = useMemo(
+    () => documents.find(document => document.id === activeDocumentId)?.folderId ?? null,
+    [activeDocumentId, documents],
+  );
+  const currentTreeFolderId = currentFolderId ?? currentDocumentFolderId;
+  const hasActiveDocument = activeDocumentId !== null;
   const [treeState, dispatch] = useReducer(
     vaultSidebarTreeReducer,
-    { activeVaultId, currentFolderId, folders },
+    { activeVaultId, currentFolderId, currentDocumentFolderId, folders },
     createVaultSidebarTreeState,
   );
   const visibleExpandedFolderIds = useMemo(
@@ -88,13 +121,14 @@ export function VaultSidebarTree({
       expandedFolderIds: treeState.expandedFolderIds,
       folders,
       currentFolderId,
+      currentDocumentFolderId,
     }),
-    [currentFolderId, folders, treeState.expandedFolderIds],
+    [currentDocumentFolderId, currentFolderId, folders, treeState.expandedFolderIds],
   );
 
   useEffect(() => {
-    dispatch({ type: 'routeChanged', activeVaultId, currentFolderId, folders });
-  }, [activeVaultId, currentFolderId, folders]);
+    dispatch({ type: 'routeChanged', activeVaultId, currentFolderId, currentDocumentFolderId, folders });
+  }, [activeVaultId, currentDocumentFolderId, currentFolderId, folders]);
 
   useEffect(() => {
     if (treeState.navigation === null) return;
@@ -128,7 +162,8 @@ export function VaultSidebarTree({
           state: treeState,
           vaultId: vault.id,
           activeVaultId,
-          currentFolderId,
+          currentFolderId: currentTreeFolderId,
+          hasActiveDocument,
         });
 
         return (
@@ -137,7 +172,7 @@ export function VaultSidebarTree({
               to={ROUTES.vaultRoot(vault.id)}
               label={vault.name}
               icon={<VaultNodeIcon isExpanded={isExpandedVault} />}
-              active={isActiveVault && currentFolderId === null}
+              active={isActiveVault && currentFolderId === null && !hasActiveDocument}
               depth={1}
               expansionState={isExpandedVault ? 'expanded' : 'collapsed'}
               onExpand={() => dispatch({
@@ -145,28 +180,33 @@ export function VaultSidebarTree({
                 vaultId: vault.id,
                 isExpanded: false,
                 activeVaultId,
-                currentFolderId,
+                currentFolderId: currentTreeFolderId,
+                hasActiveDocument,
               })}
               onCollapse={() => dispatch({
                 type: 'toggleVault',
                 vaultId: vault.id,
                 isExpanded: true,
                 activeVaultId,
-                currentFolderId,
+                currentFolderId: currentTreeFolderId,
+                hasActiveDocument,
               })}
             />
             {isActiveVault && isExpandedVault ? (
               <VaultTree
                 folders={folders}
+                documents={documents}
                 vaultId={vault.id}
                 currentFolderId={currentFolderId}
+                currentDocumentId={activeDocumentId}
                 expandedFolderIds={visibleExpandedFolderIds}
                 onToggleFolder={(folderId, isExpanded) => dispatch({
                   type: 'toggleFolder',
                   folderId,
                   isExpanded,
                   activeVaultId,
-                  currentFolderId,
+                  currentFolderId: currentTreeFolderId,
+                  hasActiveDocument,
                   folders,
                 })}
                 depth={2}

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { FolderTreeEntry } from '@/features/file-browser/file-browser.types';
+import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 import {
   createVaultSidebarTreeState,
+  getExpandableFolderIds,
+  getVisibleVaultTreeItems,
   getVisibleVaultTreeFolders,
   isVaultExpanded,
   vaultSidebarTreeReducer,
@@ -14,8 +16,63 @@ const folders: FolderTreeEntry[] = [
   { id: 'fld_4', parentId: null, name: 'Invoices', path: 'Invoices', depth: 0 },
 ];
 
+const documents: FolderTreeDocumentEntry[] = [
+  {
+    id: 'doc_root',
+    name: 'Vault Overview.pdf',
+    originalName: 'vault-overview.pdf',
+    folderId: null,
+    originalSize: 1024,
+    mimeType: 'application/pdf',
+    processingStatus: 'completed',
+    documentDate: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    isDeleted: false,
+    deletedAt: null,
+    path: 'Vault Overview.pdf',
+    depth: 0,
+  },
+  {
+    id: 'doc_policy',
+    name: 'Policy.pdf',
+    originalName: 'policy.pdf',
+    folderId: 'fld_2',
+    originalSize: 2048,
+    mimeType: 'application/pdf',
+    processingStatus: 'completed',
+    documentDate: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    isDeleted: false,
+    deletedAt: null,
+    path: 'Insurance/Policies/Policy.pdf',
+    depth: 2,
+  },
+  {
+    id: 'doc_invoice',
+    name: 'Invoice.pdf',
+    originalName: 'invoice.pdf',
+    folderId: 'fld_4',
+    originalSize: 4096,
+    mimeType: 'application/pdf',
+    processingStatus: 'completed',
+    documentDate: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    isDeleted: false,
+    deletedAt: null,
+    path: 'Invoices/Invoice.pdf',
+    depth: 1,
+  },
+];
+
 function setValues(values: Set<string>) {
   return [...values].sort();
+}
+
+function itemKeys(items: ReturnType<typeof getVisibleVaultTreeItems>) {
+  return items.map(item => item.type === 'folder' ? `folder:${item.folder.id}` : `document:${item.document.id}`);
 }
 
 describe('vault sidebar tree state', () => {
@@ -36,6 +93,42 @@ describe('vault sidebar tree state', () => {
       'fld_2',
       'fld_4',
     ]);
+  });
+
+  it('reveals document leaves under visible folder branches', () => {
+    expect(itemKeys(getVisibleVaultTreeItems({ folders, documents, expandedFolderIds: new Set() }))).toEqual([
+      'folder:fld_1',
+      'folder:fld_4',
+      'document:doc_root',
+    ]);
+
+    expect(itemKeys(getVisibleVaultTreeItems({
+      folders,
+      documents,
+      expandedFolderIds: new Set(['fld_1', 'fld_2']),
+    }))).toEqual([
+      'folder:fld_1',
+      'folder:fld_2',
+      'folder:fld_3',
+      'document:doc_policy',
+      'folder:fld_4',
+      'document:doc_root',
+    ]);
+  });
+
+  it('treats folders containing only files as expandable', () => {
+    expect(setValues(getExpandableFolderIds(folders, documents))).toEqual(['fld_1', 'fld_2', 'fld_4']);
+  });
+
+  it('expands the current document folder so the active file can be shown', () => {
+    const state = createVaultSidebarTreeState({
+      activeVaultId: 'vlt_1',
+      currentFolderId: null,
+      currentDocumentFolderId: 'fld_2',
+      folders,
+    });
+
+    expect(setValues(state.expandedFolderIds)).toEqual(['fld_1', 'fld_2']);
   });
 
   it('prunes nested folder expansions when expanding an ancestor', () => {

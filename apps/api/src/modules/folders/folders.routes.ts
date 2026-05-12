@@ -60,6 +60,39 @@ function buildFolderTreeEntries(
     .sort((left, right) => left.path.localeCompare(right.path, undefined, { sensitivity: 'base' }));
 }
 
+function buildDocumentTreeEntries(
+  documents: Array<{
+    id: string;
+    name: string;
+    originalName: string;
+    folderId: string | null;
+    originalSize: number;
+    mimeType: string;
+    processingStatus: string;
+    documentDate: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    isDeleted: boolean;
+    deletedAt: Date | null;
+  }>,
+  folders: ReturnType<typeof buildFolderTreeEntries>,
+) {
+  const foldersById = new Map(folders.map(folder => [folder.id, folder]));
+
+  return documents
+    .map((document) => {
+      const folder = document.folderId === null ? null : foldersById.get(document.folderId) ?? null;
+      const path = folder === null ? document.name : `${folder.path}/${document.name}`;
+
+      return {
+        ...document,
+        path,
+        depth: folder === null ? 0 : folder.depth + 1,
+      };
+    })
+    .sort((left, right) => left.path.localeCompare(right.path, undefined, { sensitivity: 'base' }));
+}
+
 function folderErrorResponse(error: FolderServiceError) {
   switch (error) {
     case 'invalid_name':
@@ -179,9 +212,16 @@ export function registerFolderRoutes({
         return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
       }
 
-      const folders = await foldersServices.listActiveFoldersForVault({ vaultId });
+      const [folders, documents] = await Promise.all([
+        foldersServices.listActiveFoldersForVault({ vaultId }),
+        foldersServices.listActiveDocumentsForVault({ vaultId }),
+      ]);
+      const folderEntries = buildFolderTreeEntries(folders);
 
-      return context.json({ folders: buildFolderTreeEntries(folders) });
+      return context.json({
+        folders: folderEntries,
+        documents: buildDocumentTreeEntries(documents, folderEntries),
+      });
     },
   );
 

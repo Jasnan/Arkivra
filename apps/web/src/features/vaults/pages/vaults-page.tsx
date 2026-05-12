@@ -20,14 +20,18 @@ import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatBytes } from '@/features/documents/documents.utils';
+import {
+  FILE_BROWSER_VIEW_STORAGE_KEY,
+  getInitialBrowserView,
+} from '@/features/file-browser/components/vault-browser.types';
+import type { FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
 import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { VaultSummary } from '@/features/vaults/vaults.types';
 
-type VaultsView = 'list' | 'grid';
+type VaultsView = FileBrowserView;
 
-const VAULTS_VIEW_STORAGE_KEY = 'arkivra.vaults.view';
 const VAULTS_LIST_GRID_COLUMNS = 'minmax(0, 1fr) 4rem 5.75rem 7.5rem 2.5rem';
 
 type VaultContextMenuState = {
@@ -41,18 +45,6 @@ interface VaultAction {
   label: string;
   icon: typeof FolderOpen;
   onSelect: () => void;
-}
-
-function getStoredVaultsView(): VaultsView {
-  if (typeof window === 'undefined') {
-    return 'list';
-  }
-
-  try {
-    return window.localStorage?.getItem?.(VAULTS_VIEW_STORAGE_KEY) === 'grid' ? 'grid' : 'list';
-  } catch {
-    return 'list';
-  }
 }
 
 function formatVaultDate(value: string | null | undefined) {
@@ -190,7 +182,7 @@ export function VaultsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState>(null);
-  const [vaultsView, setVaultsView] = useState<VaultsView>(() => getStoredVaultsView());
+  const [vaultsView, setVaultsView] = useState<VaultsView>(getInitialBrowserView);
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -225,7 +217,7 @@ export function VaultsPage() {
 
   useEffect(() => {
     try {
-      window.localStorage?.setItem?.(VAULTS_VIEW_STORAGE_KEY, vaultsView);
+      window.localStorage?.setItem?.(FILE_BROWSER_VIEW_STORAGE_KEY, vaultsView);
     } catch {}
   }, [vaultsView]);
 
@@ -293,7 +285,7 @@ export function VaultsPage() {
     <Stack as="section" gap="0" h="full" minH="0">
       <Flex
         align="center"
-        justify="flex-end"
+        justify="flex-start"
         gap="3"
         borderBottomWidth="1px"
         borderColor="border.subtle"
@@ -305,20 +297,20 @@ export function VaultsPage() {
           <Button
             type="button"
             size="icon"
-            variant={vaultsView === 'list' ? 'solid' : 'ghost'}
-            aria-label="List view"
-            onClick={() => setVaultsView('list')}
-          >
-            <List size={17} />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
             variant={vaultsView === 'grid' ? 'solid' : 'ghost'}
             aria-label="Grid view"
             onClick={() => setVaultsView('grid')}
           >
             <Grid3X3 size={17} />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={vaultsView === 'list' ? 'solid' : 'ghost'}
+            aria-label="List view"
+            onClick={() => setVaultsView('list')}
+          >
+            <List size={17} />
           </Button>
         </HStack>
       </Flex>

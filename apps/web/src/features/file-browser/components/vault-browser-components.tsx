@@ -209,14 +209,30 @@ function getDropTargetStyles(dropTarget: BrowserDropTarget | null, folderId: str
 function getBrowserItemSurfaceStyles({
   isSelected,
   isDragSource,
+  isContextTarget,
+  contextBg = 'bg.subtle',
+  contextBorderColor,
 }: {
   isSelected: boolean;
   isDragSource: boolean;
+  isContextTarget: boolean;
+  contextBg?: string;
+  contextBorderColor?: string;
 }) {
-  return {
-    backgroundColor: isSelected ? 'var(--chakra-colors-teal-subtle)' : undefined,
+  const styles: { bg?: string; borderColor?: string; opacity: number } = {
     opacity: isDragSource ? 0.65 : 1,
   };
+
+  if (isContextTarget) {
+    styles.bg = contextBg;
+    if (contextBorderColor) {
+      styles.borderColor = contextBorderColor;
+    }
+  } else if (isSelected) {
+    styles.bg = 'teal.subtle';
+  }
+
+  return styles;
 }
 
 function handleItemKeyboardSelection({
@@ -619,6 +635,7 @@ export function BrowserItemList({
   items,
   vaultId,
   selectedItemKeys,
+  contextItemKey,
   draggedItemKeys,
   dropTarget,
   onOpenItem,
@@ -636,6 +653,7 @@ export function BrowserItemList({
   items: BrowserItem[];
   vaultId: string;
   selectedItemKeys: Set<string>;
+  contextItemKey?: string | null;
   draggedItemKeys: Set<string>;
   dropTarget: BrowserDropTarget | null;
   onOpenItem: (item: BrowserItem) => void;
@@ -697,8 +715,9 @@ export function BrowserItemList({
             const actions = getItemActions(item);
             const itemKey = getBrowserItemKey(item);
             const isSelected = selectedItemKeys.has(itemKey);
+            const isContextTarget = contextItemKey === itemKey;
             const isDragSource = draggedItemKeys.has(itemKey);
-            const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource });
+            const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource, isContextTarget });
             const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
 
             return (
@@ -824,6 +843,7 @@ export function BrowserItemGrid({
   items,
   vaultId,
   selectedItemKeys,
+  contextItemKey,
   draggedItemKeys,
   dropTarget,
   onOpenItem,
@@ -841,6 +861,7 @@ export function BrowserItemGrid({
   items: BrowserItem[];
   vaultId: string;
   selectedItemKeys: Set<string>;
+  contextItemKey?: string | null;
   draggedItemKeys: Set<string>;
   dropTarget: BrowserDropTarget | null;
   onOpenItem: (item: BrowserItem) => void;
@@ -883,8 +904,15 @@ export function BrowserItemGrid({
           const actions = getItemActions(item);
           const itemKey = getBrowserItemKey(item);
           const isSelected = selectedItemKeys.has(itemKey);
+          const isContextTarget = contextItemKey === itemKey;
           const isDragSource = draggedItemKeys.has(itemKey);
-          const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource });
+          const itemSurfaceStyles = getBrowserItemSurfaceStyles({
+            isSelected,
+            isDragSource,
+            isContextTarget,
+            contextBg: 'bg.workspaceMuted',
+            contextBorderColor: 'border.strong',
+          });
           const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
           const body = item.type === 'folder' ? (
             <Box
@@ -898,7 +926,10 @@ export function BrowserItemGrid({
               borderColor="border.subtle"
               bg="bg.workspace"
               transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.workspaceMuted', borderColor: isSelected ? 'teal.muted' : 'border.strong' }}
+              _hover={{
+                bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.workspaceMuted',
+                borderColor: isSelected && !isContextTarget ? 'teal.muted' : 'border.strong',
+              }}
               {...itemSurfaceStyles}
               {...folderDropStyles}
             >
@@ -942,7 +973,10 @@ export function BrowserItemGrid({
               borderColor="border.subtle"
               bg="bg.workspace"
               transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-              _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.workspaceMuted', borderColor: isSelected ? 'teal.muted' : 'border.strong' }}
+              _hover={{
+                bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.workspaceMuted',
+                borderColor: isSelected && !isContextTarget ? 'teal.muted' : 'border.strong',
+              }}
               {...itemSurfaceStyles}
             >
               <Stack align="center" justify="center" gap="4" w="full" h="full" textAlign="center">

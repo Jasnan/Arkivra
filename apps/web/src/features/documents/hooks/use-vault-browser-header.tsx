@@ -1,7 +1,7 @@
 import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
-import { Flex, HStack, Text } from '@chakra-ui/react';
-import { FolderPlus, Grid3X3, List, Upload } from 'lucide-react';
+import { Flex, HStack, Menu, Portal, Text } from '@chakra-ui/react';
+import { ChevronDown, FileUp, FolderPlus, FolderUp, Grid3X3, List, Upload } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,12 @@ const browserSortOptions: Array<{ value: FileBrowserSort; label: string }> = [
   { value: 'size_asc', label: 'Smallest first' },
 ];
 
+const uploadMenuItemProps = {
+  cursor: 'default',
+  color: 'fg.muted',
+  _highlighted: { bg: 'bg.muted', color: 'fg' },
+} as const;
+
 export function useVaultBrowserHeader({
   vaultId,
   vaultName,
@@ -43,6 +49,7 @@ export function useVaultBrowserHeader({
   onOpenRootContextMenu,
   onOpenCreateFolderDialog,
   onOpenUploadFiles,
+  onOpenUploadDirectory,
   onDragOverFolder,
   onDragLeaveFolder,
   onDropOnFolder,
@@ -63,6 +70,7 @@ export function useVaultBrowserHeader({
   onOpenRootContextMenu: (event: MouseEvent<HTMLElement>) => void;
   onOpenCreateFolderDialog: (parentId: string | null) => void;
   onOpenUploadFiles: () => void;
+  onOpenUploadDirectory: () => void;
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -126,10 +134,30 @@ export function useVaultBrowserHeader({
       px={{ base: '4', lg: '6' }}
       py="3"
     >
-      <Text fontSize="xs" color="fg.muted">
-        {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
-        {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
-      </Text>
+      <HStack gap="2">
+        <Button
+          type="button"
+          size="icon"
+          variant={browserView === 'grid' ? 'solid' : 'ghost'}
+          aria-label="Grid view"
+          onClick={() => setBrowserView('grid')}
+        >
+          <Grid3X3 size={17} />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={browserView === 'list' ? 'solid' : 'ghost'}
+          aria-label="List view"
+          onClick={() => setBrowserView('list')}
+        >
+          <List size={17} />
+        </Button>
+        <Text fontSize="xs" color="fg.muted">
+          {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
+          {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
+        </Text>
+      </HStack>
       <HStack gap="2">
         {selectedCount > 0 ? (
           <Button type="button" size="sm" variant="outline" onClick={onClearSelection}>
@@ -173,32 +201,42 @@ export function useVaultBrowserHeader({
             </SelectContent>
           </Select>
         </Flex>
-        <Button
-          type="button"
-          size="icon"
-          variant={browserView === 'list' ? 'solid' : 'ghost'}
-          aria-label="List view"
-          onClick={() => setBrowserView('list')}
-        >
-          <List size={17} />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant={browserView === 'grid' ? 'solid' : 'ghost'}
-          aria-label="Grid view"
-          onClick={() => setBrowserView('grid')}
-        >
-          <Grid3X3 size={17} />
-        </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => onOpenCreateFolderDialog(currentFolderId)}>
           <FolderPlus size={16} />
           New
         </Button>
-        <Button type="button" size="sm" onClick={onOpenUploadFiles}>
-          <Upload size={16} />
-          Upload
-        </Button>
+        <Menu.Root lazyMount unmountOnExit typeahead={false} positioning={{ placement: 'bottom-end' }}>
+          <Menu.Trigger asChild>
+            <Button type="button" size="sm">
+              <Upload size={16} />
+              Upload
+              <ChevronDown size={14} />
+            </Button>
+          </Menu.Trigger>
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content
+                minW="48"
+                overflow="hidden"
+                rounded="lg"
+                borderWidth="1px"
+                borderColor="border.subtle"
+                bg="bg.surface"
+                p="1.5"
+                shadow="lg"
+              >
+                <Menu.Item value="upload-files" {...uploadMenuItemProps} onClick={onOpenUploadFiles}>
+                  <FileUp size={16} />
+                  Upload files
+                </Menu.Item>
+                <Menu.Item value="upload-folder" {...uploadMenuItemProps} onClick={onOpenUploadDirectory}>
+                  <FolderUp size={16} />
+                  Upload folder
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
+        </Menu.Root>
       </HStack>
     </Flex>
   ), [
@@ -208,6 +246,7 @@ export function useVaultBrowserHeader({
     currentFolderId,
     onClearSelection,
     onOpenCreateFolderDialog,
+    onOpenUploadDirectory,
     onOpenUploadFiles,
     selectedCount,
     setBrowserSort,

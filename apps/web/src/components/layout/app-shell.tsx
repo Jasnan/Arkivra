@@ -20,10 +20,10 @@ import {
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Button as ChakraButton, Flex, HStack, IconButton, Image, Input, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
+import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import arkivraLogoUrl from '@/assets/arkivra-logo.png';
+import { ArkivraLogo } from '@/components/brand/arkivra-logo';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -32,14 +32,6 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
@@ -95,6 +87,12 @@ const primaryNavItems: PrimaryNavItem[] = [
   { id: 'search', to: ROUTES.search, label: 'Search', icon: Search },
   { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
 ];
+
+const accountMenuItemProps = {
+  cursor: 'default',
+  color: 'fg.muted',
+  _highlighted: { bg: 'bg.muted', color: 'fg' },
+} as const;
 
 function truncateBreadcrumbLabel(label: string, maxLength = 10) {
   if (label.length <= maxLength) {
@@ -281,8 +279,17 @@ function PrimarySidebar({
     >
       <RailTooltip label="Arkivra">
         <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit' }}>
-          <Flex boxSize="11" align="center" justify="center" rounded="lg" bg="bg.sidebar" borderWidth="1px" borderColor="border.subtle">
-            <Image src={arkivraLogoUrl} alt="Arkivra" boxSize="7" objectFit="contain" />
+          <Flex
+            boxSize="11"
+            align="center"
+            justify="center"
+            rounded="lg"
+            bg="bg.sidebar"
+            color="teal.fg"
+            borderWidth="1px"
+            borderColor="border.subtle"
+          >
+            <ArkivraLogo boxSize="10" />
           </Flex>
         </Link>
       </RailTooltip>
@@ -300,8 +307,8 @@ function PrimarySidebar({
           </Box>
         </RailTooltip>
 
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
+        <Menu.Root lazyMount unmountOnExit typeahead={false} positioning={{ placement: 'right-end' }}>
+          <Menu.Trigger asChild>
             <chakra.button
               type="button"
               aria-label="Open account menu"
@@ -319,44 +326,57 @@ function PrimarySidebar({
             >
               <UserCircle2 size={22} />
             </chakra.button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent minW="60">
-            <DropdownMenuLabel style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
-              <Text fontWeight="medium" color="fg">
-                {sessionEmail ?? 'Signed in'}
-              </Text>
-              <Text fontSize="xs" color="fg.muted">
-                {isGlobalAdmin ? 'Admin' : 'Vault member'}
-              </Text>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to={ROUTES.settings}>
-                <Settings size={16} />
-                Account settings
-              </Link>
-            </DropdownMenuItem>
-            {isGlobalAdmin ? (
-              <DropdownMenuItem asChild>
-                <Link to={ROUTES.admin}>
-                  <ShieldCheck size={16} />
-                  Admin
-                </Link>
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuItem asChild>
-              <Link to={ROUTES.about}>
-                <Compass size={16} />
-                About
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onSignOut}>
-              <LogOut size={16} />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </Menu.Trigger>
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content
+                minW="60"
+                overflow="hidden"
+                rounded="lg"
+                borderWidth="1px"
+                borderColor="border.subtle"
+                bg="bg.surface"
+                p="1.5"
+                shadow="lg"
+              >
+                <Box px="3" py="2">
+                  <Text fontWeight="medium" color="fg">
+                    {sessionEmail ?? 'Signed in'}
+                  </Text>
+                  <Text fontSize="xs" color="fg.muted">
+                    {isGlobalAdmin ? 'Admin' : 'Vault member'}
+                  </Text>
+                </Box>
+                <Menu.Separator />
+                <Menu.Item value="account-settings" asChild {...accountMenuItemProps}>
+                  <Link to={ROUTES.settings}>
+                    <Settings size={16} />
+                    Account settings
+                  </Link>
+                </Menu.Item>
+                {isGlobalAdmin ? (
+                  <Menu.Item value="admin" asChild {...accountMenuItemProps}>
+                    <Link to={ROUTES.admin}>
+                      <ShieldCheck size={16} />
+                      Admin
+                    </Link>
+                  </Menu.Item>
+                ) : null}
+                <Menu.Item value="about" asChild {...accountMenuItemProps}>
+                  <Link to={ROUTES.about}>
+                    <Compass size={16} />
+                    About
+                  </Link>
+                </Menu.Item>
+                <Menu.Separator />
+                <Menu.Item value="sign-out" {...accountMenuItemProps} onClick={onSignOut}>
+                  <LogOut size={16} />
+                  Sign out
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
+        </Menu.Root>
       </Stack>
     </Flex>
   );
@@ -575,24 +595,19 @@ function WorkspaceHeader({
         </Box>
       </Flex>
 
-      <HStack
-        display={{ base: 'none', lg: 'flex' }}
-        position="absolute"
-        left="50%"
-        transform="translateX(-50%)"
-        maxW={{ lg: '21rem', xl: '28rem' }}
-        w="full"
-      >
+      <HStack ml="4" gap="2" zIndex="1" flexShrink={0}>
+        {headerConfig?.actions}
         <ChakraButton
+          display={{ base: 'none', lg: 'inline-flex' }}
           type="button"
           aria-label={`Quick search, ${quickSearchShortcutLabel}`}
           aria-keyshortcuts="Meta+K"
           onClick={onOpenQuickSearch}
           variant="plain"
           justifyContent="flex-start"
-          w="full"
-          h="10"
-          gap="3"
+          w={{ lg: '13rem', xl: '15rem' }}
+          h="9"
+          gap="2.5"
           rounded="md"
           borderWidth="1px"
           borderColor="border.subtle"
@@ -603,14 +618,11 @@ function WorkspaceHeader({
           _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
         >
           <Search size={18} strokeWidth={2} />
-          <Text flex="1" minW="0" textAlign="left" truncate fontSize="md" fontWeight="medium">
+          <Text flex="1" minW="0" textAlign="left" truncate fontSize="sm" fontWeight="medium">
             Quick search...
           </Text>
         </ChakraButton>
-      </HStack>
 
-      <HStack ml="4" gap="2" zIndex="1">
-        {headerConfig?.actions}
         <IconButton
           display={{ base: 'inline-flex', lg: 'none' }}
           type="button"

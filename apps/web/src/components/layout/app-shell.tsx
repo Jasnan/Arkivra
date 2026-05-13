@@ -49,7 +49,11 @@ import { tokenizeSnippet } from '@/features/search/search.utils';
 import { TransfersDrawer } from '@/features/uploads/components/transfers-drawer';
 import { uploadManager } from '@/features/uploads/upload-manager';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
-import { VaultSidebarTree } from '@/features/vaults/components/vault-sidebar-tree';
+import {
+  VAULT_TREE_ROOT_VALUE,
+  VaultSidebarTree,
+  getVaultTreeVaultId,
+} from '@/features/vaults/components/vault-sidebar-tree';
 import { createVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 
@@ -75,7 +79,7 @@ interface BreadcrumbEntry {
 }
 
 interface PrimaryNavItem {
-  id: 'vaults' | 'chat' | 'search' | 'transfers';
+  id: 'vaults' | 'chat' | 'search' | 'tags' | 'trash' | 'transfers';
   to: string;
   label: string;
   icon: ComponentType<LucideProps>;
@@ -85,6 +89,8 @@ const primaryNavItems: PrimaryNavItem[] = [
   { id: 'vaults', to: ROUTES.vaults, label: 'Vaults', icon: Vault },
   { id: 'chat', to: ROUTES.chat, label: 'Chat', icon: MessageSquare },
   { id: 'search', to: ROUTES.search, label: 'Search', icon: Search },
+  { id: 'tags', to: ROUTES.tags, label: 'Tags', icon: Tags },
+  { id: 'trash', to: ROUTES.trash, label: 'Trash', icon: Trash2 },
   { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
 ];
 
@@ -176,6 +182,8 @@ function primaryNavId(pathname: string): PrimaryNavItem['id'] {
 
   if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
   if (pathname === ROUTES.search) return 'search';
+  if (pathname === ROUTES.tags) return 'tags';
+  if (pathname === ROUTES.trash) return 'trash';
   if (pathname === ROUTES.transfers) return 'transfers';
 
   return 'vaults';
@@ -402,9 +410,15 @@ function SecondarySidebar({
   onCreateVault?: () => void;
 }) {
   const vaultsQuery = useVaultsQuery();
+  const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([VAULT_TREE_ROOT_VALUE]);
+  const expandedTreeVaultId = useMemo(
+    () => vaultTreeExpandedValue.map(getVaultTreeVaultId).find(vaultId => vaultId !== null) ?? null,
+    [vaultTreeExpandedValue],
+  );
+  const treeVaultId = activeVaultId ?? expandedTreeVaultId;
   const folderTreeQuery = useFolderTreeQuery({
-    vaultId: activeVaultId ?? '',
-    enabled: kind === 'vault' && Boolean(activeVaultId),
+    vaultId: treeVaultId ?? '',
+    enabled: kind === 'vault' && Boolean(treeVaultId),
   });
   const vaults = vaultsQuery.data?.vaults ?? [];
 
@@ -476,26 +490,14 @@ function SecondarySidebar({
               <Box flex="1" minH="0" overflowY="auto" pr="1" mr="-1">
                 <VaultSidebarTree
                   vaults={vaults}
-                  activeVaultId={activeVaultId}
+                  activeVaultId={treeVaultId}
+                  expandedValue={vaultTreeExpandedValue}
+                  onExpandedValueChange={setVaultTreeExpandedValue}
                   currentFolderId={currentFolderId}
                   currentDocumentId={currentDocumentId}
                   folders={folderTreeQuery.data?.folders ?? []}
                   documents={folderTreeQuery.data?.documents ?? []}
                 />
-              </Box>
-              <Box flexShrink={0} borderTopWidth="1px" borderColor="border.subtle" pt="4">
-                <Stack gap="1">
-                  <SecondaryNavLink
-                    to={ROUTES.tags}
-                    label="Tags"
-                    icon={<Tags size={16} />}
-                  />
-                  <SecondaryNavLink
-                    to={ROUTES.trash}
-                    label="Trash"
-                    icon={<Trash2 size={16} />}
-                  />
-                </Stack>
               </Box>
             </Flex>
           )
@@ -641,7 +643,6 @@ function WorkspaceHeader({
 function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'standard' {
   const parts = pathname.split('/').filter(Boolean);
   if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
-  if (pathname === ROUTES.trash || pathname === ROUTES.tags) return 'vault';
   if (parts[0] === 'vaults' || pathname === ROUTES.vaults) return 'vault';
   return 'standard';
 }

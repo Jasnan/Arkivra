@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
@@ -13,8 +13,8 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, triggerName: RegExp, optionName: RegExp) {
-  await user.click(screen.getByRole('combobox', { name: triggerName }));
-  await user.click(await screen.findByRole('option', { name: optionName }));
+  await user.click(screen.getByRole('button', { name: triggerName }));
+  await user.click(await screen.findByRole('menuitemradio', { name: optionName }));
 }
 
 describe('global search page', () => {
@@ -73,12 +73,12 @@ describe('global search page', () => {
     expect(await screen.findByText('Sherlock')).toBeInTheDocument();
     expect(await screen.findByText('Invoices')).toBeInTheDocument();
     expect(screen.getByText(/1 Apr 2026 - 30 Apr 2026/i)).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /sort/i })).toHaveTextContent(/name a-z/i);
+    expect(screen.getByRole('button', { name: /sort/i })).toHaveTextContent(/name a-z/i);
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
@@ -162,12 +162,77 @@ describe('global search page', () => {
     expect(resultUrl.pathname).toBe('/vaults/vlt_1/doc_1');
     expect(resultUrl.searchParams.get('source')).toBe('search');
     expect(resultUrl.searchParams.get('q')).toBe('invoice');
-    expect(resultUrl.searchParams.get('vaultId')).toBe('vlt_1');
-    expect(resultUrl.searchParams.get('tagId')).toBe('tag_1');
+    expect(resultUrl.searchParams.get('vaultIds')).toBe('vlt_1');
+    expect(resultUrl.searchParams.get('tagIds')).toBe('tag_1');
     expect(resultUrl.searchParams.get('dateFrom')).toBe('2026-04-01');
     expect(resultUrl.searchParams.get('dateTo')).toBe('2026-04-30');
     expect(resultUrl.searchParams.get('sortBy')).toBe('name_asc');
     expect(resultUrl.searchParams.has('pageIndex')).toBe(false);
+  });
+
+  it('debounces search input before querying the backend', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+        const url = String(input);
+
+        if (url.endsWith('/api/vaults')) {
+          return jsonResponse({ vaults: [] });
+        }
+
+        if (url === '/api/tags') {
+          return jsonResponse({ tags: [] });
+        }
+
+        if (url.includes('/api/search?')) {
+          return jsonResponse({
+            query: 'invoice',
+            pageIndex: 0,
+            pageSize: 25,
+            resultsCount: 0,
+            filters: {
+              vaultId: null,
+              tagId: null,
+              tagIds: [],
+              dateFrom: null,
+              dateTo: null,
+              sortBy: 'created_desc',
+            },
+            results: [],
+          });
+        }
+
+        throw new Error(`Unhandled request ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await renderWithProviders(<SearchPage />, {
+        initialEntries: ['/search'],
+        routePath: '/search',
+      });
+
+      fireEvent.change(screen.getByLabelText(/search documents/i), { target: { value: 'invoice' } });
+
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(279);
+      });
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc')
+        ),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -403,12 +468,16 @@ describe('documents library search controls', () => {
     await selectRadixOption(user, /^sort$/i, /name \(a-z\)/i);
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
-    await user.click(screen.getByRole('button', { name: /vault filter/i }));
-    await user.type(screen.getByLabelText(/search vaults/i), 'sher');
-    await user.click(screen.getByRole('menuitem', { name: /^sherlock$/i }));
-    await user.click(screen.getByRole('button', { name: /tags filter/i }));
-    await user.click(screen.getByRole('menuitemcheckbox', { name: /invoices/i }));
-    await user.click(screen.getByRole('button', { name: /tags filter/i }));
+    const vaultFilter = screen.getByRole('combobox', { name: /vault filter/i });
+    await user.click(vaultFilter);
+    await user.type(vaultFilter, 'sher');
+    const sherlockOption = (await screen.findByText('Sherlock')).closest('[role="option"]');
+    expect(sherlockOption).not.toBeNull();
+    await user.click(sherlockOption!);
+    await user.click(screen.getByRole('combobox', { name: /tags filter/i }));
+    const invoicesOption = (await screen.findByText('Invoices')).closest('[role="option"]');
+    expect(invoicesOption).not.toBeNull();
+    await user.click(invoicesOption!);
     await user.click(screen.getByLabelText(/custom range/i));
     await user.type(screen.getByLabelText(/^from$/i), '2026-04-01');
     await user.type(screen.getByLabelText(/^to$/i), '2026-04-30');
@@ -475,14 +544,14 @@ describe('documents library search controls', () => {
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
 
-    await user.click(screen.getByRole('button', { name: /vault filter/i }));
-    const vaultSearch = screen.getByLabelText(/search vaults/i);
+    const vaultSearch = screen.getByRole('combobox', { name: /vault filter/i });
+    await user.click(vaultSearch);
     await user.type(vaultSearch, 'sher');
     expect(vaultSearch).toHaveValue('sher');
     expect(vaultSearch).toHaveFocus();
 
-    await user.click(screen.getByRole('button', { name: /tags filter/i }));
-    const tagSearch = screen.getByLabelText(/search tags/i);
+    const tagSearch = screen.getByRole('combobox', { name: /tags filter/i });
+    await user.click(tagSearch);
     fireEvent.change(tagSearch, { target: { value: 'ins' } });
     expect(tagSearch).toHaveValue('ins');
     expect(tagSearch).toHaveFocus();

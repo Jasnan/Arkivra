@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, Collapsible, Flex, Portal, Text, chakra } from '@chakra-ui/react';
 import {
-  Check,
   ChevronDown,
   Folder,
   FolderOpen,
-  Search as SearchIcon,
   Settings2,
   Upload,
 } from 'lucide-react';
@@ -22,13 +20,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { getDocumentDownloadUrl, softDeleteDocument } from '@/features/documents/documents.api';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
@@ -38,7 +33,10 @@ import {
   getDocumentSelectionKey,
 } from '@/features/documents/components/document-library-list';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
-import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
+import {
+  DocumentSearchControls,
+  SearchFilterMultiSelect,
+} from '@/features/documents/components/document-search-controls';
 import { searchQueryKeys, useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -141,48 +139,23 @@ function formatVaultRole(role: string | null | undefined) {
   return 'Access';
 }
 
-function handleFilterSearchKeyDown(
-  event: React.KeyboardEvent<HTMLInputElement>,
-  onArrowDown?: () => void,
-) {
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    event.stopPropagation();
-    onArrowDown?.();
-    return;
-  }
-
-  if (event.key === 'Escape') {
-    return;
-  }
-
-  event.stopPropagation();
-}
-
 export function AllDocumentsPage() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
-  const [selectedVaultId, setSelectedVaultId] = useState('');
+  const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SearchSortBy>('created_desc');
   const [datePreset, setDatePreset] = useState<DatePreset>('any');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [isVaultFilterOpen, setIsVaultFilterOpen] = useState(false);
-  const [isTagFilterOpen, setIsTagFilterOpen] = useState(false);
-  const [vaultSearchQuery, setVaultSearchQuery] = useState('');
-  const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [collapsedVaultIds, setCollapsedVaultIds] = useState<string[]>([]);
   const [vaultPageIndexes, setVaultPageIndexes] = useState<Record<string, number>>({});
   const [selectedDocumentKeys, setSelectedDocumentKeys] = useState<string[]>([]);
-  const vaultFilterContentRef = useRef<HTMLDivElement | null>(null);
-  const tagFilterContentRef = useRef<HTMLDivElement | null>(null);
 
   const debouncedQuery = useDebouncedValue(query.trim(), 280);
   const vaultsQuery = useVaultsQuery();
-  const tagScopeVaultId = selectedVaultId || undefined;
-  const tagsQuery = useAccessibleTagsQuery({ vaultId: tagScopeVaultId });
+  const tagsQuery = useAccessibleTagsQuery();
   const availableTags = useMemo(() => tagsQuery.data?.tags ?? [], [tagsQuery.data?.tags]);
 
   const appliedDateRange = useMemo(() => {
@@ -214,7 +187,7 @@ export function AllDocumentsPage() {
     query: debouncedQuery,
     pageIndex: 0,
     pageSize: SEARCH_PAGE_SIZE,
-    vaultIds: selectedVaultId ? [selectedVaultId] : undefined,
+    vaultIds: selectedVaultIds.length > 0 ? selectedVaultIds : undefined,
     tagIds: visibleSelectedTagIds,
     dateFrom: appliedDateRange.dateFrom,
     dateTo: appliedDateRange.dateTo,
@@ -252,27 +225,6 @@ export function AllDocumentsPage() {
       toast.error(error instanceof Error ? error.message : 'Could not delete document.');
     },
   });
-
-  const filteredVaults = useMemo(() => {
-    const normalizedQuery = vaultSearchQuery.trim().toLowerCase();
-    const vaults = vaultsQuery.data?.vaults ?? [];
-
-    if (normalizedQuery.length === 0) {
-      return vaults;
-    }
-
-    return vaults.filter((vault) => vault.name.toLowerCase().includes(normalizedQuery));
-  }, [vaultSearchQuery, vaultsQuery.data?.vaults]);
-
-  const filteredTags = useMemo(() => {
-    const normalizedQuery = tagSearchQuery.trim().toLowerCase();
-
-    if (normalizedQuery.length === 0) {
-      return availableTags;
-    }
-
-    return availableTags.filter((tag) => tag.name.toLowerCase().includes(normalizedQuery));
-  }, [availableTags, tagSearchQuery]);
 
   const groupedDocuments = useMemo(() => {
     const groups = new Map<
@@ -379,27 +331,23 @@ export function AllDocumentsPage() {
 
   const selectedSortLabel =
     sortOptions.find((option) => option.value === sortBy)?.label ?? 'Newest';
-  const selectedVault = useMemo(
-    () => (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === selectedVaultId) ?? null,
-    [selectedVaultId, vaultsQuery.data?.vaults],
+  const selectedVaults = useMemo(
+    () => (vaultsQuery.data?.vaults ?? []).filter((vault) => selectedVaultIds.includes(vault.id)),
+    [selectedVaultIds, vaultsQuery.data?.vaults],
   );
 
   const activeFilterCount =
-    (selectedVaultId ? 1 : 0) + visibleSelectedTagIds.length + (datePreset !== 'any' ? 1 : 0);
+    selectedVaultIds.length + visibleSelectedTagIds.length + (datePreset !== 'any' ? 1 : 0);
 
   const activeFilters = [
-    ...(selectedVault
-      ? [
-          {
-            key: `vault-${selectedVault.id}`,
-            label: selectedVault.name,
-            onRemove: () => {
-              setSelectedVaultId('');
-              setVaultPageIndexes({});
-            },
-          },
-        ]
-      : []),
+    ...selectedVaults.map((vault) => ({
+      key: `vault-${vault.id}`,
+      label: vault.name,
+      onRemove: () => {
+        setSelectedVaultIds((current) => current.filter((item) => item !== vault.id));
+        setVaultPageIndexes({});
+      },
+    })),
     ...selectedTags.map((tag) => ({
       key: `tag-${tag.id}`,
       label: tag.name,
@@ -428,29 +376,16 @@ export function AllDocumentsPage() {
       : []),
   ];
 
-  function toggleTagSelection(tagId: string) {
-    setSelectedTagIds((current) =>
-      current.includes(tagId) ? current.filter((item) => item !== tagId) : [...current, tagId],
-    );
-    setVaultPageIndexes({});
-  }
-
   function closeFilters() {
     setIsFiltersOpen(false);
-    setIsVaultFilterOpen(false);
-    setIsTagFilterOpen(false);
-    setVaultSearchQuery('');
-    setTagSearchQuery('');
   }
 
   function clearFilters() {
-    setSelectedVaultId('');
+    setSelectedVaultIds([]);
     setSelectedTagIds([]);
     setDatePreset('any');
     setCustomDateFrom('');
     setCustomDateTo('');
-    setVaultSearchQuery('');
-    setTagSearchQuery('');
     setVaultPageIndexes({});
   }
 
@@ -492,13 +427,6 @@ export function AllDocumentsPage() {
     }
   }
 
-  function focusFirstFilterItem(container: HTMLDivElement | null) {
-    const item = container?.querySelector<HTMLElement>(
-      '[role="menuitem"], [role="menuitemcheckbox"]',
-    );
-    item?.focus();
-  }
-
   const selectedTagsLabel = useMemo(() => {
     if (selectedTags.length === 0) {
       return 'All tags';
@@ -510,6 +438,18 @@ export function AllDocumentsPage() {
 
     return `${selectedTags[0].name}, ${selectedTags[1].name} +${selectedTags.length - 2}`;
   }, [selectedTags]);
+
+  const selectedVaultsLabel = useMemo(() => {
+    if (selectedVaults.length === 0) {
+      return 'All vaults';
+    }
+
+    if (selectedVaults.length <= 2) {
+      return selectedVaults.map((vault) => vault.name).join(', ');
+    }
+
+    return `${selectedVaults[0].name}, ${selectedVaults[1].name} +${selectedVaults.length - 2}`;
+  }, [selectedVaults]);
 
   return (
     <Flex as="section" direction="column" gap="8" pb="8">
@@ -564,273 +504,61 @@ export function AllDocumentsPage() {
         filtersTitle="Filters"
         filtersContent={
           <>
-            <Box gap="3">
-              <Text fontSize="sm" fontWeight="semibold" color="fg">Vault</Text>
-              <DropdownMenu
-                modal={false}
-                open={isVaultFilterOpen}
-                onOpenChange={(open) => {
-                  setIsVaultFilterOpen(open);
-                  if (!open) {
-                    setVaultSearchQuery('');
-                  }
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    aria-label="Vault filter"
-                    h="10"
-                    w="full"
-                    justifyContent="space-between"
-                    px="4"
-                    textAlign="left"
-                    fontWeight="medium"
-                    shadow="none"
-                    mt="3"
-                  >
-                    <Text truncate fontSize="sm" color="fg">
-                      {selectedVault?.name ?? 'All vaults'}
-                    </Text>
-                    <Flex
-                      shrink={0}
-                      align="center"
-                      transition="transform 200ms"
-                      transform={isVaultFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)'}
-                    >
-                      <ChevronDown size={16} />
-                    </Flex>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  minW="112"
-                  p="0"
-                  onCloseAutoFocus={(event) => {
-                    event.preventDefault();
-                  }}
-                >
-                  <Box ref={vaultFilterContentRef}>
-                    <Box p="2">
-                      <Field>
-                        <FieldLabel htmlFor="all-documents-search-vaults" srOnly>
-                          Search vaults
-                        </FieldLabel>
-                        <Box position="relative">
-                          <Box
-                            position="absolute"
-                            left="3"
-                            top="50%"
-                            transform="translateY(-50%)"
-                            color="fg.muted"
-                            pointerEvents="none"
-                          >
-                            <SearchIcon size={16} />
-                          </Box>
-                          <Input
-                            id="all-documents-search-vaults"
-                            aria-label="Search vaults"
-                            value={vaultSearchQuery}
-                            onChange={(event) => setVaultSearchQuery(event.target.value)}
-                            onKeyDown={(event) =>
-                              handleFilterSearchKeyDown(event, () =>
-                                focusFirstFilterItem(vaultFilterContentRef.current),
-                              )
-                            }
-                            placeholder="Search vaults"
-                            h="10"
-                            rounded="xl"
-                            borderColor="transparent"
-                            pl="10"
-                            pr="3"
-                            focusRing="none"
-                            autoFocus
-                          />
-                        </Box>
-                      </Field>
-                    </Box>
-                    <Separator />
-                    <Box maxH="72" overflow="auto" p="2">
-                      {vaultsQuery.isLoading ? (
-                        <Text px="3" py="3" fontSize="sm" color="fg.muted">Loading vaults...</Text>
-                      ) : null}
-                      {!vaultsQuery.isLoading ? (
-                        <DropdownMenuItem
-                          bg={!selectedVaultId ? 'bg.subtle' : undefined}
-                          color={!selectedVaultId ? 'fg' : undefined}
-                          onSelect={() => {
-                            setSelectedVaultId('');
-                            setVaultPageIndexes({});
-                            setIsVaultFilterOpen(false);
-                          }}
-                        >
-                          <Text flex="1">All vaults</Text>
-                          {!selectedVaultId ? <Check size={16} /> : null}
-                        </DropdownMenuItem>
-                      ) : null}
-                      {!vaultsQuery.isLoading && filteredVaults.length === 0 ? (
-                        <Text px="3" py="3" fontSize="sm" color="fg.muted">No vaults found.</Text>
-                      ) : null}
-                      {filteredVaults.map((vault) => (
-                        <DropdownMenuItem
-                          key={vault.id}
-                          bg={selectedVaultId === vault.id ? 'bg.subtle' : undefined}
-                          color={selectedVaultId === vault.id ? 'fg' : undefined}
-                          onSelect={() => {
-                            setSelectedVaultId(vault.id);
-                            setVaultPageIndexes({});
-                            setIsVaultFilterOpen(false);
-                          }}
-                        >
-                          <Text flex="1" truncate>{vault.name}</Text>
-                          {selectedVaultId === vault.id ? (
-                            <Check size={16} />
-                          ) : null}
-                        </DropdownMenuItem>
-                      ))}
-                    </Box>
-                  </Box>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </Box>
+            <SearchFilterMultiSelect
+              label="Vaults"
+              triggerLabel={selectedVaultsLabel}
+              triggerAriaLabel="Vault filter"
+              searchLabel="Search vaults"
+              searchPlaceholder="Search vaults"
+              emptyLabel="No vaults found."
+              loadingLabel="Loading vaults..."
+              options={(vaultsQuery.data?.vaults ?? []).map((vault) => ({
+                value: vault.id,
+                label: vault.name,
+              }))}
+              selectedValues={selectedVaultIds}
+              isLoading={vaultsQuery.isLoading}
+              onValueChange={(values) => {
+                setSelectedVaultIds(values);
+                setVaultPageIndexes({});
+              }}
+              onClear={() => {
+                setSelectedVaultIds([]);
+                setVaultPageIndexes({});
+              }}
+            />
 
-            <Box gap="4">
-              <Text fontSize="sm" fontWeight="semibold" color="fg">Tags</Text>
-              <DropdownMenu
-                modal={false}
-                open={isTagFilterOpen}
-                onOpenChange={(open) => {
-                  setIsTagFilterOpen(open);
-                  if (!open) {
-                    setTagSearchQuery('');
-                  }
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    aria-label="Tags filter"
-                    h="10"
-                    w="full"
-                    justifyContent="space-between"
-                    px="4"
-                    textAlign="left"
-                    fontWeight="medium"
-                    shadow="none"
-                    mt="3"
-                  >
-                    <Text truncate fontSize="sm" color="fg">
-                      {selectedTagsLabel}
-                    </Text>
-                    <Flex
-                      shrink={0}
-                      align="center"
-                      transition="transform 200ms"
-                      transform={isTagFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)'}
-                    >
-                      <ChevronDown size={16} />
-                    </Flex>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  minW="112"
-                  p="0"
-                  onCloseAutoFocus={(event) => {
-                    event.preventDefault();
-                  }}
-                >
-                  <Box ref={tagFilterContentRef}>
-                    <Box p="2">
-                      <Field>
-                        <FieldLabel htmlFor="all-documents-search-tags" srOnly>
-                          Search tags
-                        </FieldLabel>
-                        <Box position="relative">
-                          <Box
-                            position="absolute"
-                            left="3"
-                            top="50%"
-                            transform="translateY(-50%)"
-                            color="fg.muted"
-                            pointerEvents="none"
-                          >
-                            <SearchIcon size={16} />
-                          </Box>
-                          <Input
-                            id="all-documents-search-tags"
-                            aria-label="Search tags"
-                            value={tagSearchQuery}
-                            onChange={(event) => {
-                              setTagSearchQuery(event.target.value);
-                            }}
-                            onKeyDown={(event) =>
-                              handleFilterSearchKeyDown(event, () =>
-                                focusFirstFilterItem(tagFilterContentRef.current),
-                              )
-                            }
-                            placeholder="Search tags"
-                            h="10"
-                            rounded="xl"
-                            borderColor="transparent"
-                            pl="10"
-                            pr="3"
-                            focusRing="none"
-                            autoFocus
-                          />
-                        </Box>
-                      </Field>
-                    </Box>
-                    <Separator />
-                    <Box maxH="72" overflow="auto" p="2">
-                      {tagsQuery.isLoading ? (
-                        <Text px="3" py="3" fontSize="sm" color="fg.muted">Loading tags...</Text>
-                      ) : null}
-                      {!tagsQuery.isLoading && availableTags.length === 0 ? (
-                        <Text px="3" py="3" fontSize="sm" color="fg.muted">No tags found.</Text>
-                      ) : null}
-                      {!tagsQuery.isLoading &&
-                      availableTags.length > 0 &&
-                      filteredTags.length === 0 ? (
-                        <Text px="3" py="3" fontSize="sm" color="fg.muted">No tags found.</Text>
-                      ) : null}
-                      {filteredTags.map((tag) => {
-                        const isSelected = selectedTagIds.includes(tag.id);
-
-                        return (
-                          <DropdownMenuCheckboxItem
-                            key={tag.id}
-                            checked={isSelected}
-                            onSelect={(event) => event.preventDefault()}
-                            onCheckedChange={() => toggleTagSelection(tag.id)}
-                          >
-                            <Flex minW="0" flex="1" align="center" gap="3">
-                              <Box
-                                boxSize="2.5"
-                                rounded="full"
-                                bg={tag.color ?? 'fg.muted'}
-                                aria-hidden="true"
-                              />
-                              <Text truncate>{tag.name}</Text>
-                            </Flex>
-                            {typeof tag.documentsCount === 'number' ? (
-                              <Text ml="auto" fontSize="xs" color="fg.muted">
-                                {tag.documentsCount} doc{tag.documentsCount === 1 ? '' : 's'}
-                              </Text>
-                            ) : null}
-                          </DropdownMenuCheckboxItem>
-                        );
-                      })}
-                    </Box>
-                  </Box>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </Box>
+            <SearchFilterMultiSelect
+              label="Tags"
+              triggerLabel={selectedTagsLabel}
+              triggerAriaLabel="Tags filter"
+              searchLabel="Search tags"
+              searchPlaceholder="Search tags"
+              emptyLabel="No tags found."
+              loadingLabel="Loading tags..."
+              options={availableTags.map((tag) => ({
+                value: tag.id,
+                label: tag.name,
+                color: tag.color,
+                meta: typeof tag.documentsCount === 'number'
+                  ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
+                  : undefined,
+              }))}
+              selectedValues={visibleSelectedTagIds}
+              isLoading={tagsQuery.isLoading}
+              onValueChange={(values) => {
+                setSelectedTagIds(values);
+                setVaultPageIndexes({});
+              }}
+              onClear={() => {
+                setSelectedTagIds([]);
+                setVaultPageIndexes({});
+              }}
+              showColorSwatch
+            />
 
             <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
-              <Text fontSize="sm" fontWeight="semibold" color="fg">Date</Text>
+              <Text fontSize="sm" fontWeight="semibold" color="fg">Uploaded date</Text>
 
               <DatePresetSelector
                 idPrefix="documents-date-filter"

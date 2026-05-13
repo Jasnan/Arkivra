@@ -1,18 +1,14 @@
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
 import { FileSearch, FileText, SearchX, Vault } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
-import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
+import {
+  DocumentSearchControls,
+  SearchFilterMultiSelect,
+} from '@/features/documents/components/document-search-controls';
 import type { DocumentSearchControlFilter } from '@/features/documents/components/document-search-controls';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
@@ -20,8 +16,10 @@ import { tokenizeSnippet } from '@/features/search/search.utils';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
 
 const SEARCH_RESULT_LIMIT = 25;
+const SEARCH_QUERY_DEBOUNCE_MS = 280;
 const SEARCH_TERM_SEPARATOR = /\s+/;
 const SNIPPET_WHITESPACE = /\s+/g;
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
@@ -32,6 +30,7 @@ const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
 ];
 const SEARCH_RESULT_COLUMNS = 'minmax(0, 1fr) minmax(7rem, 9rem) minmax(5.5rem, 7rem) minmax(8rem, 10rem)';
 const SEARCH_RETURN_SOURCE = 'search';
+const SEARCH_LIST_SEPARATOR = ',';
 
 function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
   const extension = name.split('.').pop()?.trim().toUpperCase();
@@ -94,15 +93,15 @@ function ResultTagPill({ name, color }: { name: string; color: string | null }) 
 
 function getSearchReturnParams({
   query,
-  vaultId,
-  tagId,
+  vaultIds,
+  tagIds,
   dateFrom,
   dateTo,
   sortBy,
 }: {
   query: string;
-  vaultId: string;
-  tagId: string;
+  vaultIds: string[];
+  tagIds: string[];
   dateFrom: string;
   dateTo: string;
   sortBy: SearchSortBy;
@@ -114,12 +113,22 @@ function getSearchReturnParams({
   const trimmedQuery = query.trim();
 
   if (trimmedQuery.length > 0) params.q = trimmedQuery;
-  if (vaultId.length > 0) params.vaultId = vaultId;
-  if (tagId.length > 0) params.tagId = tagId;
+  if (vaultIds.length > 0) params.vaultIds = joinSearchList(vaultIds);
+  if (tagIds.length > 0) params.tagIds = joinSearchList(tagIds);
   if (dateFrom.length > 0) params.dateFrom = dateFrom;
   if (dateTo.length > 0) params.dateTo = dateTo;
 
   return params;
+}
+
+function parseSearchList(value: string | undefined) {
+  return Array.from(
+    new Set((value ?? '').split(SEARCH_LIST_SEPARATOR).map((item) => item.trim()).filter(Boolean)),
+  );
+}
+
+function joinSearchList(values: string[]) {
+  return values.join(SEARCH_LIST_SEPARATOR);
 }
 
 function tokenizeTextMatches(text: string, query: string) {
@@ -441,25 +450,34 @@ export function SearchPage() {
   const [query, setQuery] = useState(search.q ?? '');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [datePreset, setDatePreset] = useState<DatePreset>(search.dateFrom || search.dateTo ? 'custom' : 'any');
-  const deferredQuery = useDeferredValue(query.trim());
+  const debouncedQuery = useDebouncedValue(query.trim(), SEARCH_QUERY_DEBOUNCE_MS);
 
-  const vaultId = search.vaultId ?? '';
-  const tagId = search.tagId ?? '';
+  const selectedVaultIds = useMemo(() => {
+    const vaultIds = parseSearchList(search.vaultIds);
+    const legacyVaultId = search.vaultId ?? '';
+
+    return vaultIds.length > 0 ? vaultIds : legacyVaultId ? [legacyVaultId] : [];
+  }, [search.vaultId, search.vaultIds]);
+  const selectedTagIds = useMemo(() => {
+    const tagIds = parseSearchList(search.tagIds);
+    const legacyTagId = search.tagId ?? '';
+
+    return tagIds.length > 0 ? tagIds : legacyTagId ? [legacyTagId] : [];
+  }, [search.tagId, search.tagIds]);
   const dateFrom = search.dateFrom ?? '';
   const dateTo = search.dateTo ?? '';
   const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
 
   useEffect(() => {
-    const trimmedQuery = query.trim();
-    if ((search.q ?? '') === trimmedQuery) {
+    if ((search.q ?? '') === debouncedQuery) {
       return;
     }
 
     navigate({
       search: (prev: Record<string, string>) => {
         const next: Record<string, string> = { ...prev }
-        if (trimmedQuery.length > 0) {
-          next.q = trimmedQuery
+        if (debouncedQuery.length > 0) {
+          next.q = debouncedQuery
         } else {
           delete next.q
         }
@@ -468,29 +486,35 @@ export function SearchPage() {
       },
       replace: true,
     } as any)
-  }, [query, navigate, search.q]);
+  }, [debouncedQuery, navigate, search.q]);
 
   const vaultsQuery = useVaultsQuery();
-  const tagsQuery = useAccessibleTagsQuery({ vaultId: vaultId || undefined });
+  const tagsQuery = useAccessibleTagsQuery();
   const searchQuery = useGlobalSearchDocumentsQuery({
-    query: deferredQuery,
+    query: debouncedQuery,
     pageIndex: 0,
     pageSize: SEARCH_RESULT_LIMIT,
-    vaultId: vaultId || undefined,
-    tagId: tagId || undefined,
+    vaultIds: selectedVaultIds.length > 0 ? selectedVaultIds : undefined,
+    tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     sortBy,
     enabled:
-      deferredQuery.length > 0 ||
-      vaultId.length > 0 ||
-      tagId.length > 0 ||
+      debouncedQuery.length > 0 ||
+      selectedVaultIds.length > 0 ||
+      selectedTagIds.length > 0 ||
       dateFrom.length > 0 ||
       dateTo.length > 0,
   });
 
-  const selectedVault = (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === vaultId);
-  const selectedTag = (tagsQuery.data?.tags ?? []).find((tag) => tag.id === tagId);
+  const selectedVaults = useMemo(
+    () => (vaultsQuery.data?.vaults ?? []).filter((vault) => selectedVaultIds.includes(vault.id)),
+    [selectedVaultIds, vaultsQuery.data?.vaults],
+  );
+  const selectedTags = useMemo(
+    () => (tagsQuery.data?.tags ?? []).filter((tag) => selectedTagIds.includes(tag.id)),
+    [selectedTagIds, tagsQuery.data?.tags],
+  );
 
   function updateFilters(nextValues: Record<string, string>) {
     navigate({
@@ -509,7 +533,15 @@ export function SearchPage() {
 
   function resetFilters() {
     setDatePreset('any');
-    updateFilters({ vaultId: '', tagId: '', dateFrom: '', dateTo: '', sortBy: 'created_desc' });
+    updateFilters({
+      vaultId: '',
+      vaultIds: '',
+      tagId: '',
+      tagIds: '',
+      dateFrom: '',
+      dateTo: '',
+      sortBy: 'created_desc',
+    });
   }
 
   function setPresetDateFilter(value: DatePreset) {
@@ -524,20 +556,26 @@ export function SearchPage() {
   }
 
   const activeFilters: DocumentSearchControlFilter[] = [
-    ...(selectedVault
-      ? [{
-          key: `vault-${selectedVault.id}`,
-          label: selectedVault.name,
-          onRemove: () => updateFilters({ vaultId: '' }),
-        }]
-      : []),
-    ...(selectedTag
-      ? [{
-          key: `tag-${selectedTag.id}`,
-          label: selectedTag.name,
-          onRemove: () => updateFilters({ tagId: '' }),
-        }]
-      : []),
+    ...selectedVaults.map((vault) => ({
+      key: `vault-${vault.id}`,
+      label: vault.name,
+      onRemove: () => {
+        updateFilters({
+          vaultId: '',
+          vaultIds: joinSearchList(selectedVaultIds.filter((item) => item !== vault.id)),
+        });
+      },
+    })),
+    ...selectedTags.map((tag) => ({
+      key: `tag-${tag.id}`,
+      label: tag.name,
+      onRemove: () => {
+        updateFilters({
+          tagId: '',
+          tagIds: joinSearchList(selectedTagIds.filter((item) => item !== tag.id)),
+        });
+      },
+    })),
     ...(dateFrom || dateTo
       ? [{
           key: 'date-range',
@@ -549,7 +587,7 @@ export function SearchPage() {
         }]
       : []),
   ];
-  const hasActiveSearch = deferredQuery.length > 0 || activeFilters.length > 0;
+  const hasActiveSearch = debouncedQuery.length > 0 || activeFilters.length > 0;
   const results = searchQuery.data?.results ?? [];
   const resultCount = searchQuery.data?.resultsCount ?? 0;
   const shownCount = results.length;
@@ -557,13 +595,51 @@ export function SearchPage() {
     ? `${shownCount} of ${resultCount} matches`
     : `${resultCount} match${resultCount === 1 ? '' : 'es'}`;
   const detailSearch = getSearchReturnParams({
-    query: deferredQuery,
-    vaultId,
-    tagId,
+    query: debouncedQuery,
+    vaultIds: selectedVaultIds,
+    tagIds: selectedTagIds,
     dateFrom,
     dateTo,
     sortBy,
   });
+
+  const selectedVaultsLabel = useMemo(() => {
+    if (selectedVaults.length === 0) {
+      return 'All vaults';
+    }
+
+    if (selectedVaults.length <= 2) {
+      return selectedVaults.map((vault) => vault.name).join(', ');
+    }
+
+    return `${selectedVaults[0].name}, ${selectedVaults[1].name} +${selectedVaults.length - 2}`;
+  }, [selectedVaults]);
+
+  const selectedTagsLabel = useMemo(() => {
+    if (selectedTags.length === 0) {
+      return 'All tags';
+    }
+
+    if (selectedTags.length <= 2) {
+      return selectedTags.map((tag) => tag.name).join(', ');
+    }
+
+    return `${selectedTags[0].name}, ${selectedTags[1].name} +${selectedTags.length - 2}`;
+  }, [selectedTags]);
+
+  function setVaultSelection(nextVaultIds: string[]) {
+    updateFilters({
+      vaultId: '',
+      vaultIds: joinSearchList(nextVaultIds),
+    });
+  }
+
+  function setTagSelection(nextTagIds: string[]) {
+    updateFilters({
+      tagId: '',
+      tagIds: joinSearchList(nextTagIds),
+    });
+  }
 
   return (
     <Flex as="section" h="full" minH="0" direction="column" overflow="hidden" bg="bg.workspace">
@@ -571,7 +647,7 @@ export function SearchPage() {
         layout="workspace"
         query={query}
         onQueryChange={setQuery}
-        searchPlaceholder="Search invoices, clauses, names..."
+        searchPlaceholder="Search documents..."
         searchAriaLabel="Search documents"
         isFiltersOpen={isFiltersOpen}
         onOpenFilters={() => setIsFiltersOpen(true)}
@@ -585,59 +661,53 @@ export function SearchPage() {
         sortOptions={sortOptions}
         sortSelectId="global-search-sort"
         sortAriaLabel="Sort search results"
-        filtersTitle="Search filters"
+        filtersTitle="Filters"
         filtersContent={
           <>
-            <Box>
-              <Text as="span" id="search-vault-label" fontSize="sm" fontWeight="semibold" color="fg">
-                Vault
-              </Text>
-              <Select
-                value={vaultId || '__all__'}
-                onValueChange={(value) => {
-                  const nextVaultId = value === '__all__' ? '' : value;
-                  updateFilters({ vaultId: nextVaultId });
-                }}
-              >
-                <SelectTrigger aria-labelledby="search-vault-label" h="10" rounded="lg" borderColor="border.subtle" bg="bg.surface" mt="3">
-                  <SelectValue placeholder="All vaults" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All vaults</SelectItem>
-                  {(vaultsQuery.data?.vaults ?? []).map((vault) => (
-                    <SelectItem key={vault.id} value={vault.id}>
-                      {vault.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Box>
+            <SearchFilterMultiSelect
+              label="Vaults"
+              triggerLabel={selectedVaultsLabel}
+              triggerAriaLabel="Vault filter"
+              searchLabel="Search vaults"
+              searchPlaceholder="Search vaults"
+              emptyLabel="No vaults found."
+              loadingLabel="Loading vaults..."
+              options={(vaultsQuery.data?.vaults ?? []).map((vault) => ({
+                value: vault.id,
+                label: vault.name,
+              }))}
+              selectedValues={selectedVaultIds}
+              isLoading={vaultsQuery.isLoading}
+              onValueChange={setVaultSelection}
+              onClear={() => updateFilters({ vaultId: '', vaultIds: '' })}
+            />
 
-            <Box>
-              <Text as="span" id="search-tag-label" fontSize="sm" fontWeight="semibold" color="fg">
-                Tag
-              </Text>
-              <Select
-                value={tagId || '__all__'}
-                onValueChange={(value) => updateFilters({ tagId: value === '__all__' ? '' : value })}
-              >
-                <SelectTrigger aria-labelledby="search-tag-label" h="10" rounded="lg" borderColor="border.subtle" bg="bg.surface" mt="3">
-                  <SelectValue placeholder="All tags" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All tags</SelectItem>
-                  {(tagsQuery.data?.tags ?? []).map((tag) => (
-                    <SelectItem key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Box>
+            <SearchFilterMultiSelect
+              label="Tags"
+              triggerLabel={selectedTagsLabel}
+              triggerAriaLabel="Tags filter"
+              searchLabel="Search tags"
+              searchPlaceholder="Search tags"
+              emptyLabel="No tags found."
+              loadingLabel="Loading tags..."
+              options={(tagsQuery.data?.tags ?? []).map((tag) => ({
+                value: tag.id,
+                label: tag.name,
+                color: tag.color,
+                meta: typeof tag.documentsCount === 'number'
+                  ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
+                  : undefined,
+              }))}
+              selectedValues={selectedTagIds}
+              isLoading={tagsQuery.isLoading}
+              onValueChange={setTagSelection}
+              onClear={() => updateFilters({ tagId: '', tagIds: '' })}
+              showColorSwatch
+            />
 
             <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
               <Text fontSize="sm" fontWeight="semibold" color="fg">
-                Date
+                Uploaded date
               </Text>
               <DatePresetSelector
                 idPrefix="global-search-date-filter"
@@ -763,7 +833,7 @@ export function SearchPage() {
                     key={`${result.vaultId}-${result.documentId}`}
                     result={result}
                     detailSearch={detailSearch}
-                    query={deferredQuery}
+                    query={debouncedQuery}
                   />
                 ))}
 

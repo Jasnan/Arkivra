@@ -1,25 +1,26 @@
+import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Box, Flex, Text, chakra } from '@chakra-ui/react';
-import { Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  Box,
+  CloseButton,
+  Combobox,
+  Drawer,
+  Flex,
+  IconButton,
+  Menu,
+  Popover,
+  Portal,
+  Stack,
+  Text,
+  chakra,
+  createListCollection,
+  useBreakpointValue,
+} from '@chakra-ui/react';
+import { ArrowUpDown, Check, ChevronDown, Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 export interface DocumentSearchControlOption<TValue extends string> {
   value: TValue;
@@ -30,6 +31,16 @@ export interface DocumentSearchControlFilter {
   key: string;
   label: string;
   onRemove: () => void;
+}
+
+type FilterSurface = 'drawer' | 'popover';
+const FILTER_ID_SEPARATOR = /\s+/g;
+
+export interface SearchFilterMultiSelectOption {
+  value: string;
+  label: string;
+  color?: string | null;
+  meta?: string;
 }
 
 export function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -55,6 +66,207 @@ export function ActiveFilterChip({ label, onRemove }: { label: string; onRemove:
       <Text as="span">{label}</Text>
       <X size={16} />
     </chakra.button>
+  );
+}
+
+export function SearchFilterMultiSelect({
+  label,
+  triggerLabel,
+  triggerAriaLabel,
+  searchLabel,
+  searchPlaceholder,
+  emptyLabel,
+  loadingLabel,
+  options,
+  selectedValues,
+  isLoading = false,
+  onValueChange,
+  onClear,
+  showColorSwatch = false,
+}: {
+  label: string;
+  triggerLabel: string;
+  triggerAriaLabel: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  emptyLabel: string;
+  loadingLabel: string;
+  options: SearchFilterMultiSelectOption[];
+  selectedValues: string[];
+  isLoading?: boolean;
+  onValueChange: (values: string[]) => void;
+  onClear: () => void;
+  showColorSwatch?: boolean;
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const searchInputId = `${triggerAriaLabel.toLowerCase().replace(FILTER_ID_SEPARATOR, '-')}-search`;
+  const normalizedInputValue = inputValue.trim().toLowerCase();
+  const filteredOptions = useMemo(
+    () => normalizedInputValue.length === 0
+      ? options
+      : options.filter((option) => option.label.toLowerCase().includes(normalizedInputValue)),
+    [normalizedInputValue, options],
+  );
+  const collection = useMemo(
+    () => createListCollection({
+      items: filteredOptions,
+      itemToString: (item) => item.label,
+      itemToValue: (item) => item.value,
+    }),
+    [filteredOptions],
+  );
+
+  function clearSelection() {
+    setInputValue('');
+    setIsOpen(false);
+    onClear();
+  }
+
+  return (
+    <Box>
+      <Combobox.Root
+        multiple
+        openOnClick
+        closeOnSelect
+        collection={collection}
+        inputValue={inputValue}
+        open={isOpen}
+        value={selectedValues}
+        onInputValueChange={(details) => setInputValue(details.inputValue)}
+        onOpenChange={(details) => setIsOpen(details.open)}
+        onValueChange={(details) => {
+          onValueChange(details.value);
+          setInputValue('');
+          setIsOpen(false);
+        }}
+        positioning={{ sameWidth: true, strategy: 'fixed', hideWhenDetached: true }}
+      >
+        <Combobox.Label fontSize="sm" fontWeight="semibold" color="fg">
+          {label}
+        </Combobox.Label>
+
+        <Combobox.Control mt="3">
+          <Combobox.Input
+            id={searchInputId}
+            aria-label={triggerAriaLabel}
+            aria-describedby={`${searchInputId}-hint`}
+            placeholder={triggerLabel}
+            h="10"
+            rounded="xl"
+            borderColor="border.subtle"
+            bg="bg.surface"
+            px="4"
+            pr={selectedValues.length > 0 ? '16' : '10'}
+          />
+          <Combobox.IndicatorGroup>
+            {selectedValues.length > 0 ? (
+              <CloseButton
+                size="xs"
+                variant="plain"
+                aria-label={`Clear ${label.toLowerCase()} filter`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  clearSelection();
+                }}
+              />
+            ) : null}
+            <Combobox.Trigger />
+          </Combobox.IndicatorGroup>
+        </Combobox.Control>
+
+        <Combobox.Positioner zIndex="dropdown" pointerEvents="auto">
+          <Combobox.Content
+            maxH="72"
+            overflowY="auto"
+            pointerEvents="auto"
+            rounded="lg"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            bg="bg.surface"
+            p="2"
+            shadow="lg"
+          >
+            {isLoading ? (
+              <Text px="3" py="3" fontSize="sm" color="fg.muted">
+                {loadingLabel}
+              </Text>
+            ) : (
+              <>
+                {selectedValues.length > 0 ? (
+                  <chakra.button
+                    type="button"
+                    display="flex"
+                    w="full"
+                    alignItems="center"
+                    rounded="md"
+                    px="3"
+                    py="2"
+                    fontSize="sm"
+                    fontWeight="medium"
+                    color="fg.muted"
+                    textAlign="left"
+                    transition="background-color 120ms ease, color 120ms ease"
+                    _hover={{ bg: 'bg.subtle', color: 'fg' }}
+                    onClick={clearSelection}
+                  >
+                    All {label.toLowerCase()}
+                  </chakra.button>
+                ) : null}
+
+                <Combobox.Empty px="3" py="3" fontSize="sm" color="fg.muted">
+                  {emptyLabel}
+                </Combobox.Empty>
+
+                {collection.items.map((option) => (
+                  <Combobox.Item
+                    key={option.value}
+                    item={option}
+                    display="flex"
+                    alignItems="center"
+                    gap="3"
+                    rounded="md"
+                    px="3"
+                    py="2"
+                    fontSize="sm"
+                    fontWeight="medium"
+                    color="fg.muted"
+                    _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+                  >
+                    <Flex minW="0" flex="1" align="center" gap="3">
+                      {showColorSwatch ? (
+                        <Box
+                          boxSize="2.5"
+                          rounded="full"
+                          bg={option.color ?? 'fg.muted'}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      <Combobox.ItemText asChild>
+                        <Text truncate>{option.label}</Text>
+                      </Combobox.ItemText>
+                    </Flex>
+                    {option.meta ? (
+                      <Text ml="auto" fontSize="xs" color="fg.muted">
+                        {option.meta}
+                      </Text>
+                    ) : null}
+                    <Combobox.ItemIndicator color="teal.solid" />
+                  </Combobox.Item>
+                ))}
+              </>
+            )}
+          </Combobox.Content>
+        </Combobox.Positioner>
+      </Combobox.Root>
+      <Text srOnly>
+        {searchLabel}
+      </Text>
+      <Text id={`${searchInputId}-hint`} srOnly>
+        {searchPlaceholder}
+      </Text>
+    </Box>
   );
 }
 
@@ -102,19 +314,76 @@ export function DocumentSearchControls<TSortValue extends string>({
   layout?: 'panel' | 'workspace';
 }) {
   const isWorkspaceLayout = layout === 'workspace';
+  const selectedSortLabel = sortOptions.find((option) => option.value === sortBy)?.label ?? sortOptions[0]?.label ?? 'Sort';
+  const filterSurface = useBreakpointValue<FilterSurface>(
+    { base: 'drawer', md: 'popover' },
+    { fallback: 'md' },
+  ) ?? 'popover';
+  const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
+  function handleFiltersOpenChange(open: boolean) {
+    if (open) {
+      onOpenFilters();
+      return;
+    }
+
+    onCloseFilters();
+    window.setTimeout(() => filterTriggerRef.current?.focus(), 0);
+  }
+
+  function renderFilterButton() {
+    return (
+      <IconButton
+        type="button"
+        ref={filterTriggerRef}
+        aria-label={activeFilterCount > 0 ? `Open filters, ${activeFilterCount} active` : 'Open filters'}
+        variant="ghost"
+        size="sm"
+        position="relative"
+        h="8"
+        minW="8"
+        rounded="md"
+        color={activeFilterCount > 0 ? 'teal.solid' : 'fg.muted'}
+        transition="background-color 120ms ease, color 120ms ease"
+        _hover={{ bg: 'bg.subtle', color: 'fg' }}
+        _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+      >
+        <SlidersHorizontal size={18} />
+        {activeFilterCount > 0 ? (
+          <Text
+            as="span"
+            position="absolute"
+            top="-1"
+            right="-1.5"
+            display="inline-flex"
+            minW="4.5"
+            h="4.5"
+            alignItems="center"
+            justifyContent="center"
+            rounded="full"
+            bg="teal.solid"
+            px="1"
+            fontSize="0.625rem"
+            fontWeight="bold"
+            lineHeight="1"
+            color="fg.inverted"
+          >
+            {activeFilterCount}
+          </Text>
+        ) : null}
+      </IconButton>
+    );
+  }
+
+  function renderFilterContent() {
+    return (
+      <Stack gap="4">
+        {filtersContent}
+      </Stack>
+    );
+  }
 
   return (
-    <Dialog
-      open={isFiltersOpen}
-      onOpenChange={(open) => {
-        if (open) {
-          onOpenFilters();
-          return;
-        }
-
-        onCloseFilters();
-      }}
-    >
+    <>
       <Box
         rounded={isWorkspaceLayout ? '0' : 'lg'}
         borderWidth={isWorkspaceLayout ? '0' : '1px'}
@@ -125,8 +394,8 @@ export function DocumentSearchControls<TSortValue extends string>({
         py={isWorkspaceLayout ? '3' : undefined}
         p={isWorkspaceLayout ? undefined : { base: '3', sm: '4' }}
       >
-        <Flex direction={{ base: 'column', xl: 'row' }} gap="3">
-          <Field minW="0" flex="1">
+        <Flex direction={{ base: 'column', md: 'row' }} align={{ md: 'center' }} gap="3">
+          <Field minW="0" w="full" maxW={{ md: 'none', '2xl': '64rem' }} flex={{ md: '1 1 auto' }}>
             <FieldLabel htmlFor="document-search-query" srOnly>
               {searchAriaLabel}
             </FieldLabel>
@@ -148,84 +417,249 @@ export function DocumentSearchControls<TSortValue extends string>({
                 onChange={(event) => onQueryChange(event.target.value)}
                 placeholder={searchPlaceholder}
                 h="11"
-                borderColor="border.subtle"
+                borderColor="border.strong"
                 bg="bg.surface"
                 pl="11"
-                pr="4"
+                pr="14"
+                _hover={{ borderColor: 'fg/30' }}
+                _focusVisible={{
+                  borderColor: 'teal.solid',
+                  outline: '2px solid',
+                  outlineColor: 'teal.focusRing',
+                  outlineOffset: '1px',
+                }}
               />
+              <Box position="absolute" right="2" top="50%" transform="translateY(-50%)">
+                {filterSurface === 'drawer' ? (
+                  <Drawer.Root
+                    open={isFiltersOpen}
+                    onOpenChange={(event) => handleFiltersOpenChange(event.open)}
+                    modal={false}
+                    placement="bottom"
+                    size="full"
+                  >
+                    <Drawer.Trigger asChild>
+                      {renderFilterButton()}
+                    </Drawer.Trigger>
+                    <Portal>
+                      <Drawer.Backdrop bg="blackAlpha.500" />
+                      <Drawer.Positioner>
+                        <Drawer.Content maxH="86vh" roundedTop="xl" bg="bg.surface">
+                          <Drawer.Header borderBottomWidth="1px" borderColor="border.subtle" px="5" py="4">
+                            <Flex w="full" align="center" justify="space-between" gap="4">
+                              <Box minW="0">
+                                <Drawer.Title fontSize="lg" fontWeight="semibold">
+                                  {filtersTitle}
+                                </Drawer.Title>
+                                <Drawer.Description srOnly>
+                                  {filtersDescription ?? 'Adjust filters.'}
+                                </Drawer.Description>
+                              </Box>
+
+                              <Flex shrink={0} align="center" gap="3">
+                                <chakra.button
+                                  type="button"
+                                  fontSize="sm"
+                                  fontWeight="medium"
+                                  color="teal.solid"
+                                  textDecoration="underline"
+                                  textUnderlineOffset="4"
+                                  transition="colors"
+                                  _hover={{ opacity: 0.8 }}
+                                  onClick={onResetFilters}
+                                >
+                                  Reset
+                                </chakra.button>
+                                <Drawer.CloseTrigger asChild>
+                                  <CloseButton size="sm" aria-label="Close filters" />
+                                </Drawer.CloseTrigger>
+                              </Flex>
+                            </Flex>
+                          </Drawer.Header>
+
+                          <Drawer.Body px="5" py="4" overflowY="auto">
+                            {renderFilterContent()}
+                          </Drawer.Body>
+
+                          <Drawer.Footer borderTopWidth="1px" borderColor="border.subtle" px="5" py="4">
+                            <Button type="button" w="full" onClick={onCloseFilters}>
+                              Show results
+                            </Button>
+                          </Drawer.Footer>
+                        </Drawer.Content>
+                      </Drawer.Positioner>
+                    </Portal>
+                  </Drawer.Root>
+                ) : (
+                  <Popover.Root
+                    open={isFiltersOpen}
+                    onOpenChange={(event) => handleFiltersOpenChange(event.open)}
+                    modal={false}
+                    size="xs"
+                    positioning={{ placement: 'bottom-end', offset: { mainAxis: 8, crossAxis: 0 } }}
+                  >
+                    <Popover.Trigger asChild>
+                      {renderFilterButton()}
+                    </Popover.Trigger>
+                    <Portal>
+                      <Popover.Positioner zIndex="popover">
+                        <Popover.Content
+                          w="24rem"
+                          maxW="calc(100vw - 2rem)"
+                          maxH="calc(100vh - 6rem)"
+                          overflow="hidden"
+                          rounded="lg"
+                          borderWidth="1px"
+                          borderColor="border.subtle"
+                          bg="bg.surface"
+                          shadow="xl"
+                        >
+                          <Popover.Arrow>
+                            <Popover.ArrowTip />
+                          </Popover.Arrow>
+                          <Popover.Body maxH="calc(100vh - 8rem)" overflowY="auto" p="5">
+                            <Stack gap="4">
+                              <Flex align="center" justify="space-between" gap="4">
+                                <Box minW="0">
+                                  <Popover.Title fontWeight="medium">
+                                    {filtersTitle}
+                                  </Popover.Title>
+                                  <Popover.Description srOnly>
+                                    {filtersDescription ?? 'Adjust filters.'}
+                                  </Popover.Description>
+                                </Box>
+
+                                <Flex shrink={0} align="center" gap="2">
+                                  <chakra.button
+                                    type="button"
+                                    fontSize="sm"
+                                    fontWeight="medium"
+                                    color="teal.solid"
+                                    textDecoration="underline"
+                                    textUnderlineOffset="4"
+                                    transition="colors"
+                                    _hover={{ opacity: 0.8 }}
+                                    onClick={onResetFilters}
+                                  >
+                                    Reset
+                                  </chakra.button>
+                                  <Popover.CloseTrigger asChild>
+                                    <CloseButton size="sm" aria-label="Close filters" />
+                                  </Popover.CloseTrigger>
+                                </Flex>
+                              </Flex>
+
+                              {renderFilterContent()}
+                            </Stack>
+                          </Popover.Body>
+                        </Popover.Content>
+                      </Popover.Positioner>
+                    </Portal>
+                  </Popover.Root>
+                )}
+              </Box>
             </Box>
           </Field>
 
-          <Flex direction={{ base: 'column', sm: 'row' }} gap="3">
-            <DialogTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                h="11"
-                minW="36"
-                borderColor="border.subtle"
-                px="4"
-                shadow="none"
-              >
-                <SlidersHorizontal size={20} />
-                <Text as="span">Filter</Text>
-                {activeFilterCount > 0 ? (
-                  <Text
-                    as="span"
-                    display="inline-flex"
-                    minW="7"
-                    justifyContent="center"
-                    rounded="full"
-                    bg="bg.subtle"
-                    px="2"
-                    py="1"
-                    fontSize="xs"
-                    fontWeight="bold"
-                    color="fg"
-                  >
-                    {activeFilterCount}
-                  </Text>
-                ) : null}
-              </Button>
-            </DialogTrigger>
-
-            <Flex
-              align="center"
-              gap="3"
-              rounded="lg"
-              borderWidth="1px"
-              borderColor="border.subtle"
-              bg="bg.surface"
-              px="3"
-              py="1.5"
-              shadow="none"
+          <Flex direction={{ base: 'column', sm: 'row' }} gap="3" w={{ base: 'full', md: 'auto' }} shrink={0}>
+            <Menu.Root
+              positioning={{ placement: 'bottom-end', offset: { mainAxis: 6, crossAxis: 0 } }}
             >
-              <Text as="span" id={sortSelectId} fontSize="sm" fontWeight="semibold" color="fg.muted">
-                Sort
-              </Text>
-              <Select value={sortBy} onValueChange={(value) => onSortChange(value as TSortValue)}>
-                <SelectTrigger
+              <Menu.Trigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
                   aria-label={sortAriaLabel}
                   aria-labelledby={sortSelectId}
-                  h="9"
-                  minW="40"
-                  border="0"
-                  bg="transparent"
-                  px="0"
+                  h="11"
+                  w="full"
+                  minW={{ md: '11rem' }}
+                  justifyContent="space-between"
+                  gap="2"
+                  borderColor="border.strong"
+                  bg="bg.surface"
+                  px="3"
+                  color="fg"
                   shadow="none"
-                  focusRing="none"
+                  _hover={{ borderColor: 'fg/30', bg: 'bg.surface' }}
+                  _focusVisible={{
+                    borderColor: 'teal.solid',
+                    outline: '2px solid',
+                    outlineColor: 'teal.focusRing',
+                    outlineOffset: '1px',
+                  }}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {sortOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Flex>
+                  <Flex minW="0" align="center" gap="2">
+                    <Box color="fg.muted" aria-hidden="true">
+                      <ArrowUpDown size={16} />
+                    </Box>
+                    <Text as="span" id={sortSelectId} srOnly>
+                      Sort
+                    </Text>
+                    <Text as="span" truncate fontSize="sm" fontWeight="medium">
+                      {selectedSortLabel}
+                    </Text>
+                  </Flex>
+                  <Box flexShrink={0} color="fg.muted" aria-hidden="true">
+                    <ChevronDown size={16} />
+                  </Box>
+                </Button>
+              </Menu.Trigger>
+              <Portal>
+                <Menu.Positioner zIndex="dropdown">
+                  <Menu.Content
+                    minW="11rem"
+                    rounded="lg"
+                    borderWidth="1px"
+                    borderColor="border.subtle"
+                    bg="bg.surface"
+                    p="1.5"
+                    shadow="lg"
+                  >
+                    <Menu.RadioItemGroup
+                      value={sortBy}
+                      onValueChange={(event) => onSortChange(event.value as TSortValue)}
+                    >
+                      {sortOptions.map((option) => (
+                        <Menu.RadioItem
+                          key={option.value}
+                          value={option.value}
+                          position="relative"
+                          minH="10"
+                          rounded="md"
+                          py="2"
+                          ps="10"
+                          pe="3"
+                          fontSize="sm"
+                          fontWeight="medium"
+                          color="fg"
+                          _checked={{ bg: 'teal.subtle', color: 'fg' }}
+                          _highlighted={{ bg: sortBy === option.value ? 'teal.subtle' : 'bg.subtle' }}
+                        >
+                          <Box
+                            position="absolute"
+                            left="2.5"
+                            top="50%"
+                            display="flex"
+                            boxSize="5"
+                            alignItems="center"
+                            justifyContent="center"
+                            rounded="sm"
+                            color="teal.solid"
+                            transform="translateY(-50%)"
+                          >
+                            <Menu.ItemIndicator>
+                              <Check size={16} strokeWidth={2.5} />
+                            </Menu.ItemIndicator>
+                          </Box>
+                          <Menu.ItemText>{option.label}</Menu.ItemText>
+                        </Menu.RadioItem>
+                      ))}
+                    </Menu.RadioItemGroup>
+                  </Menu.Content>
+                </Menu.Positioner>
+              </Portal>
+            </Menu.Root>
           </Flex>
         </Flex>
 
@@ -270,71 +704,6 @@ export function DocumentSearchControls<TSortValue extends string>({
           </>
         ) : null}
       </Box>
-
-      <DialogContent
-        hideCloseButton
-        maxH="calc(100vh-3rem)"
-        maxW="2xl"
-        overflowY="auto"
-        p={{ base: '5', sm: '7' }}
-      >
-        <Flex align="center" justify="space-between" gap="4">
-          <Flex align="center" gap="3">
-            <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="bg.subtle" color="teal.solid">
-              <SlidersHorizontal size={20} />
-            </Flex>
-            <DialogHeader>
-              <DialogTitle>{filtersTitle}</DialogTitle>
-              <DialogDescription srOnly={!filtersDescription}>
-                {filtersDescription ?? 'Adjust filters.'}
-              </DialogDescription>
-            </DialogHeader>
-          </Flex>
-
-          <Flex align="center" gap="3">
-            <chakra.button
-              type="button"
-              fontSize="sm"
-              fontWeight="medium"
-              color="teal.solid"
-              textDecoration="underline"
-              textUnderlineOffset="4"
-              transition="colors"
-              _hover={{ opacity: 0.8 }}
-              onClick={onResetFilters}
-            >
-              Reset
-            </chakra.button>
-            <chakra.button
-              type="button"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              w="9"
-              h="9"
-              rounded="lg"
-              color="fg.muted"
-              transition="colors"
-              _hover={{ bg: 'bg.subtle', color: 'fg' }}
-              aria-label="Close filters"
-              onClick={onCloseFilters}
-            >
-              <X size={20} />
-            </chakra.button>
-          </Flex>
-        </Flex>
-
-        <Box mt="6" display="flex" flexDirection="column" gap="5">
-          {filtersContent}
-        </Box>
-
-        <Separator mt="7" />
-        <Flex flexWrap="wrap" justify="flex-end" gap="4" pt="5">
-          <Button type="button" px="5" onClick={onCloseFilters}>
-            Done
-          </Button>
-        </Flex>
-      </DialogContent>
-    </Dialog>
+    </>
   );
 }

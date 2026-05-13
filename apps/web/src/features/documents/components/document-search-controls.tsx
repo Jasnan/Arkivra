@@ -78,6 +78,7 @@ export function DocumentSearchControls<TSortValue extends string>({
   filtersTitle,
   filtersDescription,
   filtersContent,
+  layout = 'panel',
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -98,7 +99,10 @@ export function DocumentSearchControls<TSortValue extends string>({
   filtersTitle: string;
   filtersDescription?: string;
   filtersContent: ReactNode;
+  layout?: 'panel' | 'workspace';
 }) {
+  const isWorkspaceLayout = layout === 'workspace';
+
   return (
     <Dialog
       open={isFiltersOpen}
@@ -112,11 +116,14 @@ export function DocumentSearchControls<TSortValue extends string>({
       }}
     >
       <Box
-        rounded="lg"
-        borderWidth="1px"
+        rounded={isWorkspaceLayout ? '0' : 'lg'}
+        borderWidth={isWorkspaceLayout ? '0' : '1px'}
+        borderBottomWidth={isWorkspaceLayout ? '1px' : undefined}
         borderColor="border.subtle"
-        bg="bg.surface"
-        p={{ base: '3', sm: '4' }}
+        bg={isWorkspaceLayout ? 'bg.workspace' : 'bg.surface'}
+        px={isWorkspaceLayout ? { base: '4', lg: '6' } : undefined}
+        py={isWorkspaceLayout ? '3' : undefined}
+        p={isWorkspaceLayout ? undefined : { base: '3', sm: '4' }}
       >
         <Flex direction={{ base: 'column', xl: 'row' }} gap="3">
           <Field minW="0" flex="1">
@@ -142,6 +149,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                 placeholder={searchPlaceholder}
                 h="11"
                 borderColor="border.subtle"
+                bg="bg.surface"
                 pl="11"
                 pr="4"
               />
@@ -187,7 +195,7 @@ export function DocumentSearchControls<TSortValue extends string>({
               rounded="lg"
               borderWidth="1px"
               borderColor="border.subtle"
-        bg="bg.surface"
+              bg="bg.surface"
               px="3"
               py="1.5"
               shadow="none"

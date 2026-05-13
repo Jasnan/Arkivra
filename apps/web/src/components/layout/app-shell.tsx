@@ -679,7 +679,11 @@ export function AppShell() {
     location.pathname === ROUTES.chat || (pathParts[0] === 'vaults' && (pathParts[2] === 'chat' || pathParts[3] === 'chat'));
   const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
-  const isFlushContentRoute = isVaultIndexRoute || isVaultBrowserRoute || location.pathname === ROUTES.tags;
+  const isFlushContentRoute =
+    isVaultIndexRoute ||
+    isVaultBrowserRoute ||
+    location.pathname === ROUTES.tags ||
+    location.pathname === ROUTES.search;
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]

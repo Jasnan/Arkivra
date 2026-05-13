@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Box, Flex, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra, Heading } from '@chakra-ui/react';
 import {
+  ArrowLeft,
   Download,
   Image as ImageIcon,
   MessageSquare,
@@ -85,6 +86,27 @@ const documentTabTriggerStyles = {
   },
 } as const;
 
+const searchReturnParamKeys = ['q', 'vaultId', 'tagId', 'dateFrom', 'dateTo', 'sortBy'] as const;
+
+function getSearchReturnParams(search: Record<string, unknown>) {
+  if (search.source !== 'search') {
+    return null;
+  }
+
+  const params: Record<string, string> = {};
+
+  for (const key of searchReturnParamKeys) {
+    const value = search[key];
+    if (typeof value === 'string' && value.length > 0) {
+      params[key] = value;
+    } else if (typeof value === 'number' && Number.isFinite(value)) {
+      params[key] = String(value);
+    }
+  }
+
+  return params;
+}
+
 function getPreviewKind(mimeType: string): PreviewKind {
   if (mimeType === 'application/pdf') {
     return 'pdf';
@@ -150,9 +172,19 @@ export function DocumentDetailPage() {
 
     return path;
   }, [documentQuery.data?.document.folderId, folderTreeQuery.data?.folders]);
+  const searchReturnParams = useMemo(
+    () => getSearchReturnParams(location.search as Record<string, unknown>),
+    [location.search],
+  );
 
   const documentBreadcrumbEntries = useMemo<VaultBreadcrumbEntry[]>(() => [
-    { key: 'vaults', label: 'Vaults', to: ROUTES.vaults },
+    ...(searchReturnParams
+      ? [{
+          key: 'search-results',
+          label: 'Search results',
+          onClick: () => navigate({ to: ROUTES.search, search: searchReturnParams as any }),
+        }]
+      : [{ key: 'vaults', label: 'Vaults', to: ROUTES.vaults }]),
     {
       key: `vault-${vaultId}`,
       label: vaultQuery.data?.vault.name ?? 'Vault',
@@ -175,6 +207,7 @@ export function DocumentDetailPage() {
     documentId,
     documentQuery.data?.document.name,
     navigate,
+    searchReturnParams,
     vaultId,
     vaultQuery.data?.vault.name,
   ]);
@@ -183,6 +216,14 @@ export function DocumentDetailPage() {
     left: <VaultRouteBreadcrumbs entries={documentBreadcrumbEntries} />,
   }), [documentBreadcrumbEntries]);
   useWorkspaceHeader(documentWorkspaceHeader);
+
+  function returnToSearchResults() {
+    if (!searchReturnParams) {
+      return;
+    }
+
+    navigate({ to: ROUTES.search, search: searchReturnParams as any });
+  }
 
   useEffect(() => {
     if (location.pathname.endsWith('/chat')) {
@@ -538,48 +579,57 @@ export function DocumentDetailPage() {
             </Box>
           </Flex>
 
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" minW="56">
-              <DropdownMenuItem asChild>
-                <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
-                  <ActionMenuItemIcon icon={Download} />
-                  Download original
-                </a>
-              </DropdownMenuItem>
-              {canPrint ? (
-                <DropdownMenuItem onSelect={handlePrintClick}>
-                  <ActionMenuItemIcon icon={Printer} />
-                  Print
+          <Flex align="center" gap="2">
+            {searchReturnParams ? (
+              <Button type="button" size="sm" variant="outline" onClick={returnToSearchResults}>
+                <ArrowLeft size={16} />
+                Search results
+              </Button>
+            ) : null}
+
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" minW="56">
+                <DropdownMenuItem asChild>
+                  <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
+                    <ActionMenuItemIcon icon={Download} />
+                    Download original
+                  </a>
                 </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuSeparator />
-              {document.isDeleted ? (
-                <DropdownMenuItem
-                  disabled={restoreMutation.isPending}
-                  onSelect={() => {
-                    restoreMutation.mutate({ vaultId, documentId });
-                  }}
-                >
-                  <ActionMenuItemIcon icon={RotateCcw} />
-                  {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem
-                  color="fg.error"
-                  _hover={{ bg: 'bg.error', color: 'fg.error' }}
-                  _focus={{ bg: 'bg.error', color: 'fg.error' }}
-                  disabled={deleteMutation.isPending}
-                  onSelect={() => setIsDeleteDialogOpen(true)}
-                >
-                  <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-                  Move to trash
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {canPrint ? (
+                  <DropdownMenuItem onSelect={handlePrintClick}>
+                    <ActionMenuItemIcon icon={Printer} />
+                    Print
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSeparator />
+                {document.isDeleted ? (
+                  <DropdownMenuItem
+                    disabled={restoreMutation.isPending}
+                    onSelect={() => {
+                      restoreMutation.mutate({ vaultId, documentId });
+                    }}
+                  >
+                    <ActionMenuItemIcon icon={RotateCcw} />
+                    {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    color="fg.error"
+                    _hover={{ bg: 'bg.error', color: 'fg.error' }}
+                    _focus={{ bg: 'bg.error', color: 'fg.error' }}
+                    disabled={deleteMutation.isPending}
+                    onSelect={() => setIsDeleteDialogOpen(true)}
+                  >
+                    <ActionMenuItemIcon icon={Trash2} tone="destructive" />
+                    Move to trash
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </Flex>
         </Flex>
 
         <Flex align="center" justify="space-between" gap="3" overflowX="auto">

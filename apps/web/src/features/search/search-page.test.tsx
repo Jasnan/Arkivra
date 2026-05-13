@@ -46,7 +46,7 @@ describe('global search page', () => {
         return jsonResponse({
           query: 'invoice',
           pageIndex: 0,
-          pageSize: 10,
+          pageSize: 25,
           resultsCount: 0,
           filters: {
             vaultId: 'vlt_1',
@@ -78,11 +78,96 @@ describe('global search page', () => {
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=10&q=invoice&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
     });
+  });
+
+  it('carries search context into document result links', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({
+          tags: [
+            { id: 'tag_1', name: 'Invoices', color: '#2563eb', vaultId: 'vlt_1', vaultName: 'Sherlock' },
+          ],
+        });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 2,
+          pageSize: 25,
+          resultsCount: 21,
+          filters: {
+            vaultId: 'vlt_1',
+            tagId: 'tag_1',
+            tagIds: [],
+            dateFrom: '2026-04-01',
+            dateTo: '2026-04-30',
+            sortBy: 'name_asc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Sherlock',
+              documentId: 'doc_1',
+              name: 'Invoice.pdf',
+              originalName: 'Invoice.pdf',
+              originalSize: 42000,
+              mimeType: 'application/pdf',
+              documentDate: '2026-04-10T00:00:00.000Z',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+              matchedChunksCount: 0,
+              bestChunk: null,
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?q=invoice&vaultId=vlt_1&tagId=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc&pageIndex=2'],
+      routePath: '/search',
+    });
+
+    expect(await screen.findByText('Name')).toBeInTheDocument();
+    expect(screen.getByText('Vault')).toBeInTheDocument();
+    expect(screen.getByText('Size')).toBeInTheDocument();
+    expect(screen.getByText('Modified')).toBeInTheDocument();
+    expect(screen.getByText('Invoice', { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.queryByText(/matched by document title or metadata/i)).not.toBeInTheDocument();
+
+    const resultLink = await screen.findByRole('link', { name: /^open invoice\.pdf$/i });
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    const href = resultLink.getAttribute('href');
+    expect(href).not.toBeNull();
+
+    const resultUrl = new URL(href!, 'http://localhost');
+    expect(resultUrl.pathname).toBe('/vaults/vlt_1/doc_1');
+    expect(resultUrl.searchParams.get('source')).toBe('search');
+    expect(resultUrl.searchParams.get('q')).toBe('invoice');
+    expect(resultUrl.searchParams.get('vaultId')).toBe('vlt_1');
+    expect(resultUrl.searchParams.get('tagId')).toBe('tag_1');
+    expect(resultUrl.searchParams.get('dateFrom')).toBe('2026-04-01');
+    expect(resultUrl.searchParams.get('dateTo')).toBe('2026-04-30');
+    expect(resultUrl.searchParams.get('sortBy')).toBe('name_asc');
+    expect(resultUrl.searchParams.has('pageIndex')).toBe(false);
   });
 });
 

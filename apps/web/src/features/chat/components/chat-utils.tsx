@@ -253,9 +253,8 @@ export function getChatExperienceConfig({
     contextLabel: 'All accessible documents',
     contextBadge: 'Cross-vault',
     contextDescription: 'You are chatting across documents from every vault you can access.',
-    emptyTitle: 'Ask anything across your documents',
-    emptyDescription:
-      'Arkivra will search across your accessible documents and answer with relevant information and exact references.',
+    emptyTitle: 'Chat with your documents',
+    emptyDescription: 'Find answers across your documents, with references when needed.',
     promptSuggestions: [],
   };
 }

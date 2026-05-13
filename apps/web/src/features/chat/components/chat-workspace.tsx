@@ -146,7 +146,7 @@ export function ChatWorkspace({
     return [...sections.entries()];
   }, [visibleConversations]);
 
-  function focusComposer() {
+  const focusComposer = useCallback(() => {
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
       if (!textarea) return;
@@ -154,7 +154,7 @@ export function ChatWorkspace({
       const end = textarea.value.length;
       textarea.setSelectionRange(end, end);
     });
-  }
+  }, []);
 
   const resetComposerState = useCallback(() => {
     setLocalMessages([]);
@@ -169,7 +169,8 @@ export function ChatWorkspace({
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
     setIsMobileConversationRailOpen(false);
     resetComposerState();
-  }, [resetComposerState]);
+    focusComposer();
+  }, [focusComposer, resetComposerState]);
 
   const handleSelectConversation = useCallback((chatId: string) => {
     setSelectedChatId(chatId);
@@ -513,7 +514,7 @@ export function ChatWorkspace({
                       >
                         <Sparkles size={16} />
                       </Flex>
-                      <Box maxW="min(42rem, 100%)">
+                      <Box w="100%" maxW="min(44rem, calc(100% - 3rem))">
                         <Box
                           rounded="lg"
                           bg="bg.surface"
@@ -528,16 +529,9 @@ export function ChatWorkspace({
                           {streamingText.length > 0 ? (
                             <MarkdownMessage content={streamingText} citations={[]} />
                           ) : (
-                            <Status.Root colorPalette="teal" size="sm">
-                              <Status.Indicator />
-                              {statusLabel(streamStatus, scope)}
-                            </Status.Root>
+                            <StreamingAnswerSkeleton label={statusLabel(streamStatus, scope)} />
                           )}
                         </Box>
-                        <Status.Root mt="2" colorPalette="teal" size="sm" fontSize="xs" color="fg.muted">
-                          <Status.Indicator />
-                          {statusLabel(streamStatus, scope)}
-                        </Status.Root>
                       </Box>
                     </Flex>
                   ) : null}
@@ -572,6 +566,22 @@ export function ChatWorkspace({
         />
       </Box>
     </Box>
+  );
+}
+
+function StreamingAnswerSkeleton({ label }: { label: string }) {
+  return (
+    <Flex direction="column" gap="3" w="100%" minW="12rem">
+      <Status.Root colorPalette="teal" size="sm">
+        <Status.Indicator />
+        {label}
+      </Status.Root>
+      <Flex direction="column" gap="2" w="100%">
+        <Skeleton h="3" w="100%" />
+        <Skeleton h="3" w="92%" />
+        <Skeleton h="3" w="72%" />
+      </Flex>
+    </Flex>
   );
 }
 

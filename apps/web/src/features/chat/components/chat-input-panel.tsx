@@ -118,7 +118,14 @@ export function ChatInputPanel({
             padding: '0.75rem 0.75rem',
             boxShadow: 'none',
           }}
-          _focusVisible={{ ring: 'none' }}
+          borderWidth="0"
+          borderColor="transparent"
+          _hover={{ borderColor: 'transparent' }}
+          _focusVisible={{
+            borderColor: 'transparent',
+            outline: 'none',
+            ring: 'none',
+          }}
         />
 
         <Flex align="center" justify="space-between" gap="3" pt="3">

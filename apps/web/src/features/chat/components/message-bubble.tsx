@@ -88,12 +88,14 @@ export function MessageBubble({
           </Box>
         )}
 
-        <Text mt="1" fontSize="xs" color="fg.muted">
-          {message.localOnly ? `${pendingStatusLabel}...` : formatDate(message.createdAt)}
-          {message.generationStatus === 'failed' && message.generationError ? (
-            <Text as="span" ml="2" color="fg.error">{message.generationError}</Text>
-          ) : null}
-        </Text>
+        {!message.localOnly || (message.generationStatus === 'failed' && message.generationError) ? (
+          <Text mt="1" fontSize="xs" color="fg.muted">
+            {message.localOnly ? pendingStatusLabel : formatDate(message.createdAt)}
+            {message.generationStatus === 'failed' && message.generationError ? (
+              <Text as="span" ml="2" color="fg.error">{message.generationError}</Text>
+            ) : null}
+          </Text>
+        ) : null}
 
         {!isUser ? (
           <CitationPreviewModal

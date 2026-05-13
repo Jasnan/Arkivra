@@ -73,3 +73,24 @@ if (!window.ResizeObserver) {
   window.ResizeObserver = ResizeObserverMock as typeof ResizeObserver;
   globalThis.ResizeObserver = ResizeObserverMock as typeof ResizeObserver;
 }
+
+if (!window.IntersectionObserver) {
+  class IntersectionObserverMock {
+    readonly root = null;
+    readonly rootMargin = '';
+    readonly thresholds = [];
+
+    observe() {}
+
+    unobserve() {}
+
+    disconnect() {}
+
+    takeRecords() {
+      return [];
+    }
+  }
+
+  window.IntersectionObserver = IntersectionObserverMock as unknown as typeof IntersectionObserver;
+  globalThis.IntersectionObserver = IntersectionObserverMock as unknown as typeof IntersectionObserver;
+}

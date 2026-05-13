@@ -163,7 +163,7 @@ describe('chat workspace new chat drafts', () => {
     streamChatMessageMock.mockResolvedValue(undefined);
   });
 
-  it('toggles the mobile conversation history without leaving the rail mounted', async () => {
+  it('opens mobile conversation history in a drawer', async () => {
     const user = userEvent.setup();
 
     await renderWithProviders(
@@ -173,14 +173,15 @@ describe('chat workspace new chat drafts', () => {
       />,
     );
 
-    expect(document.getElementById('mobile-chat-conversations')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /conversations/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /show history/i }));
-    expect(document.getElementById('mobile-chat-conversations')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /hide history/i })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: /conversations/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /hide history/i }));
-    expect(document.getElementById('mobile-chat-conversations')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /close conversations/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /conversations/i })).not.toBeInTheDocument();
+    });
     expect(screen.getByRole('button', { name: /show history/i })).toBeInTheDocument();
   });
 

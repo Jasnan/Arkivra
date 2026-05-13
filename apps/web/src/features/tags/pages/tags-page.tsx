@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionBar,
@@ -7,20 +7,16 @@ import {
   Flex,
   Grid,
   Stack,
-  Table,
   Text,
   CloseButton,
   Dialog as ChakraDialog,
   Portal,
+  chakra,
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, Pencil, Trash2 } from 'lucide-react';
+import { Files, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  PageIntro,
-  SurfacePanel,
-  EmptyState,
-} from '@/components/layout/vault-ui';
+import { EmptyState } from '@/components/layout/vault-ui';
 import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -33,6 +29,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
+import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 import type { Tag } from '@/features/tags/tags.types';
@@ -40,6 +37,22 @@ import type { Tag } from '@/features/tags/tags.types';
 type DialogMode = 'create' | 'edit';
 
 const DEFAULT_TAG_COLOR = '#0EA5E9';
+const TAGS_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) minmax(14rem, 1.4fr) 6.5rem 8.5rem 2.75rem';
+
+type TagContextMenuState = {
+  tag: Tag;
+  x: number;
+  y: number;
+} | null;
+
+interface TagAction {
+  key: string;
+  label: string;
+  icon: typeof Pencil;
+  tone?: 'default' | 'destructive';
+  disabled?: boolean;
+  onSelect: () => void;
+}
 
 function DeleteTagDialog({
   tag,
@@ -147,16 +160,13 @@ function DeleteTagsDialog({
 
 function TagActionsMenu({
   tag,
-  deletePending,
-  onEdit,
-  onDelete,
+  actions,
 }: {
   tag: Tag;
-  deletePending: boolean;
-  onEdit: (trigger: HTMLButtonElement | null) => void;
-  onDelete: (trigger: HTMLButtonElement | null) => void;
+  actions: (trigger: HTMLButtonElement | null) => TagAction[];
 }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const availableActions = actions(null).filter((action) => !action.disabled);
 
   return (
     <DropdownMenu modal={false}>
@@ -164,23 +174,129 @@ function TagActionsMenu({
         <ActionMenuTriggerButton
           ref={triggerRef}
           label={`Open actions for ${tag.name}`}
+          disabled={availableActions.length === 0}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" minWidth="14rem">
-        <DropdownMenuItem onSelect={() => onEdit(triggerRef.current)}>
-          <ActionMenuItemIcon icon={Pencil} />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={deletePending}
-          color="fg.error"
-          onSelect={() => onDelete(triggerRef.current)}
-        >
-          <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-          Delete
-        </DropdownMenuItem>
+      <DropdownMenuContent align="end" minWidth="12rem">
+        {availableActions.map((action) => (
+          <DropdownMenuItem
+            key={action.key}
+            value={action.key}
+            color={action.tone === 'destructive' ? 'fg.error' : undefined}
+            onSelect={() => {
+              actions(triggerRef.current).find((currentAction) => currentAction.key === action.key)?.onSelect();
+            }}
+          >
+            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+            {action.label}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function TagContextMenu({
+  state,
+  actions,
+  onClose,
+}: {
+  state: Exclude<TagContextMenuState, null>;
+  actions: TagAction[];
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const availableActions = actions.filter((action) => !action.disabled);
+
+  useEffect(() => {
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    function closeOnOutsideContextMenu(event: globalThis.MouseEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, { capture: true });
+    window.document.addEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+    window.document.addEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onClose, { capture: true });
+      window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+    };
+  }, [onClose]);
+
+  return (
+    <Portal>
+      <Box
+        ref={menuRef}
+        role="menu"
+        aria-label={`Tag actions for ${state.tag.name}`}
+        position="fixed"
+        zIndex="popover"
+        minW="12rem"
+        left={`${state.x}px`}
+        top={`${state.y}px`}
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.surface"
+        p="1.5"
+        shadow="xl"
+        onClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        {availableActions.map((action) => (
+          <chakra.button
+            key={action.key}
+            type="button"
+            role="menuitem"
+            display="flex"
+            w="full"
+            alignItems="center"
+            gap="3"
+            rounded="md"
+            px="3"
+            py="2"
+            textAlign="left"
+            fontSize="sm"
+            fontWeight="medium"
+            color={action.tone === 'destructive' ? 'fg.error' : 'fg.muted'}
+            _hover={{ bg: 'bg.subtle', color: action.tone === 'destructive' ? 'fg.error' : 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+            onClick={() => {
+              onClose();
+              window.setTimeout(action.onSelect, 0);
+            }}
+          >
+            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+            {action.label}
+          </chakra.button>
+        ))}
+      </Box>
+    </Portal>
   );
 }
 
@@ -227,6 +343,7 @@ export function TagsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagPendingDelete, setTagPendingDelete] = useState<Tag | null>(null);
+  const [contextMenu, setContextMenu] = useState<TagContextMenuState>(null);
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState(DEFAULT_TAG_COLOR);
@@ -391,6 +508,38 @@ export function TagsPage() {
     });
   }
 
+  function getTagActions(tag: Tag, trigger?: HTMLButtonElement | null): TagAction[] {
+    return [
+      {
+        key: 'edit',
+        label: 'Edit',
+        icon: Pencil,
+        onSelect: () => openEditDialog(tag, trigger),
+      },
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        tone: 'destructive',
+        disabled: deleteMutation.isPending,
+        onSelect: () => {
+          rememberFocusTarget(trigger);
+          setTagPendingDelete(tag);
+        },
+      },
+    ];
+  }
+
+  function openContextMenu(event: MouseEvent<HTMLElement>, tag: Tag) {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      tag,
+      x: Math.min(event.clientX, window.innerWidth - 192),
+      y: Math.min(event.clientY, window.innerHeight - 128),
+    });
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const payload = {
@@ -408,24 +557,19 @@ export function TagsPage() {
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <Stack as="section" gap="6" pb="8">
-      <PageIntro
-        title="Tags"
-        actions={
-          <Flex flexWrap="wrap" align="center" gap="3">
-            <CreateButton
-              ref={createButtonRef}
-              type="button"
-              onClick={(event) => openCreateDialog(event.currentTarget)}
-            >
-              Create tag
-            </CreateButton>
-          </Flex>
-        }
-      />
-
-      <SurfacePanel>
-        <Box w="full" maxW={{ lg: '22rem' }}>
+    <Stack as="section" gap="0" h="full" minH="0">
+      <Flex
+        align={{ base: 'stretch', md: 'center' }}
+        direction={{ base: 'column', md: 'row' }}
+        justify="space-between"
+        gap="3"
+        borderBottomWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.workspace"
+        px={{ base: '4', lg: '6' }}
+        py="3"
+      >
+        <Box w="full" maxW={{ md: '24rem' }}>
           <Field>
             <FieldLabel htmlFor="tag-filter" srOnly>
               Search tags
@@ -438,9 +582,18 @@ export function TagsPage() {
             />
           </Field>
         </Box>
-      </SurfacePanel>
 
-      <SurfacePanel overflow="hidden" p="0">
+        <CreateButton
+          ref={createButtonRef}
+          type="button"
+          alignSelf={{ base: 'flex-start', md: 'center' }}
+          onClick={(event) => openCreateDialog(event.currentTarget)}
+        >
+          Create tag
+        </CreateButton>
+      </Flex>
+
+      <Box flex="1" minH="0" overflowY="auto" bg="bg.workspace">
         {tagsQuery.isLoading ? (
           <Text px="6" py="6" textStyle="sm">Loading tags...</Text>
         ) : null}
@@ -459,97 +612,101 @@ export function TagsPage() {
         ) : null}
 
         {!tagsQuery.isLoading && filteredTags.length > 0 ? (
-          <Table.ScrollArea>
-            <Table.Root
-              size="sm"
-              variant="line"
-              interactive
-              css={{
-                '& [data-selected]': {
-                  background: 'var(--chakra-colors-bg-subtle)',
-                },
-              }}
+          <Stack gap="0" borderTopWidth="1px" borderColor="border.subtle">
+            <Grid
+              display={{ base: 'none', md: 'grid' }}
+              templateColumns={TAGS_LIST_GRID_COLUMNS}
+              gap="4"
+              position="sticky"
+              top="0"
+              zIndex="1"
+              borderBottomWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.workspace"
+              px="6"
+              py="3"
+              fontSize="sm"
+              color="fg.muted"
             >
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader w="10">
-                    <SelectionCheckbox
-                      checked={someVisibleSelected ? 'indeterminate' : allVisibleSelected}
-                      label="Select all visible tags"
-                      onCheckedChange={toggleAllVisibleTags}
-                    />
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader minW="180px">Tag</Table.ColumnHeader>
-                  <Table.ColumnHeader minW="260px">Description</Table.ColumnHeader>
-                  <Table.ColumnHeader minW="120px">Documents</Table.ColumnHeader>
-                  <Table.ColumnHeader minW="150px">Created</Table.ColumnHeader>
-                  <Table.ColumnHeader w="20" textAlign="right">Actions</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {filteredTags.map((tag) => {
-                  const isSelected = selectedTagIds.includes(tag.id);
+              <SelectionCheckbox
+                checked={someVisibleSelected ? 'indeterminate' : allVisibleSelected}
+                label="Select all visible tags"
+                onCheckedChange={toggleAllVisibleTags}
+              />
+              <Text as="span">Tag</Text>
+              <Text as="span">Description</Text>
+              <Text as="span">Documents</Text>
+              <Text as="span">Created</Text>
+              <Text as="span" srOnly>Actions</Text>
+            </Grid>
 
-                  return (
-                    <Table.Row key={tag.id} data-selected={isSelected ? '' : undefined}>
-                      <Table.Cell verticalAlign="top" w="10">
-                        <SelectionCheckbox
-                          checked={isSelected}
-                          label={`Select ${tag.name}`}
-                          onCheckedChange={(checked) => toggleTagSelection(tag.id, checked)}
-                        />
-                      </Table.Cell>
-                      <Table.Cell verticalAlign="top">
-                        <Stack gap="2">
-                          <Flex w="fit-content" align="center" gap="3" rounded="full" bg="bg.subtle" px="4" py="2" fontSize="sm" fontWeight="semibold" color="fg">
-                            <Box
-                              aria-hidden="true"
-                              boxSize="2.5"
-                              rounded="full"
-                              style={{ backgroundColor: tag.color ?? '#94a3b8' }}
-                            />
-                            <Text as="span">{tag.name}</Text>
-                          </Flex>
-                        </Stack>
-                      </Table.Cell>
-                      <Table.Cell verticalAlign="top">
-                        <Text fontSize="sm" color="fg">{getTagDescription(tag)}</Text>
-                      </Table.Cell>
-                      <Table.Cell verticalAlign="top">
-                        <Flex align="center" gap="2" fontSize="sm" color="fg">
-                          <FileText size={16} color="var(--chakra-colors-fg-muted)" />
-                          <Text as="span">{tag.documentsCount ?? 0}</Text>
-                        </Flex>
-                      </Table.Cell>
-                      <Table.Cell verticalAlign="top">
-                        <Text fontSize="sm" color="fg.muted">{formatTagCreatedDate(tag.createdAt)}</Text>
-                      </Table.Cell>
-                      <Table.Cell verticalAlign="top" textAlign="right">
-                        <Flex align="center" justify="flex-end" gap="2">
-                          <TagActionsMenu
-                            tag={tag}
-                            deletePending={deleteMutation.isPending}
-                            onEdit={(trigger) => openEditDialog(tag, trigger)}
-                            onDelete={(trigger) => {
-                              rememberFocusTarget(trigger);
-                              setTagPendingDelete(tag);
-                            }}
-                          />
-                        </Flex>
-                      </Table.Cell>
-                    </Table.Row>
-                  );
-                })}
-              </Table.Body>
-            </Table.Root>
-          </Table.ScrollArea>
+            {filteredTags.map((tag) => {
+              const isSelected = selectedTagIds.includes(tag.id);
+
+              return (
+                <Grid
+                  key={tag.id}
+                  as="article"
+                  alignItems="center"
+                  templateColumns={{ base: '2.5rem minmax(0, 1fr) auto', md: TAGS_LIST_GRID_COLUMNS }}
+                  gap="4"
+                  minH="4.5rem"
+                  borderBottomWidth="1px"
+                  borderColor="border.subtle"
+                  bg={isSelected ? 'teal.subtle' : 'bg.workspace'}
+                  px="6"
+                  py="3"
+                  transition="background-color 0.15s ease"
+                  _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.workspaceMuted' }}
+                  onContextMenu={(event) => openContextMenu(event, tag)}
+                >
+                  <SelectionCheckbox
+                    checked={isSelected}
+                    label={`Select ${tag.name}`}
+                    onCheckedChange={(checked) => toggleTagSelection(tag.id, checked)}
+                  />
+
+                  <Flex minW="0" align="center" gap="3">
+                    <Stack minW="0" flex="1" gap="1">
+                      <TagBadge color={tag.color} name={tag.name} />
+                      <Text display={{ md: 'none' }} truncate fontSize="sm" color="fg.muted">
+                        {tag.documentsCount ?? 0} document{(tag.documentsCount ?? 0) === 1 ? '' : 's'} - {formatTagCreatedDate(tag.createdAt)}
+                      </Text>
+                    </Stack>
+                  </Flex>
+
+                  <Text display={{ base: 'none', md: 'block' }} truncate fontSize="sm" color="fg">
+                    {getTagDescription(tag)}
+                  </Text>
+
+                  <Flex display={{ base: 'none', md: 'flex' }} align="center" gap="2" minW="0" color="fg.muted">
+                    <Files size={16} />
+                    <Text truncate fontSize="sm" fontWeight="medium" color="fg.muted">
+                      {tag.documentsCount ?? 0}
+                    </Text>
+                  </Flex>
+
+                  <Text display={{ base: 'none', md: 'block' }} truncate fontSize="sm" color="fg.muted">
+                    {formatTagCreatedDate(tag.createdAt)}
+                  </Text>
+
+                  <Box flexShrink="0">
+                    <TagActionsMenu
+                      tag={tag}
+                      actions={(trigger) => getTagActions(tag, trigger)}
+                    />
+                  </Box>
+                </Grid>
+              );
+            })}
+          </Stack>
         ) : null}
-      </SurfacePanel>
+      </Box>
 
       <TagDialog
         isOpen={isDialogOpen}
         title={dialogMode === 'create' ? 'Create tag' : 'Edit tag'}
-        submitLabel={dialogMode === 'create' ? 'Create tag' : 'Save changes'}
+        submitLabel={dialogMode === 'create' ? 'Create tag' : 'Save'}
         pendingLabel={dialogMode === 'create' ? 'Creating...' : 'Saving...'}
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
         isPending={isSubmitting}
@@ -598,6 +755,14 @@ export function TagsPage() {
               })),
             );
           }}
+        />
+      ) : null}
+
+      {contextMenu !== null ? (
+        <TagContextMenu
+          state={contextMenu}
+          actions={getTagActions(contextMenu.tag)}
+          onClose={() => setContextMenu(null)}
         />
       ) : null}
 

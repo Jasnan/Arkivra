@@ -3,6 +3,8 @@ import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
 import { FileSearch, FileText, SearchX, Vault } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
+import { Switch } from '@/components/ui/switch';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
 import {
@@ -13,7 +15,7 @@ import type { DocumentSearchControlFilter } from '@/features/documents/component
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
-import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
+import type { SearchMode, SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
@@ -98,6 +100,7 @@ function getSearchReturnParams({
   dateFrom,
   dateTo,
   sortBy,
+  searchMode,
 }: {
   query: string;
   vaultIds: string[];
@@ -105,6 +108,7 @@ function getSearchReturnParams({
   dateFrom: string;
   dateTo: string;
   sortBy: SearchSortBy;
+  searchMode: SearchMode;
 }) {
   const params: Record<string, string> = {
     source: SEARCH_RETURN_SOURCE,
@@ -117,6 +121,7 @@ function getSearchReturnParams({
   if (tagIds.length > 0) params.tagIds = joinSearchList(tagIds);
   if (dateFrom.length > 0) params.dateFrom = dateFrom;
   if (dateTo.length > 0) params.dateTo = dateTo;
+  if (searchMode === 'keyword') params.searchMode = searchMode;
 
   return params;
 }
@@ -218,6 +223,10 @@ function SearchResultSnippet({ result }: { result: SearchResultItem }) {
     return null;
   }
 
+  const isSemanticMatch = result.bestChunk.matchType === 'semantic';
+  const snippet = normalizeSnippetMarkup(result.bestChunk.snippet);
+  const chunkCountLabel = isSemanticMatch ? 'related chunk' : 'matching chunk';
+
   return (
     <Box minW="0">
       <Text
@@ -229,37 +238,46 @@ function SearchResultSnippet({ result }: { result: SearchResultItem }) {
         whiteSpace="normal"
         wordBreak="break-word"
       >
-        {tokenizeSnippet(normalizeSnippetMarkup(result.bestChunk.snippet)).map((part) =>
-          part.highlighted ? (
-            <Box
-              as="mark"
-              display="inline"
-              key={`${result.documentId}-${part.key}`}
-              rounded="md"
-              bg="teal.subtle"
-              px="1"
-              py="0"
-              color="fg"
-              lineHeight="inherit"
-            >
-              {part.text}
-            </Box>
-          ) : (
-            <Text as="span" key={`${result.documentId}-${part.key}`}>
-              {part.text}
-            </Text>
-          ),
+        {isSemanticMatch ? (
+          <Text as="span">{snippet}</Text>
+        ) : (
+          tokenizeSnippet(snippet).map((part) =>
+            part.highlighted ? (
+              <Box
+                as="mark"
+                display="inline"
+                key={`${result.documentId}-${part.key}`}
+                rounded="md"
+                bg="teal.subtle"
+                px="1"
+                py="0"
+                color="fg"
+                lineHeight="inherit"
+              >
+                {part.text}
+              </Box>
+            ) : (
+              <Text as="span" key={`${result.documentId}-${part.key}`}>
+                {part.text}
+              </Text>
+            ),
+          )
         )}
       </Text>
 
       <Flex mt="1" flexWrap="wrap" gap="1">
+        {isSemanticMatch ? (
+          <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
+            Semantic match
+          </Box>
+        ) : null}
         {result.bestChunk.pageNumber !== null ? (
           <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
             Page {result.bestChunk.pageNumber}
           </Box>
         ) : null}
         <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
-          {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'}
+          {result.matchedChunksCount} {chunkCountLabel}{result.matchedChunksCount === 1 ? '' : 's'}
         </Box>
         {result.bestChunk.chunkType ? (
           <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
@@ -372,11 +390,56 @@ function SearchResultRow({
   );
 }
 
+function SearchModeControl({
+  checked,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <Flex
+      align="center"
+      gap="3"
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.surface"
+      px="3"
+      py="2"
+      fontSize="sm"
+      color="fg"
+    >
+      <Text as="span" fontWeight="medium" color="fg.muted">
+        Search mode
+      </Text>
+      <Flex align="center" gap="1.5">
+        <Switch
+          size="sm"
+          colorPalette="teal"
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+        >
+          Meaning-based
+        </Switch>
+        <InfoTooltip
+          label="Meaning-based search help"
+          content="Finds documents by similar meaning, even when the exact words differ. The technical term is semantic search. Turn it off for exact keyword matching only."
+        />
+      </Flex>
+    </Flex>
+  );
+}
+
 function isSearchSortBy(value: string | undefined): value is SearchSortBy {
   return value === 'created_desc'
     || value === 'created_asc'
     || value === 'name_asc'
     || value === 'name_desc';
+}
+
+function isSearchMode(value: string | undefined): value is SearchMode {
+  return value === 'keyword' || value === 'hybrid';
 }
 
 function toInputDateValue(value: Date) {
@@ -467,6 +530,9 @@ export function SearchPage() {
   const dateFrom = search.dateFrom ?? '';
   const dateTo = search.dateTo ?? '';
   const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
+  const semanticSearchEnabled = isSearchMode(search.searchMode) ? search.searchMode !== 'keyword' : true;
+  const selectedSearchMode: SearchMode = semanticSearchEnabled ? 'hybrid' : 'keyword';
+  const searchMode: SearchMode = selectedSearchMode === 'hybrid' && debouncedQuery.length > 0 ? 'hybrid' : 'keyword';
 
   useEffect(() => {
     if ((search.q ?? '') === debouncedQuery) {
@@ -499,6 +565,7 @@ export function SearchPage() {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     sortBy,
+    searchMode,
     enabled:
       debouncedQuery.length > 0 ||
       selectedVaultIds.length > 0 ||
@@ -541,6 +608,7 @@ export function SearchPage() {
       dateFrom: '',
       dateTo: '',
       sortBy: 'created_desc',
+      searchMode: '',
     });
   }
 
@@ -601,6 +669,7 @@ export function SearchPage() {
     dateFrom,
     dateTo,
     sortBy,
+    searchMode: selectedSearchMode,
   });
 
   const selectedVaultsLabel = useMemo(() => {
@@ -641,6 +710,12 @@ export function SearchPage() {
     });
   }
 
+  function setSemanticSearchEnabled(checked: boolean) {
+    updateFilters({
+      searchMode: checked ? '' : 'keyword',
+    });
+  }
+
   return (
     <Flex as="section" h="full" minH="0" direction="column" overflow="hidden" bg="bg.workspace">
       <DocumentSearchControls
@@ -662,6 +737,12 @@ export function SearchPage() {
         sortSelectId="global-search-sort"
         sortAriaLabel="Sort search results"
         filtersTitle="Filters"
+        toolbarAccessory={(
+          <SearchModeControl
+            checked={semanticSearchEnabled}
+            onCheckedChange={setSemanticSearchEnabled}
+          />
+        )}
         filtersContent={
           <>
             <SearchFilterMultiSelect
@@ -733,7 +814,9 @@ export function SearchPage() {
         {!hasActiveSearch ? (
           <Flex h="full" minH="0" align="center" justify="center" px="6" py="10">
             <Stack align="center" gap="3" maxW="md" color="fg.muted" textAlign="center">
-              <FileSearch size={32} />
+              <Box color="teal.solid" aria-hidden="true">
+                <FileSearch size={32} />
+              </Box>
               <Text fontWeight="semibold" color="fg">
                 Search your documents
               </Text>

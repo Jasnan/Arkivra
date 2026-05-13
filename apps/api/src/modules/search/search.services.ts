@@ -5,9 +5,11 @@ import type {
   CitationAssetType,
   CitationImageAsset,
   CitationBoundingBox,
+  DocumentSearchMode,
   DocumentSearchServices,
   HybridSearchMode,
   SearchResultItem,
+  SearchResultMatchType,
   SearchResultTag,
   SearchSortBy,
 } from './search.types.js';
@@ -35,11 +37,17 @@ type SearchRow = {
   fulltext_match: boolean | null;
   substring_position: number | null;
   title_match: boolean | null;
+  match_type: SearchResultMatchType | null;
+  results_count?: number;
 };
 
 type CountRow = {
   results_count: number;
 };
+
+const HYBRID_DOCUMENT_CANDIDATE_LIMIT = 80;
+const HYBRID_DOCUMENT_EXCERPT_LENGTH = 260;
+const HYBRID_DOCUMENT_MIN_SEMANTIC_SIMILARITY = 0.45;
 
 type HybridSearchRow = {
   chunk_id: string;
@@ -160,6 +168,54 @@ function getSearchOrderSql(sortBy: SearchSortBy) {
     default:
       return sql`title_match DESC NULLS LAST, created_at DESC, updated_at DESC, fulltext_match DESC NULLS LAST, score DESC NULLS LAST, substring_position ASC NULLS LAST, name ASC`;
   }
+}
+
+function getHybridSearchOrderSql(sortBy: SearchSortBy) {
+  switch (sortBy) {
+    case 'created_asc':
+      return sql`title_match DESC NULLS LAST, score DESC NULLS LAST, fulltext_match DESC NULLS LAST, created_at ASC, updated_at DESC, substring_position ASC NULLS LAST, name ASC`;
+    case 'created_desc':
+      return sql`title_match DESC NULLS LAST, score DESC NULLS LAST, fulltext_match DESC NULLS LAST, created_at DESC, updated_at DESC, substring_position ASC NULLS LAST, name ASC`;
+    case 'name_asc':
+      return sql`title_match DESC NULLS LAST, score DESC NULLS LAST, fulltext_match DESC NULLS LAST, LOWER(name) ASC, substring_position ASC NULLS LAST, created_at DESC`;
+    case 'name_desc':
+      return sql`title_match DESC NULLS LAST, score DESC NULLS LAST, fulltext_match DESC NULLS LAST, LOWER(name) DESC, substring_position ASC NULLS LAST, created_at DESC`;
+    default:
+      return sql`title_match DESC NULLS LAST, score DESC NULLS LAST, fulltext_match DESC NULLS LAST, created_at DESC, updated_at DESC, substring_position ASC NULLS LAST, name ASC`;
+  }
+}
+
+function parseSearchResultMatchType(value: SearchResultMatchType | string | null | undefined): SearchResultMatchType {
+  return value === 'semantic' || value === 'title' || value === 'keyword' ? value : 'keyword';
+}
+
+function mapSearchRow(row: SearchRow): SearchResultItem {
+  return {
+    vaultId: row.vault_id,
+    vaultName: row.vault_name,
+    documentId: row.document_id,
+    name: row.name,
+    originalName: row.original_name,
+    originalSize: row.original_size,
+    mimeType: row.mime_type,
+    documentDate: toIsoString(row.document_date),
+    createdAt: toIsoString(row.created_at)!,
+    updatedAt: toIsoString(row.updated_at)!,
+    tags: parseTagsJson(row.tags_json),
+    matchedChunksCount: row.matched_chunks_count,
+    bestChunk:
+      row.chunk_index === null || row.chunk_content === null || row.snippet === null || row.score === null
+        ? null
+        : {
+            chunkIndex: row.chunk_index,
+            chunkType: row.chunk_type,
+            pageNumber: row.page_number,
+            content: row.chunk_content,
+            snippet: row.snippet,
+            score: row.score,
+            matchType: parseSearchResultMatchType(row.match_type),
+          },
+  };
 }
 
 function createEmptyResponse({
@@ -388,6 +444,7 @@ export function createDocumentSearchServices({
     dateFrom,
     dateTo,
     sortBy = 'created_desc',
+    searchMode = 'keyword',
   }: {
     vaultId?: string;
     vaultIds?: string[];
@@ -399,6 +456,7 @@ export function createDocumentSearchServices({
     dateFrom?: Date | null;
     dateTo?: Date | null;
     sortBy?: SearchSortBy;
+    searchMode?: DocumentSearchMode;
   }) {
     const trimmedQuery = query.trim();
     const effectiveVaultIds: string[] = vaultIds && vaultIds.length > 0 ? vaultIds : vaultId ? [vaultId] : [];
@@ -498,7 +556,9 @@ export function createDocumentSearchServices({
           NULL::text AS snippet,
           NULL::float8 AS score,
           NULL::boolean AS fulltext_match,
-          NULL::int AS substring_position
+          NULL::int AS substring_position,
+          NULL::boolean AS title_match,
+          NULL::text AS match_type
         FROM documents AS d
         INNER JOIN vaults AS v ON v.id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
@@ -511,21 +571,7 @@ export function createDocumentSearchServices({
         OFFSET ${offset}
       `);
 
-      const results: SearchResultItem[] = browseResult.rows.map(row => ({
-        vaultId: row.vault_id,
-        vaultName: row.vault_name,
-        documentId: row.document_id,
-        name: row.name,
-        originalName: row.original_name,
-        originalSize: row.original_size,
-        mimeType: row.mime_type,
-        documentDate: toIsoString(row.document_date),
-        createdAt: toIsoString(row.created_at)!,
-        updatedAt: toIsoString(row.updated_at)!,
-        tags: parseTagsJson(row.tags_json),
-        matchedChunksCount: 0,
-        bestChunk: null,
-      }));
+      const results = browseResult.rows.map(mapSearchRow);
 
       return {
         query: trimmedQuery,
@@ -542,6 +588,24 @@ export function createDocumentSearchServices({
           sortBy,
         },
       };
+    }
+
+    if (searchMode === 'hybrid') {
+      const hybridResult = await searchDocumentsWithHybrid({
+        vaultId,
+        effectiveVaultIds,
+        trimmedQuery,
+        pageIndex,
+        pageSize,
+        normalizedTagIds,
+        normalizedDateFrom,
+        normalizedDateTo,
+        sortBy,
+      });
+
+      if (hybridResult !== null) {
+        return hybridResult;
+      }
     }
 
     const ilikePattern = `%${trimmedQuery}%`;
@@ -657,7 +721,8 @@ export function createDocumentSearchServices({
           CASE
             WHEN dc.tsv @@ search_query.query THEN ts_rank_cd(dc.tsv, search_query.query)::float8
             ELSE 0.05
-          END AS score
+          END AS score,
+          'keyword'::text AS match_type
         FROM document_chunks AS dc
         CROSS JOIN search_query
         WHERE dc.vault_id IN (${vaultIdListSql})
@@ -714,7 +779,8 @@ export function createDocumentSearchServices({
               )
             )
           END AS snippet,
-          1.2::float8 AS score
+          1.2::float8 AS score,
+          'title'::text AS match_type
         FROM documents AS d
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
@@ -760,6 +826,7 @@ export function createDocumentSearchServices({
           mc.score,
           mc.fulltext_match,
           mc.substring_position,
+          mc.match_type,
           mc.chunk_type = 'title' AS title_match,
           row_number() OVER (
             PARTITION BY d.id
@@ -795,7 +862,8 @@ export function createDocumentSearchServices({
         score,
         fulltext_match,
         substring_position,
-        title_match
+        title_match,
+        match_type
       FROM ranked_results
       WHERE rank_in_document = 1
       ORDER BY ${getSearchOrderSql(sortBy)}
@@ -803,37 +871,410 @@ export function createDocumentSearchServices({
       OFFSET ${offset}
     `);
 
-    const results: SearchResultItem[] = searchResult.rows.map((row) => ({
-      vaultId: row.vault_id,
-      vaultName: row.vault_name,
-      documentId: row.document_id,
-      name: row.name,
-      originalName: row.original_name,
-      originalSize: row.original_size,
-      mimeType: row.mime_type,
-      documentDate: toIsoString(row.document_date),
-      createdAt: toIsoString(row.created_at)!,
-      updatedAt: toIsoString(row.updated_at)!,
-      tags: parseTagsJson(row.tags_json),
-      matchedChunksCount: row.matched_chunks_count,
-      bestChunk:
-        row.chunk_index === null || row.chunk_content === null || row.snippet === null || row.score === null
-          ? null
-          : {
-              chunkIndex: row.chunk_index,
-              chunkType: row.chunk_type,
-              pageNumber: row.page_number,
-              content: row.chunk_content,
-              snippet: row.snippet,
-              score: row.score,
-            },
-    }));
+    const results = searchResult.rows.map(mapSearchRow);
 
     return {
       query: trimmedQuery,
       pageIndex,
       pageSize,
       results,
+      resultsCount,
+      filters: {
+        vaultId: vaultId ?? null,
+        tagId: normalizedTagIds[0] ?? null,
+        tagIds: normalizedTagIds,
+        dateFrom: toIsoString(normalizedDateFrom),
+        dateTo: toIsoString(normalizedDateTo),
+        sortBy,
+      },
+    };
+  }
+
+  async function searchDocumentsWithHybrid({
+    vaultId,
+    effectiveVaultIds,
+    trimmedQuery,
+    pageIndex,
+    pageSize,
+    normalizedTagIds,
+    normalizedDateFrom,
+    normalizedDateTo,
+    sortBy,
+  }: {
+    vaultId?: string;
+    effectiveVaultIds: string[];
+    trimmedQuery: string;
+    pageIndex: number;
+    pageSize: number;
+    normalizedTagIds: string[];
+    normalizedDateFrom: Date | null;
+    normalizedDateTo: Date | null;
+    sortBy: SearchSortBy;
+  }) {
+    if (chunkEmbedder === undefined) {
+      return null;
+    }
+
+    let queryEmbedding: number[] | null = null;
+
+    try {
+      const vectors = await chunkEmbedder.embed([trimmedQuery]);
+      queryEmbedding = vectors[0] ?? null;
+    } catch {
+      queryEmbedding = null;
+    }
+
+    if (queryEmbedding === null) {
+      return null;
+    }
+
+    const offset = pageIndex * pageSize;
+    const ilikePattern = `%${trimmedQuery}%`;
+    const headlineOptions =
+      'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20, MinWords=5';
+    const vaultIdListSql = sql.join(effectiveVaultIds.map(id => sql`${id}`), sql`, `);
+    const tagIdListSql =
+      normalizedTagIds.length > 0
+        ? sql.join(normalizedTagIds.map(id => sql`${id}`), sql`, `)
+        : null;
+    const tagFilterSql =
+      normalizedTagIds.length > 0
+        ? sql`EXISTS (
+            SELECT 1
+            FROM document_tags AS dt
+            WHERE dt.document_id = d.id
+              AND dt.tag_id IN (${tagIdListSql})
+          )`
+        : sql`TRUE`;
+    const effectiveDocumentDateSql = getEffectiveDocumentDateSql('d');
+
+    const searchResult = await db.execute<SearchRow>(sql`
+      WITH search_query AS (
+        SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+      ),
+      scoped_documents AS (
+        SELECT
+          d.vault_id,
+          v.name AS vault_name,
+          d.id AS document_id,
+          d.name,
+          d.original_name,
+          d.original_size,
+          d.mime_type,
+          d.document_date,
+          d.created_at,
+          d.updated_at
+        FROM documents AS d
+        INNER JOIN vaults AS v ON v.id = d.vault_id
+        WHERE d.vault_id IN (${vaultIdListSql})
+          AND d.is_deleted = false
+          AND ${tagFilterSql}
+          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
+          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+      ),
+      keyword_candidates AS (
+        SELECT
+          dc.id,
+          dc.tsv @@ search_query.query AS fulltext_match,
+          nullif(position(lower(${trimmedQuery}) in lower(dc.content)), 0)::int AS substring_position,
+          CASE
+            WHEN dc.tsv @@ search_query.query THEN ts_rank_cd(dc.tsv, search_query.query)::float8
+            ELSE 0.05
+          END AS keyword_score,
+          dc.chunk_index
+        FROM document_chunks AS dc
+        CROSS JOIN search_query
+        INNER JOIN scoped_documents AS sd ON sd.document_id = dc.document_id
+        WHERE dc.vault_id IN (${vaultIdListSql})
+          AND (
+            dc.tsv @@ search_query.query
+            OR dc.content ILIKE ${ilikePattern}
+          )
+        ORDER BY fulltext_match DESC, keyword_score DESC, substring_position ASC NULLS LAST, dc.chunk_index ASC, dc.id ASC
+        LIMIT ${HYBRID_DOCUMENT_CANDIDATE_LIMIT}
+      ),
+      keyword_ranked AS (
+        SELECT
+          id,
+          fulltext_match,
+          substring_position,
+          row_number() OVER (
+            ORDER BY fulltext_match DESC, keyword_score DESC, substring_position ASC NULLS LAST, chunk_index ASC, id ASC
+          )::int AS keyword_rank
+        FROM keyword_candidates
+      ),
+      vec_candidates AS (
+        SELECT
+          dc.id,
+          1 - (dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector) AS similarity,
+          dc.chunk_index
+        FROM document_chunks AS dc
+        INNER JOIN scoped_documents AS sd ON sd.document_id = dc.document_id
+        WHERE dc.vault_id IN (${vaultIdListSql})
+          AND dc.embedding IS NOT NULL
+        ORDER BY dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector ASC, dc.chunk_index ASC, dc.id ASC
+        LIMIT ${HYBRID_DOCUMENT_CANDIDATE_LIMIT}
+      ),
+      vec_ranked AS (
+        SELECT
+          id,
+          similarity,
+          row_number() OVER (ORDER BY similarity DESC, chunk_index ASC, id ASC)::int AS vec_rank
+        FROM vec_candidates
+      ),
+      ranked_chunks AS (
+        SELECT
+          COALESCE(keyword_ranked.id, vec_ranked.id) AS id,
+          COALESCE(keyword_ranked.fulltext_match, false) AS fulltext_match,
+          keyword_ranked.substring_position,
+          (
+            COALESCE(1.0 / (60 + keyword_ranked.keyword_rank), 0)
+            + COALESCE(1.0 / (60 + vec_ranked.vec_rank), 0)
+          )::float8 AS score
+        FROM keyword_ranked
+        FULL OUTER JOIN vec_ranked ON vec_ranked.id = keyword_ranked.id
+        WHERE keyword_ranked.id IS NOT NULL
+          OR (
+            vec_ranked.id IS NOT NULL
+            AND vec_ranked.similarity >= ${HYBRID_DOCUMENT_MIN_SEMANTIC_SIMILARITY}
+          )
+      ),
+      chunk_sources AS (
+        SELECT
+          dc.vault_id,
+          dc.document_id,
+          dc.chunk_index,
+          dc.chunk_type,
+          COALESCE(dc.page_number, dc.page_start) AS page_number,
+          dc.content AS chunk_content,
+          ranked_chunks.fulltext_match,
+          ranked_chunks.substring_position,
+          CASE
+            WHEN ranked_chunks.fulltext_match THEN ts_headline('english', dc.content, search_query.query, ${headlineOptions})
+            WHEN ranked_chunks.substring_position IS NOT NULL THEN
+              concat(
+                CASE
+                  WHEN ranked_chunks.substring_position > 36 THEN '…'
+                  ELSE ''
+                END,
+                replace(
+                  substring(
+                    dc.content
+                    FROM greatest(ranked_chunks.substring_position - 35, 1)
+                    FOR char_length(${trimmedQuery}) + 70
+                  ),
+                  substring(
+                    dc.content
+                    FROM ranked_chunks.substring_position
+                    FOR char_length(${trimmedQuery})
+                  ),
+                  concat(
+                    '<mark>',
+                    substring(
+                      dc.content
+                      FROM ranked_chunks.substring_position
+                      FOR char_length(${trimmedQuery})
+                    ),
+                    '</mark>'
+                  )
+                ),
+                CASE
+                  WHEN ranked_chunks.substring_position + char_length(${trimmedQuery}) + 35 < char_length(dc.content) THEN '…'
+                  ELSE ''
+                END
+              )
+            ELSE
+              CASE
+                WHEN char_length(regexp_replace(COALESCE(NULLIF(dc.original_text, ''), dc.content), '[[:space:]]+', ' ', 'g')) > ${HYBRID_DOCUMENT_EXCERPT_LENGTH}
+                  THEN concat(
+                    substring(
+                      regexp_replace(COALESCE(NULLIF(dc.original_text, ''), dc.content), '[[:space:]]+', ' ', 'g')
+                      FROM 1
+                      FOR ${HYBRID_DOCUMENT_EXCERPT_LENGTH}
+                    ),
+                    '…'
+                  )
+                ELSE regexp_replace(COALESCE(NULLIF(dc.original_text, ''), dc.content), '[[:space:]]+', ' ', 'g')
+              END
+          END AS snippet,
+          ranked_chunks.score,
+          CASE
+            WHEN ranked_chunks.fulltext_match OR ranked_chunks.substring_position IS NOT NULL THEN 'keyword'
+            ELSE 'semantic'
+          END::text AS match_type,
+          false AS title_match
+        FROM ranked_chunks
+        INNER JOIN document_chunks AS dc ON dc.id = ranked_chunks.id
+        CROSS JOIN search_query
+      ),
+      title_sources AS (
+        SELECT
+          sd.vault_id,
+          sd.document_id,
+          NULL::int AS chunk_index,
+          'title'::text AS chunk_type,
+          NULL::int AS page_number,
+          sd.name AS chunk_content,
+          FALSE AS fulltext_match,
+          nullif(position(lower(${trimmedQuery}) in lower(sd.name)), 0)::int AS substring_position,
+          CASE
+            WHEN sd.name ILIKE ${ilikePattern}
+              THEN replace(
+                sd.name,
+                substring(
+                  sd.name
+                  FROM nullif(position(lower(${trimmedQuery}) in lower(sd.name)), 0)::int
+                  FOR char_length(${trimmedQuery})
+                ),
+                concat(
+                  '<mark>',
+                  substring(
+                    sd.name
+                    FROM nullif(position(lower(${trimmedQuery}) in lower(sd.name)), 0)::int
+                    FOR char_length(${trimmedQuery})
+                  ),
+                  '</mark>'
+                )
+              )
+            ELSE replace(
+              sd.original_name,
+              substring(
+                sd.original_name
+                FROM nullif(position(lower(${trimmedQuery}) in lower(sd.original_name)), 0)::int
+                FOR char_length(${trimmedQuery})
+              ),
+              concat(
+                '<mark>',
+                substring(
+                  sd.original_name
+                  FROM nullif(position(lower(${trimmedQuery}) in lower(sd.original_name)), 0)::int
+                  FOR char_length(${trimmedQuery})
+                ),
+                '</mark>'
+              )
+            )
+          END AS snippet,
+          1.2::float8 AS score,
+          'title'::text AS match_type,
+          true AS title_match
+        FROM scoped_documents AS sd
+        WHERE sd.name ILIKE ${ilikePattern}
+          OR sd.original_name ILIKE ${ilikePattern}
+      ),
+      matched_sources AS (
+        SELECT * FROM chunk_sources
+        UNION ALL
+        SELECT * FROM title_sources
+      ),
+      ranked_results AS (
+        SELECT
+          sd.vault_id,
+          sd.vault_name,
+          sd.document_id,
+          sd.name,
+          sd.original_name,
+          sd.original_size,
+          sd.mime_type,
+          sd.document_date,
+          sd.created_at,
+          sd.updated_at,
+          (
+            SELECT COALESCE(
+              json_agg(
+                json_build_object(
+                  'id', t.id,
+                  'name', t.name,
+                  'color', t.color
+                )
+                ORDER BY t.name ASC
+              ),
+              '[]'::json
+            )::text
+            FROM document_tags AS dt_all
+            INNER JOIN tags AS t ON t.id = dt_all.tag_id
+            WHERE dt_all.document_id = sd.document_id
+          ) AS tags_json,
+          count(*) OVER (PARTITION BY sd.document_id)::int AS matched_chunks_count,
+          matched_sources.chunk_index,
+          matched_sources.chunk_type,
+          matched_sources.page_number,
+          matched_sources.chunk_content,
+          matched_sources.snippet,
+          matched_sources.score,
+          matched_sources.fulltext_match,
+          matched_sources.substring_position,
+          matched_sources.title_match,
+          matched_sources.match_type,
+          row_number() OVER (
+            PARTITION BY sd.document_id
+            ORDER BY
+              matched_sources.title_match DESC,
+              (matched_sources.match_type = 'keyword') DESC,
+              matched_sources.score DESC,
+              matched_sources.fulltext_match DESC,
+              matched_sources.substring_position ASC NULLS LAST,
+              matched_sources.chunk_index ASC NULLS LAST
+          )::int AS rank_in_document
+        FROM matched_sources
+        INNER JOIN scoped_documents AS sd ON sd.document_id = matched_sources.document_id
+      ),
+      document_results AS (
+        SELECT
+          *,
+          count(*) OVER ()::int AS results_count
+        FROM ranked_results
+        WHERE rank_in_document = 1
+      )
+      SELECT
+        vault_id,
+        vault_name,
+        document_id,
+        name,
+        original_name,
+        original_size,
+        mime_type,
+        document_date,
+        created_at,
+        updated_at,
+        tags_json,
+        matched_chunks_count,
+        chunk_index,
+        chunk_type,
+        page_number,
+        chunk_content,
+        snippet,
+        score,
+        fulltext_match,
+        substring_position,
+        title_match,
+        match_type,
+        results_count
+      FROM document_results
+      ORDER BY ${getHybridSearchOrderSql(sortBy)}
+      LIMIT ${pageSize}
+      OFFSET ${offset}
+    `);
+
+    const resultsCount = searchResult.rows[0]?.results_count ?? 0;
+
+    if (resultsCount === 0) {
+      return createEmptyResponse({
+        query: trimmedQuery,
+        pageIndex,
+        pageSize,
+        vaultId,
+        tagIds: normalizedTagIds,
+        dateFrom: normalizedDateFrom,
+        dateTo: normalizedDateTo,
+        sortBy,
+      });
+    }
+
+    return {
+      query: trimmedQuery,
+      pageIndex,
+      pageSize,
+      results: searchResult.rows.map(mapSearchRow),
       resultsCount,
       filters: {
         vaultId: vaultId ?? null,

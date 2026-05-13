@@ -1,5 +1,5 @@
 import { fetchJson } from '@/lib/api';
-import type { SearchResultPage } from './search.types';
+import type { SearchMode, SearchResultPage } from './search.types';
 
 export async function searchVaultDocuments({
   vaultId,
@@ -11,6 +11,7 @@ export async function searchVaultDocuments({
   dateFrom,
   dateTo,
   sortBy,
+  searchMode,
 }: {
   vaultId: string;
   query?: string;
@@ -21,6 +22,7 @@ export async function searchVaultDocuments({
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
+  searchMode?: SearchMode;
 }) {
   const params = new URLSearchParams({
     pageIndex: String(pageIndex),
@@ -51,6 +53,10 @@ export async function searchVaultDocuments({
     params.set('sortBy', sortBy);
   }
 
+  if (searchMode === 'hybrid') {
+    params.set('searchMode', searchMode);
+  }
+
   return fetchJson<SearchResultPage>(`/api/vaults/${vaultId}/search?${params.toString()}`);
 }
 
@@ -65,6 +71,7 @@ export async function searchAllDocuments({
   dateFrom,
   dateTo,
   sortBy,
+  searchMode,
 }: {
   query?: string;
   pageIndex?: number;
@@ -76,6 +83,7 @@ export async function searchAllDocuments({
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
+  searchMode?: SearchMode;
 }) {
   const params = new URLSearchParams({
     pageIndex: String(pageIndex),
@@ -112,6 +120,10 @@ export async function searchAllDocuments({
 
   if (sortBy) {
     params.set('sortBy', sortBy);
+  }
+
+  if (searchMode === 'hybrid') {
+    params.set('searchMode', searchMode);
   }
 
   return fetchJson<SearchResultPage>(`/api/search?${params.toString()}`);

@@ -1,14 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Box, Collapsible as ChakraCollapsible, Flex, Text } from '@chakra-ui/react';
+import {
+  Box,
+  CloseButton,
+  Drawer,
+  Flex,
+  Portal,
+  ScrollArea,
+  Skeleton,
+  Status,
+  Text,
+} from '@chakra-ui/react';
 import {
   AlertCircle,
-  ChevronRight,
-  Loader2,
   MessageSquare,
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { streamChatMessage } from '../chat.api';
 import type { ChatResponseMode } from '../chat.api';
@@ -63,7 +72,7 @@ export function ChatWorkspace({
   const [streamingText, setStreamingText] = useState('');
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [responseMode, setResponseMode] = useState<ChatResponseMode>('multimodal');
+  const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
   const [selectedModel, setSelectedModel] = useState('');
   const [composerValue, setComposerValue] = useState('');
   const [currentIntent, setCurrentIntent] = useState<ChatIntent | null>(null);
@@ -137,7 +146,7 @@ export function ChatWorkspace({
     return [...sections.entries()];
   }, [visibleConversations]);
 
-  function focusComposer() {
+  const focusComposer = useCallback(() => {
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
       if (!textarea) return;
@@ -145,28 +154,43 @@ export function ChatWorkspace({
       const end = textarea.value.length;
       textarea.setSelectionRange(end, end);
     });
-  }
+  }, []);
 
-  function resetComposerState() {
+  const resetComposerState = useCallback(() => {
     setLocalMessages([]);
     setStreamingText('');
     setStreamError(null);
     setComposerValue('');
     setCurrentIntent(null);
     setMetricsByMessageId({});
-  }
+  }, []);
 
-  function handleCreateConversation() {
+  const handleCreateConversation = useCallback(() => {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
     setIsMobileConversationRailOpen(false);
     resetComposerState();
-  }
+    focusComposer();
+  }, [focusComposer, resetComposerState]);
 
-  async function handleDeleteConversation(chatId: string) {
+  const handleSelectConversation = useCallback((chatId: string) => {
+    setSelectedChatId(chatId);
+    resetComposerState();
+  }, [resetComposerState]);
+
+  const handleSelectMobileConversation = useCallback((chatId: string) => {
+    handleSelectConversation(chatId);
+    setIsMobileConversationRailOpen(false);
+  }, [handleSelectConversation]);
+
+  const handleDeleteConversation = useCallback(async (chatId: string) => {
     await deleteConversation.mutateAsync({ ...scope, chatId });
     if (selectedChatId === chatId) setSelectedChatId('');
     await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
-  }
+  }, [deleteConversation, queryClient, scope, selectedChatId]);
+
+  const handleDeleteConversationClick = useCallback((chatId: string) => {
+    void handleDeleteConversation(chatId);
+  }, [handleDeleteConversation]);
 
   function handleGuidedPromptSelect(prompt: GlobalGuidedPrompt) {
     setCurrentIntent(prompt.id);
@@ -252,37 +276,37 @@ export function ChatWorkspace({
     }
   }
 
-  const secondaryConversationRail = useMemo(() => {
-    if (!renderConversationRailInSecondary) return null;
-
-    return (
-      <ChatConversationRail
-        conversationsQuery={conversationsQuery}
-        conversationSections={conversationSections}
-        selectedChatId={selectedChatId}
-        effectiveSelectedChatId={effectiveSelectedChatId}
-        createConversationPending={createConversation.isPending}
-        onCreateConversation={() => {
-          void handleCreateConversation();
-        }}
-        onSelectConversation={(chatId) => {
-          setSelectedChatId(chatId);
-          resetComposerState();
-        }}
-        onDeleteConversation={(chatId) => {
-          void handleDeleteConversation(chatId);
-        }}
-      />
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- the shell registration should follow semantic chat state, not every local handler identity.
-  }, [
+  const conversationRailProps = useMemo(() => ({
+    conversationsQuery,
+    conversationSections,
+    selectedChatId,
+    effectiveSelectedChatId,
+    createConversationPending: createConversation.isPending,
+    onCreateConversation: handleCreateConversation,
+    onSelectConversation: handleSelectConversation,
+    onDeleteConversation: handleDeleteConversationClick,
+  }), [
     conversationSections,
     conversationsQuery,
     createConversation.isPending,
     effectiveSelectedChatId,
-    renderConversationRailInSecondary,
+    handleCreateConversation,
+    handleDeleteConversationClick,
+    handleSelectConversation,
     selectedChatId,
   ]);
+
+  const mobileConversationRailProps = useMemo(() => ({
+    ...conversationRailProps,
+    showHeader: false,
+    onSelectConversation: handleSelectMobileConversation,
+  }), [conversationRailProps, handleSelectMobileConversation]);
+
+  const secondaryConversationRail = useMemo(() => {
+    if (!renderConversationRailInSecondary) return null;
+
+    return <ChatConversationRail {...conversationRailProps} />;
+  }, [conversationRailProps, renderConversationRailInSecondary]);
 
   useWorkspaceSecondary(secondaryConversationRail);
 
@@ -317,23 +341,7 @@ export function ChatWorkspace({
           bg="bg.sidebar"
           pb="3"
         >
-          <ChatConversationRail
-            conversationsQuery={conversationsQuery}
-            conversationSections={conversationSections}
-            selectedChatId={selectedChatId}
-            effectiveSelectedChatId={effectiveSelectedChatId}
-            createConversationPending={createConversation.isPending}
-            onCreateConversation={() => {
-              void handleCreateConversation();
-            }}
-            onSelectConversation={(chatId) => {
-              setSelectedChatId(chatId);
-              resetComposerState();
-            }}
-            onDeleteConversation={(chatId) => {
-              void handleDeleteConversation(chatId);
-            }}
-          />
+          <ChatConversationRail {...conversationRailProps} />
         </Box>
       ) : null}
 
@@ -359,7 +367,7 @@ export function ChatWorkspace({
               align="center"
               gap="2"
               borderBottomWidth="1px"
-        borderColor="border"
+              borderColor="border"
               bg="bg.error"
               px="4"
               py="3"
@@ -384,190 +392,158 @@ export function ChatWorkspace({
             overflowX="hidden"
             sm={{ px: '6' }}
           >
-            <ChakraCollapsible.Root
+            <Drawer.Root
               open={isMobileConversationRailOpen}
-              lazyMount
-              unmountOnExit
+              placement="bottom"
+              size="full"
               onOpenChange={(event) => setIsMobileConversationRailOpen(event.open)}
             >
-              <ChakraCollapsible.Trigger
-                w="full"
-                minW="0"
-                display="flex"
-                alignItems="center"
-                justifyContent="space-between"
-                gap="3"
-                rounded="md"
-                color="fg"
-                cursor="pointer"
-                _hover={{ color: 'teal.fg' }}
-              >
-                <Flex align="center" gap="2" minW="0" fontSize="sm" fontWeight="semibold">
-                  <MessageSquare size={16} color="var(--chakra-colors-teal-fg)" />
-                  Conversations
-                </Flex>
-                <Flex align="center" gap="2" flexShrink="0" fontSize="sm" fontWeight="medium" color="fg.muted">
-                  <Text as="span">
-                    {isMobileConversationRailOpen ? 'Hide history' : 'Show history'}
-                  </Text>
-                  <ChakraCollapsible.Indicator
-                    display="inline-flex"
-                    transition="transform 0.2s"
-                    _open={{ transform: 'rotate(90deg)' }}
-                  >
-                    <ChevronRight size={16} />
-                  </ChakraCollapsible.Indicator>
-                </Flex>
-              </ChakraCollapsible.Trigger>
-
-              {isMobileConversationRailOpen ? (
-                <ChakraCollapsible.Content
-                  id="mobile-chat-conversations"
-                  minW="0"
-                  maxW="full"
-                  overflowX="hidden"
+              <Drawer.Trigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  w="full"
+                  justifyContent="space-between"
+                  px="0"
+                  color="fg"
+                  _hover={{ bg: 'transparent', color: 'teal.fg' }}
                 >
-                  <Box
-                    mt="4"
-                    maxH="18rem"
-                    w="full"
-                    minW="0"
-                    maxW="full"
-                    overflowY="auto"
-                    overflowX="hidden"
-                    borderTopWidth="1px"
-                    borderColor="border.subtle"
-                    pt="3"
-                  >
-                    <ChatConversationRail
-                      showHeader={false}
-                      conversationsQuery={conversationsQuery}
-                      conversationSections={conversationSections}
-                      selectedChatId={selectedChatId}
-                      effectiveSelectedChatId={effectiveSelectedChatId}
-                      createConversationPending={createConversation.isPending}
-                      onCreateConversation={() => {
-                        void handleCreateConversation();
-                      }}
-                      onSelectConversation={(chatId) => {
-                        setSelectedChatId(chatId);
-                        setIsMobileConversationRailOpen(false);
-                        resetComposerState();
-                      }}
-                      onDeleteConversation={(chatId) => {
-                        void handleDeleteConversation(chatId);
-                      }}
-                    />
-                  </Box>
-                </ChakraCollapsible.Content>
-              ) : null}
-            </ChakraCollapsible.Root>
+                  <Flex align="center" gap="2" minW="0" fontSize="sm" fontWeight="semibold">
+                    <MessageSquare size={16} color="var(--chakra-colors-teal-fg)" />
+                    <Text as="span">Conversations</Text>
+                  </Flex>
+                  <Text as="span" flexShrink="0" fontSize="sm" fontWeight="medium" color="fg.muted">
+                    Show history
+                  </Text>
+                </Button>
+              </Drawer.Trigger>
+              <Portal>
+                <Drawer.Backdrop bg="blackAlpha.500" />
+                <Drawer.Positioner>
+                  <Drawer.Content maxH="84vh" roundedTop="xl" bg="bg.sidebar">
+                    <Drawer.Header borderBottomWidth="1px" borderColor="border.subtle" px="5" py="4">
+                      <Flex align="center" justify="space-between" gap="4" pr="8">
+                        <Box minW="0">
+                          <Drawer.Title fontSize="lg" fontWeight="semibold">
+                            Conversations
+                          </Drawer.Title>
+                          <Drawer.Description srOnly>
+                            Chat conversation history
+                          </Drawer.Description>
+                        </Box>
+                      </Flex>
+                    </Drawer.Header>
+                    <Drawer.Body display="flex" minH="0" flexDirection="column" overflow="hidden" px="5" py="4">
+                      <ChatConversationRail {...mobileConversationRailProps} />
+                    </Drawer.Body>
+                    <Drawer.CloseTrigger asChild>
+                      <CloseButton
+                        size="sm"
+                        position="absolute"
+                        top="3"
+                        right="3"
+                        aria-label="Close conversations"
+                      />
+                    </Drawer.CloseTrigger>
+                  </Drawer.Content>
+                </Drawer.Positioner>
+              </Portal>
+            </Drawer.Root>
           </Box>
         </Box>
 
-        <Box minH="0" minW="0" flex="1" overflowY="auto" overflowX="hidden">
-          {shouldShowEmptyState ? (
-            <ChatEmptyState
-              title={experience.emptyTitle}
-              description={experience.emptyDescription}
-              promptSuggestions={experience.promptSuggestions}
-              guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
-              onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
-              onPromptSelect={(prompt) => {
-                void handleSend(prompt);
-              }}
-            />
-          ) : selectedChatQuery.isLoading && messages.length === 0 ? (
-            <Flex
-              minH="24rem"
-              align="center"
-              justify="center"
-              gap="2"
-              px="6"
-              py="10"
-              fontSize="sm"
-              color="fg.muted"
-            >
-              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-              Loading conversation
-            </Flex>
-          ) : (
-            <Flex
-              direction="column"
-              gap="4"
-              mx="auto"
-              minW="0"
-              w="100%"
-              maxW="72rem"
-              overflowX="hidden"
-              px="4"
-              pt={{ base: '5', md: '6' }}
-              pb="12"
-              sm={{ px: '6' }}
-            >
-              <Box mt="auto" aria-hidden="true" />
-              {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  currentVaultId={vaultId}
-                  scope={scope}
-                  activeStatus={streamStatus}
-                  metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
-                  onQuickReplySelect={
-                    isGlobalChat
-                      ? (reply) => {
-                          void handleSend(reply, effectiveIntent);
-                        }
-                      : undefined
-                  }
+        <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
+          <ScrollArea.Viewport h="full">
+            <ScrollArea.Content minH="full">
+              {shouldShowEmptyState ? (
+                <ChatEmptyState
+                  title={experience.emptyTitle}
+                  description={experience.emptyDescription}
+                  promptSuggestions={experience.promptSuggestions}
+                  guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
+                  onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
+                  onPromptSelect={(prompt) => {
+                    void handleSend(prompt);
+                  }}
                 />
-              ))}
-              {streamingText.length > 0 || isStreaming ? (
-                <Flex gap="3">
-                  <Flex
-                    mt="1"
-                    boxSize="9"
-                    shrink="0"
-                    align="center"
-                    justify="center"
-                    rounded="lg"
-                    bg="teal.subtle"
-                    color="teal.fg"
-                  >
-                    <Sparkles size={16} />
-                  </Flex>
-                  <Box maxW="min(42rem, 100%)">
-                    <Box
-                      rounded="lg"
-                      bg="bg.surface"
-                      px="5"
-                      py="4"
-                      fontSize="sm"
-                      lineHeight="1.75"
-                      color="fg"
-                      borderWidth="1px"
-                      borderColor="border.subtle"
-                    >
-                      {streamingText.length > 0 ? (
-                        <MarkdownMessage content={streamingText} citations={[]} />
-                      ) : (
-                        <Flex align="center" gap="2" color="fg.muted">
-                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                          {statusLabel(streamStatus, scope)}
-                        </Flex>
-                      )}
-                    </Box>
-                    <Text mt="2" fontSize="xs" color="fg.muted">
-                      {statusLabel(streamStatus, scope)}
-                    </Text>
-                  </Box>
+              ) : selectedChatQuery.isLoading && messages.length === 0 ? (
+                <ChatConversationSkeleton />
+              ) : (
+                <Flex
+                  direction="column"
+                  gap="4"
+                  mx="auto"
+                  minW="0"
+                  w="100%"
+                  maxW="72rem"
+                  overflowX="hidden"
+                  px="4"
+                  pt={{ base: '5', md: '6' }}
+                  pb="12"
+                  sm={{ px: '6' }}
+                >
+                  <Box mt="auto" aria-hidden="true" />
+                  {messages.map((message) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      currentVaultId={vaultId}
+                      scope={scope}
+                      activeStatus={streamStatus}
+                      metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
+                      onQuickReplySelect={
+                        isGlobalChat
+                          ? (reply) => {
+                              void handleSend(reply, effectiveIntent);
+                            }
+                          : undefined
+                      }
+                    />
+                  ))}
+                  {streamingText.length > 0 || isStreaming ? (
+                    <Flex gap="3">
+                      <Flex
+                        mt="1"
+                        boxSize="9"
+                        shrink="0"
+                        align="center"
+                        justify="center"
+                        rounded="lg"
+                        bg="teal.subtle"
+                        color="teal.fg"
+                      >
+                        <Sparkles size={16} />
+                      </Flex>
+                      <Box w="100%" maxW="min(44rem, calc(100% - 3rem))">
+                        <Box
+                          rounded="lg"
+                          bg="bg.surface"
+                          px="5"
+                          py="4"
+                          fontSize="sm"
+                          lineHeight="1.75"
+                          color="fg"
+                          borderWidth="1px"
+                          borderColor="border.subtle"
+                        >
+                          {streamingText.length > 0 ? (
+                            <MarkdownMessage content={streamingText} citations={[]} />
+                          ) : (
+                            <StreamingAnswerSkeleton label={statusLabel(streamStatus, scope)} />
+                          )}
+                        </Box>
+                      </Box>
+                    </Flex>
+                  ) : null}
+                  <div ref={messagesEndRef} />
                 </Flex>
-              ) : null}
-              <div ref={messagesEndRef} />
-            </Flex>
-          )}
-        </Box>
+              )}
+            </ScrollArea.Content>
+          </ScrollArea.Viewport>
+          <ScrollArea.Scrollbar bg="transparent">
+            <ScrollArea.Thumb />
+          </ScrollArea.Scrollbar>
+        </ScrollArea.Root>
 
         <ChatInputPanel
           disabled={isStreaming || createConversation.isPending}
@@ -590,5 +566,67 @@ export function ChatWorkspace({
         />
       </Box>
     </Box>
+  );
+}
+
+function StreamingAnswerSkeleton({ label }: { label: string }) {
+  return (
+    <Flex direction="column" gap="3" w="100%" minW="12rem">
+      <Status.Root colorPalette="teal" size="sm">
+        <Status.Indicator />
+        {label}
+      </Status.Root>
+      <Flex direction="column" gap="2" w="100%">
+        <Skeleton h="3" w="100%" />
+        <Skeleton h="3" w="92%" />
+        <Skeleton h="3" w="72%" />
+      </Flex>
+    </Flex>
+  );
+}
+
+function ChatConversationSkeleton() {
+  return (
+    <Flex
+      direction="column"
+      gap="5"
+      mx="auto"
+      w="100%"
+      maxW="72rem"
+      px="4"
+      py={{ base: '5', md: '6' }}
+      sm={{ px: '6' }}
+    >
+      <Status.Root colorPalette="teal" size="sm" color="fg.muted">
+        <Status.Indicator />
+        Loading conversation
+      </Status.Root>
+
+      <Flex gap="3" align="flex-start">
+        <Skeleton boxSize="9" rounded="lg" flexShrink="0" />
+        <Box
+          w="100%"
+          maxW="44rem"
+          rounded="lg"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.surface"
+          px="5"
+          py="4"
+        >
+          <Skeleton h="4" maxW="82%" mb="3" />
+          <Skeleton h="4" maxW="96%" mb="3" />
+          <Skeleton h="4" maxW="64%" />
+        </Box>
+      </Flex>
+
+      <Flex gap="3" justify="flex-end">
+        <Box w="100%" maxW="32rem" rounded="xl" bg="teal.subtle" px="4" py="3">
+          <Skeleton h="4" maxW="92%" mb="3" />
+          <Skeleton h="4" maxW="54%" />
+        </Box>
+        <Skeleton boxSize="9" rounded="lg" flexShrink="0" />
+      </Flex>
+    </Flex>
   );
 }

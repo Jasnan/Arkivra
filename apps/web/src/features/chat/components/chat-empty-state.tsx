@@ -1,4 +1,4 @@
-import { Flex, Text, chakra } from '@chakra-ui/react';
+import { Flex, SimpleGrid, Text, chakra } from '@chakra-ui/react';
 import { MessageSquare } from 'lucide-react';
 import type { Search } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
@@ -35,23 +35,31 @@ export function ChatEmptyState({
           <MessageSquare size={22} />
         </Flex>
 
-        <Flex direction="column" gap="1" mt="4">
+        <Flex direction="column" gap="0" mt="3">
           <Text as="h3" fontSize={{ base: 'xl', sm: '2xl' }} fontWeight="semibold" letterSpacing="tight" color="fg">
             {title}
           </Text>
-          <Text fontSize="sm" lineHeight="6" color="fg.muted" maxW="container.sm" mx="auto">
+          <Text fontSize="sm" lineHeight="1.45" color="fg.muted" maxW="container.sm" mx="auto">
             {description}
           </Text>
         </Flex>
 
         {hasGuidedPrompts ? (
-          <Flex direction={{ base: 'column', sm: 'row' }} gap="3" mt="5" w="100%" maxW="container.md" flexWrap="wrap">
+          <SimpleGrid
+            columns={{ base: 1, sm: 2, xl: 4 }}
+            gap="3"
+            mt="5"
+            w="100%"
+            maxW="72rem"
+          >
             {guidedPrompts?.map((prompt) => {
               const Icon = prompt.icon;
               return (
                 <chakra.button
                   key={prompt.id}
                   type="button"
+                  display="flex"
+                  alignItems="flex-start"
                   rounded="lg"
                   borderWidth="1px"
                   borderColor="border.subtle"
@@ -60,12 +68,11 @@ export function ChatEmptyState({
                   textAlign="left"
                   shadow="xs"
                   cursor="pointer"
-                  flex="1"
-                  minW="240px"
+                  minH="9.5rem"
                   _hover={{ borderColor: 'teal.muted', bg: 'bg.subtle' }}
                   onClick={() => onGuidedPromptSelect?.(prompt)}
                 >
-                  <Flex gap="3">
+                  <Flex align="flex-start" gap="3">
                     <Flex
                       boxSize="10"
                       shrink="0"
@@ -77,14 +84,14 @@ export function ChatEmptyState({
                     >
                       <Icon size={18} />
                     </Flex>
-                    <Flex direction="column" gap="1" minW="0">
+                    <Flex direction="column" gap="2" minW="0">
                       <Text fontSize="sm" fontWeight="semibold" color="fg">
                         {prompt.title}
                       </Text>
-                      <Text fontSize="sm" lineHeight="6" color="fg.muted">
+                      <Text fontSize="sm" lineHeight="1.45" color="fg.muted">
                         {prompt.description}
                       </Text>
-                      <Text fontSize="xs" color="fg.muted">
+                      <Text mt="1" fontSize="xs" lineHeight="1.4" color="fg.muted">
                         {prompt.example}
                       </Text>
                     </Flex>
@@ -92,7 +99,7 @@ export function ChatEmptyState({
                 </chakra.button>
               );
             })}
-          </Flex>
+          </SimpleGrid>
         ) : (
           <Flex mt="5" w="100%" maxW="container.md" justify="center" gap="2.5" flexWrap="wrap">
             {promptSuggestions.map(({ label, icon: Icon }) => (

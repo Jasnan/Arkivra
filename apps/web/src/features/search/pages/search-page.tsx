@@ -1,15 +1,8 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useState } from 'react';
 import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
-import { Archive, ArrowRight, Search as SearchIcon, Tags, Vault } from 'lucide-react';
+import { FileSearch, FileText, SearchX, Vault } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
-import {
-  PageIntro,
-  SectionTitle,
-  StatCard,
-  SurfacePanel,
-} from '@/components/layout/vault-ui';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -21,20 +14,354 @@ import { DatePresetSelector } from '@/features/documents/components/date-preset-
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
 import { DocumentSearchControls } from '@/features/documents/components/document-search-controls';
 import type { DocumentSearchControlFilter } from '@/features/documents/components/document-search-controls';
-import { formatDate } from '@/features/documents/documents.utils';
+import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
-import { stripSnippetMarkup, tokenizeSnippet } from '@/features/search/search.utils';
-import type { SearchSortBy } from '@/features/search/search.types';
+import { tokenizeSnippet } from '@/features/search/search.utils';
+import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
-const PAGE_SIZE = 10;
+const SEARCH_RESULT_LIMIT = 25;
+const SEARCH_TERM_SEPARATOR = /\s+/;
+const SNIPPET_WHITESPACE = /\s+/g;
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
   { value: 'created_desc', label: 'Newest' },
   { value: 'created_asc', label: 'Oldest upload' },
   { value: 'name_asc', label: 'Name A-Z' },
   { value: 'name_desc', label: 'Name Z-A' },
 ];
+const SEARCH_RESULT_COLUMNS = 'minmax(0, 1fr) minmax(7rem, 9rem) minmax(5.5rem, 7rem) minmax(8rem, 10rem)';
+const SEARCH_RETURN_SOURCE = 'search';
+
+function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
+  const extension = name.split('.').pop()?.trim().toUpperCase();
+
+  if (extension && extension.length <= 5) {
+    return extension;
+  }
+
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType.startsWith('image/')) return 'IMG';
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) return 'XLS';
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'DOC';
+  if (mimeType.startsWith('text/')) return 'TXT';
+
+  return 'FILE';
+}
+
+function FileTypeBadge({ name, mimeType }: { name: string; mimeType: string }) {
+  return (
+    <Flex
+      boxSize="9"
+      shrink={0}
+      align="center"
+      justify="center"
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="border.subtle"
+      bg="bg.surface"
+      color="fg.muted"
+      aria-hidden="true"
+    >
+      <Stack align="center" gap="0" lineHeight="none">
+        <FileText size={14} />
+        <Text as="span" fontSize="0.58rem" fontWeight="bold">
+          {getDocumentTypeLabel({ name, mimeType })}
+        </Text>
+      </Stack>
+    </Flex>
+  );
+}
+
+function ResultTagPill({ name, color }: { name: string; color: string | null }) {
+  return (
+    <Box
+      as="span"
+      display="inline-flex"
+      alignItems="center"
+      rounded="md"
+      px="2"
+      py="0.5"
+      fontSize="xs"
+      fontWeight="medium"
+      bg={color ? `${color}18` : 'bg.subtle'}
+      color={color ?? 'fg.muted'}
+    >
+      {name}
+    </Box>
+  );
+}
+
+function getSearchReturnParams({
+  query,
+  vaultId,
+  tagId,
+  dateFrom,
+  dateTo,
+  sortBy,
+}: {
+  query: string;
+  vaultId: string;
+  tagId: string;
+  dateFrom: string;
+  dateTo: string;
+  sortBy: SearchSortBy;
+}) {
+  const params: Record<string, string> = {
+    source: SEARCH_RETURN_SOURCE,
+    sortBy,
+  };
+  const trimmedQuery = query.trim();
+
+  if (trimmedQuery.length > 0) params.q = trimmedQuery;
+  if (vaultId.length > 0) params.vaultId = vaultId;
+  if (tagId.length > 0) params.tagId = tagId;
+  if (dateFrom.length > 0) params.dateFrom = dateFrom;
+  if (dateTo.length > 0) params.dateTo = dateTo;
+
+  return params;
+}
+
+function tokenizeTextMatches(text: string, query: string) {
+  const terms = Array.from(
+    new Set(query.trim().toLowerCase().split(SEARCH_TERM_SEPARATOR).filter(Boolean)),
+  ).sort((left, right) => right.length - left.length);
+
+  if (terms.length === 0) {
+    return [{ key: '0', text, highlighted: false }];
+  }
+
+  const lowerText = text.toLowerCase();
+  const parts: Array<{ key: string; text: string; highlighted: boolean }> = [];
+  let index = 0;
+
+  while (index < text.length) {
+    let nextStart = -1;
+    let nextTerm = '';
+
+    for (const term of terms) {
+      const termIndex = lowerText.indexOf(term, index);
+
+      if (
+        termIndex !== -1 &&
+        (nextStart === -1 || termIndex < nextStart || (termIndex === nextStart && term.length > nextTerm.length))
+      ) {
+        nextStart = termIndex;
+        nextTerm = term;
+      }
+    }
+
+    if (nextStart === -1) {
+      parts.push({ key: `${parts.length}-${index}`, text: text.slice(index), highlighted: false });
+      break;
+    }
+
+    if (nextStart > index) {
+      parts.push({ key: `${parts.length}-${index}`, text: text.slice(index, nextStart), highlighted: false });
+    }
+
+    parts.push({
+      key: `${parts.length}-${nextStart}`,
+      text: text.slice(nextStart, nextStart + nextTerm.length),
+      highlighted: true,
+    });
+    index = nextStart + nextTerm.length;
+  }
+
+  return parts;
+}
+
+function HighlightedTitle({ text, query }: { text: string; query: string }) {
+  return (
+    <>
+      {tokenizeTextMatches(text, query).map((part) =>
+        part.highlighted ? (
+          <Box
+            as="mark"
+            display="inline"
+            key={part.key}
+            rounded="md"
+            bg="teal.subtle"
+            px="1"
+            py="0.5"
+            color="fg"
+          >
+            {part.text}
+          </Box>
+        ) : (
+          <Text as="span" key={part.key}>
+            {part.text}
+          </Text>
+        ),
+      )}
+    </>
+  );
+}
+
+function normalizeSnippetMarkup(value: string) {
+  return value
+    .replace(SNIPPET_WHITESPACE, ' ')
+    .trim();
+}
+
+function SearchResultSnippet({ result }: { result: SearchResultItem }) {
+  if (!result.bestChunk) {
+    return null;
+  }
+
+  return (
+    <Box minW="0">
+      <Text
+        maxW="full"
+        overflow="hidden"
+        fontSize="sm"
+        lineHeight="1.35"
+        color="fg.muted"
+        whiteSpace="normal"
+        wordBreak="break-word"
+      >
+        {tokenizeSnippet(normalizeSnippetMarkup(result.bestChunk.snippet)).map((part) =>
+          part.highlighted ? (
+            <Box
+              as="mark"
+              display="inline"
+              key={`${result.documentId}-${part.key}`}
+              rounded="md"
+              bg="teal.subtle"
+              px="1"
+              py="0"
+              color="fg"
+              lineHeight="inherit"
+            >
+              {part.text}
+            </Box>
+          ) : (
+            <Text as="span" key={`${result.documentId}-${part.key}`}>
+              {part.text}
+            </Text>
+          ),
+        )}
+      </Text>
+
+      <Flex mt="1" flexWrap="wrap" gap="1">
+        {result.bestChunk.pageNumber !== null ? (
+          <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
+            Page {result.bestChunk.pageNumber}
+          </Box>
+        ) : null}
+        <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
+          {result.matchedChunksCount} matching chunk{result.matchedChunksCount === 1 ? '' : 's'}
+        </Box>
+        {result.bestChunk.chunkType ? (
+          <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
+            {result.bestChunk.chunkType}
+          </Box>
+        ) : null}
+      </Flex>
+    </Box>
+  );
+}
+
+function SearchResultRow({
+  result,
+  detailSearch,
+  query,
+}: {
+  result: SearchResultItem;
+  detailSearch: Record<string, string>;
+  query: string;
+}) {
+  const documentTo = ROUTES.vaultDocument(result.vaultId, result.documentId);
+  const visibleTags = (result.tags ?? []).slice(0, 2);
+  const remainingTagsCount = Math.max(0, (result.tags ?? []).length - visibleTags.length);
+
+  return (
+    <Link
+      to={documentTo}
+      search={detailSearch as any}
+      style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
+      aria-label={`Open ${result.name}`}
+    >
+      <Grid
+        as="article"
+        alignItems="start"
+        templateColumns={{ base: '1fr', md: SEARCH_RESULT_COLUMNS }}
+        gap={{ base: '3', xl: '4' }}
+        borderBottomWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.workspace"
+        px={{ base: '4', lg: '6' }}
+        py="4"
+        cursor="pointer"
+        transition="background-color 0.15s ease"
+        _hover={{ bg: 'bg.workspaceMuted' }}
+      >
+        <Flex minW="0" maxW="full" overflow="hidden" align="flex-start" gap="3">
+          <FileTypeBadge name={result.name} mimeType={result.mimeType} />
+          <Box minW="0" maxW="full" overflow="hidden">
+            <Text
+              truncate
+              fontSize="sm"
+              fontWeight="semibold"
+              color="fg"
+              transition="colors"
+              _hover={{ color: 'teal.solid' }}
+            >
+              <HighlightedTitle text={result.name} query={query} />
+            </Text>
+            {result.originalName !== result.name ? (
+              <Text mt="1" truncate fontSize="xs" color="fg.muted">
+                {result.originalName}
+              </Text>
+            ) : null}
+            <Box mt="1.5">
+              <SearchResultSnippet result={result} />
+            </Box>
+          </Box>
+        </Flex>
+
+        <Stack gap="2" minW="0">
+          <Flex align="center" gap="2" minW="0" color="fg">
+            <Vault size={14} />
+            <Text truncate fontSize="sm" fontWeight="medium">
+              {result.vaultName}
+            </Text>
+          </Flex>
+          {(result.tags ?? []).length > 0 ? (
+            <Flex flexWrap="wrap" gap="1.5">
+              {visibleTags.map((tag) => (
+                <ResultTagPill key={tag.id} name={tag.name} color={tag.color} />
+              ))}
+              {remainingTagsCount > 0 ? (
+                <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" color="fg.muted">
+                  +{remainingTagsCount}
+                </Box>
+              ) : null}
+            </Flex>
+          ) : null}
+        </Stack>
+
+        <Stack gap="1" minW="0">
+          <Text fontSize="sm" color="fg">
+            {formatBytes(result.originalSize)}
+          </Text>
+          <Text fontSize="xs" color="fg.muted">
+            {result.mimeType}
+          </Text>
+        </Stack>
+
+        <Stack gap="1" minW="0">
+          <Text fontSize="sm" color="fg">
+            {formatDate(result.updatedAt)}
+          </Text>
+          <Text fontSize="xs" color="fg.muted">
+            Document date: {formatDate(result.documentDate)}
+          </Text>
+        </Stack>
+      </Grid>
+    </Link>
+  );
+}
 
 function isSearchSortBy(value: string | undefined): value is SearchSortBy {
   return value === 'created_desc'
@@ -121,30 +448,34 @@ export function SearchPage() {
   const dateFrom = search.dateFrom ?? '';
   const dateTo = search.dateTo ?? '';
   const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
-  const pageIndex = Number.parseInt(search.pageIndex ?? '0', 10) || 0;
 
   useEffect(() => {
+    const trimmedQuery = query.trim();
+    if ((search.q ?? '') === trimmedQuery) {
+      return;
+    }
+
     navigate({
       search: (prev: Record<string, string>) => {
         const next: Record<string, string> = { ...prev }
-        if (query.trim().length > 0) {
-          next.q = query.trim()
+        if (trimmedQuery.length > 0) {
+          next.q = trimmedQuery
         } else {
           delete next.q
         }
-        next.pageIndex = '0'
+        delete next.pageIndex
         return next
       },
       replace: true,
     } as any)
-  }, [query, navigate]);
+  }, [query, navigate, search.q]);
 
   const vaultsQuery = useVaultsQuery();
   const tagsQuery = useAccessibleTagsQuery({ vaultId: vaultId || undefined });
   const searchQuery = useGlobalSearchDocumentsQuery({
     query: deferredQuery,
-    pageIndex,
-    pageSize: PAGE_SIZE,
+    pageIndex: 0,
+    pageSize: SEARCH_RESULT_LIMIT,
     vaultId: vaultId || undefined,
     tagId: tagId || undefined,
     dateFrom: dateFrom || undefined,
@@ -158,11 +489,6 @@ export function SearchPage() {
       dateTo.length > 0,
   });
 
-  const totalPages = useMemo(() => {
-    const count = searchQuery.data?.resultsCount ?? 0;
-    return Math.max(1, Math.ceil(count / PAGE_SIZE));
-  }, [searchQuery.data?.resultsCount]);
-
   const selectedVault = (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === vaultId);
   const selectedTag = (tagsQuery.data?.tags ?? []).find((tag) => tag.id === tagId);
 
@@ -174,7 +500,7 @@ export function SearchPage() {
           if (value) next[key] = value
           else delete next[key]
         }
-        next.pageIndex = '0'
+        delete next.pageIndex
         return next
       },
       replace: true,
@@ -224,45 +550,25 @@ export function SearchPage() {
       : []),
   ];
   const hasActiveSearch = deferredQuery.length > 0 || activeFilters.length > 0;
+  const results = searchQuery.data?.results ?? [];
+  const resultCount = searchQuery.data?.resultsCount ?? 0;
+  const shownCount = results.length;
+  const matchLabel = resultCount > shownCount && shownCount > 0
+    ? `${shownCount} of ${resultCount} matches`
+    : `${resultCount} match${resultCount === 1 ? '' : 'es'}`;
+  const detailSearch = getSearchReturnParams({
+    query: deferredQuery,
+    vaultId,
+    tagId,
+    dateFrom,
+    dateTo,
+    sortBy,
+  });
 
   return (
-    <Stack as="section" gap="8" pb="8">
-      <PageIntro
-        eyebrow="Global Discovery"
-        title="Search across vaults"
-        description="Run full-text discovery across every vault you can access, then narrow results by vault, tag, or document date."
-      />
-
-      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }}>
-        <StatCard
-          label="Accessible vaults"
-          value={(vaultsQuery.data?.vaults ?? []).length}
-          meta="Search spans only the workspaces your account can reach."
-          icon={<Vault size={20} />}
-        />
-        <StatCard
-          label="Current scope"
-          value={vaultId ? 'Focused' : 'All vaults'}
-          meta={
-            vaultId
-              ? 'Results are limited to one selected vault.'
-              : 'Results can come from any accessible vault.'
-          }
-          icon={<Archive size={20} />}
-        />
-        <StatCard
-          label="Matches"
-          value={hasActiveSearch ? (searchQuery.data?.resultsCount ?? 0) : 0}
-          meta={
-            hasActiveSearch
-              ? 'Count updates as search terms and filters change.'
-              : 'Start typing to query extracted text.'
-          }
-          icon={<SearchIcon size={20} />}
-        />
-      </Grid>
-
+    <Flex as="section" h="full" minH="0" direction="column" overflow="hidden" bg="bg.workspace">
       <DocumentSearchControls
+        layout="workspace"
         query={query}
         onQueryChange={setQuery}
         searchPlaceholder="Search invoices, clauses, names..."
@@ -353,225 +659,119 @@ export function SearchPage() {
         }
       />
 
-      {!hasActiveSearch ? (
-        <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="3">
-          <Text textStyle="label">Discovery Idle</Text>
-          <Text fontSize="sm" lineHeight="6" color="fg.muted">
-            Start typing to search extracted text across all accessible vaults.
-          </Text>
-        </SurfacePanel>
-      ) : (
-        <SurfacePanel display="flex" flexDirection="column" gap="5">
-          <SectionTitle
-            eyebrow="Search Results"
-            title="Matches"
-            action={
+      <Box flex="1" minH="0" overflowY="auto" bg="bg.workspace">
+        {!hasActiveSearch ? (
+          <Flex h="full" minH="0" align="center" justify="center" px="6" py="10">
+            <Stack align="center" gap="3" maxW="md" color="fg.muted" textAlign="center">
+              <FileSearch size={32} />
+              <Text fontWeight="semibold" color="fg">
+                Search your documents
+              </Text>
+            </Stack>
+          </Flex>
+        ) : (
+          <>
+            <Flex
+              align={{ base: 'stretch', md: 'center' }}
+              direction={{ base: 'column', md: 'row' }}
+              justify="space-between"
+              gap="3"
+              borderBottomWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.workspace"
+              px={{ base: '4', lg: '6' }}
+              py="3"
+            >
+              <Stack gap="0.5">
+                <Text fontSize="sm" fontWeight="semibold" color="fg">
+                  Matches
+                </Text>
+              </Stack>
               <Box
-                display="inline-flex"
-                alignItems="center"
-                gap="1.5"
+                alignSelf={{ base: 'flex-start', md: 'center' }}
                 rounded="full"
-                bg="bg.subtle"
+                bg="bg.surface"
+                borderWidth="1px"
+                borderColor="border.subtle"
                 px="3"
                 py="1"
                 fontSize="xs"
                 fontWeight="semibold"
                 color="fg"
               >
-                {searchQuery.data?.resultsCount ?? 0} matches
+                {searchQuery.isLoading ? 'Searching...' : matchLabel}
               </Box>
-            }
-          />
-
-          {searchQuery.isLoading ? (
-            <Text fontSize="sm" color="fg.muted">Searching...</Text>
-          ) : null}
-          {searchQuery.isError ? (
-            <Text fontSize="sm" color="fg.error">Unable to search your vaults.</Text>
-          ) : null}
-
-          {!searchQuery.isLoading && (searchQuery.data?.results.length ?? 0) === 0 ? (
-            <Box rounded="lg" borderWidth="1px" borderStyle="dashed" borderColor="border" bg="bg.subtle" p="4" color="fg.muted">
-              No documents matched your query and filters.
-            </Box>
-          ) : (
-            <Stack gap="4">
-              {(searchQuery.data?.results ?? []).map((result) => (
-                <Box
-                  key={`${result.vaultId}-${result.documentId}`}
-                  rounded="lg"
-                  bg="bg.subtle"
-                  p="5"
-                >
-                  <Stack gap="4">
-                    <Flex
-                      direction={{ base: 'column', lg: 'row' }}
-                      align={{ lg: 'flex-start' }}
-                      justify={{ lg: 'space-between' }}
-                      gap="3"
-                    >
-                      <Stack gap="3">
-                        <Box>
-                          <Link
-                            to={ROUTES.vaultDocument(result.vaultId, result.documentId)}
-                            style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--chakra-colors-fg)' }}
-                          >
-                            {result.name}
-                          </Link>
-                          <Text mt="2" fontSize="sm" color="fg.muted">
-                            {result.vaultName} • {result.mimeType} • {result.matchedChunksCount}{' '}
-                            matching chunk{result.matchedChunksCount === 1 ? '' : 's'} • Updated{' '}
-                            {formatDate(result.updatedAt)}
-                          </Text>
-                          <Text fontSize="sm" color="fg.muted">
-                            Document date: {formatDate(result.documentDate)}
-                          </Text>
-                        </Box>
-
-                        <Flex gap="2" flexWrap="wrap">
-                          <Flex
-                            display="inline-flex"
-                            align="center"
-                            gap="1.5"
-                            rounded="full"
-                            bg="bg.subtle"
-                            px="3"
-                            py="1"
-                            fontSize="xs"
-                            fontWeight="semibold"
-                            color="fg"
-                          >
-                            <Vault size={14} />
-                            <Text as="span">{result.vaultName}</Text>
-                          </Flex>
-                          {result.bestChunk ? (
-                            <Flex
-                              display="inline-flex"
-                              align="center"
-                              gap="1.5"
-                              rounded="full"
-                              bg="bg.subtle"
-                              px="3"
-                              py="1"
-                              fontSize="xs"
-                              fontWeight="semibold"
-                              color="fg"
-                            >
-                              <Tags size={14} />
-                              <Text as="span">{result.bestChunk.chunkType ?? 'text chunk'}</Text>
-                            </Flex>
-                          ) : null}
-                        </Flex>
-                      </Stack>
-
-                      <Link
-                        to={ROUTES.vaultDocument(result.vaultId, result.documentId)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--chakra-colors-teal-solid)', fontWeight: 600, fontSize: '0.875rem' }}
-                      >
-                        Open document
-                        <ArrowRight size={16} />
-                      </Link>
-                    </Flex>
-
-                    {result.bestChunk ? (
-                      <>
-                        <Box rounded="lg" bg="bg.surface" p="4" fontSize="sm" lineHeight="7" color="fg">
-                          <Text textStyle="label" mb="3">
-                            Best matching snippet
-                            {result.bestChunk.pageNumber !== null
-                              ? ` • Page ${result.bestChunk.pageNumber}`
-                              : ''}
-                          </Text>
-                          <Box wordBreak="break-word">
-                            {tokenizeSnippet(result.bestChunk.snippet).map((part) =>
-                              part.highlighted ? (
-                                <Box
-                                  as="mark"
-                                  key={`${result.documentId}-${part.key}`}
-                                  rounded="md"
-                                  bg="teal.subtle"
-                                  px="1.5"
-                                  py="0.5"
-                                  color="fg"
-                                >
-                                  {part.text}
-                                </Box>
-                              ) : (
-                                <Text as="span" key={`${result.documentId}-${part.key}`}>{part.text}</Text>
-                              ),
-                            )}
-                          </Box>
-                        </Box>
-
-                        <Box
-                          as="details"
-                          rounded="lg"
-                          bg="bg.subtle"
-                          p="4"
-                          fontSize="sm"
-                          color="fg.muted"
-                        >
-                          <Box
-                            as="summary"
-                            cursor="pointer"
-                            fontWeight="semibold"
-                            color="fg"
-                          >
-                            Matched chunk preview
-                          </Box>
-                          <Text mt="3" whiteSpace="pre-wrap" wordBreak="break-word" lineHeight="6">
-                            {stripSnippetMarkup(result.bestChunk.content)}
-                          </Text>
-                        </Box>
-                      </>
-                    ) : null}
-                  </Stack>
-                </Box>
-              ))}
-            </Stack>
-          )}
-
-          <Flex
-            direction={{ base: 'column', sm: 'row' }}
-            align={{ base: 'stretch', sm: 'center' }}
-            justify={{ base: 'flex-start', sm: 'space-between' }}
-            gap="3"
-            pt="2"
-          >
-            <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.24em" color="fg.muted">
-              Page {pageIndex + 1} of {totalPages}
-            </Text>
-            <Flex gap="2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pageIndex === 0}
-                onClick={() => {
-                  navigate({
-                    search: (prev: Record<string, string>) => ({ ...prev, pageIndex: String(Math.max(0, pageIndex - 1)) }),
-                    replace: true,
-                  } as any)
-                }}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pageIndex >= totalPages - 1}
-                onClick={() => {
-                  navigate({
-                    search: (prev: Record<string, string>) => ({ ...prev, pageIndex: String(Math.min(totalPages - 1, pageIndex + 1)) }),
-                    replace: true,
-                  } as any)
-                }}
-              >
-                Next
-              </Button>
             </Flex>
-          </Flex>
-        </SurfacePanel>
-      )}
-    </Stack>
+
+            {searchQuery.isError ? (
+              <Box px={{ base: '4', lg: '6' }} py="5">
+                <Text fontSize="sm" color="fg.error">Unable to search your vaults.</Text>
+              </Box>
+            ) : null}
+
+            {!searchQuery.isLoading && !searchQuery.isError && results.length === 0 ? (
+              <Flex px={{ base: '4', lg: '6' }} py="8">
+                <Stack
+                  align="center"
+                  gap="3"
+                  w="full"
+                  rounded="lg"
+                  borderWidth="1px"
+                  borderStyle="dashed"
+                  borderColor="border.subtle"
+                  bg="bg.surface"
+                  p="6"
+                  color="fg.muted"
+                  textAlign="center"
+                >
+                  <SearchX size={24} />
+                  <Text fontWeight="semibold" color="fg">
+                    No matches found
+                  </Text>
+                  <Text fontSize="sm">
+                    Adjust the query or filters and try again.
+                  </Text>
+                </Stack>
+              </Flex>
+            ) : null}
+
+            {results.length > 0 ? (
+              <>
+                <Grid
+                  display={{ base: 'none', md: 'grid' }}
+                  position="sticky"
+                  top="0"
+                  zIndex="1"
+                  templateColumns={SEARCH_RESULT_COLUMNS}
+                  gap="4"
+                  borderBottomWidth="1px"
+                  borderColor="border.subtle"
+                  bg="bg.workspace"
+                  px="6"
+                  py="3"
+                  fontSize="sm"
+                  color="fg.muted"
+                >
+                  <Text as="span">Name</Text>
+                  <Text as="span">Vault</Text>
+                  <Text as="span">Size</Text>
+                  <Text as="span">Modified</Text>
+                </Grid>
+
+                {results.map((result) => (
+                  <SearchResultRow
+                    key={`${result.vaultId}-${result.documentId}`}
+                    result={result}
+                    detailSearch={detailSearch}
+                    query={deferredQuery}
+                  />
+                ))}
+
+              </>
+            ) : null}
+          </>
+        )}
+      </Box>
+    </Flex>
   );
 }

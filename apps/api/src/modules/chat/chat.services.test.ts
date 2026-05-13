@@ -3,11 +3,13 @@ import type { Citation } from '../search/search.types.js';
 import {
   buildAnswerPrompt,
   buildCitationContext,
+  buildExpandedCitationForChat,
   buildGlobalIntentSystemPrompt,
   encodeSseEvent,
   formatFollowUpAssistantMessage,
   normalizeChatGenerationError,
   parseOllamaChatStream,
+  rankCitationsForQuestion,
 } from './chat.services.js';
 
 const citation: Citation = {
@@ -52,7 +54,74 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('Records are retained for seven years.');
     expect(prompt).toContain('Table 1:\nRow 1: Retention | 7 years');
     expect(prompt).toContain('Figure 1 (page 3): Figure 1. Records retention timeline');
+    expect(prompt).toContain('Respect explicit constraints in the question');
     expect(prompt).toContain('If the retrieved context is insufficient');
+  });
+
+  test('merges same-document hits into expanded page context for chat answers', () => {
+    const expanded = buildExpandedCitationForChat({
+      citations: [
+        citation,
+        {
+          ...citation,
+          chunkId: 'chk_2',
+          pageStart: 3,
+          pageEnd: 3,
+          section: 'Refund',
+          sourceElementIds: ['el_chunk_3'],
+          snippet: 'The account refund amount is listed separately.',
+          score: 0.9,
+        },
+      ],
+      contextChunks: [
+        {
+          chunkId: 'ctx_1',
+          chunkIndex: 2,
+          pageStart: 2,
+          pageEnd: 2,
+          section: 'Assessment',
+          snippet: 'The notice is for tax year 2018.',
+        },
+        {
+          chunkId: 'ctx_2',
+          chunkIndex: 3,
+          pageStart: 3,
+          pageEnd: 3,
+          section: 'Refund',
+          snippet: 'A refund of 3,133.65 is returned to the account.',
+        },
+      ],
+    });
+
+    expect(expanded?.pageStart).toBe(2);
+    expect(expanded?.pageEnd).toBe(3);
+    expect(expanded?.citationPrecision).toBe('page');
+    expect(expanded?.score).toBe(0.9);
+    expect(expanded?.sourceElementIds).toEqual(['el_chunk_1', 'el_chunk_2', 'el_chunk_3']);
+    expect(expanded?.snippet).toContain('Page 2 - Assessment: The notice is for tax year 2018.');
+    expect(expanded?.snippet).toContain('Page 3 - Refund: A refund of 3,133.65 is returned to the account.');
+  });
+
+  test('prioritizes citations that match explicit year constraints', () => {
+    const citation2019: Citation = {
+      ...citation,
+      chunkId: 'chk_2019',
+      documentId: 'doc_2019',
+      documentName: 'Tax notice 2019',
+      snippet: 'A refund of 179.58 is due for 2019.',
+    };
+    const citation2018: Citation = {
+      ...citation,
+      chunkId: 'chk_2018',
+      documentId: 'doc_2018',
+      documentName: 'Tax notice 2018',
+      snippet: 'The 2018 notice shows a refund to the account.',
+    };
+
+    expect(rankCitationsForQuestion({
+      question: 'Is there a tax refund for 2018?',
+      citations: [citation2019, citation2018],
+    }).map(item => item.documentId)).toEqual(['doc_2018', 'doc_2019']);
   });
 
   test('builds compare intent system prompts for guided follow-ups', () => {

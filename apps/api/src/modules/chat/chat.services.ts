@@ -1,7 +1,7 @@
 import type { Database } from '../database/database.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
 import { serializeTableHtmlForRetrieval } from '../parsing/table-formatting.js';
-import type { Citation, DocumentSearchServices } from '../search/search.types.js';
+import type { Citation, CitationImageAsset, DocumentSearchServices } from '../search/search.types.js';
 import type {
   ChatConversation,
   ChatConversationDetail,
@@ -11,7 +11,7 @@ import type {
   ChatMessageMetadata,
   ChatStreamEvent,
 } from './chat.types.js';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   chatConversationsTable,
@@ -21,8 +21,13 @@ import {
 const DEFAULT_CHAT_TITLE = 'New chat';
 const MAX_CONTEXT_CITATIONS = 8;
 const TEXT_ONLY_CONTEXT_CITATIONS = 4;
+const CHAT_CONTEXT_PAGE_RADIUS = 1;
+const MAX_EXPANDED_CONTEXT_CHUNKS = 18;
+const MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH = 3600;
+const MAX_CONTEXT_CHUNK_SNIPPET_LENGTH = 620;
 const MAX_RECENT_MESSAGES = 8;
 const MAX_FOLLOW_UP_EXAMPLES = 2;
+const YEAR_CONSTRAINT_PATTERN = /\b(?:19|20)\d{2}\b/g;
 const GLOBAL_CHAT_BASE_SYSTEM_PROMPT = [
   'You are Arkivra, an AI assistant that helps users search, analyze, and extract insights from their documents.',
   'You operate over multiple documents and may combine information from different sources.',
@@ -332,9 +337,374 @@ async function readOllamaTextResponse(response: Response) {
   return content;
 }
 
+function compactWhitespace(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
 function truncate(value: string, maxLength: number) {
-  const compact = value.replace(/\s+/g, ' ').trim();
+  const compact = compactWhitespace(value);
   return compact.length <= maxLength ? compact : `${compact.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+type PageBounds = {
+  start: number;
+  end: number;
+};
+
+type ChatContextChunkRow = {
+  chunk_id: string;
+  chunk_index: number;
+  page_start: number | null;
+  page_end: number | null;
+  section: string | null;
+  snippet: string | null;
+};
+
+export type ChatContextExpansionChunk = {
+  chunkId: string;
+  chunkIndex: number;
+  pageStart: number | null;
+  pageEnd: number | null;
+  section: string | null;
+  snippet: string;
+};
+
+function getCitationPageBounds(citation: Pick<Citation, 'pageStart' | 'pageEnd'>): PageBounds | null {
+  const start = citation.pageStart ?? citation.pageEnd;
+  const end = citation.pageEnd ?? citation.pageStart;
+
+  if (start === null || end === null) {
+    return null;
+  }
+
+  return {
+    start: Math.min(start, end),
+    end: Math.max(start, end),
+  };
+}
+
+function getChunkPageBounds(chunk: Pick<ChatContextExpansionChunk, 'pageStart' | 'pageEnd'>): PageBounds | null {
+  const start = chunk.pageStart ?? chunk.pageEnd;
+  const end = chunk.pageEnd ?? chunk.pageStart;
+
+  if (start === null || end === null) {
+    return null;
+  }
+
+  return {
+    start: Math.min(start, end),
+    end: Math.max(start, end),
+  };
+}
+
+function formatPageBounds(bounds: PageBounds | null) {
+  if (bounds === null) {
+    return null;
+  }
+
+  return bounds.start === bounds.end
+    ? `Page ${bounds.start}`
+    : `Pages ${bounds.start}-${bounds.end}`;
+}
+
+function mergePageBounds(bounds: Array<PageBounds | null>): PageBounds | null {
+  const presentBounds = bounds.filter((item): item is PageBounds => item !== null);
+
+  if (presentBounds.length === 0) {
+    return null;
+  }
+
+  return {
+    start: Math.min(...presentBounds.map(item => item.start)),
+    end: Math.max(...presentBounds.map(item => item.end)),
+  };
+}
+
+function getExpandedPageWindow(citations: Citation[]): PageBounds | null {
+  const bounds = mergePageBounds(citations.map(getCitationPageBounds));
+
+  if (bounds === null) {
+    return null;
+  }
+
+  return {
+    start: Math.max(1, bounds.start - CHAT_CONTEXT_PAGE_RADIUS),
+    end: bounds.end + CHAT_CONTEXT_PAGE_RADIUS,
+  };
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return [...new Set(values
+    .map(value => value?.trim() ?? '')
+    .filter(value => value.length > 0))];
+}
+
+function uniqueTables(values: string[]) {
+  return [...new Set(values.map(value => value.trim()).filter(value => value.length > 0))];
+}
+
+function mergeCitationImageAssets(citations: Citation[]): CitationImageAsset[] {
+  const assetsById = new Map<string, CitationImageAsset>();
+
+  for (const citation of citations) {
+    for (const asset of citation.imageAssets ?? []) {
+      assetsById.set(asset.assetId, asset);
+    }
+  }
+
+  return [...assetsById.values()];
+}
+
+function getCitationGroupKey(citation: Citation) {
+  return `${citation.vaultId}:${citation.documentId}`;
+}
+
+function groupCitationsByDocument(citations: Citation[]) {
+  const groups: Citation[][] = [];
+  const groupIndexes = new Map<string, number>();
+
+  for (const citation of citations) {
+    const key = getCitationGroupKey(citation);
+    const groupIndex = groupIndexes.get(key);
+
+    if (groupIndex === undefined) {
+      groupIndexes.set(key, groups.length);
+      groups.push([citation]);
+      continue;
+    }
+
+    groups[groupIndex]!.push(citation);
+  }
+
+  return groups;
+}
+
+function formatContextChunkLabel(chunk: ChatContextExpansionChunk) {
+  const pageLabel = formatPageBounds(getChunkPageBounds(chunk));
+  const section = chunk.section?.trim();
+
+  return [pageLabel, section].filter(Boolean).join(' - ');
+}
+
+function buildContextSnippet({
+  citations,
+  contextChunks,
+}: {
+  citations: Citation[];
+  contextChunks: ChatContextExpansionChunk[];
+}) {
+  const fallbackChunks = citations.map((citation, index) => ({
+    chunkId: citation.chunkId,
+    chunkIndex: index,
+    pageStart: citation.pageStart,
+    pageEnd: citation.pageEnd,
+    section: citation.section,
+    snippet: citation.snippet,
+  }));
+  const chunks = contextChunks.length > 0 ? contextChunks : fallbackChunks;
+  const seen = new Set<string>();
+  const parts: string[] = [];
+
+  for (const chunk of chunks) {
+    const snippet = truncate(chunk.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH);
+
+    if (snippet.length === 0 || seen.has(snippet)) {
+      continue;
+    }
+
+    seen.add(snippet);
+    const label = formatContextChunkLabel(chunk);
+    parts.push(label.length > 0 ? `${label}: ${snippet}` : snippet);
+  }
+
+  let output = '';
+
+  for (const part of parts) {
+    const nextOutput = output.length > 0 ? `${output}\n${part}` : part;
+
+    if (nextOutput.length > MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH) {
+      if (output.length === 0) {
+        return truncate(part, MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH);
+      }
+
+      break;
+    }
+
+    output = nextOutput;
+  }
+
+  return output.length > 0
+    ? output
+    : truncate(citations[0]?.snippet ?? '', MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH);
+}
+
+function extractYearConstraints(question: string) {
+  return [...new Set(question.match(YEAR_CONSTRAINT_PATTERN) ?? [])];
+}
+
+function getYearConstraintMatchCount(citation: Citation, years: string[]) {
+  if (years.length === 0) {
+    return 0;
+  }
+
+  const searchableText = [
+    citation.documentName,
+    citation.section,
+    citation.sectionPath?.join(' '),
+    citation.snippet,
+  ].join(' ');
+
+  return years.filter(year => searchableText.includes(year)).length;
+}
+
+export function rankCitationsForQuestion({
+  question,
+  citations,
+}: {
+  question: string;
+  citations: Citation[];
+}) {
+  const years = extractYearConstraints(question);
+
+  if (years.length === 0) {
+    return citations;
+  }
+
+  return citations
+    .map((citation, index) => ({
+      citation,
+      index,
+      yearMatchCount: getYearConstraintMatchCount(citation, years),
+    }))
+    .sort((left, right) =>
+      right.yearMatchCount - left.yearMatchCount
+      || left.index - right.index,
+    )
+    .map(item => item.citation);
+}
+
+export function buildExpandedCitationForChat({
+  citations,
+  contextChunks,
+}: {
+  citations: Citation[];
+  contextChunks: ChatContextExpansionChunk[];
+}): Citation | null {
+  const base = citations[0];
+
+  if (base === undefined) {
+    return null;
+  }
+
+  const contextBounds = mergePageBounds(contextChunks.map(getChunkPageBounds));
+  const citationBounds = mergePageBounds(citations.map(getCitationPageBounds));
+  const mergedBounds = contextBounds ?? citationBounds;
+  const baseBounds = getCitationPageBounds(base);
+  const tablesHtml = uniqueTables(citations.flatMap(citation => citation.tablesHtml));
+  const mergedImageAssets = mergeCitationImageAssets(citations);
+  const imageAssetIds = mergedImageAssets.length > 0
+    ? mergedImageAssets.map(asset => asset.assetId)
+    : uniqueStrings(citations.flatMap(citation => citation.imageAssetIds));
+  const citationPrecision = base.citationPrecision === 'box'
+    && mergedBounds !== null
+    && baseBounds !== null
+    && mergedBounds.start === baseBounds.start
+    && mergedBounds.end === baseBounds.end
+      ? base.citationPrecision
+      : mergedBounds !== null
+          ? 'page'
+          : base.citationPrecision;
+
+  return {
+    ...base,
+    pageStart: mergedBounds?.start ?? base.pageStart,
+    pageEnd: mergedBounds?.end ?? base.pageEnd,
+    snippet: buildContextSnippet({ citations, contextChunks }),
+    sourceElementIds: uniqueStrings(citations.flatMap(citation => citation.sourceElementIds ?? [])),
+    tableSourceElementIds: uniqueStrings(citations.flatMap(citation => citation.tableSourceElementIds ?? [])),
+    boundingBoxes: citationPrecision === 'box' ? base.boundingBoxes : [],
+    citationPrecision,
+    assetType: imageAssetIds.length > 0
+      ? 'image'
+      : tablesHtml.length > 0
+          ? 'table'
+          : base.assetType,
+    tablesHtml,
+    imageAssetIds,
+    imageAssets: mergedImageAssets,
+    score: Math.max(...citations.map(citation => citation.score)),
+  };
+}
+
+async function loadContextChunksForCitationGroup({
+  db,
+  citations,
+}: {
+  db: Database;
+  citations: Citation[];
+}): Promise<ChatContextExpansionChunk[]> {
+  const base = citations[0];
+  const pageWindow = getExpandedPageWindow(citations);
+
+  if (base === undefined || pageWindow === null) {
+    return [];
+  }
+
+  const result = await db.execute<ChatContextChunkRow>(sql`
+    SELECT
+      dc.id AS chunk_id,
+      dc.chunk_index,
+      COALESCE(dc.page_start, dc.page_number) AS page_start,
+      COALESCE(dc.page_end, dc.page_start, dc.page_number) AS page_end,
+      dc.section,
+      COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet
+    FROM document_chunks AS dc
+    WHERE dc.vault_id = ${base.vaultId}
+      AND dc.document_id = ${base.documentId}
+      AND COALESCE(dc.page_end, dc.page_start, dc.page_number) >= ${pageWindow.start}
+      AND COALESCE(dc.page_start, dc.page_number, dc.page_end) <= ${pageWindow.end}
+    ORDER BY dc.chunk_index ASC, dc.id ASC
+    LIMIT ${MAX_EXPANDED_CONTEXT_CHUNKS}
+  `);
+
+  return result.rows.flatMap((row) => {
+    const snippet = compactWhitespace(row.snippet ?? '');
+
+    if (snippet.length === 0) {
+      return [];
+    }
+
+    return [{
+      chunkId: row.chunk_id,
+      chunkIndex: row.chunk_index,
+      pageStart: row.page_start,
+      pageEnd: row.page_end,
+      section: row.section,
+      snippet,
+    }];
+  });
+}
+
+async function expandRetrievedCitationsForChat({
+  db,
+  citations,
+}: {
+  db: Database;
+  citations: Citation[];
+}) {
+  const groups = groupCitationsByDocument(citations);
+  const expandedCitations: Citation[] = [];
+
+  for (const group of groups) {
+    const contextChunks = await loadContextChunksForCitationGroup({ db, citations: group });
+    const expandedCitation = buildExpandedCitationForChat({ citations: group, contextChunks });
+
+    if (expandedCitation !== null) {
+      expandedCitations.push(expandedCitation);
+    }
+  }
+
+  return expandedCitations;
 }
 
 export function normalizeChatGenerationError(error: unknown) {
@@ -503,6 +873,8 @@ export function buildAnswerPrompt({
   return [
     'Answer the user question using only the retrieved Arkivra vault context below.',
     'Write the answer in clear markdown with short paragraphs and lists when helpful.',
+    'Respect explicit constraints in the question, such as years, dates, account details, document names, and vault names.',
+    'Prefer sources that match those constraints. Do not substitute a different year, date, or document unless you say the matching context is unavailable.',
     includeInlineCitations
       ? 'Use inline citation markers that refer to the numbered sources below.'
       : 'Do not include citation markers, source footnotes, or a separate sources section in the answer.',
@@ -1022,7 +1394,10 @@ export function createChatServices({
               limit: citationLimit,
               mode: 'hybrid',
             });
-            citations = result.citations;
+            citations = rankCitationsForQuestion({
+              question: content,
+              citations: await expandRetrievedCitationsForChat({ db, citations: result.citations }),
+            });
             citationsForPersistence = includeInlineCitations ? citations : [];
 
             send({ type: 'status', label: 'generation' });

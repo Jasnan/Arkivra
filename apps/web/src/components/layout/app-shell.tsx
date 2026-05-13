@@ -679,7 +679,7 @@ export function AppShell() {
     location.pathname === ROUTES.chat || (pathParts[0] === 'vaults' && (pathParts[2] === 'chat' || pathParts[3] === 'chat'));
   const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
-  const isFlushVaultRoute = isVaultIndexRoute || isVaultBrowserRoute;
+  const isFlushContentRoute = isVaultIndexRoute || isVaultBrowserRoute || location.pathname === ROUTES.tags;
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]
@@ -833,7 +833,7 @@ export function AppShell() {
 
   const secondaryKind = getSecondaryKind(location.pathname);
   const hideSecondarySidebar = shouldHideSecondarySidebar(location.pathname);
-  const contentPadding = isChatRoute || isFlushVaultRoute ? '0' : { base: '4', lg: '6' };
+  const contentPadding = isChatRoute || isFlushContentRoute ? '0' : { base: '4', lg: '6' };
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -872,13 +872,13 @@ export function AppShell() {
               className="@container/main"
               flex="1"
               minH="0"
-              overflow={isChatRoute || isFlushVaultRoute ? 'hidden' : 'auto'}
+              overflow={isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
               bg="bg.workspace"
               px={contentPadding}
               py="0"
             >
               {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                <Box px={contentPadding} pt={isChatRoute || isFlushVaultRoute ? '3' : '4'}>
+                <Box px={contentPadding} pt={isChatRoute || isFlushContentRoute ? '3' : '4'}>
                   <chakra.button
                     type="button"
                     display="flex"

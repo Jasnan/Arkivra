@@ -170,7 +170,7 @@ describe('tags and documents pages', () => {
     const editInput = within(editDialog).getByLabelText(/^name$/i);
     await user.clear(editInput);
     await user.type(editInput, 'Bills');
-    await user.click(within(editDialog).getByRole('button', { name: /save changes/i }));
+    await user.click(within(editDialog).getByRole('button', { name: /^save$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/tags/tag_1',

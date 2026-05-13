@@ -3,11 +3,11 @@ import { useRef } from 'react';
 import { Box, Flex, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { CreateButton, SaveButton } from '@/components/ui/action-buttons';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { TagBadge } from './tag-badge';
 
 const DEFAULT_TAG_COLORS = [
   '#D8FF75',
@@ -128,10 +128,7 @@ export function TagDialog({
               </chakra.form>
             </ChakraDialog.Body>
             <ChakraDialog.Footer justifyContent="space-between">
-              <Badge variant="secondary" display="flex" alignItems="center" gap="2" rounded="lg" px="2.5" py="1" fontSize="sm" lineHeight="none">
-                <Box aria-hidden="true" boxSize="1.5" rounded="full" style={{ backgroundColor: colorValue }} />
-                <Text as="span">{normalizedName || 'New tag'}</Text>
-              </Badge>
+              <TagBadge color={colorValue} name={normalizedName || 'New tag'} />
               <Flex gap="3">
                 <ChakraDialog.ActionTrigger asChild>
                   <Button variant="outline" onClick={onClose} disabled={isPending}>

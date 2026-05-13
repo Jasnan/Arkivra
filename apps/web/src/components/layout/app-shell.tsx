@@ -165,9 +165,7 @@ function buildBreadcrumbs({
 
     if (parts.length === 2) return base;
     if (parts[2] === 'settings') return [...base, { label: 'Settings' }];
-    if (parts[2] === 'tags') return [...base, { label: 'Tags' }];
     if (parts[2] === 'chat') return [...base, { label: 'Chat' }];
-    if (parts[2] === 'trash') return [...base, { label: 'Trash' }];
     if (parts[3] === 'chat') return [...base, { label: currentDocumentLabel }, { label: 'Chat' }];
     if (parts[2]) return [...base, { label: currentDocumentLabel }];
 
@@ -425,6 +423,7 @@ function SecondarySidebar({
   return (
     <Flex
       as="aside"
+      aria-label="Secondary"
       display={{ base: 'none', md: 'flex' }}
       w={{ md: '17rem', xl: '18.5rem' }}
       h="100vh"
@@ -647,6 +646,10 @@ function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'standard' {
   return 'standard';
 }
 
+function shouldHideSecondarySidebar(pathname: string) {
+  return pathname === ROUTES.search || pathname === ROUTES.tags || pathname === ROUTES.trash;
+}
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -682,7 +685,7 @@ export function AppShell() {
       ? pathParts[1]
       : transferVaultId;
   const activeDocumentRoute = useMemo(() => {
-    if (pathParts[0] === 'vaults' && pathParts[2] && !['settings', 'tags', 'chat', 'trash'].includes(pathParts[2])) {
+    if (pathParts[0] === 'vaults' && pathParts[2] && !['settings', 'chat'].includes(pathParts[2])) {
       return { vaultId: pathParts[1] ?? '', documentId: pathParts[2] ?? '' };
     }
 
@@ -829,6 +832,7 @@ export function AppShell() {
   }, [locationKey]);
 
   const secondaryKind = getSecondaryKind(location.pathname);
+  const hideSecondarySidebar = shouldHideSecondarySidebar(location.pathname);
   const contentPadding = isChatRoute || isFlushVaultRoute ? '0' : { base: '4', lg: '6' };
 
   return (
@@ -842,16 +846,18 @@ export function AppShell() {
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
             onSignOut={() => void handleSignOut()}
           />
-          <SecondarySidebar
-            title={secondaryKind === 'chat' ? 'Chat' : 'Arkivra'}
-            kind={secondaryKind}
-            activeVaultId={activeVaultId}
-            currentFolderId={currentFolderId}
-            currentDocumentId={activeDocumentRoute?.documentId ?? null}
-            customContent={secondaryContent}
-            canCreateVault={meQuery.data?.canCreateVault === true}
-            onCreateVault={() => setIsCreateVaultOpen(true)}
-          />
+          {hideSecondarySidebar ? null : (
+            <SecondarySidebar
+              title={secondaryKind === 'chat' ? 'Chat' : 'Arkivra'}
+              kind={secondaryKind}
+              activeVaultId={activeVaultId}
+              currentFolderId={currentFolderId}
+              currentDocumentId={activeDocumentRoute?.documentId ?? null}
+              customContent={secondaryContent}
+              canCreateVault={meQuery.data?.canCreateVault === true}
+              onCreateVault={() => setIsCreateVaultOpen(true)}
+            />
+          )}
 
           <Flex minW="0" flex="1" h="100vh" direction="column" overflow="hidden">
             <WorkspaceHeader

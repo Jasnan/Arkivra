@@ -12,8 +12,6 @@ export const ROUTES = {
   vaults: '/vaults',
   vaultRoot: (vaultId: string) => `/vaults/${vaultId}` as const,
   vaultChat: (vaultId: string) => `/vaults/${vaultId}/chat` as const,
-  vaultTags: (_vaultId: string) => '/tags' as const,
-  vaultTrash: (_vaultId: string) => '/trash' as const,
   vaultSettings: (vaultId: string) => `/vaults/${vaultId}/settings` as const,
   vaultDocument: (vaultId: string, documentId: string) =>
     `/vaults/${vaultId}/${documentId}` as const,

@@ -277,17 +277,20 @@ describe('app shell account menu', () => {
     expectHiddenLink('Claims');
   });
 
-  it('uses the standard secondary sidebar on global taxonomy pages', async () => {
+  it.each([
+    ['/tags', '/tags'],
+    ['/trash', '/trash'],
+    ['/search', '/search'],
+  ])('hides the secondary sidebar on %s', async (initialEntry, routePath) => {
     await renderWithProviders(
       <AppShell />,
       {
-        initialEntries: ['/tags'],
-        routePath: '/tags',
+        initialEntries: [initialEntry],
+        routePath,
       },
     );
 
-    expect(screen.getByRole('link', { name: 'Settings', hidden: true })).toHaveAttribute('href', '/settings');
-    expect(screen.getByRole('link', { name: 'About', hidden: true })).toHaveAttribute('href', '/about');
+    expect(screen.queryByRole('complementary', { name: 'Secondary', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'MyDocs', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'MyFiles', hidden: true })).not.toBeInTheDocument();
   });

@@ -13,6 +13,10 @@ export type SearchSortBy =
   | 'name_asc'
   | 'name_desc';
 
+export type SearchMode = 'keyword' | 'hybrid';
+
+export type SearchResultMatchType = 'keyword' | 'semantic' | 'title';
+
 export interface SearchResultTag {
   id: string;
   name: string;
@@ -39,6 +43,7 @@ export interface SearchResultItem {
     content: string;
     snippet: string;
     score: number;
+    matchType: SearchResultMatchType;
   } | null;
 }
 

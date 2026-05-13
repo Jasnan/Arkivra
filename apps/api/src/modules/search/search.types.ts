@@ -7,6 +7,10 @@ export const SEARCH_SORT_VALUES = [
 
 export type SearchSortBy = (typeof SEARCH_SORT_VALUES)[number];
 
+export type DocumentSearchMode = 'keyword' | 'hybrid';
+
+export type SearchResultMatchType = 'keyword' | 'semantic' | 'title';
+
 export type SearchResultTag = {
   id: string;
   name: string;
@@ -33,6 +37,7 @@ export type SearchResultItem = {
     content: string;
     snippet: string;
     score: number;
+    matchType: SearchResultMatchType;
   } | null;
 };
 
@@ -116,6 +121,7 @@ export type DocumentSearchServices = {
     dateFrom?: Date | null;
     dateTo?: Date | null;
     sortBy?: SearchSortBy;
+    searchMode?: DocumentSearchMode;
   }) => Promise<SearchResultPage>;
   searchHybrid: (args: {
     vaultId?: string;

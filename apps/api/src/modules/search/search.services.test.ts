@@ -73,6 +73,62 @@ describe('document search services', () => {
     expect(combinedQueryText).toContain('ORDER BY title_match DESC NULLS LAST');
   });
 
+  it('uses hybrid retrieval for document-shaped search results', async () => {
+    const execute = vi.fn(async () => ({
+      rows: [
+        {
+          vault_id: 'vlt_1',
+          vault_name: 'Finance',
+          document_id: 'doc_1',
+          name: 'April invoice.pdf',
+          original_name: 'April invoice.pdf',
+          original_size: 42000,
+          mime_type: 'application/pdf',
+          document_date: null,
+          created_at: new Date('2026-04-10T10:00:00.000Z'),
+          updated_at: new Date('2026-04-12T10:00:00.000Z'),
+          tags_json: '[]',
+          matched_chunks_count: 1,
+          chunk_index: 0,
+          chunk_type: 'section',
+          page_number: 1,
+          chunk_content: 'Invoice total due on receipt',
+          snippet: 'Invoice total due on receipt',
+          score: 0.032,
+          fulltext_match: false,
+          substring_position: null,
+          title_match: false,
+          match_type: 'semantic',
+          results_count: 1,
+        },
+      ],
+    }));
+    const embed = vi.fn(async () => [[0.1, 0.2, 0.3]]);
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+      chunkEmbedder: {
+        name: 'test-embedder',
+        embed,
+      },
+    });
+
+    const result = await searchServices.searchDocuments({
+      vaultId: 'vlt_1',
+      query: 'bills',
+      pageIndex: 0,
+      pageSize: 20,
+      searchMode: 'hybrid',
+    });
+
+    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    expect(embed).toHaveBeenCalledWith(['bills']);
+    expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
+    expect(queryText).toContain('AND vec_ranked.similarity >=');
+    expect(result.resultsCount).toBe(1);
+    expect(result.results[0]?.bestChunk?.matchType).toBe('semantic');
+    expect(result.results[0]?.bestChunk?.snippet).toBe('Invoice total due on receipt');
+  });
+
   it('fuses fts and vector search into citation payloads', async () => {
     const execute = vi.fn(async () => ({
       rows: [

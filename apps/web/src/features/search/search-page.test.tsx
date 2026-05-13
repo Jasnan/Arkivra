@@ -78,7 +78,7 @@ describe('global search page', () => {
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc&searchMode=hybrid')
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
@@ -212,6 +212,8 @@ describe('global search page', () => {
         routePath: '/search',
       });
 
+      expect(screen.getByText(/search mode/i)).toBeInTheDocument();
+      expect(screen.getByText(/meaning-based/i)).toBeInTheDocument();
       fireEvent.change(screen.getByLabelText(/search documents/i), { target: { value: 'invoice' } });
 
       expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
@@ -227,12 +229,141 @@ describe('global search page', () => {
 
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc&searchMode=hybrid')
         ),
       ).toBe(true);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('renders semantic matches without fabricated highlights', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Finance', role: 'owner' },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'bills',
+          pageIndex: 0,
+          pageSize: 25,
+          resultsCount: 1,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Finance',
+              documentId: 'doc_1',
+              name: 'April Invoice.pdf',
+              originalName: 'April Invoice.pdf',
+              originalSize: 42000,
+              mimeType: 'application/pdf',
+              documentDate: '2026-04-10T00:00:00.000Z',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+              matchedChunksCount: 1,
+              bestChunk: {
+                chunkIndex: 0,
+                chunkType: 'section',
+                pageNumber: 1,
+                content: 'Invoice total due on receipt',
+                snippet: 'Invoice total due on receipt',
+                score: 0.8,
+                matchType: 'semantic',
+              },
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?q=bills'],
+      routePath: '/search',
+    });
+
+    expect(await screen.findByText('Semantic match')).toBeInTheDocument();
+    expect(screen.getByText('Invoice total due on receipt')).toBeInTheDocument();
+    expect(document.querySelector('mark')).toBeNull();
+  });
+
+  it('can turn hybrid search off for keyword-only searching', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({ vaults: [] });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 0,
+          pageSize: 25,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?q=invoice'],
+      routePath: '/search',
+    });
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc&searchMode=hybrid'
+        ),
+      ).toBe(true);
+    });
+
+    await user.click(screen.getByText(/meaning-based/i));
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc'
+        ),
+      ).toBe(true);
+    });
   });
 });
 

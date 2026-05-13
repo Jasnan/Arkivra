@@ -290,6 +290,7 @@ export function DocumentSearchControls<TSortValue extends string>({
   filtersTitle,
   filtersDescription,
   filtersContent,
+  toolbarAccessory,
   layout = 'panel',
 }: {
   query: string;
@@ -311,6 +312,7 @@ export function DocumentSearchControls<TSortValue extends string>({
   filtersTitle: string;
   filtersDescription?: string;
   filtersContent: ReactNode;
+  toolbarAccessory?: ReactNode;
   layout?: 'panel' | 'workspace';
 }) {
   const isWorkspaceLayout = layout === 'workspace';
@@ -663,9 +665,15 @@ export function DocumentSearchControls<TSortValue extends string>({
           </Flex>
         </Flex>
 
+        {toolbarAccessory ? (
+          <Flex mt="3" align="center" justify="space-between" gap="3" flexWrap="wrap">
+            {toolbarAccessory}
+          </Flex>
+        ) : null}
+
         {activeFilters.length > 0 ? (
           <>
-            <Separator mt="4" />
+            <Separator mt={toolbarAccessory ? '3' : '4'} />
             <Flex
               direction={{ base: 'column', sm: 'row' }}
               alignItems={{ sm: 'center' }}

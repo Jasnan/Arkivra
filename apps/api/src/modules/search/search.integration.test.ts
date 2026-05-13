@@ -43,12 +43,13 @@ function createMockSearchServices() {
             content: 'Arkivra search test content',
             snippet: '<mark>Arkivra</mark> search test content',
             score: 0.75,
+            matchType: 'keyword',
           },
         },
       ],
       vaultId,
     })),
-    searchHybrid: vi.fn(async ({ vaultId, query, limit, mode }) => ({
+    searchHybrid: vi.fn(async ({ query, limit, mode }) => ({
       query,
       limit,
       mode: mode ?? 'hybrid',
@@ -337,6 +338,32 @@ describe('search integration', () => {
     });
   });
 
+  test('enables hybrid document search when requested', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request(
+      '/api/vaults/vlt_1/search?q=bills&searchMode=hybrid&pageSize=5',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect((searchServices as any).searchDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      query: 'bills',
+      pageIndex: 0,
+      pageSize: 5,
+      tagId: undefined,
+      tagIds: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      sortBy: 'created_desc',
+      searchMode: 'hybrid',
+    });
+  });
+
   test('passes tag, date, and sort filters to search services', async () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
@@ -399,6 +426,40 @@ describe('search integration', () => {
       dateFrom: undefined,
       dateTo: undefined,
       sortBy: 'created_desc',
+    });
+  });
+
+  test('passes hybrid mode through the global endpoint', async () => {
+    const searchServices = createMockSearchServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).listUserVaults = vi.fn(async () => [
+      {
+        id: 'vlt_1',
+        name: 'Alpha',
+        role: 'owner',
+        permissions: ['documents.read'],
+        isGlobalAdmin: false,
+      },
+    ]);
+
+    const app = createTestApp({ searchServices, vaultServices });
+    const response = await app.request('/api/search?q=bills&searchMode=hybrid', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect((searchServices as any).searchDocuments).toHaveBeenCalledWith({
+      vaultIds: ['vlt_1'],
+      vaultId: undefined,
+      query: 'bills',
+      pageIndex: 0,
+      pageSize: 20,
+      tagId: undefined,
+      tagIds: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      sortBy: 'created_desc',
+      searchMode: 'hybrid',
     });
   });
 

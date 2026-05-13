@@ -1,5 +1,5 @@
 import type { ComponentType, FormEvent, ReactNode } from 'react';
-import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Compass,
@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
+import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Kbd, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArkivraLogo } from '@/components/brand/arkivra-logo';
@@ -46,6 +46,7 @@ import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { TransfersDrawer } from '@/features/uploads/components/transfers-drawer';
 import { uploadManager } from '@/features/uploads/upload-manager';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
@@ -93,6 +94,8 @@ const primaryNavItems: PrimaryNavItem[] = [
   { id: 'trash', to: ROUTES.trash, label: 'Trash', icon: Trash2 },
   { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
 ];
+
+const QUICK_SEARCH_QUERY_DEBOUNCE_MS = 280;
 
 const accountMenuItemProps = {
   cursor: 'default',
@@ -622,6 +625,9 @@ function WorkspaceHeader({
           <Text flex="1" minW="0" textAlign="left" truncate fontSize="sm" fontWeight="medium">
             Quick search...
           </Text>
+          <Kbd size="md" flexShrink={0} color="fg.muted" aria-hidden="true">
+            super+k
+          </Kbd>
         </ChakraButton>
 
         <IconButton
@@ -668,7 +674,7 @@ export function AppShell() {
   const [isTransfersDrawerOpen, setIsTransfersDrawerOpen] = useState(false);
   const previousLocationKeyRef = useRef<string | null>(null);
   const quickSearchShortcutLabel = useMemo(() => getQuickSearchShortcutLabel(), []);
-  const deferredSearchValue = useDeferredValue(searchValue.trim());
+  const debouncedSearchValue = useDebouncedValue(searchValue.trim(), QUICK_SEARCH_QUERY_DEBOUNCE_MS);
   const pathParts = location.pathname.split('/').filter(Boolean);
   const transferVaultId = useMemo(
     () => (location.search as Record<string, string | undefined>).vaultId ?? null,
@@ -718,10 +724,10 @@ export function AppShell() {
     [],
   );
   const quickSearchQuery = useGlobalSearchDocumentsQuery({
-    query: deferredSearchValue,
+    query: debouncedSearchValue,
     pageIndex: 0,
     pageSize: 8,
-    enabled: isQuickSearchOpen && deferredSearchValue.length > 0,
+    enabled: isQuickSearchOpen && debouncedSearchValue.length > 0,
   });
   const createVaultMutation = useMutation({
     mutationFn: createVault,
@@ -950,12 +956,19 @@ export function AppShell() {
                     aria-label="Quick search modal"
                     value={searchValue}
                     onChange={(event) => setSearchValue(event.target.value)}
-                    placeholder="Search across all accessible documents..."
+                    placeholder="Search documents..."
                     pl="11"
                     pr="11"
-                    borderColor="border.subtle"
+                    borderColor="border.strong"
                     color="fg"
                     _placeholder={{ color: 'fg.muted' }}
+                    _hover={{ borderColor: 'fg/30' }}
+                    _focusVisible={{
+                      borderColor: 'teal.solid',
+                      outline: '2px solid',
+                      outlineColor: 'teal.focusRing',
+                      outlineOffset: '1px',
+                    }}
                     autoFocus
                   />
                   {searchValue.length > 0 ? (
@@ -997,7 +1010,7 @@ export function AppShell() {
             </Flex>
 
             <Box maxH="70vh" overflowY="auto" p={{ base: '4', sm: '5' }}>
-              {deferredSearchValue.length === 0 ? (
+              {debouncedSearchValue.length === 0 ? (
                 <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
                   <Flex boxSize="12" align="center" justify="center" rounded="md" bg="bg.subtle" color="teal.solid">
                     <FileSearch size={20} />

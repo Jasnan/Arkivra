@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link } from '@tanstack/react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -171,6 +171,24 @@ describe('app shell account menu', () => {
               deletedAt: null,
               createdBy: 'Jane Doe',
             },
+          });
+        }
+
+        if (url.includes('/api/search?')) {
+          return jsonResponse({
+            query: 'invoice',
+            pageIndex: 0,
+            pageSize: 8,
+            resultsCount: 0,
+            filters: {
+              vaultId: null,
+              tagId: null,
+              tagIds: [],
+              dateFrom: null,
+              dateTo: null,
+              sortBy: 'created_desc',
+            },
+            results: [],
           });
         }
 
@@ -527,6 +545,49 @@ describe('app shell account menu', () => {
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
 
     expect(await screen.findByLabelText(/quick search modal/i)).toBeInTheDocument();
+  });
+
+  it('debounces quick search input before querying the backend', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const quickSearchTrigger = screen.getByText('Quick search...').closest('button');
+    expect(quickSearchTrigger).not.toBeNull();
+    fireEvent.click(quickSearchTrigger!);
+
+    const quickSearchInput = await screen.findByLabelText(/quick search modal/i);
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockClear();
+
+    vi.useFakeTimers();
+
+    try {
+      fireEvent.change(quickSearchInput, { target: { value: 'invoice' } });
+
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(279);
+      });
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).includes('/api/search?pageIndex=0&pageSize=8&q=invoice')
+        ),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows simple breadcrumbs for top-level workspace pages', async () => {

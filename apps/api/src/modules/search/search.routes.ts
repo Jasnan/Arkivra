@@ -2,7 +2,7 @@ import type { Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
-import type { DocumentSearchServices, HybridSearchMode } from './search.types.js';
+import type { DocumentSearchMode, DocumentSearchServices, HybridSearchMode } from './search.types.js';
 import { SEARCH_SORT_VALUES } from './search.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import { createDocumentSearchServices } from './search.services.js';
@@ -78,6 +78,14 @@ function parseHybridMode(value: unknown) {
   }
 
   return value === 'hybrid' || value === 'fts' ? value as HybridSearchMode : null;
+}
+
+function parseDocumentSearchMode(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return 'keyword' as const;
+  }
+
+  return value === 'keyword' || value === 'hybrid' ? value as DocumentSearchMode : null;
 }
 
 export function registerSearchRoutes({
@@ -183,6 +191,20 @@ export function registerSearchRoutes({
       );
     }
 
+    const searchMode = parseDocumentSearchMode(context.req.query('searchMode'));
+
+    if (searchMode === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_search_mode',
+            message: 'searchMode must be one of keyword, hybrid',
+          },
+        },
+        400,
+      );
+    }
+
     const result = await searchServices.searchDocuments({
       vaultId,
       query,
@@ -193,6 +215,7 @@ export function registerSearchRoutes({
       dateFrom,
       dateTo,
       sortBy,
+      ...(searchMode === 'hybrid' ? { searchMode } : {}),
     });
 
     return context.json(result);
@@ -347,6 +370,20 @@ export function registerSearchRoutes({
       );
     }
 
+    const searchMode = parseDocumentSearchMode(context.req.query('searchMode'));
+
+    if (searchMode === null) {
+      return context.json(
+        {
+          error: {
+            code: 'search.invalid_search_mode',
+            message: 'searchMode must be one of keyword, hybrid',
+          },
+        },
+        400,
+      );
+    }
+
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaults = vaults.filter(vault =>
       vault.isGlobalAdmin
@@ -399,6 +436,7 @@ export function registerSearchRoutes({
       dateFrom,
       dateTo,
       sortBy,
+      ...(searchMode === 'hybrid' ? { searchMode } : {}),
     });
 
     return context.json(result);

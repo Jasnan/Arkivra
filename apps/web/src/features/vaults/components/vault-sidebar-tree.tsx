@@ -1,100 +1,195 @@
-import { Fragment, useEffect, useMemo, useReducer } from 'react';
-import { Stack } from '@chakra-ui/react';
+import { useEffect, useMemo } from 'react';
+import { TreeView, createTreeCollection } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';
 import { FileText, Folder, FolderDot, FolderOpen, FolderOpenDot } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
-import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
 import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
-import {
-  createVaultSidebarTreeState,
-  getExpandableFolderIds,
-  getVisibleExpandedFolderIds,
-  getVisibleVaultTreeItems,
-  isVaultExpanded,
-  vaultSidebarTreeReducer,
-} from './vault-sidebar-tree-state';
 
-function VaultRootIcon({ isExpanded }: { isExpanded: boolean }) {
-  return isExpanded ? <FolderOpenDot size={16} strokeWidth={2.1} /> : <FolderDot size={16} strokeWidth={2.1} />;
+const ROOT_VALUE = 'vaults-root';
+const VAULT_VALUE_PREFIX = 'vault:';
+const FOLDER_VALUE_PREFIX = 'folder:';
+const DOCUMENT_VALUE_PREFIX = 'document:';
+
+export const VAULT_TREE_ROOT_VALUE = ROOT_VALUE;
+
+type VaultTreeNode =
+  | { id: string; name: string; type: 'root'; children: VaultTreeNode[] }
+  | { id: string; name: string; type: 'vault'; vaultId: string; children?: VaultTreeNode[]; childrenCount?: number }
+  | { id: string; name: string; type: 'folder'; vaultId: string; folder: FolderTreeEntry; children?: VaultTreeNode[] }
+  | { id: string; name: string; type: 'document'; vaultId: string; document: FolderTreeDocumentEntry };
+
+function rootValue() {
+  return ROOT_VALUE;
 }
 
-function VaultNodeIcon({ isExpanded }: { isExpanded: boolean }) {
-  return isExpanded ? <FolderOpenDot size={16} strokeWidth={2.1} /> : <FolderDot size={16} strokeWidth={2.1} />;
+function vaultValue(vaultId: string) {
+  return `${VAULT_VALUE_PREFIX}${vaultId}`;
 }
 
-function VaultFolderIcon({ isExpanded }: { isExpanded: boolean }) {
+export function getVaultTreeVaultId(value: string) {
+  return value.startsWith(VAULT_VALUE_PREFIX) ? value.slice(VAULT_VALUE_PREFIX.length) : null;
+}
+
+function folderValue(folderId: string) {
+  return `${FOLDER_VALUE_PREFIX}${folderId}`;
+}
+
+function documentValue(documentId: string) {
+  return `${DOCUMENT_VALUE_PREFIX}${documentId}`;
+}
+
+function sortByName<T extends { name: string; id: string }>(entries: T[]) {
+  return [...entries].sort((left, right) => {
+    const nameComparison = left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+    return nameComparison === 0 ? left.id.localeCompare(right.id) : nameComparison;
+  });
+}
+
+function buildFolderNodes({
+  vaultId,
+  foldersByParentId,
+  documentsByFolderId,
+  parentId,
+}: {
+  vaultId: string;
+  foldersByParentId: Map<string | null, FolderTreeEntry[]>;
+  documentsByFolderId: Map<string | null, FolderTreeDocumentEntry[]>;
+  parentId: string | null;
+}): VaultTreeNode[] {
+  const childFolders = foldersByParentId.get(parentId) ?? [];
+  const childDocuments = documentsByFolderId.get(parentId) ?? [];
+
+  return [
+    ...childFolders.map((folder): VaultTreeNode => {
+      const children = buildFolderNodes({ vaultId, foldersByParentId, documentsByFolderId, parentId: folder.id });
+
+      return {
+        id: folderValue(folder.id),
+        name: folder.name,
+        type: 'folder',
+        vaultId,
+        folder,
+        children: children.length > 0 ? children : undefined,
+      };
+    }),
+    ...childDocuments.map((document): VaultTreeNode => ({
+      id: documentValue(document.id),
+      name: document.name,
+      type: 'document',
+      vaultId,
+      document,
+    })),
+  ];
+}
+
+function createVaultTreeCollection({
+  vaults,
+  activeVaultId,
+  folders,
+  documents,
+}: {
+  vaults: Array<{ id: string; name: string }>;
+  activeVaultId?: string | null;
+  folders: FolderTreeEntry[];
+  documents: FolderTreeDocumentEntry[];
+}) {
+  const foldersByParentId = new Map<string | null, FolderTreeEntry[]>();
+  const documentsByFolderId = new Map<string | null, FolderTreeDocumentEntry[]>();
+
+  for (const folder of folders) {
+    const siblings = foldersByParentId.get(folder.parentId) ?? [];
+    siblings.push(folder);
+    foldersByParentId.set(folder.parentId, siblings);
+  }
+
+  for (const document of documents) {
+    const siblings = documentsByFolderId.get(document.folderId) ?? [];
+    siblings.push(document);
+    documentsByFolderId.set(document.folderId, siblings);
+  }
+
+  for (const [parentId, childFolders] of foldersByParentId) {
+    foldersByParentId.set(parentId, sortByName(childFolders));
+  }
+
+  for (const [folderId, childDocuments] of documentsByFolderId) {
+    documentsByFolderId.set(folderId, sortByName(childDocuments));
+  }
+
+  const vaultNodes = vaults.map((vault): VaultTreeNode => {
+    const children = activeVaultId === vault.id
+      ? buildFolderNodes({ vaultId: vault.id, foldersByParentId, documentsByFolderId, parentId: null })
+      : [];
+
+    return {
+      id: vaultValue(vault.id),
+      name: vault.name,
+      type: 'vault',
+      vaultId: vault.id,
+      children,
+      childrenCount: children.length || 1,
+    };
+  });
+  const rootNode: VaultTreeNode = {
+    id: 'ROOT',
+    name: '',
+    type: 'root',
+    children: [
+      {
+        id: rootValue(),
+        name: 'Vaults',
+        type: 'root',
+        children: vaultNodes,
+      },
+    ],
+  };
+
+  return createTreeCollection<VaultTreeNode>({
+    nodeToValue: node => node.id,
+    nodeToString: node => node.name,
+    rootNode,
+  });
+}
+
+function getNodeIcon(node: VaultTreeNode, isExpanded = false) {
+  if (node.type === 'document') return <FileText size={16} />;
+  if (node.type === 'vault' || node.type === 'root') {
+    return isExpanded ? <FolderOpenDot size={16} strokeWidth={2.1} /> : <FolderDot size={16} strokeWidth={2.1} />;
+  }
   return isExpanded ? <FolderOpen size={16} strokeWidth={2.1} /> : <Folder size={16} strokeWidth={2.1} />;
 }
 
-function VaultTree({
-  folders,
-  documents,
-  vaultId,
-  currentFolderId,
-  currentDocumentId,
-  expandedFolderIds,
-  onToggleFolder,
-  depth = 0,
-}: {
-  folders: FolderTreeEntry[];
-  documents: FolderTreeDocumentEntry[];
-  vaultId: string;
-  currentFolderId: string | null;
-  currentDocumentId: string | null;
-  expandedFolderIds: Set<string>;
-  onToggleFolder: (folderId: string, isExpanded: boolean) => void;
-  depth?: number;
-}) {
-  const expandableFolderIds = useMemo(() => getExpandableFolderIds(folders, documents), [documents, folders]);
-  const visibleItems = useMemo(
-    () => getVisibleVaultTreeItems({ folders, documents, expandedFolderIds }),
-    [documents, expandedFolderIds, folders],
-  );
+function getNodeNavigation(node: VaultTreeNode) {
+  switch (node.type) {
+    case 'root':
+      return { to: ROUTES.vaults };
+    case 'vault':
+      return { to: ROUTES.vaultRoot(node.vaultId) };
+    case 'folder':
+      return { to: ROUTES.vaultRoot(node.vaultId), search: { folderId: node.folder.id } };
+    case 'document':
+      return { to: ROUTES.vaultDocument(node.vaultId, node.document.id) };
+  }
+}
 
-  return (
-    <Stack gap="1">
-      {visibleItems.map((item) => {
-        if (item.type === 'document') {
-          return (
-            <SecondaryNavLink
-              key={item.document.id}
-              to={ROUTES.vaultDocument(vaultId, item.document.id)}
-              label={item.document.name}
-              icon={<FileText size={16} />}
-              active={currentDocumentId === item.document.id}
-              depth={depth + item.document.depth}
-              reserveDisclosureSpace
-            />
-          );
-        }
+function getFolderAncestorValues(folderId: string | null, folders: FolderTreeEntry[]) {
+  const foldersById = new Map(folders.map(folder => [folder.id, folder]));
+  const ancestorValues: string[] = [];
+  let current = folderId === null ? null : foldersById.get(folderId);
 
-        const folder = item.folder;
-        const canExpand = expandableFolderIds.has(folder.id);
-        const isExpanded = expandedFolderIds.has(folder.id);
+  while (current?.parentId) {
+    ancestorValues.unshift(folderValue(current.parentId));
+    current = foldersById.get(current.parentId);
+  }
 
-        return (
-          <SecondaryNavLink
-            key={folder.id}
-            to={ROUTES.vaultRoot(vaultId)}
-            search={{ folderId: folder.id }}
-            label={folder.name}
-            icon={<VaultFolderIcon isExpanded={isExpanded} />}
-            active={currentFolderId === folder.id}
-            depth={depth + folder.depth}
-            expansionState={canExpand ? (isExpanded ? 'expanded' : 'collapsed') : undefined}
-            onExpand={canExpand ? () => onToggleFolder(folder.id, false) : undefined}
-            onCollapse={canExpand ? () => onToggleFolder(folder.id, true) : undefined}
-            reserveDisclosureSpace
-          />
-        );
-      })}
-    </Stack>
-  );
+  return ancestorValues;
 }
 
 export function VaultSidebarTree({
   vaults,
   activeVaultId,
+  expandedValue,
+  onExpandedValueChange,
   currentFolderId,
   currentDocumentId,
   folders,
@@ -102,123 +197,98 @@ export function VaultSidebarTree({
 }: {
   vaults: Array<{ id: string; name: string }>;
   activeVaultId?: string | null;
+  expandedValue: string[];
+  onExpandedValueChange: (expandedValue: string[]) => void;
   currentFolderId: string | null;
   currentDocumentId?: string | null;
   folders: FolderTreeEntry[];
   documents: FolderTreeDocumentEntry[];
 }) {
   const navigate = useNavigate();
-  const activeDocumentId = currentDocumentId ?? null;
-  const currentDocumentFolderId = useMemo(
-    () => documents.find(document => document.id === activeDocumentId)?.folderId ?? null,
-    [activeDocumentId, documents],
+  const collection = useMemo(
+    () => createVaultTreeCollection({ vaults, activeVaultId, folders, documents }),
+    [activeVaultId, documents, folders, vaults],
   );
-  const currentTreeFolderId = currentFolderId ?? currentDocumentFolderId;
-  const hasActiveDocument = activeDocumentId !== null;
-  const [treeState, dispatch] = useReducer(
-    vaultSidebarTreeReducer,
-    { activeVaultId, currentFolderId, currentDocumentFolderId, folders },
-    createVaultSidebarTreeState,
+  const activeDocumentFolderId = useMemo(
+    () => documents.find(document => document.id === currentDocumentId)?.folderId ?? null,
+    [currentDocumentId, documents],
   );
-  const visibleExpandedFolderIds = useMemo(
-    () => getVisibleExpandedFolderIds({
-      expandedFolderIds: treeState.expandedFolderIds,
-      folders,
-      currentFolderId,
-      currentDocumentFolderId,
-    }),
-    [currentDocumentFolderId, currentFolderId, folders, treeState.expandedFolderIds],
-  );
+  const selectedValue = useMemo(() => {
+    if (currentDocumentId) return [documentValue(currentDocumentId)];
+    if (currentFolderId) return [folderValue(currentFolderId)];
+    if (activeVaultId) return [vaultValue(activeVaultId)];
+    return [rootValue()];
+  }, [activeVaultId, currentDocumentId, currentFolderId]);
 
   useEffect(() => {
-    dispatch({ type: 'routeChanged', activeVaultId, currentFolderId, currentDocumentFolderId, folders });
-  }, [activeVaultId, currentDocumentFolderId, currentFolderId, folders]);
+    if (!activeVaultId) return;
+    if (!currentFolderId && !currentDocumentId) return;
 
-  useEffect(() => {
-    if (treeState.navigation === null) return;
+    const folderIdToReveal = currentDocumentId ? activeDocumentFolderId : currentFolderId;
+    const valuesToExpand = [
+      rootValue(),
+      vaultValue(activeVaultId),
+      ...getFolderAncestorValues(folderIdToReveal, folders),
+    ];
+    const missingValues = valuesToExpand.filter(value => !expandedValue.includes(value));
 
-    if (treeState.navigation.type === 'vaultRoot') {
-      void navigate({ to: ROUTES.vaultRoot(treeState.navigation.vaultId) });
-    } else {
-      void navigate({
-        to: ROUTES.vaultRoot(treeState.navigation.vaultId),
-        search: { folderId: treeState.navigation.folderId } as any,
-      });
+    if (missingValues.length > 0) {
+      onExpandedValueChange([...expandedValue, ...missingValues]);
     }
+  }, [
+    activeDocumentFolderId,
+    activeVaultId,
+    currentDocumentId,
+    currentFolderId,
+    expandedValue,
+    folders,
+    onExpandedValueChange,
+  ]);
 
-    dispatch({ type: 'navigationHandled' });
-  }, [navigate, treeState.navigation]);
+  const handleItemClick = (node: VaultTreeNode) => {
+    const navigation = getNodeNavigation(node);
+    void navigate({
+      to: navigation.to,
+      search: 'search' in navigation ? navigation.search as any : undefined,
+    });
+  };
+
+  const handleBranchClick = (node: VaultTreeNode) => {
+    onExpandedValueChange(
+      expandedValue.includes(node.id)
+        ? expandedValue.filter(value => value !== node.id)
+        : [...expandedValue, node.id],
+    );
+    handleItemClick(node);
+  };
 
   return (
-    <Stack gap="1">
-      <SecondaryNavLink
-        to={ROUTES.vaults}
-        label="Vaults"
-        icon={<VaultRootIcon isExpanded={treeState.isVaultRootExpanded} />}
-        active={!activeVaultId}
-        expansionState={treeState.isVaultRootExpanded ? 'expanded' : 'collapsed'}
-        onExpand={() => dispatch({ type: 'toggleVaultRoot', isExpanded: false })}
-        onCollapse={() => dispatch({ type: 'toggleVaultRoot', isExpanded: true })}
-      />
-      {treeState.isVaultRootExpanded ? vaults.map((vault) => {
-        const isActiveVault = activeVaultId === vault.id;
-        const isExpandedVault = isVaultExpanded({
-          state: treeState,
-          vaultId: vault.id,
-          activeVaultId,
-          currentFolderId: currentTreeFolderId,
-          hasActiveDocument,
-        });
-
-        return (
-          <Fragment key={vault.id}>
-            <SecondaryNavLink
-              to={ROUTES.vaultRoot(vault.id)}
-              label={vault.name}
-              icon={<VaultNodeIcon isExpanded={isExpandedVault} />}
-              active={isActiveVault && currentFolderId === null && !hasActiveDocument}
-              depth={1}
-              expansionState={isExpandedVault ? 'expanded' : 'collapsed'}
-              onExpand={() => dispatch({
-                type: 'toggleVault',
-                vaultId: vault.id,
-                isExpanded: false,
-                activeVaultId,
-                currentFolderId: currentTreeFolderId,
-                hasActiveDocument,
-              })}
-              onCollapse={() => dispatch({
-                type: 'toggleVault',
-                vaultId: vault.id,
-                isExpanded: true,
-                activeVaultId,
-                currentFolderId: currentTreeFolderId,
-                hasActiveDocument,
-              })}
-            />
-            {isActiveVault && isExpandedVault ? (
-              <VaultTree
-                folders={folders}
-                documents={documents}
-                vaultId={vault.id}
-                currentFolderId={currentFolderId}
-                currentDocumentId={activeDocumentId}
-                expandedFolderIds={visibleExpandedFolderIds}
-                onToggleFolder={(folderId, isExpanded) => dispatch({
-                  type: 'toggleFolder',
-                  folderId,
-                  isExpanded,
-                  activeVaultId,
-                  currentFolderId: currentTreeFolderId,
-                  hasActiveDocument,
-                  folders,
-                })}
-                depth={2}
-              />
-            ) : null}
-          </Fragment>
-        );
-      }) : null}
-    </Stack>
+    <TreeView.Root
+      collection={collection}
+      maxW="sm"
+      expandedValue={expandedValue}
+      onExpandedChange={details => onExpandedValueChange(details.expandedValue)}
+      selectedValue={selectedValue}
+      expandOnClick={false}
+    >
+      <TreeView.Tree>
+        <TreeView.Node<VaultTreeNode>
+          indentGuide={<TreeView.BranchIndentGuide />}
+          render={({ node, nodeState }) =>
+            nodeState.isBranch ? (
+              <TreeView.BranchControl onClick={() => handleBranchClick(node)}>
+                {getNodeIcon(node, nodeState.expanded)}
+                <TreeView.BranchText truncate>{node.name}</TreeView.BranchText>
+              </TreeView.BranchControl>
+            ) : (
+              <TreeView.Item onClick={() => handleItemClick(node)}>
+                {getNodeIcon(node)}
+                <TreeView.ItemText truncate>{node.name}</TreeView.ItemText>
+              </TreeView.Item>
+            )
+          }
+        />
+      </TreeView.Tree>
+    </TreeView.Root>
   );
 }

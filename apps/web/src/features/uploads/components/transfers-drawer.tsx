@@ -181,12 +181,17 @@ export function TransfersDrawer({
         <Drawer.Positioner>
           <Drawer.Content w={{ base: '100vw', md: '34rem', xl: '38rem' }} maxW="100vw" bg="bg.surface">
             <Drawer.Header borderBottomWidth="1px" borderColor="border.subtle">
-              <Flex w="full" minW="0" align="center" justify="space-between" gap="3" pr="9">
-                <Drawer.Title fontSize="xl">Transfers</Drawer.Title>
+              <Flex w="full" minW="0" align="center" gap="3" pr="9">
+                <Drawer.Title flex="0 0 auto" fontSize="xl">
+                  Transfers
+                </Drawer.Title>
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
+                  colorPalette="teal"
+                  borderColor="teal.muted"
+                  color="teal.fg"
                   disabled={!hasClearableRows}
                   onClick={() => uploadManager.clearSettled()}
                 >

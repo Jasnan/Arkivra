@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react';
 import { TreeView, createTreeCollection } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';
-import { FileText, Folder, FolderDot, FolderOpen, FolderOpenDot } from 'lucide-react';
+import { Folder, FolderDot, FolderOpen, FolderOpenDot } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
+import { DocumentFileIcon } from '@/features/documents/components/document-file-icon';
 import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 
 const ROOT_VALUE = 'vaults-root';
@@ -152,11 +153,15 @@ function createVaultTreeCollection({
 }
 
 function getNodeIcon(node: VaultTreeNode, isExpanded = false) {
-  if (node.type === 'document') return <FileText size={16} />;
-  if (node.type === 'vault' || node.type === 'root') {
-    return isExpanded ? <FolderOpenDot size={16} strokeWidth={2.1} /> : <FolderDot size={16} strokeWidth={2.1} />;
+  if (node.type === 'document') {
+    return <DocumentFileIcon name={node.document.name} mimeType={node.document.mimeType} iconSize={18} boxSize="5" />;
   }
-  return isExpanded ? <FolderOpen size={16} strokeWidth={2.1} /> : <Folder size={16} strokeWidth={2.1} />;
+
+  if (node.type === 'vault' || node.type === 'root') {
+    return isExpanded ? <FolderOpenDot size={18} strokeWidth={2.1} /> : <FolderDot size={18} strokeWidth={2.1} />;
+  }
+
+  return isExpanded ? <FolderOpen size={18} strokeWidth={2.1} /> : <Folder size={18} strokeWidth={2.1} />;
 }
 
 function getNodeNavigation(node: VaultTreeNode) {
@@ -270,20 +275,21 @@ export function VaultSidebarTree({
       onExpandedChange={details => onExpandedValueChange(details.expandedValue)}
       selectedValue={selectedValue}
       expandOnClick={false}
+      fontSize="sm"
     >
       <TreeView.Tree>
         <TreeView.Node<VaultTreeNode>
           indentGuide={<TreeView.BranchIndentGuide />}
           render={({ node, nodeState }) =>
             nodeState.isBranch ? (
-              <TreeView.BranchControl onClick={() => handleBranchClick(node)}>
+              <TreeView.BranchControl onClick={() => handleBranchClick(node)} minH="8" gap="2">
                 {getNodeIcon(node, nodeState.expanded)}
-                <TreeView.BranchText truncate>{node.name}</TreeView.BranchText>
+                <TreeView.BranchText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.BranchText>
               </TreeView.BranchControl>
             ) : (
-              <TreeView.Item onClick={() => handleItemClick(node)}>
+              <TreeView.Item onClick={() => handleItemClick(node)} minH="8" gap="2">
                 {getNodeIcon(node)}
-                <TreeView.ItemText truncate>{node.name}</TreeView.ItemText>
+                <TreeView.ItemText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.ItemText>
               </TreeView.Item>
             )
           }

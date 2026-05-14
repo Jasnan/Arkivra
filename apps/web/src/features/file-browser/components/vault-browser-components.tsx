@@ -2,8 +2,7 @@ import type { ComponentPropsWithoutRef, DragEvent, FormEvent, KeyboardEvent, Mou
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { Check, File, FileText, FileType, Folder, Home, Search } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Check, Folder, Home, Search } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
@@ -24,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getBrowserItemKey, getDocumentTypeLabel, getItemName } from './vault-browser.types';
 import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
@@ -109,44 +109,6 @@ function getItemKindLabel(item: BrowserContextItem) {
   return item.type === 'folder' ? 'Folder' : getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
 }
 
-function getDocumentIconMeta({ name, mimeType }: { name: string; mimeType: string }): {
-  badgeBg: string;
-  badgeColor: string;
-  color: string;
-  icon: LucideIcon;
-  label: string;
-} {
-  const extension = name.split('.').pop()?.trim().toLowerCase();
-  const neutralMeta = {
-    badgeBg: 'teal.subtle',
-    badgeColor: 'teal.fg',
-    color: 'teal.fg',
-  };
-
-  if (mimeType === 'application/pdf' || extension === 'pdf') {
-    return { ...neutralMeta, icon: FileText, label: 'PDF' };
-  }
-
-  if (
-    extension === 'doc'
-    || extension === 'docx'
-    || mimeType.includes('word')
-    || mimeType.includes('officedocument.wordprocessingml')
-  ) {
-    return { ...neutralMeta, icon: FileType, label: extension === 'doc' ? 'DOC' : 'DOCX' };
-  }
-
-  if (extension === 'txt' || extension === 'md' || mimeType.startsWith('text/')) {
-    return { ...neutralMeta, icon: FileText, label: extension === 'md' ? 'MD' : 'TXT' };
-  }
-
-  return {
-    ...neutralMeta,
-    icon: File,
-    label: getDocumentTypeLabel({ name, mimeType }),
-  };
-}
-
 function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' }) {
   const isList = size === 'list';
 
@@ -158,7 +120,7 @@ function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'l
     );
   }
 
-  const { badgeBg, badgeColor, color, icon: DocumentIcon, label } = getDocumentIconMeta({
+  const { badgeBg, badgeColor, color, icon: DocumentIcon, label } = getDocumentFileIconMeta({
     name: item.document.name,
     mimeType: item.document.mimeType,
   });

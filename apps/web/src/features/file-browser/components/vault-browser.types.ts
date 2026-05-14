@@ -1,6 +1,9 @@
 import type { LucideIcon } from 'lucide-react';
+import { getDocumentTypeLabel } from '@/features/documents/components/document-file-icon.utils';
 import type { DocumentSummary } from '@/features/documents/documents.types';
 import type { FolderSummary, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
+
+export { getDocumentTypeLabel };
 
 export const FILE_BROWSER_VIEW_STORAGE_KEY = 'arkivra:file-browser:view';
 export const FILE_BROWSER_SORT_STORAGE_KEY = 'arkivra:file-browser:sort';
@@ -103,36 +106,6 @@ export function getInitialBrowserSort(): FileBrowserSort {
   } catch {
     return 'name_asc';
   }
-}
-
-export function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
-  const extension = name.split('.').pop()?.trim().toUpperCase();
-
-  if (extension && extension.length <= 5) {
-    return extension;
-  }
-
-  if (mimeType === 'application/pdf') {
-    return 'PDF';
-  }
-
-  if (mimeType.startsWith('image/')) {
-    return 'IMG';
-  }
-
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) {
-    return 'XLS';
-  }
-
-  if (mimeType.includes('word') || mimeType.includes('document')) {
-    return 'DOC';
-  }
-
-  if (mimeType.startsWith('text/')) {
-    return 'TXT';
-  }
-
-  return 'FILE';
 }
 
 export function getItemName(item: BrowserContextItem) {

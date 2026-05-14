@@ -142,6 +142,7 @@ function buildBreadcrumbs({
   if (parts.length === 0 || pathname === ROUTES.vaults) return [{ label: 'Vaults' }];
   if (pathname === ROUTES.chat) return [{ label: 'Chat' }];
   if (pathname === ROUTES.trash) return [{ label: 'Trash' }];
+  if (parts[0] === 'trash' && parts[1]) return [{ label: 'Trash', to: ROUTES.trash }, { label: currentDocumentLabel }];
   if (pathname === ROUTES.tags) return [{ label: 'Tags' }];
   if (pathname === ROUTES.search) return [{ label: 'Search' }];
   if (pathname === ROUTES.settings) return [{ label: 'Settings' }];
@@ -184,7 +185,7 @@ function primaryNavId(pathname: string): PrimaryNavItem['id'] {
   if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
   if (pathname === ROUTES.search) return 'search';
   if (pathname === ROUTES.tags) return 'tags';
-  if (pathname === ROUTES.trash) return 'trash';
+  if (pathname === ROUTES.trash || parts[0] === 'trash') return 'trash';
   if (pathname === ROUTES.transfers) return 'transfers';
 
   return 'vaults';
@@ -653,7 +654,8 @@ function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'standard' {
 }
 
 function shouldHideSecondarySidebar(pathname: string) {
-  return pathname === ROUTES.search || pathname === ROUTES.tags || pathname === ROUTES.trash;
+  const parts = pathname.split('/').filter(Boolean);
+  return pathname === ROUTES.search || pathname === ROUTES.tags || parts[0] === 'trash';
 }
 
 export function AppShell() {
@@ -689,7 +691,8 @@ export function AppShell() {
     isVaultIndexRoute ||
     isVaultBrowserRoute ||
     location.pathname === ROUTES.tags ||
-    location.pathname === ROUTES.search;
+    location.pathname === ROUTES.search ||
+    pathParts[0] === 'trash';
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]

@@ -171,6 +171,12 @@ const trashRoute = createRoute({
   component: DocumentTrashPage,
 })
 
+const trashDocumentRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/trash/$documentId',
+  component: DocumentDetailPage,
+})
+
 const tagsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/tags',
@@ -235,6 +241,7 @@ const routeTree = rootRoute.addChildren([
     documentChatRoute,
     chatRoute,
     trashRoute,
+    trashDocumentRoute,
     tagsRoute,
     searchRoute,
     transfersRoute,

@@ -241,12 +241,29 @@ export function getDocumentDownloadUrl({ vaultId, documentId }: { vaultId: strin
   return `/api/vaults/${vaultId}/documents/${documentId}/download`;
 }
 
-export function getDocumentInlineFileUrl({ vaultId, documentId }: { vaultId: string; documentId: string }) {
-  return `/api/vaults/${vaultId}/documents/${documentId}/file`;
+export function getDocumentInlineFileUrl({
+  vaultId,
+  documentId,
+  includeDeleted = false,
+}: {
+  vaultId: string;
+  documentId: string;
+  includeDeleted?: boolean;
+}) {
+  const suffix = includeDeleted ? '?includeDeleted=true' : '';
+  return `/api/vaults/${vaultId}/documents/${documentId}/file${suffix}`;
 }
 
-export async function getDocumentFileText({ vaultId, documentId }: { vaultId: string; documentId: string }) {
-  const response = await fetch(getDocumentInlineFileUrl({ vaultId, documentId }), {
+export async function getDocumentFileText({
+  vaultId,
+  documentId,
+  includeDeleted = false,
+}: {
+  vaultId: string;
+  documentId: string;
+  includeDeleted?: boolean;
+}) {
+  const response = await fetch(getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted }), {
     credentials: 'include',
   });
 

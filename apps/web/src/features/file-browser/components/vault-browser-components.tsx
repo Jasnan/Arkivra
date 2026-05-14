@@ -1,7 +1,7 @@
-import type { ComponentPropsWithoutRef, DragEvent, FormEvent, KeyboardEvent, MouseEvent, Ref } from 'react';
+import type { ComponentPropsWithoutRef, DragEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
-import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, Checkbox as ChakraCheckbox, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Check, Folder, Home, Search } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
@@ -32,6 +32,7 @@ const BROWSER_SCROLL_HEIGHT = '100%';
 const LIST_ROW_HEIGHT = 72;
 const BREADCRUMB_LABEL_MAX_LENGTH = 10;
 const LIST_GRID_COLUMNS = 'minmax(0, 1fr) 6rem 8.5rem 2.75rem';
+const SELECTABLE_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) 6rem 8.5rem 2.75rem';
 const gridItemNameStyles = {
   display: '-webkit-box',
   overflow: 'hidden',
@@ -48,6 +49,16 @@ export interface VaultBreadcrumbEntry {
   onClick?: () => void;
   onContextMenu?: (event: MouseEvent<HTMLElement>) => void;
   dropFolderId?: string | null;
+}
+
+export interface BrowserListColumn {
+  key: string;
+  label: ReactNode;
+}
+
+export interface BrowserListCell {
+  key: string;
+  content: ReactNode;
 }
 
 function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) {
@@ -240,6 +251,31 @@ function getVisibleVaultBreadcrumbs(entries: VaultBreadcrumbEntry[]) {
     entries.at(-2)!,
     entries.at(-1)!,
   ];
+}
+
+function SelectionCheckbox({
+  checked,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean | 'indeterminate';
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <ChakraCheckbox.Root
+      size="sm"
+      checked={checked}
+      aria-label={label}
+      onClick={(event) => event.stopPropagation()}
+      onCheckedChange={(event) => onCheckedChange(event.checked === true)}
+    >
+      <ChakraCheckbox.HiddenInput />
+      <ChakraCheckbox.Control>
+        <ChakraCheckbox.Indicator />
+      </ChakraCheckbox.Control>
+    </ChakraCheckbox.Root>
+  );
 }
 
 export function VaultRouteBreadcrumbs({
@@ -597,12 +633,21 @@ export function BrowserItemList({
   items,
   vaultId,
   selectedItemKeys,
+  selectable = false,
+  allItemsSelected = false,
+  someItemsSelected = false,
   contextItemKey,
   draggedItemKeys,
   dropTarget,
   onOpenItem,
   onSelectItem,
+  onToggleAllItems,
+  onToggleItem,
   getItemActions,
+  getDocumentLink,
+  listGridColumns,
+  listColumns,
+  renderDocumentListMetadata,
   onDragStartItem,
   onDragEndItem,
   onDragOverFolder,
@@ -611,16 +656,26 @@ export function BrowserItemList({
   onOpenContextMenu,
   onOpenBackgroundContextMenu,
   isMutating,
+  isDraggable = true,
 }: {
   items: BrowserItem[];
   vaultId: string;
   selectedItemKeys: Set<string>;
+  selectable?: boolean;
+  allItemsSelected?: boolean;
+  someItemsSelected?: boolean;
   contextItemKey?: string | null;
   draggedItemKeys: Set<string>;
   dropTarget: BrowserDropTarget | null;
   onOpenItem: (item: BrowserItem) => void;
   onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
+  onToggleAllItems?: (checked: boolean) => void;
+  onToggleItem?: (item: BrowserItem, checked: boolean) => void;
   getItemActions: (item: BrowserItem) => BrowserAction[];
+  getDocumentLink?: (document: Extract<BrowserItem, { type: 'document' }>['document']) => string;
+  listGridColumns?: string;
+  listColumns?: BrowserListColumn[];
+  renderDocumentListMetadata?: (item: Extract<BrowserItem, { type: 'document' }>) => BrowserListCell[];
   onDragStartItem: (event: DragEvent<HTMLElement>, item: BrowserItem) => void;
   onDragEndItem: () => void;
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -629,7 +684,16 @@ export function BrowserItemList({
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
   onOpenBackgroundContextMenu: (event: MouseEvent<HTMLElement>) => void;
   isMutating?: boolean;
+  isDraggable?: boolean;
 }) {
+  const resolvedListGridColumns = listGridColumns ?? (selectable ? SELECTABLE_LIST_GRID_COLUMNS : LIST_GRID_COLUMNS);
+  const resolvedListColumns = listColumns ?? [
+    { key: 'name', label: 'Name' },
+    { key: 'size', label: 'Size' },
+    { key: 'modified', label: 'Modified' },
+  ];
+  const baseListGridColumns = selectable ? '2.5rem minmax(0, 1fr) auto' : 'minmax(0, 1fr) auto';
+
   return (
     <Box
       role="listbox"
@@ -645,7 +709,7 @@ export function BrowserItemList({
     >
       <Grid
         display={{ base: 'none', md: 'grid' }}
-        templateColumns={LIST_GRID_COLUMNS}
+        templateColumns={resolvedListGridColumns}
         gap="4"
         borderBottomWidth="1px"
         borderColor="border.subtle"
@@ -654,9 +718,16 @@ export function BrowserItemList({
         fontSize="sm"
         color="fg.muted"
       >
-        <Text as="span">Name</Text>
-        <Text as="span">Size</Text>
-        <Text as="span">Modified</Text>
+        {selectable ? (
+          <SelectionCheckbox
+            checked={someItemsSelected ? 'indeterminate' : allItemsSelected}
+            label="Select all items"
+            onCheckedChange={(checked) => onToggleAllItems?.(checked)}
+          />
+        ) : null}
+        {resolvedListColumns.map((column) => (
+          <Text key={column.key} as="span">{column.label}</Text>
+        ))}
         <Text as="span" srOnly>Actions</Text>
       </Grid>
 
@@ -681,6 +752,15 @@ export function BrowserItemList({
             const isDragSource = draggedItemKeys.has(itemKey);
             const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource, isContextTarget });
             const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
+            const documentLink = item.type === 'document'
+              ? getDocumentLink?.(item.document) ?? ROUTES.vaultDocument(vaultId, item.document.id)
+              : null;
+            const documentMetadataCells = item.type === 'document'
+              ? renderDocumentListMetadata?.(item) ?? [
+                  { key: 'size', content: formatBytes(item.document.originalSize) },
+                  { key: 'modified', content: formatDateOnly(updatedAt) },
+                ]
+              : [];
 
             return (
               <Box
@@ -688,7 +768,7 @@ export function BrowserItemList({
                 aria-selected={isSelected}
                 aria-label={name}
                 tabIndex={0}
-                draggable={!isMutating}
+                draggable={isDraggable && !isMutating}
                 h={`${LIST_ROW_HEIGHT}px`}
                 borderBottomWidth="1px"
                 borderColor="border.subtle"
@@ -699,11 +779,11 @@ export function BrowserItemList({
                 _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
                 onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
                 onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
-                onDragStart={(event) => onDragStartItem(event, item)}
-                onDragEnd={onDragEndItem}
-                onDragOver={item.type === 'folder' ? (event) => onDragOverFolder(event, item.folder.id) : undefined}
-                onDragLeave={item.type === 'folder' ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined}
-                onDrop={item.type === 'folder' ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
+                onDragStart={isDraggable ? (event) => onDragStartItem(event, item) : undefined}
+                onDragEnd={isDraggable ? onDragEndItem : undefined}
+                onDragOver={isDraggable && item.type === 'folder' ? (event) => onDragOverFolder(event, item.folder.id) : undefined}
+                onDragLeave={isDraggable && item.type === 'folder' ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined}
+                onDrop={isDraggable && item.type === 'folder' ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
                 onContextMenu={(event) => onOpenContextMenu(event, item)}
               >
                 {item.type === 'folder' ? (
@@ -711,7 +791,7 @@ export function BrowserItemList({
                     display="grid"
                     h="full"
                     w="full"
-                    gridTemplateColumns={{ base: 'minmax(0, 1fr) auto', md: LIST_GRID_COLUMNS }}
+                    gridTemplateColumns={{ base: baseListGridColumns, md: resolvedListGridColumns }}
                     gap="4"
                     alignItems="center"
                     px="6"
@@ -719,6 +799,13 @@ export function BrowserItemList({
                     transition="background-color 0.15s ease"
                     _hover={{ bg: 'bg.subtle' }}
                   >
+                    {selectable ? (
+                      <SelectionCheckbox
+                        checked={isSelected}
+                        label={`Select ${name}`}
+                        onCheckedChange={(checked) => onToggleItem?.(item, checked)}
+                      />
+                    ) : null}
                     <chakra.button
                       type="button"
                       minW="0"
@@ -747,15 +834,22 @@ export function BrowserItemList({
                 ) : (
                   <Grid
                     h="full"
-                    templateColumns={{ base: 'minmax(0, 1fr) auto', md: LIST_GRID_COLUMNS }}
+                    templateColumns={{ base: baseListGridColumns, md: resolvedListGridColumns }}
                     gap="4"
                     alignItems="center"
                     px="6"
                     transition="background-color 0.15s ease"
                     _hover={{ bg: 'bg.subtle' }}
                   >
+                    {selectable ? (
+                      <SelectionCheckbox
+                        checked={isSelected}
+                        label={`Select ${name}`}
+                        onCheckedChange={(checked) => onToggleItem?.(item, checked)}
+                      />
+                    ) : null}
                     <Link
-                      to={ROUTES.vaultDocument(vaultId, item.document.id)}
+                      to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
                       style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                       onClick={(event) => event.stopPropagation()}
                     >
@@ -771,20 +865,16 @@ export function BrowserItemList({
                         </Box>
                       </Flex>
                     </Link>
-                    <Link
-                      to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatBytes(item.document.originalSize)}</Text>
-                    </Link>
-                    <Link
-                      to={ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatDateOnly(updatedAt)}</Text>
-                    </Link>
+                    {documentMetadataCells.map((cell) => (
+                      <Link
+                        key={cell.key}
+                        to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
+                        style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{cell.content}</Text>
+                      </Link>
+                    ))}
                     <BrowserItemActions
                       item={item}
                       actions={actions}
@@ -805,12 +895,16 @@ export function BrowserItemGrid({
   items,
   vaultId,
   selectedItemKeys,
+  selectable = false,
   contextItemKey,
   draggedItemKeys,
   dropTarget,
   onOpenItem,
   onSelectItem,
+  onToggleItem,
   getItemActions,
+  getDocumentLink,
+  renderDocumentGridMeta,
   onDragStartItem,
   onDragEndItem,
   onDragOverFolder,
@@ -819,16 +913,21 @@ export function BrowserItemGrid({
   onOpenContextMenu,
   onOpenBackgroundContextMenu,
   isMutating,
+  isDraggable = true,
 }: {
   items: BrowserItem[];
   vaultId: string;
   selectedItemKeys: Set<string>;
+  selectable?: boolean;
   contextItemKey?: string | null;
   draggedItemKeys: Set<string>;
   dropTarget: BrowserDropTarget | null;
   onOpenItem: (item: BrowserItem) => void;
   onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
+  onToggleItem?: (item: BrowserItem, checked: boolean) => void;
   getItemActions: (item: BrowserItem) => BrowserAction[];
+  getDocumentLink?: (document: Extract<BrowserItem, { type: 'document' }>['document']) => string;
+  renderDocumentGridMeta?: (item: Extract<BrowserItem, { type: 'document' }>) => ReactNode;
   onDragStartItem: (event: DragEvent<HTMLElement>, item: BrowserItem) => void;
   onDragEndItem: () => void;
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -837,6 +936,7 @@ export function BrowserItemGrid({
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
   onOpenBackgroundContextMenu: (event: MouseEvent<HTMLElement>) => void;
   isMutating?: boolean;
+  isDraggable?: boolean;
 }) {
   return (
     <Box
@@ -876,6 +976,9 @@ export function BrowserItemGrid({
             contextBorderColor: 'border.strong',
           });
           const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
+          const documentLink = item.type === 'document'
+            ? getDocumentLink?.(item.document) ?? ROUTES.vaultDocument(vaultId, item.document.id)
+            : null;
           const body = item.type === 'folder' ? (
             <Box
               h="full"
@@ -903,6 +1006,15 @@ export function BrowserItemGrid({
                     disabled={isMutating}
                   />
                 </Box>
+                {selectable ? (
+                  <Box position="absolute" top="3" left="3">
+                    <SelectionCheckbox
+                      checked={isSelected}
+                      label={`Select ${name}`}
+                      onCheckedChange={(checked) => onToggleItem?.(item, checked)}
+                    />
+                  </Box>
+                ) : null}
                 <Stack align="center" gap="4" w="full" minW="0">
                   <FileBrowserIcon item={item} />
                   <chakra.button
@@ -949,10 +1061,19 @@ export function BrowserItemGrid({
                     disabled={isMutating}
                   />
                 </Box>
+                {selectable ? (
+                  <Box position="absolute" top="3" left="3">
+                    <SelectionCheckbox
+                      checked={isSelected}
+                      label={`Select ${name}`}
+                      onCheckedChange={(checked) => onToggleItem?.(item, checked)}
+                    />
+                  </Box>
+                ) : null}
                 <Stack align="center" gap="4" w="full" minW="0">
                   <FileBrowserIcon item={item} />
                   <Link
-                    to={ROUTES.vaultDocument(vaultId, item.document.id)}
+                    to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
                     style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -960,6 +1081,7 @@ export function BrowserItemGrid({
                       <Text fontSize="lg" fontWeight="medium" color="fg" {...gridItemNameStyles}>{name}</Text>
                     </Box>
                   </Link>
+                  {renderDocumentGridMeta?.(item)}
                 </Stack>
               </Stack>
             </Box>
@@ -973,17 +1095,17 @@ export function BrowserItemGrid({
               aria-selected={isSelected}
               tabIndex={0}
               aria-label={item.folder.name}
-              draggable={!isMutating}
+              draggable={isDraggable && !isMutating}
               textAlign="left"
               cursor="pointer"
               outline="none"
               onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
               onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
-              onDragStart={(event) => onDragStartItem(event, item)}
-              onDragEnd={onDragEndItem}
-              onDragOver={(event) => onDragOverFolder(event, item.folder.id)}
-              onDragLeave={(event) => onDragLeaveFolder(event, item.folder.id)}
-              onDrop={(event) => onDropOnFolder(event, item.folder.id)}
+              onDragStart={isDraggable ? (event) => onDragStartItem(event, item) : undefined}
+              onDragEnd={isDraggable ? onDragEndItem : undefined}
+              onDragOver={isDraggable ? (event) => onDragOverFolder(event, item.folder.id) : undefined}
+              onDragLeave={isDraggable ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined}
+              onDrop={isDraggable ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
               onContextMenu={(event) => onOpenContextMenu(event, item)}
               _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
             >
@@ -997,13 +1119,13 @@ export function BrowserItemGrid({
               aria-selected={isSelected}
               tabIndex={0}
               aria-label={item.document.name}
-              draggable={!isMutating}
+              draggable={isDraggable && !isMutating}
               cursor="pointer"
               outline="none"
               onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
               onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
-              onDragStart={(event) => onDragStartItem(event, item)}
-              onDragEnd={onDragEndItem}
+              onDragStart={isDraggable ? (event) => onDragStartItem(event, item) : undefined}
+              onDragEnd={isDraggable ? onDragEndItem : undefined}
               onContextMenu={(event) => onOpenContextMenu(event, item)}
               _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
             >

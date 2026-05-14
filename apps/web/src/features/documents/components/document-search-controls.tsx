@@ -83,6 +83,8 @@ export function SearchFilterMultiSelect({
   onValueChange,
   onClear,
   showColorSwatch = false,
+  hideLabel = false,
+  controlSize = 'default',
 }: {
   label: string;
   triggerLabel: string;
@@ -97,6 +99,8 @@ export function SearchFilterMultiSelect({
   onValueChange: (values: string[]) => void;
   onClear: () => void;
   showColorSwatch?: boolean;
+  hideLabel?: boolean;
+  controlSize?: 'default' | 'toolbar';
 }) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -142,22 +146,32 @@ export function SearchFilterMultiSelect({
         }}
         positioning={{ sameWidth: true, strategy: 'fixed', hideWhenDetached: true }}
       >
-        <Combobox.Label fontSize="sm" fontWeight="semibold" color="fg">
+        <Combobox.Label srOnly={hideLabel} fontSize="sm" fontWeight="semibold" color="fg">
           {label}
         </Combobox.Label>
 
-        <Combobox.Control mt="3">
+        <Combobox.Control mt={hideLabel ? '0' : '3'}>
           <Combobox.Input
             id={searchInputId}
             aria-label={triggerAriaLabel}
             aria-describedby={`${searchInputId}-hint`}
             placeholder={triggerLabel}
             h="10"
-            rounded="xl"
+            rounded={controlSize === 'toolbar' ? 'md' : 'xl'}
             borderColor="border.subtle"
             bg="bg.surface"
             px="4"
             pr={selectedValues.length > 0 ? '16' : '10'}
+            fontSize="sm"
+            fontWeight={controlSize === 'toolbar' ? 'medium' : undefined}
+            shadow="none"
+            _hover={{ borderColor: controlSize === 'toolbar' ? 'fg/30' : undefined }}
+            _focusVisible={{
+              borderColor: controlSize === 'toolbar' ? 'teal.solid' : undefined,
+              outline: controlSize === 'toolbar' ? '2px solid' : undefined,
+              outlineColor: controlSize === 'toolbar' ? 'teal.focusRing' : undefined,
+              outlineOffset: controlSize === 'toolbar' ? '1px' : undefined,
+            }}
           />
           <Combobox.IndicatorGroup>
             {selectedValues.length > 0 ? (
@@ -177,17 +191,17 @@ export function SearchFilterMultiSelect({
         </Combobox.Control>
 
         <Combobox.Positioner zIndex="dropdown" pointerEvents="auto">
-          <Combobox.Content
-            maxH="72"
-            overflowY="auto"
-            pointerEvents="auto"
-            rounded="lg"
-            borderWidth="1px"
-            borderColor="border.subtle"
-            bg="bg.surface"
-            p="2"
-            shadow="lg"
-          >
+            <Combobox.Content
+              maxH="72"
+              overflowY="auto"
+              pointerEvents="auto"
+              rounded="lg"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.surface"
+              p={controlSize === 'toolbar' ? '1.5' : '2'}
+              shadow="lg"
+            >
             {isLoading ? (
               <Text px="3" py="3" fontSize="sm" color="fg.muted">
                 {loadingLabel}
@@ -200,13 +214,16 @@ export function SearchFilterMultiSelect({
                     display="flex"
                     w="full"
                     alignItems="center"
+                    gap="2"
+                    minH={controlSize === 'toolbar' ? '10' : undefined}
                     rounded="md"
-                    px="3"
+                    px={controlSize === 'toolbar' ? '10' : '3'}
                     py="2"
                     fontSize="sm"
                     fontWeight="medium"
-                    color="fg.muted"
+                    color={controlSize === 'toolbar' ? 'fg' : 'fg.muted'}
                     textAlign="left"
+                    position="relative"
                     transition="background-color 120ms ease, color 120ms ease"
                     _hover={{ bg: 'bg.subtle', color: 'fg' }}
                     onClick={clearSelection}
@@ -219,42 +236,69 @@ export function SearchFilterMultiSelect({
                   {emptyLabel}
                 </Combobox.Empty>
 
-                {collection.items.map((option) => (
-                  <Combobox.Item
-                    key={option.value}
-                    item={option}
-                    display="flex"
-                    alignItems="center"
-                    gap="3"
-                    rounded="md"
-                    px="3"
-                    py="2"
-                    fontSize="sm"
-                    fontWeight="medium"
-                    color="fg.muted"
-                    _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
-                  >
-                    <Flex minW="0" flex="1" align="center" gap="3">
-                      {showColorSwatch ? (
+                {collection.items.map((option) => {
+                  const isSelected = selectedValues.includes(option.value);
+
+                  return (
+                    <Combobox.Item
+                      key={option.value}
+                      item={option}
+                      display="flex"
+                      alignItems="center"
+                      gap="3"
+                      minH={controlSize === 'toolbar' ? '10' : undefined}
+                      rounded="md"
+                      bg={controlSize === 'toolbar' && isSelected ? 'teal.subtle' : undefined}
+                      px={controlSize === 'toolbar' ? '10' : '3'}
+                      py="2"
+                      position="relative"
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color={controlSize === 'toolbar' ? 'fg' : 'fg.muted'}
+                      _highlighted={{
+                        bg: controlSize === 'toolbar' && isSelected ? 'teal.subtle' : 'bg.subtle',
+                        color: 'fg',
+                      }}
+                    >
+                      {controlSize === 'toolbar' ? (
                         <Box
-                          boxSize="2.5"
-                          rounded="full"
-                          bg={option.color ?? 'fg.muted'}
-                          aria-hidden="true"
-                        />
+                          position="absolute"
+                          left="2.5"
+                          top="50%"
+                          display="flex"
+                          boxSize="5"
+                          alignItems="center"
+                          justifyContent="center"
+                          color="teal.solid"
+                          transform="translateY(-50%)"
+                        >
+                          <Combobox.ItemIndicator />
+                        </Box>
                       ) : null}
-                      <Combobox.ItemText asChild>
-                        <Text truncate>{option.label}</Text>
-                      </Combobox.ItemText>
-                    </Flex>
-                    {option.meta ? (
-                      <Text ml="auto" fontSize="xs" color="fg.muted">
-                        {option.meta}
-                      </Text>
-                    ) : null}
-                    <Combobox.ItemIndicator color="teal.solid" />
-                  </Combobox.Item>
-                ))}
+                      <Flex minW="0" flex="1" align="center" gap="3">
+                        {showColorSwatch ? (
+                          <Box
+                            boxSize="2.5"
+                            rounded="full"
+                            bg={option.color ?? 'fg.muted'}
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        <Combobox.ItemText asChild>
+                          <Text truncate>{option.label}</Text>
+                        </Combobox.ItemText>
+                      </Flex>
+                      {option.meta ? (
+                        <Text ml="auto" fontSize="xs" color="fg.muted">
+                          {option.meta}
+                        </Text>
+                      ) : null}
+                      {controlSize !== 'toolbar' ? (
+                        <Combobox.ItemIndicator color="teal.solid" />
+                      ) : null}
+                    </Combobox.Item>
+                  );
+                })}
               </>
             )}
           </Combobox.Content>

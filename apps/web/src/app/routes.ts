@@ -23,6 +23,7 @@ export const ROUTES = {
 
   // Trash (global, cross-vault)
   trash: '/trash',
+  trashDocument: (documentId: string) => `/trash/${documentId}` as const,
 
   // Tags (global, cross-vault)
   tags: '/tags',

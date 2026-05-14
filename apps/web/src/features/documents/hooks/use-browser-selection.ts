@@ -51,6 +51,40 @@ export function useBrowserSelection({
     });
   }
 
+  function toggleBrowserItem(item: BrowserItem, checked: boolean) {
+    const itemKey = getBrowserItemKey(item);
+
+    onBeforeSelect?.();
+    setSelection((previousSelection) => {
+      const isSameFolder = previousSelection.folderId === currentFolderId;
+      const previousKeys = isSameFolder ? previousSelection.keys : EMPTY_SELECTED_ITEM_KEYS;
+      const nextKeys = new Set(previousKeys);
+
+      if (checked) {
+        nextKeys.add(itemKey);
+      } else {
+        nextKeys.delete(itemKey);
+      }
+
+      return {
+        folderId: currentFolderId,
+        keys: nextKeys,
+        lastKey: itemKey,
+      };
+    });
+  }
+
+  function toggleAllBrowserItems(checked: boolean) {
+    onBeforeSelect?.();
+    setSelection({
+      folderId: currentFolderId,
+      keys: checked
+        ? new Set(browserItems.map(item => getBrowserItemKey(item)))
+        : new Set(),
+      lastKey: null,
+    });
+  }
+
   function getRangeSelectionKeys(anchorKey: string, itemKey: string) {
     const itemKeys = browserItems.map(item => getBrowserItemKey(item));
     const anchorIndex = itemKeys.indexOf(anchorKey);
@@ -116,6 +150,8 @@ export function useBrowserSelection({
     selectedCount: selectedItems.length,
     clearSelection,
     selectSingleItem,
+    toggleBrowserItem,
+    toggleAllBrowserItems,
     selectBrowserItem,
   };
 }

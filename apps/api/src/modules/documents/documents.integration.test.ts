@@ -567,6 +567,24 @@ describe('documents integration', () => {
     expect(Buffer.from(body).toString()).toBe('file-content');
   });
 
+  test('serves soft-deleted document file inline for trash previews', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_deleted_1/file?includeDeleted=true', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(response.headers.get('content-disposition')).toContain('inline');
+    expect((docServices as any).downloadDocument).toHaveBeenCalledWith({
+      documentId: 'doc_deleted_1',
+      vaultId: 'vlt_1',
+      includeDeleted: true,
+    });
+  });
+
   test('returns 404 when downloading non-existent document', async () => {
     const docServices = createMockDocumentsServices();
     (docServices as any).downloadDocument = vi.fn(async () => null);
@@ -597,6 +615,24 @@ describe('documents integration', () => {
       documentId: 'doc_1',
       vaultId: 'vlt_1',
       pageNumber: 2,
+    });
+  });
+
+  test('serves cached page preview png for trash previews', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_deleted_1/page/2.png?includeDeleted=true', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+    expect((docServices as any).renderDocumentPagePreview).toHaveBeenCalledWith({
+      documentId: 'doc_deleted_1',
+      vaultId: 'vlt_1',
+      pageNumber: 2,
+      includeDeleted: true,
     });
   });
 

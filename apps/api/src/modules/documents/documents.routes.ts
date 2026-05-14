@@ -338,7 +338,12 @@ export function registerDocumentRoutes({
       }
 
       const documentId = context.req.param('documentId');
-      const result = await documentsServices.downloadDocument({ documentId, vaultId });
+      const includeDeleted = context.req.query('includeDeleted') === 'true';
+      const result = await documentsServices.downloadDocument({
+        documentId,
+        vaultId,
+        ...(includeDeleted ? { includeDeleted: true } : {}),
+      });
 
       if (result === null) {
         return context.json(
@@ -369,7 +374,12 @@ export function registerDocumentRoutes({
       }
 
       const documentId = context.req.param('documentId');
-      const result = await documentsServices.downloadDocument({ documentId, vaultId });
+      const includeDeleted = context.req.query('includeDeleted') === 'true';
+      const result = await documentsServices.downloadDocument({
+        documentId,
+        vaultId,
+        ...(includeDeleted ? { includeDeleted: true } : {}),
+      });
 
       if (result === null) {
         return context.json(
@@ -408,10 +418,12 @@ export function registerDocumentRoutes({
       }
 
       const documentId = context.req.param('documentId');
+      const includeDeleted = context.req.query('includeDeleted') === 'true';
       const result = await documentsServices.renderDocumentPagePreview({
         documentId,
         vaultId,
         pageNumber,
+        ...(includeDeleted ? { includeDeleted: true } : {}),
       });
 
       if (result === null) {

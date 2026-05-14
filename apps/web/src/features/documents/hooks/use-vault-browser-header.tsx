@@ -1,17 +1,10 @@
 import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
-import { Flex, HStack, Menu, Portal, Text } from '@chakra-ui/react';
-import { ChevronDown, FileUp, FolderPlus, FolderUp, Grid3X3, List, Upload } from 'lucide-react';
+import { Box, Flex, HStack, Menu, Portal, Text } from '@chakra-ui/react';
+import { ArrowUpDown, Check, ChevronDown, FileUp, FolderPlus, FolderUp, Grid3X3, List, Upload } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
 import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
 import type { BrowserDropTarget, FileBrowserSort, FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
@@ -30,6 +23,21 @@ const uploadMenuItemProps = {
   cursor: 'default',
   color: 'fg.muted',
   _highlighted: { bg: 'bg.muted', color: 'fg' },
+} as const;
+
+const toolbarControlStyles = {
+  h: '10',
+  rounded: 'md',
+  borderColor: 'border.subtle',
+  bg: 'bg.surface',
+  shadow: 'none',
+  _hover: { borderColor: 'fg/30', bg: 'bg.surface' },
+  _focusVisible: {
+    borderColor: 'teal.solid',
+    outline: '2px solid',
+    outlineColor: 'teal.focusRing',
+    outlineOffset: '1px',
+  },
 } as const;
 
 export function useVaultBrowserHeader({
@@ -75,6 +83,7 @@ export function useVaultBrowserHeader({
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
 }) {
+  const selectedSortLabel = browserSortOptions.find((option) => option.value === browserSort)?.label ?? browserSortOptions[0].label;
   const breadcrumbEntries = useMemo<VaultBreadcrumbEntry[]>(() => [
     { key: 'vaults', label: 'Vaults', to: ROUTES.vaults },
     {
@@ -164,50 +173,109 @@ export function useVaultBrowserHeader({
             Clear
           </Button>
         ) : null}
-        <Flex
-          display={{ base: 'none', xl: 'flex' }}
-          align="center"
-          gap="2"
-          rounded="md"
-          borderWidth="1px"
-          borderColor="border.subtle"
-          bg="bg.workspace"
-          px="2.5"
-          h="9"
-        >
-          <Text as="span" id="vault-browser-sort" fontSize="xs" fontWeight="medium" color="fg.muted">
-            Sort
-          </Text>
-          <Select value={browserSort} onValueChange={(value) => setBrowserSort(value as FileBrowserSort)}>
-            <SelectTrigger
+        <Menu.Root positioning={{ placement: 'bottom-end', offset: { mainAxis: 6, crossAxis: 0 } }}>
+          <Menu.Trigger asChild>
+            <Button
+              type="button"
+              variant="outline"
               aria-label="Sort folder items"
-              aria-labelledby="vault-browser-sort"
-              h="8"
-              minW="36"
-              border="0"
-              bg="transparent"
-              px="0"
-              shadow="none"
-              focusRing="none"
+              display={{ base: 'none', xl: 'inline-flex' }}
+              minW="12rem"
+              justifyContent="space-between"
+              gap="2"
+              px="3"
+              {...toolbarControlStyles}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              {browserSortOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Flex>
-        <Button type="button" size="sm" variant="outline" onClick={() => onOpenCreateFolderDialog(currentFolderId)}>
+              <Flex minW="0" align="center" gap="2">
+                <Box color="fg.muted" aria-hidden="true">
+                  <ArrowUpDown size={16} />
+                </Box>
+                <Text as="span" truncate fontSize="sm" fontWeight="medium">
+                  {selectedSortLabel}
+                </Text>
+              </Flex>
+              <Box flexShrink={0} color="fg.muted" aria-hidden="true">
+                <ChevronDown size={16} />
+              </Box>
+            </Button>
+          </Menu.Trigger>
+          <Portal>
+            <Menu.Positioner zIndex="dropdown">
+              <Menu.Content
+                minW="12rem"
+                rounded="lg"
+                borderWidth="1px"
+                borderColor="border.subtle"
+                bg="bg.surface"
+                p="1.5"
+                shadow="lg"
+              >
+                <Menu.RadioItemGroup
+                  value={browserSort}
+                  onValueChange={(event) => setBrowserSort(event.value as FileBrowserSort)}
+                >
+                  {browserSortOptions.map((option) => (
+                    <Menu.RadioItem
+                      key={option.value}
+                      value={option.value}
+                      position="relative"
+                      minH="10"
+                      rounded="md"
+                      py="2"
+                      ps="10"
+                      pe="3"
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color="fg"
+                      _checked={{ bg: 'teal.subtle', color: 'fg' }}
+                      _highlighted={{ bg: browserSort === option.value ? 'teal.subtle' : 'bg.subtle' }}
+                    >
+                      <Box
+                        position="absolute"
+                        left="2.5"
+                        top="50%"
+                        display="flex"
+                        boxSize="5"
+                        alignItems="center"
+                        justifyContent="center"
+                        rounded="sm"
+                        color="teal.solid"
+                        transform="translateY(-50%)"
+                      >
+                        <Menu.ItemIndicator>
+                          <Check size={16} strokeWidth={2.5} />
+                        </Menu.ItemIndicator>
+                      </Box>
+                      <Menu.ItemText>{option.label}</Menu.ItemText>
+                    </Menu.RadioItem>
+                  ))}
+                </Menu.RadioItemGroup>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
+        </Menu.Root>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          px="3"
+          {...toolbarControlStyles}
+          onClick={() => onOpenCreateFolderDialog(currentFolderId)}
+        >
           <FolderPlus size={16} />
           New
         </Button>
         <Menu.Root lazyMount unmountOnExit typeahead={false} positioning={{ placement: 'bottom-end' }}>
           <Menu.Trigger asChild>
-            <Button type="button" size="sm">
+            <Button
+              type="button"
+              size="sm"
+              px="3"
+              colorPalette="teal"
+              h="10"
+              rounded="md"
+              shadow="none"
+            >
               <Upload size={16} />
               Upload
               <ChevronDown size={14} />
@@ -249,6 +317,7 @@ export function useVaultBrowserHeader({
     onOpenUploadDirectory,
     onOpenUploadFiles,
     selectedCount,
+    selectedSortLabel,
     setBrowserSort,
     setBrowserView,
   ]);

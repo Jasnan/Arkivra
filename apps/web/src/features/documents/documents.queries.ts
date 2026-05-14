@@ -18,8 +18,8 @@ export const documentQueryKeys = {
   deletedList: (vaultId?: string) => [...documentQueryKeys.all, 'deleted-list', vaultId ?? 'all'] as const,
   detail: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'detail', vaultId, documentId] as const,
-  fileText: (vaultId: string, documentId: string) =>
-    [...documentQueryKeys.all, 'file-text', vaultId, documentId] as const,
+  fileText: (vaultId: string, documentId: string, includeDeleted = false) =>
+    [...documentQueryKeys.all, 'file-text', vaultId, documentId, includeDeleted] as const,
   tags: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'tags', vaultId, documentId] as const,
 };
@@ -83,15 +83,17 @@ export function useDocumentTagsQuery({ vaultId, documentId }: { vaultId: string;
 export function useDocumentFileTextQuery({
   vaultId,
   documentId,
+  includeDeleted = false,
   enabled = true,
 }: {
   vaultId: string;
   documentId: string;
+  includeDeleted?: boolean;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: documentQueryKeys.fileText(vaultId, documentId),
-    queryFn: () => getDocumentFileText({ vaultId, documentId }),
+    queryKey: documentQueryKeys.fileText(vaultId, documentId, includeDeleted),
+    queryFn: () => getDocumentFileText({ vaultId, documentId, includeDeleted }),
     enabled: enabled && vaultId.length > 0 && documentId.length > 0,
   });
 }

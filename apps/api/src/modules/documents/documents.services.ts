@@ -193,10 +193,21 @@ export function createDocumentsServices({
   async function getActiveDocumentRecord({
     documentId,
     vaultId,
+    includeDeleted = false,
   }: {
     documentId: string;
     vaultId: string;
+    includeDeleted?: boolean;
   }): Promise<ActiveDocumentRecord | null> {
+    const conditions = [
+      eq(documentsTable.id, documentId),
+      eq(documentsTable.vaultId, vaultId),
+    ];
+
+    if (!includeDeleted) {
+      conditions.push(eq(documentsTable.isDeleted, false));
+    }
+
     const [doc] = await db
       .select({
         id: documentsTable.id,
@@ -210,13 +221,7 @@ export function createDocumentsServices({
         fileEncryptionKekVersion: documentsTable.fileEncryptionKekVersion,
       })
       .from(documentsTable)
-      .where(
-        and(
-          eq(documentsTable.id, documentId),
-          eq(documentsTable.vaultId, vaultId),
-          eq(documentsTable.isDeleted, false),
-        ),
-      )
+      .where(and(...conditions))
       .limit(1);
 
     return doc ?? null;
@@ -383,11 +388,13 @@ export function createDocumentsServices({
   async function downloadDocument({
     documentId,
     vaultId,
+    includeDeleted = false,
   }: {
     documentId: string;
     vaultId: string;
+    includeDeleted?: boolean;
   }) {
-    const doc = await getActiveDocumentRecord({ documentId, vaultId });
+    const doc = await getActiveDocumentRecord({ documentId, vaultId, includeDeleted });
     if (doc === null) {
       return null;
     }
@@ -406,12 +413,14 @@ export function createDocumentsServices({
     documentId,
     vaultId,
     pageNumber,
+    includeDeleted = false,
   }: {
     documentId: string;
     vaultId: string;
     pageNumber: number;
+    includeDeleted?: boolean;
   }) {
-    const doc = await getActiveDocumentRecord({ documentId, vaultId });
+    const doc = await getActiveDocumentRecord({ documentId, vaultId, includeDeleted });
     if (doc === null) {
       return null;
     }

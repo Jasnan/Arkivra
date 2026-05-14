@@ -77,6 +77,7 @@ import {
 import type { NormalizedPoint, NormalizedRect } from '@/features/documents/pdf-translation-capture';
 import {
   documentQueryKeys,
+  useDeletedDocumentsQuery,
   useDocumentFileTextQuery,
   useDocumentQuery,
   useDocumentTagsQuery,
@@ -295,11 +296,13 @@ function PdfPreviewFrame({
   vaultId,
   documentId,
   onPrint,
+  translationsDisabled = false,
 }: {
   src: string;
   vaultId: string;
   documentId: string;
   onPrint: () => void;
+  translationsDisabled?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const visiblePageRef = useRef<HTMLDivElement | null>(null);
@@ -601,6 +604,10 @@ function PdfPreviewFrame({
   }
 
   async function runPageTranslation(targetLanguage: DocumentTranslationLanguage) {
+    if (translationsDisabled) {
+      return;
+    }
+
     const controller = createTranslationController();
     const pendingState: TranslationPaneState = {
       status: 'loading',
@@ -664,6 +671,10 @@ function PdfPreviewFrame({
     targetLanguage: DocumentTranslationLanguage;
     source: Extract<DocumentTranslationSource, { type: 'text' | 'area-image' }>;
   }) {
+    if (translationsDisabled) {
+      return;
+    }
+
     const controller = createTranslationController();
     const pendingState: TranslationPaneState = {
       status: 'loading',
@@ -711,6 +722,10 @@ function PdfPreviewFrame({
   }
 
   async function runVisualSelectionTranslation(targetLanguage: DocumentTranslationLanguage, rect: NormalizedRect) {
+    if (translationsDisabled) {
+      return;
+    }
+
     const canvas = getCurrentCanvas();
 
     if (canvas === null) {
@@ -742,7 +757,7 @@ function PdfPreviewFrame({
   }
 
   function handlePageContextMenu(event: React.MouseEvent<HTMLDivElement>) {
-    if (!isReady || isAreaSelectionMode) {
+    if (!isReady || isAreaSelectionMode || translationsDisabled) {
       return;
     }
 
@@ -756,7 +771,7 @@ function PdfPreviewFrame({
   }
 
   function handlePageMouseUp(event: React.MouseEvent<HTMLDivElement>) {
-    if (isAreaSelectionMode || !isReady) {
+    if (isAreaSelectionMode || !isReady || translationsDisabled) {
       return;
     }
 
@@ -778,7 +793,7 @@ function PdfPreviewFrame({
   }
 
   function handleAreaPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (!isAreaSelectionMode || !isReady || visiblePageRef.current === null) {
+    if (!isAreaSelectionMode || !isReady || translationsDisabled || visiblePageRef.current === null) {
       return;
     }
 
@@ -991,23 +1006,25 @@ function PdfPreviewFrame({
           </Flex>
 
           <Flex align="center" gap="2">
-            <Button
-              type="button"
-              size="sm"
-              variant={isAreaSelectionMode ? 'solid' : 'outline'}
-              aria-pressed={isAreaSelectionMode}
-              disabled={!isReady}
-              onClick={() => {
-                setIsAreaSelectionMode(value => !value);
-                setTextSelectionMenu(null);
-                setPageContextMenu(null);
-                setVisualSelectionMenu(null);
-                setVisualSelectionRect(null);
-              }}
-            >
-              <ScanText size={16} />
-              Area
-            </Button>
+            {!translationsDisabled ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={isAreaSelectionMode ? 'solid' : 'outline'}
+                aria-pressed={isAreaSelectionMode}
+                disabled={!isReady}
+                onClick={() => {
+                  setIsAreaSelectionMode(value => !value);
+                  setTextSelectionMenu(null);
+                  setPageContextMenu(null);
+                  setVisualSelectionMenu(null);
+                  setVisualSelectionRect(null);
+                }}
+              >
+                <ScanText size={16} />
+                Area
+              </Button>
+            ) : null}
             <Button type="button" size="sm" variant="outline" onClick={onPrint}>
               <Printer size={16} />
               Print
@@ -1143,7 +1160,7 @@ function PdfPreviewFrame({
         </Flex>
       </Box>
     </Box>
-    {translationPane !== null ? (
+    {translationPane !== null && !translationsDisabled ? (
       <Box
         flex={{ base: '0 0 auto', xl: '0 0 22rem' }}
         h={{ base: '24rem', xl: 'full' }}
@@ -1207,7 +1224,7 @@ function PdfPreviewFrame({
     ) : null}
 
     <ChakraMenu.Root
-      open={pageContextMenu?.open ?? false}
+      open={!translationsDisabled && (pageContextMenu?.open ?? false)}
       onOpenChange={(event) => setPageContextMenu(current => current === null ? null : { ...current, open: event.open })}
       positioning={{
         placement: 'bottom-start',
@@ -1259,7 +1276,7 @@ function PdfPreviewFrame({
     </ChakraMenu.Root>
 
     <ChakraMenu.Root
-      open={textSelectionMenu?.open ?? false}
+      open={!translationsDisabled && (textSelectionMenu?.open ?? false)}
       onOpenChange={(event) => setTextSelectionMenu(current => current === null ? null : { ...current, open: event.open })}
       positioning={{
         placement: 'bottom-start',
@@ -1320,7 +1337,7 @@ function PdfPreviewFrame({
     </ChakraMenu.Root>
 
     <ChakraMenu.Root
-      open={visualSelectionMenu?.open ?? false}
+      open={!translationsDisabled && (visualSelectionMenu?.open ?? false)}
       onOpenChange={(event) => setVisualSelectionMenu(current => current === null ? null : { ...current, open: event.open })}
       positioning={{
         placement: 'bottom-start',
@@ -1436,12 +1453,19 @@ function getPreviewKind(mimeType: string, name: string, originalName: string): P
 
 export function DocumentDetailPage() {
   const params = useParams({ strict: false }) as { vaultId?: string; documentId?: string };
-  const vaultId = params.vaultId ?? '';
   const documentId = params.documentId ?? '';
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const parentRoute = ROUTES.vaultRoot(vaultId);
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const isTrashDocumentRoute = pathParts[0] === 'trash';
+  const deletedDocumentsQuery = useDeletedDocumentsQuery({ enabled: isTrashDocumentRoute });
+  const trashDocumentSummary = useMemo(
+    () => deletedDocumentsQuery.data?.documents.find((document) => document.id === documentId) ?? null,
+    [deletedDocumentsQuery.data?.documents, documentId],
+  );
+  const vaultId = params.vaultId ?? trashDocumentSummary?.vaultId ?? '';
+  const parentRoute = isTrashDocumentRoute ? ROUTES.trash : ROUTES.vaultRoot(vaultId);
 
   const documentQuery = useDocumentQuery({ vaultId, documentId });
   const documentTagsQuery = useDocumentTagsQuery({ vaultId, documentId });
@@ -1456,7 +1480,8 @@ export function DocumentDetailPage() {
   const markdownSourceQuery = useDocumentFileTextQuery({
     vaultId,
     documentId,
-    enabled: previewKind === 'markdown' && documentQuery.data?.document.isDeleted === false,
+    includeDeleted: isTrashDocumentRoute,
+    enabled: previewKind === 'markdown' && (documentQuery.data?.document.isDeleted === false || isTrashDocumentRoute),
   });
 
   const [renameValue, setRenameValue] = useState<string | null>(null);
@@ -1498,37 +1523,55 @@ export function DocumentDetailPage() {
     [location.search],
   );
 
-  const documentBreadcrumbEntries = useMemo<VaultBreadcrumbEntry[]>(() => [
-    ...(searchReturnParams
-      ? [{
-          key: 'search-results',
-          label: 'Search results',
-          onClick: () => navigate({ to: ROUTES.search, search: searchReturnParams as any }),
-        }]
-      : [{ key: 'vaults', label: 'Vaults', to: ROUTES.vaults }]),
-    {
-      key: `vault-${vaultId}`,
-      label: vaultQuery.data?.vault.name ?? 'Vault',
-      onClick: () => navigate({ to: ROUTES.vaultRoot(vaultId) }),
-    },
-    ...documentBreadcrumbFolders.map(folder => ({
-      key: `folder-${folder.id}`,
-      label: folder.name,
-      onClick: () => navigate({
-        to: ROUTES.vaultRoot(vaultId),
-        search: { folderId: folder.id } as any,
-      }),
-    })),
-    {
-      key: `document-${documentId}`,
-      label: documentQuery.data?.document.name ?? 'Document',
-    },
-  ], [
+  const documentBreadcrumbEntries = useMemo<VaultBreadcrumbEntry[]>(() => {
+    if (isTrashDocumentRoute) {
+      return [
+        {
+          key: 'trash',
+          label: 'Trash',
+          onClick: () => navigate({ to: ROUTES.trash }),
+        },
+        {
+          key: `document-${documentId}`,
+          label: documentQuery.data?.document.name ?? trashDocumentSummary?.name ?? 'Document',
+        },
+      ];
+    }
+
+    return [
+      ...(searchReturnParams
+        ? [{
+            key: 'search-results',
+            label: 'Search results',
+            onClick: () => navigate({ to: ROUTES.search, search: searchReturnParams as any }),
+          }]
+        : [{ key: 'vaults', label: 'Vaults', to: ROUTES.vaults }]),
+      {
+        key: `vault-${vaultId}`,
+        label: vaultQuery.data?.vault.name ?? 'Vault',
+        onClick: () => navigate({ to: ROUTES.vaultRoot(vaultId) }),
+      },
+      ...documentBreadcrumbFolders.map(folder => ({
+        key: `folder-${folder.id}`,
+        label: folder.name,
+        onClick: () => navigate({
+          to: ROUTES.vaultRoot(vaultId),
+          search: { folderId: folder.id } as any,
+        }),
+      })),
+      {
+        key: `document-${documentId}`,
+        label: documentQuery.data?.document.name ?? 'Document',
+      },
+    ];
+  }, [
     documentBreadcrumbFolders,
     documentId,
     documentQuery.data?.document.name,
+    isTrashDocumentRoute,
     navigate,
     searchReturnParams,
+    trashDocumentSummary?.name,
     vaultId,
     vaultQuery.data?.vault.name,
   ]);
@@ -1620,6 +1663,9 @@ export function DocumentDetailPage() {
     onSuccess: async () => {
       toast.success('Document restored.');
       await invalidateDocument();
+      if (isTrashDocumentRoute) {
+        navigate({ to: ROUTES.trash, replace: true });
+      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not restore document.');
@@ -1654,10 +1700,14 @@ export function DocumentDetailPage() {
   });
 
   if (!vaultId || !documentId) {
+    if (isTrashDocumentRoute && deletedDocumentsQuery.isLoading) {
+      return <Text fontSize="sm" color="fg.muted">Loading document...</Text>;
+    }
+
     return <Text fontSize="sm" color="fg.error">Invalid document route.</Text>;
   }
 
-  if (documentQuery.isLoading) {
+  if (documentQuery.isLoading || (isTrashDocumentRoute && deletedDocumentsQuery.isLoading)) {
     return <Text fontSize="sm" color="fg.muted">Loading document...</Text>;
   }
 
@@ -1693,8 +1743,8 @@ export function DocumentDetailPage() {
   const hasExactTagMatch = availableTags.some(
     (tag) => tag.name.trim().toLowerCase() === normalizedTagSearchValue,
   );
-  const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId });
-  const canPreview = !document.isDeleted && previewKind !== 'unsupported';
+  const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute });
+  const canPreview = (!document.isDeleted || isTrashDocumentRoute) && previewKind !== 'unsupported';
   const canPrint = !document.isDeleted && canPreview && previewKind !== 'markdown';
   const currentName = renameValue ?? document.name;
   const currentDocumentDate =
@@ -1720,6 +1770,10 @@ export function DocumentDetailPage() {
     displayContent,
   );
   const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
+  const detailActiveTab =
+    isTrashDocumentRoute && (activeTab === 'chat' || activeTab === 'content')
+      ? 'preview'
+      : activeTab;
 
   async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1863,6 +1917,8 @@ export function DocumentDetailPage() {
       h="full"
       minH="0"
       gap="0"
+      px={isTrashDocumentRoute ? { base: '4', lg: '6' } : undefined}
+      py={isTrashDocumentRoute ? '4' : undefined}
       pb="0"
     >
       <Flex
@@ -1901,6 +1957,13 @@ export function DocumentDetailPage() {
           </Flex>
 
           <Flex align="center" gap="2">
+            {isTrashDocumentRoute ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.trash })}>
+                <ArrowLeft size={16} />
+                Trash
+              </Button>
+            ) : null}
+
             {searchReturnParams ? (
               <Button type="button" size="sm" variant="outline" onClick={returnToSearchResults}>
                 <ArrowLeft size={16} />
@@ -1913,19 +1976,21 @@ export function DocumentDetailPage() {
                 <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" minW="56">
-                <DropdownMenuItem asChild>
-                  <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
-                    <ActionMenuItemIcon icon={Download} />
-                    Download original
-                  </a>
-                </DropdownMenuItem>
+                {!isTrashDocumentRoute ? (
+                  <DropdownMenuItem asChild>
+                    <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
+                      <ActionMenuItemIcon icon={Download} />
+                      Download original
+                    </a>
+                  </DropdownMenuItem>
+                ) : null}
                 {canPrint ? (
                   <DropdownMenuItem onSelect={handlePrintClick}>
                     <ActionMenuItemIcon icon={Printer} />
                     Print
                   </DropdownMenuItem>
                 ) : null}
-                <DropdownMenuSeparator />
+                {!isTrashDocumentRoute || document.isDeleted ? <DropdownMenuSeparator /> : null}
                 {document.isDeleted ? (
                   <DropdownMenuItem
                     disabled={restoreMutation.isPending}
@@ -1954,7 +2019,7 @@ export function DocumentDetailPage() {
         </Flex>
 
         <Flex align="center" justify="space-between" gap="3" overflowX="auto">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
+          <Tabs value={detailActiveTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
             <TabsList gap="2" rounded="0" bg="transparent" p="0">
               <TabsTrigger
                 value="preview"
@@ -1963,13 +2028,15 @@ export function DocumentDetailPage() {
                 <ImageIcon size={16} />
                 Preview
               </TabsTrigger>
-              <TabsTrigger
-                value="content"
-                {...documentTabTriggerStyles}
-              >
-                <ScanText size={16} />
-                Extracted text
-              </TabsTrigger>
+              {!isTrashDocumentRoute ? (
+                <TabsTrigger
+                  value="content"
+                  {...documentTabTriggerStyles}
+                >
+                  <ScanText size={16} />
+                  Extracted text
+                </TabsTrigger>
+              ) : null}
               <TabsTrigger
                 value="metadata"
                 {...documentTabTriggerStyles}
@@ -1977,13 +2044,15 @@ export function DocumentDetailPage() {
                 <Tags size={16} />
                 Metadata
               </TabsTrigger>
-              <TabsTrigger
-                value="chat"
-                {...documentTabTriggerStyles}
-              >
-                <MessageSquare size={16} />
-                Chat
-              </TabsTrigger>
+              {!isTrashDocumentRoute ? (
+                <TabsTrigger
+                  value="chat"
+                  {...documentTabTriggerStyles}
+                >
+                  <MessageSquare size={16} />
+                  Chat
+                </TabsTrigger>
+              ) : null}
             </TabsList>
           </Tabs>
         </Flex>
@@ -1993,21 +2062,22 @@ export function DocumentDetailPage() {
         flex="1"
         h="full"
         minH="0"
-        pt={activeTab === 'chat' ? '0' : '5'}
+        pt={detailActiveTab === 'chat' ? '0' : '5'}
       >
-            {activeTab === 'preview' ? (
+            {detailActiveTab === 'preview' ? (
               <Flex h="full" minH="0" direction="column" gap="4">
-                {previewKind === 'pdf' && !document.isDeleted ? (
+                {previewKind === 'pdf' && canPreview ? (
                   <PdfPreviewFrame
                     key={inlineFileUrl}
                     src={inlineFileUrl}
                     vaultId={vaultId}
                     documentId={documentId}
                     onPrint={handlePrintClick}
+                    translationsDisabled={isTrashDocumentRoute}
                   />
                 ) : null}
 
-                {previewKind === 'image' && !document.isDeleted ? (
+                {previewKind === 'image' && canPreview ? (
                   <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="4">
                     <Flex
                       h="full"
@@ -2029,7 +2099,7 @@ export function DocumentDetailPage() {
                   </Box>
                 ) : null}
 
-                {previewKind === 'text' && !document.isDeleted ? (
+                {previewKind === 'text' && canPreview ? (
                   <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
                     <chakra.iframe
                       title="Text preview"
@@ -2042,7 +2112,7 @@ export function DocumentDetailPage() {
                   </Box>
                 ) : null}
 
-                {previewKind === 'markdown' && !document.isDeleted ? (
+                {previewKind === 'markdown' && canPreview ? (
                   <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
                     <Box
                       h="full"
@@ -2065,7 +2135,7 @@ export function DocumentDetailPage() {
                   </Box>
                 ) : null}
 
-                {previewKind === 'unsupported' || document.isDeleted ? (
+                {previewKind === 'unsupported' || (document.isDeleted && !isTrashDocumentRoute) ? (
                   <Box h="full" minH={{ base: '720px', md: '0' }} rounded="lg" bg="bg.subtle" p="6">
                     <Flex
                       h="full"
@@ -2098,7 +2168,7 @@ export function DocumentDetailPage() {
               </Flex>
             ) : null}
 
-            {activeTab === 'content' ? (
+            {detailActiveTab === 'content' ? (
               <Flex direction="column" gap="3">
                 <Flex flexWrap="wrap" align="center" gap="3">
                   <Box
@@ -2151,7 +2221,7 @@ export function DocumentDetailPage() {
               </Flex>
             ) : null}
 
-            {activeTab === 'metadata' ? (
+            {detailActiveTab === 'metadata' ? (
               <chakra.form minH="820px" onSubmit={handleMetadataSave}>
                 <Flex
                   direction={{ base: 'column', sm: 'row' }}
@@ -2177,22 +2247,24 @@ export function DocumentDetailPage() {
                         <Text fontWeight="medium" color="fg">
                           {document.name}
                         </Text>
-                        <chakra.button
-                          type="button"
-                          aria-label="Edit display name"
-                          display="inline-flex"
-                          boxSize="8"
-                          flexShrink={0}
-                          alignItems="center"
-                          justifyContent="center"
-                          rounded="lg"
-                          color="fg.muted"
-                          transition="colors"
-                          _hover={{ bg: 'bg.surface', color: 'fg' }}
-                          onClick={() => setIsNameEditing(true)}
-                        >
-                          <Pencil size={16} />
-                        </chakra.button>
+                        {!isTrashDocumentRoute ? (
+                          <chakra.button
+                            type="button"
+                            aria-label="Edit display name"
+                            display="inline-flex"
+                            boxSize="8"
+                            flexShrink={0}
+                            alignItems="center"
+                            justifyContent="center"
+                            rounded="lg"
+                            color="fg.muted"
+                            transition="colors"
+                            _hover={{ bg: 'bg.surface', color: 'fg' }}
+                            onClick={() => setIsNameEditing(true)}
+                          >
+                            <Pencil size={16} />
+                          </chakra.button>
+                        ) : null}
                       </Flex>
                     )}
                   </Box>
@@ -2221,22 +2293,24 @@ export function DocumentDetailPage() {
                         <Text fontWeight="medium" color="fg">
                           {formatDate(document.documentDate)}
                         </Text>
-                        <chakra.button
-                          type="button"
-                          aria-label="Edit document date"
-                          display="inline-flex"
-                          boxSize="8"
-                          flexShrink={0}
-                          alignItems="center"
-                          justifyContent="center"
-                          rounded="lg"
-                          color="fg.muted"
-                          transition="colors"
-                          _hover={{ bg: 'bg.surface', color: 'fg' }}
-                          onClick={() => setIsDocumentDateEditing(true)}
-                        >
-                          <Pencil size={16} />
-                        </chakra.button>
+                        {!isTrashDocumentRoute ? (
+                          <chakra.button
+                            type="button"
+                            aria-label="Edit document date"
+                            display="inline-flex"
+                            boxSize="8"
+                            flexShrink={0}
+                            alignItems="center"
+                            justifyContent="center"
+                            rounded="lg"
+                            color="fg.muted"
+                            transition="colors"
+                            _hover={{ bg: 'bg.surface', color: 'fg' }}
+                            onClick={() => setIsDocumentDateEditing(true)}
+                          >
+                            <Pencil size={16} />
+                          </chakra.button>
+                        ) : null}
                       </Flex>
                     )}
                   </Box>
@@ -2300,62 +2374,65 @@ export function DocumentDetailPage() {
                       >
                         <Box aria-hidden="true" boxSize="1.5" rounded="full" bg={tag.color ?? '#64748b'} />
                         {tag.name}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove ${tag.name}`}
-                          rounded="full"
-                          color="fg.muted"
-                          _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                          h="6"
-                          w="6"
-                          mr="-1"
-                          onClick={() => {
-                            removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                          }}
-                        >
-                          <X size={14} />
-                        </Button>
+                        {!isTrashDocumentRoute ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove ${tag.name}`}
+                            rounded="full"
+                            color="fg.muted"
+                            _hover={{ bg: 'bg.subtle', color: 'fg' }}
+                            h="6"
+                            w="6"
+                            mr="-1"
+                            onClick={() => {
+                              removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                            }}
+                          >
+                            <X size={14} />
+                          </Button>
+                        ) : null}
                       </Flex>
                     ))}
-                    <DropdownMenu
-                      modal={false}
-                      open={isTagPickerOpen}
-                      onOpenChange={(open) => {
-                        setIsTagPickerOpen(open);
-                        if (!open) {
-                          setTagSearchValue('');
-                        }
-                      }}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Add tag"
-                          h="8"
-                          w="8"
-                          rounded="full"
-                          bg="bg.surface"
-                          color="fg.muted"
-                          _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                        >
-                          <Plus size={16} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="start"
-                        minW="80"
-                        overflow="hidden"
-                        rounded="xl"
-                        bg="bg.surface"
-                        p="0"
-                        onCloseAutoFocus={(event) => {
-                          event.preventDefault();
+                    {!isTrashDocumentRoute ? (
+                      <DropdownMenu
+                        modal={false}
+                        open={isTagPickerOpen}
+                        onOpenChange={(open) => {
+                          setIsTagPickerOpen(open);
+                          if (!open) {
+                            setTagSearchValue('');
+                          }
                         }}
                       >
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Add tag"
+                            h="8"
+                            w="8"
+                            rounded="full"
+                            bg="bg.surface"
+                            color="fg.muted"
+                            _hover={{ bg: 'bg.subtle', color: 'fg' }}
+                          >
+                            <Plus size={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="start"
+                          minW="80"
+                          overflow="hidden"
+                          rounded="xl"
+                          bg="bg.surface"
+                          p="0"
+                          onCloseAutoFocus={(event) => {
+                            event.preventDefault();
+                          }}
+                        >
                         <Box borderBottomWidth="1px" borderColor="border.subtle" p="2">
                           <Field>
                             <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
@@ -2423,10 +2500,11 @@ export function DocumentDetailPage() {
                         </Box>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    ) : null}
                   </Flex>
                 </Box>
 
-                {isNameEditing || isDocumentDateEditing ? (
+                {!isTrashDocumentRoute && (isNameEditing || isDocumentDateEditing) ? (
                   <SaveButton
                     type="submit"
                     mt="5"
@@ -2438,7 +2516,7 @@ export function DocumentDetailPage() {
               </chakra.form>
             ) : null}
 
-            {activeTab === 'chat' ? (
+            {detailActiveTab === 'chat' ? (
               <ChatWorkspace
                 scope={{ vaultId, documentId }}
                 documentName={document.name}

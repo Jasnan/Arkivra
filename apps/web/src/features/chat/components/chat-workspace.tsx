@@ -72,6 +72,7 @@ export function ChatWorkspace({
   const [streamingText, setStreamingText] = useState('');
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [isAssistantResponsePending, setIsAssistantResponsePending] = useState(false);
   const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
   const [selectedModel, setSelectedModel] = useState('');
   const [composerValue, setComposerValue] = useState('');
@@ -80,7 +81,7 @@ export function ChatWorkspace({
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const isStreaming = streamStatus !== null;
+  const isStreaming = isAssistantResponsePending || streamStatus !== null;
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation
     ? ''
@@ -90,9 +91,23 @@ export function ChatWorkspace({
     chatId: effectiveSelectedChatId,
   });
 
+  const scrollToMessagesEnd = useCallback(() => {
+    const scroll = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    };
+
+    if (typeof window.requestAnimationFrame !== 'function') {
+      scroll();
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(scroll);
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [selectedChatQuery.data?.conversation.messages, localMessages, streamingText]);
+    return scrollToMessagesEnd();
+  }, [isStreaming, localMessages, scrollToMessagesEnd, selectedChatQuery.data?.conversation.messages, streamingText]);
 
   const availableModels = modelOptionsQuery.data?.options.models ?? [];
   const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
@@ -160,6 +175,7 @@ export function ChatWorkspace({
     setLocalMessages([]);
     setStreamingText('');
     setStreamError(null);
+    setIsAssistantResponsePending(false);
     setComposerValue('');
     setCurrentIntent(null);
     setMetricsByMessageId({});
@@ -201,6 +217,7 @@ export function ChatWorkspace({
   async function handleSend(content: string, intentOverride?: ChatIntent | null) {
     setStreamError(null);
     setStreamingText('');
+    setIsAssistantResponsePending(true);
     const resolvedIntent = isGlobalChat ? (intentOverride ?? effectiveIntent) : null;
 
     let chatId = effectiveSelectedChatId;
@@ -248,6 +265,7 @@ export function ChatWorkspace({
         onError: (message) => {
           setStreamError(message);
           setLocalMessages([]);
+          setIsAssistantResponsePending(false);
           setStreamStatus(null);
           void Promise.all([
             queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) }),
@@ -261,6 +279,7 @@ export function ChatWorkspace({
           }));
           setLocalMessages([]);
           setStreamingText('');
+          setIsAssistantResponsePending(false);
           setStreamStatus(null);
           void Promise.all([
             queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) }),
@@ -268,10 +287,12 @@ export function ChatWorkspace({
           ]);
         },
       });
+      setIsAssistantResponsePending(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not send message.';
       setStreamError(message);
       toast.error(message);
+      setIsAssistantResponsePending(false);
       setStreamStatus(null);
     }
   }

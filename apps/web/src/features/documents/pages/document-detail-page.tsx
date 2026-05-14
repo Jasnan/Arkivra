@@ -1,9 +1,22 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, Flex, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra, Heading } from '@chakra-ui/react';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+import { Document as PdfDocument, Page as PdfPage, pdfjs } from 'react-pdf';
+import {
+  Box,
+  Flex,
+  Text,
+  CloseButton,
+  Dialog as ChakraDialog,
+  Portal,
+  chakra,
+  Heading,
+} from '@chakra-ui/react';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Image as ImageIcon,
   MessageSquare,
@@ -14,6 +27,8 @@ import {
   Printer,
   RotateCcw,
   Trash2,
+  ZoomIn,
+  ZoomOut,
   X,
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
@@ -66,6 +81,11 @@ import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/va
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { useVaultQuery } from '@/features/vaults/vaults.queries';
 
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
+
 type PreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
 
@@ -89,6 +109,519 @@ const documentTabTriggerStyles = {
 } as const;
 
 const searchReturnParamKeys = ['q', 'vaultId', 'tagId', 'dateFrom', 'dateTo', 'sortBy'] as const;
+const pdfPreviewRevealDelayMs = 120;
+const pdfPreviewFadeMs = 420;
+const pdfPreviewPadding = 32;
+const pdfPreviewToolbarHeight = 88;
+const pdfPreviewCommitCoverDelayMs = 120;
+const pdfPreviewMinZoom = 0.5;
+const pdfPreviewMaxZoom = 3;
+const pdfPreviewZoomStep = 0.1;
+
+type PdfZoomMode = 'fit-page' | 'fit-width' | 'actual' | 'custom';
+
+function clampPdfZoom(value: number) {
+  return Math.min(Math.max(value, pdfPreviewMinZoom), pdfPreviewMaxZoom);
+}
+
+function PdfPreviewFrame({
+  src,
+  onPrint,
+}: {
+  src: string;
+  onPrint: () => void;
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const revealTimeoutRef = useRef<number | null>(null);
+  const transitionTimeoutRef = useRef<number | null>(null);
+  const commitCoverTimeoutRef = useRef<number | null>(null);
+  const requestedPageNumberRef = useRef(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [visiblePageNumber, setVisiblePageNumber] = useState(1);
+  const [isPendingPageRendered, setIsPendingPageRendered] = useState(false);
+  const [commitCoverPageNumber, setCommitCoverPageNumber] = useState<number | null>(null);
+  const [pageAspectRatio, setPageAspectRatio] = useState<number | null>(null);
+  const [pageNaturalWidth, setPageNaturalWidth] = useState<number | null>(null);
+  const [zoomMode, setZoomMode] = useState<PdfZoomMode>('fit-page');
+  const [customZoomScale, setCustomZoomScale] = useState(1);
+  const [isPageRendered, setIsPageRendered] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) {
+        return;
+      }
+
+      setViewportSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      });
+    });
+
+    observer.observe(viewport);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => () => {
+    if (revealTimeoutRef.current !== null) {
+      window.clearTimeout(revealTimeoutRef.current);
+    }
+
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+    }
+
+    if (commitCoverTimeoutRef.current !== null) {
+      window.clearTimeout(commitCoverTimeoutRef.current);
+    }
+  }, []);
+
+  requestedPageNumberRef.current = pageNumber;
+
+  const pageViewportWidth = Math.max(viewportSize.width - pdfPreviewPadding * 2, 0);
+  const pageViewportHeight = Math.max(
+    viewportSize.height - pdfPreviewToolbarHeight - pdfPreviewPadding * 2,
+    0,
+  );
+  const fitPageWidth = pageAspectRatio
+    ? Math.min(pageViewportWidth, pageViewportHeight * pageAspectRatio)
+    : pageViewportWidth;
+  const basePageWidth = Math.max(fitPageWidth, 240);
+  const pageWidth = Math.max(
+    zoomMode === 'fit-width'
+      ? pageViewportWidth
+      : zoomMode === 'actual'
+        ? pageNaturalWidth ?? basePageWidth
+        : zoomMode === 'custom'
+          ? basePageWidth * customZoomScale
+          : fitPageWidth,
+    240,
+  );
+  const pageHeight = pageAspectRatio ? pageWidth / pageAspectRatio : undefined;
+  const zoomPercent = pageNaturalWidth
+    ? Math.round((pageWidth / pageNaturalWidth) * 100)
+    : Math.round((pageWidth / basePageWidth) * 100);
+  const hasPreviousPage = pageNumber > 1;
+  const hasNextPage = numPages !== null && pageNumber < numPages;
+  const isReady = isPageRendered && !loadError;
+  const canZoomOut = pageWidth / basePageWidth > pdfPreviewMinZoom;
+  const canZoomIn = pageWidth / basePageWidth < pdfPreviewMaxZoom;
+  const isPageTransitioning = pageNumber !== visiblePageNumber;
+  const pendingLayerPageNumber = commitCoverPageNumber ?? pageNumber;
+  const hasPendingLayer = isPageTransitioning || commitCoverPageNumber !== null;
+  const isPendingLayerVisible = isPendingPageRendered || commitCoverPageNumber !== null;
+
+  function handleDocumentLoadSuccess(pdf: PDFDocumentProxy) {
+    setNumPages(pdf.numPages);
+    setPageNumber((currentPageNumber) => {
+      const nextPageNumber = Math.min(currentPageNumber, pdf.numPages);
+      setVisiblePageNumber(nextPageNumber);
+      return nextPageNumber;
+    });
+    setLoadError(false);
+  }
+
+  function handlePageLoadSuccess(page: PDFPageProxy) {
+    const viewport = page.getViewport({ scale: 1 });
+    setPageAspectRatio(viewport.width / viewport.height);
+    setPageNaturalWidth(viewport.width);
+  }
+
+  function handleVisiblePageRenderSuccess(renderedPageNumber: number) {
+    if (revealTimeoutRef.current !== null) {
+      window.clearTimeout(revealTimeoutRef.current);
+    }
+
+    revealTimeoutRef.current = window.setTimeout(() => {
+      setIsPageRendered(true);
+
+      if (commitCoverPageNumber === renderedPageNumber) {
+        if (commitCoverTimeoutRef.current !== null) {
+          window.clearTimeout(commitCoverTimeoutRef.current);
+        }
+
+        commitCoverTimeoutRef.current = window.setTimeout(() => {
+          if (requestedPageNumberRef.current === renderedPageNumber) {
+            setCommitCoverPageNumber(null);
+            setIsPendingPageRendered(false);
+          }
+
+          commitCoverTimeoutRef.current = null;
+        }, pdfPreviewCommitCoverDelayMs);
+      }
+
+      revealTimeoutRef.current = null;
+    }, pdfPreviewRevealDelayMs);
+  }
+
+  function handlePendingPageRenderSuccess(renderedPageNumber: number) {
+    if (requestedPageNumberRef.current !== renderedPageNumber) {
+      return;
+    }
+
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+    }
+
+    setIsPendingPageRendered(true);
+    transitionTimeoutRef.current = window.setTimeout(() => {
+      if (requestedPageNumberRef.current === renderedPageNumber) {
+        setCommitCoverPageNumber(renderedPageNumber);
+        setVisiblePageNumber(renderedPageNumber);
+      }
+
+      transitionTimeoutRef.current = null;
+    }, pdfPreviewFadeMs);
+  }
+
+  function requestPage(nextPageNumber: number) {
+    if (nextPageNumber === pageNumber) {
+      return;
+    }
+
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+
+    if (commitCoverTimeoutRef.current !== null) {
+      window.clearTimeout(commitCoverTimeoutRef.current);
+      commitCoverTimeoutRef.current = null;
+    }
+
+    setIsPendingPageRendered(false);
+    setCommitCoverPageNumber(null);
+    setPageNumber(nextPageNumber);
+  }
+
+  function goToPreviousPage() {
+    requestPage(Math.max(pageNumber - 1, 1));
+  }
+
+  function goToNextPage() {
+    requestPage(Math.min(pageNumber + 1, numPages ?? pageNumber));
+  }
+
+  function goToPage(input: HTMLInputElement) {
+    const value = input.value;
+    const nextPageNumber = Number.parseInt(value, 10);
+
+    if (!Number.isInteger(nextPageNumber) || numPages === null) {
+      input.value = String(pageNumber);
+      return;
+    }
+
+    const clampedPageNumber = Math.min(Math.max(nextPageNumber, 1), numPages);
+    input.value = String(clampedPageNumber);
+    requestPage(clampedPageNumber);
+  }
+
+  function handlePageInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') {
+      return;
+    }
+
+    event.currentTarget.blur();
+  }
+
+  function setFitMode(nextZoomMode: PdfZoomMode) {
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+
+    if (commitCoverTimeoutRef.current !== null) {
+      window.clearTimeout(commitCoverTimeoutRef.current);
+      commitCoverTimeoutRef.current = null;
+    }
+
+    setVisiblePageNumber(pageNumber);
+    setIsPendingPageRendered(false);
+    setCommitCoverPageNumber(null);
+    setIsPageRendered(false);
+    setZoomMode(nextZoomMode);
+  }
+
+  function updateCustomZoom(nextScale: number) {
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+
+    if (commitCoverTimeoutRef.current !== null) {
+      window.clearTimeout(commitCoverTimeoutRef.current);
+      commitCoverTimeoutRef.current = null;
+    }
+
+    setVisiblePageNumber(pageNumber);
+    setIsPendingPageRendered(false);
+    setCommitCoverPageNumber(null);
+    setIsPageRendered(false);
+    setZoomMode('custom');
+    setCustomZoomScale(clampPdfZoom(nextScale));
+  }
+
+  function zoomOut() {
+    updateCustomZoom((pageWidth / basePageWidth) - pdfPreviewZoomStep);
+  }
+
+  function zoomIn() {
+    updateCustomZoom((pageWidth / basePageWidth) + pdfPreviewZoomStep);
+  }
+
+  function getFitButtonStyles(mode: PdfZoomMode) {
+    return zoomMode === mode
+      ? { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }
+      : undefined;
+  }
+
+  return (
+    <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
+      <Box
+        ref={viewportRef}
+        position="relative"
+        h="full"
+        overflow="hidden"
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.surface"
+      >
+        <Flex
+          h={`${pdfPreviewToolbarHeight}px`}
+          align="center"
+          justify="space-between"
+          gap="3"
+          wrap="wrap"
+          borderBottomWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.surface"
+          px={{ base: '3', md: '4' }}
+        >
+          <Flex align="center" gap="1.5" minW="0">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label="Previous PDF page"
+              disabled={!hasPreviousPage}
+              onClick={goToPreviousPage}
+            >
+              <ChevronLeft size={16} />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label="Next PDF page"
+              disabled={!hasNextPage}
+              onClick={goToNextPage}
+            >
+              <ChevronRight size={16} />
+            </Button>
+            <Text fontSize="sm" fontWeight="medium" color="fg" whiteSpace="nowrap">
+              Page
+            </Text>
+            <Input
+              key={`pdf-page-input-${pageNumber}`}
+              aria-label="PDF page number"
+              defaultValue={pageNumber}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              size="sm"
+              w="14"
+              h="9"
+              rounded="md"
+              textAlign="center"
+              disabled={numPages === null}
+              onBlur={(event) => goToPage(event.currentTarget)}
+              onKeyDown={handlePageInputKeyDown}
+            />
+            <Text fontSize="sm" fontWeight="medium" color="fg.muted" whiteSpace="nowrap">
+              of {numPages ?? '...'}
+            </Text>
+          </Flex>
+
+          <Flex align="center" gap="2" minW="0">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label="Zoom out"
+              disabled={!canZoomOut}
+              onClick={zoomOut}
+            >
+              <ZoomOut size={16} />
+            </Button>
+            <Text minW="3.5rem" textAlign="center" fontSize="sm" fontWeight="medium" color="fg">
+              {zoomPercent}%
+            </Text>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label="Zoom in"
+              disabled={!canZoomIn}
+              onClick={zoomIn}
+            >
+              <ZoomIn size={16} />
+            </Button>
+            <Flex align="center" gap="1" rounded="md" borderWidth="1px" borderColor="border.subtle" p="0.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                h="8"
+                px="2.5"
+                aria-pressed={zoomMode === 'fit-page'}
+                onClick={() => setFitMode('fit-page')}
+                {...getFitButtonStyles('fit-page')}
+              >
+                Fit page
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                h="8"
+                px="2.5"
+                aria-pressed={zoomMode === 'fit-width'}
+                onClick={() => setFitMode('fit-width')}
+                {...getFitButtonStyles('fit-width')}
+              >
+                Fit width
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                h="8"
+                px="2.5"
+                aria-pressed={zoomMode === 'actual'}
+                onClick={() => setFitMode('actual')}
+                {...getFitButtonStyles('actual')}
+              >
+                100%
+              </Button>
+            </Flex>
+          </Flex>
+
+          <Button type="button" size="sm" variant="outline" onClick={onPrint}>
+            <Printer size={16} />
+            Print
+          </Button>
+        </Flex>
+        {loadError ? (
+          <Flex
+            position="absolute"
+            insetX="0"
+            top={`${pdfPreviewToolbarHeight}px`}
+            bottom="0"
+            zIndex="1"
+            align="center"
+            justify="center"
+            bg="bg.surface"
+            px="6"
+            textAlign="center"
+            aria-live="polite"
+          >
+            <Text fontSize="sm" fontWeight="semibold" color="fg.error">
+              Unable to load preview.
+            </Text>
+          </Flex>
+        ) : null}
+        <Flex
+          position="absolute"
+          insetX="0"
+          top={`${pdfPreviewToolbarHeight}px`}
+          bottom="0"
+          align="center"
+          justify="center"
+          overflow="auto"
+          bg="bg.surface"
+          p={`${pdfPreviewPadding}px`}
+          opacity={isReady ? 1 : 0}
+          pointerEvents={isReady ? 'auto' : 'none'}
+          transform={isReady ? 'scale(1)' : 'scale(0.992)'}
+          transformOrigin="center"
+          transition={`opacity ${pdfPreviewFadeMs}ms ease, transform ${pdfPreviewFadeMs}ms ease`}
+          aria-hidden={!isReady}
+          willChange="opacity, transform"
+        >
+          {viewportSize.width > 0 ? (
+            <Box
+              position="relative"
+              w={`${pageWidth}px`}
+              h={pageHeight ? `${pageHeight}px` : undefined}
+              minH={pageHeight ? `${pageHeight}px` : undefined}
+              flexShrink="0"
+            >
+              <PdfDocument
+                file={src}
+                loading={null}
+                error={null}
+                onLoadSuccess={handleDocumentLoadSuccess}
+                onLoadError={() => setLoadError(true)}
+              >
+                <Box
+                  opacity={isReady && (!isPageTransitioning || !isPendingPageRendered) ? 1 : 0}
+                  transition={`opacity ${pdfPreviewFadeMs}ms ease`}
+                  willChange="opacity"
+                >
+                  <PdfPage
+                    key={`${src}-${visiblePageNumber}-${Math.round(pageWidth)}`}
+                    pageNumber={visiblePageNumber}
+                    width={pageWidth}
+                    loading={null}
+                    error={null}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={false}
+                    onLoadSuccess={handlePageLoadSuccess}
+                    onRenderSuccess={() => handleVisiblePageRenderSuccess(visiblePageNumber)}
+                    onRenderError={() => setLoadError(true)}
+                  />
+                </Box>
+                {hasPendingLayer ? (
+                  <Box
+                    position="absolute"
+                    inset="0"
+                    opacity={isPendingLayerVisible ? 1 : 0}
+                    transition={`opacity ${pdfPreviewFadeMs}ms ease`}
+                    willChange="opacity"
+                  >
+                    <PdfPage
+                      key={`${src}-${pendingLayerPageNumber}-${Math.round(pageWidth)}`}
+                      pageNumber={pendingLayerPageNumber}
+                      width={pageWidth}
+                      loading={null}
+                      error={null}
+                      renderAnnotationLayer={false}
+                      renderTextLayer={false}
+                      onLoadSuccess={handlePageLoadSuccess}
+                      onRenderSuccess={() => handlePendingPageRenderSuccess(pendingLayerPageNumber)}
+                      onRenderError={() => setLoadError(true)}
+                    />
+                  </Box>
+                ) : null}
+              </PdfDocument>
+            </Box>
+          ) : null}
+        </Flex>
+      </Box>
+    </Box>
+  );
+}
 
 function getSearchReturnParams(search: Record<string, unknown>) {
   if (search.source !== 'search') {
@@ -573,7 +1106,7 @@ export function DocumentDetailPage() {
     <Flex
       as="section"
       direction="column"
-      h={activeTab === 'chat' ? 'full' : undefined}
+      h="full"
       minH="0"
       gap="0"
       pb="0"
@@ -703,30 +1236,25 @@ export function DocumentDetailPage() {
       </Flex>
 
       <Box
-        flex={activeTab === 'chat' ? '1' : undefined}
-        h={activeTab === 'chat' ? 'full' : undefined}
-        minH={activeTab === 'chat' ? '0' : { base: '720px', md: '860px' }}
+        flex="1"
+        h="full"
+        minH="0"
         pt={activeTab === 'chat' ? '0' : '5'}
       >
             {activeTab === 'preview' ? (
-              <Flex direction="column" gap="4">
+              <Flex h="full" minH="0" direction="column" gap="4">
                 {previewKind === 'pdf' && !document.isDeleted ? (
-                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
-                    <chakra.iframe
-                      title="Document preview"
-                      src={inlineFileUrl}
-                      h={{ base: '82vh', md: '860px' }}
-                      w="full"
-                      rounded="lg"
-                      bg="white"
-                    />
-                  </Box>
+                  <PdfPreviewFrame
+                    key={inlineFileUrl}
+                    src={inlineFileUrl}
+                    onPrint={handlePrintClick}
+                  />
                 ) : null}
 
                 {previewKind === 'image' && !document.isDeleted ? (
-                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="4">
+                  <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="4">
                     <Flex
-                      h={{ base: '82vh', md: '860px' }}
+                      h="full"
                       align="center"
                       justify="center"
                       rounded="lg"
@@ -736,7 +1264,7 @@ export function DocumentDetailPage() {
                       <chakra.img
                         src={inlineFileUrl}
                         alt={document.name}
-                        maxH="84vh"
+                        maxH="full"
                         w="auto"
                         maxW="full"
                         objectFit="contain"
@@ -746,11 +1274,11 @@ export function DocumentDetailPage() {
                 ) : null}
 
                 {previewKind === 'text' && !document.isDeleted ? (
-                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
+                  <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
                     <chakra.iframe
                       title="Text preview"
                       src={inlineFileUrl}
-                      h={{ base: '82vh', md: '860px' }}
+                      h="full"
                       w="full"
                       rounded="lg"
                       bg="white"
@@ -759,9 +1287,9 @@ export function DocumentDetailPage() {
                 ) : null}
 
                 {previewKind === 'markdown' && !document.isDeleted ? (
-                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
+                  <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
                     <Box
-                      h={{ base: '82vh', md: '860px' }}
+                      h="full"
                       overflow="auto"
                       rounded="lg"
                       borderWidth="1px"
@@ -782,9 +1310,9 @@ export function DocumentDetailPage() {
                 ) : null}
 
                 {previewKind === 'unsupported' || document.isDeleted ? (
-                  <Box rounded="lg" bg="bg.subtle" p="6">
+                  <Box h="full" minH={{ base: '720px', md: '0' }} rounded="lg" bg="bg.subtle" p="6">
                     <Flex
-                      minH="820px"
+                      h="full"
                       direction="column"
                       align="center"
                       justify="center"

@@ -1250,6 +1250,79 @@ describe('tags and documents pages', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('renders Markdown documents as formatted previews', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/file')) {
+        return new Response([
+          '# Markdown Title',
+          '',
+          '- First item',
+          '- Second item',
+          '',
+          '| Name | Value |',
+          '| --- | --- |',
+          '| Status | Ready |',
+          '',
+          '```ts',
+          'const preview = true;',
+          '```',
+        ].join('\n'), {
+          headers: { 'content-type': 'text/markdown' },
+        });
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: 'README.md',
+            originalName: 'README.md',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'text/markdown',
+            content: 'Markdown Title\nFirst item\nSecond item',
+            processingStatus: 'completed',
+            documentDate: null,
+            createdAt: '2026-04-10T10:00:00.000Z',
+            updatedAt: '2026-04-10T10:05:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+            createdBy: 'Jane Doe',
+          },
+        });
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.endsWith('/api/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/documents/doc_1'],
+      routePath: '/vaults/:vaultId/documents/:documentId',
+    });
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Markdown Title' })).toBeInTheDocument();
+    expect(screen.queryByText('# Markdown Title')).not.toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Ready' })).toBeInTheDocument();
+    expect(screen.getByText('const preview = true;')).toBeInTheDocument();
+  });
+
   it('shows document chat as a tab and removes the legacy action item', async () => {
     const user = userEvent.setup();
 

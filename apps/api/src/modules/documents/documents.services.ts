@@ -74,6 +74,11 @@ type ChunkAssetRecord = {
   fileEncryptionKekVersion: string | null;
 };
 
+export function normalizeDocumentFileName(fileName: string): string {
+  const normalized = fileName.normalize('NFC').trim();
+  return normalized.length > 0 ? normalized : 'untitled';
+}
+
 export function createDocumentsServices({
   db,
   storage,
@@ -89,22 +94,6 @@ export function createDocumentsServices({
 
   function buildStorageKey(vaultId: string, docId: string): string {
     return `${vaultId}/${docId}`;
-  }
-
-  function deriveDisplayName(fileName: string): string {
-    const trimmed = fileName.trim();
-    if (trimmed.length === 0) {
-      return 'untitled';
-    }
-
-    const extensionIndex = trimmed.lastIndexOf('.');
-    const baseName = extensionIndex > 0 ? trimmed.slice(0, extensionIndex) : trimmed;
-    const normalized = baseName
-      .replace(/_+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    return normalized.length > 0 ? normalized : baseName || 'untitled';
   }
 
   function getFolderCondition(folderId: string | null) {
@@ -154,6 +143,38 @@ export function createDocumentsServices({
       eq(documentsTable.isDeleted, false),
       getFolderCondition(folderId),
       sql`LOWER(${documentsTable.name}) = ${normalizedName}`,
+    ];
+
+    if (excludeDocumentId !== undefined) {
+      conditions.push(ne(documentsTable.id, excludeDocumentId));
+    }
+
+    const [existing] = await db
+      .select({ id: documentsTable.id })
+      .from(documentsTable)
+      .where(and(...conditions))
+      .limit(1);
+
+    return existing ?? null;
+  }
+
+  async function findActiveDocumentFileNameCollision({
+    vaultId,
+    folderId,
+    fileName,
+    excludeDocumentId,
+  }: {
+    vaultId: string;
+    folderId: string | null;
+    fileName: string;
+    excludeDocumentId?: string;
+  }) {
+    const normalizedFileName = normalizeDocumentFileName(fileName).toLocaleLowerCase();
+    const conditions = [
+      eq(documentsTable.vaultId, vaultId),
+      eq(documentsTable.isDeleted, false),
+      getFolderCondition(folderId),
+      sql`LOWER(${documentsTable.originalName}) = ${normalizedFileName}`,
     ];
 
     if (excludeDocumentId !== undefined) {
@@ -246,7 +267,7 @@ export function createDocumentsServices({
   }) {
     const sha256Hash = computeSha256(fileData);
     const fileSize = fileData.length;
-    const displayName = deriveDisplayName(fileName);
+    const normalizedFileName = normalizeDocumentFileName(fileName);
 
     const [existing] = await db
       .select({
@@ -272,10 +293,10 @@ export function createDocumentsServices({
       };
     }
 
-    const existingName = await findActiveDocumentNameCollision({
+    const existingName = await findActiveDocumentFileNameCollision({
       vaultId,
       folderId,
-      name: displayName,
+      fileName: normalizedFileName,
     });
 
     if (existingName !== null) {
@@ -314,11 +335,11 @@ export function createDocumentsServices({
         vaultId,
         folderId,
         createdBy: userId,
-        originalName: fileName,
+        originalName: normalizedFileName,
         originalSize: fileSize,
         originalStorageKey: storageKey,
         originalSha256Hash: sha256Hash,
-        name: displayName,
+        name: normalizedFileName,
         mimeType,
         processingStatus: 'pending',
         fileEncryptionKeyWrapped: wrappedDek,
@@ -730,7 +751,7 @@ export function createDocumentsServices({
     const [existingDoc] = await db
       .select({
         id: documentsTable.id,
-        name: documentsTable.name,
+        originalName: documentsTable.originalName,
       })
       .from(documentsTable)
       .where(
@@ -746,10 +767,10 @@ export function createDocumentsServices({
       return { success: false, reason: 'not_found' };
     }
 
-    const collision = await findActiveDocumentNameCollision({
+    const collision = await findActiveDocumentFileNameCollision({
       vaultId,
       folderId,
-      name: existingDoc.name,
+      fileName: existingDoc.originalName,
       excludeDocumentId: documentId,
     });
 
@@ -852,7 +873,7 @@ export function createDocumentsServices({
         id: documentsTable.id,
         originalSha256Hash: documentsTable.originalSha256Hash,
         folderId: documentsTable.folderId,
-        name: documentsTable.name,
+        originalName: documentsTable.originalName,
       })
       .from(documentsTable)
       .where(
@@ -884,10 +905,10 @@ export function createDocumentsServices({
       return { success: false, reason: 'duplicate', existingId: existing.id };
     }
 
-    const existingName = await findActiveDocumentNameCollision({
+    const existingName = await findActiveDocumentFileNameCollision({
       vaultId,
       folderId: deletedDoc.folderId,
-      name: deletedDoc.name,
+      fileName: deletedDoc.originalName,
       excludeDocumentId: deletedDoc.id,
     });
 

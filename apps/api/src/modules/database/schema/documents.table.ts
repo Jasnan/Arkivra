@@ -54,6 +54,9 @@ export const documentsTable = pgTable(
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
   (table) => [
+    uniqueIndex('documents_active_folder_filename_unique')
+      .using('btree', table.vaultId, sql`coalesce(${table.folderId}, '')`, sql`lower(${table.originalName})`)
+      .where(sql`${table.isDeleted} = false`),
     uniqueIndex('documents_vault_hash_unique')
       .on(table.vaultId, table.originalSha256Hash)
       .where(sql`${table.isDeleted} = false`),

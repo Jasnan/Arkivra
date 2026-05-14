@@ -10,6 +10,20 @@ if (!window.PointerEvent) {
   globalThis.PointerEvent = PointerEventMock as typeof PointerEvent;
 }
 
+if (!window.DOMMatrix) {
+  class DOMMatrixMock {
+    a = 1;
+    b = 0;
+    c = 0;
+    d = 1;
+    e = 0;
+    f = 0;
+  }
+
+  window.DOMMatrix = DOMMatrixMock as typeof DOMMatrix;
+  globalThis.DOMMatrix = DOMMatrixMock as typeof DOMMatrix;
+}
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => {

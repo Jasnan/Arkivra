@@ -2,6 +2,41 @@ import { ApiError, fetchJson } from '@/lib/api';
 import type { SearchSortBy } from '@/features/search/search.types';
 import type { DeletedDocumentSummary, DocumentDetail, DocumentSummary, TagSummary } from './documents.types';
 
+export type DocumentTranslationLanguage = 'de' | 'en';
+
+export type DocumentTranslationSource =
+  | {
+      type: 'page-image';
+      pageNumber: number;
+      imageBase64: string;
+      mimeType: 'image/png';
+    }
+  | {
+      type: 'area-image';
+      pageNumber: number;
+      imageBase64: string;
+      mimeType: 'image/png';
+      rect: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+    }
+  | {
+      type: 'text';
+      pageNumber?: number;
+      text: string;
+    };
+
+export interface DocumentTranslation {
+  targetLanguage: DocumentTranslationLanguage;
+  text: string;
+  provider: string;
+  model: string;
+  sourceType: DocumentTranslationSource['type'];
+}
+
 interface DocumentsResponse {
   documents: DocumentSummary[];
   retentionDays: number;
@@ -220,6 +255,30 @@ export async function getDocumentFileText({ vaultId, documentId }: { vaultId: st
   }
 
   return response.text();
+}
+
+export async function translateDocument({
+  vaultId,
+  documentId,
+  targetLanguage,
+  source,
+  signal,
+}: {
+  vaultId: string;
+  documentId: string;
+  targetLanguage: DocumentTranslationLanguage;
+  source: DocumentTranslationSource;
+  signal?: AbortSignal;
+}) {
+  return fetchJson<{ translation: DocumentTranslation }>(
+    `/api/vaults/${vaultId}/documents/${documentId}/translations`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetLanguage, source }),
+      signal,
+    },
+  );
 }
 
 export function getDocumentPagePreviewUrl({

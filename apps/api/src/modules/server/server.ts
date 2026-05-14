@@ -44,6 +44,11 @@ import { createRuntimeConfiguredOllamaEmbedder } from '../parsing/ollama-embedde
 import { createDocumentSearchServices } from '../search/search.services.js';
 import { createChatServices } from '../chat/chat.services.js';
 import { registerChatRoutes } from '../chat/chat.routes.js';
+import {
+  createDocumentTranslationServices,
+  createRuntimeConfiguredOllamaTranslationProvider,
+} from '../translations/translations.services.js';
+import { registerTranslationRoutes } from '../translations/translations.routes.js';
 
 const OLLAMA_EMBEDDING_MODEL_PATTERNS = [
   /^bge[-:]/i,
@@ -134,6 +139,17 @@ export function createServer({
         );
     },
   });
+  const translationProvider = createRuntimeConfiguredOllamaTranslationProvider({
+    resolveSettings: async () => {
+      const settings = await aiServices.getIngestionSettings();
+      return {
+        host: settings.summarisationHost,
+        model: settings.summarisationModel,
+        logRequests: config.ollama.logRequests,
+      };
+    },
+  });
+  const translationServices = createDocumentTranslationServices({ provider: translationProvider });
 
   app.use(
     cors({
@@ -202,6 +218,12 @@ export function createServer({
   });
   registerSearchRoutes({ app, db, services: searchServices });
   registerChatRoutes({ app, db, services: chatServices });
+  registerTranslationRoutes({
+    app,
+    db,
+    documentsServices,
+    services: translationServices,
+  });
   registerTagRoutes({ app, db });
   registerBackupRoutes({ app, config, backupQueue, backupServices });
   registerAdminUserRoutes({ app, authorizationServices: authzServices });

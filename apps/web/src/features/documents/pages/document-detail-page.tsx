@@ -3,13 +3,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import { Document as PdfDocument, Page as PdfPage, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/TextLayer.css';
 import {
   Box,
   Flex,
   Text,
   CloseButton,
   Dialog as ChakraDialog,
+  Menu as ChakraMenu,
   Portal,
+  Spinner,
   chakra,
   Heading,
 } from '@chakra-ui/react';
@@ -19,6 +22,7 @@ import {
   ChevronRight,
   Download,
   Image as ImageIcon,
+  Languages,
   MessageSquare,
   Pencil,
   ScanText,
@@ -58,8 +62,19 @@ import {
   renameDocument,
   restoreDocument,
   softDeleteDocument,
+  translateDocument,
   updateDocumentDate,
 } from '@/features/documents/documents.api';
+import type {
+  DocumentTranslationLanguage,
+  DocumentTranslationSource,
+} from '@/features/documents/documents.api';
+import {
+  captureCanvasRegionAsPngBase64,
+  createNormalizedRect,
+  getNormalizedPointFromClient,
+} from '@/features/documents/pdf-translation-capture';
+import type { NormalizedPoint, NormalizedRect } from '@/features/documents/pdf-translation-capture';
 import {
   documentQueryKeys,
   useDocumentFileTextQuery,
@@ -124,14 +139,171 @@ function clampPdfZoom(value: number) {
   return Math.min(Math.max(value, pdfPreviewMinZoom), pdfPreviewMaxZoom);
 }
 
+const translationLanguages: Array<{ value: DocumentTranslationLanguage; label: string; flag: string }> = [
+  { value: 'de', label: 'German', flag: '🇩🇪' },
+  { value: 'en', label: 'English', flag: '🇬🇧' },
+];
+
+interface TranslationPaneState {
+  status: 'loading' | 'success' | 'error';
+  targetLanguage: DocumentTranslationLanguage;
+  sourceType: DocumentTranslationSource['type'];
+  pageNumber: number;
+  text: string;
+  error: string | null;
+  provider: string | null;
+  model: string | null;
+}
+
+interface PdfMenuPoint {
+  x: number;
+  y: number;
+}
+
+interface TextSelectionMenuState {
+  open: boolean;
+  point: PdfMenuPoint;
+  text: string;
+  pageNumber: number;
+}
+
+interface VisualSelectionMenuState {
+  open: boolean;
+  point: PdfMenuPoint;
+  rect: NormalizedRect;
+  pageNumber: number;
+}
+
+interface AreaDragState {
+  pointerId: number;
+  start: NormalizedPoint;
+  current: NormalizedPoint;
+}
+
+function getTranslationLanguageLabel(language: DocumentTranslationLanguage) {
+  return translationLanguages.find(item => item.value === language)?.label ?? language.toUpperCase();
+}
+
+function getTranslationSourceLabel(sourceType: DocumentTranslationSource['type']) {
+  if (sourceType === 'page-image') {
+    return 'Page';
+  }
+
+  return sourceType === 'area-image' ? 'Selected area' : 'Selected text';
+}
+
+function getAbortAwareError(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return 'Translation cancelled.';
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Translation failed.';
+}
+
+function getRenderedPdfCanvas(pageElement: HTMLElement | null) {
+  return pageElement?.querySelector('canvas') ?? null;
+}
+
+function getRectStyle(rect: NormalizedRect) {
+  return {
+    left: `${rect.x * 100}%`,
+    top: `${rect.y * 100}%`,
+    width: `${rect.width * 100}%`,
+    height: `${rect.height * 100}%`,
+  };
+}
+
+function isMeaningfulSelectionRect(rect: NormalizedRect) {
+  return rect.width >= 0.01 && rect.height >= 0.01;
+}
+
+function getSelectionTextWithin(element: HTMLElement | null) {
+  if (element === null) {
+    return null;
+  }
+
+  const selection = window.getSelection();
+  const text = selection?.toString().trim() ?? '';
+
+  if (selection === null || selection.rangeCount === 0 || text.length === 0) {
+    return null;
+  }
+
+  const anchorNode = selection.anchorNode;
+  const focusNode = selection.focusNode;
+  const hasEndpointInside = (node: Node | null) => node !== null && element.contains(node);
+
+  if (!hasEndpointInside(anchorNode) && !hasEndpointInside(focusNode)) {
+    return null;
+  }
+
+  return text;
+}
+
+function getMenuAnchorRect(point: PdfMenuPoint | undefined) {
+  const x = point?.x ?? 0;
+  const y = point?.y ?? 0;
+
+  return {
+    x,
+    y,
+    left: x,
+    top: y,
+    right: x + 1,
+    bottom: y + 1,
+    width: 1,
+    height: 1,
+  } as DOMRect;
+}
+
+function TranslationLanguageMenuLabel({
+  language,
+}: {
+  language: typeof translationLanguages[number];
+}) {
+  return (
+    <>
+      <Text as="span" aria-hidden="true" fontSize="md" lineHeight="1">
+        {language.flag}
+      </Text>
+      <Text as="span">{language.label}</Text>
+    </>
+  );
+}
+
+function TranslationResultText({ text }: { text: string }) {
+  return (
+    <Text
+      as="div"
+      fontSize="sm"
+      lineHeight="1.5"
+      color="fg"
+      whiteSpace="pre-wrap"
+      overflowWrap="anywhere"
+    >
+      {text}
+    </Text>
+  );
+}
+
 function PdfPreviewFrame({
   src,
+  vaultId,
+  documentId,
   onPrint,
 }: {
   src: string;
+  vaultId: string;
+  documentId: string;
   onPrint: () => void;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const visiblePageRef = useRef<HTMLDivElement | null>(null);
+  const activeTranslationControllerRef = useRef<AbortController | null>(null);
   const revealTimeoutRef = useRef<number | null>(null);
   const transitionTimeoutRef = useRef<number | null>(null);
   const commitCoverTimeoutRef = useRef<number | null>(null);
@@ -148,6 +320,14 @@ function PdfPreviewFrame({
   const [customZoomScale, setCustomZoomScale] = useState(1);
   const [isPageRendered, setIsPageRendered] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [translationPane, setTranslationPane] = useState<TranslationPaneState | null>(null);
+  const [pageContextMenu, setPageContextMenu] = useState<{ open: boolean; point: PdfMenuPoint } | null>(null);
+  const [textSelectionMenu, setTextSelectionMenu] = useState<TextSelectionMenuState | null>(null);
+  const [visualSelectionMenu, setVisualSelectionMenu] = useState<VisualSelectionMenuState | null>(null);
+  const [isAreaSelectionMode, setIsAreaSelectionMode] = useState(false);
+  const [areaDrag, setAreaDrag] = useState<AreaDragState | null>(null);
+  const [visualSelectionRect, setVisualSelectionRect] = useState<NormalizedRect | null>(null);
+  const [isTranslationPending, setIsTranslationPending] = useState(false);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -174,6 +354,8 @@ function PdfPreviewFrame({
   }, []);
 
   useEffect(() => () => {
+    activeTranslationControllerRef.current?.abort();
+
     if (revealTimeoutRef.current !== null) {
       window.clearTimeout(revealTimeoutRef.current);
     }
@@ -188,6 +370,13 @@ function PdfPreviewFrame({
   }, []);
 
   requestedPageNumberRef.current = pageNumber;
+
+  useEffect(() => {
+    setTextSelectionMenu(null);
+    setVisualSelectionMenu(null);
+    setVisualSelectionRect(null);
+    setAreaDrag(null);
+  }, [src, visiblePageNumber]);
 
   const pageViewportWidth = Math.max(viewportSize.width - pdfPreviewPadding * 2, 0);
   const pageViewportHeight = Math.max(
@@ -380,14 +569,298 @@ function PdfPreviewFrame({
     updateCustomZoom((pageWidth / basePageWidth) + pdfPreviewZoomStep);
   }
 
+  function cancelTranslation() {
+    activeTranslationControllerRef.current?.abort();
+  }
+
+  function closeTranslationPane() {
+    if (translationPane?.status === 'loading') {
+      cancelTranslation();
+    }
+
+    setTranslationPane(null);
+  }
+
+  function createTranslationController() {
+    activeTranslationControllerRef.current?.abort();
+    const controller = new AbortController();
+    activeTranslationControllerRef.current = controller;
+    setIsTranslationPending(true);
+    return controller;
+  }
+
+  function finishTranslation(controller: AbortController) {
+    if (activeTranslationControllerRef.current === controller) {
+      activeTranslationControllerRef.current = null;
+      setIsTranslationPending(false);
+    }
+  }
+
+  function getCurrentCanvas() {
+    return getRenderedPdfCanvas(visiblePageRef.current);
+  }
+
+  async function runPageTranslation(targetLanguage: DocumentTranslationLanguage) {
+    const controller = createTranslationController();
+    const pendingState: TranslationPaneState = {
+      status: 'loading',
+      targetLanguage,
+      sourceType: 'page-image',
+      pageNumber: visiblePageNumber,
+      text: '',
+      error: null,
+      provider: null,
+      model: null,
+    };
+    setTranslationPane(pendingState);
+    setPageContextMenu(null);
+
+    try {
+      const canvas = getCurrentCanvas();
+      if (canvas === null) {
+        throw new Error('The rendered PDF page is not ready yet.');
+      }
+
+      const imageBase64 = captureCanvasRegionAsPngBase64({ canvas });
+      const response = await translateDocument({
+        vaultId,
+        documentId,
+        targetLanguage,
+        source: {
+          type: 'page-image',
+          pageNumber: visiblePageNumber,
+          imageBase64,
+          mimeType: 'image/png',
+        },
+        signal: controller.signal,
+      });
+
+      setTranslationPane(current => controller.signal.aborted && current === null
+        ? null
+        : {
+            ...pendingState,
+            status: 'success',
+            text: response.translation.text,
+            provider: response.translation.provider,
+            model: response.translation.model,
+          });
+    } catch (error) {
+      setTranslationPane(current => controller.signal.aborted && current === null
+        ? null
+        : {
+            ...pendingState,
+            status: 'error',
+            error: getAbortAwareError(error),
+          });
+    } finally {
+      finishTranslation(controller);
+    }
+  }
+
+  async function runSelectionTranslation({
+    targetLanguage,
+    source,
+  }: {
+    targetLanguage: DocumentTranslationLanguage;
+    source: Extract<DocumentTranslationSource, { type: 'text' | 'area-image' }>;
+  }) {
+    const controller = createTranslationController();
+    const pendingState: TranslationPaneState = {
+      status: 'loading',
+      targetLanguage,
+      sourceType: source.type,
+      pageNumber: source.pageNumber ?? visiblePageNumber,
+      text: '',
+      error: null,
+      provider: null,
+      model: null,
+    };
+    setTranslationPane(pendingState);
+    setTextSelectionMenu(null);
+    setVisualSelectionMenu(null);
+
+    try {
+      const response = await translateDocument({
+        vaultId,
+        documentId,
+        targetLanguage,
+        source,
+        signal: controller.signal,
+      });
+
+      setTranslationPane(current => controller.signal.aborted && current === null
+        ? null
+        : {
+            ...pendingState,
+            status: 'success',
+            text: response.translation.text,
+            provider: response.translation.provider,
+            model: response.translation.model,
+          });
+    } catch (error) {
+      setTranslationPane(current => controller.signal.aborted && current === null
+        ? null
+        : {
+            ...pendingState,
+            status: 'error',
+            error: getAbortAwareError(error),
+          });
+    } finally {
+      finishTranslation(controller);
+    }
+  }
+
+  async function runVisualSelectionTranslation(targetLanguage: DocumentTranslationLanguage, rect: NormalizedRect) {
+    const canvas = getCurrentCanvas();
+
+    if (canvas === null) {
+      setTranslationPane({
+        status: 'error',
+        targetLanguage,
+        sourceType: 'area-image',
+        pageNumber: visiblePageNumber,
+        text: '',
+        error: 'The rendered PDF page is not ready yet.',
+        provider: null,
+        model: null,
+      });
+      setVisualSelectionMenu(null);
+      return;
+    }
+
+    const imageBase64 = captureCanvasRegionAsPngBase64({ canvas, rect });
+    await runSelectionTranslation({
+      targetLanguage,
+      source: {
+        type: 'area-image',
+        pageNumber: visiblePageNumber,
+        imageBase64,
+        mimeType: 'image/png',
+        rect,
+      },
+    });
+  }
+
+  function handlePageContextMenu(event: React.MouseEvent<HTMLDivElement>) {
+    if (!isReady || isAreaSelectionMode) {
+      return;
+    }
+
+    event.preventDefault();
+    setTextSelectionMenu(null);
+    setVisualSelectionMenu(null);
+    setPageContextMenu({
+      open: true,
+      point: { x: event.clientX, y: event.clientY },
+    });
+  }
+
+  function handlePageMouseUp(event: React.MouseEvent<HTMLDivElement>) {
+    if (isAreaSelectionMode || !isReady) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      const text = getSelectionTextWithin(visiblePageRef.current);
+      if (text === null) {
+        return;
+      }
+
+      setPageContextMenu(null);
+      setVisualSelectionMenu(null);
+      setTextSelectionMenu({
+        open: true,
+        point: { x: event.clientX, y: event.clientY },
+        text,
+        pageNumber: visiblePageNumber,
+      });
+    }, 0);
+  }
+
+  function handleAreaPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (!isAreaSelectionMode || !isReady || visiblePageRef.current === null) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    window.getSelection()?.removeAllRanges();
+    const start = getNormalizedPointFromClient({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      bounds: visiblePageRef.current.getBoundingClientRect(),
+    });
+    setTextSelectionMenu(null);
+    setPageContextMenu(null);
+    setVisualSelectionMenu(null);
+    setVisualSelectionRect(null);
+    setAreaDrag({
+      pointerId: event.pointerId,
+      start,
+      current: start,
+    });
+  }
+
+  function handleAreaPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (areaDrag === null || visiblePageRef.current === null || areaDrag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    setAreaDrag({
+      ...areaDrag,
+      current: getNormalizedPointFromClient({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        bounds: visiblePageRef.current.getBoundingClientRect(),
+      }),
+    });
+  }
+
+  function handleAreaPointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    if (areaDrag === null || visiblePageRef.current === null || areaDrag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    const rect = createNormalizedRect(
+      areaDrag.start,
+      getNormalizedPointFromClient({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        bounds: visiblePageRef.current.getBoundingClientRect(),
+      }),
+    );
+    setAreaDrag(null);
+
+    if (!isMeaningfulSelectionRect(rect)) {
+      setVisualSelectionRect(null);
+      setVisualSelectionMenu(null);
+      return;
+    }
+
+    setVisualSelectionRect(rect);
+    setVisualSelectionMenu({
+      open: true,
+      point: { x: event.clientX, y: event.clientY },
+      rect,
+      pageNumber: visiblePageNumber,
+    });
+  }
+
   function getFitButtonStyles(mode: PdfZoomMode) {
     return zoomMode === mode
       ? { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }
       : undefined;
   }
 
+  const activeAreaRect = areaDrag !== null
+    ? createNormalizedRect(areaDrag.start, areaDrag.current)
+    : visualSelectionRect;
+
   return (
-    <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
+    <Flex h="full" minH={{ base: '720px', md: '0' }} gap="3" direction={{ base: 'column', xl: 'row' }} overflow="hidden">
+    <Box flex="1 1 0" minW="0" h="full" overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
       <Box
         ref={viewportRef}
         position="relative"
@@ -517,10 +990,29 @@ function PdfPreviewFrame({
             </Flex>
           </Flex>
 
-          <Button type="button" size="sm" variant="outline" onClick={onPrint}>
-            <Printer size={16} />
-            Print
-          </Button>
+          <Flex align="center" gap="2">
+            <Button
+              type="button"
+              size="sm"
+              variant={isAreaSelectionMode ? 'solid' : 'outline'}
+              aria-pressed={isAreaSelectionMode}
+              disabled={!isReady}
+              onClick={() => {
+                setIsAreaSelectionMode(value => !value);
+                setTextSelectionMenu(null);
+                setPageContextMenu(null);
+                setVisualSelectionMenu(null);
+                setVisualSelectionRect(null);
+              }}
+            >
+              <ScanText size={16} />
+              Area
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={onPrint}>
+              <Printer size={16} />
+              Print
+            </Button>
+          </Flex>
         </Flex>
         {loadError ? (
           <Flex
@@ -561,11 +1053,14 @@ function PdfPreviewFrame({
         >
           {viewportSize.width > 0 ? (
             <Box
+              ref={visiblePageRef}
               position="relative"
               w={`${pageWidth}px`}
               h={pageHeight ? `${pageHeight}px` : undefined}
               minH={pageHeight ? `${pageHeight}px` : undefined}
               flexShrink="0"
+              onContextMenu={handlePageContextMenu}
+              onMouseUp={handlePageMouseUp}
             >
               <PdfDocument
                 file={src}
@@ -586,7 +1081,7 @@ function PdfPreviewFrame({
                     loading={null}
                     error={null}
                     renderAnnotationLayer={false}
-                    renderTextLayer={false}
+                    renderTextLayer
                     onLoadSuccess={handlePageLoadSuccess}
                     onRenderSuccess={() => handleVisiblePageRenderSuccess(visiblePageNumber)}
                     onRenderError={() => setLoadError(true)}
@@ -607,7 +1102,7 @@ function PdfPreviewFrame({
                       loading={null}
                       error={null}
                       renderAnnotationLayer={false}
-                      renderTextLayer={false}
+                      renderTextLayer
                       onLoadSuccess={handlePageLoadSuccess}
                       onRenderSuccess={() => handlePendingPageRenderSuccess(pendingLayerPageNumber)}
                       onRenderError={() => setLoadError(true)}
@@ -615,11 +1110,270 @@ function PdfPreviewFrame({
                   </Box>
                 ) : null}
               </PdfDocument>
+              {isAreaSelectionMode ? (
+                <Box
+                  position="absolute"
+                  inset="0"
+                  zIndex="2"
+                  cursor="crosshair"
+                  userSelect="none"
+                  touchAction="none"
+                  onPointerDown={handleAreaPointerDown}
+                  onPointerMove={handleAreaPointerMove}
+                  onPointerUp={handleAreaPointerUp}
+                  onPointerCancel={() => setAreaDrag(null)}
+                />
+              ) : null}
+              {activeAreaRect !== null ? (
+                <Box
+                  aria-hidden="true"
+                  position="absolute"
+                  zIndex="3"
+                  borderWidth="2px"
+                  borderColor="teal.solid"
+                  bg="teal.subtle"
+                  opacity="0.78"
+                  pointerEvents="none"
+                  shadow="0 0 0 1px var(--chakra-colors-bg-surface)"
+                  {...getRectStyle(activeAreaRect)}
+                />
+              ) : null}
             </Box>
           ) : null}
         </Flex>
       </Box>
     </Box>
+    {translationPane !== null ? (
+      <Box
+        flex={{ base: '0 0 auto', xl: '0 0 22rem' }}
+        h={{ base: '24rem', xl: 'full' }}
+        minH="0"
+        overflow="hidden"
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.surface"
+      >
+        <Flex
+          h="14"
+          align="center"
+          justify="space-between"
+          gap="3"
+          borderBottomWidth="1px"
+          borderColor="border.subtle"
+          px="4"
+        >
+          <Box minW="0">
+            <Text fontSize="sm" fontWeight="semibold" color="fg" truncate>
+              {getTranslationSourceLabel(translationPane.sourceType)} translation
+            </Text>
+            <Text fontSize="xs" color="fg.muted" truncate>
+              Page {translationPane.pageNumber} to {getTranslationLanguageLabel(translationPane.targetLanguage)}
+            </Text>
+          </Box>
+          <CloseButton
+            size="sm"
+            aria-label="Close translation pane"
+            onClick={closeTranslationPane}
+          />
+        </Flex>
+        <Box h="calc(100% - 3.5rem)" overflow="auto" px="4" py="4">
+          {translationPane.status === 'loading' ? (
+            <Flex minH="40" align="center" justify="center" direction="column" gap="3" textAlign="center">
+              <Spinner size="sm" color="teal.solid" />
+              <Text fontSize="sm" color="fg.muted">
+                Translating {getTranslationSourceLabel(translationPane.sourceType).toLowerCase()}...
+              </Text>
+              <Button type="button" size="sm" variant="outline" onClick={cancelTranslation}>
+                Cancel
+              </Button>
+            </Flex>
+          ) : translationPane.status === 'error' ? (
+            <Text fontSize="sm" color="fg.error" whiteSpace="pre-wrap">
+              {translationPane.error ?? 'Translation failed.'}
+            </Text>
+          ) : (
+            <Box fontSize="sm" color="fg">
+              <TranslationResultText text={translationPane.text} />
+              {translationPane.provider !== null ? (
+                <Text mt="4" fontSize="xs" color="fg.muted">
+                  {translationPane.provider} - {translationPane.model}
+                </Text>
+              ) : null}
+            </Box>
+          )}
+        </Box>
+      </Box>
+    ) : null}
+
+    <ChakraMenu.Root
+      open={pageContextMenu?.open ?? false}
+      onOpenChange={(event) => setPageContextMenu(current => current === null ? null : { ...current, open: event.open })}
+      positioning={{
+        placement: 'bottom-start',
+        hideWhenDetached: true,
+        getAnchorRect: () => getMenuAnchorRect(pageContextMenu?.point),
+      }}
+    >
+      <Portal>
+        <ChakraMenu.Positioner>
+          <ChakraMenu.Content zIndex="dropdown" minW="13rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+            <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }}>
+              <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'bg.subtle', color: 'fg' }}>
+                <Languages size={16} />
+                <Text flex="1">Translate Page</Text>
+                <ChevronRight size={16} />
+              </ChakraMenu.TriggerItem>
+              <Portal>
+                <ChakraMenu.Positioner>
+                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+                    {translationLanguages.map(language => (
+                      <ChakraMenu.Item
+                        key={language.value}
+                        value={`translate-page-${language.value}`}
+                        disabled={isTranslationPending}
+                        display="flex"
+                        alignItems="center"
+                        gap="2"
+                        rounded="md"
+                        px="3"
+                        py="2"
+                        fontSize="sm"
+                        fontWeight="medium"
+                        color="fg.muted"
+                        _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+                        onSelect={() => {
+                          void runPageTranslation(language.value);
+                        }}
+                      >
+                        <TranslationLanguageMenuLabel language={language} />
+                      </ChakraMenu.Item>
+                    ))}
+                  </ChakraMenu.Content>
+                </ChakraMenu.Positioner>
+              </Portal>
+            </ChakraMenu.Root>
+          </ChakraMenu.Content>
+        </ChakraMenu.Positioner>
+      </Portal>
+    </ChakraMenu.Root>
+
+    <ChakraMenu.Root
+      open={textSelectionMenu?.open ?? false}
+      onOpenChange={(event) => setTextSelectionMenu(current => current === null ? null : { ...current, open: event.open })}
+      positioning={{
+        placement: 'bottom-start',
+        hideWhenDetached: true,
+        getAnchorRect: () => getMenuAnchorRect(textSelectionMenu?.point),
+      }}
+    >
+      <Portal>
+        <ChakraMenu.Positioner>
+          <ChakraMenu.Content zIndex="dropdown" minW="14rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+            <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }}>
+              <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'bg.subtle', color: 'fg' }}>
+                <Languages size={16} />
+                <Text flex="1">Translate Selection</Text>
+                <ChevronRight size={16} />
+              </ChakraMenu.TriggerItem>
+              <Portal>
+                <ChakraMenu.Positioner>
+                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+                    {translationLanguages.map(language => (
+                      <ChakraMenu.Item
+                        key={language.value}
+                        value={`translate-text-${language.value}`}
+                        disabled={isTranslationPending || textSelectionMenu === null}
+                        display="flex"
+                        alignItems="center"
+                        gap="2"
+                        rounded="md"
+                        px="3"
+                        py="2"
+                        fontSize="sm"
+                        fontWeight="medium"
+                        color="fg.muted"
+                        _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+                        onSelect={() => {
+                          if (textSelectionMenu !== null) {
+                            void runSelectionTranslation({
+                              targetLanguage: language.value,
+                              source: {
+                                type: 'text',
+                                pageNumber: textSelectionMenu.pageNumber,
+                                text: textSelectionMenu.text,
+                              },
+                            });
+                          }
+                        }}
+                      >
+                        <TranslationLanguageMenuLabel language={language} />
+                      </ChakraMenu.Item>
+                    ))}
+                  </ChakraMenu.Content>
+                </ChakraMenu.Positioner>
+              </Portal>
+            </ChakraMenu.Root>
+          </ChakraMenu.Content>
+        </ChakraMenu.Positioner>
+      </Portal>
+    </ChakraMenu.Root>
+
+    <ChakraMenu.Root
+      open={visualSelectionMenu?.open ?? false}
+      onOpenChange={(event) => setVisualSelectionMenu(current => current === null ? null : { ...current, open: event.open })}
+      positioning={{
+        placement: 'bottom-start',
+        hideWhenDetached: true,
+        getAnchorRect: () => getMenuAnchorRect(visualSelectionMenu?.point),
+      }}
+    >
+      <Portal>
+        <ChakraMenu.Positioner>
+          <ChakraMenu.Content zIndex="dropdown" minW="14rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+            <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }}>
+              <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'bg.subtle', color: 'fg' }}>
+                <Languages size={16} />
+                <Text flex="1">Translate Selection</Text>
+                <ChevronRight size={16} />
+              </ChakraMenu.TriggerItem>
+              <Portal>
+                <ChakraMenu.Positioner>
+                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+                    {translationLanguages.map(language => (
+                      <ChakraMenu.Item
+                        key={language.value}
+                        value={`translate-area-${language.value}`}
+                        disabled={isTranslationPending || visualSelectionMenu === null}
+                        display="flex"
+                        alignItems="center"
+                        gap="2"
+                        rounded="md"
+                        px="3"
+                        py="2"
+                        fontSize="sm"
+                        fontWeight="medium"
+                        color="fg.muted"
+                        _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+                        onSelect={() => {
+                          if (visualSelectionMenu !== null) {
+                            void runVisualSelectionTranslation(language.value, visualSelectionMenu.rect);
+                          }
+                        }}
+                      >
+                        <TranslationLanguageMenuLabel language={language} />
+                      </ChakraMenu.Item>
+                    ))}
+                  </ChakraMenu.Content>
+                </ChakraMenu.Positioner>
+              </Portal>
+            </ChakraMenu.Root>
+          </ChakraMenu.Content>
+        </ChakraMenu.Positioner>
+      </Portal>
+    </ChakraMenu.Root>
+
+    </Flex>
   );
 }
 
@@ -1247,6 +2001,8 @@ export function DocumentDetailPage() {
                   <PdfPreviewFrame
                     key={inlineFileUrl}
                     src={inlineFileUrl}
+                    vaultId={vaultId}
+                    documentId={documentId}
                     onPrint={handlePrintClick}
                   />
                 ) : null}

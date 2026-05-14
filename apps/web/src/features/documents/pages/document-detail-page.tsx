@@ -36,6 +36,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
+import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
 import {
   getDocumentDownloadUrl,
   getDocumentInlineFileUrl,
@@ -46,6 +47,7 @@ import {
 } from '@/features/documents/documents.api';
 import {
   documentQueryKeys,
+  useDocumentFileTextQuery,
   useDocumentQuery,
   useDocumentTagsQuery,
 } from '@/features/documents/documents.queries';
@@ -64,7 +66,7 @@ import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/va
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { useVaultQuery } from '@/features/vaults/vaults.queries';
 
-type PreviewKind = 'pdf' | 'image' | 'text' | 'unsupported';
+type PreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported';
 type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
 
 const documentTabTriggerStyles = {
@@ -107,13 +109,35 @@ function getSearchReturnParams(search: Record<string, unknown>) {
   return params;
 }
 
-function getPreviewKind(mimeType: string): PreviewKind {
+function isMarkdownDocument({ mimeType, name, originalName }: { mimeType: string; name: string; originalName: string }) {
+  const normalizedMimeType = mimeType.toLowerCase();
+  const normalizedNames = [name, originalName].map(value => value.toLowerCase());
+
+  return (
+    normalizedMimeType === 'text/markdown' ||
+    normalizedMimeType === 'text/x-markdown' ||
+    normalizedMimeType === 'application/markdown' ||
+    normalizedMimeType === 'application/x-markdown' ||
+    normalizedNames.some(normalizedName =>
+      normalizedName.endsWith('.md') ||
+      normalizedName.endsWith('.markdown') ||
+      normalizedName.endsWith('.mdown') ||
+      normalizedName.endsWith('.mkd'),
+    )
+  );
+}
+
+function getPreviewKind(mimeType: string, name: string, originalName: string): PreviewKind {
   if (mimeType === 'application/pdf') {
     return 'pdf';
   }
 
   if (mimeType.startsWith('image/')) {
     return 'image';
+  }
+
+  if (isMarkdownDocument({ mimeType, name, originalName })) {
+    return 'markdown';
   }
 
   if (mimeType.startsWith('text/')) {
@@ -137,6 +161,16 @@ export function DocumentDetailPage() {
   const tagsQuery = useTagsQuery();
   const vaultQuery = useVaultQuery({ vaultId });
   const folderTreeQuery = useFolderTreeQuery({ vaultId, enabled: vaultId.length > 0 });
+  const previewKind = getPreviewKind(
+    documentQuery.data?.document.mimeType ?? '',
+    documentQuery.data?.document.name ?? '',
+    documentQuery.data?.document.originalName ?? '',
+  );
+  const markdownSourceQuery = useDocumentFileTextQuery({
+    vaultId,
+    documentId,
+    enabled: previewKind === 'markdown' && documentQuery.data?.document.isDeleted === false,
+  });
 
   const [renameValue, setRenameValue] = useState<string | null>(null);
   const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
@@ -373,9 +407,8 @@ export function DocumentDetailPage() {
     (tag) => tag.name.trim().toLowerCase() === normalizedTagSearchValue,
   );
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId });
-  const previewKind = getPreviewKind(document.mimeType);
   const canPreview = !document.isDeleted && previewKind !== 'unsupported';
-  const canPrint = !document.isDeleted && canPreview;
+  const canPrint = !document.isDeleted && canPreview && previewKind !== 'markdown';
   const currentName = renameValue ?? document.name;
   const currentDocumentDate =
     documentDateValue ?? (document.documentDate ? document.documentDate.slice(0, 10) : '');
@@ -390,6 +423,7 @@ export function DocumentDetailPage() {
     createTagMutation.isPending ||
     assignTagMutation.isPending;
   const displayContent = document.displayContent ?? document.content;
+  const fallbackMarkdownContent = displayContent;
   const extractionStageLabel = getDocumentProcessingStageLabel(
     document.processingStatus,
     displayContent,
@@ -721,6 +755,29 @@ export function DocumentDetailPage() {
                       rounded="lg"
                       bg="white"
                     />
+                  </Box>
+                ) : null}
+
+                {previewKind === 'markdown' && !document.isDeleted ? (
+                  <Box overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
+                    <Box
+                      h={{ base: '82vh', md: '860px' }}
+                      overflow="auto"
+                      rounded="lg"
+                      borderWidth="1px"
+                      borderColor="border.subtle"
+                      bg="bg.surface"
+                      px={{ base: '4', md: '8' }}
+                      py={{ base: '5', md: '7' }}
+                    >
+                      {markdownSourceQuery.isLoading && markdownSourceQuery.data === undefined ? (
+                        <Text fontSize="sm" color="fg.muted">Loading Markdown preview...</Text>
+                      ) : markdownSourceQuery.isError && fallbackMarkdownContent.length === 0 ? (
+                        <Text fontSize="sm" color="fg.error">Unable to load Markdown preview.</Text>
+                      ) : (
+                        <DocumentMarkdownPreview markdown={markdownSourceQuery.data ?? fallbackMarkdownContent} />
+                      )}
+                    </Box>
                   </Box>
                 ) : null}
 

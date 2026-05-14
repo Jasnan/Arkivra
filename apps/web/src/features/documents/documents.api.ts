@@ -1,4 +1,4 @@
-import { fetchJson } from '@/lib/api';
+import { ApiError, fetchJson } from '@/lib/api';
 import type { SearchSortBy } from '@/features/search/search.types';
 import type { DeletedDocumentSummary, DocumentDetail, DocumentSummary, TagSummary } from './documents.types';
 
@@ -208,6 +208,18 @@ export function getDocumentDownloadUrl({ vaultId, documentId }: { vaultId: strin
 
 export function getDocumentInlineFileUrl({ vaultId, documentId }: { vaultId: string; documentId: string }) {
   return `/api/vaults/${vaultId}/documents/${documentId}/file`;
+}
+
+export async function getDocumentFileText({ vaultId, documentId }: { vaultId: string; documentId: string }) {
+  const response = await fetch(getDocumentInlineFileUrl({ vaultId, documentId }), {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Request failed with status ${response.status}`, response.status);
+  }
+
+  return response.text();
 }
 
 export function getDocumentPagePreviewUrl({

@@ -7,6 +7,7 @@ import { renderWithProviders } from '@/test/utils';
 const createConversationMock = vi.hoisted(() => vi.fn());
 const deleteConversationMock = vi.hoisted(() => vi.fn());
 const streamChatMessageMock = vi.hoisted(() => vi.fn());
+const scrollIntoViewMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../chat.api', () => ({
   streamChatMessage: streamChatMessageMock,
@@ -146,6 +147,10 @@ vi.mock('../chat.queries', () => ({
 describe('chat workspace new chat drafts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
     createConversationMock.mockResolvedValue({
       conversation: {
         id: 'chat_created',
@@ -228,6 +233,42 @@ describe('chat workspace new chat drafts', () => {
         content: 'Hello from a draft',
       }),
     );
+  });
+
+  it('shows and scrolls to the assistant loading state immediately after submit', async () => {
+    const user = userEvent.setup();
+    let resolveStream: (() => void) | undefined;
+    streamChatMessageMock.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveStream = resolve;
+    }));
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    scrollIntoViewMock.mockClear();
+
+    await user.type(screen.getByLabelText(/chat message/i), 'What changed?');
+    await user.click(screen.getByRole('button', { name: /send message/i }));
+
+    expect(await screen.findByText('Sending your question')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: 'smooth', block: 'end' });
+    });
+    expect(streamChatMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat_existing',
+        content: 'What changed?',
+      }),
+    );
+
+    resolveStream?.();
+    await waitFor(() => {
+      expect(screen.queryByText('Sending your question')).not.toBeInTheDocument();
+    });
   });
 
   it('shows figure captions in the source flow for cited image evidence', async () => {

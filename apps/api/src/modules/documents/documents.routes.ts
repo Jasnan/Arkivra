@@ -3,15 +3,14 @@ import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import type { DocumentsServices } from './documents.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import { SEARCH_SORT_VALUES } from '../search/search.types.js';
+import { createDocumentsServices, normalizeDocumentFileName, type DocumentsServices } from './documents.services.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
 };
-import { createDocumentsServices } from './documents.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireVaultPermission } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
@@ -19,10 +18,10 @@ import { createFoldersServices } from '../folders/folders.services.js';
 
 function getDuplicateDocumentMessage(scope: string | null | undefined) {
   if (scope === 'trash') {
-    return 'A document with the same content is already in this vault trash';
+    return 'A document with this file already exists in this vault trash';
   }
 
-  return 'A document with the same content already exists in this vault';
+  return 'A document with this file already exists in this vault';
 }
 
 function parseSortBy(value: string | undefined) {
@@ -232,7 +231,7 @@ export function registerDocumentRoutes({
 
       const arrayBuffer = await file.arrayBuffer();
       const fileData = Buffer.from(arrayBuffer);
-      const fileName = file.name || 'untitled';
+      const fileName = normalizeDocumentFileName(file.name || 'untitled');
       const mimeType = file.type || 'application/octet-stream';
       const parsedFolderId = parseNullableFolderId(formData.get('folderId'));
       const relativePathField = formData.get('relativePath');
@@ -767,7 +766,7 @@ export function registerDocumentRoutes({
           {
             error: {
               code: 'document.duplicate',
-              message: 'A document with the same content already exists in this vault',
+              message: 'A document with this file already exists in this vault',
               existingId: doc.existingId,
             },
           },

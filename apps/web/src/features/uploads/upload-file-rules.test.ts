@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterAllowedUploadFiles, getUploadSourceRootName } from './upload-file-rules';
+import { filterAllowedUploadFiles, getUploadSourceRootName, normalizeUploadFileName } from './upload-file-rules';
 
 describe('upload file rules', () => {
   it('keeps supported document, image, json, and text files', () => {
@@ -40,5 +40,12 @@ describe('upload file rules', () => {
 
     expect(getUploadSourceRootName({ file, relativePath: 'Clients/2026/report.pdf' })).toBe('Clients');
     expect(getUploadSourceRootName({ file, relativePath: null })).toBeNull();
+  });
+
+  it('normalizes upload filenames without stripping extensions', () => {
+    expect(normalizeUploadFileName(' whoami.txt ')).toBe('whoami.txt');
+    expect(normalizeUploadFileName('whoami.md')).toBe('whoami.md');
+    expect(normalizeUploadFileName('archive.tar.gz')).toBe('archive.tar.gz');
+    expect(normalizeUploadFileName('cafe\u0301.PDF')).toBe('café.PDF');
   });
 });

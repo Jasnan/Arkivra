@@ -7,7 +7,7 @@ import {
   listUploadSessions,
 } from './uploads.api';
 import { clearPersistedTransfers, loadPersistedTransfers, savePersistedTransfers } from './upload-persistence';
-import { filterAllowedUploadFiles, getUploadSourceRootName } from './upload-file-rules';
+import { filterAllowedUploadFiles, getUploadSourceRootName, normalizeUploadFileName } from './upload-file-rules';
 import type { TransferItem, TransferState, UploadFileInput, UploadSessionSummary } from './uploads.types';
 
 const MAX_CONCURRENT_UPLOADS = 3;
@@ -235,7 +235,7 @@ export class UploadManager {
       vaultId,
       folderId,
       relativePath: relativePath ?? null,
-      fileName: file.name,
+      fileName: normalizeUploadFileName(file.name),
       mimeType: file.type || 'application/octet-stream',
       size: file.size,
       status: 'queued',

@@ -603,4 +603,23 @@ describe.sequential('migrations smoke', () => {
       ]),
     );
   });
+
+  test('0008 and 0009 enforce active filename and hash uniqueness', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'documents'
+      `,
+    );
+
+    const indexNames = rows.map(row => row.indexname);
+    expect(indexNames).toContain('documents_active_folder_filename_unique');
+    expect(indexNames).toContain('documents_vault_hash_unique');
+  });
 });

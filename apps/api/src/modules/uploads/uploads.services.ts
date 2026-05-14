@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
 import { uploadSessionsTable } from '../database/schema/index.js';
-import type { DocumentsServices } from '../documents/documents.services.js';
+import { normalizeDocumentFileName, type DocumentsServices } from '../documents/documents.services.js';
 import { generateId } from '../database/schema/helpers.js';
 import { createFoldersServices } from '../folders/folders.services.js';
 
@@ -150,13 +150,14 @@ export function createUploadsServices({
       throw error;
     }
 
+    const normalizedFileName = normalizeDocumentFileName(fileName);
     const destination = folderId === null && relativePath === null
       ? { success: true as const, folderId: null, relativePath: null }
       : await foldersServices.resolveUploadDestination({
           vaultId,
           parentId: folderId,
           relativePath,
-          fileName,
+          fileName: normalizedFileName,
           createdBy: userId,
         });
 
@@ -176,7 +177,7 @@ export function createUploadsServices({
         vaultId,
         userId,
         folderId: destination.folderId,
-        fileName,
+        fileName: normalizedFileName,
         relativePath: destination.relativePath,
         mimeType: mimeType || 'application/octet-stream',
         totalSize,

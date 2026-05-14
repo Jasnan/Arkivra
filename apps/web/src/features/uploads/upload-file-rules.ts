@@ -36,8 +36,14 @@ function getPathParts(input: UploadFileInput) {
 }
 
 function getExtension(name: string) {
-  const extension = name.split('.').pop()?.trim().toLocaleLowerCase();
-  return extension && extension !== name.toLocaleLowerCase() ? extension : '';
+  const normalizedName = normalizeUploadFileName(name);
+  const extension = normalizedName.split('.').pop()?.trim().toLocaleLowerCase();
+  return extension && extension !== normalizedName.toLocaleLowerCase() ? extension : '';
+}
+
+export function normalizeUploadFileName(fileName: string) {
+  const normalized = fileName.normalize('NFC').trim();
+  return normalized.length > 0 ? normalized : 'untitled';
 }
 
 export function isHiddenUploadFile(input: UploadFileInput) {

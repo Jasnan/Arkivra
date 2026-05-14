@@ -57,6 +57,20 @@
       "when": 1778630400000,
       "tag": "0007_global_tags",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778716800000,
+      "tag": "0008_document_filename_uniqueness",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778803200000,
+      "tag": "0009_restore_document_hash_uniqueness",
+      "breakpoints": true
     }
   ]
 }

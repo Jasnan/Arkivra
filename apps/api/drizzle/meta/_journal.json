@@ -92,6 +92,13 @@
       "when": 1779062400000,
       "tag": "0012_user_ui_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779148800000,
+      "tag": "0013_user_regional_preferences",
+      "breakpoints": true
     }
   ]
 }

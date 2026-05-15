@@ -4,6 +4,9 @@ import type {
   AppearanceFont,
   AppearanceFontSize,
   AppearanceRadius,
+  PreferenceDateFormat,
+  PreferenceLanguage,
+  PreferenceTimezone,
   ThemeMode,
 } from '@/components/providers/accent-color-context';
 
@@ -14,10 +17,16 @@ export interface UserUiPreferences {
   fontFamily: AppearanceFont;
   fontSize: AppearanceFontSize;
   radius: AppearanceRadius;
+  language: PreferenceLanguage;
+  timezone: PreferenceTimezone;
+  dateFormat: PreferenceDateFormat;
   createdAt: string;
   updatedAt: string;
 }
 
 export type UserUiPreferencesUpdate = Partial<
-  Pick<UserUiPreferences, 'accentColor' | 'density' | 'fontFamily' | 'fontSize' | 'radius' | 'themeMode'>
+  Pick<
+    UserUiPreferences,
+    'accentColor' | 'dateFormat' | 'density' | 'fontFamily' | 'fontSize' | 'language' | 'radius' | 'themeMode' | 'timezone'
+  >
 >;

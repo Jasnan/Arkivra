@@ -2,7 +2,6 @@ import type { PropsWithChildren, ReactNode } from 'react';
 import { Box, Flex, Stack } from '@chakra-ui/react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
-import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import {
   Card,
   CardContent,
@@ -24,11 +23,10 @@ export function AuthLayout({ children }: PropsWithChildren) {
         py="6"
         sm={{ px: '6' }}
       >
-        <Flex as="header" align="center" justify="space-between" mb="10">
+        <Flex as="header" align="center" justify="center" mb="10">
           <Link to={ROUTES.root} style={{ fontSize: '0.875rem', fontWeight: 600, letterSpacing: '-0.025em' }}>
             Arkivra
           </Link>
-          <ThemeToggle />
         </Flex>
 
         <Flex as="main" flex="1" align="center" justify="center">

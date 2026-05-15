@@ -1,5 +1,6 @@
 import { Heading, Stack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Separator } from '@/components/ui/separator';
 import type { ChatResponseMode } from '@/features/chat/chat.api';
 import { AnswerModePicker } from '@/features/chat/components/answer-mode-picker';
@@ -36,9 +37,14 @@ const defaultViewOptions = [
 ];
 
 export function PreferencesSettingsPage() {
-  const [language, setLanguage] = useState('en');
-  const [timezone, setTimezone] = useState('auto');
-  const [dateFormat, setDateFormat] = useState('medium');
+  const {
+    language,
+    timezone,
+    dateFormat,
+    setLanguage,
+    setTimezone,
+    setDateFormat,
+  } = useAccentColor();
   const [defaultView, setDefaultView] = useState('list');
   const [defaultChatAnswerMode, setDefaultChatAnswerMode] = useState<ChatResponseMode>('text');
 
@@ -64,7 +70,7 @@ export function PreferencesSettingsPage() {
                     ariaLabel="Language"
                     options={languageOptions}
                     value={language}
-                    onValueChange={setLanguage}
+                    onValueChange={(value) => setLanguage(value as typeof language)}
                   />
                 }
               />
@@ -76,7 +82,7 @@ export function PreferencesSettingsPage() {
                     ariaLabel="Timezone"
                     options={timezoneOptions}
                     value={timezone}
-                    onValueChange={setTimezone}
+                    onValueChange={(value) => setTimezone(value as typeof timezone)}
                   />
                 }
               />
@@ -88,7 +94,7 @@ export function PreferencesSettingsPage() {
                     ariaLabel="Date format"
                     options={dateFormatOptions}
                     value={dateFormat}
-                    onValueChange={setDateFormat}
+                    onValueChange={(value) => setDateFormat(value as typeof dateFormat)}
                   />
                 }
               />

@@ -16,4 +16,7 @@ export const userUiPreferencesTable = pgTable('user_ui_preferences', {
   fontFamily: text('font_family', { enum: ['inter', 'manrope', 'space-grotesk'] }).notNull().default('inter'),
   fontSize: text('font_size', { enum: ['sm', 'md', 'lg', 'xl', '2xl'] }).notNull().default('md'),
   radius: text('radius', { enum: ['none', 'sm', 'md', 'lg', 'xl'] }).notNull().default('md'),
+  language: text('language', { enum: ['en', 'de', 'fr'] }).notNull().default('en'),
+  timezone: text('timezone', { enum: ['auto', 'utc', 'europe-berlin', 'america-new-york'] }).notNull().default('auto'),
+  dateFormat: text('date_format', { enum: ['medium', 'numeric', 'short'] }).notNull().default('medium'),
 });

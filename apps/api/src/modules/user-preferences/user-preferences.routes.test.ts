@@ -12,6 +12,9 @@ function createPreferences() {
     fontFamily: 'inter',
     fontSize: 'md',
     radius: 'md',
+    language: 'en',
+    timezone: 'auto',
+    dateFormat: 'medium',
     createdAt: '2026-05-15T00:00:00.000Z',
     updatedAt: '2026-05-15T00:00:00.000Z',
   } as const;
@@ -82,13 +85,13 @@ describe('user preferences routes', () => {
     const response = await app.request('/api/me/preferences', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accentColor: 'blue', fontFamily: 'space-grotesk' }),
+      body: JSON.stringify({ accentColor: 'blue', fontFamily: 'space-grotesk', timezone: 'europe-berlin' }),
     });
 
     expect(response.status).toBe(200);
     expect(services.updatePreferences).toHaveBeenCalledWith({
       userId: 'usr_test',
-      preferences: { accentColor: 'blue', fontFamily: 'space-grotesk' },
+      preferences: { accentColor: 'blue', fontFamily: 'space-grotesk', timezone: 'europe-berlin' },
     });
   });
 

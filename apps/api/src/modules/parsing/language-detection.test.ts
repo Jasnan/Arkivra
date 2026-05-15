@@ -6,17 +6,30 @@ import {
 } from './language-detection.js';
 
 describe('language detection', () => {
-  test('detects dominant German text with a confidence score', () => {
+  test('detects dominant German text', () => {
     const language = detectDominantLanguageFromText(
       'Dies ist eine Rechnung für die Lieferung und die Zahlung ist innerhalb von vierzehn Tagen zu leisten.',
     );
 
-    expect(language).toMatchObject({
+    expect(language).toEqual({
       code: 'de',
       name: 'German',
+      confidence: null,
       source: 'heuristic',
     });
-    expect(language?.confidence).toBeGreaterThan(0.8);
+  });
+
+  test('detects English text even when Franc ranks the candidates closely', () => {
+    const language = detectDominantLanguageFromText(
+      'Document number date amount total customer address tax due balance paid reference order item quantity price',
+    );
+
+    expect(language).toEqual({
+      code: 'en',
+      name: 'English',
+      confidence: null,
+      source: 'heuristic',
+    });
   });
 
   test('returns null for tiny text samples', () => {

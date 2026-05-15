@@ -1,5 +1,5 @@
 import type { DocumentLanguageMetadata } from './parsed-document.schema.js';
-import { francAll } from 'franc-min';
+import { franc } from 'franc-min';
 
 type SupportedLanguageCode = 'de' | 'en' | 'es' | 'fr';
 type FrancLanguageCode = 'deu' | 'eng' | 'spa' | 'fra';
@@ -42,9 +42,7 @@ const FRANC_TO_LANGUAGE_CODE: Record<FrancLanguageCode, SupportedLanguageCode> =
 };
 
 const MAX_DETECTION_CHARS = 12_000;
-const MIN_DETECTION_CHARS = 80;
-const MIN_FRANC_SCORE = 0.75;
-const MIN_FRANC_SCORE_GAP = 0.12;
+const MIN_DETECTION_CHARS = 40;
 
 function normalizeLanguageCode(value: unknown): SupportedLanguageCode | null {
   if (typeof value !== 'string') {
@@ -187,26 +185,16 @@ export function detectDominantLanguageFromText(text: string): DocumentLanguageMe
     return null;
   }
 
-  const ranked = francAll(sample, {
+  const francCode = franc(sample, {
     minLength: MIN_DETECTION_CHARS,
     only: FRANC_LANGUAGE_CODES,
   });
-  const best = ranked[0];
-  const runnerUp = ranked[1];
-  if (best === undefined) {
+  if (!isFrancLanguageCode(francCode)) {
     return null;
   }
 
-  const [francCode, score] = best;
-  if (!isFrancLanguageCode(francCode) || score < MIN_FRANC_SCORE) {
-    return null;
-  }
-
-  if (runnerUp !== undefined && score - runnerUp[1] < MIN_FRANC_SCORE_GAP) {
-    return null;
-  }
-
-  return metadataFromCode(FRANC_TO_LANGUAGE_CODE[francCode], 'heuristic', Number(score.toFixed(2)));
+  // Franc ranks candidates but does not return a calibrated probability.
+  return metadataFromCode(FRANC_TO_LANGUAGE_CODE[francCode], 'heuristic');
 }
 
 function isFrancLanguageCode(value: string): value is FrancLanguageCode {

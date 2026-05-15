@@ -229,3 +229,19 @@ table {
 .vault-input:focus-visible {
   box-shadow: 0 0 0 2px var(--chakra-colors-teal-focus-ring);
 }
+
+.arkivra-auth-spin {
+  animation: arkivra-auth-spin 0.9s linear infinite;
+}
+
+@keyframes arkivra-auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arkivra-auth-spin {
+    animation: none;
+  }
+}

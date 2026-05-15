@@ -20,6 +20,7 @@ const authClientMock = vi.hoisted(() => ({
   },
   requestPasswordReset: vi.fn(),
   resetPassword: vi.fn(),
+  sendVerificationEmail: vi.fn(),
   twoFactor: {
     enable: vi.fn(),
     verifyTotp: vi.fn(),
@@ -68,6 +69,7 @@ describe('auth pages', () => {
     authClientMock.signUp.email.mockResolvedValue({ error: null });
     authClientMock.requestPasswordReset.mockResolvedValue({ error: null });
     authClientMock.resetPassword.mockResolvedValue({ error: null });
+    authClientMock.sendVerificationEmail.mockResolvedValue({ error: null });
     authClientMock.twoFactor.enable.mockResolvedValue({
       data: {
         totpURI: 'otpauth://totp/Arkivra?secret=ABC123&issuer=Arkivra',

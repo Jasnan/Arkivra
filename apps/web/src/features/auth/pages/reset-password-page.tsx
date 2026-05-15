@@ -1,12 +1,17 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router';
+import { Navigate, useNavigate, useSearch } from '@tanstack/react-router';
+import { CircleCheck } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { AuthActions, AuthCard } from '@/features/auth/auth-layout';
+import {
+  AuthActions,
+  AuthCard,
+  AuthForm,
+  AuthLink,
+  AuthPasswordField,
+  AuthPrimaryButton,
+  AuthStatus,
+} from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function ResetPasswordPage() {
@@ -34,35 +39,39 @@ export function ResetPasswordPage() {
       return;
     }
     setIsReset(true);
-    setTimeout(() => navigate({ to: ROUTES.login }), 600);
+    setTimeout(() => navigate({ to: ROUTES.login }), 1500);
   }
 
   return (
     <AuthCard title="Set new password" subtitle="Create a new password for your account.">
-        {isReset ? (
-          <Alert>
-            <AlertDescription>Password updated. Redirecting to sign in...</AlertDescription>
-          </Alert>
-        ) : (
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
-            <Field>
-              <FieldLabel htmlFor="new-password">New password</FieldLabel>
-              <Input id="new-password" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />
-            </Field>
+      {isReset ? (
+        <AuthStatus tone="success" icon={CircleCheck} title="Password updated">
+          Redirecting to sign in...
+        </AuthStatus>
+      ) : (
+        <AuthForm onSubmit={handleSubmit}>
+          <AuthPasswordField
+            id="new-password"
+            label="New password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="Create a new password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
 
-            {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+          {errorMessage ? <AuthStatus tone="error">{errorMessage}</AuthStatus> : null}
 
-            <Button type="submit" w="100%" disabled={isSubmitting}>
-              {isSubmitting ? 'Updating password…' : 'Update password'}
-            </Button>
-          </form>
-        )}
+          <AuthPrimaryButton loading={isSubmitting} loadingText="Updating password...">
+            Update password
+          </AuthPrimaryButton>
+        </AuthForm>
+      )}
 
-        <AuthActions>
-          <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
-            Sign in
-          </Link>
-        </AuthActions>
-      </AuthCard>
+      <AuthActions>
+        <AuthLink to={ROUTES.login}>Sign in</AuthLink>
+      </AuthActions>
+    </AuthCard>
   );
 }

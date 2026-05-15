@@ -1,12 +1,20 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { Box } from '@chakra-ui/react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Text } from '@chakra-ui/react';
+import { useNavigate } from '@tanstack/react-router';
+import { Mail, User } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
-import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { AuthCard } from '@/features/auth/auth-layout';
+import {
+  AuthCard,
+  AuthField,
+  AuthFooter,
+  AuthForm,
+  AuthLink,
+  AuthPasswordField,
+  AuthPrimaryButton,
+  AuthStatus,
+  OAuthButtons,
+} from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function RegisterPage() {
@@ -16,6 +24,7 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [oauthProvider, setOAuthProvider] = useState<'google' | 'github' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -39,40 +48,74 @@ export function RegisterPage() {
       return;
     }
 
-    navigate({ to: ROUTES.root });
+    navigate({ to: ROUTES.emailVerification, search: { email } });
+  }
+
+  async function handleOAuth(provider: 'google' | 'github') {
+    setErrorMessage(null);
+    setOAuthProvider(provider);
+    const callbackURL = new URL(ROUTES.root, window.location.origin).toString();
+    const { error } = await authClient.signIn.social({ provider, callbackURL });
+    setOAuthProvider(null);
+    if (error) setErrorMessage(error.message ?? 'OAuth sign up failed.');
   }
 
   return (
-    <AuthCard title="Create account" subtitle="Start organizing your documents in Arkivra.">
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
-          <Field>
-            <FieldLabel htmlFor="name">Name</FieldLabel>
-            <Input id="name" type="text" required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
+    <AuthCard title="Create account">
+      <AuthForm onSubmit={handleSubmit}>
+        <AuthField
+          id="name"
+          label="Name"
+          type="text"
+          required
+          autoComplete="name"
+          placeholder="Alex Morgan"
+          value={name}
+          icon={User}
+          onChange={(event) => setName(event.target.value)}
+        />
 
-          <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
-            <Input id="email" type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-          </Field>
+        <AuthField
+          id="email"
+          label="Email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          icon={Mail}
+          onChange={(event) => setEmail(event.target.value)}
+        />
 
-          <Field>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input id="password" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </Field>
+        <AuthPasswordField
+          id="password"
+          label="Password"
+          required
+          minLength={8}
+          autoComplete="new-password"
+          placeholder="Create a strong password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
 
-          {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+        {errorMessage ? <AuthStatus tone="error">{errorMessage}</AuthStatus> : null}
 
-          <Button type="submit" w="100%" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating account…' : 'Create account'}
-          </Button>
-        </form>
+        <AuthPrimaryButton loading={isSubmitting} loadingText="Creating account...">
+          Create account
+        </AuthPrimaryButton>
+      </AuthForm>
 
-        <Box fontSize="sm" color="fg.muted">
-          Already have an account?{' '}
-          <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
-            Sign in
-          </Link>
-        </Box>
-      </AuthCard>
+      <OAuthButtons
+        disabled={isSubmitting}
+        loadingProvider={oauthProvider}
+        onGoogle={() => handleOAuth('google')}
+        onGithub={() => handleOAuth('github')}
+      />
+
+      <AuthFooter>
+        <Text>Already have an account?</Text>
+        <AuthLink to={ROUTES.login} withArrow>Sign in</AuthLink>
+      </AuthFooter>
+    </AuthCard>
   );
 }

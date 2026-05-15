@@ -342,6 +342,85 @@ const config = defineConfig({
             },
           },
         },
+
+        // Premium auth surfaces
+        auth: {
+          canvas: {
+            value: { base: '#fbfcfd', _dark: '#050816' },
+          },
+
+          canvasEnd: {
+            value: { base: '#f1f7f8', _dark: '#060b1d' },
+          },
+
+          card: {
+            value: {
+              base: 'rgba(255, 255, 255, 0.72)',
+              _dark: 'rgba(17, 20, 27, 0.72)',
+            },
+          },
+
+          cardBorder: {
+            value: {
+              base: 'rgba(148, 163, 184, 0.16)',
+              _dark: 'rgba(148, 163, 184, 0.14)',
+            },
+          },
+
+          field: {
+            value: {
+              base: 'rgba(248, 250, 252, 0.68)',
+              _dark: 'rgba(15, 18, 25, 0.68)',
+            },
+          },
+
+          fieldBorder: {
+            value: {
+              base: 'rgba(148, 163, 184, 0.22)',
+              _dark: 'rgba(148, 163, 184, 0.18)',
+            },
+          },
+
+          fieldHover: {
+            value: {
+              base: 'rgba(255, 255, 255, 0.78)',
+              _dark: 'rgba(18, 22, 30, 0.78)',
+            },
+          },
+
+          primaryFrom: {
+            value: { base: '#179b8e', _dark: '#a99cf0' },
+          },
+
+          primaryTo: {
+            value: { base: '#117f75', _dark: '#8c82de' },
+          },
+
+          glow: {
+            value: {
+              base: 'rgba(20, 184, 166, 0.12)',
+              _dark: 'rgba(20, 184, 166, 0.14)',
+            },
+          },
+
+          horizon: {
+            value: {
+              base: 'rgba(20, 184, 166, 0.28)',
+              _dark: 'rgba(45, 212, 191, 0.32)',
+            },
+          },
+
+          link: {
+            value: { base: '#0f766e', _dark: '#a78bfa' },
+          },
+
+          particle: {
+            value: {
+              base: 'rgba(20, 184, 166, 0.16)',
+              _dark: 'rgba(45, 212, 191, 0.16)',
+            },
+          },
+        },
       },
 
       shadows: {
@@ -383,6 +462,22 @@ const config = defineConfig({
             _dark: '0 20px 32px rgba(0, 0, 0, 0.45)',
           },
         },
+
+        authCard: {
+          value: {
+            base:
+              '0 8px 18px rgba(15, 23, 42, 0.045)',
+            _dark:
+              '0 10px 22px rgba(0, 0, 0, 0.2)',
+          },
+        },
+
+        authButton: {
+          value: {
+            base: '0 4px 10px rgba(15, 118, 110, 0.1)',
+            _dark: '0 5px 12px rgba(143, 130, 232, 0.12)',
+          },
+        },
       },
 
       radii: {
@@ -395,6 +490,10 @@ const config = defineConfig({
         xl: { value: '1rem' },
 
         '2xl': { value: '1.25rem' },
+
+        authCard: { value: '0.875rem' },
+
+        authControl: { value: '0.5rem' },
       },
     },
   },

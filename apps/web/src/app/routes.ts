@@ -4,6 +4,7 @@ export const ROUTES = {
   register: '/register',
   requestPasswordReset: '/request-password-reset',
   resetPassword: '/reset-password',
+  emailVerification: '/verify-email',
   twoFactorVerify: '/two-factor/verify',
   twoFactorSetup: '/two-factor/setup',
   twoFactorManage: '/two-factor/manage',

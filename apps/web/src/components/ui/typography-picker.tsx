@@ -23,14 +23,13 @@ export function TypographyPicker({ onValueChange, value }: TypographyPickerProps
             alignItems="center"
             justifyContent="center"
             minW="0"
-            minH="4.5rem"
+            minH="var(--arkivra-controlHeight, 2.5rem)"
             rounded="md"
             borderWidth="1px"
             borderColor={selected ? 'teal.solid' : 'border.subtle'}
-            bg={selected ? 'teal.subtle' : 'bg.surface'}
+            bg={selected ? 'teal.subtle' : 'bg.subtle'}
             color="fg"
             px="2"
-            py="2.5"
             cursor="pointer"
             fontFamily="var(--arkivra-font-body)"
             textAlign="center"

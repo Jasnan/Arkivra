@@ -1,12 +1,16 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { CircleCheck, Mail } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { AuthActions, AuthCard } from '@/features/auth/auth-layout';
+import {
+  AuthActions,
+  AuthCard,
+  AuthField,
+  AuthForm,
+  AuthLink,
+  AuthPrimaryButton,
+  AuthStatus,
+} from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function RequestPasswordResetPage() {
@@ -35,30 +39,35 @@ export function RequestPasswordResetPage() {
 
   return (
     <AuthCard title="Reset password" subtitle="Request a password reset link by email.">
-        {submitted ? (
-          <Alert>
-            <AlertDescription>If an account exists for {email}, a reset link has been sent.</AlertDescription>
-          </Alert>
-        ) : (
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
-            <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
-              <Input id="email" type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-            </Field>
+      {submitted ? (
+        <AuthStatus tone="success" icon={CircleCheck} title="Check your inbox">
+          If an account exists for {email}, a reset link has been sent.
+        </AuthStatus>
+      ) : (
+        <AuthForm onSubmit={handleSubmit}>
+          <AuthField
+            id="email"
+            label="Email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            icon={Mail}
+            onChange={(event) => setEmail(event.target.value)}
+          />
 
-            {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+          {errorMessage ? <AuthStatus tone="error">{errorMessage}</AuthStatus> : null}
 
-            <Button type="submit" w="100%" disabled={isSubmitting}>
-              {isSubmitting ? 'Sending reset link…' : 'Send reset link'}
-            </Button>
-          </form>
-        )}
+          <AuthPrimaryButton loading={isSubmitting} loadingText="Sending reset link...">
+            Send reset link
+          </AuthPrimaryButton>
+        </AuthForm>
+      )}
 
-        <AuthActions>
-          <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
-            Sign in
-          </Link>
-        </AuthActions>
-      </AuthCard>
+      <AuthActions>
+        <AuthLink to={ROUTES.login}>Sign in</AuthLink>
+      </AuthActions>
+    </AuthCard>
   );
 }

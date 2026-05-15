@@ -1,5 +1,5 @@
 export type UiThemeMode = 'system' | 'light' | 'dark';
-export type UiAccentColor = 'gray' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'cyan' | 'purple' | 'pink';
+export type UiAccentColor = 'gray' | 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'cyan' | 'purple' | 'pink';
 export type UiDensity = 'compact' | 'comfortable' | 'relaxed';
 export type UiFontFamily = 'inter' | 'manrope' | 'space-grotesk';
 export type UiFontSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';

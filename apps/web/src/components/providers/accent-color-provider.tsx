@@ -95,6 +95,24 @@ const accentPalettes: Record<AccentColor, {
       subtle: '#1f2937',
     },
   },
+  red: {
+    light: {
+      focusRing: 'rgba(220, 38, 38, 0.35)',
+      fg: '#b91c1c',
+      hover: '#991b1b',
+      muted: '#fecaca',
+      solid: '#dc2626',
+      subtle: '#fef2f2',
+    },
+    dark: {
+      focusRing: 'rgba(248, 113, 113, 0.35)',
+      fg: '#fca5a5',
+      hover: '#ef4444',
+      muted: '#7f1d1d',
+      solid: '#f87171',
+      subtle: '#321414',
+    },
+  },
   orange: {
     light: {
       focusRing: 'rgba(234, 88, 12, 0.35)',
@@ -317,6 +335,7 @@ interface AccentPalette {
 
 function isAccentColor(value: string | null): value is AccentColor {
   return value === 'gray'
+    || value === 'red'
     || value === 'orange'
     || value === 'yellow'
     || value === 'green'
@@ -549,6 +568,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   const [dateFormat, setDateFormatState] = useState<PreferenceDateFormat>(cachedPreferences.dateFormat);
   const [pendingServerPatch, setPendingServerPatch] = useState<UserUiPreferencesUpdate | null>(null);
   const currentPreferencesRef = useRef<UserUiPreferenceValues>(cachedPreferences);
+  const pendingServerPatchRef = useRef<UserUiPreferencesUpdate | null>(null);
   const pendingRollbackRef = useRef<UserUiPreferenceValues | null>(null);
   const syncVersionRef = useRef(0);
   const isAuthenticated = Boolean(session.data?.user);
@@ -599,10 +619,14 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     }
 
     syncVersionRef.current += 1;
-    setPendingServerPatch((current) => ({
-      ...current,
+    const nextPendingPatch = {
+      ...pendingServerPatchRef.current,
       ...patch,
-    }));
+    };
+    pendingServerPatchRef.current = nextPendingPatch;
+    setPendingServerPatch(nextPendingPatch);
+
+    queryClient.cancelQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
 
     queryClient.setQueryData<{ preferences: UserUiPreferences }>(
       userPreferencesQueryKeys.ui(),
@@ -623,7 +647,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    if (pendingServerPatch !== null) {
+    if (pendingServerPatchRef.current !== null) {
       return;
     }
 
@@ -635,6 +659,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!isAuthenticated) {
       pendingRollbackRef.current = null;
+      pendingServerPatchRef.current = null;
       setPendingServerPatch(null);
       return;
     }
@@ -657,6 +682,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
           setCachedPreferences(serverPreferences);
           queryClient.setQueryData(userPreferencesQueryKeys.ui(), data);
           pendingRollbackRef.current = null;
+          pendingServerPatchRef.current = null;
           setPendingServerPatch(null);
         },
         onError: () => {
@@ -668,6 +694,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
           applyPreferences(rollbackPreferences);
           setCachedPreferences(rollbackPreferences);
           pendingRollbackRef.current = null;
+          pendingServerPatchRef.current = null;
           setPendingServerPatch(null);
           queryClient.invalidateQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
         },

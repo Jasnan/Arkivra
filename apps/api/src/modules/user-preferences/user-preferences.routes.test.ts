@@ -101,7 +101,7 @@ describe('user preferences routes', () => {
     const response = await app.request('/api/me/preferences', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accentColor: 'red' }),
+      body: JSON.stringify({ accentColor: 'brown' }),
     });
 
     expect(response.status).toBe(400);

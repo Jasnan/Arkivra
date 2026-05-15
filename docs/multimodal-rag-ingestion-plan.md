@@ -69,7 +69,7 @@ What already works and **must not be regressed**:
 - Encrypted upload + queueing.
 - Unstructured `hi_res` partition with `inferTableStructure` + image extraction.
 - Vision OCR fallback when Unstructured returns no text.
-- AI normalization gated by `aiNormalizationMaxInputChars` (≤1000 chars).
+- Deterministic parser text cleanup remains lightweight and non-generative.
 - Markdown chunker with overlap.
 - Section heading carry-over into `ParsedChunk.section`.
 - FTS `tsv` GIN index + HNSW `embedding` index (the latter is empty today).

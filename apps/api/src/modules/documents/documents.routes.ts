@@ -5,8 +5,9 @@ import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
+import type { DocumentsServices } from './documents.services.js';
 import { SEARCH_SORT_VALUES } from '../search/search.types.js';
-import { createDocumentsServices, normalizeDocumentFileName, type DocumentsServices } from './documents.services.js';
+import { createDocumentsServices, normalizeDocumentFileName } from './documents.services.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
@@ -15,6 +16,7 @@ import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireVaultPermission } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 import { createFoldersServices } from '../folders/folders.services.js';
+import { buildUserDocumentLanguageMetadata } from './document-language.js';
 
 function getDuplicateDocumentMessage(scope: string | null | undefined) {
   if (scope === 'trash') {
@@ -613,8 +615,48 @@ export function registerDocumentRoutes({
         return context.json({ document: doc });
       }
 
+      if (body.language !== undefined) {
+        const languageCode = body.language === null
+          ? null
+          : typeof body.language === 'string'
+            ? body.language
+            : typeof body.language === 'object' && body.language !== null && typeof body.language.code === 'string'
+              ? body.language.code
+              : undefined;
+
+        if (languageCode === undefined) {
+          return context.json(
+            { error: { code: 'document.invalid_language', message: 'Invalid document language' } },
+            400,
+          );
+        }
+
+        const language = buildUserDocumentLanguageMetadata(languageCode);
+        if (languageCode !== null && language === null) {
+          return context.json(
+            { error: { code: 'document.unsupported_language', message: 'Unsupported document language' } },
+            400,
+          );
+        }
+
+        const doc = await documentsServices.updateDocumentLanguage({
+          documentId,
+          vaultId,
+          language,
+        });
+
+        if (doc === null) {
+          return context.json(
+            { error: { code: 'document.not_found', message: 'Document not found' } },
+            404,
+          );
+        }
+
+        return context.json({ document: doc });
+      }
+
       return context.json(
-        { error: { code: 'document.invalid_payload', message: 'Provide name or documentDate' } },
+        { error: { code: 'document.invalid_payload', message: 'Provide name, documentDate, or language' } },
         400,
       );
     },

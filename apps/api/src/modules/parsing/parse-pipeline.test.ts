@@ -1,11 +1,8 @@
 import type { DocumentParser, ParseInput } from './parser.types.js';
-import type { ParserOutput } from './parsed-document.schema.js';
-import type { GluedWordNormalizer } from './glued-word-normalizer.js';
+import type { ParsedChunk, ParserOutput } from './parsed-document.schema.js';
 import type { ChunkSummariser } from './ollama-chunk-summariser.js';
-import type { ParsedChunk } from './parsed-document.schema.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { describe, expect, test, vi } from 'vitest';
-import { createNoopGluedWordNormalizer } from './glued-word-normalizer.js';
 import { createParserRegistry } from './parser.registry.js';
 import { createDeterministicTextCleaner, createNoopTextCleaner } from './text-cleaner.js';
 import { createParsePipeline } from './parse-pipeline.js';
@@ -53,7 +50,6 @@ function makeParser(raw: Partial<ParserOutput> = {}): DocumentParser {
 function makePipeline(
   parserOverrides: Partial<ParserOutput> = {},
   cleaner: TextCleaner = createNoopTextCleaner(),
-  gluedWordNormalizer: GluedWordNormalizer = createNoopGluedWordNormalizer(),
   chunkSummariser?: ChunkSummariser,
 ) {
   const parser = makeParser(parserOverrides);
@@ -61,7 +57,6 @@ function makePipeline(
   const pipeline = createParsePipeline({
     parserRegistry: registry,
     cleaner,
-    gluedWordNormalizer,
     chunkSummariser,
   });
   return { pipeline, parser };
@@ -143,34 +138,39 @@ describe('parse pipeline', () => {
     await expect(pipeline.run(input)).rejects.toThrow(/invalid ParsedDocument/);
   });
 
-  test('runs glued-word normalization on cleaned document text and markdown', async () => {
-    const normalizer: GluedWordNormalizer = {
-      name: 'mock-ollama',
-      normalize: async (inputText) => ({
-        text: inputText.text.replace('GOVERNMENTOFKERALA', 'GOVERNMENT OF KERALA'),
-        markdown: inputText.markdown.replace('GOVERNMENTOFKERALA', 'GOVERNMENT OF KERALA'),
-        replacements: [{
-          original: 'GOVERNMENTOFKERALA',
-          updated: 'GOVERNMENT OF KERALA',
-        }],
-      }),
-    };
-
-    const { pipeline } = makePipeline(
-      {
-        text: 'GOVERNMENTOFKERALA',
-        markdown: '# GOVERNMENTOFKERALA',
-        chunks: [makeChunk({ text: 'chunk stays parser-owned', originalText: 'chunk stays parser-owned' })],
-      },
-      createNoopTextCleaner(),
-      normalizer,
-    );
+  test('detects source language from cleaned document text', async () => {
+    const { pipeline } = makePipeline({
+      text: 'Dies ist eine Rechnung und die Zahlung ist innerhalb von vierzehn Tagen fällig. Der Betrag ist mit der angegebenen Referenz zu überweisen.',
+      markdown: '',
+    });
 
     const parsed = await pipeline.run(input);
 
-    expect(parsed.text).toBe('GOVERNMENT OF KERALA');
-    expect(parsed.markdown).toBe('# GOVERNMENT OF KERALA');
-    expect(parsed.chunks[0]?.text).toBe('chunk stays parser-owned');
+    expect(parsed.language).toMatchObject({
+      code: 'de',
+      name: 'German',
+      source: 'heuristic',
+    });
+  });
+
+  test('uses parser language metadata before heuristic detection', async () => {
+    const { pipeline } = makePipeline({
+      text: 'This document text is English, but the parser metadata wins when present.',
+      markdown: '',
+      rawStructuredOutput: {
+        schema_name: 'DoclingDocument',
+        metadata: { language: 'de' },
+      },
+    });
+
+    const parsed = await pipeline.run(input);
+
+    expect(parsed.language).toEqual({
+      code: 'de',
+      name: 'German',
+      confidence: null,
+      source: 'docling',
+    });
   });
 
   test('applies chunk summariser output while preserving original text', async () => {
@@ -193,7 +193,6 @@ describe('parse pipeline', () => {
         ],
       },
       createNoopTextCleaner(),
-      createNoopGluedWordNormalizer(),
       chunkSummariser,
     );
 

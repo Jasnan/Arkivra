@@ -30,12 +30,8 @@ export interface AdminVault {
 }
 
 export interface AdminAiSettings {
-  enabled: boolean;
   ollamaHost: string;
   model: string;
-  minTokenLength: number;
-  maxCandidates: number;
-  batchSize: number;
 }
 
 export interface AdminAiModel {

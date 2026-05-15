@@ -55,6 +55,7 @@ function createMockDocumentsServices() {
         originalSize: 1024,
         mimeType: 'application/pdf',
         documentDate: null,
+        language: null,
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
         isDeleted: false,
@@ -71,6 +72,7 @@ function createMockDocumentsServices() {
       mimeType: 'application/pdf',
       content: '',
       documentDate: null,
+      language: null,
       createdAt: '2025-01-01T00:00:00.000Z',
       updatedAt: '2025-01-01T00:00:00.000Z',
       isDeleted: false,
@@ -98,6 +100,11 @@ function createMockDocumentsServices() {
       documentDate,
       updatedAt: '2025-01-01T00:00:00.000Z',
     })),
+    updateDocumentLanguage: vi.fn(async ({ language }) => ({
+      id: 'doc_1',
+      language,
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    })),
     listDeletedDocuments: vi.fn(async () => [
       {
         id: 'doc_deleted_1',
@@ -108,6 +115,7 @@ function createMockDocumentsServices() {
         originalSize: 1024,
         mimeType: 'application/pdf',
         documentDate: null,
+        language: null,
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-10T00:00:00.000Z',
         isDeleted: true,
@@ -689,6 +697,78 @@ describe('documents integration', () => {
       vaultId: 'vlt_1',
       name: 'new-name.pdf',
     });
+  });
+
+  test('updates document source language metadata', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      method: 'PATCH',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ language: 'de' }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.document.language).toEqual({
+      code: 'de',
+      name: 'German',
+      confidence: null,
+      source: 'user',
+    });
+    expect(docServices.updateDocumentLanguage).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      language: {
+        code: 'de',
+        name: 'German',
+        confidence: null,
+        source: 'user',
+      },
+    });
+  });
+
+  test('clears document source language metadata', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      method: 'PATCH',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ language: null }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(docServices.updateDocumentLanguage).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+      language: null,
+    });
+  });
+
+  test('returns 400 for unsupported document source language', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      method: 'PATCH',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ language: 'it' }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as any;
+    expect(body.error.code).toBe('document.unsupported_language');
   });
 
   test('moves a document into a folder', async () => {

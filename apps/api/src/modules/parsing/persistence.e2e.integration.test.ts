@@ -149,6 +149,12 @@ describe.sequential('persistParsedDocument integration', () => {
         schema_name: 'DoclingDocument',
         texts: [{ self_ref: '#/texts/0', text: 'Results' }],
       },
+      language: {
+        code: 'en',
+        name: 'English',
+        confidence: 0.95,
+        source: 'heuristic',
+      },
       warnings: [],
       chunks: [
         {
@@ -232,6 +238,7 @@ describe.sequential('persistParsedDocument integration', () => {
       schema_name: 'DoclingDocument',
       texts: [{ self_ref: '#/texts/0', text: 'Results' }],
     });
+    expect(documentRows[0]?.language).toEqual(parsed.language);
     const chunkRow = chunkRows[0]!;
     expect(chunkRow.section).toBe('Results');
     expect(chunkRow.sectionPath).toEqual(['Financial Statements', 'Results']);
@@ -375,6 +382,7 @@ describe.sequential('persistParsedDocument integration', () => {
         schema_name: 'DoclingDocument',
         texts: [{ self_ref: '#/texts/0', text: 'First chunk text.' }],
       },
+      language: null,
       warnings: [],
       chunks: [
         {

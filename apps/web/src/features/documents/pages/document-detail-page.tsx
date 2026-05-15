@@ -53,6 +53,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
@@ -64,11 +65,13 @@ import {
   softDeleteDocument,
   translateDocument,
   updateDocumentDate,
+  updateDocumentLanguage,
 } from '@/features/documents/documents.api';
 import type {
   DocumentTranslationLanguage,
   DocumentTranslationSource,
 } from '@/features/documents/documents.api';
+import type { DocumentLanguageMetadata } from '@/features/documents/documents.types';
 import {
   captureCanvasRegionAsPngBase64,
   createNormalizedRect,
@@ -145,6 +148,14 @@ const translationLanguages: Array<{ value: DocumentTranslationLanguage; label: s
   { value: 'en', label: 'English', flag: '🇬🇧' },
 ];
 
+const editableDocumentLanguages = [
+  { value: 'unknown', label: 'Unknown' },
+  { value: 'de', label: 'German' },
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+] as const;
+
 interface TranslationPaneState {
   status: 'loading' | 'success' | 'error';
   targetLanguage: DocumentTranslationLanguage;
@@ -183,6 +194,24 @@ interface AreaDragState {
 
 function getTranslationLanguageLabel(language: DocumentTranslationLanguage) {
   return translationLanguages.find(item => item.value === language)?.label ?? language.toUpperCase();
+}
+
+function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null) {
+  if (language === null) {
+    return 'Unknown';
+  }
+
+  return language.name || language.code.toUpperCase();
+}
+
+function getTranslationTargetLanguages(sourceLanguage: DocumentLanguageMetadata | null | undefined) {
+  const sourceCode = sourceLanguage?.code.toLocaleLowerCase().split('-')[0];
+
+  if (sourceCode === undefined) {
+    return translationLanguages;
+  }
+
+  return translationLanguages.filter(language => language.value !== sourceCode);
 }
 
 function getTranslationSourceLabel(sourceType: DocumentTranslationSource['type']) {
@@ -297,12 +326,14 @@ function PdfPreviewFrame({
   documentId,
   onPrint,
   translationsDisabled = false,
+  sourceLanguage = null,
 }: {
   src: string;
   vaultId: string;
   documentId: string;
   onPrint: () => void;
   translationsDisabled?: boolean;
+  sourceLanguage?: DocumentLanguageMetadata | null;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const visiblePageRef = useRef<HTMLDivElement | null>(null);
@@ -413,6 +444,10 @@ function PdfPreviewFrame({
   const pendingLayerPageNumber = commitCoverPageNumber ?? pageNumber;
   const hasPendingLayer = isPageTransitioning || commitCoverPageNumber !== null;
   const isPendingLayerVisible = isPendingPageRendered || commitCoverPageNumber !== null;
+  const availableTranslationLanguages = useMemo(
+    () => getTranslationTargetLanguages(sourceLanguage),
+    [sourceLanguage],
+  );
 
   function handleDocumentLoadSuccess(pdf: PDFDocumentProxy) {
     setNumPages(pdf.numPages);
@@ -1244,7 +1279,7 @@ function PdfPreviewFrame({
               <Portal>
                 <ChakraMenu.Positioner>
                   <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
-                    {translationLanguages.map(language => (
+                    {availableTranslationLanguages.map(language => (
                       <ChakraMenu.Item
                         key={language.value}
                         value={`translate-page-${language.value}`}
@@ -1296,7 +1331,7 @@ function PdfPreviewFrame({
               <Portal>
                 <ChakraMenu.Positioner>
                   <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
-                    {translationLanguages.map(language => (
+                    {availableTranslationLanguages.map(language => (
                       <ChakraMenu.Item
                         key={language.value}
                         value={`translate-text-${language.value}`}
@@ -1357,7 +1392,7 @@ function PdfPreviewFrame({
               <Portal>
                 <ChakraMenu.Positioner>
                   <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
-                    {translationLanguages.map(language => (
+                    {availableTranslationLanguages.map(language => (
                       <ChakraMenu.Item
                         key={language.value}
                         value={`translate-area-${language.value}`}
@@ -1486,8 +1521,10 @@ export function DocumentDetailPage() {
 
   const [renameValue, setRenameValue] = useState<string | null>(null);
   const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
+  const [languageValue, setLanguageValue] = useState<string | null>(null);
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [isDocumentDateEditing, setIsDocumentDateEditing] = useState(false);
+  const [isLanguageEditing, setIsLanguageEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>(
     location.pathname.endsWith('/chat') ? 'chat' : 'preview',
   );
@@ -1645,6 +1682,14 @@ export function DocumentDetailPage() {
     },
   });
 
+  const languageMutation = useMutation({
+    mutationFn: updateDocumentLanguage,
+    onSuccess: invalidateDocument,
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not update document language.');
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: softDeleteDocument,
     onSuccess: async () => {
@@ -1749,10 +1794,12 @@ export function DocumentDetailPage() {
   const currentName = renameValue ?? document.name;
   const currentDocumentDate =
     documentDateValue ?? (document.documentDate ? document.documentDate.slice(0, 10) : '');
+  const currentLanguage = languageValue ?? document.language?.code ?? 'unknown';
   const hasNameChanged = currentName.trim() !== document.name;
   const hasDocumentDateChanged =
     currentDocumentDate !== (document.documentDate ? document.documentDate.slice(0, 10) : '');
-  const isMetadataSaving = renameMutation.isPending || dateMutation.isPending;
+  const hasLanguageChanged = currentLanguage !== (document.language?.code ?? 'unknown');
+  const isMetadataSaving = renameMutation.isPending || dateMutation.isPending || languageMutation.isPending;
   const normalizedCreateTagName = createTagNameValue.trim();
   const createTagDescription = createTagDescriptionValue.trim();
   const isCreateTagSaveDisabled =
@@ -1793,12 +1840,22 @@ export function DocumentDetailPage() {
         });
       }
 
-      if (hasNameChanged || hasDocumentDateChanged) {
+      if (hasLanguageChanged) {
+        await languageMutation.mutateAsync({
+          vaultId,
+          documentId,
+          language: currentLanguage === 'unknown' ? null : currentLanguage,
+        });
+      }
+
+      if (hasNameChanged || hasDocumentDateChanged || hasLanguageChanged) {
         toast.success('Metadata saved.');
         setRenameValue(null);
         setDocumentDateValue(null);
+        setLanguageValue(null);
         setIsNameEditing(false);
         setIsDocumentDateEditing(false);
+        setIsLanguageEditing(false);
       }
     } catch {}
   }
@@ -2074,6 +2131,7 @@ export function DocumentDetailPage() {
                     documentId={documentId}
                     onPrint={handlePrintClick}
                     translationsDisabled={isTrashDocumentRoute}
+                    sourceLanguage={document.language}
                   />
                 ) : null}
 
@@ -2333,6 +2391,51 @@ export function DocumentDetailPage() {
                     </Text>
                   </Box>
                   <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
+                    <Text color="fg.muted">Source language</Text>
+                    {isLanguageEditing ? (
+                      <Select
+                        value={currentLanguage}
+                        onValueChange={setLanguageValue}
+                        positioning={{ sameWidth: true }}
+                      >
+                        <SelectTrigger mt="2" borderColor="border.subtle" bg="bg.surface">
+                          <SelectValue placeholder="Select source language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editableDocumentLanguages.map(language => (
+                            <SelectItem key={language.value} value={language.value}>
+                              {language.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Flex align="center" justify="space-between" gap="3" mt="2">
+                        <Text fontWeight="medium" color="fg">
+                          {getDocumentLanguageLabel(document.language)}
+                        </Text>
+                        {!isTrashDocumentRoute ? (
+                          <chakra.button
+                            type="button"
+                            aria-label="Edit source language"
+                            display="inline-flex"
+                            boxSize="8"
+                            flexShrink={0}
+                            alignItems="center"
+                            justifyContent="center"
+                            rounded="lg"
+                            color="fg.muted"
+                            transition="colors"
+                            _hover={{ bg: 'bg.surface', color: 'fg' }}
+                            onClick={() => setIsLanguageEditing(true)}
+                          >
+                            <Pencil size={16} />
+                          </chakra.button>
+                        ) : null}
+                      </Flex>
+                    )}
+                  </Box>
+                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
                     <Text color="fg.muted">Uploaded by</Text>
                     <Text mt="2" fontWeight="medium" color="fg">
                       {document.createdBy ?? 'Unknown'}
@@ -2504,11 +2607,11 @@ export function DocumentDetailPage() {
                   </Flex>
                 </Box>
 
-                {!isTrashDocumentRoute && (isNameEditing || isDocumentDateEditing) ? (
+                {!isTrashDocumentRoute && (isNameEditing || isDocumentDateEditing || isLanguageEditing) ? (
                   <SaveButton
                     type="submit"
                     mt="5"
-                    disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged)}
+                    disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged && !hasLanguageChanged)}
                   >
                     {isMetadataSaving ? 'Saving...' : 'Save changes'}
                   </SaveButton>

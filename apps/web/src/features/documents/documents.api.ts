@@ -1,6 +1,12 @@
 import { ApiError, fetchJson } from '@/lib/api';
 import type { SearchSortBy } from '@/features/search/search.types';
-import type { DeletedDocumentSummary, DocumentDetail, DocumentSummary, TagSummary } from './documents.types';
+import type {
+  DeletedDocumentSummary,
+  DocumentDetail,
+  DocumentLanguageMetadata,
+  DocumentSummary,
+  TagSummary,
+} from './documents.types';
 
 export type DocumentTranslationLanguage = 'de' | 'en';
 
@@ -197,6 +203,25 @@ export async function updateDocumentDate({
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ documentDate }),
+    },
+  );
+}
+
+export async function updateDocumentLanguage({
+  vaultId,
+  documentId,
+  language,
+}: {
+  vaultId: string;
+  documentId: string;
+  language: string | null;
+}) {
+  return fetchJson<{ document: { id: string; language: DocumentLanguageMetadata | null; updatedAt: string } }>(
+    `/api/vaults/${vaultId}/documents/${documentId}`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ language }),
     },
   );
 }

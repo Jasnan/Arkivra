@@ -71,6 +71,20 @@
       "when": 1778803200000,
       "tag": "0009_restore_document_hash_uniqueness",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778889600000,
+      "tag": "0010_document_language_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778976000000,
+      "tag": "0011_remove_ai_normalization_settings",
+      "breakpoints": true
     }
   ]
 }

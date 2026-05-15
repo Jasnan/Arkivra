@@ -39,6 +39,12 @@ export const documentsTable = pgTable(
     rawText: text('raw_text').notNull().default(''),
     rawMarkdown: text('raw_markdown').notNull().default(''),
     parserStructuredOutput: jsonb('parser_structured_output').$type<Record<string, unknown>>(),
+    language: jsonb('language_metadata').$type<{
+      code: string;
+      name: string;
+      confidence?: number | null;
+      source: 'docling' | 'heuristic' | 'user';
+    }>(),
     parserEngine: text('parser_engine'),
     parserEngineVersion: text('parser_engine_version'),
     parserWarnings: jsonb('parser_warnings').$type<string[]>(),
@@ -73,6 +79,10 @@ export const documentsTable = pgTable(
       table.createdAt,
     ),
     index('documents_processing_status_idx').on(table.processingStatus),
+    index('documents_language_metadata_gin_idx').using('gin', table.language),
+    index('documents_language_code_idx')
+      .using('btree', sql`(${table.language}->>'code')`)
+      .where(sql`${table.language} IS NOT NULL`),
     index('documents_hash_idx').on(table.originalSha256Hash),
     index('documents_kek_version_idx').on(table.fileEncryptionKekVersion),
   ],

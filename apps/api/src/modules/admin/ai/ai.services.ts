@@ -6,9 +6,6 @@ import { z } from 'zod';
 import { instanceSettingsTable } from '../../database/schema/index.js';
 
 const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
-const DEFAULT_GLUED_WORD_MIN_TOKEN_LENGTH = 12;
-const DEFAULT_GLUED_WORD_MAX_CANDIDATES = 100;
-const DEFAULT_GLUED_WORD_BATCH_SIZE = 10;
 
 const ollamaTagsResponseSchema = z.object({
   models: z.array(z.object({
@@ -37,12 +34,8 @@ async function readErrorMessage(response: Response) {
 
 function createDefaultSettings(config: Config): AdminAiSettings {
   return {
-    enabled: config.parsers.gluedWordNormalization === 'ollama',
     ollamaHost: config.ollama.host,
     model: config.ollama.model,
-    minTokenLength: DEFAULT_GLUED_WORD_MIN_TOKEN_LENGTH,
-    maxCandidates: DEFAULT_GLUED_WORD_MAX_CANDIDATES,
-    batchSize: DEFAULT_GLUED_WORD_BATCH_SIZE,
   };
 }
 
@@ -90,12 +83,8 @@ export function createAdminAiServices({
     }
 
     return {
-      enabled: stored.aiNormalizationEnabled,
       ollamaHost: stored.ollamaHost,
       model: stored.ollamaModel,
-      minTokenLength: stored.ollamaGluedWordMinTokenLength,
-      maxCandidates: stored.ollamaGluedWordMaxCandidates,
-      batchSize: stored.ollamaGluedWordBatchSize,
     };
   }
 
@@ -133,23 +122,15 @@ export function createAdminAiServices({
       .insert(instanceSettingsTable)
       .values({
         id: INSTANCE_AI_SETTINGS_ID,
-        aiNormalizationEnabled: normalized.enabled,
         ollamaHost: normalized.ollamaHost,
         ollamaModel: normalized.model,
-        ollamaGluedWordMinTokenLength: normalized.minTokenLength,
-        ollamaGluedWordMaxCandidates: normalized.maxCandidates,
-        ollamaGluedWordBatchSize: normalized.batchSize,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: instanceSettingsTable.id,
         set: {
-          aiNormalizationEnabled: normalized.enabled,
           ollamaHost: normalized.ollamaHost,
           ollamaModel: normalized.model,
-          ollamaGluedWordMinTokenLength: normalized.minTokenLength,
-          ollamaGluedWordMaxCandidates: normalized.maxCandidates,
-          ollamaGluedWordBatchSize: normalized.batchSize,
           updatedAt: new Date(),
         },
       });

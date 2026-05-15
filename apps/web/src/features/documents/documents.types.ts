@@ -1,3 +1,10 @@
+export interface DocumentLanguageMetadata {
+  code: string;
+  name: string;
+  confidence?: number | null;
+  source: 'docling' | 'heuristic' | 'user';
+}
+
 export interface DocumentSummary {
   id: string;
   name: string;
@@ -16,6 +23,7 @@ export interface DocumentSummary {
     | 'failed'
     | 'processing';
   documentDate: string | null;
+  language?: DocumentLanguageMetadata | null;
   createdAt: string;
   updatedAt: string;
   isDeleted: boolean;
@@ -32,6 +40,7 @@ export interface DocumentDetail extends DocumentSummary {
   content: string;
   displayContent?: string;
   createdBy: string | null;
+  language: DocumentLanguageMetadata | null;
 }
 
 export interface TagSummary {

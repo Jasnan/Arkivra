@@ -7,12 +7,8 @@ import { createAdminAiServices } from './ai.services.js';
 function createMockAiServices() {
   return {
     getSettings: vi.fn(async () => ({
-      enabled: true,
       ollamaHost: 'http://127.0.0.1:11434',
       model: 'gemma4:e4b',
-      minTokenLength: 8,
-      maxCandidates: 100,
-      batchSize: 10,
     })),
     updateSettings: vi.fn(async settings => settings),
     listModels: vi.fn(async () => [
@@ -85,13 +81,9 @@ describe('admin ai routes integration', () => {
         }),
       } as any,
       config: {
-        parsers: { gluedWordNormalization: 'ollama' },
         ollama: {
           host: 'http://127.0.0.1:11434',
           model: 'gemma4:e4b',
-          gluedWordMinTokenLength: 8,
-          gluedWordMaxCandidates: 100,
-          gluedWordBatchSize: 10,
           logRequests: false,
         },
       } as any,
@@ -119,23 +111,15 @@ describe('admin ai routes integration', () => {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        enabled: false,
         ollamaHost: 'http://192.168.1.20:11434',
         model: 'qwen2.5:7b',
-        minTokenLength: 10,
-        maxCandidates: 50,
-        batchSize: 5,
       }),
     });
 
     expect(response.status).toBe(200);
     expect(aiServices.updateSettings).toHaveBeenCalledWith({
-      enabled: false,
       ollamaHost: 'http://192.168.1.20:11434',
       model: 'qwen2.5:7b',
-      minTokenLength: 10,
-      maxCandidates: 50,
-      batchSize: 5,
     });
   });
 
@@ -204,13 +188,9 @@ describe('admin ai routes integration', () => {
         }),
       } as any,
       config: {
-        parsers: { gluedWordNormalization: 'ollama' },
         ollama: {
           host: 'http://127.0.0.1:11434',
           model: 'gemma4:e4b',
-          gluedWordMinTokenLength: 8,
-          gluedWordMaxCandidates: 100,
-          gluedWordBatchSize: 10,
           logRequests: false,
         },
       } as any,

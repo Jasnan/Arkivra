@@ -387,6 +387,7 @@ export async function persistParsedDocument({
         rawText: parsed.rawText,
         rawMarkdown: parsed.rawMarkdown,
         parserStructuredOutput: parsed.rawStructuredOutput,
+        language: parsed.language,
         parserEngine: parsed.engine,
         parserEngineVersion: parsed.engineVersion,
         parserWarnings: parsed.warnings,

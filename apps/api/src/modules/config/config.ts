@@ -132,16 +132,10 @@ export const configDefinition = {
   },
   parsers: {
     textCleanup: {
-      doc: 'Post-parse text cleanup strategy. `deterministic` applies safe formatting-only rules (unicode NFKC, ligature replacement, hyphen-linebreak join, whitespace normalization). `none` disables cleanup. Future: `ollama`.',
+      doc: 'Post-parse text cleanup strategy. `deterministic` applies safe formatting-only rules (unicode NFKC, ligature replacement, hyphen-linebreak join, whitespace normalization). `none` disables cleanup.',
       schema: z.enum(['deterministic', 'none']),
       default: 'deterministic' as const,
       env: 'ARKIVRA_PARSER_TEXT_CLEANUP',
-    },
-    gluedWordNormalization: {
-      doc: 'Optional post-cleanup AI normalization. `ollama` asks a local model to rewrite noisy OCR into flat identity-document Markdown. `none` disables this step.',
-      schema: z.enum(['none', 'ollama']),
-      default: 'none' as const,
-      env: 'ARKIVRA_PARSER_GLUED_WORD_NORMALIZATION',
     },
   },
   ollama: {
@@ -152,16 +146,10 @@ export const configDefinition = {
       env: 'ARKIVRA_OLLAMA_HOST',
     },
     model: {
-      doc: 'Ollama model used for AI OCR normalization.',
+      doc: 'Default Ollama model used for chat and AI-assisted document features.',
       schema: z.string().min(1),
       default: 'gemma4:e4b',
       env: 'ARKIVRA_OLLAMA_MODEL',
-    },
-    aiNormalizationMaxInputChars: {
-      doc: 'Maximum cleaned parser text length sent to Ollama identity-document normalization. Set 0 to disable this length guard.',
-      schema: z.coerce.number().int().min(0).max(1_000_000),
-      default: 1000,
-      env: 'ARKIVRA_AI_NORMALIZATION_MAX_INPUT_CHARS',
     },
     embeddingBatchSize: {
       doc: 'How many chunk texts Arkivra sends per Ollama embedding request when /api/embed batching is available.',
@@ -170,7 +158,7 @@ export const configDefinition = {
       env: 'ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE',
     },
     logRequests: {
-      doc: 'Whether to log Arkivra Ollama normalization requests and responses for debugging.',
+      doc: 'Whether to log Arkivra Ollama requests and responses for debugging.',
       schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
       default: false,
       env: 'ARKIVRA_OLLAMA_LOG_REQUESTS',

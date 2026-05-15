@@ -8,6 +8,15 @@ export const parserEmbeddedImageSchema = z.object({
   data: z.instanceof(Buffer),
 });
 
+export const documentLanguageMetadataSchema = z.object({
+  code: z.string().min(2).max(16),
+  name: z.string().min(1),
+  confidence: z.number().min(0).max(1).nullable().optional(),
+  source: z.enum(['docling', 'heuristic', 'user']),
+});
+
+export type DocumentLanguageMetadata = z.infer<typeof documentLanguageMetadataSchema>;
+
 export const STRUCTURED_ELEMENT_TYPES = [
   'title',
   'narrative',
@@ -168,6 +177,8 @@ export const parsedDocumentSchema = z.object({
   rawMarkdown: z.string(),
   /** Raw parser-native structured artifact preserved for reprocessing. */
   rawStructuredOutput: z.record(z.string(), z.unknown()).optional(),
+  /** Dominant source language detected from parser metadata or normalized text. */
+  language: documentLanguageMetadataSchema.nullable(),
   chunks: z.array(parsedChunkSchema),
   warnings: z.array(z.string()),
 });

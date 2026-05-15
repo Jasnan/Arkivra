@@ -9,7 +9,6 @@ import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
-import { createRuntimeConfiguredGluedWordNormalizer } from './modules/parsing/glued-word-normalizer.js';
 import { createRuntimeConfiguredOllamaChunkSummariser } from './modules/parsing/ollama-chunk-summariser.js';
 import { createRuntimeConfiguredOllamaEmbedder } from './modules/parsing/ollama-embedder.js';
 import { createRuntimeConfiguredOllamaImageCaptioner } from './modules/parsing/image-captioner.js';
@@ -105,21 +104,6 @@ export async function startApp() {
       config.parsers.textCleanup === 'deterministic'
         ? createDeterministicTextCleaner()
         : createNoopTextCleaner();
-    const gluedWordNormalizer = createRuntimeConfiguredGluedWordNormalizer({
-      resolveSettings: async () => {
-        const settings = await adminAiServices.getSettings();
-        return {
-          enabled: settings.enabled,
-          host: settings.ollamaHost,
-          model: settings.model,
-          minTokenLength: settings.minTokenLength,
-          maxCandidates: settings.maxCandidates,
-          batchSize: settings.batchSize,
-          maxInputChars: config.ollama.aiNormalizationMaxInputChars,
-          logRequests: config.ollama.logRequests,
-        };
-      },
-    });
     const chunkSummariser = createRuntimeConfiguredOllamaChunkSummariser({
       resolveSettings: async () => {
         const settings = await adminAiServices.getIngestionSettings();
@@ -135,7 +119,6 @@ export async function startApp() {
     const parsePipeline = createParsePipeline({
       parserRegistry,
       cleaner: textCleaner,
-      gluedWordNormalizer,
       chunkSummariser,
     });
     const chunkEmbedder = createRuntimeConfiguredOllamaEmbedder({
@@ -182,9 +165,6 @@ export async function startApp() {
     });
 
     console.info('Document processing worker started');
-    console.info(
-      `AI OCR normalization: runtime-configured via admin settings (env defaults: ${config.parsers.gluedWordNormalization}, ${config.ollama.model} @ ${config.ollama.host})`,
-    );
     console.info(`Document parser: Docling ${config.docling.url}`);
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,

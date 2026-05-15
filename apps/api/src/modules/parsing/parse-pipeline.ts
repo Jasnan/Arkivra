@@ -1,18 +1,16 @@
 import type { ParserRegistry } from './parser.registry.js';
 import type { ParseInput, ParserEngine } from './parser.types.js';
-import type { ParserOutput } from './parsed-document.schema.js';
-import type { ParsedDocument } from './parsed-document.schema.js';
-import type { GluedWordNormalizer } from './glued-word-normalizer.js';
+import type { ParsedDocument, ParserOutput } from './parsed-document.schema.js';
 import type { ChunkSummariser } from './ollama-chunk-summariser.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { ParserValidationError } from './parser.types.js';
-import { parsedDocumentSchema, parserOutputSchema } from './parsed-document.schema.js';
+import { parsedDocumentSchema } from './parsed-document.schema.js';
 import { markdownToPlainText } from './markdown-text.js';
+import { resolveDocumentLanguage } from './language-detection.js';
 
 export type ParsePipelineOptions = {
   parserRegistry: ParserRegistry;
   cleaner: TextCleaner;
-  gluedWordNormalizer?: GluedWordNormalizer;
   chunkSummariser?: ChunkSummariser;
   /** Explicit engine override; falls back to the registry default. */
   engine?: ParserEngine;
@@ -36,7 +34,6 @@ export type ParsePipeline = {
 export function createParsePipeline({
   parserRegistry,
   cleaner,
-  gluedWordNormalizer,
   chunkSummariser,
   engine,
 }: ParsePipelineOptions): ParsePipeline {
@@ -51,14 +48,9 @@ export function createParsePipeline({
     hooks?: ParsePipelineRunHooks,
   ): Promise<ParsedDocument> {
     const cleaned = await cleaner.clean({ text: raw.text, markdown: raw.markdown });
-    const normalized = await (gluedWordNormalizer?.normalize(cleaned) ?? Promise.resolve({
-      text: cleaned.text,
-      markdown: cleaned.markdown,
-      replacements: [],
-    }));
-    const normalizedText = normalized.markdown.length > 0
-      ? markdownToPlainText(normalized.markdown)
-      : normalized.text;
+    const cleanedText = cleaned.markdown.length > 0
+      ? markdownToPlainText(cleaned.markdown)
+      : cleaned.text;
 
     await hooks?.onStageChange?.('chunking');
 
@@ -84,15 +76,30 @@ export function createParsePipeline({
       }
     }
 
+    let language: ParsedDocument['language'] = null;
+    try {
+      language = resolveDocumentLanguage({
+        text: cleanedText,
+        rawStructuredOutput: persistedRaw?.structuredOutput ?? raw.rawStructuredOutput,
+      });
+    } catch (error) {
+      pipelineWarnings.push(
+        error instanceof Error
+          ? `language_detection_failed:${error.message}`
+          : 'language_detection_failed',
+      );
+    }
+
     const parsed: ParsedDocument = {
       documentId,
       engine: raw.engine,
       engineVersion: raw.engineVersion,
-      text: normalizedText,
-      markdown: normalized.markdown,
+      text: cleanedText,
+      markdown: cleaned.markdown,
       rawText: persistedRaw?.text ?? raw.text,
       rawMarkdown: persistedRaw?.markdown ?? raw.markdown,
       rawStructuredOutput: persistedRaw?.structuredOutput ?? raw.rawStructuredOutput,
+      language,
       chunks,
       warnings: pipelineWarnings,
     };

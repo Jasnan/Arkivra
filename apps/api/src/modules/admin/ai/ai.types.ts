@@ -1,10 +1,6 @@
 export type AdminAiSettings = {
-  enabled: boolean;
   ollamaHost: string;
   model: string;
-  minTokenLength: number;
-  maxCandidates: number;
-  batchSize: number;
 };
 
 export type AdminAiModel = {

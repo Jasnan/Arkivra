@@ -26,6 +26,7 @@ function makeParsedDocument(): ParsedDocument {
     markdown: '# Title\n\nParagraph one.',
     rawText: 'Raw text',
     rawMarkdown: '# Title\n\nParagraph one.',
+    language: null,
     warnings: [],
     chunks: [
       {

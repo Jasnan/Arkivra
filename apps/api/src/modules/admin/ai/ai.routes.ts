@@ -6,12 +6,8 @@ import { requireAuthentication } from '../../auth/auth.middleware.js';
 import { requireGlobalAdmin } from '../../authorization/authorization.middleware.js';
 
 const aiSettingsSchema = z.object({
-  enabled: z.boolean(),
   ollamaHost: z.string().url(),
   model: z.string().min(1),
-  minTokenLength: z.number().int().min(4).max(128),
-  maxCandidates: z.number().int().min(1).max(1000),
-  batchSize: z.number().int().min(1).max(200),
 });
 
 const aiHostSchema = z.object({

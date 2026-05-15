@@ -45,6 +45,7 @@ export type MoveDocumentResult =
   | { success: false; reason: 'not_found' | 'folder_not_found' | 'duplicate_name'; existingId?: string };
 
 export type DuplicateDocumentScope = 'active' | 'trash';
+export type DocumentLanguageMetadata = typeof documentsTable.$inferSelect.language;
 
 type ActiveDocumentRecord = {
   id: string;
@@ -604,6 +605,7 @@ export function createDocumentsServices({
         mimeType: documentsTable.mimeType,
         processingStatus: documentsTable.processingStatus,
         documentDate: documentsTable.documentDate,
+        language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
         isDeleted: documentsTable.isDeleted,
@@ -627,6 +629,7 @@ export function createDocumentsServices({
         content: documentsTable.content,
         processingStatus: documentsTable.processingStatus,
         documentDate: documentsTable.documentDate,
+        language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
         isDeleted: documentsTable.isDeleted,
@@ -664,6 +667,7 @@ export function createDocumentsServices({
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         documentDate: documentsTable.documentDate,
+        language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
         isDeleted: documentsTable.isDeleted,
@@ -835,6 +839,34 @@ export function createDocumentsServices({
       .returning({
         id: documentsTable.id,
         documentDate: documentsTable.documentDate,
+        updatedAt: documentsTable.updatedAt,
+      });
+
+    return doc ?? null;
+  }
+
+  async function updateDocumentLanguage({
+    documentId,
+    vaultId,
+    language,
+  }: {
+    documentId: string;
+    vaultId: string;
+    language: DocumentLanguageMetadata;
+  }) {
+    const [doc] = await db
+      .update(documentsTable)
+      .set({ language, updatedAt: new Date() })
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .returning({
+        id: documentsTable.id,
+        language: documentsTable.language,
         updatedAt: documentsTable.updatedAt,
       });
 
@@ -1054,6 +1086,7 @@ export function createDocumentsServices({
     softDeleteDocument,
     updateDocumentProcessingStatus,
     updateDocumentDate,
+    updateDocumentLanguage,
     uploadDocument,
   };
 }

@@ -49,6 +49,8 @@ import {
   createRuntimeConfiguredOllamaTranslationProvider,
 } from '../translations/translations.services.js';
 import { registerTranslationRoutes } from '../translations/translations.routes.js';
+import { createUserPreferencesServices } from '../user-preferences/user-preferences.services.js';
+import { registerUserPreferencesRoutes } from '../user-preferences/user-preferences.routes.js';
 
 const OLLAMA_EMBEDDING_MODEL_PATTERNS = [
   /^bge[-:]/i,
@@ -150,6 +152,7 @@ export function createServer({
     },
   });
   const translationServices = createDocumentTranslationServices({ provider: translationProvider });
+  const userPreferencesServices = createUserPreferencesServices({ db });
 
   app.use(
     cors({
@@ -230,6 +233,7 @@ export function createServer({
   registerAdminVaultRoutes({ app, db });
   registerAdminAiRoutes({ app, aiServices });
   registerSensitiveActionRoutes({ app, services: sensitiveActionServices });
+  registerUserPreferencesRoutes({ app, services: userPreferencesServices });
 
   // Health check endpoint
   app.get('/api/health', (c) => {

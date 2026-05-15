@@ -1,13 +1,12 @@
 import { Box, HStack, Popover, Portal, SimpleGrid, Slider, Stack, Text, chakra } from '@chakra-ui/react';
 import { Check, Monitor, Moon, SlidersHorizontal, SunMedium } from 'lucide-react';
-import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
+import { TypographyPicker } from '@/components/ui/typography-picker';
 import { useAccentColor } from '@/components/providers/accent-color-context';
-import type { AccentColor, AppearanceDensity, AppearanceFont, AppearanceRadius } from '@/components/providers/accent-color-context';
+import type { AccentColor, AppearanceDensity, AppearanceFontSize, AppearanceRadius } from '@/components/providers/accent-color-context';
 
 const accentOptions: Array<{ color: string; label: string; value: AccentColor }> = [
   { value: 'gray', label: 'Gray', color: '#4b5563' },
-  { value: 'red', label: 'Red', color: '#dc2626' },
   { value: 'orange', label: 'Orange', color: '#ea580c' },
   { value: 'yellow', label: 'Yellow', color: '#facc15' },
   { value: 'green', label: 'Green', color: '#16a34a' },
@@ -24,13 +23,6 @@ const themeOptions = [
   { value: 'dark', label: 'Dark', icon: Moon },
 ] as const;
 
-const fontOptions: Array<{ label: string; value: AppearanceFont }> = [
-  { value: 'outfit', label: 'Outfit' },
-  { value: 'inter', label: 'Inter' },
-  { value: 'bricolage', label: 'Bricolage' },
-  { value: 'geist', label: 'Geist' },
-];
-
 const densityOptions: Array<{ label: string; value: AppearanceDensity }> = [
   { value: 'compact', label: 'Compact' },
   { value: 'comfortable', label: 'Comfortable' },
@@ -38,6 +30,7 @@ const densityOptions: Array<{ label: string; value: AppearanceDensity }> = [
 ];
 
 const radiusOptions: AppearanceRadius[] = ['none', 'sm', 'md', 'lg', 'xl'];
+const fontSizeOptions: AppearanceFontSize[] = ['sm', 'md', 'lg', 'xl', '2xl'];
 
 const radiusIndexByValue: Record<AppearanceRadius, number> = {
   none: 0,
@@ -55,17 +48,36 @@ const radiusValueByIndex: Record<number, AppearanceRadius> = {
   4: 'xl',
 };
 
+const fontSizeIndexByValue: Record<AppearanceFontSize, number> = {
+  sm: 0,
+  md: 1,
+  lg: 2,
+  xl: 3,
+  '2xl': 4,
+};
+
+const fontSizeValueByIndex: Record<number, AppearanceFontSize> = {
+  0: 'sm',
+  1: 'md',
+  2: 'lg',
+  3: 'xl',
+  4: '2xl',
+};
+
 export function ThemeToggle() {
-  const { setTheme, theme } = useTheme();
   const {
     accentColor,
     density,
     fontFamily,
+    fontSize,
     radius,
+    themeMode,
     setAccentColor,
     setDensity,
     setFontFamily,
+    setFontSize,
     setRadius,
+    setThemeMode,
   } = useAccentColor();
 
   return (
@@ -78,7 +90,7 @@ export function ThemeToggle() {
       <Portal>
         <Popover.Positioner>
           <Popover.Content
-            w="22rem"
+            w="32rem"
             maxW="calc(100vw - 2rem)"
             rounded="lg"
             borderWidth="1px"
@@ -108,7 +120,7 @@ export function ThemeToggle() {
                   <SimpleGrid columns={3} gap="2">
                     {themeOptions.map((option) => {
                       const Icon = option.icon;
-                      const selected = (theme ?? 'system') === option.value;
+                      const selected = themeMode === option.value;
 
                       return (
                         <chakra.button
@@ -128,7 +140,7 @@ export function ThemeToggle() {
                           fontWeight="medium"
                           cursor="pointer"
                           _hover={{ borderColor: 'teal.solid', bg: 'teal.subtle' }}
-                          onClick={() => setTheme(option.value)}
+                          onClick={() => setThemeMode(option.value)}
                         >
                           <Icon size={15} />
                           {option.label}
@@ -217,38 +229,40 @@ export function ThemeToggle() {
                   <Text fontSize="sm" fontWeight="medium" color="fg">
                     Font Family
                   </Text>
-                  <SimpleGrid columns={4} gap="2">
-                    {fontOptions.map((option) => {
-                      const selected = fontFamily === option.value;
+                  <TypographyPicker value={fontFamily} onValueChange={setFontFamily} />
+                </Stack>
 
-                      return (
-                        <chakra.button
-                          key={option.value}
-                          type="button"
-                          display="flex"
-                          flexDirection="column"
-                          alignItems="center"
-                          justifyContent="center"
-                          minH="16"
-                          rounded="md"
-                          borderWidth="1px"
-                          borderColor={selected ? 'teal.solid' : 'border.subtle'}
-                          bg={selected ? 'teal.subtle' : 'bg.subtle'}
-                          color="fg"
-                          cursor="pointer"
-                          _hover={{ borderColor: 'teal.solid', bg: 'teal.subtle' }}
-                          onClick={() => setFontFamily(option.value)}
-                        >
-                          <Text fontSize="xl" fontWeight="semibold" lineHeight="1">
-                            Ag
-                          </Text>
-                          <Text mt="1" maxW="full" truncate fontSize="xs" color="fg.muted">
-                            {option.label}
-                          </Text>
-                        </chakra.button>
-                      );
-                    })}
-                  </SimpleGrid>
+                <Stack gap="3">
+                  <Text fontSize="sm" fontWeight="medium" color="fg">
+                    Font Size: {fontSize}
+                  </Text>
+                  <Slider.Root
+                    aria-label={['Interface font size']}
+                    min={0}
+                    max={4}
+                    step={1}
+                    value={[fontSizeIndexByValue[fontSize]]}
+                    colorPalette="teal"
+                    onValueChange={(event) => {
+                      setFontSize(fontSizeValueByIndex[event.value[0] ?? 1] ?? 'md');
+                    }}
+                  >
+                    <Slider.Control>
+                      <Slider.Track>
+                        <Slider.Range />
+                      </Slider.Track>
+                      <Slider.Thumb index={0}>
+                        <Slider.HiddenInput />
+                      </Slider.Thumb>
+                      <Slider.MarkerGroup>
+                        {fontSizeOptions.map((option, index) => (
+                          <Slider.Marker key={option} value={index}>
+                            <Slider.MarkerIndicator />
+                          </Slider.Marker>
+                        ))}
+                      </Slider.MarkerGroup>
+                    </Slider.Control>
+                  </Slider.Root>
                 </Stack>
 
                 <Stack gap="3">

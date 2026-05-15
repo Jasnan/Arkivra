@@ -242,10 +242,10 @@ export function SidebarGroupLabel({ children, ...props }: SidebarGroupLabelProps
     <Text
       data-slot="sidebar-group-label"
       px="3"
-      fontSize="0.7rem"
+      textStyle="caption"
       fontWeight="semibold"
       textTransform="uppercase"
-      letterSpacing="0.16em"
+      letterSpacing="0.12em"
       color="fg.muted"
       {...props}
     >

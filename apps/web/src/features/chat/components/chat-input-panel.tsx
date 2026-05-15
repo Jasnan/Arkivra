@@ -1,23 +1,11 @@
 import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
-import { Box, Flex, Group, Popover, RadioCard, Text, chakra } from '@chakra-ui/react';
+import { Box, Flex, Popover, Text, chakra } from '@chakra-ui/react';
 import { Brain, Check, ChevronDown, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { ChatResponseMode } from '../chat.api';
-
-const responseModeOptions = [
-  {
-    title: 'Quick answer',
-    value: 'text',
-    description: 'Best for fast replies when you do not need source previews.',
-  },
-  {
-    title: 'Cited answer',
-    value: 'multimodal',
-    description: 'Use when you want document citations and source evidence.',
-  },
-] satisfies Array<{ title: string; value: ChatResponseMode; description: string }>;
+import { AnswerModePicker } from './answer-mode-picker';
 
 export function ChatInputPanel({
   disabled,
@@ -49,7 +37,6 @@ export function ChatInputPanel({
   onSubmit: (content: string) => void;
 }) {
   const hasModelPicker = Boolean(onSelectedModelChange);
-  const [isAnswerModePopoverOpen, setIsAnswerModePopoverOpen] = useState(false);
   const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false);
 
   useEffect(() => {
@@ -66,15 +53,6 @@ export function ChatInputPanel({
     onSubmit(content);
   }
 
-  function handleResponseModeChange(nextValue: string | null) {
-    if (nextValue === 'multimodal' || nextValue === 'text') {
-      onResponseModeChange(nextValue);
-      setIsAnswerModePopoverOpen(false);
-    }
-  }
-
-  const responseModeLabel =
-    responseModeOptions.find((option) => option.value === responseMode)?.title ?? 'Answer mode';
   const modelLabel = selectedModel || (isLoadingModels ? 'Loading models' : 'No model');
 
   function selectModel(model: string) {
@@ -108,6 +86,9 @@ export function ChatInputPanel({
           }}
           placeholder={placeholder}
           disabled={disabled}
+          fontFamily="chat"
+          fontSize="var(--arkivra-font-size-chat)"
+          lineHeight="1.6"
           style={{
             minHeight: '2.75rem',
             maxHeight: '14rem',
@@ -130,94 +111,7 @@ export function ChatInputPanel({
 
         <Flex align="center" justify="space-between" gap="3" pt="3">
           <Flex align="center" gap="2" minW="0" flex="1" flexWrap="wrap">
-            <Popover.Root
-              open={isAnswerModePopoverOpen}
-              onOpenChange={(event) => setIsAnswerModePopoverOpen(event.open)}
-            >
-              <Popover.Trigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label="Select answer mode"
-                  title="Select answer mode"
-                  disabled={disabled}
-                  h="9"
-                  gap="1.5"
-                  px="2.5"
-                  rounded="lg"
-                  color="fg.muted"
-                  _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                >
-                  <Text as="span" fontSize="xs" fontWeight="medium">
-                    {responseModeLabel}
-                  </Text>
-                  <ChevronDown size={15} style={{ flexShrink: 0 }} />
-                </Button>
-              </Popover.Trigger>
-              <Popover.Positioner zIndex="popover">
-                <Popover.Content
-                  w="22rem"
-                  maxW="calc(100vw - 2rem)"
-                  overflow="hidden"
-                  rounded="lg"
-                  borderWidth="1px"
-                  borderColor="border.subtle"
-                  bg="bg.surface"
-                  shadow="lg"
-                >
-                  <Popover.Arrow>
-                    <Popover.ArrowTip />
-                  </Popover.Arrow>
-                  <Popover.Body p="3">
-                    <RadioCard.Root
-                      value={responseMode}
-                      colorPalette="teal"
-                      gap="3"
-                      orientation="vertical"
-                      onValueChange={(event) => handleResponseModeChange(event.value)}
-                    >
-                      <RadioCard.Label fontSize="xs" fontWeight="semibold" color="fg.muted">
-                        Answer mode
-                      </RadioCard.Label>
-                      <Group attached orientation="vertical">
-                        {responseModeOptions.map((option) => (
-                          <RadioCard.Item key={option.value} value={option.value} width="full">
-                            <RadioCard.ItemHiddenInput />
-                            <RadioCard.ItemControl
-                              display="grid"
-                              gridTemplateColumns="auto minmax(0, 1fr)"
-                              alignItems="start"
-                              columnGap="3"
-                            >
-                              <RadioCard.ItemIndicator mt="0.5" />
-                              <RadioCard.ItemContent alignItems="flex-start" gap="1" minW="0">
-                                <RadioCard.ItemText>{option.title}</RadioCard.ItemText>
-                                <RadioCard.ItemDescription>
-                                  {option.description}
-                                </RadioCard.ItemDescription>
-                              </RadioCard.ItemContent>
-                            </RadioCard.ItemControl>
-                          </RadioCard.Item>
-                        ))}
-                      </Group>
-                    </RadioCard.Root>
-                  </Popover.Body>
-                  <Popover.CloseTrigger
-                    position="absolute"
-                    top="2"
-                    right="2"
-                    rounded="md"
-                    px="2"
-                    py="1"
-                    fontSize="xs"
-                    color="fg.muted"
-                    _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                  >
-                    Close
-                  </Popover.CloseTrigger>
-                </Popover.Content>
-              </Popover.Positioner>
-            </Popover.Root>
+            <AnswerModePicker disabled={disabled} value={responseMode} onValueChange={onResponseModeChange} />
 
             {hasModelPicker ? (
               <Popover.Root

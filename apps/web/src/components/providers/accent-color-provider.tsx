@@ -1,13 +1,39 @@
 import type { PropsWithChildren } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
+import { authClient } from '@/lib/auth-client';
+import { userPreferencesQueryKeys, useUpdateUserUiPreferencesMutation, useUserUiPreferencesQuery } from '@/features/user-preferences/user-preferences.queries';
+import type { UserUiPreferences, UserUiPreferencesUpdate } from '@/features/user-preferences/user-preferences.types';
 import { AccentColorContext } from './accent-color-context';
-import type { AccentColor, AccentColorContextValue, AppearanceDensity, AppearanceFont, AppearanceRadius } from './accent-color-context';
+import type { AccentColor, AccentColorContextValue, AppearanceDensity, AppearanceFont, AppearanceFontSize, AppearanceRadius, ThemeMode } from './accent-color-context';
+import { LEGACY_FONT_FAMILY_STORAGE_KEY, defaultTypographyFont, isAppearanceFont } from './typography';
 
-const ACCENT_COLOR_STORAGE_KEY = 'arkivra.accentColor';
-const DENSITY_STORAGE_KEY = 'arkivra.density';
-const FONT_FAMILY_STORAGE_KEY = 'arkivra.fontFamily';
-const RADIUS_STORAGE_KEY = 'arkivra.radius';
+const UI_PREFERENCES_CACHE_KEY = 'arkivra.uiPreferences';
+const LEGACY_ACCENT_COLOR_STORAGE_KEY = 'arkivra.accentColor';
+const LEGACY_DENSITY_STORAGE_KEY = 'arkivra.density';
+const LEGACY_FONT_SIZE_STORAGE_KEY = 'arkivra.fontSize';
+const LEGACY_FONT_SIZE_SCALE_STORAGE_KEY = 'arkivra.fontSizeScale';
+const LEGACY_RADIUS_STORAGE_KEY = 'arkivra.radius';
+const defaultFontSize: AppearanceFontSize = 'md';
+const defaultThemeMode: ThemeMode = 'system';
+
+const defaultUiPreferences: Pick<UserUiPreferences, 'accentColor' | 'density' | 'fontFamily' | 'fontSize' | 'radius' | 'themeMode'> = {
+  themeMode: defaultThemeMode,
+  accentColor: 'teal',
+  density: 'comfortable',
+  fontFamily: defaultTypographyFont,
+  fontSize: defaultFontSize,
+  radius: 'md',
+};
+
+const fontSizeScales: Record<AppearanceFontSize, string> = {
+  sm: '0.95',
+  md: '1',
+  lg: '1.05',
+  xl: '1.1',
+  '2xl': '1.15',
+};
 
 const accentPalettes: Record<AccentColor, {
   dark: AccentPalette;
@@ -47,24 +73,6 @@ const accentPalettes: Record<AccentColor, {
       muted: '#374151',
       solid: '#9ca3af',
       subtle: '#1f2937',
-    },
-  },
-  red: {
-    light: {
-      focusRing: 'rgba(220, 38, 38, 0.35)',
-      fg: '#b91c1c',
-      hover: '#991b1b',
-      muted: '#fecaca',
-      solid: '#dc2626',
-      subtle: '#fef2f2',
-    },
-    dark: {
-      focusRing: 'rgba(248, 113, 113, 0.35)',
-      fg: '#fca5a5',
-      hover: '#ef4444',
-      muted: '#7f1d1d',
-      solid: '#f87171',
-      subtle: '#321616',
     },
   },
   orange: {
@@ -195,13 +203,6 @@ const accentPalettes: Record<AccentColor, {
   },
 };
 
-const fontFamilies: Record<AppearanceFont, string> = {
-  outfit: "'Outfit', ui-sans-serif, system-ui, sans-serif",
-  inter: "'Inter', ui-sans-serif, system-ui, sans-serif",
-  bricolage: "'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif",
-  geist: "'Geist', ui-sans-serif, system-ui, sans-serif",
-};
-
 const radiusScales: Record<AppearanceRadius, Record<string, string>> = {
   none: {
     sm: '0',
@@ -296,7 +297,6 @@ interface AccentPalette {
 
 function isAccentColor(value: string | null): value is AccentColor {
   return value === 'gray'
-    || value === 'red'
     || value === 'orange'
     || value === 'yellow'
     || value === 'green'
@@ -307,16 +307,20 @@ function isAccentColor(value: string | null): value is AccentColor {
     || value === 'pink';
 }
 
-function isAppearanceFont(value: string | null): value is AppearanceFont {
-  return value === 'outfit' || value === 'inter' || value === 'bricolage' || value === 'geist';
-}
-
 function isAppearanceRadius(value: string | null): value is AppearanceRadius {
   return value === 'none' || value === 'sm' || value === 'md' || value === 'lg' || value === 'xl';
 }
 
 function isAppearanceDensity(value: string | null): value is AppearanceDensity {
   return value === 'compact' || value === 'comfortable' || value === 'relaxed';
+}
+
+function isAppearanceFontSize(value: string | null): value is AppearanceFontSize {
+  return value === 'sm' || value === 'md' || value === 'lg' || value === 'xl' || value === '2xl';
+}
+
+function isThemeMode(value: string | null): value is ThemeMode {
+  return value === 'system' || value === 'light' || value === 'dark';
 }
 
 function getStoredValue(key: string) {
@@ -327,30 +331,104 @@ function getStoredValue(key: string) {
   return window.localStorage.getItem(key);
 }
 
-function getStoredAccentColor(): AccentColor {
-  const stored = getStoredValue(ACCENT_COLOR_STORAGE_KEY);
-  return isAccentColor(stored) ? stored : 'teal';
+function fontSizeFromLegacyScale(value: number): AppearanceFontSize {
+  if (value <= 95) return 'sm';
+  if (value <= 102) return 'md';
+  if (value <= 107) return 'lg';
+  if (value <= 112) return 'xl';
+  return '2xl';
 }
 
-function getStoredFontFamily(): AppearanceFont {
-  const stored = getStoredValue(FONT_FAMILY_STORAGE_KEY);
-  return isAppearanceFont(stored) ? stored : 'inter';
-}
+function getLegacyFontSize(): AppearanceFontSize {
+  const stored = getStoredValue(LEGACY_FONT_SIZE_STORAGE_KEY);
 
-function getStoredDensity(): AppearanceDensity {
-  const stored = getStoredValue(DENSITY_STORAGE_KEY);
-  return isAppearanceDensity(stored) ? stored : 'comfortable';
-}
-
-function getStoredRadius(): AppearanceRadius {
-  const stored = getStoredValue(RADIUS_STORAGE_KEY);
-  return isAppearanceRadius(stored) ? stored : 'md';
-}
-
-function setStoredValue(key: string, value: string) {
-  if (typeof window.localStorage?.setItem === 'function') {
-    window.localStorage.setItem(key, value);
+  if (isAppearanceFontSize(stored)) {
+    return stored;
   }
+
+  const legacyScale = Number.parseInt(getStoredValue(LEGACY_FONT_SIZE_SCALE_STORAGE_KEY) ?? '', 10);
+
+  if (Number.isFinite(legacyScale)) {
+    return fontSizeFromLegacyScale(legacyScale);
+  }
+
+  return defaultFontSize;
+}
+
+function normalizeCachedPreferences(value: unknown) {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const themeMode = typeof candidate.themeMode === 'string' && isThemeMode(candidate.themeMode)
+    ? candidate.themeMode
+    : defaultUiPreferences.themeMode;
+  const accentColor = typeof candidate.accentColor === 'string' && isAccentColor(candidate.accentColor)
+    ? candidate.accentColor
+    : defaultUiPreferences.accentColor;
+  const density = typeof candidate.density === 'string' && isAppearanceDensity(candidate.density)
+    ? candidate.density
+    : defaultUiPreferences.density;
+  const fontFamily = typeof candidate.fontFamily === 'string' && isAppearanceFont(candidate.fontFamily)
+    ? candidate.fontFamily
+    : defaultUiPreferences.fontFamily;
+  const fontSize = typeof candidate.fontSize === 'string' && isAppearanceFontSize(candidate.fontSize)
+    ? candidate.fontSize
+    : defaultUiPreferences.fontSize;
+  const radius = typeof candidate.radius === 'string' && isAppearanceRadius(candidate.radius)
+    ? candidate.radius
+    : defaultUiPreferences.radius;
+
+  return { themeMode, accentColor, density, fontFamily, fontSize, radius };
+}
+
+function getCachedPreferences() {
+  const cached = getStoredValue(UI_PREFERENCES_CACHE_KEY);
+
+  if (cached !== null) {
+    try {
+      const parsed = normalizeCachedPreferences(JSON.parse(cached));
+
+      if (parsed !== null) {
+        return parsed;
+      }
+    } catch {
+    }
+  }
+
+  const legacyThemeMode = getStoredValue('arkivra.themeMode') ?? getStoredValue('theme');
+  const legacyAccentColor = getStoredValue(LEGACY_ACCENT_COLOR_STORAGE_KEY);
+  const legacyDensity = getStoredValue(LEGACY_DENSITY_STORAGE_KEY);
+  const legacyFontFamily = getStoredValue(LEGACY_FONT_FAMILY_STORAGE_KEY);
+  const legacyRadius = getStoredValue(LEGACY_RADIUS_STORAGE_KEY);
+
+  return {
+    themeMode: isThemeMode(legacyThemeMode) ? legacyThemeMode : defaultUiPreferences.themeMode,
+    accentColor: isAccentColor(legacyAccentColor) ? legacyAccentColor : defaultUiPreferences.accentColor,
+    density: isAppearanceDensity(legacyDensity) ? legacyDensity : defaultUiPreferences.density,
+    fontFamily: isAppearanceFont(legacyFontFamily) ? legacyFontFamily : defaultUiPreferences.fontFamily,
+    fontSize: getLegacyFontSize(),
+    radius: isAppearanceRadius(legacyRadius) ? legacyRadius : defaultUiPreferences.radius,
+  };
+}
+
+function setCachedPreferences(preferences: Pick<UserUiPreferences, 'accentColor' | 'density' | 'fontFamily' | 'fontSize' | 'radius' | 'themeMode'>) {
+  if (typeof window.localStorage?.setItem === 'function') {
+    window.localStorage.setItem(UI_PREFERENCES_CACHE_KEY, JSON.stringify(preferences));
+    window.localStorage.setItem('arkivra.themeMode', preferences.themeMode);
+  }
+}
+
+function withoutServerTimestamps(preferences: UserUiPreferences) {
+  return {
+    themeMode: preferences.themeMode,
+    accentColor: preferences.accentColor,
+    density: preferences.density,
+    fontFamily: preferences.fontFamily,
+    fontSize: preferences.fontSize,
+    radius: preferences.radius,
+  };
 }
 
 function applyAccentColor(accentColor: AccentColor, resolvedTheme: string | undefined) {
@@ -374,11 +452,15 @@ function applyFontFamily(fontFamily: AppearanceFont) {
     return;
   }
 
-  const family = fontFamilies[fontFamily];
-  const rootStyle = document.documentElement.style;
+  document.documentElement.dataset.arkivraFont = fontFamily;
+}
 
-  rootStyle.setProperty('--chakra-fonts-body', family);
-  rootStyle.setProperty('--chakra-fonts-heading', family);
+function applyFontSize(fontSize: AppearanceFontSize) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  document.documentElement.style.setProperty('--arkivra-user-font-scale', fontSizeScales[fontSize]);
 }
 
 function applyRadius(radius: AppearanceRadius) {
@@ -411,42 +493,132 @@ function applyDensity(density: AppearanceDensity) {
 }
 
 export function AccentColorProvider({ children }: PropsWithChildren) {
-  const { resolvedTheme } = useTheme();
-  const [accentColor, setAccentColor] = useState<AccentColor>(getStoredAccentColor);
-  const [density, setDensity] = useState<AppearanceDensity>(getStoredDensity);
-  const [fontFamily, setFontFamily] = useState<AppearanceFont>(getStoredFontFamily);
-  const [radius, setRadius] = useState<AppearanceRadius>(getStoredRadius);
+  const { resolvedTheme, setTheme } = useTheme();
+  const queryClient = useQueryClient();
+  const session = authClient.useSession();
+  const cachedPreferences = useMemo(getCachedPreferences, []);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(cachedPreferences.themeMode);
+  const [accentColor, setAccentColorState] = useState<AccentColor>(cachedPreferences.accentColor);
+  const [density, setDensityState] = useState<AppearanceDensity>(cachedPreferences.density);
+  const [fontFamily, setFontFamilyState] = useState<AppearanceFont>(cachedPreferences.fontFamily);
+  const [fontSize, setFontSizeState] = useState<AppearanceFontSize>(cachedPreferences.fontSize);
+  const [radius, setRadiusState] = useState<AppearanceRadius>(cachedPreferences.radius);
+  const isAuthenticated = Boolean(session.data?.user);
+  const preferencesQuery = useUserUiPreferencesQuery({ enabled: isAuthenticated });
+  const updatePreferencesMutation = useUpdateUserUiPreferencesMutation();
+
+  const currentPreferences = useMemo(() => ({
+    themeMode,
+    accentColor,
+    density,
+    fontFamily,
+    fontSize,
+    radius,
+  }), [accentColor, density, fontFamily, fontSize, radius, themeMode]);
+
+  function applyPreferences(nextPreferences: Pick<UserUiPreferences, 'accentColor' | 'density' | 'fontFamily' | 'fontSize' | 'radius' | 'themeMode'>) {
+    setThemeModeState(nextPreferences.themeMode);
+    setAccentColorState(nextPreferences.accentColor);
+    setDensityState(nextPreferences.density);
+    setFontFamilyState(nextPreferences.fontFamily);
+    setFontSizeState(nextPreferences.fontSize);
+    setRadiusState(nextPreferences.radius);
+  }
+
+  function updatePreferences(patch: UserUiPreferencesUpdate) {
+    const previousPreferences = currentPreferences;
+    const nextPreferences = {
+      ...currentPreferences,
+      ...patch,
+    };
+
+    applyPreferences(nextPreferences);
+    setCachedPreferences(nextPreferences);
+
+    if (!isAuthenticated) {
+      return;
+    }
+
+    queryClient.setQueryData<{ preferences: UserUiPreferences }>(
+      userPreferencesQueryKeys.ui(),
+      (current) => current
+        ? {
+            preferences: {
+              ...current.preferences,
+              ...patch,
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        : current,
+    );
+
+    updatePreferencesMutation.mutate(patch, {
+      onSuccess: (data) => {
+        const serverPreferences = withoutServerTimestamps(data.preferences);
+        applyPreferences(serverPreferences);
+        setCachedPreferences(serverPreferences);
+        queryClient.setQueryData(userPreferencesQueryKeys.ui(), data);
+      },
+      onError: () => {
+        applyPreferences(previousPreferences);
+        setCachedPreferences(previousPreferences);
+        queryClient.invalidateQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
+      },
+    });
+  }
 
   useEffect(() => {
-    setStoredValue(ACCENT_COLOR_STORAGE_KEY, accentColor);
+    if (preferencesQuery.data?.preferences === undefined) {
+      return;
+    }
+
+    const serverPreferences = withoutServerTimestamps(preferencesQuery.data.preferences);
+    applyPreferences(serverPreferences);
+    setCachedPreferences(serverPreferences);
+  }, [preferencesQuery.data]);
+
+  useEffect(() => {
     applyAccentColor(accentColor, resolvedTheme);
   }, [accentColor, resolvedTheme]);
 
   useEffect(() => {
-    setStoredValue(DENSITY_STORAGE_KEY, density);
     applyDensity(density);
   }, [density]);
 
   useEffect(() => {
-    setStoredValue(FONT_FAMILY_STORAGE_KEY, fontFamily);
     applyFontFamily(fontFamily);
   }, [fontFamily]);
 
   useEffect(() => {
-    setStoredValue(RADIUS_STORAGE_KEY, radius);
+    applyFontSize(fontSize);
+  }, [fontSize]);
+
+  useEffect(() => {
     applyRadius(radius);
   }, [radius]);
+
+  useEffect(() => {
+    setTheme(themeMode);
+  }, [setTheme, themeMode]);
+
+  useEffect(() => {
+    setCachedPreferences(currentPreferences);
+  }, [currentPreferences]);
 
   const value = useMemo<AccentColorContextValue>(() => ({
     accentColor,
     density,
     fontFamily,
+    fontSize,
     radius,
-    setAccentColor,
-    setDensity,
-    setFontFamily,
-    setRadius,
-  }), [accentColor, density, fontFamily, radius]);
+    themeMode,
+    setAccentColor: (nextAccentColor) => updatePreferences({ accentColor: nextAccentColor }),
+    setDensity: (nextDensity) => updatePreferences({ density: nextDensity }),
+    setFontFamily: (nextFontFamily) => updatePreferences({ fontFamily: nextFontFamily }),
+    setFontSize: (nextFontSize) => updatePreferences({ fontSize: nextFontSize }),
+    setRadius: (nextRadius) => updatePreferences({ radius: nextRadius }),
+    setThemeMode: (nextThemeMode) => updatePreferences({ themeMode: nextThemeMode }),
+  }), [accentColor, density, fontFamily, fontSize, radius, themeMode]);
 
   return (
     <AccentColorContext value={value}>

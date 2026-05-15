@@ -216,6 +216,7 @@ export function DocumentLibraryTable({
         size="sm"
         variant="line"
         interactive
+        textStyle="table"
         css={{
           '& thead th': {
             paddingBlock: 'var(--arkivra-listHeaderPaddingY, 0.75rem)',

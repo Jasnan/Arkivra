@@ -1,6 +1,6 @@
 import { Box, Flex, HStack, Heading, Link as ChakraLink, SimpleGrid, Stack, Text } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
-import { BookOpen, CalendarDays, ExternalLink, Github, GitCommitHorizontal, Globe, Heart, Scale, Tag } from 'lucide-react';
+import { BookOpen, CalendarDays, ExternalLink, Github, GitCommitHorizontal, Globe, Scale, Tag } from 'lucide-react';
 import packageJson from '../../../../package.json';
 import { SettingsPageFrame } from '../components/settings-ui';
 
@@ -111,7 +111,7 @@ export function AboutSettingsPage() {
           </Stack>
 
           <HStack
-            aria-label="Arkivra is developed with love by Jasnan Thachaparamban (https://jasnan.xyz)."
+            aria-label="Arkivra is developed with ❤️ by Jasnan Thachaparamban"
             gap="1.5"
             flexWrap="wrap"
             borderTopWidth="1px"
@@ -120,13 +120,10 @@ export function AboutSettingsPage() {
             textStyle="sm"
             color="fg.muted"
           >
-            <Text>Arkivra is developed with</Text>
-            <Heart size={15} fill="currentColor" color="var(--chakra-colors-teal-fg)" />
-            <Text>love by</Text>
+            <Text>Arkivra is developed with ❤️ by</Text>
             <ChakraLink href={authorUrl} target="_blank" rel="noreferrer" color="teal.fg" fontWeight="medium">
               Jasnan Thachaparamban
             </ChakraLink>
-            <Text>({authorUrl}).</Text>
           </HStack>
         </Stack>
       </Box>

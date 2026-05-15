@@ -2,7 +2,6 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Grid, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -105,8 +104,7 @@ export function SettingsPage() {
         description="Update your personal details."
         actions={
           <Button type="submit" form="settings-profile-form" size="sm" disabled={profileMutation.isPending}>
-            <Pencil size={15} />
-            {profileMutation.isPending ? 'Saving...' : 'Save profile'}
+            {profileMutation.isPending ? 'Saving...' : 'Save'}
           </Button>
         }
       >

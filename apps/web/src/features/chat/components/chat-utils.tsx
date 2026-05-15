@@ -345,7 +345,7 @@ export function renderInlineMarkdown({
             borderRadius: '0.25rem',
             backgroundColor: 'var(--chakra-colors-bg-subtle)',
             padding: '0.1rem 0.375rem',
-            fontFamily: 'monospace',
+            fontFamily: 'var(--arkivra-font-mono)',
             fontSize: '0.95em',
           }}
         >

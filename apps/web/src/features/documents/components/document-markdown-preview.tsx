@@ -6,22 +6,22 @@ import remarkGfm from 'remark-gfm';
 
 const markdownComponents: Components = {
   h1({ node: _node, ...props }) {
-    return <Heading as="h1" mt="0" mb="4" textStyle="2xl" color="fg" {...props} />;
+    return <Heading as="h1" mt="0" mb="4" textStyle="2xl" fontFamily="document" color="fg" {...props} />;
   },
   h2({ node: _node, ...props }) {
-    return <Heading as="h2" mt="7" mb="3" textStyle="xl" color="fg" {...props} />;
+    return <Heading as="h2" mt="7" mb="3" textStyle="xl" fontFamily="document" color="fg" {...props} />;
   },
   h3({ node: _node, ...props }) {
-    return <Heading as="h3" mt="6" mb="2" textStyle="lg" color="fg" {...props} />;
+    return <Heading as="h3" mt="6" mb="2" textStyle="lg" fontFamily="document" color="fg" {...props} />;
   },
   h4({ node: _node, ...props }) {
-    return <Heading as="h4" mt="5" mb="2" textStyle="md" color="fg" {...props} />;
+    return <Heading as="h4" mt="5" mb="2" textStyle="md" fontFamily="document" color="fg" {...props} />;
   },
   h5({ node: _node, ...props }) {
-    return <Heading as="h5" mt="4" mb="2" textStyle="sm" color="fg" {...props} />;
+    return <Heading as="h5" mt="4" mb="2" textStyle="sm" fontFamily="document" color="fg" {...props} />;
   },
   h6({ node: _node, ...props }) {
-    return <Heading as="h6" mt="4" mb="2" textStyle="xs" color="fg.muted" {...props} />;
+    return <Heading as="h6" mt="4" mb="2" textStyle="xs" fontFamily="document" color="fg.muted" {...props} />;
   },
   p({ node: _node, ...props }) {
     return <Text mb="4" lineHeight="7" color="fg" overflowWrap="anywhere" {...props} />;
@@ -138,7 +138,7 @@ const markdownComponents: Components = {
 
 export function DocumentMarkdownPreview({ markdown }: { markdown: string }) {
   return (
-    <Box color="fg" fontSize="sm">
+    <Box className="arkivra-document-content" color="fg" fontFamily="document" fontSize="sm">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}

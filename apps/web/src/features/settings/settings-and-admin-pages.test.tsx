@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminPage } from '@/features/admin/pages/admin-page';
+import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page';
 import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page';
 import { SecuritySettingsPage } from '@/features/settings/pages/security-settings-page';
@@ -123,7 +124,7 @@ describe('settings, admin, and about pages', () => {
     const nameInput = await screen.findByLabelText(/^name$/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Alex Rivers');
-    await user.click(screen.getByRole('button', { name: /save profile/i }));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     expect(authClientMock.updateUser).toHaveBeenCalledWith({
       name: 'Alex Rivers',
@@ -412,47 +413,91 @@ describe('settings, admin, and about pages', () => {
     });
   });
 
-  it('applies the selected accent color immediately from preferences', async () => {
+  it('applies and persists the selected accent color from the theme panel', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    let preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === '/api/vaults') {
-        return jsonResponse({ vaults: [] });
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({ preferences });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        preferences = {
+          ...preferences,
+          ...JSON.parse(String(init.body)),
+          updatedAt: '2026-05-15T01:00:00.000Z',
+        };
+        return jsonResponse({ preferences });
       }
 
       throw new Error(`Unhandled request ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<PreferencesSettingsPage />);
+    await renderWithProviders(<ThemeToggle />);
 
-    await user.click(screen.getByRole('button', { name: /accent color/i }));
-    await user.click(await screen.findByRole('menuitemradio', { name: /^blue$/i }));
+    await user.click(screen.getByRole('button', { name: /open appearance panel/i }));
+    await user.click(await screen.findByRole('button', { name: /^blue$/i }));
 
     await waitFor(() => {
       expect(document.documentElement.style.getPropertyValue('--chakra-colors-teal-solid')).toBe('#2563eb');
     });
-    expect(window.localStorage.getItem('arkivra.accentColor')).toBe('blue');
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ accentColor: 'blue' }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').accentColor).toBe('blue');
   });
 
-  it('applies density immediately from preferences', async () => {
+  it('applies and persists density from the theme panel', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    let preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url === '/api/vaults') {
-        return jsonResponse({ vaults: [] });
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({ preferences });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        preferences = {
+          ...preferences,
+          ...JSON.parse(String(init.body)),
+          updatedAt: '2026-05-15T01:00:00.000Z',
+        };
+        return jsonResponse({ preferences });
       }
 
       throw new Error(`Unhandled request ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<PreferencesSettingsPage />);
+    await renderWithProviders(<ThemeToggle />);
 
-    await user.click(screen.getByRole('button', { name: /density/i }));
-    await user.click(await screen.findByRole('menuitemradio', { name: /^compact$/i }));
+    await user.click(screen.getByRole('button', { name: /open appearance panel/i }));
+    await user.click(await screen.findByRole('button', { name: /^compact$/i }));
 
     await waitFor(() => {
       expect(document.documentElement.dataset.density).toBe('compact');
@@ -460,7 +505,13 @@ describe('settings, admin, and about pages', () => {
       expect(document.documentElement.style.getPropertyValue('--arkivra-listRowHeight')).toBe('3.5rem');
       expect(document.documentElement.style.getPropertyValue('--arkivra-listIconSize')).toBe('2rem');
     });
-    expect(window.localStorage.getItem('arkivra.density')).toBe('compact');
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ density: 'compact' }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').density).toBe('compact');
   });
 
   it('links to the dedicated 2FA management page from settings', async () => {
@@ -816,7 +867,7 @@ describe('settings, admin, and about pages', () => {
     expect(screen.getByRole('link', { name: /github/i })).toHaveAttribute('href', 'https://github.com/Jasnan/Arkivra');
     expect(screen.getByRole('link', { name: /license/i })).toHaveAttribute('href', 'https://github.com/Jasnan/arkivra/blob/main/LICENSE');
     expect(screen.getByRole('link', { name: /jasnan thachaparamban/i })).toHaveAttribute('href', 'https://jasnan.xyz');
-    expect(screen.getByLabelText(/arkivra is developed with love/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/arkivra is developed with ❤️ by/i)).toBeInTheDocument();
     expect(screen.queryByText(/project direction/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/system information/i)).not.toBeInTheDocument();
   });

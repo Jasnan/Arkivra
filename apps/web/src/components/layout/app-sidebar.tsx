@@ -49,7 +49,7 @@ function AppSidebarNavItem({ item }: { item: SidebarNavItem }) {
         rounded="lg"
         px="2.5"
         py="2"
-        fontSize="sm"
+        textStyle="sidebar"
         fontWeight="medium"
         justify={open ? 'flex-start' : 'center'}
         bg={isActive ? 'teal.subtle' : 'transparent'}
@@ -111,10 +111,10 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
               <ArkivraLogo boxSize="7" />
             </Flex>
             <Box minW="0" display={open ? undefined : 'none'}>
-              <Text fontFamily="heading" fontSize="base" fontWeight="semibold" lineHeight="none">
+              <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">
                 Arkivra
               </Text>
-              <Text mt="1" fontSize="sm" lineHeight="none" color="fg.muted">
+              <Text mt="1" textStyle="caption" lineHeight="none" color="fg.muted">
                 v{packageJson.version}
               </Text>
             </Box>

@@ -51,13 +51,13 @@ export function MessageBubble({
         {isUser ? (
           <>
             <Flex direction="column" align="flex-end" w="100%">
-              <Box rounded="xl" bg="teal.solid" px="4" py="3" fontSize="sm" lineHeight="1.6" color="fg.inverted" maxW="min(38rem, 100%)" shadow="sm">
+              <Box rounded="xl" bg="teal.solid" px="4" py="3" textStyle="chat" color="fg.inverted" maxW="min(38rem, 100%)" shadow="sm">
                 <Text whiteSpace="pre-wrap" overflowWrap="anywhere">{displayContent}</Text>
               </Box>
             </Flex>
           </>
         ) : (
-          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="lg" bg="bg.surface" px={{ base: '4', md: '5' }} py={{ base: '3', md: '4' }} fontSize="sm" lineHeight="1.75" color="fg" borderWidth="1px" borderColor="border.subtle" shadow="xs">
+          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="lg" bg="bg.surface" px={{ base: '4', md: '5' }} py={{ base: '3', md: '4' }} textStyle="chat" color="fg" borderWidth="1px" borderColor="border.subtle" shadow="xs">
             <MarkdownMessage
               content={displayContent}
               citations={message.citations}
@@ -76,7 +76,7 @@ export function MessageBubble({
                     type="button"
                     variant="outline"
                     size="sm"
-                    style={{ height: 'auto', borderRadius: '9999px', padding: '0.375rem 0.75rem', fontSize: '0.75rem' }}
+                    style={{ height: 'auto', borderRadius: '9999px', padding: '0.375rem 0.75rem', fontSize: 'var(--arkivra-font-size-label)' }}
                     onClick={() => onQuickReplySelect(reply)}
                   >
                     {reply}

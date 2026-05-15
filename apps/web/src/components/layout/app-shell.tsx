@@ -113,7 +113,7 @@ const settingsNavItems = [
   {
     to: ROUTES.settingsPreferences,
     label: 'Preferences',
-    description: 'Appearance & behavior',
+    description: 'Regional & workflow defaults',
     icon: <SlidersHorizontal size={16} />,
   },
   {

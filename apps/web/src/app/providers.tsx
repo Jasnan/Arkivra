@@ -37,14 +37,14 @@ function UploadCompletionInvalidation() {
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-      <AccentColorProvider>
-        <QueryClientProvider client={queryClient}>
+    <ThemeProvider attribute="class" storageKey="arkivra.themeMode" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <QueryClientProvider client={queryClient}>
+        <AccentColorProvider>
           <UploadCompletionInvalidation />
           {children}
           <Toaster position="top-right" richColors />
-        </QueryClientProvider>
-      </AccentColorProvider>
+        </AccentColorProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

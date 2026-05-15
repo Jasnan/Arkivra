@@ -43,10 +43,10 @@ export function SecondaryNavLink({
       px="2.5"
       py={description ? '2' : undefined}
       ml={`${Math.min(depth, 6) * 0.8}rem`}
-      fontSize="sm"
-      color={active ? 'fg' : 'fg.muted'}
-      bg={active ? 'bg.muted' : 'transparent'}
-      _hover={{ bg: 'bg.muted', color: 'fg' }}
+      textStyle="sidebar"
+      color={active ? 'teal.fg' : 'fg.muted'}
+      bg={active ? 'teal.subtle' : 'transparent'}
+      _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
     >
       {showDisclosureSlot ? (
         hasExpansionState ? (
@@ -68,8 +68,8 @@ export function SecondaryNavLink({
             width="5"
             height="5"
             rounded="sm"
-            color={active ? 'fg' : 'fg.subtle'}
-            _hover={{ color: 'fg', bg: 'bg.subtle' }}
+            color={active ? 'teal.fg' : 'fg.subtle'}
+            _hover={{ color: active ? 'teal.fg' : 'fg', bg: active ? 'teal.subtle' : 'bg.subtle' }}
             _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
           >
             {isExpanded
@@ -109,7 +109,7 @@ export function SecondaryNavLink({
           <Box minW="0">
             <Text truncate fontWeight={active ? 'semibold' : 'medium'}>{label}</Text>
             {description ? (
-              <Text truncate fontSize="xs" color={active ? 'fg.muted' : 'fg.subtle'}>
+              <Text truncate textStyle="caption" color={active ? 'teal.fg' : 'fg.subtle'}>
                 {description}
               </Text>
             ) : null}

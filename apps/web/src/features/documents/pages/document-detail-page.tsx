@@ -2264,11 +2264,13 @@ export function DocumentDetailPage() {
                   </Text>
                 </Flex>
                 <Box
+                  className="arkivra-document-content"
                   h={{ base: '82vh', md: '820px' }}
                   overflow="auto"
                   rounded="lg"
                   bg="bg.subtle"
                   p="5"
+                  fontFamily="document"
                   fontSize="sm"
                   whiteSpace="pre-wrap"
                   wordBreak="break-word"

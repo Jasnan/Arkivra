@@ -40,13 +40,13 @@ export async function renderWithProviders(
 
   function Wrapper(_props: PropsWithChildren) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-        <AccentColorProvider>
-          <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" storageKey="arkivra.themeMode" defaultTheme="light" enableSystem={false}>
+        <QueryClientProvider client={queryClient}>
+          <AccentColorProvider>
             <RouterProvider router={router} />
             <Toaster position="top-right" richColors />
-          </QueryClientProvider>
-        </AccentColorProvider>
+          </AccentColorProvider>
+        </QueryClientProvider>
       </ThemeProvider>
     )
   }

@@ -318,11 +318,48 @@ export function createSensitiveActionServices({
     return true;
   }
 
+  async function requestEmailChange({
+    callbackURL,
+    headers,
+    newEmail,
+    password,
+    session,
+    userId,
+  }: {
+    callbackURL?: string;
+    headers: Headers;
+    newEmail: string;
+    password?: string;
+    session: Session;
+    userId: string;
+  }) {
+    const accounts = await listAuthAccounts({ userId });
+    const verified = await verifySensitiveAction({
+      accounts,
+      password,
+      session,
+      userId,
+    });
+
+    if (!verified) {
+      return null;
+    }
+
+    return auth.api.changeEmail({
+      body: {
+        callbackURL,
+        newEmail,
+      },
+      headers,
+    });
+  }
+
   return {
     disableTwoFactor,
     getTwoFactorSummary,
     listAuthAccounts,
     regenerateBackupCodes,
+    requestEmailChange,
     startTwoFactorSetup,
     summarizeAuthMethods,
   };

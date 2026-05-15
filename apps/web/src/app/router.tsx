@@ -18,7 +18,10 @@ import { DocumentDetailPage } from '@/features/documents/pages/document-detail-p
 import { DocumentsPage } from '@/features/documents/pages/documents-page'
 import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page'
 import { AdminPage } from '@/features/admin/pages/admin-page'
-import { AboutPage } from '@/features/about/pages/about-page'
+import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page'
+import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page'
+import { SecuritySettingsPage } from '@/features/settings/pages/security-settings-page'
+import { SettingsIndexPage } from '@/features/settings/pages/settings-index-page'
 import { SettingsPage } from '@/features/settings/pages/settings-page'
 import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-management-page'
 import { TagsPage } from '@/features/tags/pages/tags-page'
@@ -200,19 +203,37 @@ const transfersRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/settings',
+  component: SettingsIndexPage,
+})
+
+const settingsAccountRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/settings/account',
   component: SettingsPage,
+})
+
+const settingsSecurityRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/settings/security',
+  component: SecuritySettingsPage,
+})
+
+const settingsPreferencesRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/settings/preferences',
+  component: PreferencesSettingsPage,
+})
+
+const settingsAboutRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/settings/about',
+  component: AboutSettingsPage,
 })
 
 const adminRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin',
   component: AdminPage,
-})
-
-const aboutRoute = createRoute({
-  getParentRoute: () => protectedLayoutRoute,
-  path: '/about',
-  component: AboutPage,
 })
 
 const catchAllRoute = createRoute({
@@ -246,8 +267,11 @@ const routeTree = rootRoute.addChildren([
     searchRoute,
     transfersRoute,
     settingsRoute,
+    settingsAccountRoute,
+    settingsSecurityRoute,
+    settingsPreferencesRoute,
+    settingsAboutRoute,
     adminRoute,
-    aboutRoute,
     catchAllRoute,
   ]),
 ])

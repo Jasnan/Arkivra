@@ -12,6 +12,12 @@ const verifySensitiveActionSchema = z.object({
   password: z.string().optional(),
 });
 
+const requestEmailChangeSchema = z.object({
+  callbackURL: z.string().optional(),
+  newEmail: z.string().email(),
+  password: z.string().optional(),
+});
+
 export function registerSensitiveActionRoutes({
   app,
   services,
@@ -137,5 +143,47 @@ export function registerSensitiveActionRoutes({
     }
 
     return context.json({ status: true });
+  });
+
+  app.post('/api/security/email/change', requireAuthentication(), async (context) => {
+    const body = await context.req.json().catch(() => null);
+    const parsed = requestEmailChangeSchema.safeParse(body);
+    const session = context.get('session');
+    const user = context.get('user');
+
+    if (!parsed.success || session === null || user === null) {
+      return context.json(
+        {
+          error: {
+            code: 'security.invalid_request',
+            message: 'Could not request email change.',
+          },
+        },
+        400,
+      );
+    }
+
+    const result = await services.requestEmailChange({
+      callbackURL: parsed.data.callbackURL,
+      headers: context.req.raw.headers,
+      newEmail: parsed.data.newEmail,
+      password: parsed.data.password,
+      session,
+      userId: user.id,
+    });
+
+    if (result === null) {
+      return context.json(
+        {
+          error: {
+            code: 'security.identity_verification_failed',
+            message: 'Could not verify your identity.',
+          },
+        },
+        403,
+      );
+    }
+
+    return context.json(result);
   });
 }

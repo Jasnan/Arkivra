@@ -2,7 +2,6 @@ import type { ComponentType, FormEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
-  Compass,
   FileSearch,
   LogOut,
   MessageSquare,
@@ -10,11 +9,14 @@ import {
   Search,
   SearchX,
   Settings,
+  Shield,
   ShieldCheck,
+  SlidersHorizontal,
   Tags,
   Trash2,
   Upload,
   UserCircle2,
+  Info,
   Vault,
   X,
 } from 'lucide-react';
@@ -95,6 +97,33 @@ const primaryNavItems: PrimaryNavItem[] = [
   { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
 ];
 
+const settingsNavItems = [
+  {
+    to: ROUTES.settingsAccount,
+    label: 'Account',
+    description: 'Profile & account details',
+    icon: <UserCircle2 size={16} />,
+  },
+  {
+    to: ROUTES.settingsSecurity,
+    label: 'Security',
+    description: 'Password, 2FA & sessions',
+    icon: <Shield size={16} />,
+  },
+  {
+    to: ROUTES.settingsPreferences,
+    label: 'Preferences',
+    description: 'Appearance & behavior',
+    icon: <SlidersHorizontal size={16} />,
+  },
+  {
+    to: ROUTES.settingsAbout,
+    label: 'About',
+    description: 'Version & information',
+    icon: <Info size={16} />,
+  },
+] as const;
+
 const QUICK_SEARCH_QUERY_DEBOUNCE_MS = 280;
 
 const accountMenuItemProps = {
@@ -145,10 +174,11 @@ function buildBreadcrumbs({
   if (parts[0] === 'trash' && parts[1]) return [{ label: 'Trash', to: ROUTES.trash }, { label: currentDocumentLabel }];
   if (pathname === ROUTES.tags) return [{ label: 'Tags' }];
   if (pathname === ROUTES.search) return [{ label: 'Search' }];
-  if (pathname === ROUTES.settings) return [{ label: 'Settings' }];
+  if (parts[0] === 'settings') {
+    const sectionLabel = settingsNavItems.find((item) => item.to === pathname)?.label;
+    return sectionLabel ? [{ label: 'Settings', to: ROUTES.settingsAccount }, { label: sectionLabel }] : [{ label: 'Settings' }];
+  }
   if (pathname === ROUTES.admin) return [{ label: 'Admin' }];
-  if (pathname === ROUTES.about) return [{ label: 'About' }];
-
   if (pathname === ROUTES.transfers) {
     if (!transferVaultId) return [{ label: 'Upload' }];
 
@@ -179,7 +209,7 @@ function buildBreadcrumbs({
   return [{ label: 'Arkivra' }];
 }
 
-function primaryNavId(pathname: string): PrimaryNavItem['id'] {
+function primaryNavId(pathname: string): PrimaryNavItem['id'] | null {
   const parts = pathname.split('/').filter(Boolean);
 
   if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
@@ -188,7 +218,9 @@ function primaryNavId(pathname: string): PrimaryNavItem['id'] {
   if (pathname === ROUTES.trash || parts[0] === 'trash') return 'trash';
   if (pathname === ROUTES.transfers) return 'transfers';
 
-  return 'vaults';
+  if (parts[0] === 'vaults' || pathname === ROUTES.vaults || pathname === ROUTES.root) return 'vaults';
+
+  return null;
 }
 
 function RailTooltip({ label, children }: { label: string; children: ReactNode }) {
@@ -268,7 +300,7 @@ function PrimarySidebar({
   onOpenTransfers,
   onSignOut,
 }: {
-  activeNavId: PrimaryNavItem['id'];
+  activeNavId: PrimaryNavItem['id'] | null;
   sessionEmail?: string | null;
   isGlobalAdmin?: boolean;
   onOpenTransfers: () => void;
@@ -311,7 +343,7 @@ function PrimarySidebar({
       </Stack>
 
       <Stack mt="auto" gap="2.5" align="center">
-        <RailTooltip label="Toggle color theme">
+        <RailTooltip label="Appearance">
           <Box>
             <ThemeToggle />
           </Box>
@@ -359,9 +391,9 @@ function PrimarySidebar({
                 </Box>
                 <Menu.Separator />
                 <Menu.Item value="account-settings" asChild {...accountMenuItemProps}>
-                  <Link to={ROUTES.settings}>
+                  <Link to={ROUTES.settingsAccount}>
                     <Settings size={16} />
-                    Account settings
+                    Settings
                   </Link>
                 </Menu.Item>
                 {isGlobalAdmin ? (
@@ -372,12 +404,6 @@ function PrimarySidebar({
                     </Link>
                   </Menu.Item>
                 ) : null}
-                <Menu.Item value="about" asChild {...accountMenuItemProps}>
-                  <Link to={ROUTES.about}>
-                    <Compass size={16} />
-                    About
-                  </Link>
-                </Menu.Item>
                 <Menu.Separator />
                 <Menu.Item value="sign-out" {...accountMenuItemProps} onClick={onSignOut}>
                   <LogOut size={16} />
@@ -399,15 +425,17 @@ function SecondarySidebar({
   currentFolderId,
   currentDocumentId,
   customContent,
+  currentPathname,
   canCreateVault,
   onCreateVault,
 }: {
   title: string;
-  kind: 'vault' | 'chat' | 'standard';
+  kind: 'vault' | 'chat' | 'settings' | 'standard';
   activeVaultId?: string | null;
   currentFolderId: string | null;
   currentDocumentId?: string | null;
   customContent: ReactNode | null;
+  currentPathname: string;
   canCreateVault?: boolean;
   onCreateVault?: () => void;
 }) {
@@ -504,6 +532,19 @@ function SecondarySidebar({
               </Box>
             </Flex>
           )
+        ) : kind === 'settings' ? (
+          <Stack gap="1">
+            {settingsNavItems.map((item) => (
+              <SecondaryNavLink
+                key={item.to}
+                to={item.to}
+                label={item.label}
+                description={item.description}
+                icon={item.icon}
+                active={item.to === currentPathname}
+              />
+            ))}
+          </Stack>
         ) : customContent ?? (
           kind === 'chat' ? (
             <Text px="2" py="4" fontSize="sm" color="fg.muted">
@@ -511,8 +552,8 @@ function SecondarySidebar({
             </Text>
           ) : (
             <Stack gap="1">
-              <SecondaryNavLink to={ROUTES.settings} label="Settings" icon={<Settings size={16} />} />
-              <SecondaryNavLink to={ROUTES.about} label="About" icon={<Compass size={16} />} />
+              <SecondaryNavLink to={ROUTES.settingsAccount} label="Settings" icon={<Settings size={16} />} />
+              <SecondaryNavLink to={ROUTES.settingsAbout} label="About" icon={<Info size={16} />} />
             </Stack>
           )
         )}
@@ -646,9 +687,10 @@ function WorkspaceHeader({
   );
 }
 
-function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'standard' {
+function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'settings' | 'standard' {
   const parts = pathname.split('/').filter(Boolean);
   if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
+  if (parts[0] === 'settings') return 'settings';
   if (parts[0] === 'vaults' || pathname === ROUTES.vaults) return 'vault';
   return 'standard';
 }
@@ -861,12 +903,13 @@ export function AppShell() {
           />
           {hideSecondarySidebar ? null : (
             <SecondarySidebar
-              title={secondaryKind === 'chat' ? 'Chat' : 'Arkivra'}
+              title={secondaryKind === 'chat' ? 'Chat' : secondaryKind === 'settings' ? 'Settings' : 'Arkivra'}
               kind={secondaryKind}
               activeVaultId={activeVaultId}
               currentFolderId={currentFolderId}
               currentDocumentId={activeDocumentRoute?.documentId ?? null}
               customContent={secondaryContent}
+              currentPathname={location.pathname}
               canCreateVault={meQuery.data?.canCreateVault === true}
               onCreateVault={() => setIsCreateVaultOpen(true)}
             />

@@ -5,6 +5,7 @@ import { File } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { formatBytes } from '@/features/documents/documents.utils';
 import type { SearchResultTag } from '@/features/search/search.types';
+import { getDocumentSelectionKey } from './document-library-utils';
 
 export interface DocumentLibraryItem {
   documentId: string;
@@ -123,6 +124,13 @@ function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
   );
 }
 
+const tableCellLinkStyle = {
+  display: 'block',
+  padding: 'var(--arkivra-rowPaddingY, 0.875rem) var(--arkivra-controlPaddingX, 0.75rem)',
+  color: 'inherit',
+  textDecoration: 'none',
+} as const;
+
 function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
   if (tags.length === 0) {
     return <Text as="span" fontSize="sm" color="fg.muted">&mdash;</Text>;
@@ -180,10 +188,6 @@ function SelectionCheckbox({
   );
 }
 
-export function getDocumentSelectionKey(vaultId: string, documentId: string) {
-  return `${vaultId}:${documentId}`;
-}
-
 export function DocumentLibraryTable({
   documents,
   vaultName,
@@ -213,6 +217,15 @@ export function DocumentLibraryTable({
         variant="line"
         interactive
         css={{
+          '& thead th': {
+            paddingBlock: 'var(--arkivra-listHeaderPaddingY, 0.75rem)',
+          },
+          '& tbody tr': {
+            height: 'var(--arkivra-listRowHeight, 4.5rem)',
+          },
+          '& tbody td': {
+            paddingBlock: '0',
+          },
           '& [data-selected]': {
             background: 'var(--chakra-colors-bg-subtle)',
           },
@@ -259,11 +272,8 @@ export function DocumentLibraryTable({
                   <Link
                     to={detailLink}
                     style={{
-                      display: 'block',
                       minWidth: 0,
-                      padding: '0.75rem',
-                      color: 'inherit',
-                      textDecoration: 'none',
+                      ...tableCellLinkStyle,
                     }}
                   >
                     <Flex align="flex-start" gap="3" minW="0">
@@ -296,12 +306,7 @@ export function DocumentLibraryTable({
                 <Table.Cell verticalAlign="top" p="0">
                   <Link
                     to={detailLink}
-                    style={{
-                      display: 'block',
-                      padding: '0.75rem',
-                      color: 'inherit',
-                      textDecoration: 'none',
-                    }}
+                    style={tableCellLinkStyle}
                   >
                     <Text fontSize="sm" color="fg">
                       {formatDateOnly(document.createdAt)}
@@ -311,12 +316,7 @@ export function DocumentLibraryTable({
                 <Table.Cell verticalAlign="top" p="0">
                   <Link
                     to={detailLink}
-                    style={{
-                      display: 'block',
-                      padding: '0.75rem',
-                      color: 'inherit',
-                      textDecoration: 'none',
-                    }}
+                    style={tableCellLinkStyle}
                   >
                     <Text fontSize="sm" color="fg">
                       {formatBytes(document.originalSize)}
@@ -326,12 +326,7 @@ export function DocumentLibraryTable({
                 <Table.Cell verticalAlign="top" p="0">
                   <Link
                     to={detailLink}
-                    style={{
-                      display: 'block',
-                      padding: '0.75rem',
-                      color: 'inherit',
-                      textDecoration: 'none',
-                    }}
+                    style={tableCellLinkStyle}
                   >
                     <Flex flexWrap="wrap" gap="1.5">
                       <VisibleTags tags={document.tags} />

@@ -348,7 +348,7 @@ export function VaultsPage() {
             </Text>
           </Flex>
         ) : vaultsView === 'grid' ? (
-          <Grid gap="4" templateColumns={{ base: 'repeat(1, minmax(0, 1fr))', md: 'repeat(auto-fill, minmax(14rem, 1fr))' }}>
+          <Grid gap="var(--arkivra-gridItemGap, 2rem)" templateColumns={{ base: 'repeat(1, minmax(0, 1fr))', md: 'repeat(auto-fill, minmax(14rem, 1fr))' }}>
             {vaults.map((vault) => (
               <Flex
                 key={vault.id}
@@ -359,14 +359,14 @@ export function VaultsPage() {
                 direction="column"
                 align="center"
                 justify="center"
-                minH="13rem"
+                minH="var(--arkivra-gridItemHeight, 14rem)"
                 cursor="pointer"
                 rounded="md"
                 borderWidth="1px"
                 borderColor="border.subtle"
                 bg="bg.workspace"
                 px="5"
-                py="4"
+                py="var(--arkivra-gridItemPadding, 1.25rem)"
                 textAlign="center"
                 transition="background-color 0.15s ease, border-color 0.15s ease"
                 _hover={{ bg: 'bg.workspaceMuted', borderColor: 'border.strong' }}
@@ -431,7 +431,7 @@ export function VaultsPage() {
                 borderColor="border.subtle"
                 bg="bg.workspace"
                 px="6"
-                py="3"
+                py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
                 fontSize="sm"
                 color="fg.muted"
               >
@@ -451,13 +451,13 @@ export function VaultsPage() {
                 alignItems="center"
                 templateColumns={{ base: 'minmax(0, 1fr) auto', md: VAULTS_LIST_GRID_COLUMNS }}
                 gap="3"
-                minH="4.5rem"
+                h="var(--arkivra-listRowHeight, 4.5rem)"
                 cursor="pointer"
                 borderBottomWidth="1px"
                 borderColor="border.subtle"
                 bg="bg.workspace"
                 px="6"
-                py="3"
+                py="var(--arkivra-rowPaddingY, 0.875rem)"
                 transition="background-color 0.15s ease, border-color 0.15s ease"
                 _hover={{ bg: 'bg.workspaceMuted' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
@@ -471,8 +471,8 @@ export function VaultsPage() {
                 }}
               >
                 <Flex minW="0" align="center" gap="3">
-                  <Flex boxSize="10" shrink="0" align="center" justify="center" color="teal.fg">
-                    <FolderDot size={30} strokeWidth={1.5} />
+                  <Flex boxSize="var(--arkivra-listIconSize, 2.5rem)" shrink="0" align="center" justify="center" color="teal.fg">
+                    <FolderDot size={28} strokeWidth={1.5} />
                   </Flex>
 
                   <Stack minW="0" flex="1" gap="1">

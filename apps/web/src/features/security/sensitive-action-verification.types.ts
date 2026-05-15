@@ -23,6 +23,8 @@ export const TWO_FACTOR_SETUP_ACTION = 'two-factor-setup';
 export const TWO_FACTOR_REPLACE_AUTHENTICATOR_ACTION = 'two-factor-replace-authenticator';
 export const TWO_FACTOR_REGENERATE_CODES_ACTION = 'two-factor-regenerate-codes';
 export const TWO_FACTOR_DISABLE_ACTION = 'two-factor-disable';
+export const EMAIL_CHANGE_ACTION = 'email-change';
+export const PENDING_EMAIL_CHANGE_KEY = 'arkivra.pendingEmailChange';
 
 function isKnownOAuthProvider(provider: string | null | undefined): provider is OAuthProviderId {
   return provider === 'google' || provider === 'github';
@@ -66,5 +68,21 @@ export async function disableTwoFactor({ password }: { password?: string }) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ password }),
+  });
+}
+
+export async function requestEmailChange({
+  callbackURL,
+  newEmail,
+  password,
+}: {
+  callbackURL?: string;
+  newEmail: string;
+  password?: string;
+}) {
+  return fetchJson<{ message?: string; status: boolean }>('/api/security/email/change', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ callbackURL, newEmail, password }),
   });
 }

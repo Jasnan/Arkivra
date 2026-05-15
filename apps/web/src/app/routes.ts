@@ -38,12 +38,13 @@ export const ROUTES = {
 
   // Settings
   settings: '/settings',
+  settingsAccount: '/settings/account',
+  settingsSecurity: '/settings/security',
+  settingsPreferences: '/settings/preferences',
+  settingsAbout: '/settings/about',
 
   // Admin
   admin: '/admin',
-
-  // About
-  about: '/about',
 
   // Root
   root: '/',

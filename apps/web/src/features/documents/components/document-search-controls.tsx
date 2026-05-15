@@ -156,11 +156,11 @@ export function SearchFilterMultiSelect({
             aria-label={triggerAriaLabel}
             aria-describedby={`${searchInputId}-hint`}
             placeholder={triggerLabel}
-            h="10"
+            h="var(--arkivra-controlHeight, 2.5rem)"
             rounded={controlSize === 'toolbar' ? 'md' : 'xl'}
             borderColor="border.subtle"
             bg="bg.surface"
-            px="4"
+            px="var(--arkivra-controlPaddingX, 0.75rem)"
             pr={selectedValues.length > 0 ? '16' : '10'}
             fontSize="sm"
             fontWeight={controlSize === 'toolbar' ? 'medium' : undefined}
@@ -203,7 +203,7 @@ export function SearchFilterMultiSelect({
               shadow="lg"
             >
             {isLoading ? (
-              <Text px="3" py="3" fontSize="sm" color="fg.muted">
+              <Text px="3" py="var(--arkivra-rowPaddingY, 0.875rem)" fontSize="sm" color="fg.muted">
                 {loadingLabel}
               </Text>
             ) : (
@@ -215,10 +215,10 @@ export function SearchFilterMultiSelect({
                     w="full"
                     alignItems="center"
                     gap="2"
-                    minH={controlSize === 'toolbar' ? '10' : undefined}
+                    minH={controlSize === 'toolbar' ? 'var(--arkivra-menuItemMinHeight, 2.5rem)' : undefined}
                     rounded="md"
                     px={controlSize === 'toolbar' ? '10' : '3'}
-                    py="2"
+                    py="var(--arkivra-menuItemPaddingY, 0.5rem)"
                     fontSize="sm"
                     fontWeight="medium"
                     color={controlSize === 'toolbar' ? 'fg' : 'fg.muted'}
@@ -232,7 +232,7 @@ export function SearchFilterMultiSelect({
                   </chakra.button>
                 ) : null}
 
-                <Combobox.Empty px="3" py="3" fontSize="sm" color="fg.muted">
+                <Combobox.Empty px="3" py="var(--arkivra-rowPaddingY, 0.875rem)" fontSize="sm" color="fg.muted">
                   {emptyLabel}
                 </Combobox.Empty>
 
@@ -246,11 +246,11 @@ export function SearchFilterMultiSelect({
                       display="flex"
                       alignItems="center"
                       gap="3"
-                      minH={controlSize === 'toolbar' ? '10' : undefined}
+                      minH={controlSize === 'toolbar' ? 'var(--arkivra-menuItemMinHeight, 2.5rem)' : undefined}
                       rounded="md"
                       bg={controlSize === 'toolbar' && isSelected ? 'teal.subtle' : undefined}
                       px={controlSize === 'toolbar' ? '10' : '3'}
-                      py="2"
+                      py="var(--arkivra-menuItemPaddingY, 0.5rem)"
                       position="relative"
                       fontSize="sm"
                       fontWeight="medium"
@@ -617,7 +617,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                   variant="outline"
                   aria-label={sortAriaLabel}
                   aria-labelledby={sortSelectId}
-                  h="11"
+                  h="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
                   w="full"
                   minW={{ md: '11rem' }}
                   justifyContent="space-between"
@@ -671,9 +671,9 @@ export function DocumentSearchControls<TSortValue extends string>({
                           key={option.value}
                           value={option.value}
                           position="relative"
-                          minH="10"
+                          minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
                           rounded="md"
-                          py="2"
+                          py="var(--arkivra-menuItemPaddingY, 0.5rem)"
                           ps="10"
                           pe="3"
                           fontSize="sm"

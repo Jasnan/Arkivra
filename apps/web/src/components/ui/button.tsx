@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Button as ChakraButton } from '@chakra-ui/react';
-import { cn } from '@/lib/utils';
 
 type LegacyButtonVariant = 'default' | 'outline' | 'secondary' | 'ghost';
 type LegacyButtonSize = 'default' | 'sm' | 'lg' | 'icon';
@@ -45,15 +44,40 @@ export function Button({
   size = 'default',
   variant = 'default',
   ref,
+  h,
+  minH,
+  px,
+  w,
   ...props
 }: ButtonProps) {
+  const normalizedSize = normalizeSize(size);
+  const densityHeight = normalizedSize === 'sm'
+    ? 'calc(var(--arkivra-controlHeight, 2.5rem) - 0.25rem)'
+    : normalizedSize === 'lg'
+      ? 'calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)'
+      : normalizedSize === 'md'
+        ? 'var(--arkivra-controlHeight, 2.5rem)'
+        : undefined;
+  const isIconButton = size === 'icon';
+  const densityPaddingX = normalizedSize === 'sm'
+    ? 'calc(var(--arkivra-controlPaddingX, 0.75rem) * 0.85)'
+    : normalizedSize === 'lg'
+      ? 'calc(var(--arkivra-controlPaddingX, 0.75rem) * 1.25)'
+      : normalizedSize === 'md'
+        ? 'var(--arkivra-controlPaddingX, 0.75rem)'
+        : undefined;
+
   return (
     <ChakraButton
       ref={ref}
       colorPalette={colorPalette ?? (variant === 'default' ? 'teal' : 'gray')}
-      size={normalizeSize(size)}
+      size={normalizedSize}
       variant={normalizeVariant(variant)}
-      className={cn(size === 'icon' && 'h-10 w-10 px-0', className)}
+      h={h ?? densityHeight}
+      minH={minH ?? densityHeight}
+      px={px ?? (isIconButton ? '0' : densityPaddingX)}
+      w={w ?? (isIconButton ? densityHeight : undefined)}
+      className={className}
       {...props}
     />
   );

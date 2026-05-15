@@ -30,8 +30,8 @@ import { DatePresetSelector } from '@/features/documents/components/date-preset-
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
 import {
   DocumentLibraryTable,
-  getDocumentSelectionKey,
 } from '@/features/documents/components/document-library-list';
+import { getDocumentSelectionKey } from '@/features/documents/components/document-library-utils';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import {
   DocumentSearchControls,
@@ -647,7 +647,7 @@ export function AllDocumentsPage() {
                   });
                 }}
               >
-                <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '4', sm: '5' }} py="2.5">
+                <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '4', sm: '5' }} py="var(--arkivra-listHeaderPaddingY, 0.75rem)">
                   <Flex align="center" gap="2.5" w="full">
                     <Flex w="10" ml="-1" justify="center" color="teal.solid" aria-hidden="true">
                       <Folder size={18} />
@@ -760,7 +760,7 @@ export function AllDocumentsPage() {
                         direction={{ base: 'column', sm: 'row' }}
                         gap="2"
                         px="4"
-                        py="2.5"
+                        py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
                         alignItems={{ sm: 'center' }}
                         justifyContent={{ sm: 'space-between' }}
                       >

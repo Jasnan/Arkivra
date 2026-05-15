@@ -8,6 +8,7 @@ export type SecondaryNavLinkExpansionState = 'expanded' | 'collapsed';
 export function SecondaryNavLink({
   to,
   label,
+  description,
   icon,
   active,
   depth = 0,
@@ -19,6 +20,7 @@ export function SecondaryNavLink({
 }: {
   to: string;
   label: string;
+  description?: string;
   icon: ReactNode;
   active?: boolean;
   depth?: number;
@@ -36,9 +38,10 @@ export function SecondaryNavLink({
     <Flex
       align="center"
       gap="2"
-      minH="9"
+      minH={description ? '12' : '9'}
       rounded="md"
       px="2.5"
+      py={description ? '2' : undefined}
       ml={`${Math.min(depth, 6) * 0.8}rem`}
       fontSize="sm"
       color={active ? 'fg' : 'fg.muted'}
@@ -103,7 +106,14 @@ export function SecondaryNavLink({
           <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
             {icon}
           </Flex>
-          <Text truncate>{label}</Text>
+          <Box minW="0">
+            <Text truncate fontWeight={active ? 'semibold' : 'medium'}>{label}</Text>
+            {description ? (
+              <Text truncate fontSize="xs" color={active ? 'fg.muted' : 'fg.subtle'}>
+                {description}
+              </Text>
+            ) : null}
+          </Box>
         </Flex>
       </Link>
     </Flex>

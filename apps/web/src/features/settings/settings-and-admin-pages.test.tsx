@@ -2,7 +2,9 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminPage } from '@/features/admin/pages/admin-page';
-import { AboutPage } from '@/features/about/pages/about-page';
+import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page';
+import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page';
+import { SecuritySettingsPage } from '@/features/settings/pages/security-settings-page';
 import { SettingsPage } from '@/features/settings/pages/settings-page';
 import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-management-page';
 import { renderWithProviders } from '@/test/utils';
@@ -24,6 +26,9 @@ const authClientMock = vi.hoisted(() => ({
   sendVerificationEmail: vi.fn(),
   changePassword: vi.fn(),
   signOut: vi.fn(),
+  listSessions: vi.fn(),
+  revokeSession: vi.fn(),
+  revokeOtherSessions: vi.fn(),
 }));
 
 vi.mock('@/lib/auth-client', () => ({
@@ -37,9 +42,26 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function installLocalStorageMock() {
+  const store = new Map<string, string>();
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => store.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        store.set(key, value);
+      }),
+    },
+  });
+
+  return store;
+}
+
 describe('settings, admin, and about pages', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    installLocalStorageMock().set('arkivra.accentColor', 'teal');
     authClientMock.useSession.mockReturnValue({
       data: {
         user: {
@@ -56,9 +78,24 @@ describe('settings, admin, and about pages', () => {
     authClientMock.sendVerificationEmail.mockResolvedValue({ error: null });
     authClientMock.changePassword.mockResolvedValue({ error: null });
     authClientMock.signOut.mockResolvedValue({ error: null });
+    authClientMock.listSessions.mockResolvedValue({
+      data: [
+        {
+          id: 'ses_1',
+          token: 'tok_current',
+          userAgent: 'Chrome on macOS',
+          ipAddress: '127.0.0.1',
+          createdAt: '2026-05-15T09:00:00.000Z',
+          updatedAt: '2026-05-15T09:10:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    authClientMock.revokeSession.mockResolvedValue({ error: null });
+    authClientMock.revokeOtherSessions.mockResolvedValue({ error: null });
   });
 
-  it('updates account profile and disables verification actions for verified emails', async () => {
+  it('updates account profile and keeps security controls off the account page', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -69,6 +106,11 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_1',
           isGlobalAdmin: true,
           canCreateVault: true,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: ['github'],
+            primaryOAuthProvider: 'github',
+          },
         });
       }
 
@@ -81,24 +123,24 @@ describe('settings, admin, and about pages', () => {
     const nameInput = await screen.findByLabelText(/^name$/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Alex Rivers');
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await user.click(screen.getByRole('button', { name: /save profile/i }));
 
     expect(authClientMock.updateUser).toHaveBeenCalledWith({
       name: 'Alex Rivers',
     });
 
     expect(screen.getByLabelText(/email/i)).toBeDisabled();
-    expect(screen.getByText(/email changes are not supported/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^verified$/i })).toBeDisabled();
+    expect(screen.getByText(/email changes are managed from security/i)).toBeInTheDocument();
+    expect(screen.getByText(/account status/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /view as admin/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/local \+ github/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /^sessions$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^verified$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /change password/i })).not.toBeInTheDocument();
     expect(authClientMock.sendVerificationEmail).not.toHaveBeenCalled();
-
-    expect(screen.getByRole('link', { name: /change password/i })).toHaveAttribute(
-      'href',
-      '/request-password-reset',
-    );
   });
 
-  it('sends verification email for unverified accounts', async () => {
+  it('sends verification email from the security page for unverified accounts', async () => {
     const user = userEvent.setup();
     authClientMock.useSession.mockReturnValue({
       data: {
@@ -127,13 +169,13 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<SettingsPage />);
+    await renderWithProviders(<SecuritySettingsPage />);
 
     await user.click(await screen.findByRole('button', { name: /verify now/i }));
 
     expect(authClientMock.sendVerificationEmail).toHaveBeenCalledWith({
       email: 'alex@example.com',
-      callbackURL: 'http://localhost:3000/settings',
+      callbackURL: 'http://localhost:3000/settings/security',
     });
   });
 
@@ -147,6 +189,11 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           isGlobalAdmin: false,
           canCreateVault: false,
+          authMethods: {
+            hasPassword: false,
+            oauthProviders: ['google'],
+            primaryOAuthProvider: 'google',
+          },
         });
       }
 
@@ -156,14 +203,133 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<SettingsPage />);
 
-    expect(await screen.findByRole('heading', { name: /account settings/i })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /admin panel/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^account$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /view as admin/i })).not.toBeInTheDocument();
     expect(screen.getByText(/member access/i)).toBeInTheDocument();
+    expect(await screen.findByText(/google oauth/i)).toBeInTheDocument();
+  });
 
-    expect(screen.getByRole('link', { name: /change password/i })).toHaveAttribute(
-      'href',
-      '/request-password-reset',
-    );
+  it('allows revoking individual non-current sessions', async () => {
+    const user = userEvent.setup();
+    authClientMock.listSessions.mockResolvedValue({
+      data: [
+        {
+          id: 'ses_current',
+          token: 'tok_current',
+          userAgent: 'Chrome on macOS',
+          ipAddress: '127.0.0.1',
+          createdAt: '2026-05-15T09:00:00.000Z',
+          updatedAt: '2026-05-15T09:10:00.000Z',
+        },
+        {
+          id: 'ses_other',
+          token: 'tok_other',
+          userAgent: 'Firefox on Windows',
+          ipAddress: '10.0.0.4',
+          createdAt: '2026-05-14T09:00:00.000Z',
+          updatedAt: '2026-05-14T11:30:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_current',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />);
+
+    expect(await screen.findByText(/firefox on windows/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^revoke$/i }));
+
+    expect(authClientMock.revokeSession).toHaveBeenCalledWith({ token: 'tok_other' });
+  });
+
+  it('sorts the current and most recent active sessions first', async () => {
+    authClientMock.listSessions.mockResolvedValue({
+      data: [
+        {
+          id: 'ses_older',
+          token: 'tok_older',
+          userAgent: 'Firefox on Windows',
+          ipAddress: '10.0.0.4',
+          createdAt: '2026-05-14T09:00:00.000Z',
+          updatedAt: '2026-05-14T11:30:00.000Z',
+          expiresAt: '2026-06-14T11:30:00.000Z',
+        },
+        {
+          id: 'ses_recent',
+          token: 'tok_recent',
+          userAgent: 'Safari on iPad',
+          ipAddress: '10.0.0.8',
+          createdAt: '2026-05-15T09:00:00.000Z',
+          updatedAt: '2026-05-15T11:30:00.000Z',
+          expiresAt: '2026-06-15T11:30:00.000Z',
+        },
+        {
+          id: 'ses_current',
+          token: 'tok_current',
+          userAgent: 'Chrome on macOS',
+          ipAddress: '127.0.0.1',
+          createdAt: '2026-05-15T08:00:00.000Z',
+          updatedAt: '2026-05-15T08:30:00.000Z',
+          expiresAt: '2026-06-15T08:30:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_current',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />);
+
+    expect(await screen.findByText(/safari on ipad/i)).toBeInTheDocument();
+
+    const sessionLabels = screen.getAllByText(/session$/i);
+    expect(sessionLabels.map((label) => label.textContent)).toEqual([
+      'Current session',
+      'Active session',
+      'Active session',
+    ]);
+
+    expect(
+      screen.getByText(/safari on ipad/i).compareDocumentPosition(screen.getByText(/firefox on windows/i))
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('shows 2FA as not enabled without the old off label', async () => {
@@ -194,10 +360,107 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<SettingsPage />);
+    await renderWithProviders(<SecuritySettingsPage />);
 
-    expect(await screen.findByText(/not enabled/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^disabled$/i)).toBeInTheDocument();
     expect(screen.queryByText(/^off$/i)).not.toBeInTheDocument();
+  });
+
+  it('requests a password-confirmed email change from security settings', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+        });
+      }
+
+      if (url === '/api/security/email/change' && init?.method === 'POST') {
+        return jsonResponse({ status: true, message: 'Confirmation email sent.' });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /change email/i }));
+    await user.type(screen.getByLabelText(/new email/i), 'new@example.com');
+    await user.type(screen.getByLabelText(/current password/i), 'secret123');
+    await user.click(screen.getByRole('button', { name: /request change/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/security/email/change', expect.objectContaining({
+        body: JSON.stringify({
+          callbackURL: 'http://localhost:3000/settings/security',
+          newEmail: 'new@example.com',
+          password: 'secret123',
+        }),
+        method: 'POST',
+      }));
+    });
+  });
+
+  it('applies the selected accent color immediately from preferences', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/vaults') {
+        return jsonResponse({ vaults: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferencesSettingsPage />);
+
+    await user.click(screen.getByRole('button', { name: /accent color/i }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /^blue$/i }));
+
+    await waitFor(() => {
+      expect(document.documentElement.style.getPropertyValue('--chakra-colors-teal-solid')).toBe('#2563eb');
+    });
+    expect(window.localStorage.getItem('arkivra.accentColor')).toBe('blue');
+  });
+
+  it('applies density immediately from preferences', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/vaults') {
+        return jsonResponse({ vaults: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferencesSettingsPage />);
+
+    await user.click(screen.getByRole('button', { name: /density/i }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /^compact$/i }));
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.density).toBe('compact');
+      expect(document.documentElement.style.getPropertyValue('--arkivra-controlHeight')).toBe('2rem');
+      expect(document.documentElement.style.getPropertyValue('--arkivra-listRowHeight')).toBe('3.5rem');
+      expect(document.documentElement.style.getPropertyValue('--arkivra-listIconSize')).toBe('2rem');
+    });
+    expect(window.localStorage.getItem('arkivra.density')).toBe('compact');
   });
 
   it('links to the dedicated 2FA management page from settings', async () => {
@@ -217,7 +480,7 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<SettingsPage />);
+    await renderWithProviders(<SecuritySettingsPage />);
 
     expect(await screen.findByRole('link', { name: /manage 2fa/i })).toHaveAttribute(
       'href',
@@ -544,27 +807,17 @@ describe('settings, admin, and about pages', () => {
     });
   });
 
-  it('shows instance version details on the about page', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+  it('shows app metadata and project links on the settings about page', async () => {
+    await renderWithProviders(<AboutSettingsPage />);
 
-        if (url === '/api/health') {
-          return jsonResponse({
-            status: 'ok',
-            version: '0.1.0',
-            timestamp: '2026-04-14T19:00:00.000Z',
-          });
-        }
-
-        throw new Error(`Unhandled request ${url}`);
-      }),
-    );
-
-    await renderWithProviders(<AboutPage />);
-
-    expect(await screen.findByText('0.1.0')).toBeInTheDocument();
-    expect(screen.getByText(/self-hosted first/i)).toBeInTheDocument();
+    expect((await screen.findAllByText('0.1.0')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: /website/i })).toHaveAttribute('href', 'https://arkivra.app');
+    expect(screen.getByRole('link', { name: /documentation/i })).toHaveAttribute('href', 'https://docs.arkivra.io');
+    expect(screen.getByRole('link', { name: /github/i })).toHaveAttribute('href', 'https://github.com/Jasnan/Arkivra');
+    expect(screen.getByRole('link', { name: /license/i })).toHaveAttribute('href', 'https://github.com/Jasnan/arkivra/blob/main/LICENSE');
+    expect(screen.getByRole('link', { name: /jasnan thachaparamban/i })).toHaveAttribute('href', 'https://jasnan.xyz');
+    expect(screen.getByLabelText(/arkivra is developed with love/i)).toBeInTheDocument();
+    expect(screen.queryByText(/project direction/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/system information/i)).not.toBeInTheDocument();
   });
 });

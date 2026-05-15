@@ -20,8 +20,8 @@ export function ActionMenuTriggerButton({
       variant="ghost"
       size="icon"
       aria-label={label}
-      h="9"
-      w="9"
+      h="calc(var(--arkivra-controlHeight, 2.5rem) - 0.25rem)"
+      w="calc(var(--arkivra-controlHeight, 2.5rem) - 0.25rem)"
       rounded="lg"
       borderWidth="1px"
       borderColor="border.subtle"

@@ -88,7 +88,7 @@ function cancelSetup() {
     return;
   }
 
-  window.location.assign(ROUTES.settings);
+  window.location.assign(ROUTES.settingsSecurity);
 }
 
 async function copyText(value: string, successMessage: string) {
@@ -697,7 +697,7 @@ function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
       <Separator />
 
       <HStack justify="flex-end">
-        <Button type="button" onClick={() => window.location.assign(ROUTES.settings)}>
+        <Button type="button" onClick={() => window.location.assign(ROUTES.settingsSecurity)}>
           Done
         </Button>
       </HStack>

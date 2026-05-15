@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { searchQueryKeys } from '@/features/search/search.queries';
+import { AccentColorProvider } from '@/components/providers/accent-color-provider';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 
 const queryClient = new QueryClient({
@@ -37,11 +38,13 @@ function UploadCompletionInvalidation() {
 export function AppProviders({ children }: PropsWithChildren) {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-      <QueryClientProvider client={queryClient}>
-        <UploadCompletionInvalidation />
-        {children}
-        <Toaster position="top-right" richColors />
-      </QueryClientProvider>
+      <AccentColorProvider>
+        <QueryClientProvider client={queryClient}>
+          <UploadCompletionInvalidation />
+          {children}
+          <Toaster position="top-right" richColors />
+        </QueryClientProvider>
+      </AccentColorProvider>
     </ThemeProvider>
   );
 }

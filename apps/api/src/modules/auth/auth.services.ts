@@ -122,7 +122,23 @@ export function createAuth({ db, config }: { db: Database; config: Config }) {
     }),
 
     user: {
-      changeEmail: { enabled: false },
+      changeEmail: {
+        enabled: true,
+        async sendChangeEmailConfirmation({ newEmail, url, user }) {
+          await authEmailServices.sendEmail({
+            to: user.email,
+            subject: 'Confirm your Arkivra email change',
+            text: [
+              `Hi ${user.name || user.email},`,
+              '',
+              `Confirm that you want to change your Arkivra email address to ${newEmail}:`,
+              url,
+              '',
+              'If you did not request this email change, keep your current email and ignore this message.',
+            ].join('\n'),
+          });
+        },
+      },
       deleteUser: { enabled: false },
     },
 

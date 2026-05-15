@@ -1,10 +1,12 @@
-/* eslint-disable react-refresh/only-export-components */
 import type { PropsWithChildren, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Toaster } from 'sonner'
+import { AccentColorProvider } from '@/components/providers/accent-color-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
+
+const routeParamPattern = /:(\w+)/g
 
 export async function renderWithProviders(
   ui: ReactNode,
@@ -24,7 +26,7 @@ export async function renderWithProviders(
   const paths = options?.routePaths ?? [options?.routePath ?? '/']
   const testRoutes = paths.map((routePath) => createRoute({
     getParentRoute: () => rootRoute,
-    path: routePath.replace(/:(\w+)/g, '$$$1'),
+    path: routePath.replace(routeParamPattern, '$$$1'),
     component: options?.rootComponent ? undefined : () => <>{ui}</>,
   }))
   const routeTree = rootRoute.addChildren(testRoutes)
@@ -36,13 +38,15 @@ export async function renderWithProviders(
 
   await router.load()
 
-  function Wrapper({ children }: PropsWithChildren) {
+  function Wrapper(_props: PropsWithChildren) {
     return (
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-        <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
-          <Toaster position="top-right" richColors />
-        </QueryClientProvider>
+        <AccentColorProvider>
+          <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+            <Toaster position="top-right" richColors />
+          </QueryClientProvider>
+        </AccentColorProvider>
       </ThemeProvider>
     )
   }

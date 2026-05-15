@@ -318,7 +318,8 @@ function SearchResultRow({
         borderColor="border.subtle"
         bg="bg.workspace"
         px={{ base: '4', lg: '6' }}
-        py="4"
+        py="var(--arkivra-rowPaddingY, 0.875rem)"
+        minH="var(--arkivra-listRowHeight, 4.5rem)"
         cursor="pointer"
         transition="background-color 0.15s ease"
         _hover={{ bg: 'bg.workspaceMuted' }}
@@ -901,7 +902,7 @@ export function SearchPage() {
                   borderColor="border.subtle"
                   bg="bg.workspace"
                   px="6"
-                  py="3"
+                  py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
                   fontSize="sm"
                   color="fg.muted"
                 >

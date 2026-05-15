@@ -624,7 +624,7 @@ export function TagsPage() {
               borderColor="border.subtle"
               bg="bg.workspace"
               px="6"
-              py="3"
+              py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
               fontSize="sm"
               color="fg.muted"
             >
@@ -650,12 +650,12 @@ export function TagsPage() {
                   alignItems="center"
                   templateColumns={{ base: '2.5rem minmax(0, 1fr) auto', md: TAGS_LIST_GRID_COLUMNS }}
                   gap="4"
-                  minH="4.5rem"
+                  h="var(--arkivra-listRowHeight, 4.5rem)"
                   borderBottomWidth="1px"
                   borderColor="border.subtle"
                   bg={isSelected ? 'teal.subtle' : 'bg.workspace'}
                   px="6"
-                  py="3"
+                  py="var(--arkivra-rowPaddingY, 0.875rem)"
                   transition="background-color 0.15s ease"
                   _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.workspaceMuted' }}
                   onContextMenu={(event) => openContextMenu(event, tag)}

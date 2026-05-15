@@ -5,6 +5,7 @@ import { Box, Checkbox as ChakraCheckbox, CloseButton, Dialog as ChakraDialog, F
 import { Check, Folder, Home, Search } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Button } from '@/components/ui/button';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
@@ -29,7 +30,11 @@ import { getBrowserItemKey, getDocumentTypeLabel, getItemName } from './vault-br
 import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
 
 const BROWSER_SCROLL_HEIGHT = '100%';
-const LIST_ROW_HEIGHT = 72;
+const listRowHeights = {
+  compact: 56,
+  comfortable: 72,
+  relaxed: 80,
+} as const;
 const BREADCRUMB_LABEL_MAX_LENGTH = 10;
 const LIST_GRID_COLUMNS = 'minmax(0, 1fr) 6rem 8.5rem 2.75rem';
 const SELECTABLE_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) 6rem 8.5rem 2.75rem';
@@ -66,13 +71,13 @@ function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'di
     <Box
       ref={ref}
       {...props}
-      style={{ ...style, paddingTop: '1rem' }}
+      style={{ ...style, paddingTop: 'var(--arkivra-gridItemGap, 2rem)' }}
       display="grid"
       gridTemplateColumns="repeat(auto-fill, minmax(13.5rem, 13.5rem))"
-      gap="8"
+      gap="var(--arkivra-gridItemGap, 2rem)"
       alignContent="start"
       px={{ base: '4', lg: '6' }}
-      pb="4"
+      pb="var(--arkivra-gridItemGap, 2rem)"
     />
   );
 }
@@ -686,6 +691,8 @@ export function BrowserItemList({
   isMutating?: boolean;
   isDraggable?: boolean;
 }) {
+  const { density } = useAccentColor();
+  const listRowHeight = listRowHeights[density];
   const resolvedListGridColumns = listGridColumns ?? (selectable ? SELECTABLE_LIST_GRID_COLUMNS : LIST_GRID_COLUMNS);
   const resolvedListColumns = listColumns ?? [
     { key: 'name', label: 'Name' },
@@ -714,7 +721,7 @@ export function BrowserItemList({
         borderBottomWidth="1px"
         borderColor="border.subtle"
         px="6"
-        py="3"
+        py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
         fontSize="sm"
         color="fg.muted"
       >
@@ -734,7 +741,7 @@ export function BrowserItemList({
       <Box h={BROWSER_SCROLL_HEIGHT}>
         <Virtuoso
           data={items}
-          fixedItemHeight={LIST_ROW_HEIGHT}
+          fixedItemHeight={listRowHeight}
           computeItemKey={(index, item) => item ? getBrowserItemKey(item) : `__item_${index}`}
           initialItemCount={Math.min(items.length, 24)}
           style={{ height: '100%' }}
@@ -769,7 +776,7 @@ export function BrowserItemList({
                 aria-label={name}
                 tabIndex={0}
                 draggable={isDraggable && !isMutating}
-                h={`${LIST_ROW_HEIGHT}px`}
+                h={`${listRowHeight}px`}
                 borderBottomWidth="1px"
                 borderColor="border.subtle"
                 cursor="pointer"
@@ -985,7 +992,7 @@ export function BrowserItemGrid({
               display="flex"
               alignItems="center"
               justifyContent="center"
-              p="5"
+              p="var(--arkivra-gridItemPadding, 1.25rem)"
               rounded="md"
               borderWidth="1px"
               borderColor="border.subtle"
@@ -1041,7 +1048,7 @@ export function BrowserItemGrid({
               display="flex"
               alignItems="center"
               justifyContent="center"
-              p="5"
+              p="var(--arkivra-gridItemPadding, 1.25rem)"
               rounded="md"
               borderWidth="1px"
               borderColor="border.subtle"
@@ -1090,7 +1097,7 @@ export function BrowserItemGrid({
           return item.type === 'folder' ? (
             <Box
               position="relative"
-              h="14rem"
+              h="var(--arkivra-gridItemHeight, 14rem)"
               role="option"
               aria-selected={isSelected}
               tabIndex={0}
@@ -1114,7 +1121,7 @@ export function BrowserItemGrid({
           ) : (
             <Box
               position="relative"
-              h="14rem"
+              h="var(--arkivra-gridItemHeight, 14rem)"
               role="option"
               aria-selected={isSelected}
               tabIndex={0}

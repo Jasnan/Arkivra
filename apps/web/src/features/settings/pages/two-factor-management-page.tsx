@@ -216,7 +216,7 @@ export function TwoFactorManagementPage() {
         queryClient.invalidateQueries({ queryKey: ['session'] }),
       ]);
       toast.success('Two-factor authentication disabled.');
-      await navigate({ to: ROUTES.settings });
+      await navigate({ to: ROUTES.settingsSecurity });
     },
     onError: (error) => {
       setActionError(error instanceof Error ? error.message : 'Could not disable two-factor authentication.');
@@ -285,7 +285,7 @@ export function TwoFactorManagementPage() {
               </Stack>
             </Alert>
             <HStack justify="flex-end" gap="3" flexWrap="wrap">
-              <Link to={ROUTES.settings} style={{ color: 'var(--chakra-colors-fg-muted)', fontSize: '0.875rem', fontWeight: 600 }}>
+              <Link to={ROUTES.settingsSecurity} style={{ color: 'var(--chakra-colors-fg-muted)', fontSize: '0.875rem', fontWeight: 600 }}>
                 Back to settings
               </Link>
               <Link
@@ -396,7 +396,7 @@ export function TwoFactorManagementPage() {
 function BackToSettingsLink() {
   return (
     <Link
-      to={ROUTES.settings}
+      to={ROUTES.settingsSecurity}
       style={{
         alignItems: 'center',
         color: 'var(--chakra-colors-fg-muted)',

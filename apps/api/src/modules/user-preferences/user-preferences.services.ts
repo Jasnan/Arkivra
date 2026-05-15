@@ -10,6 +10,9 @@ const defaultPreferences: Required<UserUiPreferencesUpdate> = {
   fontFamily: 'inter',
   fontSize: 'md',
   radius: 'md',
+  language: 'en',
+  timezone: 'auto',
+  dateFormat: 'medium',
 } satisfies Omit<UserUiPreferencesUpdate, never>;
 
 type UserUiPreferencesRow = typeof userUiPreferencesTable.$inferSelect;
@@ -22,6 +25,9 @@ function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
     fontFamily: row.fontFamily,
     fontSize: row.fontSize,
     radius: row.radius,
+    language: row.language,
+    timezone: row.timezone,
+    dateFormat: row.dateFormat,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

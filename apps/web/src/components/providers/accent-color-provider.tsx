@@ -1,12 +1,23 @@
 import type { PropsWithChildren } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 import { authClient } from '@/lib/auth-client';
 import { userPreferencesQueryKeys, useUpdateUserUiPreferencesMutation, useUserUiPreferencesQuery } from '@/features/user-preferences/user-preferences.queries';
 import type { UserUiPreferences, UserUiPreferencesUpdate } from '@/features/user-preferences/user-preferences.types';
 import { AccentColorContext } from './accent-color-context';
-import type { AccentColor, AccentColorContextValue, AppearanceDensity, AppearanceFont, AppearanceFontSize, AppearanceRadius, ThemeMode } from './accent-color-context';
+import type {
+  AccentColor,
+  AccentColorContextValue,
+  AppearanceDensity,
+  AppearanceFont,
+  AppearanceFontSize,
+  AppearanceRadius,
+  PreferenceDateFormat,
+  PreferenceLanguage,
+  PreferenceTimezone,
+  ThemeMode,
+} from './accent-color-context';
 import { LEGACY_FONT_FAMILY_STORAGE_KEY, defaultTypographyFont, isAppearanceFont } from './typography';
 
 const UI_PREFERENCES_CACHE_KEY = 'arkivra.uiPreferences';
@@ -17,14 +28,23 @@ const LEGACY_FONT_SIZE_SCALE_STORAGE_KEY = 'arkivra.fontSizeScale';
 const LEGACY_RADIUS_STORAGE_KEY = 'arkivra.radius';
 const defaultFontSize: AppearanceFontSize = 'md';
 const defaultThemeMode: ThemeMode = 'system';
+const PREFERENCES_SYNC_DEBOUNCE_MS = 450;
 
-const defaultUiPreferences: Pick<UserUiPreferences, 'accentColor' | 'density' | 'fontFamily' | 'fontSize' | 'radius' | 'themeMode'> = {
+type UserUiPreferenceValues = Pick<
+  UserUiPreferences,
+  'accentColor' | 'dateFormat' | 'density' | 'fontFamily' | 'fontSize' | 'language' | 'radius' | 'themeMode' | 'timezone'
+>;
+
+const defaultUiPreferences: UserUiPreferenceValues = {
   themeMode: defaultThemeMode,
   accentColor: 'teal',
   density: 'comfortable',
   fontFamily: defaultTypographyFont,
   fontSize: defaultFontSize,
   radius: 'md',
+  language: 'en',
+  timezone: 'auto',
+  dateFormat: 'medium',
 };
 
 const fontSizeScales: Record<AppearanceFontSize, string> = {
@@ -323,6 +343,18 @@ function isThemeMode(value: string | null): value is ThemeMode {
   return value === 'system' || value === 'light' || value === 'dark';
 }
 
+function isPreferenceLanguage(value: string | null): value is PreferenceLanguage {
+  return value === 'en' || value === 'de' || value === 'fr';
+}
+
+function isPreferenceTimezone(value: string | null): value is PreferenceTimezone {
+  return value === 'auto' || value === 'utc' || value === 'europe-berlin' || value === 'america-new-york';
+}
+
+function isPreferenceDateFormat(value: string | null): value is PreferenceDateFormat {
+  return value === 'medium' || value === 'numeric' || value === 'short';
+}
+
 function getStoredValue(key: string) {
   if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
     return null;
@@ -379,8 +411,21 @@ function normalizeCachedPreferences(value: unknown) {
   const radius = typeof candidate.radius === 'string' && isAppearanceRadius(candidate.radius)
     ? candidate.radius
     : defaultUiPreferences.radius;
+  const language = typeof candidate.language === 'string' && isPreferenceLanguage(candidate.language)
+    ? candidate.language
+    : defaultUiPreferences.language;
+  const timezone = typeof candidate.timezone === 'string' && isPreferenceTimezone(candidate.timezone)
+    ? candidate.timezone
+    : defaultUiPreferences.timezone;
+  const dateFormat = typeof candidate.dateFormat === 'string' && isPreferenceDateFormat(candidate.dateFormat)
+    ? candidate.dateFormat
+    : defaultUiPreferences.dateFormat;
 
-  return { themeMode, accentColor, density, fontFamily, fontSize, radius };
+  return { themeMode, accentColor, density, fontFamily, fontSize, radius, language, timezone, dateFormat };
+}
+
+function normalizePreferenceValues(value: unknown): UserUiPreferenceValues {
+  return normalizeCachedPreferences(value) ?? defaultUiPreferences;
 }
 
 function getCachedPreferences() {
@@ -410,25 +455,21 @@ function getCachedPreferences() {
     fontFamily: isAppearanceFont(legacyFontFamily) ? legacyFontFamily : defaultUiPreferences.fontFamily,
     fontSize: getLegacyFontSize(),
     radius: isAppearanceRadius(legacyRadius) ? legacyRadius : defaultUiPreferences.radius,
+    language: defaultUiPreferences.language,
+    timezone: defaultUiPreferences.timezone,
+    dateFormat: defaultUiPreferences.dateFormat,
   };
 }
 
-function setCachedPreferences(preferences: Pick<UserUiPreferences, 'accentColor' | 'density' | 'fontFamily' | 'fontSize' | 'radius' | 'themeMode'>) {
+function setCachedPreferences(preferences: UserUiPreferenceValues) {
   if (typeof window.localStorage?.setItem === 'function') {
     window.localStorage.setItem(UI_PREFERENCES_CACHE_KEY, JSON.stringify(preferences));
     window.localStorage.setItem('arkivra.themeMode', preferences.themeMode);
   }
 }
 
-function withoutServerTimestamps(preferences: UserUiPreferences) {
-  return {
-    themeMode: preferences.themeMode,
-    accentColor: preferences.accentColor,
-    density: preferences.density,
-    fontFamily: preferences.fontFamily,
-    fontSize: preferences.fontSize,
-    radius: preferences.radius,
-  };
+function withoutServerTimestamps(preferences: UserUiPreferences): UserUiPreferenceValues {
+  return normalizePreferenceValues(preferences);
 }
 
 function applyAccentColor(accentColor: AccentColor, resolvedTheme: string | undefined) {
@@ -503,6 +544,13 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   const [fontFamily, setFontFamilyState] = useState<AppearanceFont>(cachedPreferences.fontFamily);
   const [fontSize, setFontSizeState] = useState<AppearanceFontSize>(cachedPreferences.fontSize);
   const [radius, setRadiusState] = useState<AppearanceRadius>(cachedPreferences.radius);
+  const [language, setLanguageState] = useState<PreferenceLanguage>(cachedPreferences.language);
+  const [timezone, setTimezoneState] = useState<PreferenceTimezone>(cachedPreferences.timezone);
+  const [dateFormat, setDateFormatState] = useState<PreferenceDateFormat>(cachedPreferences.dateFormat);
+  const [pendingServerPatch, setPendingServerPatch] = useState<UserUiPreferencesUpdate | null>(null);
+  const currentPreferencesRef = useRef<UserUiPreferenceValues>(cachedPreferences);
+  const pendingRollbackRef = useRef<UserUiPreferenceValues | null>(null);
+  const syncVersionRef = useRef(0);
   const isAuthenticated = Boolean(session.data?.user);
   const preferencesQuery = useUserUiPreferencesQuery({ enabled: isAuthenticated });
   const updatePreferencesMutation = useUpdateUserUiPreferencesMutation();
@@ -514,21 +562,28 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     fontFamily,
     fontSize,
     radius,
-  }), [accentColor, density, fontFamily, fontSize, radius, themeMode]);
+    language,
+    timezone,
+    dateFormat,
+  }), [accentColor, dateFormat, density, fontFamily, fontSize, language, radius, themeMode, timezone]);
 
-  function applyPreferences(nextPreferences: Pick<UserUiPreferences, 'accentColor' | 'density' | 'fontFamily' | 'fontSize' | 'radius' | 'themeMode'>) {
+  function applyPreferences(nextPreferences: UserUiPreferenceValues) {
+    currentPreferencesRef.current = nextPreferences;
     setThemeModeState(nextPreferences.themeMode);
     setAccentColorState(nextPreferences.accentColor);
     setDensityState(nextPreferences.density);
     setFontFamilyState(nextPreferences.fontFamily);
     setFontSizeState(nextPreferences.fontSize);
     setRadiusState(nextPreferences.radius);
+    setLanguageState(nextPreferences.language);
+    setTimezoneState(nextPreferences.timezone);
+    setDateFormatState(nextPreferences.dateFormat);
   }
 
   function updatePreferences(patch: UserUiPreferencesUpdate) {
-    const previousPreferences = currentPreferences;
+    const previousPreferences = currentPreferencesRef.current;
     const nextPreferences = {
-      ...currentPreferences,
+      ...previousPreferences,
       ...patch,
     };
 
@@ -538,6 +593,16 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     if (!isAuthenticated) {
       return;
     }
+
+    if (pendingRollbackRef.current === null) {
+      pendingRollbackRef.current = previousPreferences;
+    }
+
+    syncVersionRef.current += 1;
+    setPendingServerPatch((current) => ({
+      ...current,
+      ...patch,
+    }));
 
     queryClient.setQueryData<{ preferences: UserUiPreferences }>(
       userPreferencesQueryKeys.ui(),
@@ -551,20 +616,6 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
           }
         : current,
     );
-
-    updatePreferencesMutation.mutate(patch, {
-      onSuccess: (data) => {
-        const serverPreferences = withoutServerTimestamps(data.preferences);
-        applyPreferences(serverPreferences);
-        setCachedPreferences(serverPreferences);
-        queryClient.setQueryData(userPreferencesQueryKeys.ui(), data);
-      },
-      onError: () => {
-        applyPreferences(previousPreferences);
-        setCachedPreferences(previousPreferences);
-        queryClient.invalidateQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
-      },
-    });
   }
 
   useEffect(() => {
@@ -572,10 +623,61 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
       return;
     }
 
+    if (pendingServerPatch !== null) {
+      return;
+    }
+
     const serverPreferences = withoutServerTimestamps(preferencesQuery.data.preferences);
     applyPreferences(serverPreferences);
     setCachedPreferences(serverPreferences);
-  }, [preferencesQuery.data]);
+  }, [pendingServerPatch, preferencesQuery.data]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      pendingRollbackRef.current = null;
+      setPendingServerPatch(null);
+      return;
+    }
+
+    if (pendingServerPatch === null) {
+      return;
+    }
+
+    const patch = pendingServerPatch;
+    const syncVersion = syncVersionRef.current;
+    const timeoutId = window.setTimeout(() => {
+      updatePreferencesMutation.mutate(patch, {
+        onSuccess: (data) => {
+          if (syncVersionRef.current !== syncVersion) {
+            return;
+          }
+
+          const serverPreferences = withoutServerTimestamps(data.preferences);
+          applyPreferences(serverPreferences);
+          setCachedPreferences(serverPreferences);
+          queryClient.setQueryData(userPreferencesQueryKeys.ui(), data);
+          pendingRollbackRef.current = null;
+          setPendingServerPatch(null);
+        },
+        onError: () => {
+          if (syncVersionRef.current !== syncVersion) {
+            return;
+          }
+
+          const rollbackPreferences = pendingRollbackRef.current ?? defaultUiPreferences;
+          applyPreferences(rollbackPreferences);
+          setCachedPreferences(rollbackPreferences);
+          pendingRollbackRef.current = null;
+          setPendingServerPatch(null);
+          queryClient.invalidateQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
+        },
+      });
+    }, PREFERENCES_SYNC_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isAuthenticated, pendingServerPatch, queryClient, updatePreferencesMutation]);
 
   useEffect(() => {
     applyAccentColor(accentColor, resolvedTheme);
@@ -607,18 +709,24 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<AccentColorContextValue>(() => ({
     accentColor,
+    dateFormat,
     density,
     fontFamily,
     fontSize,
+    language,
     radius,
     themeMode,
+    timezone,
     setAccentColor: (nextAccentColor) => updatePreferences({ accentColor: nextAccentColor }),
+    setDateFormat: (nextDateFormat) => updatePreferences({ dateFormat: nextDateFormat }),
     setDensity: (nextDensity) => updatePreferences({ density: nextDensity }),
     setFontFamily: (nextFontFamily) => updatePreferences({ fontFamily: nextFontFamily }),
     setFontSize: (nextFontSize) => updatePreferences({ fontSize: nextFontSize }),
+    setLanguage: (nextLanguage) => updatePreferences({ language: nextLanguage }),
     setRadius: (nextRadius) => updatePreferences({ radius: nextRadius }),
     setThemeMode: (nextThemeMode) => updatePreferences({ themeMode: nextThemeMode }),
-  }), [accentColor, density, fontFamily, fontSize, radius, themeMode]);
+    setTimezone: (nextTimezone) => updatePreferences({ timezone: nextTimezone }),
+  }), [accentColor, dateFormat, density, fontFamily, fontSize, language, radius, themeMode, timezone]);
 
   return (
     <AccentColorContext value={value}>

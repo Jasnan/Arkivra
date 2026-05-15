@@ -622,4 +622,39 @@ describe.sequential('migrations smoke', () => {
     expect(indexNames).toContain('documents_active_folder_filename_unique');
     expect(indexNames).toContain('documents_vault_hash_unique');
   });
+
+  test('0013 adds regional preference columns to user_ui_preferences', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'user_ui_preferences'
+          AND column_name IN ('language', 'timezone', 'date_format')
+      `,
+    );
+
+    const byName = Object.fromEntries(rows.map(row => [row.column_name, row]));
+
+    expect(byName.language?.data_type).toBe('text');
+    expect(byName.language?.is_nullable).toBe('NO');
+    expect(byName.language?.column_default).toContain("'en'");
+
+    expect(byName.timezone?.data_type).toBe('text');
+    expect(byName.timezone?.is_nullable).toBe('NO');
+    expect(byName.timezone?.column_default).toContain("'auto'");
+
+    expect(byName.date_format?.data_type).toBe('text');
+    expect(byName.date_format?.is_nullable).toBe('NO');
+    expect(byName.date_format?.column_default).toContain("'medium'");
+  });
 });

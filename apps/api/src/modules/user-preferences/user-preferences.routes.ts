@@ -12,6 +12,9 @@ const userUiPreferencesUpdateSchema = z
     fontFamily: z.enum(['inter', 'manrope', 'space-grotesk']).optional(),
     fontSize: z.enum(['sm', 'md', 'lg', 'xl', '2xl']).optional(),
     radius: z.enum(['none', 'sm', 'md', 'lg', 'xl']).optional(),
+    language: z.enum(['en', 'de', 'fr']).optional(),
+    timezone: z.enum(['auto', 'utc', 'europe-berlin', 'america-new-york']).optional(),
+    dateFormat: z.enum(['medium', 'numeric', 'short']).optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0);

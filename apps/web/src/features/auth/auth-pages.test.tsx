@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AuthLayout } from '@/features/auth/auth-layout';
 import { LoginPage } from '@/features/auth/pages/login-page';
 import { RegisterPage } from '@/features/auth/pages/register-page';
 import { RequestPasswordResetPage } from '@/features/auth/pages/request-password-reset-page';
@@ -38,9 +39,28 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function installLocalStorageMock() {
+  const store = new Map<string, string>();
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      clear: vi.fn(() => store.clear()),
+      getItem: vi.fn((key: string) => store.get(key) ?? null),
+      removeItem: vi.fn((key: string) => {
+        store.delete(key);
+      }),
+      setItem: vi.fn((key: string, value: string) => {
+        store.set(key, value);
+      }),
+    },
+  });
+}
+
 describe('auth pages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    installLocalStorageMock();
     sessionStorage.clear();
     authClientMock.useSession.mockReturnValue({ data: null, isPending: false });
     authClientMock.signIn.email.mockResolvedValue({ data: null, error: null });
@@ -57,6 +77,48 @@ describe('auth pages', () => {
     });
     authClientMock.twoFactor.verifyTotp.mockResolvedValue({ error: null });
     authClientMock.twoFactor.verifyBackupCode.mockResolvedValue({ error: null });
+  });
+
+  it('does not show the appearance panel on public auth views', async () => {
+    const loginRender = await renderWithProviders(
+      <AuthLayout>
+        <LoginPage />
+      </AuthLayout>,
+    );
+
+    expect(screen.queryByRole('button', { name: /open appearance panel/i })).not.toBeInTheDocument();
+    loginRender.unmount();
+
+    await renderWithProviders(
+      <AuthLayout>
+        <RegisterPage />
+      </AuthLayout>,
+    );
+
+    expect(screen.queryByRole('button', { name: /open appearance panel/i })).not.toBeInTheDocument();
+  });
+
+  it('uses the cached theme mode on public auth views', async () => {
+    localStorage.setItem('arkivra.themeMode', 'dark');
+    localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'dark',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+    }));
+
+    await renderWithProviders(
+      <AuthLayout>
+        <LoginPage />
+      </AuthLayout>,
+    );
+
+    await waitFor(() => {
+      expect(localStorage.getItem('arkivra.themeMode')).toBe('dark');
+    });
+    expect(JSON.parse(localStorage.getItem('arkivra.uiPreferences') ?? '{}').themeMode).toBe('dark');
   });
 
   it('submits the login form and supports OAuth buttons', async () => {

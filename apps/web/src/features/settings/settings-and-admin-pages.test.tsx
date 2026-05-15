@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminPage } from '@/features/admin/pages/admin-page';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page';
 import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page';
 import { SecuritySettingsPage } from '@/features/settings/pages/security-settings-page';
@@ -57,6 +58,32 @@ function installLocalStorageMock() {
   });
 
   return store;
+}
+
+function SequentialPreferenceControls() {
+  const {
+    accentColor,
+    fontSize,
+    setAccentColor,
+    setFontSize,
+  } = useAccentColor();
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setAccentColor('pink');
+          setFontSize('xl');
+        }}
+      >
+        Apply rapid preferences
+      </button>
+      <output aria-label="preference snapshot">
+        {accentColor}:{fontSize}
+      </output>
+    </>
+  );
 }
 
 describe('settings, admin, and about pages', () => {
@@ -512,6 +539,109 @@ describe('settings, admin, and about pages', () => {
       }));
     });
     expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').density).toBe('compact');
+  });
+
+  it('keeps rapid preference changes from reverting previous local choices', async () => {
+    const user = userEvent.setup();
+    let preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({ preferences });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        preferences = {
+          ...preferences,
+          ...JSON.parse(String(init.body)),
+          updatedAt: '2026-05-15T01:00:00.000Z',
+        };
+        return jsonResponse({ preferences });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SequentialPreferenceControls />);
+
+    await user.click(screen.getByRole('button', { name: /apply rapid preferences/i }));
+
+    expect(screen.getByLabelText(/preference snapshot/i)).toHaveTextContent('pink:xl');
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')).toEqual(
+      expect.objectContaining({
+        accentColor: 'pink',
+        fontSize: 'xl',
+      }),
+    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ accentColor: 'pink', fontSize: 'xl' }),
+        method: 'PATCH',
+      }));
+    });
+  });
+
+  it('applies and persists regional preferences', async () => {
+    const user = userEvent.setup();
+    let preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({ preferences });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        preferences = {
+          ...preferences,
+          ...JSON.parse(String(init.body)),
+          updatedAt: '2026-05-15T01:00:00.000Z',
+        };
+        return jsonResponse({ preferences });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferencesSettingsPage />);
+
+    await user.click(screen.getByRole('button', { name: /language/i }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /german/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ language: 'de' }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').language).toBe('de');
   });
 
   it('links to the dedicated 2FA management page from settings', async () => {

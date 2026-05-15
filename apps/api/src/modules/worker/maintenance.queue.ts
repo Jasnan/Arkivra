@@ -1,5 +1,5 @@
 import type { Database } from '../database/database.js';
-import { createPostgresQueue } from './postgres-jobs.js';
+import { createPostgresQueue, getScopedQueueName } from './postgres-jobs.js';
 
 export const MAINTENANCE_QUEUE = 'maintenance';
 export const HARD_DELETE_EXPIRED_DOCUMENTS_JOB = 'hard-delete-expired-documents';
@@ -8,10 +8,16 @@ export type HardDeleteExpiredDocumentsJobData = {
   retentionDays?: number;
 };
 
-export function createMaintenanceQueue({ db }: { db: Database }) {
+export function createMaintenanceQueue({
+  db,
+  appInstance,
+}: {
+  db: Database;
+  appInstance?: string;
+}) {
   const queue = createPostgresQueue<HardDeleteExpiredDocumentsJobData>({
     db,
-    queueName: MAINTENANCE_QUEUE,
+    queueName: getScopedQueueName(MAINTENANCE_QUEUE, appInstance),
     defaultJobOptions: {
       attempts: 3,
       backoff: {

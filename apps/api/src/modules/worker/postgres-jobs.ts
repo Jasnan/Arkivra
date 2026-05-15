@@ -221,6 +221,10 @@ function getRetryDelayMs({
   return backoffDelayMs;
 }
 
+export function getScopedQueueName(queueName: string, appInstance?: string) {
+  return appInstance === undefined ? queueName : `${appInstance}:${queueName}`;
+}
+
 export class AsyncJob<TData extends Record<string, unknown>> {
   #db: Database;
   #queueName: string;

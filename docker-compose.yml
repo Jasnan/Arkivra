@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: arkivra
       POSTGRES_DB: arkivra
     ports:
-      - '5432:5432'
+      - '${ARKIVRA_POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -23,7 +23,7 @@ services:
     environment:
       UVICORN_WORKERS: '1'
     ports:
-      - '5001:5001'
+      - '${ARKIVRA_DOCLING_PORT:-5001}:5001'
     volumes:
       - docling-data:/tmp/docling
     healthcheck:
@@ -39,11 +39,12 @@ services:
       dockerfile: ./apps/api/Dockerfile
     restart: unless-stopped
     ports:
-      - '1221:1221'
+      - '${ARKIVRA_PORT:-1221}:${ARKIVRA_PORT:-1221}'
     environment:
       NODE_ENV: production
       PROCESS_MODE: web
-      ARKIVRA_PORT: '1221'
+      APP_INSTANCE: ${APP_INSTANCE:-}
+      ARKIVRA_PORT: ${ARKIVRA_PORT:-1221}
       ARKIVRA_HOSTNAME: '0.0.0.0'
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_BACKUPS_PATH: /app/backups
@@ -53,8 +54,8 @@ services:
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
       ARKIVRA_STORAGE_FS_PATH: /app/document-storage
-      ARKIVRA_SERVER_BASE_URL: ${ARKIVRA_SERVER_BASE_URL:-http://localhost:1221}
-      ARKIVRA_CORS_ORIGINS: ${ARKIVRA_CORS_ORIGINS:-http://localhost:1221}
+      ARKIVRA_SERVER_BASE_URL: ${ARKIVRA_SERVER_BASE_URL:-http://localhost:${ARKIVRA_PORT:-1221}}
+      ARKIVRA_CORS_ORIGINS: ${ARKIVRA_CORS_ORIGINS:-http://localhost:${ARKIVRA_WEB_PORT:-5173}}
     volumes:
       - document-storage:/app/document-storage
       - backups:/app/backups
@@ -64,7 +65,7 @@ services:
       docling:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:1221/api/health']
+      test: ['CMD-SHELL', 'curl -f "http://localhost:$${ARKIVRA_PORT:-1221}/api/health"']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -77,6 +78,7 @@ services:
     environment:
       NODE_ENV: production
       PROCESS_MODE: worker
+      APP_INSTANCE: ${APP_INSTANCE:-}
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
       ARKIVRA_BACKUPS_PATH: /app/backups
       ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:-http://docling:5001}

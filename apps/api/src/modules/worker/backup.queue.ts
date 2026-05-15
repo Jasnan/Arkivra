@@ -1,5 +1,5 @@
 import type { Database } from '../database/database.js';
-import { createPostgresQueue } from './postgres-jobs.js';
+import { createPostgresQueue, getScopedQueueName } from './postgres-jobs.js';
 
 export const BACKUP_QUEUE = 'backups';
 export const CREATE_BACKUP_JOB = 'create-backup';
@@ -11,10 +11,10 @@ export type RestoreBackupJobData = {
   backupId: string;
 };
 
-export function createBackupQueue({ db }: { db: Database }) {
+export function createBackupQueue({ db, appInstance }: { db: Database; appInstance?: string }) {
   const queue = createPostgresQueue<CreateBackupJobData | RestoreBackupJobData>({
     db,
-    queueName: BACKUP_QUEUE,
+    queueName: getScopedQueueName(BACKUP_QUEUE, appInstance),
     defaultJobOptions: {
       attempts: 1,
     },

@@ -9,9 +9,7 @@ import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
-import {
-  createRuntimeConfiguredGluedWordNormalizer,
-} from './modules/parsing/glued-word-normalizer.js';
+import { createRuntimeConfiguredGluedWordNormalizer } from './modules/parsing/glued-word-normalizer.js';
 import { createRuntimeConfiguredOllamaChunkSummariser } from './modules/parsing/ollama-chunk-summariser.js';
 import { createRuntimeConfiguredOllamaEmbedder } from './modules/parsing/ollama-embedder.js';
 import { createRuntimeConfiguredOllamaImageCaptioner } from './modules/parsing/image-captioner.js';
@@ -37,15 +35,18 @@ export async function startApp() {
   const isWorkerMode = processMode === 'all' || processMode === 'worker';
 
   console.info(`Starting Arkivra in "${processMode}" mode...`);
+  if (config.app.instance !== undefined) {
+    console.info(`Arkivra app instance: ${config.app.instance}`);
+  }
 
   const { db, pool } = setupDatabase({ config });
   const { auth } = createAuth({ db, config });
   const encryption = createEncryptionServices({ kekKeysRaw: config.encryption.keys });
   const storage = createStorageDriver({ config });
 
-  const documentQueue = createDocumentQueue({ db });
-  const maintenanceQueue = createMaintenanceQueue({ db });
-  const backupQueue = createBackupQueue({ db });
+  const documentQueue = createDocumentQueue({ db, appInstance: config.app.instance });
+  const maintenanceQueue = createMaintenanceQueue({ db, appInstance: config.app.instance });
+  const backupQueue = createBackupQueue({ db, appInstance: config.app.instance });
   const backupServices = createBackupServices({ config });
   const adminAiServices = createAdminAiServices({ db, config });
 
@@ -157,11 +158,13 @@ export async function startApp() {
       parsePipeline,
       chunkEmbedder,
       concurrency: config.backgroundJobs.documentProcessingConcurrency,
+      appInstance: config.app.instance,
     });
     const maintenanceWorker = createMaintenanceWorker({
       db,
       defaultRetentionDays: config.backgroundJobs.documentRetentionDays,
       storage,
+      appInstance: config.app.instance,
     });
     const backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
@@ -170,6 +173,7 @@ export async function startApp() {
       pool,
       storageBasePath: config.storage.filesystem.basePath,
       version: config.version,
+      appInstance: config.app.instance,
     });
 
     await maintenanceQueue.scheduleHardDeleteExpiredDocuments({
@@ -181,9 +185,7 @@ export async function startApp() {
     console.info(
       `AI OCR normalization: runtime-configured via admin settings (env defaults: ${config.parsers.gluedWordNormalization}, ${config.ollama.model} @ ${config.ollama.host})`,
     );
-    console.info(
-      `Document parser: Docling ${config.docling.url}`,
-    );
+    console.info(`Document parser: Docling ${config.docling.url}`);
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,
     );

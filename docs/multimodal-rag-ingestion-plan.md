@@ -15,8 +15,8 @@
 - **No LangChain (TS or Python).** Direct `fetch` to Ollama + Drizzle/raw SQL
   to Postgres is the project standard.
 - **No new public dependencies** unless strictly required. Reuse `ollama`,
-  `zod`, `drizzle-orm`, `bullmq`, and the existing `pdf-lib` / `pdf2pic`
-  utilities already present.
+  `zod`, `drizzle-orm`, PostgreSQL-backed jobs, and the existing `pdf-lib` /
+  `pdf2pic` utilities already present.
 - **Backwards-compatible ingestion.** Existing documents must continue to be
   searchable while the new fields are populated. Schema changes are additive.
 - **Vault scoping is mandatory** on every new query, route, and asset access.

@@ -2,6 +2,19 @@ import { defineConfig } from 'figue';
 import { z } from 'zod';
 
 export const configDefinition = {
+  app: {
+    instance: {
+      doc: 'Optional local instance identifier used to namespace worktree runtime state, such as "ui-chat" or "rag".',
+      schema: z
+        .string()
+        .trim()
+        .min(1)
+        .regex(/^\w[\w.-]*$/)
+        .optional(),
+      default: undefined,
+      env: 'APP_INSTANCE',
+    },
+  },
   env: {
     doc: 'The application environment.',
     schema: z.enum(['development', 'production', 'test']),
@@ -27,6 +40,12 @@ export const configDefinition = {
       default: 1221,
       env: 'ARKIVRA_PORT',
     },
+    webPort: {
+      doc: 'The Vite frontend development server port used to derive local development URLs.',
+      schema: z.coerce.number().min(1024).max(65535),
+      default: 5173,
+      env: 'ARKIVRA_WEB_PORT',
+    },
     hostname: {
       doc: 'The hostname to bind to.',
       schema: z.string(),
@@ -35,20 +54,23 @@ export const configDefinition = {
     },
     baseUrl: {
       doc: 'The base URL of the server.',
-      schema: z.string().url(),
-      default: 'http://localhost:1221',
+      schema: z.string().url().optional(),
+      default: undefined,
       env: 'ARKIVRA_SERVER_BASE_URL',
     },
     corsOrigins: {
       doc: 'Comma-separated list of allowed CORS origins.',
-      schema: z.string().transform((value) => value.split(',')),
-      default: 'http://localhost:5173',
+      schema: z
+        .string()
+        .transform((value) => value.split(','))
+        .optional(),
+      default: undefined,
       env: 'ARKIVRA_CORS_ORIGINS',
     },
     webBaseUrl: {
       doc: 'Public base URL of the Arkivra web app. Security-sensitive auth redirects, such as OAuth 2FA verification, use this origin.',
-      schema: z.string().url(),
-      default: 'http://localhost:5173',
+      schema: z.string().url().optional(),
+      default: undefined,
       env: 'ARKIVRA_WEB_BASE_URL',
     },
   },
@@ -187,13 +209,19 @@ export const configDefinition = {
     },
     partSizeBytes: {
       doc: 'Chunk size for multipart uploads handled by the API.',
-      schema: z.coerce.number().int().min(1024 * 1024),
+      schema: z.coerce
+        .number()
+        .int()
+        .min(1024 * 1024),
       default: 5 * 1024 * 1024,
       env: 'ARKIVRA_UPLOAD_PART_SIZE_BYTES',
     },
     maxFileSizeBytes: {
       doc: 'Maximum accepted file size for upload sessions.',
-      schema: z.coerce.number().int().min(1024 * 1024),
+      schema: z.coerce
+        .number()
+        .int()
+        .min(1024 * 1024),
       default: 500 * 1024 * 1024,
       env: 'ARKIVRA_UPLOAD_MAX_FILE_SIZE_BYTES',
     },
@@ -225,17 +253,20 @@ export const configDefinition = {
     },
     trustedOrigins: {
       doc: 'Comma-separated list of trusted origins for auth (CSRF protection).',
-      schema: z.string().transform((value) =>
-        value
-          .split(',')
-          .map((v) => v.trim())
-          .filter(Boolean),
-      ),
-      default: 'http://localhost:5173,http://localhost:1221',
+      schema: z
+        .string()
+        .transform((value) =>
+          value
+            .split(',')
+            .map((v) => v.trim())
+            .filter(Boolean),
+        )
+        .optional(),
+      default: undefined,
       env: 'ARKIVRA_AUTH_TRUSTED_ORIGINS',
     },
     baseUrl: {
-      doc: 'Public base URL for Better Auth routes. Better Auth uses this to construct OAuth callback URLs, e.g. http://localhost:1221/api/auth/callback/google.',
+      doc: 'Public base URL for Better Auth routes. Better Auth uses this to construct OAuth callback URLs.',
       schema: z.string().url().optional(),
       default: undefined,
       env: 'BETTER_AUTH_URL',
@@ -337,10 +368,72 @@ export const configDefinition = {
 
 export type Config = ReturnType<typeof parseConfig>['config'];
 
+function hasEnvValue(env: Record<string, string | undefined>, key: string) {
+  return env[key] !== undefined && env[key]?.trim() !== '';
+}
+
+function localOrigin(port: number) {
+  return `http://localhost:${port}`;
+}
+
+function instancePath(instance: string, leaf: string) {
+  return `./var/${instance}/${leaf}`;
+}
+
 export function parseConfig({ env }: { env: Record<string, string | undefined> }) {
   const { config } = defineConfig(configDefinition, {
     envSource: env,
   });
 
-  return { config };
+  const apiOrigin = localOrigin(config.server.port);
+  const webOrigin = localOrigin(config.server.webPort);
+  const appInstance = config.app.instance;
+
+  const scopedConfig = {
+    ...config,
+    server: {
+      ...config.server,
+      baseUrl: hasEnvValue(env, 'ARKIVRA_SERVER_BASE_URL')
+        ? (config.server.baseUrl ?? apiOrigin)
+        : apiOrigin,
+      corsOrigins: hasEnvValue(env, 'ARKIVRA_CORS_ORIGINS')
+        ? (config.server.corsOrigins ?? [webOrigin])
+        : [webOrigin],
+      webBaseUrl: hasEnvValue(env, 'ARKIVRA_WEB_BASE_URL')
+        ? (config.server.webBaseUrl ?? webOrigin)
+        : webOrigin,
+    },
+    auth: {
+      ...config.auth,
+      trustedOrigins: hasEnvValue(env, 'ARKIVRA_AUTH_TRUSTED_ORIGINS')
+        ? (config.auth.trustedOrigins ?? [webOrigin, apiOrigin])
+        : [webOrigin, apiOrigin],
+    },
+    backups: {
+      ...config.backups,
+      directory:
+        appInstance && !hasEnvValue(env, 'ARKIVRA_BACKUPS_PATH')
+          ? instancePath(appInstance, 'backups')
+          : config.backups.directory,
+    },
+    storage: {
+      ...config.storage,
+      filesystem: {
+        ...config.storage.filesystem,
+        basePath:
+          appInstance && !hasEnvValue(env, 'ARKIVRA_STORAGE_FS_PATH')
+            ? instancePath(appInstance, 'document-storage')
+            : config.storage.filesystem.basePath,
+      },
+    },
+    uploads: {
+      ...config.uploads,
+      stagingPath:
+        appInstance && !hasEnvValue(env, 'ARKIVRA_UPLOAD_STAGING_PATH')
+          ? instancePath(appInstance, 'upload-staging')
+          : config.uploads.stagingPath,
+    },
+  };
+
+  return { config: scopedConfig };
 }

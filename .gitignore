@@ -30,10 +30,11 @@ coverage/
 
 # Runtime
 apps/api/upload-staging/
+apps/api/var/
+/var/
 
 # Docker volumes / local runtime data
 /postgres-data/
-/redis-data/
 /docling-data/
 /apps/api/document-storage/
 /apps/api/backups/
@@ -46,4 +47,3 @@ drizzle/meta/
 *.tgz
 .cache/
 tsconfig.tsbuildinfo
-

@@ -9,7 +9,8 @@ import { eq, and } from 'drizzle-orm';
 import { documentsTable, uploadSessionsTable } from '../database/schema/index.js';
 import { persistParsedDocument } from '../parsing/persistence.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
-import { AsyncJob, createPostgresWorker } from './postgres-jobs.js';
+import type { AsyncJob } from './postgres-jobs.js';
+import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
 
 const WORKER_PROGRESS = {
   partitioning: 30,
@@ -25,6 +26,7 @@ export type DocumentWorkerDeps = {
   encryption: EncryptionServices;
   parsePipeline: ParsePipeline;
   chunkEmbedder?: ChunkEmbedder;
+  appInstance?: string;
   startPolling?: boolean;
   concurrency?: number;
 };
@@ -36,6 +38,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     encryption,
     parsePipeline,
     chunkEmbedder,
+    appInstance,
     startPolling = true,
     concurrency = 1,
   } = deps;
@@ -55,9 +58,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     progress: number;
     job: AsyncJob<ProcessDocumentJobData>;
   }) {
-    console.info(
-      `${logPrefix} ${documentId} -> stage=${processingStatus} progress=${progress}%`,
-    );
+    console.info(`${logPrefix} ${documentId} -> stage=${processingStatus} progress=${progress}%`);
     await documentsServices.updateDocumentProcessingStatus({
       documentId,
       vaultId,
@@ -91,9 +92,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
   async function processDocument(job: AsyncJob<ProcessDocumentJobData>) {
     const { documentId, vaultId } = job.data;
-    console.info(
-      `${logPrefix} starting job=${job.id} document=${documentId} vault=${vaultId}`,
-    );
+    console.info(`${logPrefix} starting job=${job.id} document=${documentId} vault=${vaultId}`);
     await setProcessingStage({
       documentId,
       vaultId,
@@ -169,17 +168,22 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       } else {
         fileData = rawData;
       }
-      console.info(`${logPrefix} source file ready for parsing ${documentId} bytes=${fileData.length}`);
+      console.info(
+        `${logPrefix} source file ready for parsing ${documentId} bytes=${fileData.length}`,
+      );
 
       // 4. Parse → clean → chunk via the engine-agnostic pipeline. Fresh
       //    ingestion and reprocessing both rerun the same source-file path.
       console.info(`${logPrefix} parsing started for ${documentId}`);
-      const parsed = await parsePipeline.run({
-        documentId,
-        fileName: doc.originalName,
-        mimeType: doc.mimeType,
-        fileData,
-      }, stageHooks);
+      const parsed = await parsePipeline.run(
+        {
+          documentId,
+          fileName: doc.originalName,
+          mimeType: doc.mimeType,
+          fileData,
+        },
+        stageHooks,
+      );
       console.info(
         `${logPrefix} parsing finished for ${documentId} engine=${parsed.engine}@${parsed.engineVersion} chunks=${parsed.chunks.length} textChars=${parsed.text.length}`,
       );
@@ -230,9 +234,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         `Processed document ${documentId} via ${parsed.engine}@${parsed.engineVersion}: ${parsed.chunks.length} chunks, ${parsed.text.length} chars of text content`,
       );
       if (parsed.warnings.length > 0) {
-        console.info(
-          `Document ${documentId} parser warnings: ${parsed.warnings.join(', ')}`,
-        );
+        console.info(`Document ${documentId} parser warnings: ${parsed.warnings.join(', ')}`);
       }
     } catch (error) {
       console.error(
@@ -255,7 +257,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
   const worker = createPostgresWorker<ProcessDocumentJobData>({
     db,
-    queueName: PROCESS_DOCUMENT_QUEUE,
+    queueName: getScopedQueueName(PROCESS_DOCUMENT_QUEUE, appInstance),
     concurrency,
     autorun: startPolling,
     handler: async (job) => {

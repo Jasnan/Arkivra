@@ -3,7 +3,7 @@ import { genericOAuthClient, twoFactorClient } from 'better-auth/client/plugins'
 
 function resolveBaseURL() {
   if (typeof window === 'undefined') {
-    return 'http://localhost:5173';
+    return import.meta.env.VITE_ARKIVRA_WEB_BASE_URL ?? 'http://localhost';
   }
 
   return window.location.origin;
@@ -11,8 +11,5 @@ function resolveBaseURL() {
 
 export const authClient = createAuthClient({
   baseURL: resolveBaseURL(),
-  plugins: [
-    genericOAuthClient(),
-    twoFactorClient(),
-  ],
+  plugins: [genericOAuthClient(), twoFactorClient()],
 });

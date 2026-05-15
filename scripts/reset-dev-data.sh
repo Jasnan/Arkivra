@@ -67,8 +67,9 @@ fi
 echo "Stopping services and deleting Docker Compose volumes..."
 docker compose down --volumes --remove-orphans
 
-echo "Removing known local cache/backup volumes if they still exist..."
-docker volume rm arkivra_backups arkivra_docling-data >/dev/null 2>&1 || true
+compose_project="${COMPOSE_PROJECT_NAME:-$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')}"
+echo "Removing known local cache/backup volumes for Compose project ${compose_project} if they still exist..."
+docker volume rm "${compose_project}_backups" "${compose_project}_docling-data" >/dev/null 2>&1 || true
 
 if [[ "$start_full_stack" == true ]]; then
   echo "Starting the full Docker Compose stack..."

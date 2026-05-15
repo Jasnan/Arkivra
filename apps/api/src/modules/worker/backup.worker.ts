@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -6,7 +6,8 @@ import { promisify } from 'node:util';
 import type { Database } from '../database/database.js';
 import type { Pool } from 'pg';
 import { BACKUP_QUEUE, CREATE_BACKUP_JOB, RESTORE_BACKUP_JOB } from './backup.queue.js';
-import { AsyncJob, createPostgresWorker } from './postgres-jobs.js';
+import type { AsyncJob } from './postgres-jobs.js';
+import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
 
 const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
@@ -31,6 +32,7 @@ type BackupWorkerDeps = {
   pool: Pool;
   storageBasePath: string;
   version: string;
+  appInstance?: string;
   startPolling?: boolean;
 };
 
@@ -162,16 +164,21 @@ export async function createBackupArchive({
   pool,
   storageBasePath,
   version,
+  appInstance,
 }: {
   backupDirectory: string;
   pool: Pool;
   storageBasePath: string;
   version: string;
+  appInstance?: string;
 }): Promise<CreateBackupResult> {
   const createdAt = new Date();
   const backupId = `arkivra-backup-${createdAt.toISOString().replaceAll(':', '-')}.tar.gz`;
-  const tempDirectory = await import('node:fs/promises').then((fs) =>
-    fs.mkdtemp(join(tmpdir(), 'arkivra-backup-')),
+  const tempDirectory = await mkdtemp(
+    join(
+      tmpdir(),
+      appInstance === undefined ? 'arkivra-backup-' : `arkivra-${appInstance}-backup-`,
+    ),
   );
   const archivePath = join(resolve(backupDirectory), backupId);
   const databaseSql = await dumpDatabaseSql({ pool });
@@ -220,16 +227,21 @@ export async function restoreBackupArchive({
   maintenanceFlagPath,
   pool,
   storageBasePath,
+  appInstance,
 }: {
   backupDirectory: string;
   backupId: string;
   maintenanceFlagPath: string;
   pool: Pool;
   storageBasePath: string;
+  appInstance?: string;
 }): Promise<RestoreBackupResult> {
   const archivePath = join(resolve(backupDirectory), backupId);
-  const tempDirectory = await import('node:fs/promises').then((fs) =>
-    fs.mkdtemp(join(tmpdir(), 'arkivra-restore-')),
+  const tempDirectory = await mkdtemp(
+    join(
+      tmpdir(),
+      appInstance === undefined ? 'arkivra-restore-' : `arkivra-${appInstance}-restore-`,
+    ),
   );
 
   await mkdir(resolve(backupDirectory), { recursive: true });
@@ -283,6 +295,7 @@ export function createBackupWorker({
   pool,
   storageBasePath,
   version,
+  appInstance,
   startPolling = true,
 }: BackupWorkerDeps) {
   async function processBackupJob(job: AsyncJob<Record<string, never> | RestoreBackupJobData>) {
@@ -292,6 +305,7 @@ export function createBackupWorker({
         pool,
         storageBasePath,
         version,
+        appInstance,
       });
 
       console.info(`Created backup archive ${result.backupId}`);
@@ -306,6 +320,7 @@ export function createBackupWorker({
         maintenanceFlagPath,
         pool,
         storageBasePath,
+        appInstance,
       });
 
       console.info(`Restored backup archive ${backupId}`);
@@ -317,7 +332,7 @@ export function createBackupWorker({
 
   const worker = createPostgresWorker<Record<string, never> | RestoreBackupJobData>({
     db,
-    queueName: BACKUP_QUEUE,
+    queueName: getScopedQueueName(BACKUP_QUEUE, appInstance),
     concurrency: 1,
     autorun: startPolling,
     handler: async (job) => processBackupJob(job),

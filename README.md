@@ -66,6 +66,8 @@ pnpm dev:api
 pnpm dev:web
 ```
 
+For parallel branch work, use Git worktrees with distinct ports and `APP_INSTANCE` values. See [docs/local-worktrees.md](docs/local-worktrees.md).
+
 Docker Compose currently starts PostgreSQL with pgvector, Docling, the API process, and the worker. Complete setup and deployment notes will live at [docs.arkivra.app](https://docs.arkivra.app).
 
 ## Security

@@ -1,10 +1,10 @@
 import type { Database } from '../database/database.js';
-import { createPostgresQueue } from './postgres-jobs.js';
+import { createPostgresQueue, getScopedQueueName } from './postgres-jobs.js';
 
 export type { ProcessDocumentJobData } from './worker.types.js';
 export const PROCESS_DOCUMENT_QUEUE = 'process-document';
 
-export function createDocumentQueue({ db }: { db: Database }) {
+export function createDocumentQueue({ db, appInstance }: { db: Database; appInstance?: string }) {
   type JobData = {
     documentId: string;
     vaultId: string;
@@ -12,7 +12,7 @@ export function createDocumentQueue({ db }: { db: Database }) {
   type EnqueueOptions = JobData & { replaceExisting?: boolean };
   const queue = createPostgresQueue<JobData>({
     db,
-    queueName: PROCESS_DOCUMENT_QUEUE,
+    queueName: getScopedQueueName(PROCESS_DOCUMENT_QUEUE, appInstance),
     defaultJobOptions: {
       attempts: 3,
       backoff: {

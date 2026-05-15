@@ -3,7 +3,8 @@ import type { StorageDriver } from '../storage/storage.types.js';
 import type { HardDeleteExpiredDocumentsJobData } from './maintenance.queue.js';
 import { sql } from 'drizzle-orm';
 import { HARD_DELETE_EXPIRED_DOCUMENTS_JOB, MAINTENANCE_QUEUE } from './maintenance.queue.js';
-import { AsyncJob, createPostgresWorker } from './postgres-jobs.js';
+import type { AsyncJob } from './postgres-jobs.js';
+import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
 
 type ExpiredDocumentRow = {
   id: string;
@@ -18,6 +19,7 @@ export type MaintenanceWorkerDeps = {
   db: Database;
   defaultRetentionDays: number;
   storage: StorageDriver;
+  appInstance?: string;
   startPolling?: boolean;
 };
 
@@ -72,6 +74,7 @@ export function createMaintenanceWorker({
   db,
   defaultRetentionDays,
   storage,
+  appInstance,
   startPolling = true,
 }: MaintenanceWorkerDeps) {
   async function processMaintenanceJob(job: AsyncJob<HardDeleteExpiredDocumentsJobData>) {
@@ -95,7 +98,7 @@ export function createMaintenanceWorker({
 
   const worker = createPostgresWorker<HardDeleteExpiredDocumentsJobData>({
     db,
-    queueName: MAINTENANCE_QUEUE,
+    queueName: getScopedQueueName(MAINTENANCE_QUEUE, appInstance),
     concurrency: 1,
     autorun: startPolling,
     handler: async (job) => processMaintenanceJob(job),

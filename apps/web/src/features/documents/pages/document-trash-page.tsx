@@ -328,12 +328,9 @@ export function DocumentTrashPage() {
     left: (
       <Stack gap="0.5" minW="0">
         <Text fontWeight="semibold" color="fg">Trash</Text>
-        <Text fontSize="xs" color="fg.muted">
-          Trashed documents stay here for {retentionDays} days before Arkivra removes them automatically.
-        </Text>
       </Stack>
     ),
-  }), [retentionDays]);
+  }), []);
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
 
   const selectedVaultsLabel =
@@ -645,6 +642,23 @@ export function DocumentTrashPage() {
           />
         )
       ) : null}
+
+      <Box
+        as="footer"
+        position="sticky"
+        bottom="0"
+        zIndex="1"
+        flexShrink={0}
+        borderTopWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.workspace"
+        px={{ base: '4', lg: '6' }}
+        py="2.5"
+      >
+        <Text fontSize="xs" color="fg.muted">
+          Trashed documents stay here for {retentionDays} days before Arkivra removes them automatically.
+        </Text>
+      </Box>
 
       {contextMenu !== null ? (
         <BrowserContextMenu

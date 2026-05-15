@@ -22,10 +22,10 @@ import {
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Kbd, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
+import { Box, Button as ChakraButton, Flex, HStack, IconButton, Image, Input, Kbd, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArkivraLogo } from '@/components/brand/arkivra-logo';
+import arkivraLogoPng from '@/assets/arkivra-auth-logo.png';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -252,7 +252,7 @@ function RailLink({
           type="button"
           aria-label={item.label}
           display="flex"
-          boxSize="11"
+          boxSize="9"
           alignItems="center"
           justifyContent="center"
           rounded="lg"
@@ -265,7 +265,7 @@ function RailLink({
           _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
           onClick={onOpenTransfers}
         >
-          <Icon size={23} strokeWidth={2.1} />
+          <Icon size={20} strokeWidth={2.1} />
         </chakra.button>
       </RailTooltip>
     );
@@ -275,7 +275,7 @@ function RailLink({
     <RailTooltip label={item.label}>
       <Link to={item.to} aria-label={item.label} style={{ color: 'inherit', textDecoration: 'none' }}>
         <Flex
-          boxSize="11"
+          boxSize="9"
           align="center"
           justify="center"
           rounded="lg"
@@ -286,7 +286,7 @@ function RailLink({
           transition="background-color 120ms ease, color 120ms ease"
           _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
         >
-          <Icon size={23} strokeWidth={2.1} />
+          <Icon size={20} strokeWidth={2.1} />
         </Flex>
       </Link>
     </RailTooltip>
@@ -309,7 +309,7 @@ function PrimarySidebar({
   return (
     <Flex
       as="aside"
-      w="4.75rem"
+      w="3.75rem"
       h="100vh"
       shrink={0}
       direction="column"
@@ -317,26 +317,27 @@ function PrimarySidebar({
       borderRightWidth="1px"
       borderColor="border.subtle"
       bg="bg.rail"
-      py="4"
+      pt="2.5"
+      pb="4"
     >
       <RailTooltip label="Arkivra">
         <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit' }}>
           <Flex
-            boxSize="11"
+            boxSize="9"
             align="center"
             justify="center"
             rounded="lg"
             bg="bg.sidebar"
-            color="teal.fg"
             borderWidth="1px"
             borderColor="border.subtle"
+            overflow="hidden"
           >
-            <ArkivraLogo boxSize="10" />
+            <Image src={arkivraLogoPng} alt="" boxSize="8" objectFit="contain" />
           </Flex>
         </Link>
       </RailTooltip>
 
-      <Stack as="nav" aria-label="Primary" gap="2.5" mt="7" align="center">
+      <Stack as="nav" aria-label="Primary" gap="2.5" mt="6" align="center">
         {primaryNavItems.map((item) => (
           <RailLink key={item.id} item={item} active={activeNavId === item.id} onOpenTransfers={onOpenTransfers} />
         ))}
@@ -357,7 +358,7 @@ function PrimarySidebar({
               display="flex"
               alignItems="center"
               justifyContent="center"
-              boxSize="11"
+              boxSize="9"
               rounded="lg"
               color="fg.muted"
               borderWidth="1px"
@@ -366,7 +367,7 @@ function PrimarySidebar({
               cursor="pointer"
               _hover={{ color: 'fg', bg: 'bg.muted' }}
             >
-              <UserCircle2 size={22} />
+              <UserCircle2 size={19} />
             </chakra.button>
           </Menu.Trigger>
           <Portal>
@@ -457,12 +458,13 @@ function SecondarySidebar({
       as="aside"
       aria-label="Secondary"
       display={{ base: 'none', md: 'flex' }}
-      w={{ md: '17rem', xl: '18.5rem' }}
+      w={{ md: '15.75rem', xl: '17rem' }}
       h="100vh"
       shrink={0}
       direction="column"
       borderRightWidth="1px"
-      borderColor="border.subtle"
+      borderRightColor="border"
+      boxShadow="1px 0 0 var(--chakra-colors-border-subtle)"
       bg="bg.sidebar"
       overflow="hidden"
     >

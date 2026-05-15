@@ -3,6 +3,7 @@ import type { AppearanceFont } from './typography';
 
 export type AccentColor =
   | 'gray'
+  | 'red'
   | 'orange'
   | 'yellow'
   | 'green'

@@ -7,7 +7,7 @@ import { requireAuthentication } from '../auth/auth.middleware.js';
 const userUiPreferencesUpdateSchema = z
   .object({
     themeMode: z.enum(['system', 'light', 'dark']).optional(),
-    accentColor: z.enum(['gray', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink']).optional(),
+    accentColor: z.enum(['gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink']).optional(),
     density: z.enum(['compact', 'comfortable', 'relaxed']).optional(),
     fontFamily: z.enum(['inter', 'manrope', 'space-grotesk']).optional(),
     fontSize: z.enum(['sm', 'md', 'lg', 'xl', '2xl']).optional(),

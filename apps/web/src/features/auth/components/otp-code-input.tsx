@@ -41,13 +41,13 @@ export function OtpCodeInput({
   }
 
   return (
-    <Field>
-      <FieldLabel id="totp-code-label">{label}</FieldLabel>
+    <Field display="grid" gap="1.5">
+      <FieldLabel id="totp-code-label" fontSize="sm" fontWeight="750">{label}</FieldLabel>
       <HStack
         aria-labelledby="totp-code-label"
         role="group"
         gap="2"
-        flexWrap="wrap"
+        justify="space-between"
         onPaste={(event) => {
           event.preventDefault();
           updateDigit(0, event.clipboardData.getData('text'));
@@ -70,6 +70,16 @@ export function OtpCodeInput({
             fontSize="lg"
             fontWeight="semibold"
             boxSize="11"
+            rounded="authControl"
+            borderColor="auth.fieldBorder"
+            bg="auth.field"
+            px="0"
+            _hover={{ bg: 'auth.fieldHover', borderColor: 'border.strong' }}
+            _focusVisible={{
+              borderColor: 'teal.solid',
+              boxShadow: '0 0 0 4px var(--chakra-colors-teal-focus-ring)',
+              outline: 'none',
+            }}
             onChange={(event) => updateDigit(index, event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Backspace' && !value[index] && index > 0) {

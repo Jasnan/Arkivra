@@ -86,6 +86,33 @@ function SequentialPreferenceControls() {
   );
 }
 
+function StaleServerPreferenceControls({ resolveServerPreferences }: { resolveServerPreferences: () => void }) {
+  const {
+    accentColor,
+    fontFamily,
+    setAccentColor,
+    setFontFamily,
+  } = useAccentColor();
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setAccentColor('blue');
+          setFontFamily('manrope');
+          resolveServerPreferences();
+        }}
+      >
+        Apply while server responds
+      </button>
+      <output aria-label="stale preference snapshot">
+        {accentColor}:{fontFamily}
+      </output>
+    </>
+  );
+}
+
 describe('settings, admin, and about pages', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -590,6 +617,76 @@ describe('settings, admin, and about pages', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
         body: JSON.stringify({ accentColor: 'pink', fontSize: 'xl' }),
+        method: 'PATCH',
+      }));
+    });
+  });
+
+  it('ignores stale server preferences that arrive during a local change', async () => {
+    const user = userEvent.setup();
+    const stalePreferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    let resolveServerPreferences: () => void = () => undefined;
+    const serverPreferencesPromise = new Promise<Response>((resolve) => {
+      resolveServerPreferences = () => resolve(jsonResponse({ preferences: stalePreferences }));
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return serverPreferencesPromise;
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        return jsonResponse({
+          preferences: {
+            ...stalePreferences,
+            ...JSON.parse(String(init.body)),
+            updatedAt: '2026-05-15T01:00:00.000Z',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(
+      <StaleServerPreferenceControls resolveServerPreferences={resolveServerPreferences} />,
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        credentials: 'include',
+      }));
+    });
+
+    await user.click(screen.getByRole('button', { name: /apply while server responds/i }));
+
+    expect(screen.getByLabelText(/stale preference snapshot/i)).toHaveTextContent('blue:manrope');
+    await waitFor(() => {
+      expect(screen.getByLabelText(/stale preference snapshot/i)).toHaveTextContent('blue:manrope');
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')).toEqual(
+      expect.objectContaining({
+        accentColor: 'blue',
+        fontFamily: 'manrope',
+      }),
+    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ accentColor: 'blue', fontFamily: 'manrope' }),
         method: 'PATCH',
       }));
     });

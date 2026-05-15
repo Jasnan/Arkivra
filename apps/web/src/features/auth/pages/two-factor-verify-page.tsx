@@ -1,14 +1,21 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Flex } from '@chakra-ui/react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
+import { KeyRound } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { OtpCodeInput } from '@/features/auth/components/otp-code-input';
-import { AuthActions, AuthCard } from '@/features/auth/auth-layout';
+import {
+  AuthActions,
+  AuthCard,
+  AuthField,
+  AuthForm,
+  AuthLink,
+  AuthPrimaryButton,
+  AuthStatus,
+} from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function TwoFactorVerifyPage() {
@@ -51,47 +58,59 @@ export function TwoFactorVerifyPage() {
 
   return (
     <AuthCard title="Two-factor verification" subtitle="Enter your authenticator or backup code.">
-      <Flex gap="2">
-        <Button type="button" variant={mode === 'totp' ? 'default' : 'outline'} onClick={() => setMode('totp')}>
+      <Flex gap="2" rounded="authControl" borderWidth="1px" borderColor="auth.cardBorder" bg="auth.field" p="1">
+        <Button
+          type="button"
+          variant={mode === 'totp' ? 'default' : 'ghost'}
+          flex="1"
+          h="11"
+          rounded="calc(var(--chakra-radii-auth-control) - 0.25rem)"
+          onClick={() => setMode('totp')}
+        >
           Authenticator
         </Button>
-        <Button type="button" variant={mode === 'backup' ? 'default' : 'outline'} onClick={() => setMode('backup')}>
+        <Button
+          type="button"
+          variant={mode === 'backup' ? 'default' : 'ghost'}
+          flex="1"
+          h="11"
+          rounded="calc(var(--chakra-radii-auth-control) - 0.25rem)"
+          onClick={() => setMode('backup')}
+        >
           Backup code
         </Button>
       </Flex>
 
-      <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
+      <AuthForm onSubmit={handleSubmit}>
         {mode === 'totp' ? (
           <OtpCodeInput label="6-digit code" value={codeDigits} onChange={setCodeDigits} />
         ) : (
-          <Field>
-            <FieldLabel htmlFor="backup-code">Backup code</FieldLabel>
-            <Input
-              id="backup-code"
-              type="text"
-              required
-              autoComplete="off"
-              value={backupCode}
-              onChange={(event) => setBackupCode(event.target.value)}
-            />
-          </Field>
+          <AuthField
+            id="backup-code"
+            label="Backup code"
+            type="text"
+            required
+            autoComplete="off"
+            placeholder="Enter backup code"
+            value={backupCode}
+            icon={KeyRound}
+            onChange={(event) => setBackupCode(event.target.value)}
+          />
         )}
 
         <Checkbox checked={trustDevice} onCheckedChange={setTrustDevice}>
           Trust this device for 30 days
         </Checkbox>
 
-        {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+        {errorMessage ? <AuthStatus tone="error">{errorMessage}</AuthStatus> : null}
 
-        <Button type="submit" w="100%" disabled={isSubmitting}>
-          {isSubmitting ? 'Verifying…' : 'Verify'}
-        </Button>
-      </form>
+        <AuthPrimaryButton loading={isSubmitting} loadingText="Verifying...">
+          Verify
+        </AuthPrimaryButton>
+      </AuthForm>
 
       <AuthActions>
-        <Link to={ROUTES.login} style={{ fontWeight: 500, color: 'var(--chakra-colors-fg)' }}>
-          Use another account
-        </Link>
+        <AuthLink to={ROUTES.login}>Use another account</AuthLink>
       </AuthActions>
     </AuthCard>
   );

@@ -1,12 +1,14 @@
-import { Box, HStack, Popover, Portal, SimpleGrid, Slider, Stack, Text, chakra } from '@chakra-ui/react';
+import { Popover, Portal, SimpleGrid, Slider, Stack, Text, chakra } from '@chakra-ui/react';
 import { Check, Monitor, Moon, SlidersHorizontal, SunMedium } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TypographyPicker } from '@/components/ui/typography-picker';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import type { AccentColor, AppearanceDensity, AppearanceFontSize, AppearanceRadius } from '@/components/providers/accent-color-context';
 
 const accentOptions: Array<{ color: string; label: string; value: AccentColor }> = [
   { value: 'gray', label: 'Gray', color: '#4b5563' },
+  { value: 'red', label: 'Red', color: '#dc2626' },
   { value: 'orange', label: 'Orange', color: '#ea580c' },
   { value: 'yellow', label: 'Yellow', color: '#facc15' },
   { value: 'green', label: 'Green', color: '#16a34a' },
@@ -104,15 +106,6 @@ export function ThemeToggle() {
             </Popover.Arrow>
             <Popover.Body p="5">
               <Stack gap="5">
-                <HStack justify="space-between">
-                  <Popover.Title fontSize="md" fontWeight="semibold" color="fg">
-                    Theme Panel
-                  </Popover.Title>
-                  <Box color="fg.muted">
-                    <SlidersHorizontal size={18} />
-                  </Box>
-                </HStack>
-
                 <Stack gap="2">
                   <Text fontSize="sm" fontWeight="medium" color="fg">
                     Theme
@@ -154,37 +147,39 @@ export function ThemeToggle() {
                   <Text fontSize="sm" fontWeight="medium" color="fg">
                     Accent Color
                   </Text>
-                  <SimpleGrid columns={3} gap="2">
+                  <SimpleGrid columns={10} gap="1.5">
                     {accentOptions.map((option) => {
                       const selected = accentColor === option.value;
 
                       return (
-                        <chakra.button
-                          key={option.value}
-                          type="button"
-                          display="flex"
-                          alignItems="center"
-                          justifyContent="space-between"
-                          gap="2"
-                          minH="var(--arkivra-controlHeight, 2.5rem)"
-                          rounded="md"
-                          borderWidth="1px"
-                          borderColor={selected ? 'teal.solid' : 'border.subtle'}
-                          bg={selected ? 'teal.subtle' : 'bg.subtle'}
-                          color="fg"
-                          px="3"
-                          fontSize="sm"
-                          fontWeight="medium"
-                          cursor="pointer"
-                          _hover={{ borderColor: 'teal.solid', bg: 'teal.subtle' }}
-                          onClick={() => setAccentColor(option.value)}
-                        >
-                          <HStack gap="2" minW="0">
-                            <Box boxSize="3.5" rounded="full" bg={option.color} flexShrink={0} />
-                            <Text truncate>{option.label}</Text>
-                          </HStack>
-                          {selected ? <Check size={14} /> : null}
-                        </chakra.button>
+                        <Tooltip key={option.value} positioning={{ placement: 'top' }}>
+                          <TooltipTrigger asChild>
+                            <chakra.button
+                              type="button"
+                              aria-label={option.label}
+                              aria-pressed={selected}
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="center"
+                              position="relative"
+                              boxSize="8"
+                              rounded="md"
+                              borderWidth="1px"
+                              borderColor={selected ? 'fg' : 'border.subtle'}
+                              bg={option.color}
+                              color="white"
+                              cursor="pointer"
+                              boxShadow={selected ? '0 0 0 2px var(--chakra-colors-bg-surface), 0 0 0 4px var(--chakra-colors-teal-solid)' : 'none'}
+                              _hover={{ borderColor: 'fg', transform: 'translateY(-1px)' }}
+                              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+                              transition="border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease"
+                              onClick={() => setAccentColor(option.value)}
+                            >
+                              {selected ? <Check size={14} strokeWidth={2.4} /> : null}
+                            </chakra.button>
+                          </TooltipTrigger>
+                          <TooltipContent>{option.label}</TooltipContent>
+                        </Tooltip>
                       );
                     })}
                   </SimpleGrid>

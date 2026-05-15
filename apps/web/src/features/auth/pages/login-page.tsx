@@ -1,12 +1,19 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { Flex, Grid } from '@chakra-ui/react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
+import { Mail } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
-import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { AuthCard } from '@/features/auth/auth-layout';
+import {
+  AuthCard,
+  AuthField,
+  AuthFooter,
+  AuthForm,
+  AuthLink,
+  AuthPasswordField,
+  AuthPrimaryButton,
+  AuthStatus,
+  OAuthButtons,
+} from '@/features/auth/auth-layout';
 import { authClient } from '@/lib/auth-client';
 
 export function LoginPage() {
@@ -15,6 +22,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [oauthProvider, setOAuthProvider] = useState<'google' | 'github' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -46,62 +54,56 @@ export function LoginPage() {
 
   async function handleOAuth(provider: 'google' | 'github') {
     setErrorMessage(null);
+    setOAuthProvider(provider);
     const callbackURL = new URL(ROUTES.root, window.location.origin).toString();
     const { error } = await authClient.signIn.social({ provider, callbackURL });
+    setOAuthProvider(null);
     if (error) setErrorMessage(error.message ?? 'OAuth sign in failed.');
   }
 
   return (
-    <AuthCard title="Welcome back" subtitle="Sign in to access your vaults.">
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleSubmit}>
-          <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
-            <Input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </Field>
+    <AuthCard title="Sign in">
+      <AuthForm onSubmit={handleSubmit}>
+        <AuthField
+          id="email"
+          label="Email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          icon={Mail}
+          onChange={(event) => setEmail(event.target.value)}
+        />
 
-          <Field>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </Field>
+        <AuthPasswordField
+          id="password"
+          label="Password"
+          required
+          autoComplete="current-password"
+          placeholder="Enter your password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
 
-          {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+        {errorMessage ? <AuthStatus tone="error">{errorMessage}</AuthStatus> : null}
 
-          <Button type="submit" w="100%" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
+        <AuthPrimaryButton loading={isSubmitting} loadingText="Signing in...">
+          Sign in
+        </AuthPrimaryButton>
+      </AuthForm>
 
-        <Grid templateColumns="1fr 1fr" gap="2">
-          <Button type="button" variant="outline" onClick={() => handleOAuth('google')}>
-            Google
-          </Button>
-          <Button type="button" variant="outline" onClick={() => handleOAuth('github')}>
-            GitHub
-          </Button>
-        </Grid>
+      <OAuthButtons
+        disabled={isSubmitting}
+        loadingProvider={oauthProvider}
+        onGoogle={() => handleOAuth('google')}
+        onGithub={() => handleOAuth('github')}
+      />
 
-        <Flex align="center" justify="space-between" fontSize="sm" color="fg.muted">
-          <Link to={ROUTES.requestPasswordReset} style={{ color: 'var(--chakra-colors-fg-muted)' }}>
-            Forgot password?
-          </Link>
-          <Link to={ROUTES.register} style={{ color: 'var(--chakra-colors-fg-muted)' }}>
-            Create account
-          </Link>
-        </Flex>
-      </AuthCard>
+      <AuthFooter>
+        <AuthLink to={ROUTES.requestPasswordReset}>Forgot password?</AuthLink>
+        <AuthLink to={ROUTES.register} withArrow>Create an account</AuthLink>
+      </AuthFooter>
+    </AuthCard>
   );
 }

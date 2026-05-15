@@ -1,9 +1,9 @@
 import type { ComponentProps, ComponentType } from 'react';
 import { Link, useLocation } from '@tanstack/react-router';
 import type { LucideProps } from 'lucide-react';
-import { Box, Flex, Text, useMediaQuery } from '@chakra-ui/react';
-import { ArkivraLogo } from '@/components/brand/arkivra-logo';
+import { Box, Flex, Image, Text, useMediaQuery } from '@chakra-ui/react';
 import { ROUTES } from '@/app/routes';
+import arkivraLogoPng from '@/assets/arkivra-auth-logo.png';
 import packageJson from '../../../package.json';
 import {
   Sidebar,
@@ -104,11 +104,11 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
               align="center"
               justify="center"
               rounded="xl"
-              bg="teal.solid"
-              color="fg.inverted"
+              bg="bg.sidebar"
               shadow="sm"
+              overflow="hidden"
             >
-              <ArkivraLogo boxSize="7" />
+              <Image src={arkivraLogoPng} alt="" boxSize="8" objectFit="contain" />
             </Flex>
             <Box minW="0" display={open ? undefined : 'none'}>
               <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">

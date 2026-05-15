@@ -5,8 +5,8 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router'
-import { Flex } from '@chakra-ui/react'
-import { AuthLayout } from '@/features/auth/auth-layout'
+import { AuthLayout, AuthLoadingState } from '@/features/auth/auth-layout'
+import { EmailVerificationPage } from '@/features/auth/pages/email-verification-page'
 import { LoginPage } from '@/features/auth/pages/login-page'
 import { RegisterPage } from '@/features/auth/pages/register-page'
 import { RequestPasswordResetPage } from '@/features/auth/pages/request-password-reset-page'
@@ -32,14 +32,6 @@ import { SearchPage } from '@/features/search/pages/search-page'
 import { AppShell } from '@/components/layout/app-shell'
 import { ROUTES } from '@/app/routes'
 import { authClient } from '@/lib/auth-client'
-
-function AuthLoadingState() {
-  return (
-    <Flex minH="100vh" align="center" justify="center" bg="bg.muted" fontSize="sm" color="fg.muted">
-      Checking session...
-    </Flex>
-  )
-}
 
 function PublicAuthLayout() {
   const { data: session, isPending } = authClient.useSession()
@@ -93,6 +85,13 @@ const resetPasswordRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/reset-password',
   component: ResetPasswordPage,
+})
+
+const emailVerificationRoute = createRoute({
+  getParentRoute: () => publicLayoutRoute,
+  path: '/verify-email',
+  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
+  component: EmailVerificationPage,
 })
 
 const twoFactorVerifyRoute = createRoute({
@@ -248,6 +247,7 @@ const routeTree = rootRoute.addChildren([
     registerRoute,
     requestPasswordResetRoute,
     resetPasswordRoute,
+    emailVerificationRoute,
     twoFactorVerifyRoute,
   ]),
   protectedLayoutRoute.addChildren([

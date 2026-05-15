@@ -1,6 +1,8 @@
 import type { DocumentLanguageMetadata } from './parsed-document.schema.js';
+import { francAll } from 'franc-min';
 
 type SupportedLanguageCode = 'de' | 'en' | 'es' | 'fr';
+type FrancLanguageCode = 'deu' | 'eng' | 'spa' | 'fra';
 
 const LANGUAGE_NAMES: Record<SupportedLanguageCode, string> = {
   de: 'German',
@@ -31,31 +33,18 @@ const LANGUAGE_ALIASES: Record<string, SupportedLanguageCode> = {
   français: 'fr',
 };
 
-const STOPWORDS: Record<SupportedLanguageCode, Set<string>> = {
-  de: new Set([
-    'aber', 'als', 'auch', 'auf', 'aus', 'bei', 'das', 'dem', 'den', 'der', 'des', 'die',
-    'dies', 'diese', 'dieser', 'ein', 'eine', 'einem', 'einen', 'einer', 'für', 'hat',
-    'ich', 'im', 'ist', 'mit', 'nicht', 'oder', 'sich', 'und', 'von', 'werden', 'wie',
-    'zu', 'zum', 'zur',
-  ]),
-  en: new Set([
-    'a', 'about', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has',
-    'have', 'in', 'is', 'it', 'not', 'of', 'on', 'or', 'that', 'the', 'this', 'to',
-    'was', 'were', 'will', 'with',
-  ]),
-  es: new Set([
-    'al', 'como', 'con', 'de', 'del', 'el', 'en', 'es', 'esta', 'este', 'la', 'las',
-    'los', 'no', 'o', 'para', 'por', 'que', 'se', 'su', 'un', 'una', 'y',
-  ]),
-  fr: new Set([
-    'au', 'aux', 'avec', 'ce', 'ces', 'dans', 'de', 'des', 'du', 'elle', 'en', 'est',
-    'et', 'la', 'le', 'les', 'ne', 'ou', 'par', 'pas', 'pour', 'que', 'qui', 'sur',
-    'un', 'une',
-  ]),
+const FRANC_LANGUAGE_CODES: FrancLanguageCode[] = ['deu', 'eng', 'spa', 'fra'];
+const FRANC_TO_LANGUAGE_CODE: Record<FrancLanguageCode, SupportedLanguageCode> = {
+  deu: 'de',
+  eng: 'en',
+  spa: 'es',
+  fra: 'fr',
 };
 
-const MIN_DETECTION_TOKENS = 12;
 const MAX_DETECTION_CHARS = 12_000;
+const MIN_DETECTION_CHARS = 80;
+const MIN_FRANC_SCORE = 0.75;
+const MIN_FRANC_SCORE_GAP = 0.12;
 
 function normalizeLanguageCode(value: unknown): SupportedLanguageCode | null {
   if (typeof value !== 'string') {
@@ -192,54 +181,36 @@ export function extractDoclingLanguageMetadata(rawStructuredOutput: unknown): Do
   return null;
 }
 
-function tokenize(text: string) {
-  return text
-    .slice(0, MAX_DETECTION_CHARS)
-    .toLocaleLowerCase()
-    .normalize('NFC')
-    .match(/\p{L}+/gu) ?? [];
-}
-
-function scoreLanguage(tokens: string[], language: SupportedLanguageCode) {
-  let score = 0;
-  const stopwords = STOPWORDS[language];
-
-  for (const token of tokens) {
-    if (stopwords.has(token)) {
-      score += 1;
-    }
-  }
-
-  const sample = tokens.join(' ');
-  if (language === 'de' && /[äöüß]/.test(sample)) score += 3;
-  if (language === 'es' && /[ñ¿¡]/.test(sample)) score += 3;
-  if (language === 'fr' && /[àâçéèêëîïôùûüœ]/.test(sample)) score += 3;
-
-  return score;
-}
-
 export function detectDominantLanguageFromText(text: string): DocumentLanguageMetadata | null {
-  const tokens = tokenize(text);
-  if (tokens.length < MIN_DETECTION_TOKENS) {
+  const sample = text.slice(0, MAX_DETECTION_CHARS).trim();
+  if (sample.length < MIN_DETECTION_CHARS) {
     return null;
   }
 
-  const ranked = (Object.keys(STOPWORDS) as SupportedLanguageCode[])
-    .map(code => ({ code, score: scoreLanguage(tokens, code) }))
-    .sort((a, b) => b.score - a.score);
+  const ranked = francAll(sample, {
+    minLength: MIN_DETECTION_CHARS,
+    only: FRANC_LANGUAGE_CODES,
+  });
   const best = ranked[0];
   const runnerUp = ranked[1];
-
-  if (best === undefined || best.score < 4) {
+  if (best === undefined) {
     return null;
   }
 
-  if (runnerUp !== undefined && best.score - runnerUp.score < 2) {
+  const [francCode, score] = best;
+  if (!isFrancLanguageCode(francCode) || score < MIN_FRANC_SCORE) {
     return null;
   }
 
-  const confidence = Math.min(best.score / Math.max(best.score + (runnerUp?.score ?? 0), 1), 0.99);
-  return metadataFromCode(best.code, 'heuristic', Number(confidence.toFixed(2)));
+  if (runnerUp !== undefined && score - runnerUp[1] < MIN_FRANC_SCORE_GAP) {
+    return null;
+  }
+
+  return metadataFromCode(FRANC_TO_LANGUAGE_CODE[francCode], 'heuristic', Number(score.toFixed(2)));
+}
+
+function isFrancLanguageCode(value: string): value is FrancLanguageCode {
+  return FRANC_LANGUAGE_CODES.includes(value as FrancLanguageCode);
 }
 
 export function resolveDocumentLanguage({

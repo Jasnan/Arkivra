@@ -99,6 +99,13 @@
       "when": 1779148800000,
       "tag": "0013_user_regional_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779235200000,
+      "tag": "0014_user_font_family_sora",
+      "breakpoints": true
     }
   ]
 }

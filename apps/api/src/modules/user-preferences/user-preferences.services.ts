@@ -1,5 +1,5 @@
 import type { Database } from '../database/database.js';
-import type { UserUiPreferences, UserUiPreferencesUpdate } from './user-preferences.types.js';
+import type { UiFontFamily, UserUiPreferences, UserUiPreferencesUpdate } from './user-preferences.types.js';
 import { eq } from 'drizzle-orm';
 import { userUiPreferencesTable } from '../database/schema/index.js';
 
@@ -17,12 +17,18 @@ const defaultPreferences: Required<UserUiPreferencesUpdate> = {
 
 type UserUiPreferencesRow = typeof userUiPreferencesTable.$inferSelect;
 
+function normalizeFontFamily(fontFamily: string): UiFontFamily {
+  if (fontFamily === 'manrope') return 'sora';
+  if (fontFamily === 'inter' || fontFamily === 'sora' || fontFamily === 'space-grotesk') return fontFamily;
+  return defaultPreferences.fontFamily;
+}
+
 function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
   return {
     themeMode: row.themeMode,
     accentColor: row.accentColor,
     density: row.density,
-    fontFamily: row.fontFamily,
+    fontFamily: normalizeFontFamily(row.fontFamily),
     fontSize: row.fontSize,
     radius: row.radius,
     language: row.language,

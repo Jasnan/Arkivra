@@ -92,17 +92,17 @@ export function ThemeToggle() {
       <Portal>
         <Popover.Positioner>
           <Popover.Content
-            w="32rem"
+            w="29rem"
             maxW="calc(100vw - 2rem)"
             rounded="lg"
             borderWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.strong"
             bg="bg.surface"
             p="0"
             shadow="xl"
           >
             <Popover.Arrow>
-              <Popover.ArrowTip />
+              <Popover.ArrowTip borderColor="border.strong" bg="bg.surface" />
             </Popover.Arrow>
             <Popover.Body p="5">
               <Stack gap="5">

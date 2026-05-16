@@ -11,14 +11,35 @@
     <script>
       (() => {
         try {
-          const cachedPreferences = JSON.parse(window.localStorage?.getItem('arkivra.uiPreferences') || '{}');
-          const fontFamily = cachedPreferences.fontFamily || window.localStorage?.getItem('arkivra.fontFamily');
-          const fontSize = cachedPreferences.fontSize || window.localStorage?.getItem('arkivra.fontSize');
-          const fontSizeScale = Number.parseInt(window.localStorage?.getItem('arkivra.fontSizeScale') || '', 10);
-          const density = cachedPreferences.density || window.localStorage?.getItem('arkivra.density');
-          const radius = cachedPreferences.radius || window.localStorage?.getItem('arkivra.radius');
+          let cachedPreferences = {};
+          const cachedPreferenceValue = window.localStorage?.getItem('arkivra.uiPreferences');
+
+          if (cachedPreferenceValue) {
+            try {
+              const parsedPreferences = JSON.parse(cachedPreferenceValue);
+              cachedPreferences = parsedPreferences && typeof parsedPreferences === 'object'
+                ? parsedPreferences
+                : {};
+            } catch {
+              cachedPreferences = {};
+            }
+          }
+
+          const normalizeFontFamily = (value) => value === 'manrope' ? 'sora' : value;
+          const fontFamily = normalizeFontFamily(cachedPreferences.fontFamily);
+          const fontSize = cachedPreferences.fontSize;
+          const density = cachedPreferences.density;
+          const radius = cachedPreferences.radius;
           const themeMode = cachedPreferences.themeMode || window.localStorage?.getItem('arkivra.themeMode') || 'system';
-          const accentColor = cachedPreferences.accentColor || window.localStorage?.getItem('arkivra.accentColor') || 'teal';
+          const accentColor = cachedPreferences.accentColor || 'teal';
+          const legacyPreferenceKeys = [
+            'arkivra.accentColor',
+            'arkivra.density',
+            'arkivra.fontFamily',
+            'arkivra.fontSize',
+            'arkivra.fontSizeScale',
+            'arkivra.radius',
+          ];
           const fontSizeScales = {
             sm: '0.95',
             md: '1',
@@ -26,7 +47,7 @@
             xl: '1.1',
             '2xl': '1.15',
           };
-          const fontFamilies = new Set(['inter', 'manrope', 'space-grotesk']);
+          const fontFamilies = new Set(['inter', 'sora', 'space-grotesk']);
           const densityScales = {
             compact: {
               controlHeight: '2rem',
@@ -108,12 +129,12 @@
           document.documentElement.dataset.arkivraFont = fontFamilies.has(fontFamily) ? fontFamily : 'inter';
           document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
           window.localStorage?.setItem('arkivra.themeMode', ['system', 'light', 'dark'].includes(themeMode) ? themeMode : 'system');
+          for (const key of legacyPreferenceKeys) {
+            window.localStorage?.removeItem(key);
+          }
 
           if (fontSize && fontSizeScales[fontSize]) {
             rootStyle.setProperty('--arkivra-user-font-scale', fontSizeScales[fontSize]);
-          } else if (Number.isFinite(fontSizeScale)) {
-            const clampedScale = Math.min(Math.max(fontSizeScale, 90), 115);
-            rootStyle.setProperty('--arkivra-user-font-scale', String(clampedScale / 100));
           }
 
           if (densityScales[density]) {

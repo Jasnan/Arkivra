@@ -1,6 +1,4 @@
-export const LEGACY_FONT_FAMILY_STORAGE_KEY = 'arkivra.fontFamily';
-
-export type AppearanceFont = 'inter' | 'manrope' | 'space-grotesk';
+export type AppearanceFont = 'inter' | 'sora' | 'space-grotesk';
 
 export interface TypographyOption {
   description: string;
@@ -17,9 +15,9 @@ export const typographyOptions = [
     sample: 'Aa',
   },
   {
-    value: 'manrope',
-    label: 'Manrope',
-    description: 'Clean dashboard typeface with open forms.',
+    value: 'sora',
+    label: 'Sora',
+    description: 'Modern geometric UI typeface.',
     sample: 'Aa',
   },
   {
@@ -34,4 +32,9 @@ export const defaultTypographyFont: AppearanceFont = 'inter';
 
 export function isAppearanceFont(value: string | null): value is AppearanceFont {
   return typographyOptions.some((option) => option.value === value);
+}
+
+export function normalizeAppearanceFont(value: string | null): AppearanceFont | null {
+  if (value === 'manrope') return 'sora';
+  return isAppearanceFont(value) ? value : null;
 }

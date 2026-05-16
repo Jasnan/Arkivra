@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/web/src/assets/arkivra-project-logo.png" alt="Arkivra - open-source document management with vaults, search, and local RAG chat" width="760">
+  <img src="apps/web/src/assets/arkivra-project-logo-3.png" alt="Arkivra - open-source document management with vaults, search, and local RAG chat" width="760">
 </p>
 
 <h1 align="center">Arkivra</h1>

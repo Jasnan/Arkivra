@@ -54,6 +54,9 @@ function installLocalStorageMock() {
       setItem: vi.fn((key: string, value: string) => {
         store.set(key, value);
       }),
+      removeItem: vi.fn((key: string) => {
+        store.delete(key);
+      }),
     },
   });
 
@@ -86,6 +89,37 @@ function SequentialPreferenceControls() {
   );
 }
 
+function PreferenceSnapshot() {
+  const {
+    accentColor,
+    fontFamily,
+  } = useAccentColor();
+
+  return (
+    <output aria-label="preference source snapshot">
+      {accentColor}:{fontFamily}
+    </output>
+  );
+}
+
+function FontPreferenceControls() {
+  const {
+    fontFamily,
+    setFontFamily,
+  } = useAccentColor();
+
+  return (
+    <>
+      <button type="button" onClick={() => setFontFamily('sora')}>
+        Use Sora
+      </button>
+      <output aria-label="font preference snapshot">
+        {fontFamily}
+      </output>
+    </>
+  );
+}
+
 function StaleServerPreferenceControls({ resolveServerPreferences }: { resolveServerPreferences: () => void }) {
   const {
     accentColor,
@@ -100,7 +134,7 @@ function StaleServerPreferenceControls({ resolveServerPreferences }: { resolveSe
         type="button"
         onClick={() => {
           setAccentColor('blue');
-          setFontFamily('manrope');
+          setFontFamily('sora');
           resolveServerPreferences();
         }}
       >
@@ -116,7 +150,7 @@ function StaleServerPreferenceControls({ resolveServerPreferences }: { resolveSe
 describe('settings, admin, and about pages', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    installLocalStorageMock().set('arkivra.accentColor', 'teal');
+    installLocalStorageMock();
     authClientMock.useSession.mockReturnValue({
       data: {
         user: {
@@ -678,6 +712,180 @@ describe('settings, admin, and about pages', () => {
     });
   });
 
+  it('uses cached local appearance preferences instead of loading older server values', async () => {
+    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'system',
+      accentColor: 'purple',
+      density: 'comfortable',
+      fontFamily: 'sora',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+    }));
+    const fetchMock = vi.fn(async () => jsonResponse({
+      preferences: {
+        themeMode: 'system',
+        accentColor: 'teal',
+        density: 'comfortable',
+        fontFamily: 'inter',
+        fontSize: 'md',
+        radius: 'md',
+        language: 'en',
+        timezone: 'auto',
+        dateFormat: 'medium',
+        createdAt: '2026-05-15T00:00:00.000Z',
+        updatedAt: '2026-05-15T00:00:00.000Z',
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferenceSnapshot />);
+
+    expect(screen.getByLabelText(/preference source snapshot/i)).toHaveTextContent('purple:sora');
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+      credentials: 'include',
+    }));
+  });
+
+  it('normalizes legacy local font keys into the current preferences cache', async () => {
+    window.localStorage.setItem('arkivra.fontFamily', 'manrope');
+    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'manrope',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+    }));
+    const fetchMock = vi.fn(async () => jsonResponse({
+      preferences: {
+        themeMode: 'system',
+        accentColor: 'purple',
+        density: 'comfortable',
+        fontFamily: 'inter',
+        fontSize: 'md',
+        radius: 'md',
+        language: 'en',
+        timezone: 'auto',
+        dateFormat: 'medium',
+        createdAt: '2026-05-15T00:00:00.000Z',
+        updatedAt: '2026-05-15T00:00:00.000Z',
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferenceSnapshot />);
+
+    expect(screen.getByLabelText(/preference source snapshot/i)).toHaveTextContent('teal:sora');
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')).toEqual(
+        expect.objectContaining({ fontFamily: 'sora' }),
+      );
+    });
+    expect(window.localStorage.getItem('arkivra.fontFamily')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+      credentials: 'include',
+    }));
+  });
+
+  it('hydrates appearance preferences from the server only when local storage is empty', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          preferences: {
+            themeMode: 'system',
+            accentColor: 'pink',
+            density: 'comfortable',
+            fontFamily: 'sora',
+            fontSize: 'md',
+            radius: 'md',
+            language: 'en',
+            timezone: 'auto',
+            dateFormat: 'medium',
+            createdAt: '2026-05-15T00:00:00.000Z',
+            updatedAt: '2026-05-15T00:00:00.000Z',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferenceSnapshot />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/preference source snapshot/i)).toHaveTextContent('pink:sora');
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')).toEqual(
+      expect.objectContaining({
+        accentColor: 'pink',
+        fontFamily: 'sora',
+      }),
+    );
+  });
+
+  it('does not roll back local appearance preferences when server sync fails', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          preferences: {
+            themeMode: 'system',
+            accentColor: 'teal',
+            density: 'comfortable',
+            fontFamily: 'inter',
+            fontSize: 'md',
+            radius: 'md',
+            language: 'en',
+            timezone: 'auto',
+            dateFormat: 'medium',
+            createdAt: '2026-05-15T00:00:00.000Z',
+            updatedAt: '2026-05-15T00:00:00.000Z',
+          },
+        });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        return jsonResponse({ error: { code: 'test.failure', message: 'Nope.' } }, 500);
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<FontPreferenceControls />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/font preference snapshot/i)).toHaveTextContent('inter');
+    });
+
+    await user.click(screen.getByRole('button', { name: /use sora/i }));
+
+    expect(screen.getByLabelText(/font preference snapshot/i)).toHaveTextContent('sora');
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ fontFamily: 'sora' }),
+        method: 'PATCH',
+      }));
+    });
+    expect(screen.getByLabelText(/font preference snapshot/i)).toHaveTextContent('sora');
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')).toEqual(
+      expect.objectContaining({
+        fontFamily: 'sora',
+      }),
+    );
+  });
+
   it('ignores stale server preferences that arrive during a local change', async () => {
     const user = userEvent.setup();
     const stalePreferences = {
@@ -730,19 +938,19 @@ describe('settings, admin, and about pages', () => {
 
     await user.click(screen.getByRole('button', { name: /apply while server responds/i }));
 
-    expect(screen.getByLabelText(/stale preference snapshot/i)).toHaveTextContent('blue:manrope');
+    expect(screen.getByLabelText(/stale preference snapshot/i)).toHaveTextContent('blue:sora');
     await waitFor(() => {
-      expect(screen.getByLabelText(/stale preference snapshot/i)).toHaveTextContent('blue:manrope');
+      expect(screen.getByLabelText(/stale preference snapshot/i)).toHaveTextContent('blue:sora');
     });
     expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')).toEqual(
       expect.objectContaining({
         accentColor: 'blue',
-        fontFamily: 'manrope',
+        fontFamily: 'sora',
       }),
     );
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
-        body: JSON.stringify({ accentColor: 'blue', fontFamily: 'manrope' }),
+        body: JSON.stringify({ accentColor: 'blue', fontFamily: 'sora' }),
         method: 'PATCH',
       }));
     });

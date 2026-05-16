@@ -27,7 +27,7 @@ import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { Box, Button as ChakraButton, Flex, HStack, IconButton, Image, Input, Kbd, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import arkivraLogoPng from '@/assets/arkivra-auth-logo.png';
+import arkivraLogoPng from '@/assets/arkivra-sidebar-logo.png';
 import {
   Breadcrumb,
   BreadcrumbItem,

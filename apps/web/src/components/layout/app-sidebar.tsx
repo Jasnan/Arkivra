@@ -3,7 +3,7 @@ import { Link, useLocation } from '@tanstack/react-router';
 import type { LucideProps } from 'lucide-react';
 import { Box, Flex, Image, Text, useMediaQuery } from '@chakra-ui/react';
 import { ROUTES } from '@/app/routes';
-import arkivraLogoPng from '@/assets/arkivra-auth-logo.png';
+import arkivraLogoPng from '@/assets/arkivra-sidebar-logo.png';
 import packageJson from '../../../package.json';
 import {
   Sidebar,

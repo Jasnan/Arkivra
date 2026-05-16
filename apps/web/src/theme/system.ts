@@ -389,11 +389,11 @@ const config = defineConfig({
           },
 
           primaryFrom: {
-            value: { base: '#179b8e', _dark: '#a99cf0' },
+            value: { base: '#178a7b', _dark: '#9b87f5' },
           },
 
           primaryTo: {
-            value: { base: '#117f75', _dark: '#8c82de' },
+            value: { base: '#11675d', _dark: '#7467d9' },
           },
 
           glow: {
@@ -411,7 +411,7 @@ const config = defineConfig({
           },
 
           link: {
-            value: { base: '#0f766e', _dark: '#a78bfa' },
+            value: { base: '#0f766e', _dark: '#b3a7ec' },
           },
 
           particle: {

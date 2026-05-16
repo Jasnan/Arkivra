@@ -17,20 +17,20 @@
 }
 
 @font-face {
-  font-family: 'Manrope Variable';
+  font-family: 'Sora Variable';
   font-style: normal;
   font-display: swap;
-  font-weight: 200 800;
-  src: url('@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  src: url('@fontsource-variable/sora/files/sora-latin-wght-normal.woff2') format('woff2-variations');
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
 @font-face {
-  font-family: 'Manrope Variable';
+  font-family: 'Sora Variable';
   font-style: normal;
   font-display: swap;
-  font-weight: 200 800;
-  src: url('@fontsource-variable/manrope/files/manrope-latin-ext-wght-normal.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  src: url('@fontsource-variable/sora/files/sora-latin-ext-wght-normal.woff2') format('woff2-variations');
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -126,10 +126,10 @@
   --arkivra-letter-spacing-display: -0.024em;
 }
 
-:root[data-arkivra-font='manrope'],
-[data-arkivra-font='manrope'] {
-  --arkivra-font-body: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
-  --arkivra-font-heading: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
+:root[data-arkivra-font='sora'],
+[data-arkivra-font='sora'] {
+  --arkivra-font-body: 'Sora Variable', ui-sans-serif, system-ui, sans-serif;
+  --arkivra-font-heading: 'Sora Variable', ui-sans-serif, system-ui, sans-serif;
   --arkivra-body-scale: 0.99;
   --arkivra-heading-scale: 0.99;
   --arkivra-small-scale: 1;
@@ -232,6 +232,30 @@ table {
 
 .arkivra-auth-spin {
   animation: arkivra-auth-spin 0.9s linear infinite;
+}
+
+.arkivra-auth-input:-webkit-autofill,
+.arkivra-auth-input:-webkit-autofill:hover,
+.arkivra-auth-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--chakra-colors-fg);
+  caret-color: var(--chakra-colors-fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--chakra-colors-auth-field) inset;
+  box-shadow: 0 0 0 1000px var(--chakra-colors-auth-field) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.arkivra-auth-link {
+  outline: none;
+  transition: color 160ms ease, opacity 160ms ease;
+}
+
+.arkivra-auth-link:hover {
+  color: var(--chakra-colors-fg) !important;
+}
+
+.arkivra-auth-link:focus-visible {
+  box-shadow: 0 0 0 3px var(--chakra-colors-teal-focus-ring);
+  border-radius: var(--chakra-radii-sm);
 }
 
 @keyframes arkivra-auth-spin {

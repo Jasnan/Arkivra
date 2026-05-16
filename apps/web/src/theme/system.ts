@@ -346,11 +346,11 @@ const config = defineConfig({
         // Premium auth surfaces
         auth: {
           canvas: {
-            value: { base: '#fbfcfd', _dark: '#050816' },
+            value: { base: '#fbfcfd', _dark: '#050d0d' },
           },
 
           canvasEnd: {
-            value: { base: '#f1f7f8', _dark: '#060b1d' },
+            value: { base: '#f1f7f8', _dark: '#071413' },
           },
 
           card: {
@@ -389,11 +389,11 @@ const config = defineConfig({
           },
 
           primaryFrom: {
-            value: { base: '#178a7b', _dark: '#9b87f5' },
+            value: { base: '#178a7b', _dark: '#14b8a6' },
           },
 
           primaryTo: {
-            value: { base: '#11675d', _dark: '#7467d9' },
+            value: { base: '#11675d', _dark: '#0f766e' },
           },
 
           glow: {
@@ -411,7 +411,7 @@ const config = defineConfig({
           },
 
           link: {
-            value: { base: '#0f766e', _dark: '#b3a7ec' },
+            value: { base: '#0f766e', _dark: '#5eead4' },
           },
 
           particle: {
@@ -475,7 +475,7 @@ const config = defineConfig({
         authButton: {
           value: {
             base: '0 4px 10px rgba(15, 118, 110, 0.1)',
-            _dark: '0 5px 12px rgba(143, 130, 232, 0.12)',
+            _dark: '0 5px 12px rgba(20, 184, 166, 0.14)',
           },
         },
       },

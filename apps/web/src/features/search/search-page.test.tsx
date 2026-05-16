@@ -212,8 +212,7 @@ describe('global search page', () => {
         routePath: '/search',
       });
 
-      expect(screen.getByText(/search mode/i)).toBeInTheDocument();
-      expect(screen.getByText(/meaning-based/i)).toBeInTheDocument();
+      expect(screen.getByText(/semantic search/i)).toBeInTheDocument();
       fireEvent.change(screen.getByLabelText(/search documents/i), { target: { value: 'invoice' } });
 
       expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
@@ -355,7 +354,7 @@ describe('global search page', () => {
       ).toBe(true);
     });
 
-    await user.click(screen.getByText(/meaning-based/i));
+    await user.click(screen.getByText(/semantic search/i));
 
     await waitFor(() => {
       expect(

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Flex, Grid, Stack, Text } from '@chakra-ui/react';
-import { FileSearch, FileText, SearchX, Vault } from 'lucide-react';
+import { Box, Flex, Grid, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
+import { Check, FileSearch, FileText, SearchX, Vault, X } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
-import { Switch } from '@/components/ui/switch';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
 import {
@@ -400,7 +399,10 @@ function SearchModeControl({
 }) {
   return (
     <Flex
+      w="full"
+      minH="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
       align="center"
+      justify="space-between"
       gap="3"
       rounded="lg"
       borderWidth="1px"
@@ -411,20 +413,32 @@ function SearchModeControl({
       fontSize="sm"
       color="fg"
     >
-      <Text as="span" fontWeight="medium" color="fg.muted">
-        Search mode
-      </Text>
-      <Flex align="center" gap="1.5">
-        <Switch
-          size="sm"
+      <Flex minW="0" align="center" justify="flex-end" gap="1.5">
+        <ChakraSwitch.Root
+          size="lg"
           colorPalette="teal"
           checked={checked}
-          onCheckedChange={onCheckedChange}
+          onCheckedChange={(event) => onCheckedChange(event.checked)}
+          display="flex"
+          flex="1"
+          alignItems="center"
+          justifyContent="space-between"
+          gap="3"
         >
-          Meaning-based
-        </Switch>
+          <ChakraSwitch.HiddenInput />
+          <ChakraSwitch.Label flexShrink={0} fontWeight="medium" color="fg.muted">
+            Semantic search
+          </ChakraSwitch.Label>
+          <ChakraSwitch.Control>
+            <ChakraSwitch.Thumb>
+              <ChakraSwitch.ThumbIndicator fallback={<X size={12} color="black" />}>
+                <Check size={12} />
+              </ChakraSwitch.ThumbIndicator>
+            </ChakraSwitch.Thumb>
+          </ChakraSwitch.Control>
+        </ChakraSwitch.Root>
         <InfoTooltip
-          label="Meaning-based search help"
+          label="Semantic search help"
           content="Finds documents by similar meaning, even when the exact words differ. The technical term is semantic search. Turn it off for exact keyword matching only."
         />
       </Flex>

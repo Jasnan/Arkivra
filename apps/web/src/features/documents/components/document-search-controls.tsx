@@ -16,7 +16,7 @@ import {
   createListCollection,
   useBreakpointValue,
 } from '@chakra-ui/react';
-import { ArrowUpDown, Check, ChevronDown, Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowUpDown, Check, ChevronDown, Filter, Search as SearchIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -360,6 +360,7 @@ export function DocumentSearchControls<TSortValue extends string>({
   layout?: 'panel' | 'workspace';
 }) {
   const isWorkspaceLayout = layout === 'workspace';
+  const hasToolbarAccessory = Boolean(toolbarAccessory);
   const selectedSortLabel = sortOptions.find((option) => option.value === sortBy)?.label ?? sortOptions[0]?.label ?? 'Sort';
   const filterSurface = useBreakpointValue<FilterSurface>(
     { base: 'drawer', md: 'popover' },
@@ -393,7 +394,7 @@ export function DocumentSearchControls<TSortValue extends string>({
         _hover={{ bg: 'bg.subtle', color: 'fg' }}
         _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
       >
-        <SlidersHorizontal size={18} />
+        <Filter size={18} />
         {activeFilterCount > 0 ? (
           <Text
             as="span"
@@ -441,7 +442,12 @@ export function DocumentSearchControls<TSortValue extends string>({
         p={isWorkspaceLayout ? undefined : { base: '3', sm: '4' }}
       >
         <Flex direction={{ base: 'column', md: 'row' }} align={{ md: 'center' }} gap="3">
-          <Field minW="0" w="full" maxW={{ md: 'none', '2xl': '64rem' }} flex={{ md: '1 1 auto' }}>
+          <Field
+            minW="0"
+            w="full"
+            maxW={hasToolbarAccessory ? undefined : { md: 'none', '2xl': '64rem' }}
+            flex={{ md: hasToolbarAccessory ? '2 1 0' : '1 1 auto' }}
+          >
             <FieldLabel htmlFor="document-search-query" srOnly>
               {searchAriaLabel}
             </FieldLabel>
@@ -607,7 +613,14 @@ export function DocumentSearchControls<TSortValue extends string>({
             </Box>
           </Field>
 
-          <Flex direction={{ base: 'column', sm: 'row' }} gap="3" w={{ base: 'full', md: 'auto' }} shrink={0}>
+          <Flex
+            direction={{ base: 'column', sm: 'row' }}
+            gap="3"
+            minW="0"
+            w="full"
+            flex={{ md: hasToolbarAccessory ? '1 1 0' : '0 0 auto' }}
+            shrink={hasToolbarAccessory ? 1 : 0}
+          >
             <Menu.Root
               positioning={{ placement: 'bottom-end', offset: { mainAxis: 6, crossAxis: 0 } }}
             >
@@ -619,7 +632,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                   aria-labelledby={sortSelectId}
                   h="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
                   w="full"
-                  minW={{ md: '11rem' }}
+                  minW={hasToolbarAccessory ? '0' : { md: '11rem' }}
                   justifyContent="space-between"
                   gap="2"
                   borderColor="border.strong"
@@ -707,17 +720,17 @@ export function DocumentSearchControls<TSortValue extends string>({
               </Portal>
             </Menu.Root>
           </Flex>
-        </Flex>
 
-        {toolbarAccessory ? (
-          <Flex mt="3" align="center" justify="space-between" gap="3" flexWrap="wrap">
-            {toolbarAccessory}
-          </Flex>
-        ) : null}
+          {toolbarAccessory ? (
+            <Flex minW="0" w="full" flex={{ md: '1 1 0' }}>
+              {toolbarAccessory}
+            </Flex>
+          ) : null}
+        </Flex>
 
         {activeFilters.length > 0 ? (
           <>
-            <Separator mt={toolbarAccessory ? '3' : '4'} />
+            <Separator mt="4" />
             <Flex
               direction={{ base: 'column', sm: 'row' }}
               alignItems={{ sm: 'center' }}

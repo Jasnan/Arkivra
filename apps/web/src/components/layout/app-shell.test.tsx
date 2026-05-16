@@ -266,6 +266,40 @@ describe('app shell account menu', () => {
     expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toBeInTheDocument();
   });
 
+  it('toggles the secondary sidebar from the workspace header', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const createVaultButton = await screen.findByRole('button', { name: /create vault/i, hidden: true });
+    const secondarySidebar = createVaultButton.closest('aside');
+    expect(secondarySidebar).not.toBeNull();
+    expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Vaults', hidden: true }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'closed');
+    });
+
+    fireEvent.click(screen.getByTitle('Hide secondary sidebar'));
+
+    await waitFor(() => {
+      expect(secondarySidebar).toHaveAttribute('aria-hidden', 'true');
+    });
+    expect(screen.getByTitle('Show secondary sidebar')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Show secondary sidebar'));
+
+    await waitFor(() => {
+      expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
+      expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'closed');
+    });
+  });
+
   it('keeps all vaults visible and lets Chakra expand the active vault tree', async () => {
     await renderWithProviders(
       <AppShell />,
@@ -309,6 +343,7 @@ describe('app shell account menu', () => {
     );
 
     expect(screen.queryByRole('complementary', { name: 'Secondary', hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/secondary sidebar/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'MyDocs', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'MyFiles', hidden: true })).not.toBeInTheDocument();
   });

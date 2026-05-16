@@ -4,12 +4,16 @@ import type { UserPreferencesServices } from './user-preferences.services.js';
 import { z } from 'zod';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 
+const fontFamilySchema = z
+  .enum(['inter', 'sora', 'space-grotesk', 'manrope'])
+  .transform((value) => value === 'manrope' ? 'sora' : value);
+
 const userUiPreferencesUpdateSchema = z
   .object({
     themeMode: z.enum(['system', 'light', 'dark']).optional(),
     accentColor: z.enum(['gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink']).optional(),
     density: z.enum(['compact', 'comfortable', 'relaxed']).optional(),
-    fontFamily: z.enum(['inter', 'manrope', 'space-grotesk']).optional(),
+    fontFamily: fontFamilySchema.optional(),
     fontSize: z.enum(['sm', 'md', 'lg', 'xl', '2xl']).optional(),
     radius: z.enum(['none', 'sm', 'md', 'lg', 'xl']).optional(),
     language: z.enum(['en', 'de', 'fr']).optional(),

@@ -29,7 +29,7 @@ export function TypographyPicker({ onValueChange, value }: TypographyPickerProps
             borderColor={selected ? 'teal.solid' : 'border.subtle'}
             bg={selected ? 'teal.subtle' : 'bg.subtle'}
             color="fg"
-            px="2"
+            px="1.5"
             cursor="pointer"
             fontFamily="var(--arkivra-font-body)"
             textAlign="center"
@@ -37,7 +37,7 @@ export function TypographyPicker({ onValueChange, value }: TypographyPickerProps
             _hover={{ borderColor: 'teal.solid', bg: 'teal.subtle' }}
             onClick={() => onValueChange(option.value)}
           >
-            <Text maxW="full" truncate fontSize="sm" fontWeight="medium" lineHeight="1.2" color="fg">
+            <Text maxW="full" whiteSpace="nowrap" fontSize="xs" fontWeight="medium" lineHeight="1.2" color="fg">
               {option.label}
             </Text>
           </chakra.button>

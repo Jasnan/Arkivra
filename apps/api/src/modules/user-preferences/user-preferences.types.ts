@@ -1,7 +1,7 @@
 export type UiThemeMode = 'system' | 'light' | 'dark';
 export type UiAccentColor = 'gray' | 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'cyan' | 'purple' | 'pink';
 export type UiDensity = 'compact' | 'comfortable' | 'relaxed';
-export type UiFontFamily = 'inter' | 'manrope' | 'space-grotesk';
+export type UiFontFamily = 'inter' | 'sora' | 'space-grotesk';
 export type UiFontSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 export type UiRadius = 'none' | 'sm' | 'md' | 'lg' | 'xl';
 export type UiLanguage = 'en' | 'de' | 'fr';

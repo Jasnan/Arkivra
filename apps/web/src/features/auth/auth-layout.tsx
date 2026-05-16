@@ -22,6 +22,10 @@ import { Input } from '@/components/ui/input';
 
 type AuthIcon = ComponentType<LucideProps>;
 
+const authPanelMaxW = { base: '100%', sm: 'calc(28.5rem - 20px)', md: 'calc(29rem - 20px)' } as const;
+const authHeroMaxW = { base: '100%', sm: 'calc(28.5rem - 20px)', md: '42rem' } as const;
+const authCardPaddingX = { base: '5', md: '7' } as const;
+
 export function AuthLayout({ children }: PropsWithChildren) {
   return (
     <Box
@@ -50,7 +54,7 @@ export function AuthLayout({ children }: PropsWithChildren) {
           gap={{ base: '4', md: '5' }}
         >
           <AuthHero />
-          <Box position="relative" w="100%" maxW={{ base: '100%', sm: '30rem', md: '32rem' }}>
+          <Box position="relative" w="100%" maxW={authPanelMaxW}>
             {children}
           </Box>
         </Stack>
@@ -61,27 +65,37 @@ export function AuthLayout({ children }: PropsWithChildren) {
 
 export function AuthHero() {
   return (
-    <Stack id="8nh2j6" align="center" gap="1.5" textAlign="center">
+    <Stack id="8nh2j6" w="100%" maxW={authHeroMaxW} align="stretch" gap="1.5">
       <Heading
         as="h1"
         textStyle="display"
-        fontSize={{ base: '2xl', md: '3xl' }}
+        fontSize={{ base: '3xl', md: '4xl' }}
         fontWeight="760"
         color="fg"
         letterSpacing="display"
         lineHeight="1"
+        textAlign="center"
       >
         Arkivra
       </Heading>
-      <Stack gap="1" align="center">
+      <Stack gap="1" align="stretch">
         <Text
           color="fg.muted"
           fontSize="sm"
           lineHeight="1.5"
-          maxW="28rem"
-          opacity="0.68"
+          w="100%"
+          px={{ base: authCardPaddingX.base, md: '0' }}
+          opacity="0.86"
+          textAlign="center"
+          whiteSpace={{ md: 'nowrap' }}
         >
-          Private document archive
+          <Box as="span" whiteSpace="nowrap">
+            Private Document Management
+          </Box>
+          {' '}
+          <Box as="span" whiteSpace="nowrap">
+            with Intelligent Retrieval
+          </Box>
         </Text>
       </Stack>
     </Stack>
@@ -103,10 +117,10 @@ export function AuthCard({
       borderColor="auth.cardBorder"
       bg="auth.card"
       shadow="authCard"
-      px="4"
-      py="4"
+      px={authCardPaddingX}
+      py={{ base: '5', md: '7' }}
     >
-      <Stack position="relative" gap="3.5">
+      <Stack position="relative" gap={{ base: '4', md: '4.5' }}>
         <AuthHeader title={title} subtitle={subtitle} />
         {children}
       </Stack>
@@ -151,18 +165,20 @@ export function AuthField({
   error,
   rightElement,
   pe,
+  className,
   ...props
 }: AuthFieldProps) {
   return (
-    <Field display="grid" gap="1.5">
+    <Field display="grid" gap="2">
       <FieldLabel htmlFor={id} fontSize="sm" fontWeight="750">
         {label}
       </FieldLabel>
       <Box position="relative">
         <Input
           id={id}
-          h="10"
-          minH="10"
+          className={['arkivra-auth-input', className].filter(Boolean).join(' ')}
+          h="11"
+          minH="11"
           rounded="authControl"
           borderColor={error ? 'fg.error' : 'auth.fieldBorder'}
           bg="auth.field"
@@ -171,10 +187,10 @@ export function AuthField({
           color="fg"
           fontSize="sm"
           _placeholder={{ color: 'fg.subtle' }}
-          _hover={{ bg: 'auth.fieldHover', borderColor: error ? 'fg.error' : 'auth.cardBorder' }}
+          _hover={{ bg: 'auth.fieldHover', borderColor: error ? 'fg.error' : 'border.strong' }}
           _focusVisible={{
-            borderColor: 'teal.solid',
-            boxShadow: '0 0 0 3px var(--chakra-colors-teal-focus-ring)',
+            borderColor: 'teal.hover',
+            boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid), 0 0 0 4px var(--chakra-colors-teal-focus-ring)',
             outline: 'none',
           }}
           {...props}
@@ -229,6 +245,10 @@ export function AuthPasswordField(props: AuthPasswordFieldProps) {
           color="fg.subtle"
           rounded="full"
           onClick={() => setIsVisible((value) => !value)}
+          _hover={{ bg: 'auth.fieldHover', color: 'fg' }}
+          _focusVisible={{
+            boxShadow: '0 0 0 3px var(--chakra-colors-teal-focus-ring)',
+          }}
         >
           {isVisible ? <EyeOff size={20} /> : <Eye size={20} />}
         </IconButton>
@@ -243,7 +263,7 @@ export function AuthForm({
   onSubmit,
 }: PropsWithChildren<{ onSubmit: FormEventHandler<HTMLFormElement> }>) {
   return (
-    <chakra.form display="grid" gap="3" onSubmit={onSubmit}>
+    <chakra.form display="grid" gap="3.5" onSubmit={onSubmit}>
       {children}
     </chakra.form>
   );
@@ -259,8 +279,8 @@ export function AuthPrimaryButton({
     <Button
       type="submit"
       w="100%"
-      h="10"
-      minH="10"
+      h="11"
+      minH="11"
       rounded="authControl"
       bgGradient="to-r"
       gradientFrom="auth.primaryFrom"
@@ -268,15 +288,16 @@ export function AuthPrimaryButton({
       color="white"
       fontSize="md"
       fontWeight="750"
-      shadow="none"
+      shadow="authButton"
       loading={loading}
       loadingText={loadingText}
-      _hover={{ filter: 'brightness(1.03)' }}
-      _active={{ filter: 'brightness(0.98)' }}
+      _hover={{ filter: 'brightness(1.06)', transform: 'translateY(-1px)' }}
+      _active={{ filter: 'brightness(0.96)', transform: 'translateY(0)' }}
+      _disabled={{ cursor: 'not-allowed', filter: 'none', opacity: '0.68', transform: 'none' }}
       _focusVisible={{
         boxShadow: '0 0 0 3px var(--chakra-colors-teal-focus-ring)',
       }}
-      transition="filter 160ms ease, box-shadow 160ms ease"
+      transition="filter 160ms ease, box-shadow 160ms ease, transform 160ms ease"
       {...props}
     >
       {children}
@@ -340,18 +361,24 @@ function AuthOAuthButton({
     <Button
       type="button"
       variant="outline"
-      h="9"
-      minH="9"
+      h="10"
+      minH="10"
       rounded="authControl"
-      borderColor="auth.fieldBorder"
-      bg="auth.field"
-      color="fg"
+      borderColor="auth.cardBorder"
+      bg="transparent"
+      color="fg.muted"
       fontSize="sm"
       fontWeight="700"
+      gap="2.5"
+      px="4"
       disabled={disabled || loading}
       onClick={onClick}
-      _hover={{ bg: 'auth.fieldHover', borderColor: 'auth.cardBorder' }}
-      transition="background 160ms ease, border-color 160ms ease"
+      _hover={{ bg: 'auth.fieldHover', borderColor: 'auth.fieldBorder', color: 'fg' }}
+      _focusVisible={{
+        boxShadow: '0 0 0 3px var(--chakra-colors-teal-focus-ring)',
+      }}
+      _disabled={{ cursor: 'not-allowed', opacity: '0.62' }}
+      transition="background 160ms ease, border-color 160ms ease, color 160ms ease"
     >
       {loading ? <Loader2 size={20} className="arkivra-auth-spin" /> : icon}
       {label}
@@ -398,6 +425,7 @@ export function AuthLink({
   return (
     <Link
       to={to}
+      className="arkivra-auth-link"
       style={{
         alignItems: 'center',
         color: 'var(--chakra-colors-auth-link)',

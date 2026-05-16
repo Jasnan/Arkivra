@@ -18,14 +18,18 @@ import type {
   PreferenceTimezone,
   ThemeMode,
 } from './accent-color-context';
-import { LEGACY_FONT_FAMILY_STORAGE_KEY, defaultTypographyFont, isAppearanceFont } from './typography';
+import { defaultTypographyFont, normalizeAppearanceFont } from './typography';
 
 const UI_PREFERENCES_CACHE_KEY = 'arkivra.uiPreferences';
-const LEGACY_ACCENT_COLOR_STORAGE_KEY = 'arkivra.accentColor';
-const LEGACY_DENSITY_STORAGE_KEY = 'arkivra.density';
-const LEGACY_FONT_SIZE_STORAGE_KEY = 'arkivra.fontSize';
-const LEGACY_FONT_SIZE_SCALE_STORAGE_KEY = 'arkivra.fontSizeScale';
-const LEGACY_RADIUS_STORAGE_KEY = 'arkivra.radius';
+const THEME_MODE_STORAGE_KEY = 'arkivra.themeMode';
+const LEGACY_UI_PREFERENCE_STORAGE_KEYS = [
+  'arkivra.accentColor',
+  'arkivra.density',
+  'arkivra.fontFamily',
+  'arkivra.fontSize',
+  'arkivra.fontSizeScale',
+  'arkivra.radius',
+] as const;
 const defaultFontSize: AppearanceFontSize = 'md';
 const defaultThemeMode: ThemeMode = 'system';
 const PREFERENCES_SYNC_DEBOUNCE_MS = 450;
@@ -34,6 +38,13 @@ type UserUiPreferenceValues = Pick<
   UserUiPreferences,
   'accentColor' | 'dateFormat' | 'density' | 'fontFamily' | 'fontSize' | 'language' | 'radius' | 'themeMode' | 'timezone'
 >;
+
+type PreferenceSource = 'default' | 'local-storage' | 'server';
+
+interface InitialPreferences {
+  preferences: UserUiPreferenceValues;
+  source: PreferenceSource;
+}
 
 const defaultUiPreferences: UserUiPreferenceValues = {
   themeMode: defaultThemeMode,
@@ -382,28 +393,18 @@ function getStoredValue(key: string) {
   return window.localStorage.getItem(key);
 }
 
-function fontSizeFromLegacyScale(value: number): AppearanceFontSize {
-  if (value <= 95) return 'sm';
-  if (value <= 102) return 'md';
-  if (value <= 107) return 'lg';
-  if (value <= 112) return 'xl';
-  return '2xl';
+function removeStoredValue(key: string) {
+  if (typeof window === 'undefined' || typeof window.localStorage?.removeItem !== 'function') {
+    return;
+  }
+
+  window.localStorage.removeItem(key);
 }
 
-function getLegacyFontSize(): AppearanceFontSize {
-  const stored = getStoredValue(LEGACY_FONT_SIZE_STORAGE_KEY);
-
-  if (isAppearanceFontSize(stored)) {
-    return stored;
+function removeLegacyPreferenceStorage() {
+  for (const key of LEGACY_UI_PREFERENCE_STORAGE_KEYS) {
+    removeStoredValue(key);
   }
-
-  const legacyScale = Number.parseInt(getStoredValue(LEGACY_FONT_SIZE_SCALE_STORAGE_KEY) ?? '', 10);
-
-  if (Number.isFinite(legacyScale)) {
-    return fontSizeFromLegacyScale(legacyScale);
-  }
-
-  return defaultFontSize;
 }
 
 function normalizeCachedPreferences(value: unknown) {
@@ -421,8 +422,8 @@ function normalizeCachedPreferences(value: unknown) {
   const density = typeof candidate.density === 'string' && isAppearanceDensity(candidate.density)
     ? candidate.density
     : defaultUiPreferences.density;
-  const fontFamily = typeof candidate.fontFamily === 'string' && isAppearanceFont(candidate.fontFamily)
-    ? candidate.fontFamily
+  const fontFamily = typeof candidate.fontFamily === 'string'
+    ? normalizeAppearanceFont(candidate.fontFamily) ?? defaultUiPreferences.fontFamily
     : defaultUiPreferences.fontFamily;
   const fontSize = typeof candidate.fontSize === 'string' && isAppearanceFontSize(candidate.fontSize)
     ? candidate.fontSize
@@ -447,7 +448,7 @@ function normalizePreferenceValues(value: unknown): UserUiPreferenceValues {
   return normalizeCachedPreferences(value) ?? defaultUiPreferences;
 }
 
-function getCachedPreferences() {
+function getInitialPreferences(): InitialPreferences {
   const cached = getStoredValue(UI_PREFERENCES_CACHE_KEY);
 
   if (cached !== null) {
@@ -455,35 +456,23 @@ function getCachedPreferences() {
       const parsed = normalizeCachedPreferences(JSON.parse(cached));
 
       if (parsed !== null) {
-        return parsed;
+        removeLegacyPreferenceStorage();
+        return { preferences: parsed, source: 'local-storage' };
       }
     } catch {
+      removeStoredValue(UI_PREFERENCES_CACHE_KEY);
     }
   }
 
-  const legacyThemeMode = getStoredValue('arkivra.themeMode') ?? getStoredValue('theme');
-  const legacyAccentColor = getStoredValue(LEGACY_ACCENT_COLOR_STORAGE_KEY);
-  const legacyDensity = getStoredValue(LEGACY_DENSITY_STORAGE_KEY);
-  const legacyFontFamily = getStoredValue(LEGACY_FONT_FAMILY_STORAGE_KEY);
-  const legacyRadius = getStoredValue(LEGACY_RADIUS_STORAGE_KEY);
-
-  return {
-    themeMode: isThemeMode(legacyThemeMode) ? legacyThemeMode : defaultUiPreferences.themeMode,
-    accentColor: isAccentColor(legacyAccentColor) ? legacyAccentColor : defaultUiPreferences.accentColor,
-    density: isAppearanceDensity(legacyDensity) ? legacyDensity : defaultUiPreferences.density,
-    fontFamily: isAppearanceFont(legacyFontFamily) ? legacyFontFamily : defaultUiPreferences.fontFamily,
-    fontSize: getLegacyFontSize(),
-    radius: isAppearanceRadius(legacyRadius) ? legacyRadius : defaultUiPreferences.radius,
-    language: defaultUiPreferences.language,
-    timezone: defaultUiPreferences.timezone,
-    dateFormat: defaultUiPreferences.dateFormat,
-  };
+  removeLegacyPreferenceStorage();
+  return { preferences: defaultUiPreferences, source: 'default' };
 }
 
 function setCachedPreferences(preferences: UserUiPreferenceValues) {
   if (typeof window.localStorage?.setItem === 'function') {
     window.localStorage.setItem(UI_PREFERENCES_CACHE_KEY, JSON.stringify(preferences));
-    window.localStorage.setItem('arkivra.themeMode', preferences.themeMode);
+    window.localStorage.setItem(THEME_MODE_STORAGE_KEY, preferences.themeMode);
+    removeLegacyPreferenceStorage();
   }
 }
 
@@ -556,23 +545,26 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   const { resolvedTheme, setTheme } = useTheme();
   const queryClient = useQueryClient();
   const session = authClient.useSession();
-  const cachedPreferences = useMemo(getCachedPreferences, []);
-  const [themeMode, setThemeModeState] = useState<ThemeMode>(cachedPreferences.themeMode);
-  const [accentColor, setAccentColorState] = useState<AccentColor>(cachedPreferences.accentColor);
-  const [density, setDensityState] = useState<AppearanceDensity>(cachedPreferences.density);
-  const [fontFamily, setFontFamilyState] = useState<AppearanceFont>(cachedPreferences.fontFamily);
-  const [fontSize, setFontSizeState] = useState<AppearanceFontSize>(cachedPreferences.fontSize);
-  const [radius, setRadiusState] = useState<AppearanceRadius>(cachedPreferences.radius);
-  const [language, setLanguageState] = useState<PreferenceLanguage>(cachedPreferences.language);
-  const [timezone, setTimezoneState] = useState<PreferenceTimezone>(cachedPreferences.timezone);
-  const [dateFormat, setDateFormatState] = useState<PreferenceDateFormat>(cachedPreferences.dateFormat);
+  const initialPreferences = useMemo(getInitialPreferences, []);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(initialPreferences.preferences.themeMode);
+  const [accentColor, setAccentColorState] = useState<AccentColor>(initialPreferences.preferences.accentColor);
+  const [density, setDensityState] = useState<AppearanceDensity>(initialPreferences.preferences.density);
+  const [fontFamily, setFontFamilyState] = useState<AppearanceFont>(initialPreferences.preferences.fontFamily);
+  const [fontSize, setFontSizeState] = useState<AppearanceFontSize>(initialPreferences.preferences.fontSize);
+  const [radius, setRadiusState] = useState<AppearanceRadius>(initialPreferences.preferences.radius);
+  const [language, setLanguageState] = useState<PreferenceLanguage>(initialPreferences.preferences.language);
+  const [timezone, setTimezoneState] = useState<PreferenceTimezone>(initialPreferences.preferences.timezone);
+  const [dateFormat, setDateFormatState] = useState<PreferenceDateFormat>(initialPreferences.preferences.dateFormat);
+  const [preferenceSource, setPreferenceSource] = useState<PreferenceSource>(initialPreferences.source);
   const [pendingServerPatch, setPendingServerPatch] = useState<UserUiPreferencesUpdate | null>(null);
-  const currentPreferencesRef = useRef<UserUiPreferenceValues>(cachedPreferences);
+  const currentPreferencesRef = useRef<UserUiPreferenceValues>(initialPreferences.preferences);
   const pendingServerPatchRef = useRef<UserUiPreferencesUpdate | null>(null);
-  const pendingRollbackRef = useRef<UserUiPreferenceValues | null>(null);
+  const preferenceSourceRef = useRef<PreferenceSource>(initialPreferences.source);
   const syncVersionRef = useRef(0);
   const isAuthenticated = Boolean(session.data?.user);
-  const preferencesQuery = useUserUiPreferencesQuery({ enabled: isAuthenticated });
+  const preferencesQuery = useUserUiPreferencesQuery({
+    enabled: isAuthenticated && preferenceSource === 'default',
+  });
   const updatePreferencesMutation = useUpdateUserUiPreferencesMutation();
 
   const currentPreferences = useMemo(() => ({
@@ -587,8 +579,10 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     dateFormat,
   }), [accentColor, dateFormat, density, fontFamily, fontSize, language, radius, themeMode, timezone]);
 
-  function applyPreferences(nextPreferences: UserUiPreferenceValues) {
+  function applyPreferences(nextPreferences: UserUiPreferenceValues, source: PreferenceSource) {
     currentPreferencesRef.current = nextPreferences;
+    preferenceSourceRef.current = source;
+    setPreferenceSource(source);
     setThemeModeState(nextPreferences.themeMode);
     setAccentColorState(nextPreferences.accentColor);
     setDensityState(nextPreferences.density);
@@ -600,22 +594,9 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     setDateFormatState(nextPreferences.dateFormat);
   }
 
-  function updatePreferences(patch: UserUiPreferencesUpdate) {
-    const previousPreferences = currentPreferencesRef.current;
-    const nextPreferences = {
-      ...previousPreferences,
-      ...patch,
-    };
-
-    applyPreferences(nextPreferences);
-    setCachedPreferences(nextPreferences);
-
+  function queueServerPatch(patch: UserUiPreferencesUpdate) {
     if (!isAuthenticated) {
       return;
-    }
-
-    if (pendingRollbackRef.current === null) {
-      pendingRollbackRef.current = previousPreferences;
     }
 
     syncVersionRef.current += 1;
@@ -625,6 +606,17 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     };
     pendingServerPatchRef.current = nextPendingPatch;
     setPendingServerPatch(nextPendingPatch);
+  }
+
+  function updatePreferences(patch: UserUiPreferencesUpdate) {
+    const nextPreferences = {
+      ...currentPreferencesRef.current,
+      ...patch,
+    };
+
+    applyPreferences(nextPreferences, 'local-storage');
+    setCachedPreferences(nextPreferences);
+    queueServerPatch(patch);
 
     queryClient.cancelQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
 
@@ -647,18 +639,17 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    if (pendingServerPatchRef.current !== null) {
+    if (preferenceSourceRef.current !== 'default' || pendingServerPatchRef.current !== null) {
       return;
     }
 
     const serverPreferences = withoutServerTimestamps(preferencesQuery.data.preferences);
-    applyPreferences(serverPreferences);
+    applyPreferences(serverPreferences, 'server');
     setCachedPreferences(serverPreferences);
-  }, [pendingServerPatch, preferencesQuery.data]);
+  }, [preferencesQuery.data]);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      pendingRollbackRef.current = null;
       pendingServerPatchRef.current = null;
       setPendingServerPatch(null);
       return;
@@ -677,11 +668,13 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
             return;
           }
 
-          const serverPreferences = withoutServerTimestamps(data.preferences);
-          applyPreferences(serverPreferences);
-          setCachedPreferences(serverPreferences);
-          queryClient.setQueryData(userPreferencesQueryKeys.ui(), data);
-          pendingRollbackRef.current = null;
+          const syncedPreferences = currentPreferencesRef.current;
+          queryClient.setQueryData(userPreferencesQueryKeys.ui(), {
+            preferences: {
+              ...data.preferences,
+              ...syncedPreferences,
+            },
+          });
           pendingServerPatchRef.current = null;
           setPendingServerPatch(null);
         },
@@ -690,13 +683,10 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
             return;
           }
 
-          const rollbackPreferences = pendingRollbackRef.current ?? defaultUiPreferences;
-          applyPreferences(rollbackPreferences);
-          setCachedPreferences(rollbackPreferences);
-          pendingRollbackRef.current = null;
+          // Local preferences are the source of truth. A failed best-effort DB sync
+          // must not visibly roll back the theme switcher.
           pendingServerPatchRef.current = null;
           setPendingServerPatch(null);
-          queryClient.invalidateQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
         },
       });
     }, PREFERENCES_SYNC_DEBOUNCE_MS);
@@ -731,7 +721,9 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   }, [setTheme, themeMode]);
 
   useEffect(() => {
-    setCachedPreferences(currentPreferences);
+    if (preferenceSourceRef.current !== 'default') {
+      setCachedPreferences(currentPreferences);
+    }
   }, [currentPreferences]);
 
   const value = useMemo<AccentColorContextValue>(() => ({

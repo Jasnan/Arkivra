@@ -85,13 +85,29 @@ describe('user preferences routes', () => {
     const response = await app.request('/api/me/preferences', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accentColor: 'blue', fontFamily: 'space-grotesk', timezone: 'europe-berlin' }),
+      body: JSON.stringify({ accentColor: 'blue', fontFamily: 'sora', timezone: 'europe-berlin' }),
     });
 
     expect(response.status).toBe(200);
     expect(services.updatePreferences).toHaveBeenCalledWith({
       userId: 'usr_test',
-      preferences: { accentColor: 'blue', fontFamily: 'space-grotesk', timezone: 'europe-berlin' },
+      preferences: { accentColor: 'blue', fontFamily: 'sora', timezone: 'europe-berlin' },
+    });
+  });
+
+  test('normalizes legacy font preference values', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/me/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fontFamily: 'manrope' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.updatePreferences).toHaveBeenCalledWith({
+      userId: 'usr_test',
+      preferences: { fontFamily: 'sora' },
     });
   });
 

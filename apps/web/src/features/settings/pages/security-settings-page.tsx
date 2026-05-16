@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Box, HStack, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
@@ -28,6 +27,8 @@ import {
   SettingsStatusBadge,
 } from '../components/settings-ui';
 
+const securityActionButtonMinWidth = '10rem';
+
 function settingsButtonLink(to: string, label: string) {
   return (
     <Link
@@ -42,7 +43,7 @@ function settingsButtonLink(to: string, label: string) {
         fontWeight: 600,
         height: '2.25rem',
         justifyContent: 'center',
-        minWidth: '10rem',
+        minWidth: securityActionButtonMinWidth,
         padding: '0 0.875rem',
       }}
     >
@@ -67,6 +68,30 @@ function getPendingEmailChange() {
   return sessionStorage.getItem(PENDING_EMAIL_CHANGE_KEY) ?? '';
 }
 
+async function setAccountPassword({ newPassword }: { newPassword: string }) {
+  const response = await fetch('/api/auth/set-password', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ newPassword }),
+  });
+
+  if (!response.ok) {
+    let message = `Could not set password.`;
+
+    try {
+      const json = await response.json() as { error?: { message?: string }; message?: string };
+      message = json.error?.message ?? json.message ?? message;
+    }
+    catch {
+    }
+
+    throw new Error(message);
+  }
+}
+
 export function SecuritySettingsPage() {
   const { data: sessionData, isPending: sessionPending } = authClient.useSession();
   const meQuery = useMeQuery();
@@ -78,7 +103,12 @@ export function SecuritySettingsPage() {
   const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(Boolean(pendingEmailChange));
   const [newEmail, setNewEmail] = useState(pendingEmailChange);
   const [password, setPassword] = useState('');
+  const [isSetPasswordOpen, setIsSetPasswordOpen] = useState(false);
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
+  const [setPasswordError, setSetPasswordError] = useState<string | null>(null);
   const currentEmail = sessionData?.user.email ?? '';
 
   const emailChangeDescription = useMemo(() => {
@@ -145,6 +175,15 @@ export function SecuritySettingsPage() {
     },
   });
 
+  function handleSetPasswordSuccess() {
+    toast.success('Password sign-in enabled.');
+    setSetPasswordError(null);
+    setIsSetPasswordOpen(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    void meQuery.refetch();
+  }
+
   useEffect(() => {
     if (verificationMethod.type !== 'oauth' || emailChangeMutation.isPending) {
       return;
@@ -188,6 +227,31 @@ export function SecuritySettingsPage() {
     }
   }
 
+  async function handleSetPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSetPasswordError(null);
+
+    try {
+      if (newPassword.length < 8) {
+        throw new Error('Password must be at least 8 characters.');
+      }
+
+      if (newPassword !== confirmPassword) {
+        throw new Error('Passwords do not match.');
+      }
+
+      setIsSettingPassword(true);
+      await setAccountPassword({ newPassword });
+      handleSetPasswordSuccess();
+    }
+    catch (error) {
+      setSetPasswordError(error instanceof Error ? error.message : 'Could not set password.');
+    }
+    finally {
+      setIsSettingPassword(false);
+    }
+  }
+
   if (sessionPending) {
     return <Text textStyle="sm">Loading security settings...</Text>;
   }
@@ -224,11 +288,117 @@ export function SecuritySettingsPage() {
                   <SettingsStatusBadge tone={hasPassword ? 'enabled' : 'inactive'}>
                     {hasPassword ? 'Enabled' : 'Inactive'}
                   </SettingsStatusBadge>
-                  {settingsButtonLink(ROUTES.requestPasswordReset, hasPassword ? 'Change password' : 'Set password')}
+                  {hasPassword ? (
+                    settingsButtonLink(ROUTES.requestPasswordReset, 'Change password')
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      minW={securityActionButtonMinWidth}
+                      onClick={() => {
+                        setIsSetPasswordOpen((open) => !open);
+                        setSetPasswordError(null);
+                      }}
+                    >
+                      Set password
+                    </Button>
+                  )}
                 </HStack>
               }
             />
           </SettingsRows>
+          {!hasPassword && isSetPasswordOpen ? (
+            <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+              <chakra.form onSubmit={handleSetPasswordSubmit}>
+                <Stack gap="4">
+                  <Stack gap="1">
+                    <Text fontSize="sm" fontWeight="medium" color="fg">
+                      Set password
+                    </Text>
+                    <Text textStyle="sm" color="fg.muted">
+                      Add password sign-in to this OAuth account. You can keep using your linked provider after setting a password.
+                    </Text>
+                  </Stack>
+
+                  <Field maxW="md">
+                    <FieldLabel htmlFor="security-new-password">New password</FieldLabel>
+                    <Input
+                      id="security-new-password"
+                      type="password"
+                      autoComplete="new-password"
+                      bg="bg.surface"
+                      borderColor="border"
+                      color="fg"
+                      required
+                      minLength={8}
+                      value={newPassword}
+                      placeholder="Create a strong password"
+                      _focusVisible={{
+                        borderColor: 'teal.solid',
+                        boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid)',
+                        outline: '2px solid',
+                        outlineColor: 'teal.focusRing',
+                        outlineOffset: '1px',
+                      }}
+                      _hover={{ borderColor: 'border.strong' }}
+                      _placeholder={{ color: 'fg.subtle' }}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                    />
+                  </Field>
+
+                  <Field maxW="md">
+                    <FieldLabel htmlFor="security-confirm-password">Confirm password</FieldLabel>
+                    <Input
+                      id="security-confirm-password"
+                      type="password"
+                      autoComplete="new-password"
+                      bg="bg.surface"
+                      borderColor="border"
+                      color="fg"
+                      required
+                      minLength={8}
+                      value={confirmPassword}
+                      placeholder="Repeat the new password"
+                      _focusVisible={{
+                        borderColor: 'teal.solid',
+                        boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid)',
+                        outline: '2px solid',
+                        outlineColor: 'teal.focusRing',
+                        outlineOffset: '1px',
+                      }}
+                      _hover={{ borderColor: 'border.strong' }}
+                      _placeholder={{ color: 'fg.subtle' }}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                    />
+                  </Field>
+
+                  {setPasswordError ? <FieldError>{setPasswordError}</FieldError> : null}
+
+                  <HStack justify="flex-end" gap="3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsSetPasswordOpen(false);
+                        setSetPasswordError(null);
+                        setNewPassword('');
+                        setConfirmPassword('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      loading={isSettingPassword}
+                      loadingText="Setting password..."
+                    >
+                      Save password
+                    </Button>
+                  </HStack>
+                </Stack>
+              </chakra.form>
+            </Box>
+          ) : null}
         </SettingsSection>
 
         <SettingsSection title="Email verification" description="Verified email keeps account recovery and notifications reliable.">
@@ -258,11 +428,11 @@ export function SecuritySettingsPage() {
                     type="button"
                     size="sm"
                     variant="outline"
+                    minW={securityActionButtonMinWidth}
                     onClick={() => {
                       setIsEmailChangeOpen((open) => !open);
                     }}
                   >
-                    <Pencil size={15} />
                     Change email
                   </Button>
                 </HStack>

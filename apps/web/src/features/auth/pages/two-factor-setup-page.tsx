@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner';
 import { useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
+import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -83,11 +84,6 @@ function getStepStatus(index: number, currentStep: SetupStep) {
 }
 
 function cancelSetup() {
-  if (window.history.length > 1) {
-    window.history.back();
-    return;
-  }
-
   window.location.assign(ROUTES.settingsSecurity);
 }
 
@@ -149,6 +145,55 @@ function WizardStepper({ step }: { step: SetupStep }) {
   );
 }
 
+function WizardSidebarSteps({
+  isReplaceMode,
+  step,
+}: {
+  isReplaceMode: boolean;
+  step: SetupStep;
+}) {
+  const currentIndex = getStepIndex(step);
+
+  return (
+    <Stack gap="5">
+      <Stack gap="1">
+        <Text fontSize="sm" fontWeight="semibold" color="fg">
+          {isReplaceMode ? 'Reconnect authenticator' : 'Set up 2FA'}
+        </Text>
+        <Text fontSize="xs" color="fg.muted">
+          Complete each step to secure this account.
+        </Text>
+      </Stack>
+
+      <Steps.Root
+        aria-label="Two-factor setup steps"
+        colorPalette="teal"
+        count={STEPS.length}
+        height="400px"
+        orientation="vertical"
+        size="sm"
+        step={currentIndex}
+        variant="solid"
+      >
+        <Steps.List gap="0">
+          {STEPS.map((title, index) => (
+            <Steps.Item key={title} index={index} title={title}>
+              <Steps.Indicator>
+                <Steps.Status complete={<Check size={15} />} incomplete={<Steps.Number />} />
+              </Steps.Indicator>
+              <Box minW="0">
+                <Steps.Title>{title}</Steps.Title>
+                <Steps.Description>{getStepStatus(index, step)}</Steps.Description>
+              </Box>
+              <Steps.Separator />
+            </Steps.Item>
+          ))}
+        </Steps.List>
+      </Steps.Root>
+    </Stack>
+  );
+}
+
 function SectionHeading({
   title,
   description,
@@ -199,6 +244,12 @@ export function TwoFactorSetupPage() {
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const verificationMethod = getSensitiveActionVerificationMethod(meQuery.data?.authMethods);
   const displayedErrorMessage = errorMessage ?? (meQuery.isError ? 'Could not load your sign-in methods.' : null);
+  const setupSidebarSteps = useMemo(
+    () => <WizardSidebarSteps isReplaceMode={isReplaceMode} step={currentStep} />,
+    [currentStep, isReplaceMode],
+  );
+
+  useWorkspaceSecondary(setupSidebarSteps);
 
   const secret = useMemo(() => {
     if (!totpUri) return null;
@@ -269,7 +320,7 @@ export function TwoFactorSetupPage() {
   }
 
   return (
-    <Box w="100%" maxW="860px" mx="auto" pb={{ base: '4', md: '8' }}>
+    <Box w="100%" maxW="860px" mx="auto" pt={{ base: '3', md: '6' }} pb={{ base: '4', md: '8' }}>
       <Card rounded="md" shadow="sm" p={{ base: '5', md: '7' }}>
         <CardHeader px="0" pb="5">
           <Flex align={{ base: 'flex-start', sm: 'center' }} gap="4">
@@ -319,7 +370,9 @@ export function TwoFactorSetupPage() {
                 </Stack>
               </Alert>
             ) : null}
-            <WizardStepper step={currentStep} />
+            <Box display={{ base: 'block', md: 'none' }}>
+              <WizardStepper step={currentStep} />
+            </Box>
             <Separator />
 
             {currentStep === 'identity' ? (
@@ -343,6 +396,7 @@ export function TwoFactorSetupPage() {
                 secret={secret}
                 totpUri={totpUri}
                 onBack={() => setCurrentStep('identity')}
+                onCancel={cancelSetup}
                 onContinue={() => {
                   setErrorMessage(null);
                   setCurrentStep('confirm');
@@ -357,6 +411,7 @@ export function TwoFactorSetupPage() {
                 isVerifying={isVerifying}
                 isReplaceMode={isReplaceMode}
                 setCodeDigits={setCodeDigits}
+                onCancel={cancelSetup}
                 onBack={() => {
                   setErrorMessage(null);
                   setCurrentStep('scan');
@@ -379,6 +434,7 @@ function ScanStep({
   secret,
   totpUri,
   onBack,
+  onCancel,
   onContinue,
 }: {
   backupCodes: string[];
@@ -386,6 +442,7 @@ function ScanStep({
   secret: string | null;
   totpUri: string;
   onBack: () => void;
+  onCancel: () => void;
   onContinue: () => void;
 }) {
   const [isManualKeyOpen, setIsManualKeyOpen] = useState(false);
@@ -538,10 +595,15 @@ function ScanStep({
       <Separator />
 
       <HStack justify="space-between" gap="3" flexWrap="wrap">
-        <Button type="button" variant="outline" onClick={onBack}>
-          <ArrowLeft size={16} />
-          Back
-        </Button>
+        <HStack gap="2" flexWrap="wrap">
+          <Button type="button" variant="outline" onClick={onBack}>
+            <ArrowLeft size={16} />
+            Back
+          </Button>
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </HStack>
         <Button type="button" onClick={onContinue}>
           Continue to verify code
           <ArrowRight size={16} />
@@ -558,6 +620,7 @@ function ConfirmStep({
   isVerifying,
   setCodeDigits,
   onBack,
+  onCancel,
   onSubmit,
 }: {
   codeDigits: string[];
@@ -566,6 +629,7 @@ function ConfirmStep({
   isVerifying: boolean;
   setCodeDigits: (value: string[]) => void;
   onBack: () => void;
+  onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
@@ -589,10 +653,15 @@ function ConfirmStep({
         <Separator />
 
         <HStack justify="space-between" gap="3" flexWrap="wrap">
-          <Button type="button" variant="outline" onClick={onBack}>
-            <ArrowLeft size={16} />
-            Back
-          </Button>
+          <HStack gap="2" flexWrap="wrap">
+            <Button type="button" variant="outline" onClick={onBack}>
+              <ArrowLeft size={16} />
+              Back
+            </Button>
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+          </HStack>
           <Button type="submit" loading={isVerifying} loadingText={isReplaceMode ? 'Reconnecting...' : 'Enabling...'}>
             {isReplaceMode ? 'Reconnect authenticator' : 'Enable two-factor authentication'}
           </Button>

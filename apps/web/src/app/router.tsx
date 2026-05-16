@@ -112,18 +112,6 @@ const indexRoute = createRoute({
   component: () => <Navigate to={ROUTES.vaults} />,
 })
 
-const twoFactorSetupRoute = createRoute({
-  getParentRoute: () => protectedLayoutRoute,
-  path: '/two-factor/setup',
-  component: TwoFactorSetupPage,
-})
-
-const twoFactorManageRoute = createRoute({
-  getParentRoute: () => protectedLayoutRoute,
-  path: '/two-factor/manage',
-  component: TwoFactorManagementPage,
-})
-
 const vaultsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults',
@@ -214,7 +202,25 @@ const settingsAccountRoute = createRoute({
 const settingsSecurityRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/settings/security',
+  component: Outlet,
+})
+
+const settingsSecurityIndexRoute = createRoute({
+  getParentRoute: () => settingsSecurityRoute,
+  path: '/',
   component: SecuritySettingsPage,
+})
+
+const twoFactorSetupRoute = createRoute({
+  getParentRoute: () => settingsSecurityRoute,
+  path: 'two-factor/setup',
+  component: TwoFactorSetupPage,
+})
+
+const twoFactorManageRoute = createRoute({
+  getParentRoute: () => settingsSecurityRoute,
+  path: 'two-factor/manage',
+  component: TwoFactorManagementPage,
 })
 
 const settingsPreferencesRoute = createRoute({
@@ -252,8 +258,6 @@ const routeTree = rootRoute.addChildren([
   ]),
   protectedLayoutRoute.addChildren([
     indexRoute,
-    twoFactorSetupRoute,
-    twoFactorManageRoute,
     vaultsRoute,
     vaultRoute,
     vaultSettingsRoute,
@@ -268,7 +272,11 @@ const routeTree = rootRoute.addChildren([
     transfersRoute,
     settingsRoute,
     settingsAccountRoute,
-    settingsSecurityRoute,
+    settingsSecurityRoute.addChildren([
+      settingsSecurityIndexRoute,
+      twoFactorSetupRoute,
+      twoFactorManageRoute,
+    ]),
     settingsPreferencesRoute,
     settingsAboutRoute,
     adminRoute,

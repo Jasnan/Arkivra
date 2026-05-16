@@ -177,6 +177,22 @@ function buildBreadcrumbs({
   if (pathname === ROUTES.tags) return [{ label: 'Tags' }];
   if (pathname === ROUTES.search) return [{ label: 'Search' }];
   if (parts[0] === 'settings') {
+    if (pathname === ROUTES.twoFactorSetup) {
+      return [
+        { label: 'Settings', to: ROUTES.settingsAccount },
+        { label: 'Security', to: ROUTES.settingsSecurity },
+        { label: 'Set up 2FA' },
+      ];
+    }
+
+    if (pathname === ROUTES.twoFactorManage) {
+      return [
+        { label: 'Settings', to: ROUTES.settingsAccount },
+        { label: 'Security', to: ROUTES.settingsSecurity },
+        { label: 'Manage 2FA' },
+      ];
+    }
+
     const sectionLabel = settingsNavItems.find((item) => item.to === pathname)?.label;
     return sectionLabel ? [{ label: 'Settings', to: ROUTES.settingsAccount }, { label: sectionLabel }] : [{ label: 'Settings' }];
   }
@@ -543,18 +559,20 @@ function SecondarySidebar({
             </Flex>
           )
         ) : kind === 'settings' ? (
-          <Stack gap="1">
-            {settingsNavItems.map((item) => (
-              <SecondaryNavLink
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                description={item.description}
-                icon={item.icon}
-                active={item.to === currentPathname}
-              />
-            ))}
-          </Stack>
+          customContent ?? (
+            <Stack gap="1">
+              {settingsNavItems.map((item) => (
+                <SecondaryNavLink
+                  key={item.to}
+                  to={item.to}
+                  label={item.label}
+                  description={item.description}
+                  icon={item.icon}
+                  active={item.to === currentPathname}
+                />
+              ))}
+            </Stack>
+          )
         ) : customContent ?? (
           kind === 'chat' ? (
             <Text px="2" py="4" fontSize="sm" color="fg.muted">

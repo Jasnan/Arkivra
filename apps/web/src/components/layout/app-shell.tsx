@@ -5,6 +5,8 @@ import {
   FileSearch,
   LogOut,
   MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Search,
   SearchX,
@@ -422,6 +424,7 @@ function PrimarySidebar({
 function SecondarySidebar({
   title,
   kind,
+  isOpen,
   activeVaultId,
   currentFolderId,
   currentDocumentId,
@@ -432,6 +435,7 @@ function SecondarySidebar({
 }: {
   title: string;
   kind: 'vault' | 'chat' | 'settings' | 'standard';
+  isOpen: boolean;
   activeVaultId?: string | null;
   currentFolderId: string | null;
   currentDocumentId?: string | null;
@@ -457,16 +461,20 @@ function SecondarySidebar({
     <Flex
       as="aside"
       aria-label="Secondary"
+      aria-hidden={!isOpen}
       display={{ base: 'none', md: 'flex' }}
-      w={{ md: '15.75rem', xl: '17rem' }}
+      w={isOpen ? { md: '15.75rem', xl: '17rem' } : '0'}
       h="100vh"
       shrink={0}
       direction="column"
-      borderRightWidth="1px"
+      borderRightWidth={isOpen ? '1px' : '0'}
       borderRightColor="border"
-      boxShadow="1px 0 0 var(--chakra-colors-border-subtle)"
+      boxShadow={isOpen ? '1px 0 0 var(--chakra-colors-border-subtle)' : 'none'}
       bg="bg.sidebar"
       overflow="hidden"
+      visibility={isOpen ? 'visible' : 'hidden'}
+      pointerEvents={isOpen ? undefined : 'none'}
+      transition="width 180ms ease, border-color 180ms ease, box-shadow 180ms ease"
     >
       <Flex h="3.5rem" align="center" borderBottomWidth="1px" borderColor="border.subtle" px="5">
         <Text truncate fontSize="xl" fontWeight="medium" color="fg">
@@ -611,12 +619,18 @@ function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] })
 function WorkspaceHeader({
   breadcrumbs,
   headerConfig,
+  hasSecondarySidebar,
+  isSecondarySidebarOpen,
   quickSearchShortcutLabel,
+  onToggleSecondarySidebar,
   onOpenQuickSearch,
 }: {
   breadcrumbs: BreadcrumbEntry[];
   headerConfig: WorkspaceHeaderConfig | null;
+  hasSecondarySidebar: boolean;
+  isSecondarySidebarOpen: boolean;
   quickSearchShortcutLabel: string;
+  onToggleSecondarySidebar: () => void;
   onOpenQuickSearch: () => void;
 }) {
   if (headerConfig?.hidden) return null;
@@ -633,6 +647,20 @@ function WorkspaceHeader({
       px={{ base: '4', md: '5' }}
     >
       <Flex minW="0" flex="1" align="center" gap="3">
+        {hasSecondarySidebar ? (
+          <IconButton
+            display={{ base: 'none', md: 'inline-flex' }}
+            type="button"
+            aria-label={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
+            title={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
+            variant="ghost"
+            color="fg.muted"
+            flexShrink={0}
+            onClick={onToggleSecondarySidebar}
+          >
+            {isSecondarySidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+          </IconButton>
+        ) : null}
         <Box minW="0" flex="1">
           {headerConfig?.left ?? <DefaultBreadcrumbs breadcrumbs={breadcrumbs} />}
           {headerConfig?.meta ? (
@@ -717,6 +745,7 @@ export function AppShell() {
   const [newVaultDescription, setNewVaultDescription] = useState('');
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
   const [secondaryContent, setSecondaryContent] = useState<ReactNode | null>(null);
+  const [isSecondarySidebarOpen, setIsSecondarySidebarOpen] = useState(true);
   const [isTransfersDrawerOpen, setIsTransfersDrawerOpen] = useState(false);
   const previousLocationKeyRef = useRef<string | null>(null);
   const quickSearchShortcutLabel = useMemo(() => getQuickSearchShortcutLabel(), []);
@@ -890,6 +919,7 @@ export function AppShell() {
 
   const secondaryKind = getSecondaryKind(location.pathname);
   const hideSecondarySidebar = shouldHideSecondarySidebar(location.pathname);
+  const hasSecondarySidebar = !hideSecondarySidebar;
   const contentPadding = isChatRoute || isFlushContentRoute ? '0' : { base: '4', lg: '6' };
 
   return (
@@ -903,10 +933,11 @@ export function AppShell() {
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
             onSignOut={() => void handleSignOut()}
           />
-          {hideSecondarySidebar ? null : (
+          {hasSecondarySidebar ? (
             <SecondarySidebar
               title={secondaryKind === 'chat' ? 'Chat' : secondaryKind === 'settings' ? 'Settings' : 'Arkivra'}
               kind={secondaryKind}
+              isOpen={isSecondarySidebarOpen}
               activeVaultId={activeVaultId}
               currentFolderId={currentFolderId}
               currentDocumentId={activeDocumentRoute?.documentId ?? null}
@@ -915,13 +946,16 @@ export function AppShell() {
               canCreateVault={meQuery.data?.canCreateVault === true}
               onCreateVault={() => setIsCreateVaultOpen(true)}
             />
-          )}
+          ) : null}
 
           <Flex minW="0" flex="1" h="100vh" direction="column" overflow="hidden">
             <WorkspaceHeader
               breadcrumbs={breadcrumbs}
               headerConfig={isChatRoute ? { hidden: true } : headerConfig}
+              hasSecondarySidebar={hasSecondarySidebar}
+              isSecondarySidebarOpen={isSecondarySidebarOpen}
               quickSearchShortcutLabel={quickSearchShortcutLabel}
+              onToggleSecondarySidebar={() => setIsSecondarySidebarOpen((open) => !open)}
               onOpenQuickSearch={openQuickSearch}
             />
 

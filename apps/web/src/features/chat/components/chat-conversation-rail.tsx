@@ -1,5 +1,5 @@
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ChatConversation } from '../chat.types';
@@ -42,7 +42,6 @@ export function ChatConversationRail({
             disabled={createConversationPending}
             style={{ height: '2rem', borderRadius: '0.5rem', padding: '0 0.75rem' }}
           >
-            <Plus size={14} />
             <Text as="span" fontSize="xs" fontWeight="semibold">New chat</Text>
           </Button>
         </Flex>
@@ -56,7 +55,6 @@ export function ChatConversationRail({
             disabled={createConversationPending}
             style={{ height: '2rem', borderRadius: '0.5rem', padding: '0 0.75rem' }}
           >
-            <Plus size={14} />
             <Text as="span" fontSize="xs" fontWeight="semibold">New chat</Text>
           </Button>
         </Flex>

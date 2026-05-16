@@ -2,8 +2,6 @@
   <img src="apps/web/src/assets/arkivra-project-logo-3.png" alt="Arkivra - open-source document management with vaults, search, and local RAG chat" width="760">
 </p>
 
-<h1 align="center">Arkivra</h1>
-
 <p align="center">
   <a href="https://arkivra.app">Website</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
@@ -13,34 +11,44 @@
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
   <a href="#features">Features</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="#security">Security</a>
+  <a href="#quick-start">Quick Start</a>
 </p>
 
 ---
 
 ## What is Arkivra?
 
-Arkivra is a self-hosted document management system for storing, organizing, searching, and querying personal or team documents. It is built for people who want control over where their documents live and how they are processed.
+Arkivra is a self-hosted document management system built for people who want to keep their documents private, searchable, and under their control.
 
-Documents are organized into **vaults**, with permissions, tags, upload workflows, full-text search, and optional vector retrieval. Arkivra can use locally configured Ollama models for RAG-based document chat, so questions can be answered from the documents available to the user.
+Organize files into vaults, search through them with full-text and semantic retrieval, and interact with your documents using locally configured Ollama models.
+
+The platform is built for homelabs, small teams, and privacy-conscious users who want modern document retrieval without depending on cloud platforms.
+
+---
 
 ## Status
 
-Arkivra is in active development. The core platform is in place, and setup, documentation, deployment packaging, and operational defaults are still evolving.
+Arkivra is under active development.
+
+The core platform is already usable, but deployment, documentation, and operational tooling are still being refined before the first stable release.
+
+---
 
 ## Features
 
-- Vault-based document organization
+- Organize documents into vaults
 - Vault members, roles, and permission management
-- Document uploads, previews, downloads, trash, and restore
-- Full-text search with PostgreSQL
-- Vector retrieval with pgvector when embeddings are configured
-- Document, vault, and global RAG chat through Ollama
-- Docling-based document parsing and chunking
-- Tags and document filters
-- Email/password auth, OAuth support, and 2FA
-- Uploaded files encrypted at rest
-- Light and dark mode
+- Upload, preview, download, restore, and trash workflows
+- Full-text and semantic search
+- Chat with documents, vaults, or your entire library using Ollama
+- Docling-based document parsing and ingestion
+- Tags, filters, and metadata management
+- Email/password auth, OAuth, and 2FA
+- Encryption at rest for uploaded files
+- Light and dark theme support
+- Customize the interface with adjustable density, typography, accent colors, and layout preferences
+
+---
 
 ## Quick Start
 
@@ -50,14 +58,21 @@ cd Arkivra
 
 cp .env.example .env
 
-# Generate a key and set ARKIVRA_ENCRYPTION_KEYS=1:<key> in .env
+# Generate an encryption key
 openssl rand -hex 32
 
 docker compose up -d
 curl http://localhost:1221/api/health
 ```
 
-For local development:
+Arkivra should now be available at:
+
+- Web: http://localhost:5173
+- API: http://localhost:1221
+
+---
+
+## Local Development
 
 ```bash
 pnpm install
@@ -66,17 +81,33 @@ pnpm dev:api
 pnpm dev:web
 ```
 
-For parallel branch work, use Git worktrees with distinct ports and `APP_INSTANCE` values. See [docs/local-worktrees.md](docs/local-worktrees.md).
+For parallel branch work, use Git worktrees with distinct ports and `APP_INSTANCE` values.
 
-Docker Compose currently starts PostgreSQL with pgvector, Docling, the API process, and the worker. Complete setup and deployment notes will live at [docs.arkivra.app](https://docs.arkivra.app).
+Docker Compose currently starts PostgreSQL with pgvector, Docling, the API process, and the worker.
+
+More detailed setup, deployment, and operational documentation is available at:
+
+- https://docs.arkivra.app
+
+---
 
 ## Security
 
-Arkivra encrypts uploaded document files and extracted chunk assets at rest. Search and chat require derived data, so PostgreSQL stores metadata, extracted text, chunks, search vectors, embeddings, chat messages, and processing artifacts.
+Arkivra encrypts uploaded files and extracted assets at rest.
 
-Treat database access as trusted administrative access. Arkivra is not currently an end-to-end encrypted or zero-knowledge document vault.
+Search and chat features require derived data to be stored in PostgreSQL, including extracted text, chunks, embeddings, vectors, chat history, and related metadata.
 
-For real deployments, keep PostgreSQL private, restrict server access, use strong secrets, and back up `ARKIVRA_ENCRYPTION_KEYS` separately. Losing the active encryption key means losing access to encrypted stored files.
+Arkivra is not designed as a zero-knowledge or end-to-end encrypted vault.
+
+For production deployments:
+- keep PostgreSQL private,
+- restrict server access,
+- use strong secrets,
+- and back up `ARKIVRA_ENCRYPTION_KEYS` separately.
+
+Losing the active encryption key means losing access to encrypted stored files.
+
+---
 
 ## Stack
 
@@ -91,27 +122,16 @@ For real deployments, keep PostgreSQL private, restrict server access, use stron
 | AI         | Ollama                                                              |
 | Deployment | Docker Compose                                                      |
 
-## Development
-
-```bash
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm build
-```
-
-This repo uses Conventional Commits through repo-local Git hooks:
-
-```bash
-git config core.hooksPath .githooks
-chmod +x .githooks/commit-msg
-chmod +x .githooks/prepare-commit-msg
-```
+---
 
 ## Inspiration
 
-Arkivra is influenced by [Paperless-ngx](https://paperless-ngx.com/), [Papra](https://papra.app/), and the broader self-hosted document management ecosystem, with a focus on small-team, self-hosted workflows.
+Arkivra is inspired by projects and products that focus on practical, privacy-conscious document workflows and clean user experiences.
+
+That includes projects like [Paperless-ngx](https://paperless-ngx.com/), [Papra](https://papra.app/), and [Filen](https://filen.io/), alongside the broader self-hosted and local-first ecosystem.
+
+---
 
 ## License
 
-Arkivra is licensed under [AGPL-3.0-or-later](LICENSE).
+Arkivra is licensed under the [AGPL-3.0](LICENSE).

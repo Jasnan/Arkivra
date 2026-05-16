@@ -2,7 +2,10 @@ import type { ComponentType, FormEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  BrainCircuit,
+  DatabaseBackup,
   FileSearch,
+  LayoutDashboard,
   LogOut,
   MessageSquare,
   PanelRightClose,
@@ -18,6 +21,7 @@ import {
   Trash2,
   Upload,
   UserCircle2,
+  Users,
   Info,
   Vault,
   X,
@@ -126,6 +130,39 @@ const settingsNavItems = [
   },
 ] as const;
 
+const adminNavItems = [
+  {
+    to: ROUTES.adminOverview,
+    label: 'Overview',
+    description: 'Instance status',
+    icon: <LayoutDashboard size={16} />,
+  },
+  {
+    to: ROUTES.adminUsers,
+    label: 'Users management',
+    description: 'Access & privileges',
+    icon: <Users size={16} />,
+  },
+  {
+    to: ROUTES.adminBackups,
+    label: 'Backups',
+    description: 'Archive control',
+    icon: <DatabaseBackup size={16} />,
+  },
+  {
+    to: ROUTES.adminVaults,
+    label: 'Vault oversight',
+    description: 'Ownership ledger',
+    icon: <Vault size={16} />,
+  },
+  {
+    to: ROUTES.adminAiSettings,
+    label: 'AI settings',
+    description: 'Ollama defaults',
+    icon: <BrainCircuit size={16} />,
+  },
+] as const;
+
 const QUICK_SEARCH_QUERY_DEBOUNCE_MS = 280;
 
 const accountMenuItemProps = {
@@ -196,7 +233,10 @@ function buildBreadcrumbs({
     const sectionLabel = settingsNavItems.find((item) => item.to === pathname)?.label;
     return sectionLabel ? [{ label: 'Settings', to: ROUTES.settingsAccount }, { label: sectionLabel }] : [{ label: 'Settings' }];
   }
-  if (pathname === ROUTES.admin) return [{ label: 'Admin' }];
+  if (parts[0] === 'admin') {
+    const sectionLabel = adminNavItems.find((item) => item.to === pathname)?.label;
+    return sectionLabel ? [{ label: 'Admin', to: ROUTES.adminOverview }, { label: sectionLabel }] : [{ label: 'Admin' }];
+  }
   if (pathname === ROUTES.transfers) {
     if (!transferVaultId) return [{ label: 'Upload' }];
 
@@ -450,7 +490,7 @@ function SecondarySidebar({
   onCreateVault,
 }: {
   title: string;
-  kind: 'vault' | 'chat' | 'settings' | 'standard';
+  kind: 'vault' | 'chat' | 'settings' | 'admin' | 'standard';
   isOpen: boolean;
   activeVaultId?: string | null;
   currentFolderId: string | null;
@@ -573,6 +613,19 @@ function SecondarySidebar({
               ))}
             </Stack>
           )
+        ) : kind === 'admin' ? (
+          <Stack gap="1">
+            {adminNavItems.map((item) => (
+              <SecondaryNavLink
+                key={item.to}
+                to={item.to}
+                label={item.label}
+                description={item.description}
+                icon={item.icon}
+                active={item.to === currentPathname}
+              />
+            ))}
+          </Stack>
         ) : customContent ?? (
           kind === 'chat' ? (
             <Text px="2" py="4" fontSize="sm" color="fg.muted">
@@ -735,10 +788,11 @@ function WorkspaceHeader({
   );
 }
 
-function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'settings' | 'standard' {
+function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'settings' | 'admin' | 'standard' {
   const parts = pathname.split('/').filter(Boolean);
   if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
   if (parts[0] === 'settings') return 'settings';
+  if (parts[0] === 'admin') return 'admin';
   if (parts[0] === 'vaults' || pathname === ROUTES.vaults) return 'vault';
   return 'standard';
 }
@@ -778,9 +832,11 @@ export function AppShell() {
     location.pathname === ROUTES.chat || (pathParts[0] === 'vaults' && (pathParts[2] === 'chat' || pathParts[3] === 'chat'));
   const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
+  const isAdminUsersRoute = location.pathname === ROUTES.adminUsers;
   const isFlushContentRoute =
     isVaultIndexRoute ||
     isVaultBrowserRoute ||
+    isAdminUsersRoute ||
     location.pathname === ROUTES.tags ||
     location.pathname === ROUTES.search ||
     pathParts[0] === 'trash';
@@ -953,7 +1009,7 @@ export function AppShell() {
           />
           {hasSecondarySidebar ? (
             <SecondarySidebar
-              title={secondaryKind === 'chat' ? 'Chat' : secondaryKind === 'settings' ? 'Settings' : 'Arkivra'}
+              title={secondaryKind === 'chat' ? 'Chat' : secondaryKind === 'settings' ? 'Settings' : secondaryKind === 'admin' ? 'Admin' : 'Arkivra'}
               kind={secondaryKind}
               isOpen={isSecondarySidebarOpen}
               activeVaultId={activeVaultId}

@@ -17,6 +17,11 @@ export interface AdminUser {
   globalRoles: string[];
   isGlobalAdmin: boolean;
   canCreateVault: boolean;
+  authMethods?: {
+    hasPassword: boolean;
+    oauthProviders: string[];
+    primaryOAuthProvider: string | null;
+  };
 }
 
 export interface AdminVault {

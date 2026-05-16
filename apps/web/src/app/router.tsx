@@ -17,7 +17,14 @@ import { ChatPage } from '@/features/chat/pages/chat-page'
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page'
 import { DocumentsPage } from '@/features/documents/pages/documents-page'
 import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page'
-import { AdminPage } from '@/features/admin/pages/admin-page'
+import { AdminIndexPage } from '@/features/admin/pages/admin-index-page'
+import {
+  AdminAiSettingsPage,
+  AdminBackupsPage,
+  AdminOverviewPage,
+  AdminUsersPage,
+  AdminVaultsPage,
+} from '@/features/admin/pages/admin-page'
 import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page'
 import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page'
 import { SecuritySettingsPage } from '@/features/settings/pages/security-settings-page'
@@ -238,7 +245,37 @@ const settingsAboutRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin',
-  component: AdminPage,
+  component: AdminIndexPage,
+})
+
+const adminOverviewRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/overview',
+  component: AdminOverviewPage,
+})
+
+const adminUsersRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/users',
+  component: AdminUsersPage,
+})
+
+const adminBackupsRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/backups',
+  component: AdminBackupsPage,
+})
+
+const adminVaultsRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/vaults',
+  component: AdminVaultsPage,
+})
+
+const adminAiSettingsRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/ai-settings',
+  component: AdminAiSettingsPage,
 })
 
 const catchAllRoute = createRoute({
@@ -280,6 +317,11 @@ const routeTree = rootRoute.addChildren([
     settingsPreferencesRoute,
     settingsAboutRoute,
     adminRoute,
+    adminOverviewRoute,
+    adminUsersRoute,
+    adminBackupsRoute,
+    adminVaultsRoute,
+    adminAiSettingsRoute,
     catchAllRoute,
   ]),
 ])

@@ -46,6 +46,11 @@ export const ROUTES = {
 
   // Admin
   admin: '/admin',
+  adminOverview: '/admin/overview',
+  adminUsers: '/admin/users',
+  adminBackups: '/admin/backups',
+  adminVaults: '/admin/vaults',
+  adminAiSettings: '/admin/ai-settings',
 
   // Root
   root: '/',

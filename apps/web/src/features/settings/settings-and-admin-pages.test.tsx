@@ -1,7 +1,13 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AdminPage } from '@/features/admin/pages/admin-page';
+import {
+  AdminAiSettingsPage,
+  AdminBackupsPage,
+  AdminOverviewPage,
+  AdminUsersPage,
+  AdminVaultsPage,
+} from '@/features/admin/pages/admin-page';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page';
@@ -1172,6 +1178,11 @@ describe('settings, admin, and about pages', () => {
               globalRoles: [],
               isGlobalAdmin: false,
               canCreateVault: false,
+              authMethods: {
+                hasPassword: true,
+                oauthProviders: ['google'],
+                primaryOAuthProvider: 'google',
+              },
             },
           ],
         });
@@ -1191,6 +1202,11 @@ describe('settings, admin, and about pages', () => {
             globalRoles: [],
             isGlobalAdmin: false,
             canCreateVault: false,
+            authMethods: {
+              hasPassword: true,
+              oauthProviders: ['google'],
+              primaryOAuthProvider: 'google',
+            },
           },
         });
       }
@@ -1209,6 +1225,11 @@ describe('settings, admin, and about pages', () => {
             globalRoles: ['global_admin'],
             isGlobalAdmin: true,
             canCreateVault: true,
+            authMethods: {
+              hasPassword: true,
+              oauthProviders: ['google'],
+              primaryOAuthProvider: 'google',
+            },
           },
         });
       }
@@ -1288,9 +1309,16 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<AdminPage />);
+    let view = await renderWithProviders(<AdminOverviewPage />);
+    expect(await screen.findByText(/1 vault/i)).toBeInTheDocument();
+    view.unmount();
 
+    view = await renderWithProviders(<AdminVaultsPage />);
     expect(await screen.findByText(/invoices vault/i)).toBeInTheDocument();
+    view.unmount();
+
+    view = await renderWithProviders(<AdminBackupsPage />);
+    expect(await screen.findByText(/arkivra-backup-1.tar.gz/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /create backup/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1312,8 +1340,12 @@ describe('settings, admin, and about pages', () => {
         }),
       );
     });
+    view.unmount();
 
-    await user.click(screen.getByRole('button', { name: /disable/i }));
+    view = await renderWithProviders(<AdminUsersPage />);
+    expect(await screen.findByText(/alex@example.com/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /user actions for alex@example.com/i }));
+    await user.click(screen.getByRole('menuitem', { name: /disable/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/users/usr_1',
@@ -1324,7 +1356,8 @@ describe('settings, admin, and about pages', () => {
       );
     });
 
-    await user.click(screen.getByRole('button', { name: /grant admin/i }));
+    await user.click(screen.getByRole('button', { name: /user actions for alex@example.com/i }));
+    await user.click(screen.getByRole('menuitem', { name: /grant admin/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/users/usr_1/global-admin',
@@ -1334,9 +1367,10 @@ describe('settings, admin, and about pages', () => {
         }),
       );
     });
+    view.unmount();
 
-    await user.clear(screen.getByLabelText(/ollama host/i));
-    await user.type(screen.getByLabelText(/ollama host/i), 'http://192.168.1.77:11434');
+    await renderWithProviders(<AdminAiSettingsPage />);
+    expect(await screen.findByLabelText(/ollama host/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /save changes/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

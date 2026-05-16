@@ -1,7 +1,7 @@
 import type { Database } from '../database/database.js';
 import type { GlobalRole } from './authorization.types.js';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { userGlobalRolesTable, usersTable } from '../database/schema/index.js';
+import { authAccountsTable, userGlobalRolesTable, usersTable } from '../database/schema/index.js';
 
 export function createAuthorizationServices({ db }: { db: Database }) {
   async function ensureBootstrapGlobalAdmin({ userId }: { userId: string }) {
@@ -116,6 +116,31 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       rolesByUserId.set(role.userId, current);
     }
 
+    const accounts =
+      users.length === 0
+        ? []
+        : await db
+            .select({
+              userId: authAccountsTable.userId,
+              providerId: authAccountsTable.providerId,
+              password: authAccountsTable.password,
+            })
+            .from(authAccountsTable)
+            .where(
+              inArray(
+                authAccountsTable.userId,
+                users.map((user) => user.id),
+              ),
+            );
+
+    const accountsByUserId = new Map<string, typeof accounts>();
+
+    for (const account of accounts) {
+      const current = accountsByUserId.get(account.userId) ?? [];
+      current.push(account);
+      accountsByUserId.set(account.userId, current);
+    }
+
     return users.map((user) => ({
       ...user,
       globalRoles: rolesByUserId.get(user.id) ?? [],
@@ -123,6 +148,13 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       canCreateVault:
         (rolesByUserId.get(user.id) ?? []).includes('global_admin')
         || (rolesByUserId.get(user.id) ?? []).includes('vault_creator'),
+      authMethods: {
+        hasPassword: (accountsByUserId.get(user.id) ?? []).some(account => account.providerId === 'credential' && account.password),
+        oauthProviders: (accountsByUserId.get(user.id) ?? [])
+          .filter(account => account.providerId !== 'credential')
+          .map(account => account.providerId),
+        primaryOAuthProvider: (accountsByUserId.get(user.id) ?? []).find(account => account.providerId !== 'credential')?.providerId ?? null,
+      },
     }));
   }
 

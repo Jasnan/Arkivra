@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthLayout } from '@/features/auth/auth-layout';
+import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
 import { LoginPage } from '@/features/auth/pages/login-page';
 import { RegisterPage } from '@/features/auth/pages/register-page';
 import { RequestPasswordResetPage } from '@/features/auth/pages/request-password-reset-page';
@@ -303,14 +304,66 @@ describe('auth pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await renderWithProviders(<TwoFactorSetupPage />, {
-      initialEntries: ['/two-factor/setup?mode=replace'],
-      routePath: '/two-factor/setup',
+      initialEntries: ['/settings/security/two-factor/setup?mode=replace'],
+      routePath: '/settings/security/two-factor/setup',
     });
 
     expect(await screen.findByRole('heading', { name: /reconnect authenticator/i })).toBeInTheDocument();
     expect(screen.getByText(/previous authenticator app will stop working/i)).toBeInTheDocument();
     expect(await screen.findByLabelText(/current password/i)).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /authenticator setup qr code/i })).not.toBeInTheDocument();
+  });
+
+  it('publishes vertical setup steps for the settings secondary sidebar', async () => {
+    const setHeaderConfig = vi.fn();
+    const setSecondaryContent = vi.fn();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(
+      <WorkspaceLayoutContext value={{ setHeaderConfig, setSecondaryContent }}>
+        <TwoFactorSetupPage />
+      </WorkspaceLayoutContext>,
+      {
+        initialEntries: ['/settings/security/two-factor/setup'],
+        routePath: '/settings/security/two-factor/setup',
+      },
+    );
+
+    await waitFor(() => {
+      expect(setSecondaryContent).toHaveBeenCalledWith(expect.anything());
+    });
+
+    const sidebarContent = setSecondaryContent.mock.calls.find(([content]) => content !== null)?.[0];
+    expect(sidebarContent).toBeTruthy();
+
+    const sidebarRender = await renderWithProviders(sidebarContent);
+    const setupSteps = sidebarRender.container.querySelector('[aria-label="Two-factor setup steps"]');
+
+    expect(setupSteps).toHaveAttribute('data-orientation', 'vertical');
+    expect(screen.getAllByText('Verify identity').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Scan QR code').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Confirm code').length).toBeGreaterThan(0);
+
+    sidebarRender.unmount();
   });
 
   it('accepts backup codes on the verification page', async () => {

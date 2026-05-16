@@ -6,8 +6,6 @@ export const ROUTES = {
   resetPassword: '/reset-password',
   emailVerification: '/verify-email',
   twoFactorVerify: '/two-factor/verify',
-  twoFactorSetup: '/two-factor/setup',
-  twoFactorManage: '/two-factor/manage',
 
   // Vaults
   vaults: '/vaults',
@@ -41,6 +39,8 @@ export const ROUTES = {
   settings: '/settings',
   settingsAccount: '/settings/account',
   settingsSecurity: '/settings/security',
+  twoFactorSetup: '/settings/security/two-factor/setup',
+  twoFactorManage: '/settings/security/two-factor/manage',
   settingsPreferences: '/settings/preferences',
   settingsAbout: '/settings/about',
 

@@ -152,7 +152,7 @@ describe('settings, admin, and about pages', () => {
 
   it('updates account profile and keeps security controls off the account page', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
@@ -167,6 +167,10 @@ describe('settings, admin, and about pages', () => {
             primaryOAuthProvider: 'github',
           },
         });
+      }
+
+      if (url === '/api/auth/set-password' && init?.method === 'POST') {
+        return jsonResponse({ status: true });
       }
 
       throw new Error(`Unhandled request ${url}`);
@@ -419,6 +423,58 @@ describe('settings, admin, and about pages', () => {
 
     expect(await screen.findByText(/^disabled$/i)).toBeInTheDocument();
     expect(screen.queryByText(/^off$/i)).not.toBeInTheDocument();
+  });
+
+  it('sets a password inline for OAuth-only accounts', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          isGlobalAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: false,
+            oauthProviders: ['github'],
+            primaryOAuthProvider: 'github',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />, {
+      initialEntries: ['/settings/security'],
+      routePath: '/settings/security',
+    });
+
+    expect(await screen.findByRole('button', { name: /^set password$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^set password$/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^set password$/i }));
+    await user.type(screen.getByLabelText(/^new password$/i), 'strongpass123');
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'different123');
+    await user.click(screen.getByRole('button', { name: /save password/i }));
+
+    expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/set-password', expect.anything());
+
+    await user.clear(screen.getByLabelText(/^confirm password$/i));
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'strongpass123');
+    await user.click(screen.getByRole('button', { name: /save password/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/set-password', expect.objectContaining({
+        body: JSON.stringify({ newPassword: 'strongpass123' }),
+        credentials: 'include',
+        method: 'POST',
+      }));
+    });
   });
 
   it('requests a password-confirmed email change from security settings', async () => {
@@ -762,7 +818,7 @@ describe('settings, admin, and about pages', () => {
 
     expect(await screen.findByRole('link', { name: /manage 2fa/i })).toHaveAttribute(
       'href',
-      '/two-factor/manage',
+      '/settings/security/two-factor/manage',
     );
   });
 

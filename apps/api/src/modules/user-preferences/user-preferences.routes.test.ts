@@ -47,11 +47,9 @@ function createTestApp({ isAuthenticated = true }: { isAuthenticated?: boolean }
         : null,
     );
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
     await next();
   });
 

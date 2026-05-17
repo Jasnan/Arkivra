@@ -1,14 +1,19 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { ReactNode } from 'react';
 import { Box, Flex, Text } from '@chakra-ui/react';
 import type { Citation } from '../chat.types';
 import { WINDOWS_NEWLINE_PATTERN, ORDERED_LIST_PREFIX_PATTERN, renderInlineMarkdown } from './chat-utils';
 
+const TRAILING_LINE_WHITESPACE_PATTERN = /[ \t]+\n/g;
+const LEADING_LINE_WHITESPACE_PATTERN = /\n[ \t]+/g;
+const REPEATED_NEWLINE_PATTERN = /\n{2,}/g;
+
 export function normalizeChatDisplayContent(content: string) {
   return content
     .replace(WINDOWS_NEWLINE_PATTERN, '\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n[ \t]+/g, '\n')
-    .replace(/\n{2,}/g, '\n')
+    .replace(TRAILING_LINE_WHITESPACE_PATTERN, '\n')
+    .replace(LEADING_LINE_WHITESPACE_PATTERN, '\n')
+    .replace(REPEATED_NEWLINE_PATTERN, '\n')
     .trim();
 }
 

@@ -426,8 +426,8 @@ describe.sequential('persistParsedDocument integration', () => {
       ],
     };
 
-    const firstVector = Array.from({ length: 768 }, (_, index) => (index === 0 ? 1 : 0));
-    const secondVector = Array.from({ length: 768 }, (_, index) => (index === 1 ? 1 : 0));
+    const firstVector = Array.from({ length: 1024 }, (_, index) => (index === 0 ? 1 : 0));
+    const secondVector = Array.from({ length: 1024 }, (_, index) => (index === 1 ? 1 : 0));
     const embedder: ChunkEmbedder = {
       name: 'test-embedder',
       embed: async () => [firstVector, secondVector],

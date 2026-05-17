@@ -48,15 +48,8 @@ function vaultDetailResponse() {
       totalSize: 2048,
       createdAt: '2026-04-10T10:00:00.000Z',
       role: 'owner',
-      permissions: [
-        'documents.read',
-        'documents.create',
-        'documents.update',
-        'documents.delete',
-        'documents.download',
-        'tags.manage',
-      ],
-      isGlobalAdmin: false,
+      aiAccessLevel: 'full',
+      isRoot: false,
     },
   };
 }
@@ -219,6 +212,8 @@ describe('tags and documents pages', () => {
                 totalSize: 1024,
                 createdAt: '2026-04-10T10:00:00.000Z',
                 role: 'owner',
+                aiAccessLevel: 'full',
+                isRoot: false,
               },
             ],
           });
@@ -305,9 +300,10 @@ describe('tags and documents pages', () => {
 
     const createButton = await screen.findByRole('button', { name: /create tag/i });
     await user.click(createButton);
-    expect(await screen.findByRole('dialog', { name: /create tag/i })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: /create tag/i });
+    expect(dialog).toBeInTheDocument();
 
-    await user.keyboard('{Escape}');
+    await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /create tag/i })).not.toBeInTheDocument();
@@ -747,7 +743,7 @@ describe('tags and documents pages', () => {
     const menu = screen.getByRole('menu', { name: /actions for vault root/i });
     expect(within(menu).getByRole('menuitem', { name: /new folder/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /upload files/i })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /upload directory/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /upload folder/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /info/i })).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /rename/i })).not.toBeInTheDocument();
 

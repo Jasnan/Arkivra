@@ -7,10 +7,10 @@ type ActionButtonProps = Omit<ComponentProps<typeof Button>, 'children' | 'ref'>
   children: ReactNode;
 };
 
-export const CreateButton = forwardRef<HTMLButtonElement, ActionButtonProps>(function CreateButton(
+export const CreateButton = forwardRef<HTMLButtonElement, ActionButtonProps>((
   { children, className, ...props },
   ref,
-) {
+) => {
   return (
     <Button ref={ref} className={className} {...props}>
       <Plus className="size-4" />
@@ -18,6 +18,8 @@ export const CreateButton = forwardRef<HTMLButtonElement, ActionButtonProps>(fun
     </Button>
   );
 });
+
+CreateButton.displayName = 'CreateButton';
 
 export function SaveButton({ children, className, ...props }: ActionButtonProps) {
   return (

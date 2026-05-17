@@ -392,9 +392,11 @@ function SearchResultRow({
 
 function SearchModeControl({
   checked,
+  disabled,
   onCheckedChange,
 }: {
   checked: boolean;
+  disabled?: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
@@ -419,6 +421,7 @@ function SearchModeControl({
           colorPalette="teal"
           checked={checked}
           onCheckedChange={(event) => onCheckedChange(event.checked)}
+          disabled={disabled}
           display="flex"
           flex="1"
           alignItems="center"
@@ -439,7 +442,7 @@ function SearchModeControl({
         </ChakraSwitch.Root>
         <InfoTooltip
           label="Semantic search help"
-          content="Finds documents by similar meaning, even when the exact words differ. The technical term is semantic search. Turn it off for exact keyword matching only."
+          content="Requires full AI access on the selected vaults. Root status does not grant AI access."
         />
       </Flex>
     </Flex>
@@ -545,9 +548,7 @@ export function SearchPage() {
   const dateFrom = search.dateFrom ?? '';
   const dateTo = search.dateTo ?? '';
   const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
-  const semanticSearchEnabled = isSearchMode(search.searchMode) ? search.searchMode !== 'keyword' : true;
-  const selectedSearchMode: SearchMode = semanticSearchEnabled ? 'hybrid' : 'keyword';
-  const searchMode: SearchMode = selectedSearchMode === 'hybrid' && debouncedQuery.length > 0 ? 'hybrid' : 'keyword';
+  const requestedSemanticSearch = isSearchMode(search.searchMode) ? search.searchMode !== 'keyword' : true;
 
   useEffect(() => {
     if ((search.q ?? '') === debouncedQuery) {
@@ -571,6 +572,17 @@ export function SearchPage() {
 
   const vaultsQuery = useVaultsQuery();
   const tagsQuery = useAccessibleTagsQuery();
+  const vaults = vaultsQuery.data?.vaults ?? [];
+  const fullAiVaultIds = useMemo(
+    () => new Set(vaults.filter((vault) => vault.aiAccessLevel === 'full' || !('aiAccessLevel' in vault)).map((vault) => vault.id)),
+    [vaults],
+  );
+  const semanticSearchAvailable = selectedVaultIds.length > 0
+    ? selectedVaultIds.every((vaultId) => fullAiVaultIds.has(vaultId))
+    : fullAiVaultIds.size > 0 || vaults.length === 0;
+  const semanticSearchEnabled = requestedSemanticSearch && semanticSearchAvailable;
+  const selectedSearchMode: SearchMode = semanticSearchEnabled ? 'hybrid' : 'keyword';
+  const searchMode: SearchMode = selectedSearchMode === 'hybrid' && debouncedQuery.length > 0 ? 'hybrid' : 'keyword';
   const searchQuery = useGlobalSearchDocumentsQuery({
     query: debouncedQuery,
     pageIndex: 0,
@@ -590,8 +602,8 @@ export function SearchPage() {
   });
 
   const selectedVaults = useMemo(
-    () => (vaultsQuery.data?.vaults ?? []).filter((vault) => selectedVaultIds.includes(vault.id)),
-    [selectedVaultIds, vaultsQuery.data?.vaults],
+    () => vaults.filter((vault) => selectedVaultIds.includes(vault.id)),
+    [selectedVaultIds, vaults],
   );
   const selectedTags = useMemo(
     () => (tagsQuery.data?.tags ?? []).filter((tag) => selectedTagIds.includes(tag.id)),
@@ -755,6 +767,7 @@ export function SearchPage() {
         toolbarAccessory={(
           <SearchModeControl
             checked={semanticSearchEnabled}
+            disabled={!semanticSearchAvailable}
             onCheckedChange={setSemanticSearchEnabled}
           />
         )}
@@ -768,9 +781,10 @@ export function SearchPage() {
               searchPlaceholder="Search vaults"
               emptyLabel="No vaults found."
               loadingLabel="Loading vaults..."
-              options={(vaultsQuery.data?.vaults ?? []).map((vault) => ({
+              options={vaults.map((vault) => ({
                 value: vault.id,
                 label: vault.name,
+                meta: vault.aiAccessLevel === 'full' ? 'Full AI' : undefined,
               }))}
               selectedValues={selectedVaultIds}
               isLoading={vaultsQuery.isLoading}

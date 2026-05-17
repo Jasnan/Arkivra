@@ -1,7 +1,11 @@
 export { usersTable } from './users.table.js';
 export { vaultsTable, vaultMembersTable } from './vaults.table.js';
 export { vaultFoldersTable } from './vault-folders.table.js';
-export { userGlobalRolesTable, vaultMemberPermissionsTable } from './authorization.table.js';
+export {
+  emailInvitationsTable,
+  permissionRequestsTable,
+  systemCapabilitiesTable,
+} from './authorization.table.js';
 export { backgroundJobsTable } from './background-jobs.table.js';
 export { documentsTable } from './documents.table.js';
 export { uploadSessionsTable } from './upload-sessions.table.js';

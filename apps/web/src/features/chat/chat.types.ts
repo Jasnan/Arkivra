@@ -41,7 +41,7 @@ export interface ChatConversation {
   vaultId: string | null;
   documentId: string | null;
   scope: 'global' | 'vault' | 'document';
-  createdBy: string | null;
+  userId: string | null;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -61,7 +61,7 @@ export interface ChatMessage {
   vaultId: string | null;
   documentId: string | null;
   scope: 'global' | 'vault' | 'document';
-  createdBy: string | null;
+  userId: string | null;
   role: 'user' | 'assistant';
   content: string;
   metadata: ChatMessageMetadata | null;

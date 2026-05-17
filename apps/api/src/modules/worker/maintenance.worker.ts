@@ -9,6 +9,7 @@ import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
 type ExpiredDocumentRow = {
   id: string;
   original_storage_key: string;
+  vault_id: string;
 };
 
 type AssetStorageKeyRow = {
@@ -37,7 +38,7 @@ export async function hardDeleteExpiredDocuments({
   const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
 
   const expiredDocuments = await db.execute<ExpiredDocumentRow>(sql`
-    SELECT id, original_storage_key
+    SELECT id, original_storage_key, vault_id
     FROM documents
     WHERE is_deleted = true
       AND deleted_at IS NOT NULL
@@ -60,6 +61,7 @@ export async function hardDeleteExpiredDocuments({
 
     await storage.removePrefix?.(`previews/${document.id}`);
     await storage.remove(document.original_storage_key);
+    await storage.removePrefix?.(`${document.vault_id}/${document.id}`);
     await db.execute(sql`DELETE FROM documents WHERE id = ${document.id}`);
     deletedCount += 1;
   }

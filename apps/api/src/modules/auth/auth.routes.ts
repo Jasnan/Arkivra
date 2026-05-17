@@ -1,5 +1,6 @@
 import type { Hono } from 'hono';
 import type { AuthorizationServices } from '../authorization/authorization.services.js';
+import type { Config } from '../config/config.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { Auth } from './auth.services.js';
 
@@ -7,13 +8,53 @@ export function registerAuthRoutes({
   app,
   auth,
   authorizationServices,
+  config,
 }: {
   app: Hono<ServerContext>;
   auth: Auth;
   authorizationServices: AuthorizationServices;
+  config: Config;
 }) {
   // Better Auth handles all /api/auth/* routes (signup, login, logout, session, 2FA, etc.)
   const handleAuthRequest = async (context: Parameters<typeof app.on>[2] extends (...args: infer A) => any ? A[0] : never) => {
+    if (context.req.path === '/api/auth/sign-up/email' && context.req.method === 'POST') {
+      const body = await context.req.raw.clone().json().catch(() => ({})) as {
+        email?: unknown;
+        invitationId?: unknown;
+        invitationToken?: unknown;
+      };
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : null;
+      const invitationId = typeof body.invitationId === 'string'
+        ? body.invitationId
+        : typeof body.invitationToken === 'string'
+          ? body.invitationToken
+          : undefined;
+      if (!config.auth.isRegistrationEnabled && await authorizationServices.hasAnyUsers()) {
+        if (email === null) {
+          return context.json(
+            { error: { code: 'auth.invitation_required', message: 'Email invitation required' } },
+            403,
+          );
+        }
+
+        const invitation = await authorizationServices.getPendingEmailInvitation({ invitationId, email });
+        if (invitation === null) {
+          return context.json(
+            { error: { code: 'auth.invitation_required', message: 'Email invitation required' } },
+            403,
+          );
+        }
+      }
+
+      const response = await auth.handler(context.req.raw);
+
+      if (response.ok && email !== null) {
+        await authorizationServices.acceptEmailInvitationForRegisteredUser({ invitationId, email });
+      }
+
+      return response;
+    }
+
     return auth.handler(context.req.raw);
   };
 
@@ -27,7 +68,7 @@ export function registerAuthRoutes({
 
     if (sessionData) {
       const { user, session } = sessionData;
-      await authorizationServices.ensureBootstrapGlobalAdmin({ userId: user.id });
+      await authorizationServices.ensureBootstrapRoot({ userId: user.id });
       const authorizationState = await authorizationServices.getUserAuthorizationState({
         userId: user.id,
       });
@@ -38,7 +79,9 @@ export function registerAuthRoutes({
         context.set('userId', user.id);
         context.set('user', user);
         context.set('session', session);
-        context.set('isGlobalAdmin', authorizationState?.isGlobalAdmin ?? false);
+        context.set('systemRole', authorizationState?.systemRole ?? 'member');
+        context.set('systemCapabilities', authorizationState?.systemCapabilities ?? []);
+        context.set('isRoot', authorizationState?.isRoot ?? false);
         context.set('canCreateVault', authorizationState?.canCreateVault ?? false);
       }
     }

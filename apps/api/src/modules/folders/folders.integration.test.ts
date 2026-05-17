@@ -101,7 +101,7 @@ function createMockVaultsServices({
   role = 'owner',
   permissions = [],
 }: {
-  role?: 'owner' | 'member';
+  role?: 'owner' | 'editor' | 'viewer';
   permissions?: string[];
 } = {}) {
   return {
@@ -114,8 +114,9 @@ function createMockVaultsServices({
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role,
+      aiAccessLevel: 'none',
       permissions,
-      isGlobalAdmin: false,
+      isRoot: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
@@ -139,10 +140,8 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -183,8 +182,7 @@ describe('folders integration', () => {
   test('lists root folder items for a readable vault', async () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
-      role: 'member',
-      permissions: ['documents.read'],
+      role: 'viewer',
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -204,8 +202,7 @@ describe('folders integration', () => {
   test('lists folder tree entries with active documents for a readable vault', async () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
-      role: 'member',
-      permissions: ['documents.read'],
+      role: 'editor',
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -242,8 +239,7 @@ describe('folders integration', () => {
   test('creates a folder under the vault root', async () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
-      role: 'member',
-      permissions: ['documents.create'],
+      role: 'editor',
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -268,8 +264,7 @@ describe('folders integration', () => {
   test('forbids folder creation without documents.create permission', async () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
-      role: 'member',
-      permissions: ['documents.read'],
+      role: 'viewer',
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -345,8 +340,7 @@ describe('folders integration', () => {
   test('trashes a folder with documents.delete permission', async () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
-      role: 'member',
-      permissions: ['documents.delete'],
+      role: 'editor',
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -366,8 +360,7 @@ describe('folders integration', () => {
   test('restores a folder with documents.delete permission', async () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
-      role: 'member',
-      permissions: ['documents.delete'],
+      role: 'editor',
     });
     const app = createTestApp({ folderServices, vaultServices });
 

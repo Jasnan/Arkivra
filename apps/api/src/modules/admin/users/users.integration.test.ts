@@ -5,23 +5,19 @@ import { registerAdminUserRoutes } from './users.routes.js';
 
 function createMockAuthorizationServices() {
   return {
-    countActiveGlobalAdmins: vi.fn(async () => 1),
-    ensureBootstrapGlobalAdmin: vi.fn(async () => false),
     getUserAuthorizationState: vi.fn(async () => null),
-    getUserWithRoles: vi.fn(async () => null),
-    grantGlobalAdmin: vi.fn(async ({ userId }) => ({
+    grantRoot: vi.fn(async ({ userId }) => ({
       id: userId,
-      globalRoles: ['global_admin'],
-      isGlobalAdmin: true,
+      systemRole: 'root',
+      isRoot: true,
       canCreateVault: true,
     })),
-    grantVaultCreator: vi.fn(async ({ userId }) => ({
+    grantSystemCapability: vi.fn(async ({ userId, capability }) => ({
       id: userId,
-      globalRoles: ['vault_creator'],
-      isGlobalAdmin: false,
+      systemCapabilities: [capability],
+      isRoot: false,
       canCreateVault: true,
     })),
-    listGlobalRolesForUser: vi.fn(async () => []),
     listUsers: vi.fn(async () => [
       {
         id: 'usr_1',
@@ -32,28 +28,24 @@ function createMockAuthorizationServices() {
         disabledAt: null,
         createdAt: new Date('2025-01-01T00:00:00.000Z'),
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
-        globalRoles: ['global_admin'],
-        isGlobalAdmin: true,
         canCreateVault: true,
       },
     ]),
-    revokeGlobalAdmin: vi.fn(async ({ userId }) => ({
+    revokeRoot: vi.fn(async ({ userId }) => ({
       id: userId,
-      globalRoles: [],
-      isGlobalAdmin: false,
+      systemRole: 'member',
+      isRoot: false,
       canCreateVault: false,
     })),
-    revokeVaultCreator: vi.fn(async ({ userId }) => ({
+    revokeSystemCapability: vi.fn(async ({ userId }) => ({
       id: userId,
-      globalRoles: [],
-      isGlobalAdmin: false,
+      systemCapabilities: [],
+      isRoot: false,
       canCreateVault: false,
     })),
     setUserDisabled: vi.fn(async ({ userId, disabled }) => ({
       id: userId,
       disabledAt: disabled ? new Date('2025-01-02T00:00:00.000Z') : null,
-      globalRoles: [],
-      isGlobalAdmin: false,
       canCreateVault: false,
     })),
   };
@@ -61,11 +53,11 @@ function createMockAuthorizationServices() {
 
 function createTestApp({
   isAuthenticated = true,
-  isGlobalAdmin = true,
+  isRoot = true,
   authorizationServices = createMockAuthorizationServices(),
 }: {
   isAuthenticated?: boolean;
-  isGlobalAdmin?: boolean;
+  isRoot?: boolean;
   authorizationServices?: ReturnType<typeof createMockAuthorizationServices>;
 }) {
   const app = new Hono<ServerContext>();
@@ -86,11 +78,13 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', isGlobalAdmin);
+    context.set('systemRole', isRoot ? 'root' : 'member');
+    context.set('systemCapabilities', []);
+    context.set('isRoot', isRoot);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
+    context.set('vaultAiAccessLevel', 'none');
     await next();
   });
 
@@ -109,13 +103,13 @@ describe('admin users routes integration', () => {
     expect(response.status).toBe(401);
   });
 
-  test('returns 403 when authenticated user is not a global admin', async () => {
-    const { app } = createTestApp({ isGlobalAdmin: false });
+  test('returns 403 when authenticated user is not a root', async () => {
+    const { app } = createTestApp({ isRoot: false });
     const response = await app.request('/api/admin/users');
     expect(response.status).toBe(403);
   });
 
-  test('lists users for global admin', async () => {
+  test('lists users for root', async () => {
     const { app } = createTestApp({});
     const response = await app.request('/api/admin/users');
     expect(response.status).toBe(200);
@@ -134,10 +128,10 @@ describe('admin users routes integration', () => {
     expect(response.status).toBe(400);
   });
 
-  test('maps last global admin guard to 409', async () => {
+  test('maps last root guard to 409', async () => {
     const authorizationServices = createMockAuthorizationServices();
     authorizationServices.setUserDisabled = vi.fn(async () => {
-      throw new Error('authorization.last_global_admin');
+      throw new Error('authorization.last_root');
     });
 
     const { app } = createTestApp({ authorizationServices });
@@ -150,35 +144,42 @@ describe('admin users routes integration', () => {
     expect(response.status).toBe(409);
   });
 
-  test('grants and revokes global admin role', async () => {
+  test('grants and revokes root role', async () => {
     const { app, authorizationServices } = createTestApp({});
 
-    const grantResponse = await app.request('/api/admin/users/usr_2/global-admin', {
+    const grantResponse = await app.request('/api/admin/users/usr_2/root', {
       method: 'POST',
     });
     expect(grantResponse.status).toBe(200);
-    expect(authorizationServices.grantGlobalAdmin).toHaveBeenCalledWith({ userId: 'usr_2' });
+    expect(authorizationServices.grantRoot).toHaveBeenCalledWith({ userId: 'usr_2' });
 
-    const revokeResponse = await app.request('/api/admin/users/usr_2/global-admin', {
+    const revokeResponse = await app.request('/api/admin/users/usr_2/root', {
       method: 'DELETE',
     });
     expect(revokeResponse.status).toBe(200);
-    expect(authorizationServices.revokeGlobalAdmin).toHaveBeenCalledWith({ userId: 'usr_2' });
+    expect(authorizationServices.revokeRoot).toHaveBeenCalledWith({ userId: 'usr_2' });
   });
 
-  test('grants and revokes vault creator role', async () => {
+  test('grants and revokes system create-vault capability', async () => {
     const { app, authorizationServices } = createTestApp({});
 
-    const grantResponse = await app.request('/api/admin/users/usr_2/vault-creator', {
+    const grantResponse = await app.request('/api/admin/users/usr_2/system-capabilities/system.create_vaults', {
       method: 'POST',
     });
     expect(grantResponse.status).toBe(200);
-    expect(authorizationServices.grantVaultCreator).toHaveBeenCalledWith({ userId: 'usr_2' });
+    expect(authorizationServices.grantSystemCapability).toHaveBeenCalledWith({
+      userId: 'usr_2',
+      capability: 'system.create_vaults',
+      createdBy: 'usr_test',
+    });
 
-    const revokeResponse = await app.request('/api/admin/users/usr_2/vault-creator', {
+    const revokeResponse = await app.request('/api/admin/users/usr_2/system-capabilities/system.create_vaults', {
       method: 'DELETE',
     });
     expect(revokeResponse.status).toBe(200);
-    expect(authorizationServices.revokeVaultCreator).toHaveBeenCalledWith({ userId: 'usr_2' });
+    expect(authorizationServices.revokeSystemCapability).toHaveBeenCalledWith({
+      userId: 'usr_2',
+      capability: 'system.create_vaults',
+    });
   });
 });

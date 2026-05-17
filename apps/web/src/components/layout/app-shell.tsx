@@ -171,6 +171,10 @@ const accountMenuItemProps = {
   _highlighted: { bg: 'bg.muted', color: 'fg' },
 } as const;
 
+function isRequestResponse(value: unknown): value is { request: { id: string } } {
+  return typeof value === 'object' && value !== null && 'request' in value;
+}
+
 function truncateBreadcrumbLabel(label: string, maxLength = 10) {
   if (label.length <= maxLength) {
     return label;
@@ -354,13 +358,13 @@ function RailLink({
 function PrimarySidebar({
   activeNavId,
   sessionEmail,
-  isGlobalAdmin,
+  isRoot,
   onOpenTransfers,
   onSignOut,
 }: {
   activeNavId: PrimaryNavItem['id'] | null;
   sessionEmail?: string | null;
-  isGlobalAdmin?: boolean;
+  isRoot?: boolean;
   onOpenTransfers: () => void;
   onSignOut: () => void;
 }) {
@@ -445,21 +449,21 @@ function PrimarySidebar({
                     {sessionEmail ?? 'Signed in'}
                   </Text>
                   <Text fontSize="xs" color="fg.muted">
-                    {isGlobalAdmin ? 'Admin' : 'Vault member'}
+                    {isRoot ? 'Root' : 'Member'}
                   </Text>
                 </Box>
                 <Menu.Separator />
                 <Menu.Item value="account-settings" asChild {...accountMenuItemProps}>
                   <Link to={ROUTES.settingsAccount}>
                     <Settings size={16} />
-                    Settings
+                    Account settings
                   </Link>
                 </Menu.Item>
-                {isGlobalAdmin ? (
+                {isRoot ? (
                   <Menu.Item value="admin" asChild {...accountMenuItemProps}>
                     <Link to={ROUTES.admin}>
                       <ShieldCheck size={16} />
-                      Admin
+                      Root console
                     </Link>
                   </Menu.Item>
                 ) : null}
@@ -881,7 +885,16 @@ export function AppShell() {
   });
   const createVaultMutation = useMutation({
     mutationFn: createVault,
-    onSuccess: async ({ vault }) => {
+    onSuccess: async (result) => {
+      if (isRequestResponse(result)) {
+        setIsCreateVaultOpen(false);
+        setNewVaultName('');
+        setNewVaultDescription('');
+        toast.success('Vault creation request queued for root approval.');
+        return;
+      }
+
+      const { vault } = result;
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
       setIsCreateVaultOpen(false);
       setNewVaultName('');
@@ -918,11 +931,6 @@ export function AppShell() {
 
   function handleCreateVaultSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (meQuery.data?.canCreateVault !== true) {
-      toast.error('A global admin must grant vault creation before this account can create a workspace.');
-      return;
-    }
 
     const normalizedName = newVaultName.trim();
     if (!normalizedName) {
@@ -1003,7 +1011,7 @@ export function AppShell() {
           <PrimarySidebar
             activeNavId={isTransfersDrawerOpen ? 'transfers' : primaryNavId(location.pathname)}
             sessionEmail={sessionData?.user.email}
-            isGlobalAdmin={meQuery.data?.isGlobalAdmin}
+            isRoot={meQuery.data?.isRoot}
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
             onSignOut={() => void handleSignOut()}
           />
@@ -1017,7 +1025,7 @@ export function AppShell() {
               currentDocumentId={activeDocumentRoute?.documentId ?? null}
               customContent={secondaryContent}
               currentPathname={location.pathname}
-              canCreateVault={meQuery.data?.canCreateVault === true}
+              canCreateVault
               onCreateVault={() => setIsCreateVaultOpen(true)}
             />
           ) : null}
@@ -1300,7 +1308,9 @@ export function AppShell() {
                   placeholder="Optional"
                 />
                 <Text fontSize="xs" color="fg.muted">
-                  Optional context to help identify this vault later.
+                  {meQuery.data?.canCreateVault === true
+                    ? 'Optional context to help identify this vault later.'
+                    : 'This will be queued for root approval.'}
                 </Text>
               </Stack>
 
@@ -1315,7 +1325,11 @@ export function AppShell() {
                 </ChakraButton>
                 <ChakraButton type="submit" colorPalette="teal" disabled={createVaultMutation.isPending}>
                   <Plus size={16} />
-                  {createVaultMutation.isPending ? 'Creating...' : 'Create vault'}
+                  {createVaultMutation.isPending
+                    ? 'Submitting...'
+                    : meQuery.data?.canCreateVault === true
+                      ? 'Create vault'
+                      : 'Request vault'}
                 </ChakraButton>
               </Flex>
             </chakra.form>

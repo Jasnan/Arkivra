@@ -28,7 +28,7 @@ function buildSamplePageNumbers(totalPages: number, sampleSize: number) {
 }
 
 function countAlphanumericChars(text: string) {
-  const matches = text.match(/[A-Za-z0-9]/g);
+  const matches = text.match(/[a-z0-9]/gi);
   return matches?.length ?? 0;
 }
 
@@ -97,4 +97,3 @@ export async function decidePdfDoOcr(input: ParseInput): Promise<boolean> {
     return true;
   }
 }
-

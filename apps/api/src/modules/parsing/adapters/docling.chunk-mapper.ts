@@ -212,7 +212,7 @@ export function mapDoclingChunksToParsedChunks({
       }
     }
 
-    const section = headings.length > 0 ? (headings[headings.length - 1] ?? null) : null;
+    const section = headings.length > 0 ? (headings.at(-1) ?? null) : null;
     const sectionPath = headings;
     const pageStart = pageNumbers.length > 0 ? Math.min(...pageNumbers) : null;
     const pageEnd = pageNumbers.length > 0 ? Math.max(...pageNumbers) : null;

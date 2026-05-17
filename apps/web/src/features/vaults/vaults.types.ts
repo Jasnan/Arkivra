@@ -1,15 +1,55 @@
-export const VAULT_MEMBER_PERMISSIONS = [
-  'documents.read',
-  'documents.create',
-  'documents.update',
-  'documents.delete',
-  'documents.download',
-  'tags.manage',
-  'members.invite',
-  'members.manage',
-] as const;
+export const VAULT_ROLES = ['owner', 'editor', 'viewer'] as const;
+export type VaultRole = (typeof VAULT_ROLES)[number];
 
-export type VaultMemberPermission = (typeof VAULT_MEMBER_PERMISSIONS)[number];
+export const AI_ACCESS_LEVELS = ['none', 'document_chat', 'full'] as const;
+export type AiAccessLevel = (typeof AI_ACCESS_LEVELS)[number];
+
+export const PERMISSION_REQUEST_TYPES = [
+  'vault.create',
+  'vault.delete',
+  'vault.owner_promote',
+  'vault.ai_escalation',
+] as const;
+export type PermissionRequestType = (typeof PERMISSION_REQUEST_TYPES)[number];
+
+export type PermissionRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface PermissionRequest {
+  id: string;
+  type: PermissionRequestType;
+  status: PermissionRequestStatus;
+  requestedBy: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  vaultId: string | null;
+  targetUserId: string | null;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EmailInvitationType = 'root_account' | 'vault_member';
+export type EmailInvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
+
+export interface EmailInvitation {
+  id: string;
+  type: EmailInvitationType;
+  status: EmailInvitationStatus;
+  email: string;
+  invitedBy: string | null;
+  acceptedBy: string | null;
+  acceptedAt: string | null;
+  expiresAt: string | null;
+  vaultId: string | null;
+  vaultMemberId: string | null;
+  vaultRole: VaultRole | null;
+  aiAccessLevel: AiAccessLevel;
+  systemRole: 'root' | 'member' | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface VaultSummary {
   id: string;
@@ -19,7 +59,11 @@ export interface VaultSummary {
   totalSize: number;
   createdAt: string;
   updatedAt?: string;
-  role: 'owner' | 'member' | null;
+  role: VaultRole | null;
+  aiAccessLevel: AiAccessLevel;
+  isRoot: boolean;
+  isMember: boolean;
+  accessMode: 'member' | 'admin';
 }
 
 export interface VaultDetail {
@@ -29,15 +73,17 @@ export interface VaultDetail {
   fileCount?: number;
   totalSize?: number;
   createdAt?: string;
-  role: 'owner' | 'member' | null;
-  permissions: VaultMemberPermission[];
-  isGlobalAdmin: boolean;
+  role: VaultRole | null;
+  aiAccessLevel: AiAccessLevel;
+  isRoot: boolean;
+  isMember: boolean;
+  accessMode: 'member' | 'admin';
 }
 
 export interface VaultMember {
   userId: string;
-  role: 'owner' | 'member';
+  role: VaultRole;
   email: string;
   name: string | null;
-  permissions: VaultMemberPermission[];
+  aiAccessLevel: AiAccessLevel;
 }

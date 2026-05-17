@@ -91,8 +91,8 @@ function createMockVaultsServices() {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
+      aiAccessLevel: 'full',
+      isRoot: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
@@ -116,11 +116,9 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -180,9 +178,9 @@ describe('search integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'member',
-      permissions: [],
-      isGlobalAdmin: false,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: false,
     }));
 
     const app = createTestApp({ searchServices, vaultServices });
@@ -397,15 +395,15 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
-        permissions: ['documents.read'],
-        isGlobalAdmin: false,
+        aiAccessLevel: 'none',
+        isRoot: false,
       },
       {
         id: 'vlt_2',
         name: 'Beta',
-        role: 'member',
-        permissions: ['documents.read'],
-        isGlobalAdmin: false,
+        role: 'viewer',
+        aiAccessLevel: 'none',
+        isRoot: false,
       },
     ]);
 
@@ -437,8 +435,8 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
-        permissions: ['documents.read'],
-        isGlobalAdmin: false,
+        aiAccessLevel: 'full',
+        isRoot: false,
       },
     ]);
 
@@ -471,8 +469,8 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
-        permissions: ['documents.read'],
-        isGlobalAdmin: false,
+        aiAccessLevel: 'none',
+        isRoot: false,
       },
     ]);
 

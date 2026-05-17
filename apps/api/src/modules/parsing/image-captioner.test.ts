@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ImageCaptioner, ImageCaptionerSettings } from './image-captioner.js';
+import type { ImageCaptioner } from './image-captioner.js';
 import { createRuntimeConfiguredOllamaImageCaptioner } from './image-captioner.js';
 
-describe('ImageCaptioner interface', () => {
+describe('image captioner interface', () => {
   test('requires name and caption method', () => {
     const captioner: ImageCaptioner = {
       name: 'test-captioner',
@@ -14,7 +14,7 @@ describe('ImageCaptioner interface', () => {
   });
 });
 
-describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
+describe('create runtime configured ollama image captioner', () => {
   test('returns captioner even when disabled (caption method returns null)', async () => {
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({
@@ -60,7 +60,7 @@ describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
       }),
     })) as unknown as ReturnType<typeof vi.fn>;
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({
@@ -98,7 +98,7 @@ describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
       }),
     })) as unknown as ReturnType<typeof vi.fn>;
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({
@@ -124,7 +124,7 @@ describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
       text: async () => 'Internal Server Error',
     })) as unknown as ReturnType<typeof vi.fn>;
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({
@@ -153,7 +153,7 @@ describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
       }),
     })) as unknown as ReturnType<typeof vi.fn>;
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({
@@ -188,7 +188,7 @@ describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
       }),
     })) as unknown as ReturnType<typeof vi.fn>;
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({
@@ -220,7 +220,7 @@ describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
       }),
     })) as unknown as ReturnType<typeof vi.fn>;
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({
@@ -247,7 +247,7 @@ describe('createRuntimeConfiguredOllamaImageCaptioner', () => {
       throw new Error('Network error');
     }) as unknown as ReturnType<typeof vi.fn>;
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
 
     const captioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => ({

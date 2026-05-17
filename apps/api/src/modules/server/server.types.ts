@@ -1,6 +1,10 @@
 import type { Session, User } from 'better-auth';
-import type { VaultMemberPermission } from '../authorization/authorization.types.js';
-import type { VaultRole } from '../vaults/vaults.types.js';
+import type {
+  AiAccessLevel,
+  SystemCapability,
+  SystemRole,
+  VaultRole,
+} from '../authorization/authorization.types.js';
 
 export type AuthSessionData = {
   user: User;
@@ -13,10 +17,14 @@ export type ServerContext = {
     user: User | null;
     session: Session | null;
     userDisabled: boolean;
-    isGlobalAdmin: boolean;
+    systemRole: SystemRole | null;
+    systemCapabilities: SystemCapability[];
+    isRoot: boolean;
     canCreateVault: boolean;
     vaultId: string | null;
     vaultRole: VaultRole | null;
-    vaultPermissions: VaultMemberPermission[];
+    vaultAiAccessLevel: AiAccessLevel;
+    vaultIsMember: boolean;
+    vaultAccessMode: 'member' | 'admin' | null;
   };
 };

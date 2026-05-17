@@ -17,14 +17,23 @@ function createMockVaultsServices() {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
+      aiAccessLevel: 'none',
+      isRoot: false,
       userId,
     })),
     getMember: vi.fn(async () => null),
     getVaultForUser: vi.fn(async () => null),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
+    createPermissionRequest: vi.fn(async ({ type, requestedBy, vaultId, targetUserId, payload }) => ({
+      id: 'perm_req_1',
+      type,
+      status: 'pending',
+      requestedBy,
+      vaultId: vaultId ?? null,
+      targetUserId: targetUserId ?? null,
+      payload: payload ?? {},
+    })),
     removeMember: vi.fn(async () => ({ userId: 'usr_member_1' })),
     softDeleteVault: vi.fn(async () => ({ id: 'vlt_test_1' })),
     updateVaultIdentity: vi.fn(async ({ name, description }) => ({ id: 'vlt_test_1', name, description })),
@@ -47,11 +56,13 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
+    context.set('isRoot', false);
     context.set('canCreateVault', canCreateVault);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
+    context.set('vaultAiAccessLevel', 'none');
+    context.set('vaultIsMember', false);
+    context.set('vaultAccessMode', null);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -157,8 +168,6 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -193,8 +202,13 @@ describe('vaults integration', () => {
       body: JSON.stringify({ name: 'Finance' }),
     });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(202);
     expect(services.createVault).not.toHaveBeenCalled();
+    expect(services.createPermissionRequest).toHaveBeenCalledWith({
+      type: 'vault.create',
+      requestedBy: 'usr_1',
+      payload: { name: 'Finance', description: null },
+    });
   });
 
   test('forbids vault detail access when user is not a member', async () => {
@@ -222,8 +236,8 @@ describe('vaults integration', () => {
       fileCount: 2,
       totalSize: 2048,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
+      aiAccessLevel: 'none',
+      isRoot: false,
     }));
 
     const app = createTestApp({ services });
@@ -240,6 +254,139 @@ describe('vaults integration', () => {
     expect(body.vault.role).toBe('owner');
   });
 
+  test('allows root administrative read access without membership', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: true,
+      isMember: false,
+      accessMode: 'admin',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      headers: { 'x-test-user-id': 'usr_root' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.vault.role).toBeNull();
+    expect(body.vault.accessMode).toBe('admin');
+  });
+
+  test('blocks root administrative access from mutating vault settings', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: true,
+      isMember: false,
+      accessMode: 'admin',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_root',
+      },
+      body: JSON.stringify({ name: 'New name' }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(services.updateVaultIdentity).not.toHaveBeenCalled();
+  });
+
+  test('allows root administrative user to join vault as explicit member', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: true,
+      isMember: false,
+      accessMode: 'admin',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1/membership/self', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_root',
+      },
+      body: JSON.stringify({ role: 'owner', aiAccessLevel: 'full' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(services.upsertMember).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      userId: 'usr_root',
+      role: 'owner',
+      aiAccessLevel: 'full',
+    });
+  });
+
+  test('allows root explicit member to leave vault membership', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: 'editor',
+      aiAccessLevel: 'full',
+      isRoot: true,
+      isMember: true,
+      accessMode: 'member',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1/membership/self', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_root' },
+    });
+
+    expect(response.status).toBe(204);
+    expect(services.removeMember).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      userId: 'usr_root',
+    });
+  });
+
   test('blocks member from adding vault members', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
@@ -248,9 +395,9 @@ describe('vaults integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'member',
-      permissions: ['documents.read'],
-      isGlobalAdmin: false,
+      role: 'editor',
+      aiAccessLevel: 'none',
+      isRoot: false,
     }));
 
     const app = createTestApp({ services });
@@ -261,7 +408,7 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_1',
       },
-      body: JSON.stringify({ userId: 'usr_2', role: 'member', permissions: ['documents.read'] }),
+      body: JSON.stringify({ userId: 'usr_2', role: 'editor' }),
     });
 
     expect(response.status).toBe(403);
@@ -276,8 +423,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
+      aiAccessLevel: 'none',
+      isRoot: false,
     }));
 
     const app = createTestApp({ services });
@@ -290,8 +437,8 @@ describe('vaults integration', () => {
       },
       body: JSON.stringify({
         userId: 'usr_2',
-        role: 'member',
-        permissions: ['documents.read', 'documents.create'],
+        role: 'editor',
+        aiAccessLevel: 'none',
       }),
     });
 
@@ -299,8 +446,8 @@ describe('vaults integration', () => {
     expect(services.upsertMember).toHaveBeenCalledWith({
       vaultId: 'vlt_1',
       userId: 'usr_2',
-      role: 'member',
-      permissions: ['documents.read', 'documents.create'],
+      role: 'editor',
+      aiAccessLevel: 'none',
     });
   });
 
@@ -312,9 +459,9 @@ describe('vaults integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'member',
-      permissions: ['members.manage'],
-      isGlobalAdmin: false,
+      role: 'editor',
+      aiAccessLevel: 'none',
+      isRoot: false,
     }));
 
     const app = createTestApp({ services });
@@ -324,10 +471,10 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_member',
       },
-      body: JSON.stringify({ userId: 'usr_3', role: 'member', permissions: ['documents.read'] }),
+      body: JSON.stringify({ userId: 'usr_3', role: 'editor' }),
     });
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(403);
   });
 
   test('transfers ownership to another member', async () => {
@@ -339,8 +486,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
+      aiAccessLevel: 'none',
+      isRoot: false,
     }));
 
     const app = createTestApp({ services });
@@ -353,11 +500,13 @@ describe('vaults integration', () => {
       body: JSON.stringify({ userId: 'usr_2' }),
     });
 
-    expect(response.status).toBe(200);
-    expect(services.upsertMember).toHaveBeenCalledWith({
+    expect(response.status).toBe(202);
+    expect(services.createPermissionRequest).toHaveBeenCalledWith({
+      type: 'vault.owner_promote',
+      requestedBy: 'usr_owner',
       vaultId: 'vlt_1',
-      userId: 'usr_2',
-      role: 'owner',
+      targetUserId: 'usr_2',
+      payload: { role: 'owner' },
     });
   });
 });

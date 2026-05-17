@@ -199,7 +199,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: true,
+          systemRole: 'root',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: true,
           canCreateVault: true,
           authMethods: {
             hasPassword: true,
@@ -259,7 +261,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: true,
+          systemRole: 'root',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: true,
           canCreateVault: true,
         });
       }
@@ -286,7 +290,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: false,
@@ -304,7 +310,8 @@ describe('settings, admin, and about pages', () => {
 
     expect(await screen.findByRole('heading', { name: /^account$/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /view as admin/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/member access/i)).toBeInTheDocument();
+    expect(screen.getByText(/^member$/i)).toBeInTheDocument();
+    expect(screen.getByText(/requires root approval/i)).toBeInTheDocument();
     expect(await screen.findByText(/google oauth/i)).toBeInTheDocument();
   });
 
@@ -338,7 +345,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_current',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -400,7 +409,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_current',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -450,7 +461,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
         });
       }
@@ -474,7 +487,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: false,
@@ -526,7 +541,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -1019,7 +1036,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
         });
       }
@@ -1044,7 +1063,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -1084,7 +1105,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -1137,8 +1160,31 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_admin',
           sessionId: 'ses_admin',
-          isGlobalAdmin: true,
+          systemRole: 'root',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: true,
           canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/permission-requests?status=pending') {
+        return jsonResponse({
+          requests: [
+            {
+              id: 'req_1',
+              type: 'vault.create',
+              status: 'pending',
+              requestedBy: 'usr_1',
+              reviewedBy: null,
+              reviewedAt: null,
+              vaultId: null,
+              targetUserId: null,
+              payload: { name: 'Requests Vault' },
+              result: null,
+              createdAt: '2026-04-14T19:00:00.000Z',
+              updatedAt: '2026-04-14T19:00:00.000Z',
+            },
+          ],
         });
       }
 
@@ -1175,8 +1221,9 @@ describe('settings, admin, and about pages', () => {
               disabledAt: null,
               createdAt: '2026-04-01T00:00:00.000Z',
               updatedAt: '2026-04-10T00:00:00.000Z',
-              globalRoles: [],
-              isGlobalAdmin: false,
+              systemRole: 'member',
+              systemCapabilities: [],
+              isRoot: false,
               canCreateVault: false,
               authMethods: {
                 hasPassword: true,
@@ -1199,8 +1246,9 @@ describe('settings, admin, and about pages', () => {
             disabledAt: '2026-04-14T19:00:00.000Z',
             createdAt: '2026-04-01T00:00:00.000Z',
             updatedAt: '2026-04-14T19:00:00.000Z',
-            globalRoles: [],
-            isGlobalAdmin: false,
+            systemRole: 'member',
+            systemCapabilities: [],
+            isRoot: false,
             canCreateVault: false,
             authMethods: {
               hasPassword: true,
@@ -1211,7 +1259,7 @@ describe('settings, admin, and about pages', () => {
         });
       }
 
-      if (url === '/api/admin/users/usr_1/global-admin' && init?.method === 'POST') {
+      if (url === '/api/admin/users/usr_1/root' && init?.method === 'POST') {
         return jsonResponse({
           user: {
             id: 'usr_1',
@@ -1222,8 +1270,9 @@ describe('settings, admin, and about pages', () => {
             disabledAt: null,
             createdAt: '2026-04-01T00:00:00.000Z',
             updatedAt: '2026-04-14T19:00:00.000Z',
-            globalRoles: ['global_admin'],
-            isGlobalAdmin: true,
+            systemRole: 'root',
+            systemCapabilities: ['system.create_vaults'],
+            isRoot: true,
             canCreateVault: true,
             authMethods: {
               hasPassword: true,
@@ -1357,10 +1406,10 @@ describe('settings, admin, and about pages', () => {
     });
 
     await user.click(screen.getByRole('button', { name: /user actions for alex@example.com/i }));
-    await user.click(screen.getByRole('menuitem', { name: /grant admin/i }));
+    await user.click(screen.getByRole('menuitem', { name: /grant root/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/admin/users/usr_1/global-admin',
+        '/api/admin/users/usr_1/root',
         expect.objectContaining({
           credentials: 'include',
           method: 'POST',

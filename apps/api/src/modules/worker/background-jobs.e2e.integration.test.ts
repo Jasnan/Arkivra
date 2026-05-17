@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
@@ -51,10 +51,11 @@ describe.sequential('background jobs e2e', () => {
     pool = database.pool;
 
     storage = createStorageDriver({ config });
-    maintenanceQueue = createMaintenanceQueue({ db });
+    maintenanceQueue = createMaintenanceQueue({ db, appInstance: uniqueSuffix });
     maintenanceWorker = createMaintenanceWorker({
       db,
       defaultRetentionDays: 30,
+      appInstance: uniqueSuffix,
       storage,
     });
 
@@ -82,12 +83,9 @@ describe.sequential('background jobs e2e', () => {
       role: 'owner',
     });
 
-    await mkdir(join(storagePath, vaultId), { recursive: true });
-    await mkdir(join(storagePath, 'assets', documentId), { recursive: true });
-    await mkdir(join(storagePath, 'previews', documentId, 'pages'), { recursive: true });
-    await writeFile(join(storagePath, storageKey), Buffer.from('expired soft deleted file'));
-    await writeFile(join(storagePath, assetStorageKey), Buffer.from('expired chunk asset'));
-    await writeFile(join(storagePath, previewStorageKey), Buffer.from('cached page preview'));
+    await storage.write(storageKey, Buffer.from('expired soft deleted file'));
+    await storage.write(assetStorageKey, Buffer.from('expired chunk asset'));
+    await storage.write(previewStorageKey, Buffer.from('cached page preview'));
 
     await db.insert(documentsTable).values({
       id: documentId,

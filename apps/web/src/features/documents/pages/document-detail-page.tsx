@@ -196,8 +196,8 @@ function getTranslationLanguageLabel(language: DocumentTranslationLanguage) {
   return translationLanguages.find(item => item.value === language)?.label ?? language.toUpperCase();
 }
 
-function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null) {
-  if (language === null) {
+function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null | undefined) {
+  if (language === null || language === undefined) {
     return 'Unknown';
   }
 

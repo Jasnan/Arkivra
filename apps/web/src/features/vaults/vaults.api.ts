@@ -1,5 +1,13 @@
 import { fetchJson } from '@/lib/api';
-import type { VaultDetail, VaultMember, VaultMemberPermission, VaultSummary } from './vaults.types';
+import type {
+  AiAccessLevel,
+  EmailInvitation,
+  PermissionRequest,
+  VaultDetail,
+  VaultMember,
+  VaultRole,
+  VaultSummary,
+} from './vaults.types';
 
 interface VaultsListResponse {
   vaults: VaultSummary[];
@@ -7,6 +15,10 @@ interface VaultsListResponse {
 
 interface VaultDetailResponse {
   vault: VaultDetail;
+}
+
+interface PermissionRequestResponse {
+  request: PermissionRequest;
 }
 
 interface VaultMembersResponse {
@@ -18,7 +30,7 @@ export async function listVaults() {
 }
 
 export async function createVault({ name, description }: { name: string; description: string | null }) {
-  return fetchJson<VaultDetailResponse>('/api/vaults', {
+  return fetchJson<VaultDetailResponse | PermissionRequestResponse>('/api/vaults', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name, description }),
@@ -46,7 +58,7 @@ export async function renameVault({
 }
 
 export async function deleteVault({ vaultId }: { vaultId: string }) {
-  await fetchJson<void>(`/api/vaults/${vaultId}`, {
+  return fetchJson<void | PermissionRequestResponse>(`/api/vaults/${vaultId}`, {
     method: 'DELETE',
   });
 }
@@ -60,18 +72,18 @@ export async function addVaultMember(
     vaultId,
     userId,
     role,
-    permissions,
+    aiAccessLevel,
   }: {
     vaultId: string;
     userId: string;
-    role: 'owner' | 'member';
-    permissions: VaultMemberPermission[];
+    role: VaultRole;
+    aiAccessLevel: AiAccessLevel;
   },
 ) {
-  return fetchJson<{ member: VaultMember }>(`/api/vaults/${vaultId}/members`, {
+  return fetchJson<{ member: VaultMember } | PermissionRequestResponse>(`/api/vaults/${vaultId}/members`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ userId, role, permissions }),
+    body: JSON.stringify({ userId, role, aiAccessLevel }),
   });
 }
 
@@ -80,18 +92,18 @@ export async function updateVaultMember(
     vaultId,
     memberUserId,
     role,
-    permissions,
+    aiAccessLevel,
   }: {
     vaultId: string;
     memberUserId: string;
-    role: 'owner' | 'member';
-    permissions: VaultMemberPermission[];
+    role: VaultRole;
+    aiAccessLevel: AiAccessLevel;
   },
 ) {
-  return fetchJson<{ member: VaultMember }>(`/api/vaults/${vaultId}/members/${memberUserId}`, {
+  return fetchJson<{ member: VaultMember } | PermissionRequestResponse>(`/api/vaults/${vaultId}/members/${memberUserId}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ role, permissions }),
+    body: JSON.stringify({ role, aiAccessLevel }),
   });
 }
 
@@ -101,10 +113,59 @@ export async function removeVaultMember({ vaultId, memberUserId }: { vaultId: st
   });
 }
 
+export async function joinVaultAsRoot({
+  vaultId,
+  role,
+  aiAccessLevel,
+}: {
+  vaultId: string;
+  role: VaultRole;
+  aiAccessLevel: AiAccessLevel;
+}) {
+  return fetchJson<{ member: VaultMember }>(`/api/vaults/${vaultId}/membership/self`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ role, aiAccessLevel }),
+  });
+}
+
+export async function leaveVaultAsRoot({ vaultId }: { vaultId: string }) {
+  await fetchJson<void>(`/api/vaults/${vaultId}/membership/self`, {
+    method: 'DELETE',
+  });
+}
+
 export async function transferVaultOwnership({ vaultId, userId }: { vaultId: string; userId: string }) {
-  return fetchJson<{ member: VaultMember }>(`/api/vaults/${vaultId}/ownership`, {
+  return fetchJson<{ member: VaultMember } | PermissionRequestResponse>(`/api/vaults/${vaultId}/ownership`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ userId }),
+  });
+}
+
+export async function createVaultEmailInvitation({
+  vaultId,
+  email,
+  role,
+  aiAccessLevel,
+  expiresAt,
+}: {
+  vaultId: string;
+  email: string;
+  role: VaultRole;
+  aiAccessLevel: AiAccessLevel;
+  expiresAt?: string | null;
+}) {
+  return fetchJson<{ invitation: EmailInvitation }>('/api/admin/email-invitations', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'vault_member',
+      email,
+      vaultId,
+      role,
+      aiAccessLevel,
+      expiresAt: expiresAt ?? null,
+    }),
   });
 }

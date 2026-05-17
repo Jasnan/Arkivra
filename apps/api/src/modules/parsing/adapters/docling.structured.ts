@@ -262,8 +262,9 @@ function buildTableGrid(cells: NormalizedTableCell[]) {
   const rowCount = cells.reduce((max, cell) => Math.max(max, cell.endRow), 0);
   const colCount = cells.reduce((max, cell) => Math.max(max, cell.endCol), 0);
 
-  const rows = Array.from({ length: rowCount }, () =>
-    Array.from({ length: colCount }, () => null as NormalizedTableCell | null));
+  const rows = Array.from({ length: rowCount })
+    .fill(null)
+    .map(() => Array.from({ length: colCount }).fill(null as NormalizedTableCell | null) as Array<NormalizedTableCell | null>);
 
   for (const cell of cells) {
     if (cell.startRow < 0 || cell.startCol < 0) {

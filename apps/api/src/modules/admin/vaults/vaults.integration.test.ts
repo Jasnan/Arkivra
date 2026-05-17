@@ -29,11 +29,11 @@ function createMockVaultsServices() {
 
 function createTestApp({
   isAuthenticated = true,
-  isGlobalAdmin = true,
+  isRoot = true,
   services = createMockVaultsServices(),
 }: {
   isAuthenticated?: boolean;
-  isGlobalAdmin?: boolean;
+  isRoot?: boolean;
   services?: VaultsServices;
 }) {
   const app = new Hono<ServerContext>();
@@ -54,10 +54,9 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', isGlobalAdmin);
+    context.set('isRoot', isRoot);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
     await next();
   });
 
@@ -77,13 +76,13 @@ describe('admin vault routes integration', () => {
     expect(response.status).toBe(401);
   });
 
-  test('returns 403 when caller is not a global admin', async () => {
-    const { app } = createTestApp({ isGlobalAdmin: false });
+  test('returns 403 when caller is not a root', async () => {
+    const { app } = createTestApp({ isRoot: false });
     const response = await app.request('/api/admin/vaults');
     expect(response.status).toBe(403);
   });
 
-  test('lists vaults for global admin', async () => {
+  test('lists vaults for root', async () => {
     const { app, services } = createTestApp({});
     const response = await app.request('/api/admin/vaults');
 

@@ -198,7 +198,9 @@ describe('auth pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -253,7 +255,9 @@ describe('auth pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: false,
@@ -289,7 +293,9 @@ describe('auth pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -324,7 +330,9 @@ describe('auth pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,

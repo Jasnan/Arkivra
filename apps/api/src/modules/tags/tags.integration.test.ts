@@ -73,8 +73,6 @@ function createMockVaultsServices(role: 'owner' | 'member' = 'owner') {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role,
-      permissions: role === 'member' ? ['documents.read'] : [],
-      isGlobalAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
@@ -98,10 +96,8 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 

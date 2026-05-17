@@ -13,6 +13,17 @@ vi.mock('../chat.api', () => ({
   streamChatMessage: streamChatMessageMock,
 }));
 
+vi.mock('@/features/vaults/vaults.queries', () => ({
+  useVaultQuery: () => ({
+    data: { vault: { aiAccessLevel: 'full' } },
+    isLoading: false,
+  }),
+  useVaultsQuery: () => ({
+    data: { vaults: [{ id: 'vlt_1', name: 'Finance', aiAccessLevel: 'full' }] },
+    isLoading: false,
+  }),
+}));
+
 vi.mock('../chat.queries', () => ({
   chatQueryKeys: {
     all: ['chat'],
@@ -34,7 +45,7 @@ vi.mock('../chat.queries', () => ({
             scope: 'global',
             vaultId: null,
             documentId: null,
-            createdBy: 'usr_1',
+            userId: 'usr_1',
             createdAt: '2026-05-05T10:00:00.000Z',
             updatedAt: '2026-05-05T10:05:00.000Z',
             deletedAt: null,
@@ -45,7 +56,7 @@ vi.mock('../chat.queries', () => ({
                 vaultId: null,
                 documentId: null,
                 scope: 'global',
-                createdBy: 'usr_1',
+                userId: 'usr_1',
                 role: 'user',
                 content: 'Existing saved message',
                 metadata: null,
@@ -62,7 +73,7 @@ vi.mock('../chat.queries', () => ({
                 vaultId: 'vlt_1',
                 documentId: 'doc_1',
                 scope: 'global',
-                createdBy: null,
+                userId: null,
                 role: 'assistant',
                 content: 'Revenue increased.[1]',
                 metadata: null,
@@ -115,7 +126,7 @@ vi.mock('../chat.queries', () => ({
           scope: 'global',
           vaultId: null,
           documentId: null,
-          createdBy: 'usr_1',
+          userId: 'usr_1',
           createdAt: '2026-05-05T10:00:00.000Z',
           updatedAt: '2026-05-05T10:05:00.000Z',
           deletedAt: null,
@@ -158,7 +169,7 @@ describe('chat workspace new chat drafts', () => {
         scope: 'global',
         vaultId: null,
         documentId: null,
-        createdBy: 'usr_1',
+        userId: 'usr_1',
         createdAt: '2026-05-05T11:00:00.000Z',
         updatedAt: '2026-05-05T11:00:00.000Z',
         deletedAt: null,

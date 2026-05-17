@@ -6,6 +6,10 @@ import type {
   AdminUser,
   AdminVault,
   BackupListItem,
+  EmailInvitation,
+  PermissionRequest,
+  PermissionRequestStatus,
+  SystemCapability,
 } from './admin.types';
 
 export async function listAdminUsers() {
@@ -26,27 +30,86 @@ export async function updateAdminUser({
   });
 }
 
-export async function grantGlobalAdmin({ userId }: { userId: string }) {
-  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/global-admin`, {
+export async function grantRoot({ userId }: { userId: string }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/root`, {
     method: 'POST',
   });
 }
 
-export async function revokeGlobalAdmin({ userId }: { userId: string }) {
-  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/global-admin`, {
+export async function revokeRoot({ userId }: { userId: string }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/root`, {
     method: 'DELETE',
   });
 }
 
-export async function grantVaultCreator({ userId }: { userId: string }) {
-  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/vault-creator`, {
+export async function grantSystemCapability({ userId, capability }: { userId: string; capability: SystemCapability }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/system-capabilities/${capability}`, {
     method: 'POST',
   });
 }
 
-export async function revokeVaultCreator({ userId }: { userId: string }) {
-  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/vault-creator`, {
+export async function revokeSystemCapability({ userId, capability }: { userId: string; capability: SystemCapability }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/system-capabilities/${capability}`, {
     method: 'DELETE',
+  });
+}
+
+export async function listPermissionRequests({
+  status = 'pending',
+}: {
+  status?: PermissionRequestStatus;
+} = {}) {
+  return fetchJson<{ requests: PermissionRequest[] }>(`/api/admin/permission-requests?status=${status}`);
+}
+
+export async function approvePermissionRequest({ requestId }: { requestId: string }) {
+  return fetchJson<{ request: PermissionRequest }>(`/api/admin/permission-requests/${requestId}/approve`, {
+    method: 'POST',
+  });
+}
+
+export async function rejectPermissionRequest({
+  requestId,
+  reason,
+}: {
+  requestId: string;
+  reason?: string | null;
+}) {
+  return fetchJson<{ request: PermissionRequest }>(`/api/admin/permission-requests/${requestId}/reject`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reason: reason ?? null }),
+  });
+}
+
+export async function createRootEmailInvitation({
+  email,
+  systemRole = 'root',
+  systemCapabilities = [],
+  vaultMemberships = [],
+  expiresAt,
+}: {
+  email: string;
+  systemRole?: 'root' | 'member';
+  systemCapabilities?: SystemCapability[];
+  vaultMemberships?: Array<{
+    vaultId: string;
+    role: 'owner' | 'editor' | 'viewer';
+    aiAccessLevel: 'none' | 'document_chat' | 'full';
+  }>;
+  expiresAt?: string | null;
+}) {
+  return fetchJson<{ invitation: EmailInvitation }>('/api/admin/email-invitations', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'root_account',
+      email,
+      systemRole,
+      systemCapabilities,
+      vaultMemberships,
+      expiresAt: expiresAt ?? null,
+    }),
   });
 }
 

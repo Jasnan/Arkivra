@@ -84,7 +84,9 @@ describe('app shell account menu', () => {
           return jsonResponse({
             userId: 'usr_member',
             sessionId: 'ses_member',
-            isGlobalAdmin: false,
+            systemRole: 'member',
+            systemCapabilities: ['system.create_vaults'],
+            isRoot: false,
             canCreateVault: true,
           });
         }
@@ -92,8 +94,8 @@ describe('app shell account menu', () => {
         if (url === '/api/vaults') {
           return jsonResponse({
             vaults: [
-              { id: 'vlt_1', name: 'MyDocs', role: 'owner' },
-              { id: 'vlt_2', name: 'MyFiles', role: 'member' },
+              { id: 'vlt_1', name: 'MyDocs', role: 'owner', aiAccessLevel: 'full', isRoot: false },
+              { id: 'vlt_2', name: 'MyFiles', role: 'viewer', aiAccessLevel: 'none', isRoot: false },
             ],
           });
         }
@@ -214,7 +216,7 @@ describe('app shell account menu', () => {
     expect(await screen.findByRole('menu')).toBeInTheDocument();
     expect(screen.getByText(/account settings/i)).toBeInTheDocument();
 
-    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: /open account menu/i }));
 
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
@@ -249,19 +251,19 @@ describe('app shell account menu', () => {
     );
 
     expect(await screen.findByRole('button', { name: /create vault/i, hidden: true })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'open');
+    expect(await screen.findByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'open');
     expect(await screen.findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'closed');
     expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toHaveAttribute('data-state', 'closed');
     expect(screen.getAllByText('Vaults')).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Vaults', hidden: true }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Vaults', hidden: true }));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'closed');
     });
     expectHiddenLink('MyDocs');
     expectHiddenLink('MyFiles');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Vaults', hidden: true }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Vaults', hidden: true }));
     expect(await screen.findByRole('button', { name: 'MyDocs', hidden: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toBeInTheDocument();
   });
@@ -280,7 +282,7 @@ describe('app shell account menu', () => {
     expect(secondarySidebar).not.toBeNull();
     expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Vaults', hidden: true }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Vaults', hidden: true }));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'closed');
     });

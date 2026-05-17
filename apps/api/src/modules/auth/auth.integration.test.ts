@@ -30,9 +30,17 @@ function createMockAuth() {
 const mockDb = {} as Database;
 function createMockDbWithAccounts(accounts: Array<{ password: string | null; providerId: string }>) {
   return {
-    select: () => ({
+    select: (selection?: unknown) => ({
       from: () => ({
-        where: vi.fn(async () => accounts),
+        where: vi.fn(() => {
+          if (selection === undefined) {
+            return Promise.resolve(accounts);
+          }
+
+          return {
+            limit: vi.fn(async () => []),
+          };
+        }),
       }),
     }),
   } as unknown as Database;
@@ -51,11 +59,13 @@ const mockEncryption = {
 const mockAuthorizationServices = {
   countActiveGlobalAdmins: vi.fn(),
   ensureBootstrapGlobalAdmin: vi.fn(async () => false),
+  ensureBootstrapRoot: vi.fn(async () => false),
   getUserAuthorizationState: vi.fn(async () => ({
     userId: 'usr_test_1',
     disabledAt: null,
-    globalRoles: [],
-    isGlobalAdmin: false,
+    systemRole: 'member',
+    systemCapabilities: [],
+    isRoot: false,
     canCreateVault: false,
   })),
   getUserWithRoles: vi.fn(),
@@ -203,12 +213,19 @@ describe('auth integration', () => {
     expect(await response.json()).toEqual({
       userId: 'usr_test_1',
       sessionId: 'ses_test_1',
-      isGlobalAdmin: false,
+      systemRole: 'member',
+      systemCapabilities: [],
+      isRoot: false,
       canCreateVault: false,
       authMethods: {
         hasPassword: true,
         oauthProviders: ['github'],
         primaryOAuthProvider: 'github',
+      },
+      twoFactor: {
+        authenticatorLinkedAt: null,
+        backupCodeCount: null,
+        backupCodesUpdatedAt: null,
       },
     });
   });

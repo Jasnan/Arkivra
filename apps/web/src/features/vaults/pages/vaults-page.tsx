@@ -40,6 +40,10 @@ type VaultContextMenuState = {
   y: number;
 } | null;
 
+function isRequestResponse(value: unknown): value is { request: { id: string } } {
+  return typeof value === 'object' && value !== null && 'request' in value;
+}
+
 interface VaultAction {
   key: string;
   label: string;
@@ -67,6 +71,13 @@ function getVaultDescription(value: string | null) {
   }
 
   return value;
+}
+
+function getParticipationLabel(vault: VaultSummary) {
+  if (vault.role === 'owner') return 'Owner';
+  if (vault.role === 'editor') return 'Editor';
+  if (vault.role === 'viewer') return 'Viewer';
+  return 'No participation';
 }
 
 function VaultContextMenu({
@@ -185,10 +196,21 @@ export function VaultsPage() {
   const [vaultsView, setVaultsView] = useState<VaultsView>(getInitialBrowserView);
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const shouldRestoreCreateButtonFocusRef = useRef(false);
 
   const createMutation = useMutation({
     mutationFn: createVault,
-    onSuccess: async ({ vault }) => {
+    onSuccess: async (result) => {
+      if (isRequestResponse(result)) {
+        setIsCreateModalOpen(false);
+        setName('');
+        setDescription('');
+        queueCreateButtonFocusRestore();
+        toast.success('Vault creation request queued for root approval.');
+        return;
+      }
+
+      const { vault } = result;
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
       setIsCreateModalOpen(false);
       setName('');
@@ -201,6 +223,10 @@ export function VaultsPage() {
     },
   });
 
+  function queueCreateButtonFocusRestore() {
+    shouldRestoreCreateButtonFocusRef.current = true;
+  }
+
   function restoreCreateButtonFocus() {
     const button = createButtonRef.current;
     if (button) {
@@ -210,6 +236,14 @@ export function VaultsPage() {
       });
     }
   }
+
+  useEffect(() => {
+    if (isCreateModalOpen || !shouldRestoreCreateButtonFocusRef.current) {
+      return;
+    }
+
+    window.setTimeout(() => createButtonRef.current?.focus(), 0);
+  }, [isCreateModalOpen]);
 
   function openCreateModal() {
     setIsCreateModalOpen(true);
@@ -229,18 +263,11 @@ export function VaultsPage() {
     setIsCreateModalOpen(false);
     setName('');
     setDescription('');
-    restoreCreateButtonFocus();
+    queueCreateButtonFocusRestore();
   }
 
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!canCreateVault) {
-      toast.error(
-        'A global admin must grant vault creation before this account can create a workspace.',
-      );
-      return;
-    }
 
     const normalizedName = name.trim();
     if (!normalizedName) {
@@ -315,7 +342,7 @@ export function VaultsPage() {
         </HStack>
       </Flex>
 
-      {!isInWorkspaceShell && canCreateVault ? (
+      {!isInWorkspaceShell ? (
         <Box px={{ base: '4', lg: '6' }} pt={{ base: '4', lg: '6' }} pb="4">
           <Flex justify="flex-start">
             <CreateButton ref={createButtonRef} onClick={openCreateModal}>
@@ -344,7 +371,7 @@ export function VaultsPage() {
             <Text maxW="sm" fontSize="sm" color="fg.muted">
               {meQuery.data?.canCreateVault
                 ? 'No vaults yet. Create your first vault to start storing documents.'
-                : 'No vaults available yet. A global admin must grant vault creation before you can open a new workspace.'}
+                : 'No vaults available yet. Request a vault and a root can approve it.'}
             </Text>
           </Flex>
         ) : vaultsView === 'grid' ? (
@@ -413,6 +440,9 @@ export function VaultsPage() {
                 ) : null}
                 <Text mt="3" fontSize="sm" color="fg.muted">
                   {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
+                </Text>
+                <Text mt="1" fontSize="xs" fontWeight="semibold" color={vault.role === null ? 'fg.warning' : 'fg.muted'}>
+                  {getParticipationLabel(vault)}
                 </Text>
               </Flex>
             ))}
@@ -484,6 +514,9 @@ export function VaultsPage() {
                         {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
                       </Text>
                     ) : null}
+                    <Text truncate fontSize="xs" fontWeight="semibold" color={vault.role === null ? 'fg.warning' : 'fg.muted'}>
+                      {getParticipationLabel(vault)}
+                    </Text>
                   </Stack>
                 </Flex>
 
@@ -535,6 +568,16 @@ export function VaultsPage() {
       <ChakraDialog.Root
         open={isCreateModalOpen}
         onOpenChange={(e) => { if (!e.open && !createMutation.isPending) closeCreateModal(); }}
+        finalFocusEl={() => createButtonRef.current}
+        onExitComplete={() => {
+          if (!shouldRestoreCreateButtonFocusRef.current) {
+            return;
+          }
+
+          shouldRestoreCreateButtonFocusRef.current = false;
+          restoreCreateButtonFocus();
+        }}
+        restoreFocus
         size={{ mdDown: 'full', md: 'lg' }}
       >
         <Portal>
@@ -562,7 +605,7 @@ export function VaultsPage() {
 
                   {!canCreateVault ? (
                     <Text fontSize="sm" color="fg.muted">
-                      Vault creation is currently disabled for this account.
+                      Vault creation will be queued for root approval.
                     </Text>
                   ) : null}
                 </form>
@@ -574,7 +617,7 @@ export function VaultsPage() {
                   </Button>
                 </ChakraDialog.ActionTrigger>
                 <CreateButton type="button" disabled={createMutation.isPending} onClick={() => { (document.getElementById('create-vault-form') as HTMLFormElement)?.requestSubmit(); }}>
-                  {createMutation.isPending ? 'Creating...' : 'Create vault'}
+                  {createMutation.isPending ? 'Submitting...' : canCreateVault ? 'Create vault' : 'Request vault'}
                 </CreateButton>
               </ChakraDialog.Footer>
             </ChakraDialog.Content>

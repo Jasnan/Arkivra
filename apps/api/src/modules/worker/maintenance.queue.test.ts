@@ -7,6 +7,7 @@ vi.mock('./postgres-jobs.js', () => ({
     add: queueAdd,
     close: vi.fn(),
   }),
+  getScopedQueueName: (queueName: string) => queueName,
 }));
 
 describe('maintenance queue', () => {

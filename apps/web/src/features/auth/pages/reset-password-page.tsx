@@ -39,7 +39,7 @@ export function ResetPasswordPage() {
       return;
     }
     setIsReset(true);
-    setTimeout(() => navigate({ to: ROUTES.login }), 1500);
+    setTimeout(navigate, 1500, { to: ROUTES.login });
   }
 
   return (

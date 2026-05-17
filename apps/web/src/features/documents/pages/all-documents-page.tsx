@@ -124,19 +124,15 @@ function formatVaultRole(role: string | null | undefined) {
     return 'Owner';
   }
 
-  if (role === 'member') {
-    return 'Member';
-  }
-
   if (role === 'editor') {
     return 'Editor';
   }
 
-  if (role === 'global_admin') {
-    return 'Global admin';
+  if (role === 'viewer') {
+    return 'Viewer';
   }
 
-  return 'Access';
+  return 'Root governance';
 }
 
 export function AllDocumentsPage() {
@@ -668,7 +664,7 @@ export function AllDocumentsPage() {
                               {group.vaultName}
                             </Text>
                             <Text fontSize="xs" color="fg.muted">
-                              {formatVaultRole(vault?.role ?? 'global_admin')}
+                              {formatVaultRole(vault?.role)}
                             </Text>
                             <Text fontSize="xs" color="fg.muted">
                               {group.documents.length} document

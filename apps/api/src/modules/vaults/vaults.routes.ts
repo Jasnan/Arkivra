@@ -1,19 +1,16 @@
 import type { Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
-import type { VaultRole } from './vaults.types.js';
-import type { VaultMemberPermission } from '../authorization/authorization.types.js';
+import type { AiAccessLevel, VaultRole } from './vaults.types.js';
 import type { VaultsServices } from './vaults.services.js';
 import {
-  DEFAULT_MEMBER_PERMISSIONS,
-  isVaultMemberPermission,
-  normalizeVaultMemberPermissions,
+  isAiAccessLevel,
 } from '../authorization/authorization.types.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { createVaultsServices } from './vaults.services.js';
 import {
   requireVaultAccess,
-  requireVaultPermission,
+  requireCanManageVaultMembers,
   requireVaultRole,
 } from './vaults.middleware.js';
 
@@ -40,25 +37,25 @@ function getValidDescription(value: unknown) {
 }
 
 function getValidRole(value: unknown): VaultRole | null {
-  return value === 'owner' || value === 'member' ? value : null;
+  return value === 'owner' || value === 'editor' || value === 'viewer' ? value : null;
 }
 
-function getValidPermissions(value: unknown): VaultMemberPermission[] | null {
+function getValidAiAccessLevel(value: unknown): AiAccessLevel | null {
   if (value === undefined) {
-    return [...DEFAULT_MEMBER_PERMISSIONS];
+    return 'none';
   }
 
-  if (!Array.isArray(value)) {
-    return null;
-  }
+  return isAiAccessLevel(value) ? value : null;
+}
 
-  const permissions = value.filter(isVaultMemberPermission);
+function isAiEscalation(current: AiAccessLevel | null | undefined, next: AiAccessLevel) {
+  const ranks: Record<AiAccessLevel, number> = {
+    none: 0,
+    document_chat: 1,
+    full: 2,
+  };
 
-  if (permissions.length !== value.length) {
-    return null;
-  }
-
-  return normalizeVaultMemberPermissions(permissions);
+  return ranks[next] > ranks[current ?? 'none'];
 }
 
 export function registerVaultRoutes({
@@ -110,18 +107,6 @@ export function registerVaultRoutes({
       );
     }
 
-    if (!canCreateVault) {
-      return context.json(
-        {
-          error: {
-            code: 'authorization.vault_creator_required',
-            message: 'Vault creation permission required',
-          },
-        },
-        403,
-      );
-    }
-
     const body = await context.req.json();
     const name = getValidName(body.name);
     const description = getValidDescription(body.description);
@@ -148,6 +133,16 @@ export function registerVaultRoutes({
         },
         400,
       );
+    }
+
+    if (!canCreateVault) {
+      const request = await vaultsServices.createPermissionRequest({
+        type: 'vault.create',
+        requestedBy: userId,
+        payload: { name, description },
+      });
+
+      return context.json({ request }, 202);
     }
 
     const vault = await vaultsServices.createVault({ userId, name, description });
@@ -266,6 +261,17 @@ export function registerVaultRoutes({
       );
     }
 
+    if (!context.get('isRoot')) {
+      const request = await vaultsServices.createPermissionRequest({
+        type: 'vault.delete',
+        requestedBy: userId,
+        vaultId,
+        payload: {},
+      });
+
+      return context.json({ request }, 202);
+    }
+
     const deletedVault = await vaultsServices.softDeleteVault({
       vaultId,
       deletedBy: userId,
@@ -305,15 +311,121 @@ export function registerVaultRoutes({
     return context.json({ members });
   });
 
+  app.post('/api/vaults/:vaultId/membership/self', async (context) => {
+    const vaultId = context.get('vaultId');
+    const userId = context.get('userId');
+    const isRoot = context.get('isRoot');
+
+    if (vaultId === null || userId === null || !isRoot) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.forbidden',
+            message: 'Forbidden',
+          },
+        },
+        403,
+      );
+    }
+
+    const body = await context.req.json().catch(() => ({}));
+    const role = getValidRole(body.role);
+    const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
+
+    if (role === null || aiAccessLevel === null) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.invalid_member_payload',
+            message: 'role and aiAccessLevel are required',
+          },
+        },
+        400,
+      );
+    }
+
+    const member = await vaultsServices.upsertMember({
+      vaultId,
+      userId,
+      role,
+      aiAccessLevel,
+    });
+
+    return context.json({ member }, 201);
+  });
+
+  app.delete('/api/vaults/:vaultId/membership/self', async (context) => {
+    const vaultId = context.get('vaultId');
+    const userId = context.get('userId');
+    const isRoot = context.get('isRoot');
+    const isMember = context.get('vaultIsMember');
+
+    if (vaultId === null || userId === null || !isRoot) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.forbidden',
+            message: 'Forbidden',
+          },
+        },
+        403,
+      );
+    }
+
+    if (!isMember) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.member_not_found',
+            message: 'Member not found',
+          },
+        },
+        404,
+      );
+    }
+
+    try {
+      const removed = await vaultsServices.removeMember({ vaultId, userId });
+
+      if (removed === null) {
+        return context.json(
+          {
+            error: {
+              code: 'vault.member_not_found',
+              message: 'Member not found',
+            },
+          },
+          404,
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === 'authorization.last_vault_owner') {
+        return context.json(
+          {
+            error: {
+              code: 'vault.last_owner',
+              message: 'Owner must transfer ownership before leaving',
+            },
+          },
+          403,
+        );
+      }
+
+      throw error;
+    }
+
+    return context.body(null, 204);
+  });
+
   app.post(
     '/api/vaults/:vaultId/members',
-    requireVaultPermission('members.manage'),
+    requireCanManageVaultMembers(),
     async (context) => {
       const vaultId = context.get('vaultId');
-      const currentRole = context.get('vaultRole');
-      const isGlobalAdmin = context.get('isGlobalAdmin');
+      const requestedBy = context.get('userId');
+      const isRoot = context.get('isRoot');
 
-      if (vaultId === null) {
+      if (vaultId === null || requestedBy === null) {
         return context.json(
           {
             error: {
@@ -328,37 +440,60 @@ export function registerVaultRoutes({
       const body = await context.req.json();
       const memberUserId = getValidName(body.userId);
       const role = getValidRole(body.role);
-      const permissions = getValidPermissions(body.permissions);
+      const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
 
-      if (memberUserId === null || role === null || permissions === null) {
+      if (memberUserId === null || role === null || aiAccessLevel === null) {
         return context.json(
           {
             error: {
               code: 'vault.invalid_member_payload',
-              message: 'userId, role, and permissions are required',
+              message: 'userId, role, and aiAccessLevel are required',
             },
           },
           400,
         );
       }
 
-      if (!isGlobalAdmin && currentRole !== 'owner' && role === 'owner') {
-        return context.json(
-          {
-            error: {
-              code: 'vault.forbidden',
-              message: 'Only owner can assign owner role',
-            },
-          },
-          403,
-        );
+      if (!isRoot && role === 'owner') {
+        const request = await vaultsServices.createPermissionRequest({
+          type: 'vault.owner_promote',
+          requestedBy,
+          vaultId,
+          targetUserId: memberUserId,
+          payload: { role },
+        });
+
+        return context.json({ request }, 202);
+      }
+
+      if (!isRoot && aiAccessLevel !== 'none') {
+        const existingMember = await vaultsServices.getMember({ vaultId, userId: memberUserId });
+
+        if (existingMember === null) {
+          await vaultsServices.upsertMember({
+            vaultId,
+            userId: memberUserId,
+            role,
+            aiAccessLevel: 'none',
+          });
+        }
+
+        const request = await vaultsServices.createPermissionRequest({
+          type: 'vault.ai_escalation',
+          requestedBy,
+          vaultId,
+          targetUserId: memberUserId,
+          payload: { aiAccessLevel },
+        });
+
+        return context.json({ request }, 202);
       }
 
       const member = await vaultsServices.upsertMember({
         vaultId,
         userId: memberUserId,
         role,
-        permissions,
+        aiAccessLevel,
       });
 
       return context.json({ member }, 201);
@@ -367,13 +502,13 @@ export function registerVaultRoutes({
 
   app.patch(
     '/api/vaults/:vaultId/members/:memberUserId',
-    requireVaultPermission('members.manage'),
+    requireCanManageVaultMembers(),
     async (context) => {
       const vaultId = context.get('vaultId');
-      const currentRole = context.get('vaultRole');
-      const isGlobalAdmin = context.get('isGlobalAdmin');
+      const requestedBy = context.get('userId');
+      const isRoot = context.get('isRoot');
 
-      if (vaultId === null) {
+      if (vaultId === null || requestedBy === null) {
         return context.json(
           {
             error: {
@@ -388,14 +523,14 @@ export function registerVaultRoutes({
       const memberUserId = context.req.param('memberUserId').trim();
       const body = await context.req.json();
       const role = getValidRole(body.role);
-      const permissions = getValidPermissions(body.permissions);
+      const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
 
-      if (memberUserId.length === 0 || role === null || permissions === null) {
+      if (memberUserId.length === 0 || role === null || aiAccessLevel === null) {
         return context.json(
           {
             error: {
               code: 'vault.invalid_member_payload',
-              message: 'Valid memberUserId, role, and permissions are required',
+              message: 'Valid memberUserId, role, and aiAccessLevel are required',
             },
           },
           400,
@@ -419,27 +554,44 @@ export function registerVaultRoutes({
         );
       }
 
-      if (
-        !isGlobalAdmin &&
-        currentRole !== 'owner' &&
-        (role === 'owner' || targetMember.role === 'owner')
-      ) {
-        return context.json(
-          {
-            error: {
-              code: 'vault.forbidden',
-              message: 'Only owner can manage owner role',
-            },
-          },
-          403,
-        );
+      if (!isRoot && role === 'owner' && targetMember.role !== 'owner') {
+        const request = await vaultsServices.createPermissionRequest({
+          type: 'vault.owner_promote',
+          requestedBy,
+          vaultId,
+          targetUserId: memberUserId,
+          payload: { role },
+        });
+
+        return context.json({ request }, 202);
+      }
+
+      if (!isRoot && isAiEscalation(targetMember.aiAccessLevel, aiAccessLevel)) {
+        if (role !== targetMember.role) {
+          await vaultsServices.upsertMember({
+            vaultId,
+            userId: memberUserId,
+            role,
+            aiAccessLevel: targetMember.aiAccessLevel,
+          });
+        }
+
+        const request = await vaultsServices.createPermissionRequest({
+          type: 'vault.ai_escalation',
+          requestedBy,
+          vaultId,
+          targetUserId: memberUserId,
+          payload: { aiAccessLevel },
+        });
+
+        return context.json({ request }, 202);
       }
 
       const member = await vaultsServices.upsertMember({
         vaultId,
         userId: memberUserId,
         role,
-        permissions,
+        aiAccessLevel,
       });
 
       return context.json({ member });
@@ -448,7 +600,7 @@ export function registerVaultRoutes({
 
   app.delete(
     '/api/vaults/:vaultId/members/:memberUserId',
-    requireVaultPermission('members.manage'),
+    requireCanManageVaultMembers(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -518,8 +670,9 @@ export function registerVaultRoutes({
 
   app.post('/api/vaults/:vaultId/ownership', requireVaultRole('owner'), async (context) => {
     const vaultId = context.get('vaultId');
+    const requestedBy = context.get('userId');
 
-    if (vaultId === null) {
+    if (vaultId === null || requestedBy === null) {
       return context.json(
         {
           error: {
@@ -546,10 +699,23 @@ export function registerVaultRoutes({
       );
     }
 
+    if (!context.get('isRoot')) {
+      const request = await vaultsServices.createPermissionRequest({
+        type: 'vault.owner_promote',
+        requestedBy,
+        vaultId,
+        targetUserId: memberUserId,
+        payload: { role: 'owner' },
+      });
+
+      return context.json({ request }, 202);
+    }
+
     const member = await vaultsServices.upsertMember({
       vaultId,
       userId: memberUserId,
       role: 'owner',
+      aiAccessLevel: 'none',
     });
 
     return context.json({ member });

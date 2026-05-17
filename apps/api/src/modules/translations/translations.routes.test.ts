@@ -40,8 +40,6 @@ function createMockVaultsServices() {
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
     })),
   } as unknown as VaultsServices;
 }
@@ -72,10 +70,8 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
     if (typeof userIdHeader === 'string' && userIdHeader.length > 0) {

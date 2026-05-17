@@ -13,7 +13,10 @@ type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
 };
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { requireVaultPermission } from '../vaults/vaults.middleware.js';
+import {
+  requireCanMutateVaultDocuments,
+  requireCanReadVault,
+} from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 import { createFoldersServices } from '../folders/folders.services.js';
 import { buildUserDocumentLanguageMetadata } from './document-language.js';
@@ -131,11 +134,7 @@ export function registerDocumentRoutes({
 
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaultIds = vaults
-      .filter(vault =>
-        vault.isGlobalAdmin
-        || vault.role === 'owner'
-        || vault.permissions.includes('documents.read'),
-      )
+      .filter(vault => vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer')
       .map(vault => vault.id);
     const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
 
@@ -156,7 +155,7 @@ export function registerDocumentRoutes({
   // List documents in vault
   app.get(
     '/api/vaults/:vaultId/documents',
-    requireVaultPermission('documents.read'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -203,7 +202,7 @@ export function registerDocumentRoutes({
   // Upload document
   app.post(
     '/api/vaults/:vaultId/documents',
-    requireVaultPermission('documents.create'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
       const userId = context.get('userId');
@@ -306,7 +305,7 @@ export function registerDocumentRoutes({
   // Get document details
   app.get(
     '/api/vaults/:vaultId/documents/:documentId',
-    requireVaultPermission('documents.read'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -331,7 +330,7 @@ export function registerDocumentRoutes({
   // Download document file
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/download',
-    requireVaultPermission('documents.download'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -367,7 +366,7 @@ export function registerDocumentRoutes({
 
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/file',
-    requireVaultPermission('documents.download'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -403,7 +402,7 @@ export function registerDocumentRoutes({
 
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/page/:pageRef',
-    requireVaultPermission('documents.download'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -475,7 +474,7 @@ export function registerDocumentRoutes({
 
   app.get(
     '/api/vaults/:vaultId/chunks/:chunkId/assets/:assetId',
-    requireVaultPermission('documents.download'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -543,7 +542,7 @@ export function registerDocumentRoutes({
   // Rename document
   app.patch(
     '/api/vaults/:vaultId/documents/:documentId',
-    requireVaultPermission('documents.update'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -664,7 +663,7 @@ export function registerDocumentRoutes({
 
   app.post(
     '/api/vaults/:vaultId/documents/:documentId/move',
-    requireVaultPermission('documents.update'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -722,7 +721,7 @@ export function registerDocumentRoutes({
 
   app.post(
     '/api/vaults/:vaultId/documents/:documentId/reprocess',
-    requireVaultPermission('documents.update'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -774,7 +773,7 @@ export function registerDocumentRoutes({
   // Soft delete document
   app.delete(
     '/api/vaults/:vaultId/documents/:documentId',
-    requireVaultPermission('documents.delete'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
       const userId = context.get('userId');
@@ -804,7 +803,7 @@ export function registerDocumentRoutes({
   // Restore soft-deleted document
   app.post(
     '/api/vaults/:vaultId/documents/:documentId/restore',
-    requireVaultPermission('documents.delete'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -842,7 +841,7 @@ export function registerDocumentRoutes({
   // Hard delete (permanently remove soft-deleted document)
   app.delete(
     '/api/vaults/:vaultId/documents/:documentId/permanent',
-    requireVaultPermission('documents.delete'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 

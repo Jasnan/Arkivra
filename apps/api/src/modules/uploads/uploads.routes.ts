@@ -4,7 +4,7 @@ import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
-import { requireVaultPermission } from '../vaults/vaults.middleware.js';
+import { requireCanMutateVaultDocuments } from '../vaults/vaults.middleware.js';
 import { createUploadsServices } from './uploads.services.js';
 
 type DocumentQueue = {
@@ -91,7 +91,7 @@ export function registerUploadRoutes({
     sessionTtlHours: config.uploads.sessionTtlHours,
   });
 
-  app.post('/api/vaults/:vaultId/uploads/init', requireVaultPermission('documents.create'), async (context) => {
+  app.post('/api/vaults/:vaultId/uploads/init', requireCanMutateVaultDocuments(), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -156,7 +156,7 @@ export function registerUploadRoutes({
     }
   });
 
-  app.get('/api/vaults/:vaultId/uploads', requireVaultPermission('documents.create'), async (context) => {
+  app.get('/api/vaults/:vaultId/uploads', requireCanMutateVaultDocuments(), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -174,7 +174,7 @@ export function registerUploadRoutes({
     return context.json({ uploads });
   });
 
-  app.get('/api/vaults/:vaultId/uploads/:uploadId', requireVaultPermission('documents.create'), async (context) => {
+  app.get('/api/vaults/:vaultId/uploads/:uploadId', requireCanMutateVaultDocuments(), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -192,7 +192,7 @@ export function registerUploadRoutes({
     return context.json({ upload });
   });
 
-  app.put('/api/vaults/:vaultId/uploads/:uploadId/parts/:partNumber', requireVaultPermission('documents.create'), async (context) => {
+  app.put('/api/vaults/:vaultId/uploads/:uploadId/parts/:partNumber', requireCanMutateVaultDocuments(), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -231,7 +231,7 @@ export function registerUploadRoutes({
     }
   });
 
-  app.post('/api/vaults/:vaultId/uploads/:uploadId/complete', requireVaultPermission('documents.create'), async (context) => {
+  app.post('/api/vaults/:vaultId/uploads/:uploadId/complete', requireCanMutateVaultDocuments(), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -284,7 +284,7 @@ export function registerUploadRoutes({
     }
   });
 
-  app.post('/api/vaults/:vaultId/uploads/:uploadId/abort', requireVaultPermission('documents.create'), async (context) => {
+  app.post('/api/vaults/:vaultId/uploads/:uploadId/abort', requireCanMutateVaultDocuments(), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 

@@ -421,7 +421,7 @@ describe.sequential('migrations smoke', () => {
     const columnKeys = new Set(columns.map(row => `${row.table_name}.${row.column_name}`));
 
     expect(columnKeys).toContain('chat_conversations.vault_id');
-    expect(columnKeys).toContain('chat_conversations.created_by');
+    expect(columnKeys).toContain('chat_conversations.user_id');
     expect(columnKeys).toContain('chat_conversations.title');
     expect(columnKeys).toContain('chat_conversations.deleted_at');
     expect(columnKeys).toContain('chat_messages.conversation_id');
@@ -441,7 +441,7 @@ describe.sequential('migrations smoke', () => {
 
     const indexNames = indexes.map(row => row.indexname);
     expect(indexNames).toContain('chat_conversations_vault_created_idx');
-    expect(indexNames).toContain('chat_conversations_created_by_vault_idx');
+    expect(indexNames).toContain('chat_conversations_user_id_vault_idx');
     expect(indexNames).toContain('chat_messages_conversation_created_idx');
     expect(indexNames).toContain('chat_messages_vault_created_idx');
   });
@@ -656,5 +656,77 @@ describe.sequential('migrations smoke', () => {
     expect(byName.date_format?.data_type).toBe('text');
     expect(byName.date_format?.is_nullable).toBe('NO');
     expect(byName.date_format?.column_default).toContain("'medium'");
+  });
+
+  test('0015 replaces legacy authorization tables with root, capability, vault role, and AI access schema', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columnRows } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+    }>(
+      `
+        SELECT table_name, column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+            (table_name = 'users' AND column_name = 'system_role')
+            OR (table_name = 'vaults' AND column_name = 'created_by')
+            OR (table_name = 'vault_members' AND column_name IN ('role', 'ai_access_level'))
+            OR table_name IN ('system_capabilities', 'permission_requests', 'email_invitations')
+          )
+      `,
+    );
+
+    const byKey = Object.fromEntries(
+      columnRows.map(row => [`${row.table_name}.${row.column_name}`, row]),
+    );
+
+    expect(byKey['users.system_role']?.data_type).toBe('text');
+    expect(byKey['users.system_role']?.is_nullable).toBe('NO');
+    expect(byKey['users.system_role']?.column_default).toContain("'member'");
+
+    expect(byKey['vaults.created_by']?.data_type).toBe('text');
+    expect(byKey['vault_members.ai_access_level']?.data_type).toBe('text');
+    expect(byKey['vault_members.ai_access_level']?.is_nullable).toBe('NO');
+    expect(byKey['vault_members.ai_access_level']?.column_default).toContain("'none'");
+
+    expect(byKey['system_capabilities.user_id']?.is_nullable).toBe('NO');
+    expect(byKey['system_capabilities.capability']?.is_nullable).toBe('NO');
+    expect(byKey['permission_requests.type']?.is_nullable).toBe('NO');
+    expect(byKey['permission_requests.status']?.column_default).toContain("'pending'");
+    expect(byKey['email_invitations.type']?.is_nullable).toBe('NO');
+    expect(byKey['email_invitations.ai_access_level']?.column_default).toContain("'none'");
+
+    const { rows: tableRows } = await pool.query<{ table_name: string }>(
+      `
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name IN (
+            'user_global_roles',
+            'vault_member_permissions',
+            'system_capabilities',
+            'permission_requests',
+            'email_invitations'
+          )
+      `,
+    );
+
+    const tableNames = tableRows.map(row => row.table_name);
+    expect(tableNames).toEqual(
+      expect.arrayContaining([
+        'system_capabilities',
+        'permission_requests',
+        'email_invitations',
+      ]),
+    );
+    expect(tableNames).not.toContain('user_global_roles');
+    expect(tableNames).not.toContain('vault_member_permissions');
   });
 });

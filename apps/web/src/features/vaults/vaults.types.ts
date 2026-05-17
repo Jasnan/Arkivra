@@ -62,6 +62,8 @@ export interface VaultSummary {
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
   isRoot: boolean;
+  isMember: boolean;
+  accessMode: 'member' | 'admin';
 }
 
 export interface VaultDetail {
@@ -74,6 +76,8 @@ export interface VaultDetail {
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
   isRoot: boolean;
+  isMember: boolean;
+  accessMode: 'member' | 'admin';
 }
 
 export interface VaultMember {

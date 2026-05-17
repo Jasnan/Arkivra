@@ -113,6 +113,28 @@ export async function removeVaultMember({ vaultId, memberUserId }: { vaultId: st
   });
 }
 
+export async function joinVaultAsRoot({
+  vaultId,
+  role,
+  aiAccessLevel,
+}: {
+  vaultId: string;
+  role: VaultRole;
+  aiAccessLevel: AiAccessLevel;
+}) {
+  return fetchJson<{ member: VaultMember }>(`/api/vaults/${vaultId}/membership/self`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ role, aiAccessLevel }),
+  });
+}
+
+export async function leaveVaultAsRoot({ vaultId }: { vaultId: string }) {
+  await fetchJson<void>(`/api/vaults/${vaultId}/membership/self`, {
+    method: 'DELETE',
+  });
+}
+
 export async function transferVaultOwnership({ vaultId, userId }: { vaultId: string; userId: string }) {
   return fetchJson<{ member: VaultMember } | PermissionRequestResponse>(`/api/vaults/${vaultId}/ownership`, {
     method: 'POST',

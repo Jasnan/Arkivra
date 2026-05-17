@@ -394,8 +394,7 @@ export function registerSearchRoutes({
 
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaults = vaults.filter(vault =>
-      vault.isRoot
-      || vault.role === 'owner'
+      vault.role === 'owner'
       || vault.role === 'editor'
       || vault.role === 'viewer',
     );

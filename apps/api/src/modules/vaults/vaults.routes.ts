@@ -311,6 +311,112 @@ export function registerVaultRoutes({
     return context.json({ members });
   });
 
+  app.post('/api/vaults/:vaultId/membership/self', async (context) => {
+    const vaultId = context.get('vaultId');
+    const userId = context.get('userId');
+    const isRoot = context.get('isRoot');
+
+    if (vaultId === null || userId === null || !isRoot) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.forbidden',
+            message: 'Forbidden',
+          },
+        },
+        403,
+      );
+    }
+
+    const body = await context.req.json().catch(() => ({}));
+    const role = getValidRole(body.role);
+    const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
+
+    if (role === null || aiAccessLevel === null) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.invalid_member_payload',
+            message: 'role and aiAccessLevel are required',
+          },
+        },
+        400,
+      );
+    }
+
+    const member = await vaultsServices.upsertMember({
+      vaultId,
+      userId,
+      role,
+      aiAccessLevel,
+    });
+
+    return context.json({ member }, 201);
+  });
+
+  app.delete('/api/vaults/:vaultId/membership/self', async (context) => {
+    const vaultId = context.get('vaultId');
+    const userId = context.get('userId');
+    const isRoot = context.get('isRoot');
+    const isMember = context.get('vaultIsMember');
+
+    if (vaultId === null || userId === null || !isRoot) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.forbidden',
+            message: 'Forbidden',
+          },
+        },
+        403,
+      );
+    }
+
+    if (!isMember) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.member_not_found',
+            message: 'Member not found',
+          },
+        },
+        404,
+      );
+    }
+
+    try {
+      const removed = await vaultsServices.removeMember({ vaultId, userId });
+
+      if (removed === null) {
+        return context.json(
+          {
+            error: {
+              code: 'vault.member_not_found',
+              message: 'Member not found',
+            },
+          },
+          404,
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === 'authorization.last_vault_owner') {
+        return context.json(
+          {
+            error: {
+              code: 'vault.last_owner',
+              message: 'Owner must transfer ownership before leaving',
+            },
+          },
+          403,
+        );
+      }
+
+      throw error;
+    }
+
+    return context.body(null, 204);
+  });
+
   app.post(
     '/api/vaults/:vaultId/members',
     requireCanManageVaultMembers(),

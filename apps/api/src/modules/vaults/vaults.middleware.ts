@@ -6,6 +6,8 @@ type VaultAuthorizationPredicate = (args: {
   isRoot: boolean;
   role: VaultRole | null;
   aiAccessLevel: 'none' | 'document_chat' | 'full';
+  isMember: boolean;
+  accessMode: 'member' | 'admin' | null;
 }) => boolean;
 
 function forbidden(context: Parameters<Parameters<typeof createMiddleware>[0]>[0]) {
@@ -25,8 +27,10 @@ function requireVaultAuthorization(predicate: VaultAuthorizationPredicate) {
     const isRoot = context.get('isRoot');
     const role = context.get('vaultRole');
     const aiAccessLevel = context.get('vaultAiAccessLevel');
+    const isMember = context.get('vaultIsMember');
+    const accessMode = context.get('vaultAccessMode');
 
-    if (!predicate({ isRoot, role, aiAccessLevel })) {
+    if (!predicate({ isRoot, role, aiAccessLevel, isMember, accessMode })) {
       return forbidden(context);
     }
 
@@ -89,6 +93,8 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
     context.set('vaultId', vaultId);
     context.set('vaultRole', vault.role);
     context.set('vaultAiAccessLevel', vault.aiAccessLevel);
+    context.set('vaultIsMember', vault.isMember);
+    context.set('vaultAccessMode', vault.accessMode);
     context.set('isRoot', vault.isRoot || context.get('isRoot'));
 
     await next();
@@ -97,11 +103,6 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
 
 export function requireVaultRole(...roles: VaultRole[]) {
   return createMiddleware(async (context, next) => {
-    if (context.get('isRoot')) {
-      await next();
-      return;
-    }
-
     const vaultRole = context.get('vaultRole');
 
     if (vaultRole === null || !roles.includes(vaultRole)) {
@@ -121,19 +122,19 @@ export function requireVaultRole(...roles: VaultRole[]) {
 }
 
 export function requireCanReadVault() {
-  return requireVaultAuthorization(({ isRoot, role }) => isRoot || canReadRole(role));
+  return requireVaultAuthorization(({ role }) => canReadRole(role));
 }
 
 export function requireCanMutateVaultDocuments() {
-  return requireVaultAuthorization(({ isRoot, role }) => isRoot || canMutateDocumentsRole(role));
+  return requireVaultAuthorization(({ role }) => canMutateDocumentsRole(role));
 }
 
 export function requireCanManageVaultMembers() {
-  return requireVaultAuthorization(({ isRoot, role }) => isRoot || role === 'owner');
+  return requireVaultAuthorization(({ role }) => role === 'owner');
 }
 
 export function requireCanManageVault() {
-  return requireVaultAuthorization(({ isRoot, role }) => isRoot || role === 'owner');
+  return requireVaultAuthorization(({ role }) => role === 'owner');
 }
 
 export function requireCanUseDocumentChat() {

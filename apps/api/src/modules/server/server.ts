@@ -176,6 +176,8 @@ export function createServer({
     context.set('vaultId', null);
     context.set('vaultRole', null);
     context.set('vaultAiAccessLevel', 'none');
+    context.set('vaultIsMember', false);
+    context.set('vaultAccessMode', null);
     await next();
   });
 

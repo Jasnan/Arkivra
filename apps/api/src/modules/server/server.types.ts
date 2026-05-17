@@ -24,5 +24,7 @@ export type ServerContext = {
     vaultId: string | null;
     vaultRole: VaultRole | null;
     vaultAiAccessLevel: AiAccessLevel;
+    vaultIsMember: boolean;
+    vaultAccessMode: 'member' | 'admin' | null;
   };
 };

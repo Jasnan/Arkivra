@@ -96,8 +96,8 @@ export function ChatWorkspace({
   const aiAccessMessage = isDocumentChat
     ? 'Document chat requires document chat or full AI access on this vault.'
     : isGlobalChat
-      ? 'Global chat requires full AI access on at least one vault.'
-      : 'Vault chat requires full AI access on this vault.';
+      ? 'Root accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.'
+      : 'Root accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation
     ? ''

@@ -60,6 +60,9 @@ function createTestApp({
     context.set('canCreateVault', canCreateVault);
     context.set('vaultId', null);
     context.set('vaultRole', null);
+    context.set('vaultAiAccessLevel', 'none');
+    context.set('vaultIsMember', false);
+    context.set('vaultAccessMode', null);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -249,6 +252,139 @@ describe('vaults integration', () => {
     expect(body.vault.name).toBe('Team Vault');
     expect(body.vault.description).toBe('Shared finance documents');
     expect(body.vault.role).toBe('owner');
+  });
+
+  test('allows root administrative read access without membership', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: true,
+      isMember: false,
+      accessMode: 'admin',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      headers: { 'x-test-user-id': 'usr_root' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.vault.role).toBeNull();
+    expect(body.vault.accessMode).toBe('admin');
+  });
+
+  test('blocks root administrative access from mutating vault settings', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: true,
+      isMember: false,
+      accessMode: 'admin',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_root',
+      },
+      body: JSON.stringify({ name: 'New name' }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(services.updateVaultIdentity).not.toHaveBeenCalled();
+  });
+
+  test('allows root administrative user to join vault as explicit member', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: true,
+      isMember: false,
+      accessMode: 'admin',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1/membership/self', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_root',
+      },
+      body: JSON.stringify({ role: 'owner', aiAccessLevel: 'full' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(services.upsertMember).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      userId: 'usr_root',
+      role: 'owner',
+      aiAccessLevel: 'full',
+    });
+  });
+
+  test('allows root explicit member to leave vault membership', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      description: 'Shared finance documents',
+      fileCount: 2,
+      totalSize: 2048,
+      role: 'editor',
+      aiAccessLevel: 'full',
+      isRoot: true,
+      isMember: true,
+      accessMode: 'member',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1/membership/self', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_root' },
+    });
+
+    expect(response.status).toBe(204);
+    expect(services.removeMember).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      userId: 'usr_root',
+    });
   });
 
   test('blocks member from adding vault members', async () => {

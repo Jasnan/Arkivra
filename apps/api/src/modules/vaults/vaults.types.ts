@@ -17,4 +17,6 @@ export type VaultAccess = {
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
   isRoot: boolean;
+  isMember: boolean;
+  accessMode: 'member' | 'admin';
 };

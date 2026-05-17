@@ -97,7 +97,7 @@ export function registerTagRoutes({
 
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaultIds = vaults
-      .filter(vault => vault.isRoot || vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer')
+      .filter(vault => vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer')
       .map(vault => vault.id);
     const tags = await tagsServices.listTags({ vaultIds: readableVaultIds });
 

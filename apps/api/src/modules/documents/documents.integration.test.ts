@@ -238,6 +238,32 @@ describe('documents integration', () => {
     expect(response.status).toBe(403);
   });
 
+  test('returns 403 for root without explicit membership when listing documents', async () => {
+    const docServices = createMockDocumentsServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: null,
+      aiAccessLevel: 'none',
+      isRoot: true,
+      isMember: false,
+      accessMode: 'admin',
+    }));
+
+    const app = createTestApp({ docServices, vaultServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      headers: { 'x-test-user-id': 'usr_root' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(docServices.listDocuments).not.toHaveBeenCalled();
+  });
+
   test('returns 403 when member lacks documents.create permission', async () => {
     const docServices = createMockDocumentsServices();
     const vaultServices = createMockVaultsServices();

@@ -1,11 +1,20 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Box, CloseButton, Dialog as ChakraDialog, Flex, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, Home, Info, MoveRight, Pencil, Tags, Trash2 } from 'lucide-react';
 import { useParams, useSearch } from '@tanstack/react-router';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { useBrowserDragDrop } from '@/features/documents/hooks/use-browser-drag-drop';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
@@ -43,16 +52,29 @@ import type {
   ItemDialogTarget,
 } from '@/features/file-browser/components/vault-browser.types';
 import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
-import { useVaultQuery } from '@/features/vaults/vaults.queries';
-import type { VaultDetail } from '@/features/vaults/vaults.types';
+import { joinVaultAsRoot } from '@/features/vaults/vaults.api';
+import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
+import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
 function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
-  return Boolean(vault?.isRoot || vault?.role === 'owner' || vault?.role === 'editor');
+  return Boolean(vault?.role === 'owner' || vault?.role === 'editor');
 }
 
 function canReadVault(vault: VaultDetail | null | undefined) {
-  return Boolean(vault?.isRoot || vault?.role === 'owner' || vault?.role === 'editor' || vault?.role === 'viewer');
+  return Boolean(vault?.role === 'owner' || vault?.role === 'editor' || vault?.role === 'viewer');
 }
+
+const rootJoinRoleOptions: Array<{ value: VaultRole; label: string }> = [
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'owner', label: 'Owner' },
+];
+
+const rootJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
+  { value: 'none', label: 'No AI access' },
+  { value: 'document_chat', label: 'Document chat' },
+  { value: 'full', label: 'Full AI access' },
+];
 
 function getBrowserItemUpdatedTime(item: BrowserItem) {
   const value = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
@@ -113,19 +135,24 @@ export function DocumentsPage() {
   const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
   const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const [joinRole, setJoinRole] = useState<VaultRole>('owner');
+  const [joinAiAccessLevel, setJoinAiAccessLevel] = useState<AiAccessLevel>('full');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const directoryInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
 
+  const vaultQuery = useVaultQuery({ vaultId });
+  const isRestrictedRootOverview = vaultQuery.data?.vault.accessMode === 'admin';
   const folderItemsQuery = useFolderItemsQuery({
     vaultId,
     folderId: currentFolderId,
+    enabled: !isRestrictedRootOverview && vaultQuery.isSuccess,
   });
   const folderTreeQuery = useFolderTreeQuery({
     vaultId,
-    enabled: true,
+    enabled: !isRestrictedRootOverview && vaultQuery.isSuccess,
   });
-  const vaultQuery = useVaultQuery({ vaultId });
 
   const browserItems = useMemo<BrowserItem[]>(
     () => [...(folderItemsQuery.data?.items ?? [])].sort((left, right) => compareBrowserItems(left, right, browserSort)),
@@ -186,6 +213,26 @@ export function DocumentsPage() {
     onMoveSuccess: () => {
       setMoveTarget(null);
       setMoveDestinationId(null);
+    },
+  });
+
+  const joinVaultMutation = useMutation({
+    mutationFn: joinVaultAsRoot,
+    onSuccess: async () => {
+      toast.success('You joined this vault.');
+      setIsJoinDialogOpen(false);
+      setJoinRole('owner');
+      setJoinAiAccessLevel('full');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) }),
+        queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() }),
+        queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.folderItems(vaultId, currentFolderId) }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.folderTree(vaultId) }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not join vault.');
     },
   });
   const {
@@ -497,6 +544,152 @@ export function DocumentsPage() {
 
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
+  }
+
+  if (vaultQuery.isLoading) {
+    return (
+      <Flex as="section" h="full" minH="0" direction="column" align="center" justify="center" color="fg.muted">
+        <Text fontSize="sm">Loading vault...</Text>
+      </Flex>
+    );
+  }
+
+  if (vaultQuery.isError || !vaultQuery.data) {
+    return (
+      <Flex as="section" h="full" minH="0" direction="column" align="center" justify="center" color="fg.error">
+        <Text fontSize="sm">Unable to load vault.</Text>
+      </Flex>
+    );
+  }
+
+  if (isRestrictedRootOverview) {
+    const vault = vaultQuery.data.vault;
+
+    return (
+      <Flex as="section" h="full" minH="0" direction="column" overflow="hidden">
+        <Flex
+          align="center"
+          justify="space-between"
+          gap="4"
+          borderBottomWidth="1px"
+          borderColor="border.subtle"
+          px={{ base: '4', lg: '6' }}
+          py="4"
+        >
+          <Box minW="0">
+            <Text fontSize="xl" fontWeight="semibold" color="fg" truncate>
+              {vault.name}
+            </Text>
+            <Text mt="1" fontSize="sm" color="fg.muted">
+              Participation status: No participation
+            </Text>
+          </Box>
+          <Button type="button" onClick={() => setIsJoinDialogOpen(true)}>
+            Join vault
+          </Button>
+        </Flex>
+
+        <Flex flex="1" minH="0" align="center" justify="center" px="6">
+          <Stack maxW="32rem" gap="4" textAlign="center">
+            <Folder size={32} style={{ alignSelf: 'center' }} />
+            <Text fontSize="2xl" fontWeight="bold" color="fg">
+              Become a vault member to access documents
+            </Text>
+            <Text fontSize="sm" lineHeight="6" color="fg.muted">
+              Root accounts can see that this vault exists and inspect basic metadata, but document access requires visible vault membership.
+            </Text>
+            <Text fontSize="sm" color="fg.muted">
+              {vault.description ?? 'No description set.'}
+            </Text>
+            <HStack justify="center">
+              <Button type="button" onClick={() => setIsJoinDialogOpen(true)}>
+                Join vault
+              </Button>
+            </HStack>
+          </Stack>
+        </Flex>
+
+        <ChakraDialog.Root
+          open={isJoinDialogOpen}
+          onOpenChange={(event) => {
+            if (!event.open && !joinVaultMutation.isPending) {
+              setIsJoinDialogOpen(false);
+            }
+          }}
+          size={{ mdDown: 'full', md: 'lg' }}
+        >
+          <Portal>
+            <ChakraDialog.Backdrop />
+            <ChakraDialog.Positioner>
+              <ChakraDialog.Content>
+                <chakra.form
+                  onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                    event.preventDefault();
+                    joinVaultMutation.mutate({
+                      vaultId,
+                      role: joinRole,
+                      aiAccessLevel: joinAiAccessLevel,
+                    });
+                  }}
+                >
+                  <ChakraDialog.Header>
+                    <ChakraDialog.Title>Join vault</ChakraDialog.Title>
+                    <ChakraDialog.CloseTrigger asChild>
+                      <CloseButton size="sm" />
+                    </ChakraDialog.CloseTrigger>
+                  </ChakraDialog.Header>
+                  <ChakraDialog.Body>
+                    <Stack gap="4">
+                      <Text fontSize="sm" lineHeight="6" color="fg.muted">
+                        You are about to become an explicit participant of this vault. This enables collaborative actions and AI participation under your account.
+                      </Text>
+                      <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}>
+                        <Field>
+                          <FieldLabel>Vault role</FieldLabel>
+                          <Select value={joinRole} onValueChange={(value) => setJoinRole(value as VaultRole)} disabled={joinVaultMutation.isPending}>
+                            <SelectTrigger aria-label="Vault role">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {rootJoinRoleOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field>
+                          <FieldLabel>AI access</FieldLabel>
+                          <Select value={joinAiAccessLevel} onValueChange={(value) => setJoinAiAccessLevel(value as AiAccessLevel)} disabled={joinVaultMutation.isPending}>
+                            <SelectTrigger aria-label="AI access">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {rootJoinAiAccessOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      </Grid>
+                    </Stack>
+                  </ChakraDialog.Body>
+                  <ChakraDialog.Footer>
+                    <ChakraDialog.ActionTrigger asChild>
+                      <Button type="button" variant="outline" disabled={joinVaultMutation.isPending} onClick={() => setIsJoinDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                    </ChakraDialog.ActionTrigger>
+                    <Button type="submit" disabled={joinVaultMutation.isPending}>
+                      {joinVaultMutation.isPending ? 'Joining...' : 'Join vault'}
+                    </Button>
+                  </ChakraDialog.Footer>
+                </chakra.form>
+              </ChakraDialog.Content>
+            </ChakraDialog.Positioner>
+          </Portal>
+        </ChakraDialog.Root>
+      </Flex>
+    );
   }
 
   const backgroundContextItem: BrowserContextItem = {

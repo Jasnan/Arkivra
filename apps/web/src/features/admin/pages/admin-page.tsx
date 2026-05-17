@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   CreateButton,
   RestoreArchiveButton,
@@ -14,6 +15,13 @@ import {
 } from '@/components/ui/action-buttons';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +51,7 @@ import {
   usePermissionRequestsQuery,
 } from '@/features/admin/admin.queries';
 import type { AdminAiSettings, AdminUser, PermissionRequest } from '@/features/admin/admin.types';
+import type { AiAccessLevel, VaultRole } from '@/features/vaults/vaults.types';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
@@ -56,6 +65,7 @@ import {
 
 type AdminUserStatusFilter = 'all' | 'active' | 'disabled';
 type AdminUserAccessFilter = 'all' | 'root' | 'create-vaults' | 'member';
+type InviteSystemRole = 'root' | 'member';
 
 const ADMIN_USERS_GRID_COLUMNS = 'minmax(0, 1.45fr) 8.5rem 8rem 7rem 8rem 8rem 8.5rem 2.75rem';
 
@@ -70,6 +80,23 @@ const userAccessFilterOptions = [
   { value: 'root', label: 'Roots' },
   { value: 'create-vaults', label: 'Can create vaults' },
   { value: 'member', label: 'Members' },
+];
+
+const inviteSystemRoleOptions: Array<{ value: InviteSystemRole; label: string }> = [
+  { value: 'member', label: 'Member' },
+  { value: 'root', label: 'Root' },
+];
+
+const inviteVaultRoleOptions: Array<{ value: VaultRole; label: string }> = [
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'owner', label: 'Owner' },
+];
+
+const inviteAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
+  { value: 'none', label: 'No AI access' },
+  { value: 'document_chat', label: 'Document chat' },
+  { value: 'full', label: 'Full AI access' },
 ];
 
 function formatCount(value: number | undefined, singular: string, plural = `${singular}s`) {
@@ -380,11 +407,19 @@ export function AdminUsersPage() {
   const meQuery = useMeQuery();
   const isEnabled = meQuery.data?.isRoot === true;
   const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
+  const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
   const users = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data?.users]);
+  const vaults = useMemo(() => vaultsQuery.data?.vaults ?? [], [vaultsQuery.data?.vaults]);
   const [userSearch, setUserSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdminUserStatusFilter>('all');
   const [accessFilter, setAccessFilter] = useState<AdminUserAccessFilter>('all');
   const [rootInviteEmail, setRootInviteEmail] = useState('');
+  const [inviteSystemRole, setInviteSystemRole] = useState<InviteSystemRole>('member');
+  const [inviteCanCreateVaults, setInviteCanCreateVaults] = useState(false);
+  const [inviteVaultId, setInviteVaultId] = useState('');
+  const [inviteVaultRole, setInviteVaultRole] = useState<VaultRole>('viewer');
+  const [inviteAiAccessLevel, setInviteAiAccessLevel] = useState<AiAccessLevel>('none');
+  const [createdInvitationToken, setCreatedInvitationToken] = useState<string | null>(null);
   const visibleUsers = useMemo(() => {
     const normalizedSearch = userSearch.trim().toLowerCase();
 
@@ -463,7 +498,8 @@ export function AdminUsersPage() {
   const createRootInvitationMutation = useMutation({
     mutationFn: createRootEmailInvitation,
     onSuccess: ({ invitation }) => {
-      toast.success(`Root invitation created for ${invitation.email}.`);
+      toast.success(`Invitation created for ${invitation.email}.`);
+      setCreatedInvitationToken(invitation.id);
       setRootInviteEmail('');
     },
     onError: (error) => {
@@ -498,12 +534,24 @@ export function AdminUsersPage() {
               toast.error('Email is required.');
               return;
             }
-            createRootInvitationMutation.mutate({ email });
+            createRootInvitationMutation.mutate({
+              email,
+              systemRole: inviteSystemRole,
+              systemCapabilities: inviteCanCreateVaults ? ['system.create_vaults'] : [],
+              vaultMemberships: inviteVaultId
+                ? [{
+                    vaultId: inviteVaultId,
+                    role: inviteVaultRole,
+                    aiAccessLevel: inviteAiAccessLevel,
+                  }]
+                : [],
+            });
           }}
         >
-          <Flex align={{ base: 'stretch', md: 'end' }} direction={{ base: 'column', md: 'row' }} gap="3">
+          <Stack gap="3">
+            <Flex align={{ base: 'stretch', xl: 'end' }} direction={{ base: 'column', xl: 'row' }} gap="3">
             <Field>
-              <FieldLabel htmlFor="admin-root-invite-email">Root account invitation</FieldLabel>
+              <FieldLabel htmlFor="admin-root-invite-email">Invite user</FieldLabel>
               <Input
                 id="admin-root-invite-email"
                 type="email"
@@ -512,10 +560,78 @@ export function AdminUsersPage() {
                 onChange={(event) => setRootInviteEmail(event.target.value)}
               />
             </Field>
+            <Field>
+              <FieldLabel>System role</FieldLabel>
+              <Select value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
+                <SelectTrigger aria-label="System role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {inviteSystemRoleOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Checkbox
+              checked={inviteCanCreateVaults}
+              onCheckedChange={setInviteCanCreateVaults}
+              alignSelf={{ base: 'flex-start', xl: 'center' }}
+            >
+              Can create vaults
+            </Checkbox>
             <CreateButton type="submit" size="sm" disabled={createRootInvitationMutation.isPending}>
               {createRootInvitationMutation.isPending ? 'Creating...' : 'Create invitation'}
             </CreateButton>
-          </Flex>
+            </Flex>
+            <Grid gap="3" templateColumns={{ base: '1fr', lg: 'minmax(0, 1.2fr) 11rem 13rem' }}>
+              <Field>
+                <FieldLabel>Initial vault membership</FieldLabel>
+                <Select value={inviteVaultId || '__none__'} onValueChange={(value) => setInviteVaultId(value === '__none__' ? '' : value)}>
+                  <SelectTrigger aria-label="Initial vault membership">
+                    <SelectValue placeholder="No vault pre-seed" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No vault pre-seed</SelectItem>
+                    {vaults.map((vault) => (
+                      <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Vault role</FieldLabel>
+                <Select value={inviteVaultRole} onValueChange={(value) => setInviteVaultRole(value as VaultRole)} disabled={!inviteVaultId}>
+                  <SelectTrigger aria-label="Initial vault role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inviteVaultRoleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>AI access</FieldLabel>
+                <Select value={inviteAiAccessLevel} onValueChange={(value) => setInviteAiAccessLevel(value as AiAccessLevel)} disabled={!inviteVaultId}>
+                  <SelectTrigger aria-label="Initial AI access">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inviteAiAccessOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </Grid>
+            {createdInvitationToken ? (
+              <Text fontSize="sm" color="fg.muted">
+                Invitation token: <Text as="span" fontFamily="mono" color="fg">{createdInvitationToken}</Text>
+              </Text>
+            ) : null}
+          </Stack>
         </chakra.form>
       </Box>
       <Flex

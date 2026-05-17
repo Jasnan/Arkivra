@@ -6,6 +6,7 @@ import { requireRoot } from './authorization.middleware.js';
 import {
   isAiAccessLevel,
   isEmailInvitationType,
+  isSystemCapability,
   isSystemRole,
   isVaultRole,
 } from './authorization.types.js';
@@ -25,6 +26,51 @@ function parseEmail(value: unknown) {
 
   const email = value.trim().toLowerCase();
   return email.length > 0 && email.includes('@') ? email : null;
+}
+
+function parseSystemCapabilities(value: unknown) {
+  if (value === undefined || value === null) {
+    return [] as const;
+  }
+
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const capabilities = value.filter(isSystemCapability);
+  return capabilities.length === value.length ? [...new Set(capabilities)] : null;
+}
+
+function parseInitialVaultMemberships(value: unknown) {
+  if (value === undefined || value === null) {
+    return [] as Array<{ vaultId: string; role: 'owner' | 'editor' | 'viewer'; aiAccessLevel: 'none' | 'document_chat' | 'full' }>;
+  }
+
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const memberships = value.map((item) => {
+    if (item === null || typeof item !== 'object') {
+      return null;
+    }
+
+    const candidate = item as { vaultId?: unknown; role?: unknown; aiAccessLevel?: unknown };
+    const vaultId = typeof candidate.vaultId === 'string' && candidate.vaultId.trim().length > 0
+      ? candidate.vaultId.trim()
+      : null;
+    const aiAccessLevel = candidate.aiAccessLevel ?? 'none';
+
+    if (vaultId === null || !isVaultRole(candidate.role) || !isAiAccessLevel(aiAccessLevel)) {
+      return null;
+    }
+
+    return { vaultId, role: candidate.role, aiAccessLevel };
+  });
+
+  return memberships.every((membership): membership is NonNullable<typeof membership> => membership !== null)
+    ? memberships
+    : null;
 }
 
 function parseOptionalDate(value: unknown) {
@@ -176,6 +222,8 @@ export function registerAuthorizationRoutes({
       role?: unknown;
       aiAccessLevel?: unknown;
       systemRole?: unknown;
+      systemCapabilities?: unknown;
+      vaultMemberships?: unknown;
       expiresAt?: unknown;
     } | null;
     const type = body?.type;
@@ -192,6 +240,8 @@ export function registerAuthorizationRoutes({
     const role = body?.role;
     const aiAccessLevel = body?.aiAccessLevel ?? 'none';
     const systemRole = body?.systemRole ?? (type === 'root_account' ? 'root' : 'member');
+    const systemCapabilities = parseSystemCapabilities(body?.systemCapabilities);
+    const vaultMemberships = parseInitialVaultMemberships(body?.vaultMemberships);
     const vaultId = typeof body?.vaultId === 'string' && body.vaultId.trim().length > 0
       ? body.vaultId.trim()
       : null;
@@ -200,6 +250,8 @@ export function registerAuthorizationRoutes({
       (type === 'vault_member' && (vaultId === null || !isVaultRole(role)))
       || !isAiAccessLevel(aiAccessLevel)
       || !isSystemRole(systemRole)
+      || systemCapabilities === null
+      || vaultMemberships === null
     ) {
       return context.json(
         { error: { code: 'authorization.invalid_invitation_payload', message: 'Invalid invitation payload' } },
@@ -217,6 +269,10 @@ export function registerAuthorizationRoutes({
       aiAccessLevel,
       systemRole,
       expiresAt,
+      payload: {
+        systemCapabilities,
+        vaultMemberships,
+      },
     });
 
     return context.json({ invitation }, 201);

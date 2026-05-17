@@ -73,6 +73,13 @@ function getVaultDescription(value: string | null) {
   return value;
 }
 
+function getParticipationLabel(vault: VaultSummary) {
+  if (vault.role === 'owner') return 'Owner';
+  if (vault.role === 'editor') return 'Editor';
+  if (vault.role === 'viewer') return 'Viewer';
+  return 'No participation';
+}
+
 function VaultContextMenu({
   state,
   actions,
@@ -434,6 +441,9 @@ export function VaultsPage() {
                 <Text mt="3" fontSize="sm" color="fg.muted">
                   {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
                 </Text>
+                <Text mt="1" fontSize="xs" fontWeight="semibold" color={vault.role === null ? 'fg.warning' : 'fg.muted'}>
+                  {getParticipationLabel(vault)}
+                </Text>
               </Flex>
             ))}
           </Grid>
@@ -504,6 +514,9 @@ export function VaultsPage() {
                         {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
                       </Text>
                     ) : null}
+                    <Text truncate fontSize="xs" fontWeight="semibold" color={vault.role === null ? 'fg.warning' : 'fg.muted'}>
+                      {getParticipationLabel(vault)}
+                    </Text>
                   </Stack>
                 </Flex>
 

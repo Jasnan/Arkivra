@@ -60,6 +60,47 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+function getInvitationSystemCapabilities(payload: Record<string, unknown>) {
+  const value = payload.systemCapabilities;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((capability): capability is SystemCapability => capability === CREATE_VAULTS_CAPABILITY);
+}
+
+function getInvitationVaultMemberships(payload: Record<string, unknown>) {
+  const value = payload.vaultMemberships;
+  if (!Array.isArray(value)) {
+    return [] as Array<{ vaultId: string; role: VaultRole; aiAccessLevel: AiAccessLevel }>;
+  }
+
+  return value.flatMap((item): Array<{ vaultId: string; role: VaultRole; aiAccessLevel: AiAccessLevel }> => {
+    if (item === null || typeof item !== 'object') {
+      return [];
+    }
+
+    const candidate = item as { vaultId?: unknown; role?: unknown; aiAccessLevel?: unknown };
+    if (
+      typeof candidate.vaultId !== 'string'
+      || (candidate.role !== 'owner' && candidate.role !== 'editor' && candidate.role !== 'viewer')
+      || (
+        candidate.aiAccessLevel !== 'none'
+        && candidate.aiAccessLevel !== 'document_chat'
+        && candidate.aiAccessLevel !== 'full'
+      )
+    ) {
+      return [];
+    }
+
+    return [{
+      vaultId: candidate.vaultId,
+      role: candidate.role,
+      aiAccessLevel: candidate.aiAccessLevel,
+    }];
+  });
+}
+
 export function createAuthorizationServices({ db }: { db: Database }) {
   async function ensureBootstrapRoot({ userId }: { userId: string }) {
     const [existingRoot] = await db
@@ -634,11 +675,24 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return db.transaction(async (tx) => {
       let vaultMemberId: string | null = null;
 
-      if (invitation.type === 'root_account' || invitation.systemRole === 'root') {
+      const invitationSystemRole = invitation.systemRole ?? (invitation.type === 'root_account' ? 'root' : null);
+      if (invitationSystemRole === 'root') {
         await tx
           .update(usersTable)
           .set({ systemRole: 'root', updatedAt: new Date() })
           .where(eq(usersTable.id, userId));
+      }
+
+      const systemCapabilities = getInvitationSystemCapabilities(invitation.payload);
+      if (systemCapabilities.length > 0) {
+        await tx
+          .insert(systemCapabilitiesTable)
+          .values(systemCapabilities.map(capability => ({
+            userId,
+            capability,
+            createdBy: invitation.invitedBy,
+          })))
+          .onConflictDoNothing();
       }
 
       if (invitation.type === 'vault_member' && invitation.vaultId !== null && invitation.vaultRole !== null) {
@@ -661,6 +715,29 @@ export function createAuthorizationServices({ db }: { db: Database }) {
           .returning({ id: vaultMembersTable.id });
 
         vaultMemberId = member?.id ?? null;
+      }
+
+      const vaultMemberships = getInvitationVaultMemberships(invitation.payload);
+      for (const membership of vaultMemberships) {
+        const [member] = await tx
+          .insert(vaultMembersTable)
+          .values({
+            vaultId: membership.vaultId,
+            userId,
+            role: membership.role,
+            aiAccessLevel: membership.aiAccessLevel,
+          })
+          .onConflictDoUpdate({
+            target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
+            set: {
+              role: membership.role,
+              aiAccessLevel: membership.aiAccessLevel,
+              updatedAt: new Date(),
+            },
+          })
+          .returning({ id: vaultMembersTable.id });
+
+        vaultMemberId ??= member?.id ?? null;
       }
 
       const [accepted] = await tx
@@ -743,27 +820,37 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       isRoot: userState.isRoot,
       role,
       aiAccessLevel,
+      isMember: role !== null,
+      accessMode: role !== null ? 'member' : 'admin',
     };
   }
 
-  function canAccessVault(state: VaultAuthorizationState | null) {
+  function canAdministrativelyViewVault(state: VaultAuthorizationState | null) {
     return state !== null && (state.isRoot || canVaultRoleRead(state.role));
   }
 
+  function canParticipateInVault(state: VaultAuthorizationState | null) {
+    return state !== null && state.role !== null;
+  }
+
+  function canAccessVault(state: VaultAuthorizationState | null) {
+    return canAdministrativelyViewVault(state);
+  }
+
   function canReadVault(state: VaultAuthorizationState | null) {
-    return canAccessVault(state);
+    return state !== null && canVaultRoleRead(state.role);
   }
 
   function canManageVault(state: VaultAuthorizationState | null) {
-    return state !== null && (state.isRoot || state.role === 'owner');
+    return state !== null && state.role === 'owner';
   }
 
   function canManageVaultMembers(state: VaultAuthorizationState | null) {
-    return state !== null && (state.isRoot || canVaultRoleManageMembers(state.role));
+    return state !== null && canVaultRoleManageMembers(state.role);
   }
 
   function canMutateVaultDocuments(state: VaultAuthorizationState | null) {
-    return state !== null && (state.isRoot || canVaultRoleMutateDocuments(state.role));
+    return state !== null && canVaultRoleMutateDocuments(state.role);
   }
 
   async function canCreateVault({ userId }: { userId: string }) {
@@ -780,15 +867,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
     if (state === null || state.disabledAt !== null) {
       return [];
-    }
-
-    if (state.isRoot) {
-      const rows = await db
-        .select({ id: vaultsTable.id })
-        .from(vaultsTable)
-        .where(isNull(vaultsTable.deletedAt));
-
-      return rows.map(row => row.id);
     }
 
     const rows = await db
@@ -832,11 +910,13 @@ export function createAuthorizationServices({ db }: { db: Database }) {
   }
 
   return {
+    canAdministrativelyViewVault,
     canAccessVault,
     canCreateVault,
     canManageVault,
     canManageVaultMembers,
     canMutateVaultDocuments,
+    canParticipateInVault,
     canReadVault,
     canUseDocumentChat,
     canUseGlobalChat,

@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
-import { Box, Flex, Grid, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft, ShieldCheck, Users, Vault } from 'lucide-react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
@@ -31,6 +31,8 @@ import {
   addVaultMember,
   createVaultEmailInvitation,
   deleteVault,
+  joinVaultAsRoot,
+  leaveVaultAsRoot,
   removeVaultMember,
   renameVault,
   transferVaultOwnership,
@@ -59,7 +61,7 @@ function formatVaultRole(role: VaultRole | null | undefined, isRoot = false) {
   if (role === 'owner') return 'Owner';
   if (role === 'editor') return 'Editor';
   if (role === 'viewer') return 'Viewer';
-  return isRoot ? 'Root governance' : 'No membership';
+  return isRoot ? 'Administrative Read-Only Access' : 'No membership';
 }
 
 function formatAiAccess(level: AiAccessLevel | null | undefined) {
@@ -157,6 +159,9 @@ export function VaultSettingsPage() {
   const [emailInviteAiAccessLevel, setEmailInviteAiAccessLevel] = useState<AiAccessLevel>('none');
   const [memberDrafts, setMemberDrafts] = useState<Record<string, { role: VaultRole; aiAccessLevel: AiAccessLevel }>>({});
   const [transferTargetUserId, setTransferTargetUserId] = useState('');
+  const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const [joinRole, setJoinRole] = useState<VaultRole>('owner');
+  const [joinAiAccessLevel, setJoinAiAccessLevel] = useState<AiAccessLevel>('full');
   const draftMatchesVault = detailsDraft?.vaultId === vaultId;
   const name = draftMatchesVault ? detailsDraft.name : vaultQuery.data?.vault.name ?? '';
   const description = draftMatchesVault
@@ -168,10 +173,19 @@ export function VaultSettingsPage() {
     [members],
   );
 
-  const canManageMembers =
-    vaultQuery.data?.vault.role === 'owner' ||
-    vaultQuery.data?.vault.isRoot === true;
+  const canManageMembers = vaultQuery.data?.vault.role === 'owner';
+  const canManageVault = vaultQuery.data?.vault.role === 'owner';
   const isRoot = vaultQuery.data?.vault.isRoot === true;
+  const isRootAdminOnly = isRoot && vaultQuery.data?.vault.accessMode === 'admin';
+  const isRootParticipant = isRoot && vaultQuery.data?.vault.isMember === true;
+
+  async function invalidateVaultParticipation() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) }),
+      queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() }),
+      queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) }),
+    ]);
+  }
 
   const renameMutation = useMutation({
     mutationFn: renameVault,
@@ -243,6 +257,31 @@ export function VaultSettingsPage() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not remove member.');
+    },
+  });
+
+  const joinVaultMutation = useMutation({
+    mutationFn: joinVaultAsRoot,
+    onSuccess: async () => {
+      toast.success('You joined this vault.');
+      setIsJoinDialogOpen(false);
+      setJoinRole('owner');
+      setJoinAiAccessLevel('full');
+      await invalidateVaultParticipation();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not join vault.');
+    },
+  });
+
+  const leaveVaultMutation = useMutation({
+    mutationFn: leaveVaultAsRoot,
+    onSuccess: async () => {
+      toast.success('You left this vault. Administrative read-only access remains available.');
+      await invalidateVaultParticipation();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not leave vault.');
     },
   });
 
@@ -372,7 +411,7 @@ export function VaultSettingsPage() {
         <StatCard
           label="Your role"
           value={formatVaultRole(vault.role, vault.isRoot)}
-          meta={vault.isRoot && vault.role === null ? 'Root governance access. AI access still requires explicit membership.' : 'Current vault membership role.'}
+          meta={vault.accessMode === 'admin' ? 'Administrative read-only access. Membership is required to participate.' : 'Current vault membership role.'}
           icon={<ShieldCheck size={20} />}
         />
         <StatCard
@@ -416,6 +455,7 @@ export function VaultSettingsPage() {
                   id="vault-settings-name"
                   type="text"
                   value={name}
+                  disabled={!canManageVault}
                   onChange={(event) =>
                     setDetailsDraft({
                       vaultId,
@@ -431,6 +471,7 @@ export function VaultSettingsPage() {
                 <Textarea
                   id="vault-settings-description"
                   value={description}
+                  disabled={!canManageVault}
                   onChange={(event) =>
                     setDetailsDraft({
                       vaultId,
@@ -443,7 +484,7 @@ export function VaultSettingsPage() {
                   placeholder="What belongs in this vault?"
                 />
               </Field>
-              <SaveButton type="submit" disabled={renameMutation.isPending}>
+              <SaveButton type="submit" disabled={!canManageVault || renameMutation.isPending}>
                 {renameMutation.isPending ? 'Saving...' : 'Save changes'}
               </SaveButton>
             </chakra.form>
@@ -493,7 +534,7 @@ export function VaultSettingsPage() {
             </chakra.form>
           </SurfacePanel>
 
-          {isRoot ? (
+          {isRoot && canManageMembers ? (
             <SurfacePanel display="flex" flexDirection="column" gap="5">
               <Box>
                 <Text textStyle="label">Email Invitation</Text>
@@ -624,6 +665,45 @@ export function VaultSettingsPage() {
         </Stack>
 
         <Stack gap="6">
+          {isRootAdminOnly ? (
+            <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
+              <Box>
+                <Text textStyle="label">Administrative Access</Text>
+                <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
+                  Join this vault
+                </Text>
+                <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
+                  You can inspect this vault as root. Join it to become an explicit participant.
+                </Text>
+              </Box>
+              <Button type="button" onClick={() => setIsJoinDialogOpen(true)}>
+                Join vault
+              </Button>
+            </SurfacePanel>
+          ) : null}
+
+          {isRootParticipant ? (
+            <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
+              <Box>
+                <Text textStyle="label">Participating Membership</Text>
+                <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
+                  Leave this vault
+                </Text>
+                <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
+                  Remove your explicit membership and return to administrative read-only access.
+                </Text>
+              </Box>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={leaveVaultMutation.isPending}
+                onClick={() => leaveVaultMutation.mutate({ vaultId })}
+              >
+                {leaveVaultMutation.isPending ? 'Leaving...' : 'Leave vault'}
+              </Button>
+            </SurfacePanel>
+          ) : null}
+
           <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
             <Box>
               <Text textStyle="label">Transfer Ownership</Text>
@@ -659,7 +739,7 @@ export function VaultSettingsPage() {
                 disabled={
                   transferTargetUserId.length === 0 ||
                   transferMutation.isPending ||
-                  (vault.role !== 'owner' && !vault.isRoot)
+                  !canManageVault
                 }
                 onClick={() => {
                   transferMutation.mutate({ vaultId, userId: transferTargetUserId });
@@ -682,7 +762,7 @@ export function VaultSettingsPage() {
             <DeleteButton
               type="button"
               w="100%"
-              disabled={deleteMutation.isPending || (vault.role !== 'owner' && !vault.isRoot)}
+              disabled={deleteMutation.isPending || !canManageVault}
               onClick={() => {
                 deleteMutation.mutate({ vaultId });
               }}
@@ -692,6 +772,71 @@ export function VaultSettingsPage() {
           </SurfacePanel>
         </Stack>
       </Grid>
+
+      <ChakraDialog.Root
+        open={isJoinDialogOpen}
+        onOpenChange={(event) => {
+          if (!event.open && !joinVaultMutation.isPending) {
+            setIsJoinDialogOpen(false);
+          }
+        }}
+        size={{ mdDown: 'full', md: 'lg' }}
+      >
+        <Portal>
+          <ChakraDialog.Backdrop />
+          <ChakraDialog.Positioner>
+            <ChakraDialog.Content>
+              <chakra.form
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault();
+                  joinVaultMutation.mutate({
+                    vaultId,
+                    role: joinRole,
+                    aiAccessLevel: joinAiAccessLevel,
+                  });
+                }}
+              >
+                <ChakraDialog.Header>
+                  <ChakraDialog.Title>Join vault</ChakraDialog.Title>
+                  <ChakraDialog.CloseTrigger asChild>
+                    <CloseButton size="sm" />
+                  </ChakraDialog.CloseTrigger>
+                </ChakraDialog.Header>
+                <ChakraDialog.Body>
+                  <Stack gap="4">
+                    <Text fontSize="sm" lineHeight="6" color="fg.muted">
+                      You are about to become an explicit participant of this vault. This enables collaborative actions and AI participation under your account.
+                    </Text>
+                    <MemberAccessFields
+                      idPrefix="root-join-vault"
+                      role={joinRole}
+                      aiAccessLevel={joinAiAccessLevel}
+                      disabled={joinVaultMutation.isPending}
+                      onRoleChange={setJoinRole}
+                      onAiAccessLevelChange={setJoinAiAccessLevel}
+                    />
+                  </Stack>
+                </ChakraDialog.Body>
+                <ChakraDialog.Footer>
+                  <ChakraDialog.ActionTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={joinVaultMutation.isPending}
+                      onClick={() => setIsJoinDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </ChakraDialog.ActionTrigger>
+                  <Button type="submit" disabled={joinVaultMutation.isPending}>
+                    {joinVaultMutation.isPending ? 'Joining...' : 'Join vault'}
+                  </Button>
+                </ChakraDialog.Footer>
+              </chakra.form>
+            </ChakraDialog.Content>
+          </ChakraDialog.Positioner>
+        </Portal>
+      </ChakraDialog.Root>
     </Stack>
   );
 }

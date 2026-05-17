@@ -33,6 +33,8 @@ export type VaultAuthorizationState = {
   isRoot: boolean;
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
+  isMember: boolean;
+  accessMode: 'member' | 'admin';
 };
 
 export function isSystemRole(value: unknown): value is SystemRole {

@@ -14,21 +14,46 @@ export function createVaultsServices({ db }: { db: Database }) {
   const authorizationServices = createAuthorizationServices({ db });
 
   async function listUserVaults({ userId }: { userId: string }) {
-    const vaults = await db
-      .select({
-        id: vaultsTable.id,
-        name: vaultsTable.name,
-        description: vaultsTable.description,
-        createdAt: vaultsTable.createdAt,
-        updatedAt: vaultsTable.updatedAt,
-        deletedAt: vaultsTable.deletedAt,
-        role: vaultMembersTable.role,
-        aiAccessLevel: vaultMembersTable.aiAccessLevel,
-      })
-      .from(vaultMembersTable)
-      .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
-      .where(and(eq(vaultMembersTable.userId, userId), isNull(vaultsTable.deletedAt)))
-      .orderBy(desc(vaultsTable.createdAt));
+    const userState = await authorizationServices.getUserAuthorizationState({ userId });
+
+    if (userState === null || userState.disabledAt !== null) {
+      return [];
+    }
+
+    const vaults = userState.isRoot
+      ? await db
+          .select({
+            id: vaultsTable.id,
+            name: vaultsTable.name,
+            description: vaultsTable.description,
+            createdAt: vaultsTable.createdAt,
+            updatedAt: vaultsTable.updatedAt,
+            deletedAt: vaultsTable.deletedAt,
+            role: vaultMembersTable.role,
+            aiAccessLevel: vaultMembersTable.aiAccessLevel,
+          })
+          .from(vaultsTable)
+          .leftJoin(
+            vaultMembersTable,
+            and(eq(vaultMembersTable.vaultId, vaultsTable.id), eq(vaultMembersTable.userId, userId)),
+          )
+          .where(isNull(vaultsTable.deletedAt))
+          .orderBy(desc(vaultsTable.createdAt))
+      : await db
+          .select({
+            id: vaultsTable.id,
+            name: vaultsTable.name,
+            description: vaultsTable.description,
+            createdAt: vaultsTable.createdAt,
+            updatedAt: vaultsTable.updatedAt,
+            deletedAt: vaultsTable.deletedAt,
+            role: vaultMembersTable.role,
+            aiAccessLevel: vaultMembersTable.aiAccessLevel,
+          })
+          .from(vaultMembersTable)
+          .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
+          .where(and(eq(vaultMembersTable.userId, userId), isNull(vaultsTable.deletedAt)))
+          .orderBy(desc(vaultsTable.createdAt));
 
     const fileStatsRows = vaults.length === 0
       ? []
@@ -60,9 +85,11 @@ export function createVaultsServices({ db }: { db: Database }) {
       createdAt: vault.createdAt,
       updatedAt: vault.updatedAt,
       deletedAt: vault.deletedAt,
-      role: vault.role as VaultRole,
-      aiAccessLevel: vault.aiAccessLevel as AiAccessLevel,
-      isRoot: false,
+      role: vault.role as VaultRole | null,
+      aiAccessLevel: (vault.aiAccessLevel ?? 'none') as AiAccessLevel,
+      isRoot: userState.isRoot,
+      isMember: vault.role !== null,
+      accessMode: vault.role !== null ? 'member' as const : 'admin' as const,
     }));
   }
 
@@ -85,11 +112,14 @@ export function createVaultsServices({ db }: { db: Database }) {
         throw new Error('Failed to create vault');
       }
 
+      const userState = await authorizationServices.getUserAuthorizationState({ userId });
+      const aiAccessLevel = userState?.isRoot ? 'full' : 'none';
+
       await tx.insert(vaultMembersTable).values({
         vaultId: vault.id,
         userId,
         role: 'owner',
-        aiAccessLevel: 'none',
+        aiAccessLevel,
       });
 
       return {
@@ -98,8 +128,10 @@ export function createVaultsServices({ db }: { db: Database }) {
         fileCount: 0,
         totalSize: 0,
         role: 'owner' as const,
-        aiAccessLevel: 'none' as const,
-        isRoot: false,
+        aiAccessLevel,
+        isRoot: userState?.isRoot ?? false,
+        isMember: true,
+        accessMode: 'member' as const,
       };
     });
   }
@@ -138,6 +170,8 @@ export function createVaultsServices({ db }: { db: Database }) {
       role: authorizationState.role,
       aiAccessLevel: authorizationState.aiAccessLevel,
       isRoot: authorizationState.isRoot,
+      isMember: authorizationState.isMember,
+      accessMode: authorizationState.accessMode,
     };
   }
 

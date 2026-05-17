@@ -84,9 +84,19 @@ export async function rejectPermissionRequest({
 
 export async function createRootEmailInvitation({
   email,
+  systemRole = 'root',
+  systemCapabilities = [],
+  vaultMemberships = [],
   expiresAt,
 }: {
   email: string;
+  systemRole?: 'root' | 'member';
+  systemCapabilities?: SystemCapability[];
+  vaultMemberships?: Array<{
+    vaultId: string;
+    role: 'owner' | 'editor' | 'viewer';
+    aiAccessLevel: 'none' | 'document_chat' | 'full';
+  }>;
   expiresAt?: string | null;
 }) {
   return fetchJson<{ invitation: EmailInvitation }>('/api/admin/email-invitations', {
@@ -95,7 +105,9 @@ export async function createRootEmailInvitation({
     body: JSON.stringify({
       type: 'root_account',
       email,
-      systemRole: 'root',
+      systemRole,
+      systemCapabilities,
+      vaultMemberships,
       expiresAt: expiresAt ?? null,
     }),
   });

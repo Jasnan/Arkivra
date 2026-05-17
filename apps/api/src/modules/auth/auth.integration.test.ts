@@ -66,8 +66,6 @@ const mockAuthorizationServices = {
     systemRole: 'member',
     systemCapabilities: [],
     isRoot: false,
-    globalRoles: [],
-    isGlobalAdmin: false,
     canCreateVault: false,
   })),
   getUserWithRoles: vi.fn(),

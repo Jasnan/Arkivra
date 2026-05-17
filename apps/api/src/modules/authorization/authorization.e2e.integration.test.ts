@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { systemCapabilitiesTable, usersTable, vaultsTable } from '../database/schema/index.js';
+import { usersTable, vaultsTable } from '../database/schema/index.js';
 import { createAuth } from '../auth/auth.services.js';
 import { parseConfig } from '../config/config.js';
 import { setupDatabase } from '../database/database.js';
@@ -85,7 +85,7 @@ describe.sequential('authorization e2e', () => {
     await rm(storagePath, { recursive: true, force: true }).catch(() => undefined);
   });
 
-  test('bootstraps first global admin and enforces vault permissions end-to-end', async () => {
+  test('bootstraps first root and enforces canonical vault authorization end-to-end', async () => {
     if (app === null) {
       throw new Error('Authorization e2e app not initialized');
     }
@@ -140,13 +140,16 @@ describe.sequential('authorization e2e', () => {
     expect(firstAdminMeResponse.status).toBe(200);
     const firstAdminMeBody = (await firstAdminMeResponse.json()) as {
       userId: string;
-      isGlobalAdmin: boolean;
+      systemRole: 'root' | 'member';
+      systemCapabilities: string[];
+      isRoot: boolean;
       canCreateVault: boolean;
     };
     expect(firstAdminMeBody.userId).toBe(firstAdmin.userId);
 
     if (rootRowsBeforeMe.length === 0 && oldestUser?.id === firstAdmin.userId) {
-      expect(firstAdminMeBody.isGlobalAdmin).toBe(true);
+      expect(firstAdminMeBody.systemRole).toBe('root');
+      expect(firstAdminMeBody.isRoot).toBe(true);
       expect(firstAdminMeBody.canCreateVault).toBe(true);
     } else if (db !== null) {
       await db
@@ -161,7 +164,9 @@ describe.sequential('authorization e2e', () => {
     expect(ownerMeResponse.status).toBe(200);
     expect(await ownerMeResponse.json()).toMatchObject({
       userId: owner.userId,
-      isGlobalAdmin: false,
+      systemRole: 'member',
+      systemCapabilities: [],
+      isRoot: false,
       canCreateVault: false,
     });
 
@@ -183,13 +188,33 @@ describe.sequential('authorization e2e', () => {
       },
       body: JSON.stringify({ name: 'Owner Vault' }),
     });
-    expect(createVaultResponse.status).toBe(403);
-    if (db !== null) {
-      await db
-        .insert(systemCapabilitiesTable)
-        .values({ userId: owner.userId, capability: 'system.create_vaults' })
-        .onConflictDoNothing();
-    }
+    expect(createVaultResponse.status).toBe(202);
+    expect(await createVaultResponse.json()).toMatchObject({
+      request: {
+        type: 'vault.create',
+        status: 'pending',
+        requestedBy: owner.userId,
+        payload: { name: 'Owner Vault', description: null },
+      },
+    });
+
+    const grantCreateVaultResponse = await app.request(
+      `/api/admin/users/${owner.userId}/system-capabilities/system.create_vaults`,
+      {
+        method: 'POST',
+        headers: { cookie: firstAdmin.cookie },
+      },
+    );
+    expect(grantCreateVaultResponse.status).toBe(200);
+    expect(await grantCreateVaultResponse.json()).toMatchObject({
+      user: {
+        id: owner.userId,
+        systemRole: 'member',
+        systemCapabilities: ['system.create_vaults'],
+        isRoot: false,
+        canCreateVault: true,
+      },
+    });
 
     const grantedCreateVaultResponse = await app.request('/api/vaults', {
       method: 'POST',
@@ -214,6 +239,23 @@ describe.sequential('authorization e2e', () => {
       headers: { cookie: firstAdmin.cookie },
     });
     expect(adminVaultDetailResponse.status).toBe(200);
+    expect(await adminVaultDetailResponse.json()).toMatchObject({
+      vault: {
+        id: vaultId,
+        role: null,
+        aiAccessLevel: 'none',
+        isRoot: true,
+      },
+    });
+
+    const membersBeforeRootAddedResponse = await app.request(`/api/vaults/${vaultId}/members`, {
+      headers: { cookie: owner.cookie },
+    });
+    expect(membersBeforeRootAddedResponse.status).toBe(200);
+    const membersBeforeRootAddedBody = (await membersBeforeRootAddedResponse.json()) as {
+      members: Array<{ userId: string }>;
+    };
+    expect(membersBeforeRootAddedBody.members.some(member => member.userId === firstAdmin.userId)).toBe(false);
 
     const addMemberResponse = await app.request(`/api/vaults/${vaultId}/members`, {
       method: 'POST',
@@ -223,11 +265,18 @@ describe.sequential('authorization e2e', () => {
       },
       body: JSON.stringify({
         userId: member.userId,
-        role: 'member',
-        permissions: ['documents.read'],
+        role: 'viewer',
+        aiAccessLevel: 'none',
       }),
     });
     expect(addMemberResponse.status).toBe(201);
+    expect(await addMemberResponse.json()).toMatchObject({
+      member: {
+        userId: member.userId,
+        role: 'viewer',
+        aiAccessLevel: 'none',
+      },
+    });
 
     const deniedUploadFormData = new FormData();
     deniedUploadFormData.append(
@@ -253,12 +302,19 @@ describe.sequential('authorization e2e', () => {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          role: 'member',
-          permissions: ['documents.read', 'documents.create'],
+          role: 'editor',
+          aiAccessLevel: 'none',
         }),
       },
     );
     expect(updateMemberResponse.status).toBe(200);
+    expect(await updateMemberResponse.json()).toMatchObject({
+      member: {
+        userId: member.userId,
+        role: 'editor',
+        aiAccessLevel: 'none',
+      },
+    });
 
     const uploadFormData = new FormData();
     uploadFormData.append('file', new File(['hello world'], 'allowed.txt', { type: 'text/plain' }));
@@ -280,7 +336,7 @@ describe.sequential('authorization e2e', () => {
             .from(usersTable)
             .where(eq(usersTable.systemRole, 'root'));
     const revokeLastAdminResponse = await app.request(
-      `/api/admin/users/${firstAdmin.userId}/global-admin`,
+      `/api/admin/users/${firstAdmin.userId}/root`,
       {
         method: 'DELETE',
         headers: { cookie: firstAdmin.cookie },

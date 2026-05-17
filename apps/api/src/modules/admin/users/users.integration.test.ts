@@ -5,10 +5,7 @@ import { registerAdminUserRoutes } from './users.routes.js';
 
 function createMockAuthorizationServices() {
   return {
-    countActiveGlobalAdmins: vi.fn(async () => 1),
-    ensureBootstrapGlobalAdmin: vi.fn(async () => false),
     getUserAuthorizationState: vi.fn(async () => null),
-    getUserWithRoles: vi.fn(async () => null),
     grantRoot: vi.fn(async ({ userId }) => ({
       id: userId,
       systemRole: 'root',
@@ -21,7 +18,6 @@ function createMockAuthorizationServices() {
       isRoot: false,
       canCreateVault: true,
     })),
-    listGlobalRolesForUser: vi.fn(async () => []),
     listUsers: vi.fn(async () => [
       {
         id: 'usr_1',
@@ -32,8 +28,6 @@ function createMockAuthorizationServices() {
         disabledAt: null,
         createdAt: new Date('2025-01-01T00:00:00.000Z'),
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
-        globalRoles: ['global_admin'],
-        isGlobalAdmin: true,
         canCreateVault: true,
       },
     ]),
@@ -52,8 +46,6 @@ function createMockAuthorizationServices() {
     setUserDisabled: vi.fn(async ({ userId, disabled }) => ({
       id: userId,
       disabledAt: disabled ? new Date('2025-01-02T00:00:00.000Z') : null,
-      globalRoles: [],
-      isGlobalAdmin: false,
       canCreateVault: false,
     })),
   };
@@ -61,11 +53,11 @@ function createMockAuthorizationServices() {
 
 function createTestApp({
   isAuthenticated = true,
-  isGlobalAdmin = true,
+  isRoot = true,
   authorizationServices = createMockAuthorizationServices(),
 }: {
   isAuthenticated?: boolean;
-  isGlobalAdmin?: boolean;
+  isRoot?: boolean;
   authorizationServices?: ReturnType<typeof createMockAuthorizationServices>;
 }) {
   const app = new Hono<ServerContext>();
@@ -86,9 +78,9 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
-    context.set('systemRole', isGlobalAdmin ? 'root' : 'member');
+    context.set('systemRole', isRoot ? 'root' : 'member');
     context.set('systemCapabilities', []);
-    context.set('isRoot', isGlobalAdmin);
+    context.set('isRoot', isRoot);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
@@ -111,13 +103,13 @@ describe('admin users routes integration', () => {
     expect(response.status).toBe(401);
   });
 
-  test('returns 403 when authenticated user is not a global admin', async () => {
-    const { app } = createTestApp({ isGlobalAdmin: false });
+  test('returns 403 when authenticated user is not a root', async () => {
+    const { app } = createTestApp({ isRoot: false });
     const response = await app.request('/api/admin/users');
     expect(response.status).toBe(403);
   });
 
-  test('lists users for global admin', async () => {
+  test('lists users for root', async () => {
     const { app } = createTestApp({});
     const response = await app.request('/api/admin/users');
     expect(response.status).toBe(200);

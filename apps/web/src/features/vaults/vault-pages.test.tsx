@@ -20,7 +20,7 @@ describe('vault pages', () => {
 
   it('renders vault links for documents and settings', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
@@ -67,7 +67,7 @@ describe('vault pages', () => {
     const setHeaderConfig = vi.fn();
     const setSecondaryContent = vi.fn();
 
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {

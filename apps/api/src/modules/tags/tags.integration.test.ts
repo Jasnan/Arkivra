@@ -73,8 +73,6 @@ function createMockVaultsServices(role: 'owner' | 'member' = 'owner') {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role,
-      permissions: role === 'member' ? ['documents.read'] : [],
-      isGlobalAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),

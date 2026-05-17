@@ -102,7 +102,7 @@ function addCronValues({
   const normalizedBase = (base ?? '').trim();
 
   if (normalizedBase.length === 0) {
-    throw new Error(`Invalid cron token "${token}"`);
+    throw new TypeError(`Invalid cron token "${token}"`);
   }
   let rangeStart = start;
   let rangeEnd = end;
@@ -113,12 +113,12 @@ function addCronValues({
     rangeEnd = rangeEndRaw === undefined ? rangeStart : Number.parseInt(rangeEndRaw, 10);
 
     if (!Number.isInteger(rangeStart) || !Number.isInteger(rangeEnd)) {
-      throw new Error(`Invalid cron range "${token}"`);
+      throw new TypeError(`Invalid cron range "${token}"`);
     }
   }
 
   if (rangeStart < start || rangeEnd > end || rangeStart > rangeEnd) {
-    throw new Error(`Cron range "${token}" is out of bounds`);
+    throw new TypeError(`Cron range "${token}" is out of bounds`);
   }
 
   for (let value = rangeStart; value <= rangeEnd; value += step) {
@@ -703,7 +703,11 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
   async function runLoop() {
     let lastRecoveryAt = 0;
 
-    while (!closed) {
+    while (true) {
+      if (closed) {
+        break;
+      }
+
       if (Date.now() - lastRecoveryAt >= staleAfterMs) {
         lastRecoveryAt = Date.now();
         await releaseStaleJobs({

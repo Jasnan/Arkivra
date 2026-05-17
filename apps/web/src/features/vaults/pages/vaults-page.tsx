@@ -189,6 +189,7 @@ export function VaultsPage() {
   const [vaultsView, setVaultsView] = useState<VaultsView>(getInitialBrowserView);
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const shouldRestoreCreateButtonFocusRef = useRef(false);
 
   const createMutation = useMutation({
     mutationFn: createVault,
@@ -197,7 +198,7 @@ export function VaultsPage() {
         setIsCreateModalOpen(false);
         setName('');
         setDescription('');
-        restoreCreateButtonFocus();
+        queueCreateButtonFocusRestore();
         toast.success('Vault creation request queued for root approval.');
         return;
       }
@@ -215,6 +216,10 @@ export function VaultsPage() {
     },
   });
 
+  function queueCreateButtonFocusRestore() {
+    shouldRestoreCreateButtonFocusRef.current = true;
+  }
+
   function restoreCreateButtonFocus() {
     const button = createButtonRef.current;
     if (button) {
@@ -224,6 +229,14 @@ export function VaultsPage() {
       });
     }
   }
+
+  useEffect(() => {
+    if (isCreateModalOpen || !shouldRestoreCreateButtonFocusRef.current) {
+      return;
+    }
+
+    window.setTimeout(() => createButtonRef.current?.focus(), 0);
+  }, [isCreateModalOpen]);
 
   function openCreateModal() {
     setIsCreateModalOpen(true);
@@ -243,7 +256,7 @@ export function VaultsPage() {
     setIsCreateModalOpen(false);
     setName('');
     setDescription('');
-    restoreCreateButtonFocus();
+    queueCreateButtonFocusRestore();
   }
 
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
@@ -542,6 +555,16 @@ export function VaultsPage() {
       <ChakraDialog.Root
         open={isCreateModalOpen}
         onOpenChange={(e) => { if (!e.open && !createMutation.isPending) closeCreateModal(); }}
+        finalFocusEl={() => createButtonRef.current}
+        onExitComplete={() => {
+          if (!shouldRestoreCreateButtonFocusRef.current) {
+            return;
+          }
+
+          shouldRestoreCreateButtonFocusRef.current = false;
+          restoreCreateButtonFocus();
+        }}
+        restoreFocus
         size={{ mdDown: 'full', md: 'lg' }}
       >
         <Portal>

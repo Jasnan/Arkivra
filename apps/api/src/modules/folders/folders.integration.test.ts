@@ -117,7 +117,6 @@ function createMockVaultsServices({
       aiAccessLevel: 'none',
       permissions,
       isRoot: false,
-      isGlobalAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
@@ -184,7 +183,6 @@ describe('folders integration', () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
       role: 'viewer',
-      permissions: ['documents.read'],
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -205,7 +203,6 @@ describe('folders integration', () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
       role: 'editor',
-      permissions: ['documents.read'],
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -243,7 +240,6 @@ describe('folders integration', () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
       role: 'editor',
-      permissions: ['documents.create'],
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -269,7 +265,6 @@ describe('folders integration', () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
       role: 'viewer',
-      permissions: ['documents.read'],
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -346,7 +341,6 @@ describe('folders integration', () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
       role: 'editor',
-      permissions: ['documents.delete'],
     });
     const app = createTestApp({ folderServices, vaultServices });
 
@@ -367,7 +361,6 @@ describe('folders integration', () => {
     const folderServices = createMockFoldersServices();
     const vaultServices = createMockVaultsServices({
       role: 'editor',
-      permissions: ['documents.delete'],
     });
     const app = createTestApp({ folderServices, vaultServices });
 

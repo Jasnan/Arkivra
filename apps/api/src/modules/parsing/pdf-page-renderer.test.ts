@@ -19,7 +19,7 @@ async function createPdf(pageCount: number) {
   return Buffer.from(await pdf.save());
 }
 
-describe('PDF page renderer', () => {
+describe('pdf page renderer', () => {
   test('renders PDF pages to PNG images for vision fallback', async () => {
     const images = await renderPdfPagesToImages({
       fileName: 'scan.pdf',

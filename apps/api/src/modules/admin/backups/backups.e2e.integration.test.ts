@@ -1,7 +1,8 @@
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -17,6 +18,8 @@ import { createStorageDriver } from '../../storage/storage.services.js';
 import { createBackupServices } from './backups.services.js';
 import { createBackupQueue } from '../../worker/backup.queue.js';
 import { createBackupWorker } from '../../worker/backup.worker.js';
+
+const drizzleFolder = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../drizzle');
 
 describe.sequential('backups e2e', () => {
   const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -56,7 +59,7 @@ describe.sequential('backups e2e', () => {
 
     try {
       await migrate(migrationDb, {
-        migrationsFolder: join(process.cwd(), 'apps/api/drizzle'),
+        migrationsFolder: drizzleFolder,
       });
     } finally {
       await migrationPool.end();

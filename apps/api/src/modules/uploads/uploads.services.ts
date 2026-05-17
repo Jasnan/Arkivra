@@ -2,8 +2,9 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
+import type { DocumentsServices } from '../documents/documents.services.js';
 import { uploadSessionsTable } from '../database/schema/index.js';
-import { normalizeDocumentFileName, type DocumentsServices } from '../documents/documents.services.js';
+import { normalizeDocumentFileName } from '../documents/documents.services.js';
 import { generateId } from '../database/schema/helpers.js';
 import { createFoldersServices } from '../folders/folders.services.js';
 

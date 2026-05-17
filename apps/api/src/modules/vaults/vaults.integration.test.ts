@@ -18,9 +18,7 @@ function createMockVaultsServices() {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
       userId,
     })),
     getMember: vi.fn(async () => null),
@@ -167,8 +165,6 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      permissions: [],
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -238,9 +234,7 @@ describe('vaults integration', () => {
       totalSize: 2048,
       role: 'owner',
       aiAccessLevel: 'none',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -267,9 +261,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'editor',
       aiAccessLevel: 'none',
-      permissions: ['documents.read'],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -280,7 +272,7 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_1',
       },
-      body: JSON.stringify({ userId: 'usr_2', role: 'editor', permissions: ['documents.read'] }),
+      body: JSON.stringify({ userId: 'usr_2', role: 'editor' }),
     });
 
     expect(response.status).toBe(403);
@@ -296,9 +288,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -335,9 +325,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'editor',
       aiAccessLevel: 'none',
-      permissions: ['members.manage'],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -347,7 +335,7 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_member',
       },
-      body: JSON.stringify({ userId: 'usr_3', role: 'editor', permissions: ['documents.read'] }),
+      body: JSON.stringify({ userId: 'usr_3', role: 'editor' }),
     });
 
     expect(response.status).toBe(403);
@@ -363,9 +351,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ services });

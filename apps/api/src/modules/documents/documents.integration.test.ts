@@ -149,9 +149,7 @@ function createMockVaultsServices() {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
@@ -251,9 +249,7 @@ describe('documents integration', () => {
       deletedAt: null,
       role: 'viewer',
       aiAccessLevel: 'none',
-      permissions: ['documents.read'],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ docServices, vaultServices });
@@ -302,9 +298,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'owner',
         aiAccessLevel: 'none',
-        permissions: [],
         isRoot: false,
-        isGlobalAdmin: false,
       },
       {
         id: 'vlt_2',
@@ -314,9 +308,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'viewer',
         aiAccessLevel: 'none',
-        permissions: ['documents.read'],
         isRoot: false,
-        isGlobalAdmin: false,
       },
     ]);
 
@@ -347,9 +339,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'owner',
         aiAccessLevel: 'none',
-        permissions: [],
         isRoot: false,
-        isGlobalAdmin: false,
       },
       {
         id: 'vlt_2',
@@ -359,9 +349,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'viewer',
         aiAccessLevel: 'none',
-        permissions: ['documents.read'],
         isRoot: false,
-        isGlobalAdmin: false,
       },
     ]);
 
@@ -985,9 +973,7 @@ describe('documents integration', () => {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ docServices, vaultServices });
@@ -1015,9 +1001,7 @@ describe('documents integration', () => {
       deletedAt: null,
       role: 'viewer',
       aiAccessLevel: 'none',
-      permissions: ['documents.read'],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ docServices, vaultServices });

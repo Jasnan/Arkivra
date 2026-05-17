@@ -92,9 +92,7 @@ function createMockVaultsServices() {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'full',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
@@ -182,9 +180,7 @@ describe('search integration', () => {
       deletedAt: null,
       role: null,
       aiAccessLevel: 'none',
-      permissions: [],
       isRoot: false,
-      isGlobalAdmin: false,
     }));
 
     const app = createTestApp({ searchServices, vaultServices });
@@ -400,18 +396,14 @@ describe('search integration', () => {
         name: 'Alpha',
         role: 'owner',
         aiAccessLevel: 'none',
-        permissions: ['documents.read'],
         isRoot: false,
-        isGlobalAdmin: false,
       },
       {
         id: 'vlt_2',
         name: 'Beta',
         role: 'viewer',
         aiAccessLevel: 'none',
-        permissions: ['documents.read'],
         isRoot: false,
-        isGlobalAdmin: false,
       },
     ]);
 
@@ -444,9 +436,7 @@ describe('search integration', () => {
         name: 'Alpha',
         role: 'owner',
         aiAccessLevel: 'full',
-        permissions: ['documents.read'],
         isRoot: false,
-        isGlobalAdmin: false,
       },
     ]);
 
@@ -480,9 +470,7 @@ describe('search integration', () => {
         name: 'Alpha',
         role: 'owner',
         aiAccessLevel: 'none',
-        permissions: ['documents.read'],
         isRoot: false,
-        isGlobalAdmin: false,
       },
     ]);
 

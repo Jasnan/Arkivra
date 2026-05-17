@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo } from 'react';
 import { TreeView, createTreeCollection } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';

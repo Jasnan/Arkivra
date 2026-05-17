@@ -28,10 +28,10 @@ import {
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Button as ChakraButton, Flex, HStack, IconButton, Image, Input, Kbd, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
+import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Kbd, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import arkivraLogoPng from '@/assets/arkivra-sidebar-logo.png';
+import { ArkivraLogo } from '@/components/brand/arkivra-logo';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -385,7 +385,7 @@ function PrimarySidebar({
       <RailTooltip label="Arkivra">
         <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit' }}>
           <Flex
-            boxSize="9"
+            boxSize="11"
             align="center"
             justify="center"
             rounded="lg"
@@ -394,7 +394,7 @@ function PrimarySidebar({
             borderColor="border.subtle"
             overflow="hidden"
           >
-            <Image src={arkivraLogoPng} alt="" boxSize="8" objectFit="contain" />
+            <ArkivraLogo boxSize="full" color="teal.solid" />
           </Flex>
         </Link>
       </RailTooltip>

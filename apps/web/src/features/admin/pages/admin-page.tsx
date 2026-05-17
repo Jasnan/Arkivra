@@ -1,11 +1,12 @@
-import type { FormEvent, ReactNode } from 'react';
-import { useMemo, useState } from 'react';
-import { Box, Flex, Grid, HStack, Stack, Text, chakra } from '@chakra-ui/react';
+import type { FormEvent, MouseEvent, ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ban, ShieldCheck, ShieldX, UserCheck, UserX } from 'lucide-react';
+import { Check, CheckCircle2, Clock3, Info, Lightbulb, Mail, Plus, Search, Send, ShieldCheck, ShieldX, Trash2, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -13,6 +14,14 @@ import {
   RestoreArchiveButton,
   SaveButton,
 } from '@/components/ui/action-buttons';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -33,12 +42,8 @@ import {
   createBackup,
   createRootEmailInvitation,
   getBackupDownloadUrl,
-  grantRoot,
-  grantSystemCapability,
   rejectPermissionRequest,
   restoreBackup,
-  revokeRoot,
-  revokeSystemCapability,
   updateAdminAiSettings,
   updateAdminUser,
 } from '@/features/admin/admin.api';
@@ -57,7 +62,6 @@ import { useMeQuery } from '@/features/me/me.queries';
 import {
   KeyValueRows,
   SettingsPageFrame,
-  SettingsDropdown,
   SettingsRow,
   SettingsRows,
   SettingsSection,
@@ -66,8 +70,32 @@ import {
 type AdminUserStatusFilter = 'all' | 'active' | 'disabled';
 type AdminUserAccessFilter = 'all' | 'root' | 'create-vaults' | 'member';
 type InviteSystemRole = 'root' | 'member';
+interface InviteVaultMembershipDraft {
+  id: string;
+  vaultId: string;
+  role: VaultRole;
+  aiAccessLevel: AiAccessLevel;
+}
 
-const ADMIN_USERS_GRID_COLUMNS = 'minmax(0, 1.45fr) 8.5rem 8rem 7rem 8rem 8rem 8.5rem 2.75rem';
+type AdminUserActionKey = 'manage-access' | 'resend-invitation' | 'deactivate-user' | 'view-activity';
+
+interface AdminUserAction {
+  key: AdminUserActionKey;
+  label: string;
+  description: string;
+  icon: typeof UserRound;
+  tone?: 'default' | 'success' | 'destructive';
+  disabled?: boolean;
+  onSelect: () => void;
+}
+
+type AdminUserContextMenuState = {
+  user: AdminUser;
+  x: number;
+  y: number;
+} | null;
+
+const ADMIN_USERS_GRID_COLUMNS = 'minmax(14rem, 1.45fr) 8.5rem 8rem 8.5rem minmax(8rem, 0.8fr) minmax(9rem, 0.85fr) 3rem';
 
 const userStatusFilterOptions = [
   { value: 'all', label: 'All statuses' },
@@ -76,10 +104,10 @@ const userStatusFilterOptions = [
 ];
 
 const userAccessFilterOptions = [
-  { value: 'all', label: 'All access' },
-  { value: 'root', label: 'Roots' },
+  { value: 'all', label: 'All roles' },
+  { value: 'root', label: 'Root' },
   { value: 'create-vaults', label: 'Can create vaults' },
-  { value: 'member', label: 'Members' },
+  { value: 'member', label: 'Member' },
 ];
 
 const inviteSystemRoleOptions: Array<{ value: InviteSystemRole; label: string }> = [
@@ -99,41 +127,200 @@ const inviteAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
   { value: 'full', label: 'Full AI access' },
 ];
 
+let inviteVaultMembershipDraftId = 0;
+
+const createInviteVaultMembershipDraft = (): InviteVaultMembershipDraft => ({
+  id: `invite-vault-${inviteVaultMembershipDraftId += 1}`,
+  vaultId: '',
+  role: 'viewer',
+  aiAccessLevel: 'none',
+});
+
 function formatCount(value: number | undefined, singular: string, plural = `${singular}s`) {
   const safeValue = value ?? 0;
   return `${safeValue} ${safeValue === 1 ? singular : plural}`;
 }
 
-function getUserAccessLabel(user: AdminUser) {
-  if (user.isRoot) return 'Root';
-  if (user.systemCapabilities.includes('system.create_vaults')) return 'Can create vaults';
-  return 'Member';
+function getUserRoleLabel(user: AdminUser) {
+  return user.isRoot ? 'Root' : 'Member';
 }
 
-function getProviderLabel(provider: string) {
-  const labels: Record<string, string> = {
-    github: 'GitHub',
-    google: 'Google',
+function getUserAccessSummary(user: AdminUser) {
+  if (user.isRoot) return 'All vaults';
+  if (user.canCreateVault) return 'Can create vaults';
+  return 'Member access';
+}
+
+function getUserInitial(user: AdminUser) {
+  const source = user.name?.trim() || user.email.trim();
+  return source.charAt(0).toUpperCase() || '?';
+}
+
+function formatJoinedDate(value: string) {
+  const date = new Date(value);
+
+  return {
+    date: new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(date),
+    time: new Intl.DateTimeFormat('en', { timeStyle: 'short' }).format(date),
   };
-
-  return labels[provider.toLowerCase()] ?? provider;
 }
 
-function getAccountTypeLabel(user: AdminUser) {
-  const authMethods = user.authMethods;
+function AdminUserActionItem({
+  action,
+  onSelect,
+}: {
+  action: AdminUserAction;
+  onSelect: () => void;
+}) {
+  const iconTone = action.tone === 'destructive' ? 'destructive' : 'default';
 
-  if (!authMethods) return 'Unknown';
+  return (
+    <DropdownMenuItem
+      value={action.key}
+      disabled={action.disabled}
+      color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}
+      alignItems="flex-start"
+      gap="3"
+      px="3"
+      py="3"
+      onSelect={onSelect}
+    >
+      <ActionMenuItemIcon icon={action.icon} tone={iconTone} />
+      <Stack gap="0.5" minW="0">
+        <Text textStyle="sm" fontWeight="semibold" color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}>
+          {action.label}
+        </Text>
+        <Text textStyle="xs" color="fg.muted">
+          {action.description}
+        </Text>
+      </Stack>
+    </DropdownMenuItem>
+  );
+}
 
-  const providers = authMethods.oauthProviders.map(getProviderLabel);
+function AdminUserActionMenuItems({ actions }: { actions: AdminUserAction[] }) {
+  return (
+    <>
+      {actions.map((action) => (
+        <AdminUserActionItem
+          key={action.key}
+          action={action}
+          onSelect={action.onSelect}
+        />
+      ))}
+    </>
+  );
+}
 
-  if (authMethods.hasPassword && providers.length > 0) {
-    return `Local & ${providers.join(', ')}`;
-  }
+function AdminUserContextMenu({
+  actions,
+  onClose,
+  state,
+}: {
+  state: Exclude<AdminUserContextMenuState, null>;
+  actions: AdminUserAction[];
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  if (authMethods.hasPassword) return 'Local';
-  if (providers.length > 0) return providers.join(', ');
+  useEffect(() => {
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
 
-  return 'Unknown';
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    function closeOnOutsideContextMenu(event: globalThis.MouseEvent) {
+      const target = event.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, { capture: true });
+    window.document.addEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+    window.document.addEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onClose, { capture: true });
+      window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+    };
+  }, [onClose]);
+
+  return (
+    <Portal>
+      <Box
+        ref={menuRef}
+        role="menu"
+        aria-label={`User actions for ${state.user.email}`}
+        position="fixed"
+        zIndex="popover"
+        w="20rem"
+        maxW="calc(100vw - 1rem)"
+        left={`${state.x}px`}
+        top={`${state.y}px`}
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.subtle"
+        bg="bg.surface"
+        p="1.5"
+        shadow="xl"
+        onClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        {actions.map((action) => (
+          <chakra.button
+            key={action.key}
+            type="button"
+            role="menuitem"
+            disabled={action.disabled}
+            display="flex"
+            w="full"
+            alignItems="flex-start"
+            gap="3"
+            rounded="md"
+            px="3"
+            py="3"
+            textAlign="left"
+            color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}
+            _hover={{ bg: action.tone === 'success' ? 'teal.subtle' : 'bg.subtle' }}
+            _disabled={{ cursor: 'not-allowed', opacity: 0.5 }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+            onClick={() => {
+              onClose();
+              window.setTimeout(action.onSelect, 0);
+            }}
+          >
+            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+            <Stack gap="0.5" minW="0">
+              <Text textStyle="sm" fontWeight="semibold">
+                {action.label}
+              </Text>
+              <Text textStyle="xs" color="fg.muted">
+                {action.description}
+              </Text>
+            </Stack>
+          </chakra.button>
+        ))}
+      </Box>
+    </Portal>
+  );
 }
 
 function getUserAccessFilter(user: AdminUser): AdminUserAccessFilter {
@@ -416,10 +603,12 @@ export function AdminUsersPage() {
   const [rootInviteEmail, setRootInviteEmail] = useState('');
   const [inviteSystemRole, setInviteSystemRole] = useState<InviteSystemRole>('member');
   const [inviteCanCreateVaults, setInviteCanCreateVaults] = useState(false);
-  const [inviteVaultId, setInviteVaultId] = useState('');
-  const [inviteVaultRole, setInviteVaultRole] = useState<VaultRole>('viewer');
-  const [inviteAiAccessLevel, setInviteAiAccessLevel] = useState<AiAccessLevel>('none');
+  const [inviteVaultMemberships, setInviteVaultMemberships] = useState<InviteVaultMembershipDraft[]>(() => [
+    createInviteVaultMembershipDraft(),
+  ]);
   const [createdInvitationToken, setCreatedInvitationToken] = useState<string | null>(null);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [userContextMenu, setUserContextMenu] = useState<AdminUserContextMenuState>(null);
   const visibleUsers = useMemo(() => {
     const normalizedSearch = userSearch.trim().toLowerCase();
 
@@ -437,6 +626,34 @@ export function AdminUsersPage() {
       return matchesSearch && matchesStatus && matchesAccess;
     });
   }, [accessFilter, statusFilter, userSearch, users]);
+  const userStats = useMemo(() => ({
+    total: users.length,
+    root: users.filter((user) => user.isRoot).length,
+    members: users.filter((user) => !user.isRoot).length,
+    active: users.filter((user) => user.disabledAt === null).length,
+    invited: 0,
+  }), [users]);
+
+  function updateInviteVaultMembership(
+    membershipId: string,
+    patch: Partial<Omit<InviteVaultMembershipDraft, 'id'>>,
+  ) {
+    setInviteVaultMemberships((memberships) =>
+      memberships.map((membership) =>
+        membership.id === membershipId ? { ...membership, ...patch } : membership,
+      ),
+    );
+  }
+
+  function removeInviteVaultMembership(membershipId: string) {
+    setInviteVaultMemberships((memberships) => {
+      if (memberships.length === 1) {
+        return [createInviteVaultMembershipDraft()];
+      }
+
+      return memberships.filter((membership) => membership.id !== membershipId);
+    });
+  }
 
   const updateUserMutation = useMutation({
     mutationFn: updateAdminUser,
@@ -449,51 +666,50 @@ export function AdminUsersPage() {
     },
   });
 
-  const grantRootMutation = useMutation({
-    mutationFn: grantRoot,
-    onSuccess: async () => {
-      toast.success('Root role granted.');
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not grant root role.');
-    },
-  });
+  function getUserActions(user: AdminUser): AdminUserAction[] {
+    return [
+      {
+        key: 'manage-access',
+        label: 'Manage access',
+        description: 'Edit roles, permissions and vault access',
+        icon: UserRound,
+        tone: 'success',
+        onSelect: () => toast.info('User access management will be added in an upcoming admin update.'),
+      },
+      {
+        key: 'resend-invitation',
+        label: 'Resend invitation',
+        description: 'Send the invitation email again',
+        icon: Mail,
+        onSelect: () => toast.info('Invitation resend is not available for active users yet.'),
+      },
+      {
+        key: 'deactivate-user',
+        label: 'Deactivate user',
+        description: 'Disable sign-in for this user',
+        icon: ShieldX,
+        tone: 'destructive',
+        disabled: updateUserMutation.isPending || user.disabledAt !== null,
+        onSelect: () => updateUserMutation.mutate({ userId: user.id, disabled: true }),
+      },
+      {
+        key: 'view-activity',
+        label: 'View activity',
+        description: 'See login and security activity',
+        icon: Clock3,
+        onSelect: () => toast.info('User activity is not available in this view yet.'),
+      },
+    ];
+  }
 
-  const revokeRootMutation = useMutation({
-    mutationFn: revokeRoot,
-    onSuccess: async () => {
-      toast.success('Root role revoked.');
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not revoke root role.');
-    },
-  });
-
-  const grantCreateVaultsMutation = useMutation({
-    mutationFn: ({ userId }: { userId: string }) =>
-      grantSystemCapability({ userId, capability: 'system.create_vaults' }),
-    onSuccess: async () => {
-      toast.success('Vault creation granted.');
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not grant vault creation.');
-    },
-  });
-
-  const revokeCreateVaultsMutation = useMutation({
-    mutationFn: ({ userId }: { userId: string }) =>
-      revokeSystemCapability({ userId, capability: 'system.create_vaults' }),
-    onSuccess: async () => {
-      toast.success('Vault creation revoked.');
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not revoke vault creation.');
-    },
-  });
+  function openUserContextMenu(event: MouseEvent<HTMLElement>, user: AdminUser) {
+    event.preventDefault();
+    setUserContextMenu({
+      user,
+      x: Math.min(event.clientX, window.innerWidth - 328),
+      y: Math.min(event.clientY, window.innerHeight - 260),
+    });
+  }
 
   const createRootInvitationMutation = useMutation({
     mutationFn: createRootEmailInvitation,
@@ -501,6 +717,7 @@ export function AdminUsersPage() {
       toast.success(`Invitation created for ${invitation.email}.`);
       setCreatedInvitationToken(invitation.id);
       setRootInviteEmail('');
+      setInviteVaultMemberships([createInviteVaultMembershipDraft()]);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not create root invitation.');
@@ -524,299 +741,524 @@ export function AdminUsersPage() {
   }
 
   return (
-    <Stack as="section" gap="0" h="full" minH="0">
-      <Box borderBottomWidth="1px" borderColor="border.subtle" bg="bg.workspace" px={{ base: '4', lg: '6' }} py="4">
-        <chakra.form
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            const email = rootInviteEmail.trim();
-            if (!email) {
-              toast.error('Email is required.');
-              return;
-            }
-            createRootInvitationMutation.mutate({
-              email,
-              systemRole: inviteSystemRole,
-              systemCapabilities: inviteCanCreateVaults ? ['system.create_vaults'] : [],
-              vaultMemberships: inviteVaultId
-                ? [{
-                    vaultId: inviteVaultId,
-                    role: inviteVaultRole,
-                    aiAccessLevel: inviteAiAccessLevel,
-                  }]
-                : [],
-            });
-          }}
-        >
-          <Stack gap="3">
-            <Flex align={{ base: 'stretch', xl: 'end' }} direction={{ base: 'column', xl: 'row' }} gap="3">
-            <Field>
-              <FieldLabel htmlFor="admin-root-invite-email">Invite user</FieldLabel>
-              <Input
-                id="admin-root-invite-email"
-                type="email"
-                value={rootInviteEmail}
-                placeholder="person@example.com"
-                onChange={(event) => setRootInviteEmail(event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>System role</FieldLabel>
-              <Select value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
-                <SelectTrigger aria-label="System role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {inviteSystemRoleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Checkbox
-              checked={inviteCanCreateVaults}
-              onCheckedChange={setInviteCanCreateVaults}
-              alignSelf={{ base: 'flex-start', xl: 'center' }}
-            >
-              Can create vaults
-            </Checkbox>
-            <CreateButton type="submit" size="sm" disabled={createRootInvitationMutation.isPending}>
-              {createRootInvitationMutation.isPending ? 'Creating...' : 'Create invitation'}
-            </CreateButton>
-            </Flex>
-            <Grid gap="3" templateColumns={{ base: '1fr', lg: 'minmax(0, 1.2fr) 11rem 13rem' }}>
-              <Field>
-                <FieldLabel>Initial vault membership</FieldLabel>
-                <Select value={inviteVaultId || '__none__'} onValueChange={(value) => setInviteVaultId(value === '__none__' ? '' : value)}>
-                  <SelectTrigger aria-label="Initial vault membership">
-                    <SelectValue placeholder="No vault pre-seed" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No vault pre-seed</SelectItem>
-                    {vaults.map((vault) => (
-                      <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Vault role</FieldLabel>
-                <Select value={inviteVaultRole} onValueChange={(value) => setInviteVaultRole(value as VaultRole)} disabled={!inviteVaultId}>
-                  <SelectTrigger aria-label="Initial vault role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {inviteVaultRoleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>AI access</FieldLabel>
-                <Select value={inviteAiAccessLevel} onValueChange={(value) => setInviteAiAccessLevel(value as AiAccessLevel)} disabled={!inviteVaultId}>
-                  <SelectTrigger aria-label="Initial AI access">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {inviteAiAccessOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </Grid>
-            {createdInvitationToken ? (
-              <Text fontSize="sm" color="fg.muted">
-                Invitation token: <Text as="span" fontFamily="mono" color="fg">{createdInvitationToken}</Text>
-              </Text>
-            ) : null}
-          </Stack>
-        </chakra.form>
-      </Box>
-      <Flex
-        align={{ base: 'stretch', lg: 'center' }}
-        justify="space-between"
-        direction={{ base: 'column', lg: 'row' }}
-        gap="3"
-        borderBottomWidth="1px"
-        borderColor="border.subtle"
-        bg="bg.workspace"
-        px={{ base: '4', lg: '6' }}
-        py="3"
-      >
-        <Text fontWeight="semibold" color="fg">
-          Users
-        </Text>
+    <Stack as="section" gap="6" h="full" minH="0" overflowY="auto" bg="bg.workspace" px={{ base: '4', lg: '8' }} py={{ base: '5', lg: '7' }}>
+      <Flex align={{ base: 'stretch', xl: 'start' }} direction={{ base: 'column', xl: 'row' }} justify="space-between" gap="4">
+        <Stack gap="1">
+          <Text as="h1" textStyle="3xl" fontWeight="bold" color="fg">
+            Users
+          </Text>
+          <Text textStyle="md" color="fg.muted">
+            Manage users, roles, and vault access across your instance.
+          </Text>
+        </Stack>
 
-        <Flex
-          align={{ base: 'stretch', md: 'center' }}
-          direction={{ base: 'column', md: 'row' }}
-          justify={{ base: 'flex-start', lg: 'flex-end' }}
-          gap="2"
-          minW="0"
-        >
-          <Flex align={{ sm: 'center' }} direction={{ base: 'column', sm: 'row' }} gap="2" minW="0">
+        <Flex align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="3" minW="0">
+          <Box position="relative" w={{ base: 'full', md: '18rem' }}>
+            <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
+              <Search size={18} />
+            </Box>
             <Input
               value={userSearch}
-              placeholder="Search users"
+              placeholder="Search users..."
               aria-label="Search users"
-              maxW={{ base: 'full', sm: '18rem' }}
+              h="12"
+              pl="10"
+              rounded="md"
+              bg="bg.surface"
+              borderColor="border.strong"
               onChange={(event) => setUserSearch(event.target.value)}
             />
-            <Box w={{ base: 'full', sm: '11rem' }}>
-              <SettingsDropdown
-                ariaLabel="Filter users by status"
-                options={userStatusFilterOptions}
-                value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as AdminUserStatusFilter)}
-              />
-            </Box>
-            <Box w={{ base: 'full', sm: '12rem' }}>
-              <SettingsDropdown
-                ariaLabel="Filter users by access"
-                options={userAccessFilterOptions}
-                value={accessFilter}
-                onValueChange={(value) => setAccessFilter(value as AdminUserAccessFilter)}
-              />
-            </Box>
-          </Flex>
+          </Box>
+
+          <Box w={{ base: 'full', md: '10.5rem' }}>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as AdminUserStatusFilter)}>
+              <SelectTrigger aria-label="Filter users by status" h="12" bg="bg.surface" borderColor="border.strong">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {userStatusFilterOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Box>
+
+          <Box w={{ base: 'full', md: '10rem' }}>
+            <Select value={accessFilter} onValueChange={(value) => setAccessFilter(value as AdminUserAccessFilter)}>
+              <SelectTrigger aria-label="Filter users by role" h="12" bg="bg.surface" borderColor="border.strong">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {userAccessFilterOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Box>
+
+          <Button h="12" px="4" colorPalette="teal" onClick={() => setIsInviteDialogOpen(true)}>
+            <Plus size={18} />
+            Invite user
+          </Button>
         </Flex>
       </Flex>
 
-      <Box flex="1" minH="0" overflowY="auto">
-        <Flex
-          display={{ base: 'none', md: visibleUsers.length > 0 ? 'grid' : 'none' }}
+      <SimpleGrid columns={{ base: 1, sm: 2, xl: 5 }} gap="4">
+        {[
+          { label: 'Total users', value: userStats.total, icon: UsersRound, color: 'fg.success' },
+          { label: 'Root users', value: userStats.root, icon: ShieldCheck, color: 'fg.success' },
+          { label: 'Members', value: userStats.members, icon: UserRoundPlus, color: 'fg.success' },
+          { label: 'Active', value: userStats.active, icon: CheckCircle2, color: 'fg.success' },
+          { label: 'Invited', value: userStats.invited, icon: Clock3, color: 'fg.warning' },
+        ].map((stat) => {
+          const Icon = stat.icon;
+
+          return (
+            <Box key={stat.label} rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" px="5" py="4" shadow="xs">
+              <HStack gap="3" color="fg.muted">
+                <Box color={stat.color}>
+                  <Icon size={22} />
+                </Box>
+                <Text textStyle="sm" fontWeight="medium" color="fg.muted">
+                  {stat.label}
+                </Text>
+              </HStack>
+              <Text mt="3" fontSize="2xl" fontWeight="bold" lineHeight="1" color="fg">
+                {stat.value}
+              </Text>
+            </Box>
+          );
+        })}
+      </SimpleGrid>
+
+      <Box flex="1" minH="0">
+        <Grid
+          display={{ base: 'none', lg: visibleUsers.length > 0 ? 'grid' : 'none' }}
           gridTemplateColumns={ADMIN_USERS_GRID_COLUMNS}
           gap="3"
-          position="sticky"
-          top="0"
-          zIndex="1"
           borderBottomWidth="1px"
           borderColor="border.subtle"
-          bg="bg.workspace"
-          px="6"
-          py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
-          fontSize="sm"
+          px="1"
+          pb="3"
+          textStyle="sm"
+          fontWeight="medium"
           color="fg.muted"
         >
           <Text as="span">User</Text>
-          <Text as="span">Access</Text>
+          <Text as="span">Role</Text>
           <Text as="span">Status</Text>
           <Text as="span">2FA</Text>
-          <Text as="span">Email</Text>
-          <Text as="span">Type</Text>
+          <Text as="span">Access</Text>
           <Text as="span">Joined</Text>
-          <Text as="span" srOnly>Actions</Text>
-        </Flex>
+          <Text as="span" textAlign="center">Actions</Text>
+        </Grid>
 
         {usersQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading users...</Text> : null}
         {!usersQuery.isLoading && visibleUsers.length === 0 ? (
-          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box mt="4" rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
             No users match the current filters.
           </Box>
         ) : null}
+
         {visibleUsers.length > 0 ? (
           <Stack gap="0">
-            {visibleUsers.map(user => (
-              <Grid
-                key={user.id}
-                as="article"
-                alignItems="center"
-                gap="3"
-                h={{ base: 'auto', md: 'var(--arkivra-listRowHeight, 4.5rem)' }}
-                minH={{ base: 'var(--arkivra-listRowHeight, 4.5rem)', md: undefined }}
-                borderBottomWidth="1px"
-                borderColor="border.subtle"
-                bg="bg.workspace"
-                px="6"
-                py="var(--arkivra-rowPaddingY, 0.875rem)"
-                templateColumns={{ base: 'minmax(0, 1fr) auto', md: ADMIN_USERS_GRID_COLUMNS }}
-                transition="background-color 0.15s ease"
-                _hover={{ bg: 'bg.workspaceMuted' }}
-              >
-                <Stack gap="1" minW="0">
-                  <Text fontSize="md" fontWeight="semibold" color="fg" truncate>
-                    {user.name ?? 'Unnamed user'}
+            {visibleUsers.map((user) => {
+              const joined = formatJoinedDate(user.createdAt);
+
+              return (
+                <Grid
+                  key={user.id}
+                  as="article"
+                  alignItems="center"
+                  gap="3"
+                  borderBottomWidth="1px"
+                  borderColor="border.subtle"
+                  px="1"
+                  py={{ base: '4', lg: '6' }}
+                  templateColumns={{ base: 'minmax(0, 1fr) auto', lg: ADMIN_USERS_GRID_COLUMNS }}
+                  onContextMenu={(event) => openUserContextMenu(event, user)}
+                >
+                  <HStack gap="4" minW="0">
+                    <Flex boxSize="10" shrink="0" align="center" justify="center" rounded="full" bg="bg.muted" color="fg" fontWeight="semibold">
+                      {getUserInitial(user)}
+                    </Flex>
+                    <Stack gap="1" minW="0">
+                      <Text fontSize="md" fontWeight="semibold" color="fg" truncate>
+                        {user.name ?? user.email}
+                      </Text>
+                      <Text truncate fontSize="sm" color="fg.muted">
+                        {user.email}
+                      </Text>
+                    </Stack>
+                  </HStack>
+
+                  <Badge
+                    display={{ base: 'none', lg: 'inline-flex' }}
+                    w="fit-content"
+                    colorPalette={user.isRoot ? 'purple' : 'blue'}
+                    variant="subtle"
+                    rounded="sm"
+                    px="2"
+                    py="1"
+                    textTransform="none"
+                  >
+                    {getUserRoleLabel(user)}
+                  </Badge>
+
+                  <Badge
+                    display={{ base: 'none', lg: 'inline-flex' }}
+                    w="fit-content"
+                    colorPalette={user.disabledAt ? 'orange' : 'green'}
+                    variant="subtle"
+                    rounded="sm"
+                    px="2"
+                    py="1"
+                    textTransform="none"
+                  >
+                    {user.disabledAt ? 'Disabled' : 'Active'}
+                  </Badge>
+
+                  <HStack display={{ base: 'none', lg: 'flex' }} gap="2" color={user.twoFactorEnabled ? 'fg.success' : 'fg.muted'}>
+                    {user.twoFactorEnabled ? <ShieldCheck size={16} /> : null}
+                    <Text textStyle="sm">
+                      {user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}
+                    </Text>
+                  </HStack>
+
+                  <Text display={{ base: 'none', lg: 'block' }} truncate textStyle="sm" fontWeight="semibold" color="fg">
+                    {getUserAccessSummary(user)}
                   </Text>
-                  <Text truncate fontSize="sm" color="fg.muted">
-                    {user.email}
-                  </Text>
-                </Stack>
-                <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm" color="fg">
-                  {getUserAccessLabel(user)}
-                </Text>
-                <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm" color={user.disabledAt ? 'fg.warning' : 'fg'}>
-                  {user.disabledAt ? 'Disabled' : 'Active'}
-                </Text>
-                <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm" color={user.twoFactorEnabled ? 'fg' : 'fg.muted'}>
-                  {user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}
-                </Text>
-                <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm" color={user.emailVerified ? 'fg' : 'fg.warning'}>
-                  {user.emailVerified ? 'Verified' : 'Unverified'}
-                </Text>
-                <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm" color="fg.muted">
-                  {getAccountTypeLabel(user)}
-                </Text>
-                <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">
-                  {formatDate(user.createdAt)}
-                </Text>
-                <Box justifySelf="end">
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <ActionMenuTriggerButton label={`User actions for ${user.email}`} />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" minWidth="12rem">
-                      <DropdownMenuItem
-                        disabled={updateUserMutation.isPending}
-                        onSelect={() => updateUserMutation.mutate({ userId: user.id, disabled: user.disabledAt === null })}
-                      >
-                        <ActionMenuItemIcon icon={user.disabledAt ? UserCheck : Ban} tone={user.disabledAt ? 'default' : 'destructive'} />
-                        {user.disabledAt ? 'Re-enable' : 'Disable'}
-                      </DropdownMenuItem>
-                      {user.isRoot ? (
-                        <DropdownMenuItem
-                          disabled={revokeRootMutation.isPending}
-                          onSelect={() => revokeRootMutation.mutate({ userId: user.id })}
-                        >
-                          <ActionMenuItemIcon icon={ShieldX} tone="destructive" />
-                          Revoke root
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem
-                          disabled={grantRootMutation.isPending}
-                          onSelect={() => grantRootMutation.mutate({ userId: user.id })}
-                        >
-                          <ActionMenuItemIcon icon={ShieldCheck} />
-                          Grant root
-                        </DropdownMenuItem>
-                      )}
-                      {user.systemCapabilities.includes('system.create_vaults') ? (
-                        <DropdownMenuItem
-                          disabled={revokeCreateVaultsMutation.isPending}
-                          onSelect={() => revokeCreateVaultsMutation.mutate({ userId: user.id })}
-                        >
-                          <ActionMenuItemIcon icon={UserX} tone="destructive" />
-                          Revoke vault creation
-                        </DropdownMenuItem>
-                      ) : null}
-                      {!user.canCreateVault ? (
-                        <DropdownMenuItem
-                          disabled={grantCreateVaultsMutation.isPending}
-                          onSelect={() => grantCreateVaultsMutation.mutate({ userId: user.id })}
-                        >
-                          <ActionMenuItemIcon icon={UserCheck} />
-                          Grant vault creation
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </Box>
-              </Grid>
-            ))}
+
+                  <Stack display={{ base: 'none', lg: 'flex' }} gap="1">
+                    <Text textStyle="sm" color="fg.muted">
+                      {joined.date}
+                    </Text>
+                    <Text textStyle="sm" color="fg.muted">
+                      {joined.time}
+                    </Text>
+                  </Stack>
+
+                  <Box justifySelf="end">
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <ActionMenuTriggerButton label={`User actions for ${user.email}`} />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" minWidth="20rem">
+                        <AdminUserActionMenuItems actions={getUserActions(user)} />
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </Box>
+                </Grid>
+              );
+            })}
           </Stack>
         ) : null}
       </Box>
+
+      {userContextMenu ? (
+        <AdminUserContextMenu
+          state={userContextMenu}
+          actions={getUserActions(userContextMenu.user)}
+          onClose={() => setUserContextMenu(null)}
+        />
+      ) : null}
+
+      <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+        <DialogContent maxW="7xl" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
+          <chakra.form
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              const email = rootInviteEmail.trim();
+              if (!email) {
+                toast.error('Email is required.');
+                return;
+              }
+              createRootInvitationMutation.mutate({
+                email,
+                systemRole: inviteSystemRole,
+                systemCapabilities: inviteCanCreateVaults ? ['system.create_vaults'] : [],
+                vaultMemberships: inviteVaultMemberships
+                  .filter((membership) => membership.vaultId.length > 0)
+                  .map((membership) => ({
+                    vaultId: membership.vaultId,
+                    role: membership.role,
+                    aiAccessLevel: membership.aiAccessLevel,
+                  })),
+              });
+            }}
+          >
+            <Box borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '5', lg: '8' }} py="6">
+              <DialogHeader>
+                <DialogTitle>Invite user</DialogTitle>
+                <DialogDescription>
+                  Send an invitation to a new user.
+                </DialogDescription>
+              </DialogHeader>
+            </Box>
+
+            <Grid templateColumns={{ base: '1fr', xl: 'minmax(0, 1fr) 27rem' }} minH={{ xl: '33rem' }}>
+              <Stack gap="7" px={{ base: '5', lg: '8' }} py="7">
+                <Stack gap="6">
+                  <Text as="h2" textStyle="lg" fontWeight="semibold" color="fg">
+                    User information
+                  </Text>
+
+                  <Field>
+                    <FieldLabel htmlFor="admin-root-invite-email">Email address</FieldLabel>
+                    <Box position="relative">
+                      <Input
+                        id="admin-root-invite-email"
+                        type="email"
+                        value={rootInviteEmail}
+                        placeholder="user@example.com"
+                        h="12"
+                        pr="11"
+                        borderColor="border.strong"
+                        onChange={(event) => setRootInviteEmail(event.target.value)}
+                      />
+                      <Box position="absolute" right="4" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
+                        <Mail size={18} />
+                      </Box>
+                    </Box>
+                  </Field>
+                </Stack>
+
+                <Grid gap="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) minmax(15rem, 1fr)' }} alignItems="center">
+                  <Field>
+                    <FieldLabel>System role</FieldLabel>
+                    <Select value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
+                      <SelectTrigger aria-label="System role" h="12" borderColor="border.strong">
+                        <HStack gap="3">
+                          <UserRound size={18} />
+                          <SelectValue />
+                        </HStack>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inviteSystemRoleOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Checkbox
+                    checked={inviteCanCreateVaults}
+                    onCheckedChange={setInviteCanCreateVaults}
+                    alignSelf={{ base: 'flex-start', md: 'end' }}
+                    pb={{ md: '1' }}
+                  >
+                    <Stack gap="1">
+                      <Text color="fg">Can create vaults</Text>
+                      <Text textStyle="sm" color="fg.muted">
+                        Allows the user to create new vaults.
+                      </Text>
+                    </Stack>
+                  </Checkbox>
+                </Grid>
+
+                <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p={{ base: '4', lg: '5' }}>
+                  <Stack gap="5">
+                    <Stack gap="1">
+                      <Text textStyle="md" fontWeight="semibold" color="fg">
+                        Initial vault access <Text as="span" fontWeight="normal" color="fg.muted">(optional)</Text>
+                      </Text>
+                      <Text textStyle="sm" color="fg.muted">
+                        Pre-assign vault access for this user. You can always change this later.
+                      </Text>
+                    </Stack>
+
+                    <Stack gap="4">
+                      <Grid
+                        display={{ base: 'none', md: 'grid' }}
+                        gap="4"
+                        templateColumns="minmax(0, 1.1fr) minmax(0, 0.92fr) minmax(0, 0.92fr) 3rem"
+                      >
+                        <Text textStyle="sm" fontWeight="medium" color="fg">Vault</Text>
+                        <Text textStyle="sm" fontWeight="medium" color="fg">Role</Text>
+                        <Text textStyle="sm" fontWeight="medium" color="fg">AI access</Text>
+                        <Text srOnly>Remove</Text>
+                      </Grid>
+
+                      {inviteVaultMemberships.map((membership) => (
+                        <Grid
+                          key={membership.id}
+                          gap="4"
+                          alignItems="end"
+                          templateColumns={{ base: '1fr', md: 'minmax(0, 1.1fr) minmax(0, 0.92fr) minmax(0, 0.92fr) 3rem' }}
+                        >
+                          <Field>
+                            <FieldLabel display={{ md: 'none' }}>Vault</FieldLabel>
+                            <Select
+                              value={membership.vaultId || '__none__'}
+                              onValueChange={(value) => updateInviteVaultMembership(membership.id, { vaultId: value === '__none__' ? '' : value })}
+                            >
+                              <SelectTrigger aria-label="Initial vault membership" h="12" borderColor="border.strong">
+                                <SelectValue placeholder="Choose a vault..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">Choose a vault...</SelectItem>
+                                {vaults.map((vault) => (
+                                  <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel display={{ md: 'none' }}>Role</FieldLabel>
+                            <Select
+                              value={membership.role}
+                              onValueChange={(value) => updateInviteVaultMembership(membership.id, { role: value as VaultRole })}
+                              disabled={!membership.vaultId}
+                            >
+                              <SelectTrigger aria-label="Initial vault role" h="12" borderColor="border.strong">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {inviteVaultRoleOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel display={{ md: 'none' }}>AI access</FieldLabel>
+                            <Select
+                              value={membership.aiAccessLevel}
+                              onValueChange={(value) => updateInviteVaultMembership(membership.id, { aiAccessLevel: value as AiAccessLevel })}
+                              disabled={!membership.vaultId}
+                            >
+                              <SelectTrigger aria-label="Initial AI access" h="12" borderColor="border.strong">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {inviteAiAccessOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Field>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Remove vault access row"
+                            onClick={() => removeInviteVaultMembership(membership.id)}
+                          >
+                            <Trash2 size={18} />
+                          </Button>
+                        </Grid>
+                      ))}
+                    </Stack>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      alignSelf="flex-start"
+                      onClick={() => setInviteVaultMemberships((memberships) => [...memberships, createInviteVaultMembershipDraft()])}
+                    >
+                      <Plus size={18} />
+                      Add another vault
+                    </Button>
+                  </Stack>
+                </Box>
+
+                <HStack gap="4" rounded="md" borderWidth="1px" borderColor="blue.200" bg="bg.info" px="5" py="4" color="fg.info">
+                  <Info size={22} />
+                  <Text textStyle="sm" color="fg">
+                    The invited user will receive an email with instructions to set up their account.
+                  </Text>
+                </HStack>
+              </Stack>
+
+              <Stack gap="5" borderLeftWidth={{ xl: '1px' }} borderTopWidth={{ base: '1px', xl: '0' }} borderColor="border.subtle" bg="bg.subtle" px={{ base: '5', lg: '8' }} py="7">
+                <Box rounded="md" borderWidth="1px" borderColor="teal.muted" bg="teal.subtle" p="6">
+                  <Stack gap="6">
+                    <HStack gap="4">
+                      <Flex boxSize="12" align="center" justify="center" rounded="full" bg="bg.success" color="fg.success">
+                        <Mail size={24} />
+                      </Flex>
+                      <Text textStyle="md" fontWeight="semibold" color="fg">
+                        What happens next?
+                      </Text>
+                    </HStack>
+
+                    {[
+                      ['1', 'Invitation sent', 'User receives an email invitation.'],
+                      ['2', 'Account setup', 'User sets up their account and sign in.'],
+                      ['3', 'Access granted', 'User can access assigned vaults and features.'],
+                    ].map(([step, title, description], index) => (
+                      <Grid key={step} templateColumns="2rem minmax(0, 1fr)" gap="4">
+                        <Stack align="center" gap="2">
+                          <Flex boxSize="8" align="center" justify="center" rounded="full" bg="teal.solid" color="fg.inverted" textStyle="sm" fontWeight="semibold">
+                            {step}
+                          </Flex>
+                          {index < 2 ? <Box w="1px" h="7" borderLeftWidth="1px" borderStyle="dashed" borderColor="teal.muted" /> : null}
+                        </Stack>
+                        <Stack gap="1" pb={index < 2 ? '1' : '0'}>
+                          <Text textStyle="sm" fontWeight="semibold" color="fg">
+                            {title}
+                          </Text>
+                          <Text textStyle="sm" color="fg.muted">
+                            {description}
+                          </Text>
+                        </Stack>
+                      </Grid>
+                    ))}
+                  </Stack>
+                </Box>
+
+                <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="6">
+                  <Stack gap="5">
+                    <HStack gap="3">
+                      <Lightbulb size={22} />
+                      <Text textStyle="md" fontWeight="semibold" color="fg">
+                        Tips
+                      </Text>
+                    </HStack>
+                    {[
+                      "You can manage this user's permissions after they accept the invitation.",
+                      'System role and capabilities can be updated at any time.',
+                      'Vault access and AI permissions can be modified later from the user access page.',
+                    ].map((tip) => (
+                      <HStack key={tip} gap="3" align="start">
+                        <Box color="fg.success" pt="0.5">
+                          <Check size={18} />
+                        </Box>
+                        <Text textStyle="sm" color="fg.muted">
+                          {tip}
+                        </Text>
+                      </HStack>
+                    ))}
+                  </Stack>
+                </Box>
+              </Stack>
+            </Grid>
+
+            {createdInvitationToken ? (
+              <Box px={{ base: '5', lg: '8' }} pb="4">
+                <Text fontSize="sm" color="fg.muted">
+                  Invitation token: <Text as="span" fontFamily="mono" color="fg">{createdInvitationToken}</Text>
+                </Text>
+              </Box>
+            ) : null}
+
+            <Box borderTopWidth="1px" borderColor="border.subtle" px={{ base: '5', lg: '8' }} py="5">
+              <DialogFooter>
+                <Button type="button" variant="outline" h="12" px="6" onClick={() => setIsInviteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" h="12" px="6" colorPalette="teal" disabled={createRootInvitationMutation.isPending}>
+                  <Send size={18} />
+                  {createRootInvitationMutation.isPending ? 'Sending...' : 'Send invitation'}
+                </Button>
+              </DialogFooter>
+            </Box>
+          </chakra.form>
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }

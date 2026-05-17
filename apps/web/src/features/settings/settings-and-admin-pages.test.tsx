@@ -1394,25 +1394,16 @@ describe('settings, admin, and about pages', () => {
     view = await renderWithProviders(<AdminUsersPage />);
     expect(await screen.findByText(/alex@example.com/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /user actions for alex@example.com/i }));
-    await user.click(screen.getByRole('menuitem', { name: /disable/i }));
+    expect(screen.getByRole('menuitem', { name: /manage access/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /resend invitation/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /view activity/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: /deactivate user/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/users/usr_1',
         expect.objectContaining({
           credentials: 'include',
           method: 'PATCH',
-        }),
-      );
-    });
-
-    await user.click(screen.getByRole('button', { name: /user actions for alex@example.com/i }));
-    await user.click(screen.getByRole('menuitem', { name: /grant root/i }));
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/admin/users/usr_1/root',
-        expect.objectContaining({
-          credentials: 'include',
-          method: 'POST',
         }),
       );
     });

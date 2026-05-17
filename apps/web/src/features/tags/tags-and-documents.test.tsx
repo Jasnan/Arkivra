@@ -78,6 +78,7 @@ describe('tags and documents pages', () => {
 
   it('creates, updates, and deletes tags', async () => {
     const user = userEvent.setup();
+    let tagDeleted = false;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -99,18 +100,20 @@ describe('tags and documents pages', () => {
 
       if (url === '/api/tags') {
         return jsonResponse({
-          tags: [
-            {
-              id: 'tag_1',
-              vaultId: 'vlt_1',
-              vaultName: 'Personal',
-              name: 'Invoices',
-              color: '#2563eb',
-              description: 'Monthly billing documents',
-              documentsCount: 2,
-              createdAt: '2026-04-10T10:00:00.000Z',
-            },
-          ],
+          tags: tagDeleted
+            ? []
+            : [
+                {
+                  id: 'tag_1',
+                  vaultId: 'vlt_1',
+                  vaultName: 'Personal',
+                  name: 'Invoices',
+                  color: '#2563eb',
+                  description: 'Monthly billing documents',
+                  documentsCount: 2,
+                  createdAt: '2026-04-10T10:00:00.000Z',
+                },
+              ],
         });
       }
 
@@ -128,6 +131,7 @@ describe('tags and documents pages', () => {
       }
 
       if (url.endsWith('/api/tags/tag_1') && init?.method === 'DELETE') {
+        tagDeleted = true;
         return new Response(null, { status: 204 });
       }
 
@@ -192,6 +196,15 @@ describe('tags and documents pages', () => {
         }),
       ),
     );
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /delete “invoices”\?/i })).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('Invoices')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /create tag/i }));
+    expect(screen.getByRole('dialog', { name: /create tag/i })).toBeInTheDocument();
   });
 
   it('filters tags on the management page', async () => {

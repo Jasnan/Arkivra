@@ -1154,7 +1154,24 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+const closedMoveDialogTarget: BrowserItem = {
+  type: 'folder',
+  folder: {
+    id: '__closed_move_dialog__',
+    vaultId: '',
+    parentId: null,
+    name: 'item',
+    createdBy: '',
+    isDeleted: false,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: '',
+    updatedAt: '',
+  },
+};
+
 export function RenameItemDialog({
+  open,
   target,
   value,
   isPending,
@@ -1162,6 +1179,7 @@ export function RenameItemDialog({
   onClose,
   onSubmit,
 }: {
+  open: boolean;
   target: ItemDialogTarget;
   value: string;
   isPending: boolean;
@@ -1169,18 +1187,16 @@ export function RenameItemDialog({
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  if (target === null) {
-    return null;
-  }
+  const targetType = target?.type ?? 'item';
 
   return (
-    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
+    <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
           <ChakraDialog.Content>
             <ChakraDialog.Header>
-              <ChakraDialog.Title>{`Rename ${target.type}`}</ChakraDialog.Title>
+              <ChakraDialog.Title>{`Rename ${targetType}`}</ChakraDialog.Title>
               <ChakraDialog.CloseTrigger asChild>
                 <CloseButton size="sm" />
               </ChakraDialog.CloseTrigger>
@@ -1217,6 +1233,7 @@ export function RenameItemDialog({
 }
 
 export function MoveItemDialog({
+  open,
   target,
   value,
   destinations,
@@ -1226,14 +1243,12 @@ export function MoveItemDialog({
   onClose,
   onSubmit,
 }: MoveItemDialogProps) {
-  if (target === null) {
-    return null;
-  }
+  const dialogTarget = target ?? closedMoveDialogTarget;
 
   return (
     <OpenMoveItemDialog
-      key={getBrowserItemKey(target)}
-      target={target}
+      open={open}
+      target={dialogTarget}
       value={value}
       destinations={destinations}
       isPending={isPending}
@@ -1246,6 +1261,7 @@ export function MoveItemDialog({
 }
 
 interface MoveItemDialogProps {
+  open: boolean;
   target: ItemDialogTarget;
   value: string | null;
   destinations: MoveDestination[];
@@ -1257,10 +1273,12 @@ interface MoveItemDialogProps {
 }
 
 interface OpenMoveItemDialogProps extends Omit<MoveItemDialogProps, 'target'> {
+  open: boolean;
   target: BrowserItem;
 }
 
 function OpenMoveItemDialog({
+  open,
   target,
   value,
   destinations,
@@ -1271,6 +1289,11 @@ function OpenMoveItemDialog({
   onSubmit,
 }: OpenMoveItemDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const targetKey = getBrowserItemKey(target);
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [targetKey]);
 
   const filteredDestinations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
@@ -1290,7 +1313,7 @@ function OpenMoveItemDialog({
   const canSubmitMove = !isLoading && !isPending && selectedDestination !== null && value === selectedDestination.id && value !== currentDestinationId;
 
   return (
-    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -1462,20 +1485,25 @@ function OpenMoveItemDialog({
 }
 
 export function ItemInfoDialog({
+  open,
   target,
   folderPath,
   onClose,
 }: {
+  open: boolean;
   target: InfoDialogTarget;
   folderPath: string;
   onClose: () => void;
 }) {
-  if (target === null) {
-    return null;
-  }
+  const titleTarget: BrowserContextItem = target ?? {
+    type: 'background',
+    vaultId: '',
+    folderId: null,
+    name: 'Current folder',
+  };
 
   return (
-    <ChakraDialog.Root open onOpenChange={(event) => { if (!event.open) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
+    <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -1488,23 +1516,23 @@ export function ItemInfoDialog({
             </ChakraDialog.Header>
             <ChakraDialog.Body>
               <Stack gap="3">
-                <InfoRow label="Name" value={getItemName(target)} />
-                <InfoRow label="Type" value={getItemKindLabel(target)} />
-                {target.type !== 'root' && target.type !== 'background' ? <InfoRow label="Location" value={folderPath} /> : null}
-                {target.type === 'document' ? (
+                <InfoRow label="Name" value={getItemName(titleTarget)} />
+                <InfoRow label="Type" value={getItemKindLabel(titleTarget)} />
+                {titleTarget.type !== 'root' && titleTarget.type !== 'background' ? <InfoRow label="Location" value={folderPath} /> : null}
+                {titleTarget.type === 'document' ? (
                   <>
-                    <InfoRow label="Size" value={formatBytes(target.document.originalSize)} />
-                    <InfoRow label="Original file" value={target.document.originalName} />
-                    <InfoRow label="MIME type" value={target.document.mimeType} />
+                    <InfoRow label="Size" value={formatBytes(titleTarget.document.originalSize)} />
+                    <InfoRow label="Original file" value={titleTarget.document.originalName} />
+                    <InfoRow label="MIME type" value={titleTarget.document.mimeType} />
                   </>
                 ) : null}
-                {target.type === 'folder' || target.type === 'document' ? (
+                {titleTarget.type === 'folder' || titleTarget.type === 'document' ? (
                   <>
-                    <InfoRow label="Created" value={formatDateOnly(target.type === 'folder' ? target.folder.createdAt : target.document.createdAt)} />
-                    <InfoRow label="Updated" value={formatDateOnly(target.type === 'folder' ? target.folder.updatedAt : target.document.updatedAt)} />
+                    <InfoRow label="Created" value={formatDateOnly(titleTarget.type === 'folder' ? titleTarget.folder.createdAt : titleTarget.document.createdAt)} />
+                    <InfoRow label="Updated" value={formatDateOnly(titleTarget.type === 'folder' ? titleTarget.folder.updatedAt : titleTarget.document.updatedAt)} />
                   </>
                 ) : null}
-                <InfoRow label={target.type === 'root' ? 'Vault ID' : 'ID'} value={getItemId(target)} />
+                <InfoRow label={titleTarget.type === 'root' ? 'Vault ID' : 'ID'} value={getItemId(titleTarget)} />
               </Stack>
             </ChakraDialog.Body>
             <ChakraDialog.Footer>

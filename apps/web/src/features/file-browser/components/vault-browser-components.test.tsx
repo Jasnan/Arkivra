@@ -1,7 +1,8 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { BrowserItemList, MoveItemDialog } from './vault-browser-components';
+import { BrowserItemList, MoveItemDialog, RenameItemDialog } from './vault-browser-components';
 import type { BrowserItem, MoveDestination } from './vault-browser.types';
 import { renderWithProviders } from '@/test/utils';
 
@@ -46,6 +47,52 @@ const destinations: MoveDestination[] = [
   { id: 'fld_archive', name: 'Archive', label: 'Archive', depth: 1 },
 ];
 
+function ControlledRenameDialogHarness({ onClose }: { onClose: () => void }) {
+  const [target, setTarget] = useState<BrowserItem | null>(folderTarget);
+
+  return (
+    <>
+      <button type="button">Outside action</button>
+      <RenameItemDialog
+        open={target !== null}
+        target={target}
+        value={target === null ? '' : 'Projects'}
+        isPending={false}
+        onValueChange={vi.fn()}
+        onClose={() => {
+          onClose();
+          setTarget(null);
+        }}
+        onSubmit={vi.fn()}
+      />
+    </>
+  );
+}
+
+function ControlledMoveDialogHarness({ onClose }: { onClose: () => void }) {
+  const [target, setTarget] = useState<BrowserItem | null>(documentTarget);
+
+  return (
+    <>
+      <button type="button">Outside action</button>
+      <MoveItemDialog
+        open={target !== null}
+        target={target}
+        value={null}
+        destinations={destinations}
+        isPending={false}
+        isLoading={false}
+        onValueChange={vi.fn()}
+        onClose={() => {
+          onClose();
+          setTarget(null);
+        }}
+        onSubmit={vi.fn()}
+      />
+    </>
+  );
+}
+
 describe('move item dialog', () => {
   it('filters folder destinations and selects a matching folder', async () => {
     const user = userEvent.setup();
@@ -53,6 +100,7 @@ describe('move item dialog', () => {
 
     await renderWithProviders(
       <MoveItemDialog
+        open
         target={documentTarget}
         value={null}
         destinations={destinations}
@@ -78,6 +126,36 @@ describe('move item dialog', () => {
     await user.click(invoiceDestination);
 
     expect(onValueChange).toHaveBeenCalledWith('fld_invoices');
+  });
+
+  it('dismisses rename through controlled dialog state without blocking later clicks', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    await renderWithProviders(<ControlledRenameDialogHarness onClose={onClose} />);
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onClose).toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /rename folder/i })).not.toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /outside action/i }));
+  });
+
+  it('dismisses move through controlled dialog state without blocking later clicks', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    await renderWithProviders(<ControlledMoveDialogHarness onClose={onClose} />);
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onClose).toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /move budget\.pdf/i })).not.toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /outside action/i }));
   });
 
   it('marks selected list rows and exposes folder drop interactions', async () => {

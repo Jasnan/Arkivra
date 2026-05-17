@@ -40,6 +40,10 @@ type VaultContextMenuState = {
   y: number;
 } | null;
 
+function isRequestResponse(value: unknown): value is { request: { id: string } } {
+  return typeof value === 'object' && value !== null && 'request' in value;
+}
+
 interface VaultAction {
   key: string;
   label: string;
@@ -188,7 +192,17 @@ export function VaultsPage() {
 
   const createMutation = useMutation({
     mutationFn: createVault,
-    onSuccess: async ({ vault }) => {
+    onSuccess: async (result) => {
+      if (isRequestResponse(result)) {
+        setIsCreateModalOpen(false);
+        setName('');
+        setDescription('');
+        restoreCreateButtonFocus();
+        toast.success('Vault creation request queued for root approval.');
+        return;
+      }
+
+      const { vault } = result;
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
       setIsCreateModalOpen(false);
       setName('');
@@ -234,13 +248,6 @@ export function VaultsPage() {
 
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!canCreateVault) {
-      toast.error(
-        'A global admin must grant vault creation before this account can create a workspace.',
-      );
-      return;
-    }
 
     const normalizedName = name.trim();
     if (!normalizedName) {
@@ -315,7 +322,7 @@ export function VaultsPage() {
         </HStack>
       </Flex>
 
-      {!isInWorkspaceShell && canCreateVault ? (
+      {!isInWorkspaceShell ? (
         <Box px={{ base: '4', lg: '6' }} pt={{ base: '4', lg: '6' }} pb="4">
           <Flex justify="flex-start">
             <CreateButton ref={createButtonRef} onClick={openCreateModal}>
@@ -344,7 +351,7 @@ export function VaultsPage() {
             <Text maxW="sm" fontSize="sm" color="fg.muted">
               {meQuery.data?.canCreateVault
                 ? 'No vaults yet. Create your first vault to start storing documents.'
-                : 'No vaults available yet. A global admin must grant vault creation before you can open a new workspace.'}
+                : 'No vaults available yet. Request a vault and a root can approve it.'}
             </Text>
           </Flex>
         ) : vaultsView === 'grid' ? (
@@ -562,7 +569,7 @@ export function VaultsPage() {
 
                   {!canCreateVault ? (
                     <Text fontSize="sm" color="fg.muted">
-                      Vault creation is currently disabled for this account.
+                      Vault creation will be queued for root approval.
                     </Text>
                   ) : null}
                 </form>
@@ -574,7 +581,7 @@ export function VaultsPage() {
                   </Button>
                 </ChakraDialog.ActionTrigger>
                 <CreateButton type="button" disabled={createMutation.isPending} onClick={() => { (document.getElementById('create-vault-form') as HTMLFormElement)?.requestSubmit(); }}>
-                  {createMutation.isPending ? 'Creating...' : 'Create vault'}
+                  {createMutation.isPending ? 'Submitting...' : canCreateVault ? 'Create vault' : 'Request vault'}
                 </CreateButton>
               </ChakraDialog.Footer>
             </ChakraDialog.Content>

@@ -8,6 +8,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import type { MeResponse } from '@/features/me/me.types';
+import { acceptEmailInvitation } from '@/features/invitations/invitations.api';
 import { authClient } from '@/lib/auth-client';
 import {
   KeyValueRows,
@@ -63,11 +64,12 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: sessionData, isPending: sessionPending } = authClient.useSession();
   const meQuery = useMeQuery();
-  const isGlobalAdmin = meQuery.data?.isGlobalAdmin === true;
+  const isRoot = meQuery.data?.isRoot === true;
   const isEmailVerified = sessionData?.user.emailVerified === true;
   const accountCreatedAt = (sessionData?.user as SessionUserMetadata | undefined)?.createdAt;
 
   const [profileDraft, setProfileDraft] = useState<{ name: string } | null>(null);
+  const [invitationId, setInvitationId] = useState('');
   const profileName = profileDraft?.name ?? sessionData?.user.name ?? '';
   const profileEmail = sessionData?.user.email ?? '';
 
@@ -90,6 +92,18 @@ export function SettingsPage() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not update your profile.');
+    },
+  });
+
+  const acceptInvitationMutation = useMutation({
+    mutationFn: acceptEmailInvitation,
+    onSuccess: async () => {
+      toast.success('Invitation accepted.');
+      setInvitationId('');
+      await queryClient.invalidateQueries({ queryKey: meQueryKeys.all });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not accept invitation.');
     },
   });
 
@@ -150,7 +164,8 @@ export function SettingsPage() {
           rows={[
             { label: 'Signed in as', value: profileEmail || 'Unknown' },
             { label: 'Account type', value: getAccountTypeLabel(meQuery.data?.authMethods) },
-            { label: 'Role', value: isGlobalAdmin ? 'Admin access' : 'Member access' },
+            { label: 'System role', value: isRoot ? 'Root' : 'Member' },
+            { label: 'Vault creation', value: meQuery.data?.canCreateVault ? 'Allowed' : 'Requires root approval' },
             {
               label: 'Email verification',
               value: (
@@ -162,6 +177,34 @@ export function SettingsPage() {
             { label: 'Account created', value: formatDateTime(accountCreatedAt) },
           ]}
         />
+      </SettingsSection>
+
+      <SettingsSection title="Invitations" description="Accept a pending email invitation for this account.">
+        <chakra.form
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            acceptInvitationMutation.mutate({
+              invitationId: invitationId.trim() || undefined,
+              email: profileEmail || undefined,
+            });
+          }}
+        >
+          <Grid gap="4" templateColumns={{ base: '1fr', lg: 'minmax(0, 1fr) auto' }} alignItems="end">
+            <Field>
+              <FieldLabel htmlFor="settings-invitation-token">Invitation token</FieldLabel>
+              <Input
+                id="settings-invitation-token"
+                mt="2"
+                value={invitationId}
+                onChange={(event) => setInvitationId(event.target.value)}
+                placeholder="invite_..."
+              />
+            </Field>
+            <Button type="submit" disabled={acceptInvitationMutation.isPending}>
+              {acceptInvitationMutation.isPending ? 'Accepting...' : 'Accept invitation'}
+            </Button>
+          </Grid>
+        </chakra.form>
       </SettingsSection>
     </SettingsPageFrame>
   );

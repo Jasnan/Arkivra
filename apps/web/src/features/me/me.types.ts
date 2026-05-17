@@ -1,7 +1,9 @@
 export interface MeResponse {
   userId: string;
   sessionId: string;
-  isGlobalAdmin: boolean;
+  systemRole: 'root' | 'member' | null;
+  systemCapabilities: SystemCapability[];
+  isRoot: boolean;
   canCreateVault: boolean;
   authMethods: {
     hasPassword: boolean;
@@ -14,3 +16,5 @@ export interface MeResponse {
     backupCodesUpdatedAt: string | null;
   };
 }
+
+export type SystemCapability = 'system.create_vaults';

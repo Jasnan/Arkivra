@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
+import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { streamChatMessage } from '../chat.api';
 import type { ChatResponseMode } from '../chat.api';
 import {
@@ -65,6 +66,8 @@ export function ChatWorkspace({
   const queryClient = useQueryClient();
   const conversationsQuery = useChatConversationsQuery(scope);
   const modelOptionsQuery = useChatModelOptionsQuery(scope);
+  const vaultQuery = useVaultQuery({ vaultId: vaultId ?? '' });
+  const vaultsQuery = useVaultsQuery();
   const createConversation = useCreateChatConversationMutation();
   const deleteConversation = useDeleteChatConversationMutation();
   const [selectedChatId, setSelectedChatId] = useState('');
@@ -82,6 +85,19 @@ export function ChatWorkspace({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = isAssistantResponsePending || streamStatus !== null;
+  const vaultAiAccessLevel = vaultId ? vaultQuery.data?.vault.aiAccessLevel ?? 'none' : 'none';
+  const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some((vault) => vault.aiAccessLevel === 'full');
+  const canUseChat =
+    isDocumentChat
+      ? vaultQuery.isLoading || vaultAiAccessLevel === 'document_chat' || vaultAiAccessLevel === 'full'
+      : isGlobalChat
+        ? vaultsQuery.isLoading || hasFullAiVault
+        : vaultQuery.isLoading || vaultAiAccessLevel === 'full';
+  const aiAccessMessage = isDocumentChat
+    ? 'Document chat requires document chat or full AI access on this vault.'
+    : isGlobalChat
+      ? 'Global chat requires full AI access on at least one vault.'
+      : 'Vault chat requires full AI access on this vault.';
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation
     ? ''
@@ -136,7 +152,7 @@ export function ChatWorkspace({
         scope: isDocumentChat ? 'document' : isGlobalChat ? 'global' : 'vault',
         vaultId: vaultId ?? null,
         documentId: documentId ?? null,
-        createdBy: null,
+        userId: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -237,7 +253,7 @@ export function ChatWorkspace({
       vaultId: vaultId ?? null,
       documentId: documentId ?? null,
       scope: isDocumentChat ? 'document' : isGlobalChat ? 'global' : 'vault',
-      createdBy: null,
+      userId: null,
       role: 'user',
       content,
       metadata: resolvedIntent ? { intent: resolvedIntent } : null,
@@ -398,6 +414,23 @@ export function ChatWorkspace({
             >
               <AlertCircle size={16} />
               {streamError}
+            </Flex>
+          ) : null}
+          {!canUseChat ? (
+            <Flex
+              align="center"
+              gap="2"
+              borderBottomWidth="1px"
+              borderColor="border"
+              bg="bg.warning"
+              px="4"
+              py="3"
+              fontSize="sm"
+              color="fg.warning"
+              sm={{ px: '6' }}
+            >
+              <AlertCircle size={16} />
+              {aiAccessMessage} Root status does not grant AI access.
             </Flex>
           ) : null}
 
@@ -567,7 +600,7 @@ export function ChatWorkspace({
         </ScrollArea.Root>
 
         <ChatInputPanel
-          disabled={isStreaming || createConversation.isPending}
+          disabled={!canUseChat || isStreaming || createConversation.isPending}
           placeholder={inputPlaceholder}
           responseMode={responseMode}
           modelOptions={modelOptionsQuery.data?.options.models}

@@ -29,7 +29,7 @@ describe('global search page', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -92,7 +92,7 @@ describe('global search page', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -243,7 +243,7 @@ describe('global search page', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Finance', role: 'owner' },
+            { id: 'vlt_1', name: 'Finance', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -379,7 +379,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -473,7 +473,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -554,7 +554,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -630,7 +630,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
             { id: 'vlt_2', name: 'Puzzle Palace', role: 'editor' },
           ],
         });
@@ -695,7 +695,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
             { id: 'vlt_2', name: 'Puzzle Palace', role: 'editor' },
           ],
         });
@@ -783,7 +783,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -889,7 +889,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -946,7 +946,7 @@ describe('documents library search controls', () => {
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Sherlock', role: 'owner' },
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }

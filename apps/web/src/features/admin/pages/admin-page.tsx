@@ -6,6 +6,7 @@ import { Ban, ShieldCheck, ShieldX, UserCheck, UserX } from 'lucide-react';
 import { toast } from 'sonner';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import {
   CreateButton,
   RestoreArchiveButton,
@@ -20,13 +21,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  approvePermissionRequest,
   createBackup,
+  createRootEmailInvitation,
   getBackupDownloadUrl,
-  grantGlobalAdmin,
-  grantVaultCreator,
+  grantRoot,
+  grantSystemCapability,
+  rejectPermissionRequest,
   restoreBackup,
-  revokeGlobalAdmin,
-  revokeVaultCreator,
+  revokeRoot,
+  revokeSystemCapability,
   updateAdminAiSettings,
   updateAdminUser,
 } from '@/features/admin/admin.api';
@@ -36,8 +40,9 @@ import {
   useAdminBackupsQuery,
   useAdminUsersQuery,
   useAdminVaultsQuery,
+  usePermissionRequestsQuery,
 } from '@/features/admin/admin.queries';
-import type { AdminAiSettings, AdminUser } from '@/features/admin/admin.types';
+import type { AdminAiSettings, AdminUser, PermissionRequest } from '@/features/admin/admin.types';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
@@ -50,7 +55,7 @@ import {
 } from '@/features/settings/components/settings-ui';
 
 type AdminUserStatusFilter = 'all' | 'active' | 'disabled';
-type AdminUserAccessFilter = 'all' | 'global-admin' | 'vault-creator' | 'user';
+type AdminUserAccessFilter = 'all' | 'root' | 'create-vaults' | 'member';
 
 const ADMIN_USERS_GRID_COLUMNS = 'minmax(0, 1.45fr) 8.5rem 8rem 7rem 8rem 8rem 8.5rem 2.75rem';
 
@@ -62,9 +67,9 @@ const userStatusFilterOptions = [
 
 const userAccessFilterOptions = [
   { value: 'all', label: 'All access' },
-  { value: 'global-admin', label: 'Global admins' },
-  { value: 'vault-creator', label: 'Vault creators' },
-  { value: 'user', label: 'Users' },
+  { value: 'root', label: 'Roots' },
+  { value: 'create-vaults', label: 'Can create vaults' },
+  { value: 'member', label: 'Members' },
 ];
 
 function formatCount(value: number | undefined, singular: string, plural = `${singular}s`) {
@@ -73,9 +78,9 @@ function formatCount(value: number | undefined, singular: string, plural = `${si
 }
 
 function getUserAccessLabel(user: AdminUser) {
-  if (user.isGlobalAdmin) return 'Global admin';
-  if (user.canCreateVault) return 'Vault creator';
-  return 'User';
+  if (user.isRoot) return 'Root';
+  if (user.systemCapabilities.includes('system.create_vaults')) return 'Can create vaults';
+  return 'Member';
 }
 
 function getProviderLabel(provider: string) {
@@ -105,9 +110,34 @@ function getAccountTypeLabel(user: AdminUser) {
 }
 
 function getUserAccessFilter(user: AdminUser): AdminUserAccessFilter {
-  if (user.isGlobalAdmin) return 'global-admin';
-  if (user.canCreateVault) return 'vault-creator';
-  return 'user';
+  if (user.isRoot) return 'root';
+  if (user.systemCapabilities.includes('system.create_vaults')) return 'create-vaults';
+  return 'member';
+}
+
+function getPermissionRequestLabel(request: PermissionRequest) {
+  if (request.type === 'vault.create') return 'Create vault';
+  if (request.type === 'vault.delete') return 'Delete vault';
+  if (request.type === 'vault.owner_promote') return 'Promote owner';
+  return 'AI access escalation';
+}
+
+function getPermissionRequestDescription(request: PermissionRequest) {
+  if (request.type === 'vault.create') {
+    const name = typeof request.payload.name === 'string' ? request.payload.name : 'Untitled vault';
+    return `Requested by ${request.requestedBy} for "${name}".`;
+  }
+
+  if (request.type === 'vault.delete') {
+    return `Requested by ${request.requestedBy} for vault ${request.vaultId ?? 'unknown'}.`;
+  }
+
+  if (request.type === 'vault.owner_promote') {
+    return `Requested by ${request.requestedBy} for ${request.targetUserId ?? 'unknown user'}.`;
+  }
+
+  const aiAccessLevel = typeof request.payload.aiAccessLevel === 'string' ? request.payload.aiAccessLevel : 'AI access';
+  return `Requested by ${request.requestedBy} for ${request.targetUserId ?? 'unknown user'}: ${aiAccessLevel}.`;
 }
 
 const emptyAiSettings: AdminAiSettings = {
@@ -131,15 +161,15 @@ function AdminAccessBoundary({
   children: ReactNode;
 }) {
   if (isLoading) {
-    return <Text textStyle="sm">Loading admin context...</Text>;
+    return <Text textStyle="sm">Loading root context...</Text>;
   }
 
   if (!isEnabled) {
     return (
-      <SettingsPageFrame title={title ?? accessTitle} description="Global admin access is required to open this page.">
+      <SettingsPageFrame title={title ?? accessTitle} description="Root access is required to open this page.">
         <Alert variant="destructive">
           <AlertDescription>
-            Global admin access is required to open this page.
+            Root access is required to open this page.
           </AlertDescription>
         </Alert>
       </SettingsPageFrame>
@@ -154,14 +184,43 @@ function AdminAccessBoundary({
 }
 
 export function AdminOverviewPage() {
+  const queryClient = useQueryClient();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isGlobalAdmin === true;
+  const isEnabled = meQuery.data?.isRoot === true;
   const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
   const backupsQuery = useAdminBackupsQuery({ enabled: isEnabled });
   const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
+  const permissionRequestsQuery = usePermissionRequestsQuery({ enabled: isEnabled });
   const backups = backupsQuery.data?.backups ?? [];
   const users = usersQuery.data?.users ?? [];
   const vaults = vaultsQuery.data?.vaults ?? [];
+  const permissionRequests = permissionRequestsQuery.data?.requests ?? [];
+
+  const approveRequestMutation = useMutation({
+    mutationFn: approvePermissionRequest,
+    onSuccess: async () => {
+      toast.success('Request approved.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.permissionRequests('pending') }),
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() }),
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.vaults() }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not approve request.');
+    },
+  });
+
+  const rejectRequestMutation = useMutation({
+    mutationFn: ({ requestId }: { requestId: string }) => rejectPermissionRequest({ requestId }),
+    onSuccess: async () => {
+      toast.success('Request rejected.');
+      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.permissionRequests('pending') });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not reject request.');
+    },
+  });
 
   return (
     <AdminAccessBoundary
@@ -179,6 +238,47 @@ export function AdminOverviewPage() {
         />
       </SettingsSection>
 
+      <SettingsSection title="Approval queue" description="Pending authorization requests requiring root review.">
+        {permissionRequestsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading requests...</Text> : null}
+        {!permissionRequestsQuery.isLoading && permissionRequests.length === 0 ? (
+          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+            No pending requests.
+          </Box>
+        ) : null}
+        {permissionRequests.length > 0 ? (
+          <SettingsRows>
+            {permissionRequests.map((request) => (
+              <SettingsRow
+                key={request.id}
+                label={getPermissionRequestLabel(request)}
+                description={getPermissionRequestDescription(request)}
+                meta={
+                  <HStack gap="2" justify={{ base: 'flex-start', lg: 'flex-end' }} flexWrap="wrap">
+                    <SaveButton
+                      type="button"
+                      size="sm"
+                      disabled={approveRequestMutation.isPending || rejectRequestMutation.isPending}
+                      onClick={() => approveRequestMutation.mutate({ requestId: request.id })}
+                    >
+                      Approve
+                    </SaveButton>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={approveRequestMutation.isPending || rejectRequestMutation.isPending}
+                      onClick={() => rejectRequestMutation.mutate({ requestId: request.id })}
+                    >
+                      Reject
+                    </Button>
+                  </HStack>
+                }
+              />
+            ))}
+          </SettingsRows>
+        ) : null}
+      </SettingsSection>
+
     </AdminAccessBoundary>
   );
 }
@@ -186,7 +286,7 @@ export function AdminOverviewPage() {
 export function AdminBackupsPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isGlobalAdmin === true;
+  const isEnabled = meQuery.data?.isRoot === true;
   const backupsQuery = useAdminBackupsQuery({ enabled: isEnabled });
   const backups = backupsQuery.data?.backups ?? [];
 
@@ -278,12 +378,13 @@ export function AdminBackupsPage() {
 export function AdminUsersPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isGlobalAdmin === true;
+  const isEnabled = meQuery.data?.isRoot === true;
   const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
   const users = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data?.users]);
   const [userSearch, setUserSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdminUserStatusFilter>('all');
   const [accessFilter, setAccessFilter] = useState<AdminUserAccessFilter>('all');
+  const [rootInviteEmail, setRootInviteEmail] = useState('');
   const visibleUsers = useMemo(() => {
     const normalizedSearch = userSearch.trim().toLowerCase();
 
@@ -313,30 +414,31 @@ export function AdminUsersPage() {
     },
   });
 
-  const grantAdminMutation = useMutation({
-    mutationFn: grantGlobalAdmin,
+  const grantRootMutation = useMutation({
+    mutationFn: grantRoot,
     onSuccess: async () => {
-      toast.success('Global admin granted.');
+      toast.success('Root role granted.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not grant admin.');
+      toast.error(error instanceof Error ? error.message : 'Could not grant root role.');
     },
   });
 
-  const revokeAdminMutation = useMutation({
-    mutationFn: revokeGlobalAdmin,
+  const revokeRootMutation = useMutation({
+    mutationFn: revokeRoot,
     onSuccess: async () => {
-      toast.success('Global admin revoked.');
+      toast.success('Root role revoked.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not revoke admin.');
+      toast.error(error instanceof Error ? error.message : 'Could not revoke root role.');
     },
   });
 
-  const grantVaultCreatorMutation = useMutation({
-    mutationFn: grantVaultCreator,
+  const grantCreateVaultsMutation = useMutation({
+    mutationFn: ({ userId }: { userId: string }) =>
+      grantSystemCapability({ userId, capability: 'system.create_vaults' }),
     onSuccess: async () => {
       toast.success('Vault creation granted.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
@@ -346,8 +448,9 @@ export function AdminUsersPage() {
     },
   });
 
-  const revokeVaultCreatorMutation = useMutation({
-    mutationFn: revokeVaultCreator,
+  const revokeCreateVaultsMutation = useMutation({
+    mutationFn: ({ userId }: { userId: string }) =>
+      revokeSystemCapability({ userId, capability: 'system.create_vaults' }),
     onSuccess: async () => {
       toast.success('Vault creation revoked.');
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users() });
@@ -357,16 +460,27 @@ export function AdminUsersPage() {
     },
   });
 
+  const createRootInvitationMutation = useMutation({
+    mutationFn: createRootEmailInvitation,
+    onSuccess: ({ invitation }) => {
+      toast.success(`Root invitation created for ${invitation.email}.`);
+      setRootInviteEmail('');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not create root invitation.');
+    },
+  });
+
   if (meQuery.isLoading) {
     return <Text textStyle="sm">Loading admin context...</Text>;
   }
 
   if (!isEnabled) {
     return (
-      <SettingsPageFrame title="Users management" description="Global admin access is required to open this page.">
+      <SettingsPageFrame title="Users management" description="Root access is required to open this page.">
         <Alert variant="destructive">
           <AlertDescription>
-            Global admin access is required to open this page.
+            Root access is required to open this page.
           </AlertDescription>
         </Alert>
       </SettingsPageFrame>
@@ -375,6 +489,35 @@ export function AdminUsersPage() {
 
   return (
     <Stack as="section" gap="0" h="full" minH="0">
+      <Box borderBottomWidth="1px" borderColor="border.subtle" bg="bg.workspace" px={{ base: '4', lg: '6' }} py="4">
+        <chakra.form
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            const email = rootInviteEmail.trim();
+            if (!email) {
+              toast.error('Email is required.');
+              return;
+            }
+            createRootInvitationMutation.mutate({ email });
+          }}
+        >
+          <Flex align={{ base: 'stretch', md: 'end' }} direction={{ base: 'column', md: 'row' }} gap="3">
+            <Field>
+              <FieldLabel htmlFor="admin-root-invite-email">Root account invitation</FieldLabel>
+              <Input
+                id="admin-root-invite-email"
+                type="email"
+                value={rootInviteEmail}
+                placeholder="person@example.com"
+                onChange={(event) => setRootInviteEmail(event.target.value)}
+              />
+            </Field>
+            <CreateButton type="submit" size="sm" disabled={createRootInvitationMutation.isPending}>
+              {createRootInvitationMutation.isPending ? 'Creating...' : 'Create invitation'}
+            </CreateButton>
+          </Flex>
+        </chakra.form>
+      </Box>
       <Flex
         align={{ base: 'stretch', lg: 'center' }}
         justify="space-between"
@@ -515,27 +658,27 @@ export function AdminUsersPage() {
                         <ActionMenuItemIcon icon={user.disabledAt ? UserCheck : Ban} tone={user.disabledAt ? 'default' : 'destructive'} />
                         {user.disabledAt ? 'Re-enable' : 'Disable'}
                       </DropdownMenuItem>
-                      {user.isGlobalAdmin ? (
+                      {user.isRoot ? (
                         <DropdownMenuItem
-                          disabled={revokeAdminMutation.isPending}
-                          onSelect={() => revokeAdminMutation.mutate({ userId: user.id })}
+                          disabled={revokeRootMutation.isPending}
+                          onSelect={() => revokeRootMutation.mutate({ userId: user.id })}
                         >
                           <ActionMenuItemIcon icon={ShieldX} tone="destructive" />
-                          Revoke admin
+                          Revoke root
                         </DropdownMenuItem>
                       ) : (
                         <DropdownMenuItem
-                          disabled={grantAdminMutation.isPending}
-                          onSelect={() => grantAdminMutation.mutate({ userId: user.id })}
+                          disabled={grantRootMutation.isPending}
+                          onSelect={() => grantRootMutation.mutate({ userId: user.id })}
                         >
                           <ActionMenuItemIcon icon={ShieldCheck} />
-                          Grant admin
+                          Grant root
                         </DropdownMenuItem>
                       )}
-                      {user.canCreateVault && !user.isGlobalAdmin ? (
+                      {user.systemCapabilities.includes('system.create_vaults') ? (
                         <DropdownMenuItem
-                          disabled={revokeVaultCreatorMutation.isPending}
-                          onSelect={() => revokeVaultCreatorMutation.mutate({ userId: user.id })}
+                          disabled={revokeCreateVaultsMutation.isPending}
+                          onSelect={() => revokeCreateVaultsMutation.mutate({ userId: user.id })}
                         >
                           <ActionMenuItemIcon icon={UserX} tone="destructive" />
                           Revoke vault creation
@@ -543,8 +686,8 @@ export function AdminUsersPage() {
                       ) : null}
                       {!user.canCreateVault ? (
                         <DropdownMenuItem
-                          disabled={grantVaultCreatorMutation.isPending}
-                          onSelect={() => grantVaultCreatorMutation.mutate({ userId: user.id })}
+                          disabled={grantCreateVaultsMutation.isPending}
+                          onSelect={() => grantCreateVaultsMutation.mutate({ userId: user.id })}
                         >
                           <ActionMenuItemIcon icon={UserCheck} />
                           Grant vault creation
@@ -564,7 +707,7 @@ export function AdminUsersPage() {
 
 export function AdminVaultsPage() {
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isGlobalAdmin === true;
+  const isEnabled = meQuery.data?.isRoot === true;
   const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
   const vaults = vaultsQuery.data?.vaults ?? [];
 
@@ -575,7 +718,7 @@ export function AdminVaultsPage() {
       isEnabled={isEnabled}
       isLoading={meQuery.isLoading}
     >
-      <SettingsSection title="Ownership ledger" description="Vault-specific settings and permissions remain inside each vault's settings page.">
+      <SettingsSection title="Ownership ledger" description="Vault-specific access remains inside each vault's settings page.">
         {vaultsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading vaults...</Text> : null}
         {!vaultsQuery.isLoading && vaults.length === 0 ? (
           <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
@@ -608,7 +751,7 @@ export function AdminVaultsPage() {
 export function AdminAiSettingsPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isGlobalAdmin === true;
+  const isEnabled = meQuery.data?.isRoot === true;
   const aiSettingsQuery = useAdminAiSettingsQuery({ enabled: isEnabled });
   const [aiDraftOverride, setAiDraftOverride] = useState<Partial<AdminAiSettings>>({});
   const savedAiSettings = aiSettingsQuery.data?.settings ?? emptyAiSettings;

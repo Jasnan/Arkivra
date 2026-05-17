@@ -20,14 +20,16 @@ describe('vault pages', () => {
 
   it('renders vault links for documents and settings', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: false,
           canCreateVault: true,
         });
       }
@@ -35,7 +37,7 @@ describe('vault pages', () => {
       expect(url).toContain('/api/vaults');
       return jsonResponse({
         vaults: [
-          { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner' },
+          { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isRoot: false },
         ],
       });
     }));
@@ -65,14 +67,16 @@ describe('vault pages', () => {
     const setHeaderConfig = vi.fn();
     const setSecondaryContent = vi.fn();
 
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: false,
           canCreateVault: true,
         });
       }
@@ -80,7 +84,7 @@ describe('vault pages', () => {
       if (url === '/api/vaults') {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner' },
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
@@ -108,7 +112,9 @@ describe('vault pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: false,
           canCreateVault: true,
         });
       }
@@ -116,13 +122,13 @@ describe('vault pages', () => {
       if (url === '/api/vaults' && (!init || init.method === undefined)) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner' },
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isRoot: false },
           ],
         });
       }
 
       return jsonResponse({
-        vault: { id: 'vlt_new', name: 'Home Vault', description: 'Documents for home life', fileCount: 0, totalSize: 0, role: 'owner', permissions: [], isGlobalAdmin: false },
+        vault: { id: 'vlt_new', name: 'Home Vault', description: 'Documents for home life', fileCount: 0, totalSize: 0, role: 'owner', aiAccessLevel: 'none', isRoot: false },
       }, 201);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -150,19 +156,21 @@ describe('vault pages', () => {
 
   it('returns focus to the create vault button after dismissing the dialog', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: false,
           canCreateVault: true,
         });
       }
 
-      if (url === '/api/vaults') {
+      if (url === '/api/vaults' && (!init || init.method === undefined)) {
         return jsonResponse({
           vaults: [],
         });
@@ -187,17 +195,39 @@ describe('vault pages', () => {
     });
   });
 
-  it('hides vault creation actions for users without vault creation permission', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  it('queues vault creation requests for users without vault creation capability', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
         return jsonResponse({
           userId: 'usr_member',
           sessionId: 'ses_member',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: [],
+          isRoot: false,
           canCreateVault: false,
         });
+      }
+
+      if (url === '/api/vaults' && init?.method === 'POST') {
+        return jsonResponse({
+          request: {
+            id: 'req_create',
+            type: 'vault.create',
+            status: 'pending',
+            requestedBy: 'usr_member',
+            reviewedBy: null,
+            reviewedAt: null,
+            vaultId: null,
+            targetUserId: null,
+            payload: { name: 'Shared Vault', description: '' },
+            result: null,
+            createdAt: '2026-05-17T10:00:00.000Z',
+            updatedAt: '2026-05-17T10:00:00.000Z',
+          },
+        }, 202);
       }
 
       if (url === '/api/vaults') {
@@ -212,11 +242,20 @@ describe('vault pages', () => {
 
     await renderWithProviders(<VaultsPage />);
 
-    expect(await screen.findByText(/must grant vault creation/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /create vault/i })).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
-      method: 'POST',
-    }));
+    expect(await screen.findByText(/request a vault and a root can approve it/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /create vault/i }));
+    const dialog = await screen.findByRole('dialog', { name: /new vault/i });
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Shared Vault');
+    await user.click(within(dialog).getByRole('button', { name: /request vault/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
+        body: JSON.stringify({ name: 'Shared Vault', description: null }),
+        credentials: 'include',
+        method: 'POST',
+      }));
+    });
+    expect(await screen.findByText(/vault creation request queued/i)).toBeInTheDocument();
   });
 
   it('loads vault settings and invites a member', async () => {
@@ -231,8 +270,8 @@ describe('vault pages', () => {
             name: 'Personal',
             description: 'Household records',
             role: 'owner',
-            permissions: [],
-            isGlobalAdmin: false,
+            aiAccessLevel: 'full',
+            isRoot: false,
           },
         });
       }
@@ -245,7 +284,7 @@ describe('vault pages', () => {
               role: 'owner',
               email: 'owner@example.com',
               name: 'Owner',
-              permissions: [],
+              aiAccessLevel: 'full',
             },
           ],
         });
@@ -255,10 +294,10 @@ describe('vault pages', () => {
         return jsonResponse({
           member: {
             userId: 'usr_new',
-            role: 'member',
+            role: 'viewer',
             email: 'new@example.com',
             name: 'New Member',
-            permissions: ['documents.read'],
+            aiAccessLevel: 'none',
           },
         }, 201);
       }
@@ -267,7 +306,9 @@ describe('vault pages', () => {
         return jsonResponse({
           userId: 'usr_owner',
           sessionId: 'ses_owner',
-          isGlobalAdmin: false,
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: false,
           canCreateVault: true,
         });
       }
@@ -297,10 +338,11 @@ describe('vault pages', () => {
     });
 
     await user.type(screen.getByPlaceholderText(/usr_/i), 'usr_new');
-    await user.click(screen.getByRole('button', { name: /invite member/i }));
+    await user.click(screen.getByRole('button', { name: /add member/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/members', expect.objectContaining({
+        body: JSON.stringify({ userId: 'usr_new', role: 'viewer', aiAccessLevel: 'none' }),
         credentials: 'include',
         method: 'POST',
       }));

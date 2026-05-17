@@ -18,7 +18,7 @@ describe('chat api helpers', () => {
       conversation: {
         id: 'cht_1',
         vaultId: 'vlt_1',
-        createdBy: 'usr_1',
+        userId: 'usr_1',
         title: 'Retention',
         createdAt: '2026-04-30T10:00:00.000Z',
         updatedAt: '2026-04-30T10:00:00.000Z',

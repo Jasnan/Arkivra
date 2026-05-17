@@ -29,41 +29,107 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import {
   addVaultMember,
+  createVaultEmailInvitation,
   deleteVault,
   removeVaultMember,
   renameVault,
   transferVaultOwnership,
   updateVaultMember,
 } from '@/features/vaults/vaults.api';
-import { PermissionCheckboxGrid } from '@/features/vaults/components/permission-checkbox-grid';
 import {
   useVaultMembersQuery,
   useVaultQuery,
   vaultQueryKeys,
 } from '@/features/vaults/vaults.queries';
-import { VAULT_MEMBER_PERMISSIONS } from '@/features/vaults/vaults.types';
-import type { VaultMemberPermission } from '@/features/vaults/vaults.types';
+import type { AiAccessLevel, VaultMember, VaultRole } from '@/features/vaults/vaults.types';
 
-const defaultInvitePermissions: VaultMemberPermission[] = [
-  'documents.read',
-  'documents.create',
-  'documents.update',
-  'documents.delete',
-  'documents.download',
-  'tags.manage',
+const roleOptions: Array<{ value: VaultRole; label: string }> = [
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'owner', label: 'Owner' },
 ];
 
-function collectPermissions(form: HTMLFormElement) {
-  const data = new FormData(form);
-  const permissions = data
-    .getAll('permissions')
-    .filter(
-      (value): value is VaultMemberPermission =>
-        typeof value === 'string' &&
-        VAULT_MEMBER_PERMISSIONS.includes(value as VaultMemberPermission),
-    );
+const aiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
+  { value: 'none', label: 'No AI access' },
+  { value: 'document_chat', label: 'Document chat' },
+  { value: 'full', label: 'Full AI access' },
+];
 
-  return permissions;
+function formatVaultRole(role: VaultRole | null | undefined, isRoot = false) {
+  if (role === 'owner') return 'Owner';
+  if (role === 'editor') return 'Editor';
+  if (role === 'viewer') return 'Viewer';
+  return isRoot ? 'Root governance' : 'No membership';
+}
+
+function formatAiAccess(level: AiAccessLevel | null | undefined) {
+  if (level === 'full') return 'Full AI access';
+  if (level === 'document_chat') return 'Document chat';
+  return 'No AI access';
+}
+
+function isRequestResponse<T extends object>(value: T | { request: unknown }): value is { request: unknown } {
+  return 'request' in value;
+}
+
+function MemberAccessFields({
+  role,
+  aiAccessLevel,
+  disabled,
+  idPrefix,
+  onRoleChange,
+  onAiAccessLevelChange,
+}: {
+  idPrefix: string;
+  role: VaultRole;
+  aiAccessLevel: AiAccessLevel;
+  disabled?: boolean;
+  onRoleChange: (role: VaultRole) => void;
+  onAiAccessLevelChange: (level: AiAccessLevel) => void;
+}) {
+  return (
+    <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}>
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-role`}>Vault role</FieldLabel>
+        <Select
+          value={role}
+          onValueChange={(value) => onRoleChange(value as VaultRole)}
+          disabled={disabled}
+        >
+          <SelectTrigger id={`${idPrefix}-role`} className={vaultInputClassName}>
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            {roleOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}-ai-access`}>AI access</FieldLabel>
+        <Select
+          value={aiAccessLevel}
+          onValueChange={(value) => onAiAccessLevelChange(value as AiAccessLevel)}
+          disabled={disabled}
+        >
+          <SelectTrigger id={`${idPrefix}-ai-access`} className={vaultInputClassName}>
+            <SelectValue placeholder="Select AI access" />
+          </SelectTrigger>
+          <SelectContent>
+            {aiAccessOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+    </Grid>
+  );
 }
 
 export function VaultSettingsPage() {
@@ -84,8 +150,12 @@ export function VaultSettingsPage() {
     description: string;
   } | null>(null);
   const [inviteUserId, setInviteUserId] = useState('');
-  const [invitePermissions, setInvitePermissions] =
-    useState<VaultMemberPermission[]>(defaultInvitePermissions);
+  const [inviteRole, setInviteRole] = useState<VaultRole>('viewer');
+  const [inviteAiAccessLevel, setInviteAiAccessLevel] = useState<AiAccessLevel>('none');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [emailInviteRole, setEmailInviteRole] = useState<VaultRole>('viewer');
+  const [emailInviteAiAccessLevel, setEmailInviteAiAccessLevel] = useState<AiAccessLevel>('none');
+  const [memberDrafts, setMemberDrafts] = useState<Record<string, { role: VaultRole; aiAccessLevel: AiAccessLevel }>>({});
   const [transferTargetUserId, setTransferTargetUserId] = useState('');
   const draftMatchesVault = detailsDraft?.vaultId === vaultId;
   const name = draftMatchesVault ? detailsDraft.name : vaultQuery.data?.vault.name ?? '';
@@ -94,14 +164,14 @@ export function VaultSettingsPage() {
     : vaultQuery.data?.vault.description ?? '';
 
   const ownerCandidates = useMemo(
-    () => members.filter((member) => member.role === 'member'),
+    () => members.filter((member) => member.role !== 'owner'),
     [members],
   );
 
   const canManageMembers =
     vaultQuery.data?.vault.role === 'owner' ||
-    vaultQuery.data?.vault.isGlobalAdmin ||
-    (vaultQuery.data?.vault.permissions ?? []).includes('members.manage');
+    vaultQuery.data?.vault.isRoot === true;
+  const isRoot = vaultQuery.data?.vault.isRoot === true;
 
   const renameMutation = useMutation({
     mutationFn: renameVault,
@@ -117,7 +187,13 @@ export function VaultSettingsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteVault,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      if (result && isRequestResponse(result)) {
+        toast.success('Vault deletion request queued for root approval.');
+        await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) });
+        return;
+      }
+
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
       navigate({ to: ROUTES.vaults });
     },
@@ -128,9 +204,15 @@ export function VaultSettingsPage() {
 
   const inviteMutation = useMutation({
     mutationFn: addVaultMember,
-    onSuccess: async () => {
-      toast.success('Member added to vault.');
+    onSuccess: async (result) => {
+      toast.success(
+        isRequestResponse(result)
+          ? 'Member access request queued for root approval.'
+          : 'Member added to vault.',
+      );
       setInviteUserId('');
+      setInviteRole('viewer');
+      setInviteAiAccessLevel('none');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
     },
     onError: (error) => {
@@ -140,8 +222,12 @@ export function VaultSettingsPage() {
 
   const updateMemberMutation = useMutation({
     mutationFn: updateVaultMember,
-    onSuccess: async () => {
-      toast.success('Member permissions updated.');
+    onSuccess: async (result) => {
+      toast.success(
+        isRequestResponse(result)
+          ? 'Member access request queued for root approval.'
+          : 'Member access updated.',
+      );
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
     },
     onError: (error) => {
@@ -162,8 +248,12 @@ export function VaultSettingsPage() {
 
   const transferMutation = useMutation({
     mutationFn: transferVaultOwnership,
-    onSuccess: async () => {
-      toast.success('Ownership transferred.');
+    onSuccess: async (result) => {
+      toast.success(
+        isRequestResponse(result)
+          ? 'Owner promotion request queued for root approval.'
+          : 'Ownership transferred.',
+      );
       setTransferTargetUserId('');
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) });
@@ -171,6 +261,19 @@ export function VaultSettingsPage() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not transfer ownership.');
+    },
+  });
+
+  const emailInviteMutation = useMutation({
+    mutationFn: createVaultEmailInvitation,
+    onSuccess: ({ invitation }) => {
+      toast.success(`Invitation created for ${invitation.email}.`);
+      setInviteEmail('');
+      setEmailInviteRole('viewer');
+      setEmailInviteAiAccessLevel('none');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not create invitation.');
     },
   });
 
@@ -211,9 +314,46 @@ export function VaultSettingsPage() {
     inviteMutation.mutate({
       vaultId,
       userId,
-      role: 'member',
-      permissions: invitePermissions,
+      role: inviteRole,
+      aiAccessLevel: inviteAiAccessLevel,
     });
+  }
+
+  function handleEmailInvite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const email = inviteEmail.trim();
+    if (!email) {
+      toast.error('Email is required.');
+      return;
+    }
+
+    emailInviteMutation.mutate({
+      vaultId,
+      email,
+      role: emailInviteRole,
+      aiAccessLevel: emailInviteAiAccessLevel,
+    });
+  }
+
+  function getMemberDraft(member: VaultMember) {
+    return memberDrafts[member.userId] ?? {
+      role: member.role,
+      aiAccessLevel: member.aiAccessLevel,
+    };
+  }
+
+  function updateMemberDraft(member: VaultMember, draft: Partial<{ role: VaultRole; aiAccessLevel: AiAccessLevel }>) {
+    setMemberDrafts((current) => ({
+      ...current,
+      [member.userId]: {
+        ...(current[member.userId] ?? {
+          role: member.role,
+          aiAccessLevel: member.aiAccessLevel,
+        }),
+        ...draft,
+      },
+    }));
   }
 
   return (
@@ -231,8 +371,8 @@ export function VaultSettingsPage() {
       <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }}>
         <StatCard
           label="Your role"
-          value={vault.role ?? 'global_admin'}
-          meta="Current privilege level inside this vault."
+          value={formatVaultRole(vault.role, vault.isRoot)}
+          meta={vault.isRoot && vault.role === null ? 'Root governance access. AI access still requires explicit membership.' : 'Current vault membership role.'}
           icon={<ShieldCheck size={20} />}
         />
         <StatCard
@@ -242,12 +382,14 @@ export function VaultSettingsPage() {
           icon={<Users size={20} />}
         />
         <StatCard
-          label="Vault control"
-          value={canManageMembers ? 'Managed' : 'Limited'}
+          label="AI access"
+          value={formatAiAccess(vault.aiAccessLevel)}
           meta={
-            canManageMembers
-              ? 'You can invite and update members here.'
-              : 'Your current permissions do not allow member management.'
+            vault.aiAccessLevel === 'full'
+              ? 'Semantic search and vault chat are available.'
+              : vault.aiAccessLevel === 'document_chat'
+                ? 'Document chat is available.'
+                : 'Root status does not grant AI access.'
           }
           icon={<Vault size={20} />}
         />
@@ -314,7 +456,7 @@ export function VaultSettingsPage() {
                 Access onboarding
               </Text>
               <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
-                Invite by user id and assign initial permissions.
+                Add an existing user with a vault role and separate AI access.
               </Text>
             </Box>
             <chakra.form
@@ -336,23 +478,67 @@ export function VaultSettingsPage() {
                 <FieldDescription>Invite an existing Arkivra user by their user id.</FieldDescription>
               </Field>
 
-              <PermissionCheckboxGrid
-                idPrefix="vault-invite-permission"
-                selectedPermissions={invitePermissions}
-                onSelectedPermissionsChange={setInvitePermissions}
+              <MemberAccessFields
+                idPrefix="vault-invite"
+                role={inviteRole}
+                aiAccessLevel={inviteAiAccessLevel}
+                onRoleChange={setInviteRole}
+                onAiAccessLevelChange={setInviteAiAccessLevel}
                 disabled={!canManageMembers}
-                cardBg="bg.subtle"
               />
 
               <Button type="submit" disabled={!canManageMembers || inviteMutation.isPending}>
-                {inviteMutation.isPending ? 'Inviting...' : 'Invite member'}
+                {inviteMutation.isPending ? 'Adding...' : 'Add member'}
               </Button>
             </chakra.form>
           </SurfacePanel>
 
+          {isRoot ? (
+            <SurfacePanel display="flex" flexDirection="column" gap="5">
+              <Box>
+                <Text textStyle="label">Email Invitation</Text>
+                <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
+                  Invite by email
+                </Text>
+                <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
+                  Create an invitation for someone who may not have an Arkivra account yet.
+                </Text>
+              </Box>
+              <chakra.form
+                display="flex"
+                flexDirection="column"
+                gap="4"
+                onSubmit={handleEmailInvite}
+              >
+                <Field>
+                  <FieldLabel htmlFor="vault-invite-email">Email</FieldLabel>
+                  <Input
+                    id="vault-invite-email"
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(event) => setInviteEmail(event.target.value)}
+                    placeholder="person@example.com"
+                  />
+                </Field>
+
+                <MemberAccessFields
+                  idPrefix="vault-email-invite"
+                  role={emailInviteRole}
+                  aiAccessLevel={emailInviteAiAccessLevel}
+                  onRoleChange={setEmailInviteRole}
+                  onAiAccessLevelChange={setEmailInviteAiAccessLevel}
+                />
+
+                <Button type="submit" disabled={emailInviteMutation.isPending}>
+                  {emailInviteMutation.isPending ? 'Creating...' : 'Create email invitation'}
+                </Button>
+              </chakra.form>
+            </SurfacePanel>
+          ) : null}
+
           <SurfacePanel display="flex" flexDirection="column" gap="5">
             <Box>
-              <Text textStyle="label">Members & Permissions</Text>
+              <Text textStyle="label">Members & Access</Text>
               <Text fontSize="xl" fontWeight="bold" color="fg" mt="2">
                 Access roster
               </Text>
@@ -366,73 +552,73 @@ export function VaultSettingsPage() {
             ) : null}
 
             <Stack gap="4">
-              {members.map((member) => (
-                <Box key={member.userId} rounded="lg" bg="bg.subtle" p="5">
-                  <Flex
-                    direction={{ base: 'column', sm: 'row' }}
-                    align={{ base: 'stretch', sm: 'center' }}
-                    justify={{ base: 'flex-start', sm: 'space-between' }}
-                    gap="3"
-                    mb="4"
-                  >
-                    <Box>
-                      <Text fontSize="base" fontWeight="semibold" color="fg">
-                        {member.name ?? member.email}
-                      </Text>
-                      <Text mt="2" fontSize="sm" color="fg.muted">
-                        {member.userId} • {member.role}
-                      </Text>
-                    </Box>
-                    {member.role === 'member' ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!canManageMembers || removeMemberMutation.isPending}
-                        onClick={() =>
-                          removeMemberMutation.mutate({ vaultId, memberUserId: member.userId })
-                        }
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                  </Flex>
+              {members.map((member) => {
+                const draft = getMemberDraft(member);
 
-                  {member.role === 'member' ? (
+                return (
+                  <Box key={member.userId} rounded="lg" bg="bg.subtle" p="5">
+                    <Flex
+                      direction={{ base: 'column', sm: 'row' }}
+                      align={{ base: 'stretch', sm: 'center' }}
+                      justify={{ base: 'flex-start', sm: 'space-between' }}
+                      gap="3"
+                      mb="4"
+                    >
+                      <Box>
+                        <Text fontSize="base" fontWeight="semibold" color="fg">
+                          {member.name ?? member.email}
+                        </Text>
+                        <Text mt="2" fontSize="sm" color="fg.muted">
+                          {member.userId} • {formatVaultRole(member.role)} • {formatAiAccess(member.aiAccessLevel)}
+                        </Text>
+                      </Box>
+                      {member.role !== 'owner' ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!canManageMembers || removeMemberMutation.isPending}
+                          onClick={() =>
+                            removeMemberMutation.mutate({ vaultId, memberUserId: member.userId })
+                          }
+                        >
+                          Remove
+                        </Button>
+                      ) : null}
+                    </Flex>
+
                     <chakra.form
                       display="flex"
                       flexDirection="column"
                       gap="4"
                       onSubmit={(event: FormEvent<HTMLFormElement>) => {
                         event.preventDefault();
-                        const permissions = collectPermissions(event.currentTarget);
                         updateMemberMutation.mutate({
                           vaultId,
                           memberUserId: member.userId,
-                          role: 'member',
-                          permissions,
+                          role: draft.role,
+                          aiAccessLevel: draft.aiAccessLevel,
                         });
                       }}
                     >
-                      <PermissionCheckboxGrid
+                      <MemberAccessFields
                         idPrefix={member.userId}
-                        inputName="permissions"
-                        defaultSelectedPermissions={member.permissions}
+                        role={draft.role}
+                        aiAccessLevel={draft.aiAccessLevel}
                         disabled={!canManageMembers}
-                        cardBg="bg.surface"
+                        onRoleChange={(role) => updateMemberDraft(member, { role })}
+                        onAiAccessLevelChange={(aiAccessLevel) => updateMemberDraft(member, { aiAccessLevel })}
                       />
 
                       <SaveButton
                         type="submit"
                         disabled={!canManageMembers || updateMemberMutation.isPending}
                       >
-                        {updateMemberMutation.isPending ? 'Saving...' : 'Save changes'}
+                        {updateMemberMutation.isPending ? 'Saving...' : 'Save access'}
                       </SaveButton>
                     </chakra.form>
-                  ) : (
-                    <Text fontSize="sm" color="fg.muted">Owner has full permissions.</Text>
-                  )}
-                </Box>
-              ))}
+                  </Box>
+                );
+              })}
             </Stack>
           </SurfacePanel>
         </Stack>
@@ -473,7 +659,7 @@ export function VaultSettingsPage() {
                 disabled={
                   transferTargetUserId.length === 0 ||
                   transferMutation.isPending ||
-                  vault.role !== 'owner'
+                  (vault.role !== 'owner' && !vault.isRoot)
                 }
                 onClick={() => {
                   transferMutation.mutate({ vaultId, userId: transferTargetUserId });
@@ -496,7 +682,7 @@ export function VaultSettingsPage() {
             <DeleteButton
               type="button"
               w="100%"
-              disabled={deleteMutation.isPending || vault.role !== 'owner'}
+              disabled={deleteMutation.isPending || (vault.role !== 'owner' && !vault.isRoot)}
               onClick={() => {
                 deleteMutation.mutate({ vaultId });
               }}

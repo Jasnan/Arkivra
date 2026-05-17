@@ -44,20 +44,14 @@ import type {
 } from '@/features/file-browser/components/vault-browser.types';
 import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { useVaultQuery } from '@/features/vaults/vaults.queries';
-import type { VaultMemberPermission } from '@/features/vaults/vaults.types';
+import type { VaultDetail } from '@/features/vaults/vaults.types';
 
-function hasVaultPermission({
-  vault,
-  permission,
-}: {
-  vault: { role: 'owner' | 'member' | null; permissions: VaultMemberPermission[]; isGlobalAdmin: boolean } | null | undefined;
-  permission: VaultMemberPermission;
-}) {
-  return Boolean(
-    vault?.isGlobalAdmin
-    || vault?.role === 'owner'
-    || vault?.permissions.includes(permission),
-  );
+function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
+  return Boolean(vault?.isRoot || vault?.role === 'owner' || vault?.role === 'editor');
+}
+
+function canReadVault(vault: VaultDetail | null | undefined) {
+  return Boolean(vault?.isRoot || vault?.role === 'owner' || vault?.role === 'editor' || vault?.role === 'viewer');
 }
 
 function getBrowserItemUpdatedTime(item: BrowserItem) {
@@ -144,11 +138,11 @@ export function DocumentsPage() {
     !activeIsLoading &&
     !activeIsError &&
     browserItems.length === 0;
-  const canUpdateItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.update' });
-  const canDeleteItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.delete' });
-  const canDownloadItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.download' });
-  const canManageTags = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'tags.manage' });
-  const canCreateItems = hasVaultPermission({ vault: vaultQuery.data?.vault, permission: 'documents.create' });
+  const canUpdateItems = canMutateVaultDocuments(vaultQuery.data?.vault);
+  const canDeleteItems = canMutateVaultDocuments(vaultQuery.data?.vault);
+  const canDownloadItems = canReadVault(vaultQuery.data?.vault);
+  const canManageTags = canMutateVaultDocuments(vaultQuery.data?.vault);
+  const canCreateItems = canMutateVaultDocuments(vaultQuery.data?.vault);
   const {
     selectedItemKeys,
     selectedItems,

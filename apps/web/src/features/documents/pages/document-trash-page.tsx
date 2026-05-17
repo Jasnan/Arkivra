@@ -214,9 +214,11 @@ export function DocumentTrashPage() {
           }),
         ),
       ),
-    onSuccess: async (_data, documents) => {
+    onSuccess: async (data, documents) => {
       toast.success(
-        documents.length === 1 ? 'Document restored.' : `${documents.length} documents restored.`,
+        documents.length === 1
+          ? data[0]?.message ?? 'File restored to original location'
+          : `${documents.length} documents restored.`,
       );
       clearSelection();
       setContextMenu(null);

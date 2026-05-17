@@ -834,7 +834,16 @@ export function registerDocumentRoutes({
         );
       }
 
-      return context.json({ document: { id: doc.id } });
+      return context.json({
+        document: {
+          id: doc.id,
+          folderId: doc.folderId,
+          originalName: doc.originalName,
+        },
+        message: doc.hierarchyRecreated
+          ? 'Original folders were recreated and file restored'
+          : 'File restored to original location',
+      });
     },
   );
 

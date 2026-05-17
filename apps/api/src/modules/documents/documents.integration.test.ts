@@ -123,7 +123,13 @@ function createMockDocumentsServices() {
       },
     ]),
     softDeleteDocument: vi.fn(async () => ({ id: 'doc_1' })),
-    restoreDocument: vi.fn(async () => ({ success: true, id: 'doc_1' })),
+    restoreDocument: vi.fn(async () => ({
+      success: true,
+      id: 'doc_1',
+      folderId: null,
+      originalName: 'report.pdf',
+      hierarchyRecreated: false,
+    })),
     hardDeleteDocument: vi.fn(async () => ({ success: true, id: 'doc_1' })),
     updateDocumentProcessingStatus: vi.fn(async () => undefined),
   };
@@ -961,6 +967,7 @@ describe('documents integration', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as any;
     expect(body.document.id).toBe('doc_1');
+    expect(body.message).toBe('File restored to original location');
     expect(docServices.restoreDocument).toHaveBeenCalledWith({
       documentId: 'doc_1',
       vaultId: 'vlt_1',

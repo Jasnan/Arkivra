@@ -245,7 +245,10 @@ export async function restoreDocument({
   vaultId: string;
   documentId: string;
 }) {
-  return fetchJson<{ document: { id: string } }>(`/api/vaults/${vaultId}/documents/${documentId}/restore`, {
+  return fetchJson<{
+    document: { id: string; folderId: string | null; originalName: string };
+    message: string;
+  }>(`/api/vaults/${vaultId}/documents/${documentId}/restore`, {
     method: 'POST',
   });
 }

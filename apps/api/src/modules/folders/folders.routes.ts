@@ -2,7 +2,10 @@ import type { Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { FoldersServices, FolderServiceError } from './folders.services.js';
-import { requireVaultPermission } from '../vaults/vaults.middleware.js';
+import {
+  requireCanMutateVaultDocuments,
+  requireCanReadVault,
+} from '../vaults/vaults.middleware.js';
 import { createFoldersServices } from './folders.services.js';
 
 function parseNullableFolderId(value: unknown) {
@@ -166,7 +169,7 @@ export function registerFolderRoutes({
 
   app.get(
     '/api/vaults/:vaultId/folders/items',
-    requireVaultPermission('documents.read'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -204,7 +207,7 @@ export function registerFolderRoutes({
 
   app.get(
     '/api/vaults/:vaultId/folders/tree',
-    requireVaultPermission('documents.read'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -227,7 +230,7 @@ export function registerFolderRoutes({
 
   app.post(
     '/api/vaults/:vaultId/folders',
-    requireVaultPermission('documents.create'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
       const userId = context.get('userId');
@@ -263,7 +266,7 @@ export function registerFolderRoutes({
 
   app.get(
     '/api/vaults/:vaultId/folders/:folderId/breadcrumbs',
-    requireVaultPermission('documents.read'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -289,7 +292,7 @@ export function registerFolderRoutes({
 
   app.patch(
     '/api/vaults/:vaultId/folders/:folderId',
-    requireVaultPermission('documents.update'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -315,7 +318,7 @@ export function registerFolderRoutes({
 
   app.post(
     '/api/vaults/:vaultId/folders/:folderId/move',
-    requireVaultPermission('documents.update'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -349,7 +352,7 @@ export function registerFolderRoutes({
 
   app.delete(
     '/api/vaults/:vaultId/folders/:folderId',
-    requireVaultPermission('documents.delete'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
       const userId = context.get('userId');
@@ -375,7 +378,7 @@ export function registerFolderRoutes({
 
   app.post(
     '/api/vaults/:vaultId/folders/:folderId/restore',
-    requireVaultPermission('documents.delete'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 

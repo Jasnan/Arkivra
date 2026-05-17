@@ -5,7 +5,11 @@ import type { TagsServices } from './tags.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import { createTagsServices } from './tags.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { requireVaultAccess, requireVaultPermission } from '../vaults/vaults.middleware.js';
+import {
+  requireCanMutateVaultDocuments,
+  requireCanReadVault,
+  requireVaultAccess,
+} from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 
 function parseTagName(value: unknown) {
@@ -93,11 +97,7 @@ export function registerTagRoutes({
 
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaultIds = vaults
-      .filter(vault =>
-        vault.isGlobalAdmin
-        || vault.role === 'owner'
-        || vault.permissions.includes('documents.read'),
-      )
+      .filter(vault => vault.isRoot || vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer')
       .map(vault => vault.id);
     const tags = await tagsServices.listTags({ vaultIds: readableVaultIds });
 
@@ -243,7 +243,7 @@ export function registerTagRoutes({
 
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/tags',
-    requireVaultPermission('documents.read'),
+    requireCanReadVault(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -259,7 +259,7 @@ export function registerTagRoutes({
 
   app.post(
     '/api/vaults/:vaultId/documents/:documentId/tags',
-    requireVaultPermission('tags.manage'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -297,7 +297,7 @@ export function registerTagRoutes({
 
   app.delete(
     '/api/vaults/:vaultId/documents/:documentId/tags/:tagId',
-    requireVaultPermission('tags.manage'),
+    requireCanMutateVaultDocuments(),
     async (context) => {
       const vaultId = context.get('vaultId');
 

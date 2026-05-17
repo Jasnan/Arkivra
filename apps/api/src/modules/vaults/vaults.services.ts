@@ -1,6 +1,6 @@
 import type { Database } from '../database/database.js';
 import type { AiAccessLevel, VaultAccess, VaultRole } from './vaults.types.js';
-import type { VaultMemberPermission } from '../authorization/authorization.types.js';
+import type { PermissionRequestType } from '../authorization/authorization.types.js';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   documentsTable,
@@ -9,64 +9,6 @@ import {
   vaultsTable,
 } from '../database/schema/index.js';
 import { createAuthorizationServices } from '../authorization/authorization.services.js';
-
-const OWNER_LEGACY_PERMISSIONS: VaultMemberPermission[] = [
-  'documents.read',
-  'documents.create',
-  'documents.update',
-  'documents.delete',
-  'documents.download',
-  'tags.manage',
-  'members.invite',
-  'members.manage',
-];
-
-const EDITOR_LEGACY_PERMISSIONS: VaultMemberPermission[] = [
-  'documents.read',
-  'documents.create',
-  'documents.update',
-  'documents.delete',
-  'documents.download',
-  'tags.manage',
-];
-
-const VIEWER_LEGACY_PERMISSIONS: VaultMemberPermission[] = [
-  'documents.read',
-  'documents.download',
-];
-
-function getLegacyPermissionsForRole(role: VaultRole | null, isRoot = false): VaultMemberPermission[] {
-  if (isRoot || role === 'owner') {
-    return [...OWNER_LEGACY_PERMISSIONS];
-  }
-
-  if (role === 'editor') {
-    return [...EDITOR_LEGACY_PERMISSIONS];
-  }
-
-  if (role === 'viewer') {
-    return [...VIEWER_LEGACY_PERMISSIONS];
-  }
-
-  return [];
-}
-
-function roleFromLegacyPermissions(permissions: readonly VaultMemberPermission[] | undefined): VaultRole {
-  if (permissions === undefined || permissions.length === 0) {
-    return 'viewer';
-  }
-
-  return permissions.some(permission =>
-    permission === 'documents.create'
-    || permission === 'documents.update'
-    || permission === 'documents.delete'
-    || permission === 'tags.manage'
-    || permission === 'members.invite'
-    || permission === 'members.manage',
-  )
-    ? 'editor'
-    : 'viewer';
-}
 
 export function createVaultsServices({ db }: { db: Database }) {
   const authorizationServices = createAuthorizationServices({ db });
@@ -120,9 +62,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       deletedAt: vault.deletedAt,
       role: vault.role as VaultRole,
       aiAccessLevel: vault.aiAccessLevel as AiAccessLevel,
-      permissions: getLegacyPermissionsForRole(vault.role as VaultRole),
       isRoot: false,
-      isGlobalAdmin: false,
     }));
   }
 
@@ -159,9 +99,7 @@ export function createVaultsServices({ db }: { db: Database }) {
         totalSize: 0,
         role: 'owner' as const,
         aiAccessLevel: 'none' as const,
-        permissions: getLegacyPermissionsForRole('owner'),
         isRoot: false,
-        isGlobalAdmin: false,
       };
     });
   }
@@ -199,9 +137,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       totalSize: 0,
       role: authorizationState.role,
       aiAccessLevel: authorizationState.aiAccessLevel,
-      permissions: getLegacyPermissionsForRole(authorizationState.role, authorizationState.isRoot),
       isRoot: authorizationState.isRoot,
-      isGlobalAdmin: authorizationState.isRoot,
     };
   }
 
@@ -266,7 +202,6 @@ export function createVaultsServices({ db }: { db: Database }) {
       aiAccessLevel: member.aiAccessLevel as AiAccessLevel,
       email: member.email,
       name: member.name,
-      permissions: getLegacyPermissionsForRole(member.role as VaultRole),
     }));
   }
 
@@ -292,19 +227,15 @@ export function createVaultsServices({ db }: { db: Database }) {
     userId,
     role,
     aiAccessLevel = 'none',
-    permissions,
   }: {
     vaultId: string;
     userId: string;
     role: VaultRole;
     aiAccessLevel?: AiAccessLevel;
-    permissions?: readonly VaultMemberPermission[];
   }) {
-    const effectiveRole = role === 'owner' ? role : permissions ? roleFromLegacyPermissions(permissions) : role;
-
     const existingMember = await getMember({ vaultId, userId });
 
-    if (existingMember?.role === 'owner' && effectiveRole !== 'owner') {
+    if (existingMember?.role === 'owner' && role !== 'owner') {
       const ownerCount = await countOwners({ vaultId });
 
       if (ownerCount <= 1) {
@@ -314,11 +245,11 @@ export function createVaultsServices({ db }: { db: Database }) {
 
     const [member] = await db
       .insert(vaultMembersTable)
-      .values({ vaultId, userId, role: effectiveRole, aiAccessLevel })
+      .values({ vaultId, userId, role, aiAccessLevel })
       .onConflictDoUpdate({
         target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
         set: {
-          role: effectiveRole,
+          role,
           aiAccessLevel,
           updatedAt: new Date(),
         },
@@ -337,7 +268,6 @@ export function createVaultsServices({ db }: { db: Database }) {
       userId: member.userId,
       role: member.role as VaultRole,
       aiAccessLevel: member.aiAccessLevel as AiAccessLevel,
-      permissions: getLegacyPermissionsForRole(member.role as VaultRole),
     };
   }
 
@@ -360,7 +290,6 @@ export function createVaultsServices({ db }: { db: Database }) {
       userId: member.userId,
       role: member.role as VaultRole,
       aiAccessLevel: member.aiAccessLevel as AiAccessLevel,
-      permissions: getLegacyPermissionsForRole(member.role as VaultRole),
     };
   }
 
@@ -406,8 +335,31 @@ export function createVaultsServices({ db }: { db: Database }) {
       .orderBy(desc(vaultsTable.createdAt));
   }
 
+  async function createPermissionRequest({
+    type,
+    requestedBy,
+    vaultId,
+    targetUserId,
+    payload,
+  }: {
+    type: PermissionRequestType;
+    requestedBy: string;
+    vaultId?: string | null;
+    targetUserId?: string | null;
+    payload?: Record<string, unknown>;
+  }) {
+    return authorizationServices.createPermissionRequest({
+      type,
+      requestedBy,
+      vaultId,
+      targetUserId,
+      payload,
+    });
+  }
+
   return {
     createVault,
+    createPermissionRequest,
     getMember,
     getVaultForUser,
     listAllVaults,

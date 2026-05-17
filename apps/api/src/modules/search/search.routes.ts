@@ -7,7 +7,11 @@ import { SEARCH_SORT_VALUES } from './search.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import { createDocumentSearchServices } from './search.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { requireVaultAccess, requireVaultPermission } from '../vaults/vaults.middleware.js';
+import {
+  requireCanReadVault,
+  requireCanUseSemanticRetrieval,
+  requireVaultAccess,
+} from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 
 function parsePageIndex(value: string | undefined) {
@@ -108,7 +112,7 @@ export function registerSearchRoutes({
 
   app.use('/api/vaults/:vaultId/search', requireAuthentication());
   app.use('/api/vaults/:vaultId/search', requireVaultAccess({ services: vaultsServices }));
-  app.use('/api/vaults/:vaultId/search', requireVaultPermission('documents.read'));
+  app.use('/api/vaults/:vaultId/search', requireCanReadVault());
 
   app.get('/api/vaults/:vaultId/search', async (context) => {
     const vaultId = context.get('vaultId');
@@ -205,6 +209,10 @@ export function registerSearchRoutes({
       );
     }
 
+    if (searchMode === 'hybrid' && context.get('vaultAiAccessLevel') !== 'full') {
+      return context.json({ error: { code: 'authorization.ai_access_required', message: 'AI access required' } }, 403);
+    }
+
     const result = await searchServices.searchDocuments({
       vaultId,
       query,
@@ -221,7 +229,7 @@ export function registerSearchRoutes({
     return context.json(result);
   });
 
-  app.post('/api/vaults/:vaultId/search/hybrid', async (context) => {
+  app.post('/api/vaults/:vaultId/search/hybrid', requireCanUseSemanticRetrieval(), async (context) => {
     const vaultId = context.get('vaultId');
 
     if (vaultId === null) {
@@ -386,12 +394,15 @@ export function registerSearchRoutes({
 
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaults = vaults.filter(vault =>
-      vault.isGlobalAdmin
+      vault.isRoot
       || vault.role === 'owner'
-      || vault.permissions.includes('documents.read'),
+      || vault.role === 'editor'
+      || vault.role === 'viewer',
     );
 
-    const allowedVaultIds = readableVaults.map(vault => vault.id);
+    const allowedVaultIds = searchMode === 'hybrid'
+      ? readableVaults.filter(vault => vault.aiAccessLevel === 'full').map(vault => vault.id)
+      : readableVaults.map(vault => vault.id);
 
     if (allowedVaultIds.length === 0) {
       return context.json({

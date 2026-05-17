@@ -91,7 +91,9 @@ function createMockVaultsServices() {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
+      aiAccessLevel: 'full',
       permissions: [],
+      isRoot: false,
       isGlobalAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
@@ -116,11 +118,9 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -180,8 +180,10 @@ describe('search integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'member',
+      role: null,
+      aiAccessLevel: 'none',
       permissions: [],
+      isRoot: false,
       isGlobalAdmin: false,
     }));
 
@@ -397,14 +399,18 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
+        aiAccessLevel: 'none',
         permissions: ['documents.read'],
+        isRoot: false,
         isGlobalAdmin: false,
       },
       {
         id: 'vlt_2',
         name: 'Beta',
-        role: 'member',
+        role: 'viewer',
+        aiAccessLevel: 'none',
         permissions: ['documents.read'],
+        isRoot: false,
         isGlobalAdmin: false,
       },
     ]);
@@ -437,7 +443,9 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
+        aiAccessLevel: 'full',
         permissions: ['documents.read'],
+        isRoot: false,
         isGlobalAdmin: false,
       },
     ]);
@@ -471,7 +479,9 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
+        aiAccessLevel: 'none',
         permissions: ['documents.read'],
+        isRoot: false,
         isGlobalAdmin: false,
       },
     ]);

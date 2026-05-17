@@ -5,7 +5,7 @@ export type ChatConversation = {
   vaultId: string | null;
   documentId: string | null;
   scope: 'global' | 'vault' | 'document';
-  createdBy: string | null;
+  userId: string | null;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -27,7 +27,7 @@ export type ChatMessage = {
   vaultId: string | null;
   documentId: string | null;
   scope: 'global' | 'vault' | 'document';
-  createdBy: string | null;
+  userId: string | null;
   role: ChatMessageRole;
   content: string;
   metadata: ChatMessageMetadata | null;

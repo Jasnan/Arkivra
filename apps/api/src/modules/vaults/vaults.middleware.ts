@@ -1,7 +1,46 @@
 import type { VaultRole } from './vaults.types.js';
-import type { VaultMemberPermission } from '../authorization/authorization.types.js';
 import type { VaultsServices } from './vaults.services.js';
 import { createMiddleware } from 'hono/factory';
+
+type VaultAuthorizationPredicate = (args: {
+  isRoot: boolean;
+  role: VaultRole | null;
+  aiAccessLevel: 'none' | 'document_chat' | 'full';
+}) => boolean;
+
+function forbidden(context: Parameters<Parameters<typeof createMiddleware>[0]>[0]) {
+  return context.json(
+    {
+      error: {
+        code: 'vault.forbidden',
+        message: 'Forbidden',
+      },
+    },
+    403,
+  );
+}
+
+function requireVaultAuthorization(predicate: VaultAuthorizationPredicate) {
+  return createMiddleware(async (context, next) => {
+    const isRoot = context.get('isRoot');
+    const role = context.get('vaultRole');
+    const aiAccessLevel = context.get('vaultAiAccessLevel');
+
+    if (!predicate({ isRoot, role, aiAccessLevel })) {
+      return forbidden(context);
+    }
+
+    await next();
+  });
+}
+
+function canReadRole(role: VaultRole | null) {
+  return role === 'owner' || role === 'editor' || role === 'viewer';
+}
+
+function canMutateDocumentsRole(role: VaultRole | null) {
+  return role === 'owner' || role === 'editor';
+}
 
 export function requireVaultAccess({ services }: { services: VaultsServices }) {
   return createMiddleware(async (context, next) => {
@@ -50,9 +89,7 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
     context.set('vaultId', vaultId);
     context.set('vaultRole', vault.role);
     context.set('vaultAiAccessLevel', vault.aiAccessLevel);
-    context.set('vaultPermissions', vault.permissions);
     context.set('isRoot', vault.isRoot || context.get('isRoot'));
-    context.set('isGlobalAdmin', vault.isGlobalAdmin || context.get('isGlobalAdmin'));
 
     await next();
   });
@@ -60,7 +97,7 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
 
 export function requireVaultRole(...roles: VaultRole[]) {
   return createMiddleware(async (context, next) => {
-    if (context.get('isRoot') || context.get('isGlobalAdmin')) {
+    if (context.get('isRoot')) {
       await next();
       return;
     }
@@ -83,27 +120,28 @@ export function requireVaultRole(...roles: VaultRole[]) {
   });
 }
 
-export function requireVaultPermission(...permissions: VaultMemberPermission[]) {
-  return createMiddleware(async (context, next) => {
-    if (context.get('isRoot') || context.get('isGlobalAdmin') || context.get('vaultRole') === 'owner') {
-      await next();
-      return;
-    }
+export function requireCanReadVault() {
+  return requireVaultAuthorization(({ isRoot, role }) => isRoot || canReadRole(role));
+}
 
-    const vaultPermissions = context.get('vaultPermissions');
+export function requireCanMutateVaultDocuments() {
+  return requireVaultAuthorization(({ isRoot, role }) => isRoot || canMutateDocumentsRole(role));
+}
 
-    if (!permissions.every((permission) => vaultPermissions.includes(permission))) {
-      return context.json(
-        {
-          error: {
-            code: 'vault.forbidden',
-            message: 'Forbidden',
-          },
-        },
-        403,
-      );
-    }
+export function requireCanManageVaultMembers() {
+  return requireVaultAuthorization(({ isRoot, role }) => isRoot || role === 'owner');
+}
 
-    await next();
-  });
+export function requireCanManageVault() {
+  return requireVaultAuthorization(({ isRoot, role }) => isRoot || role === 'owner');
+}
+
+export function requireCanUseDocumentChat() {
+  return requireVaultAuthorization(({ aiAccessLevel }) =>
+    aiAccessLevel === 'document_chat' || aiAccessLevel === 'full',
+  );
+}
+
+export function requireCanUseSemanticRetrieval() {
+  return requireVaultAuthorization(({ aiAccessLevel }) => aiAccessLevel === 'full');
 }

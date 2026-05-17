@@ -52,11 +52,10 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', isGlobalAdmin);
+    context.set('isRoot', isGlobalAdmin);
     context.set('canCreateVault', true);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
     await next();
   });
 

@@ -2,7 +2,8 @@ import type { Hono } from 'hono';
 import type { AuthorizationServices } from '../../authorization/authorization.services.js';
 import type { ServerContext } from '../../server/server.types.js';
 import { requireAuthentication } from '../../auth/auth.middleware.js';
-import { requireGlobalAdmin } from '../../authorization/authorization.middleware.js';
+import { requireRoot } from '../../authorization/authorization.middleware.js';
+import { isSystemCapability } from '../../authorization/authorization.types.js';
 
 function parseDisabled(value: unknown) {
   return typeof value === 'boolean' ? value : null;
@@ -15,8 +16,8 @@ export function registerAdminUserRoutes({
   app: Hono<ServerContext>;
   authorizationServices: AuthorizationServices;
 }) {
-  app.use('/api/admin/users', requireAuthentication(), requireGlobalAdmin());
-  app.use('/api/admin/users/*', requireAuthentication(), requireGlobalAdmin());
+  app.use('/api/admin/users', requireAuthentication(), requireRoot());
+  app.use('/api/admin/users/*', requireAuthentication(), requireRoot());
 
   app.get('/api/admin/users', async (context) => {
     const users = await authorizationServices.listUsers();
@@ -57,10 +58,7 @@ export function registerAdminUserRoutes({
 
       return context.json({ user });
     } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.message === 'authorization.last_root' || error.message === 'authorization.last_global_admin')
-      ) {
+      if (error instanceof Error && error.message === 'authorization.last_root') {
         return context.json(
           {
             error: {
@@ -76,9 +74,9 @@ export function registerAdminUserRoutes({
     }
   });
 
-  app.post('/api/admin/users/:userId/global-admin', async (context) => {
+  app.post('/api/admin/users/:userId/root', async (context) => {
     const userId = context.req.param('userId');
-    const user = await authorizationServices.grantGlobalAdmin({ userId });
+    const user = await authorizationServices.grantRoot({ userId });
 
     if (user === null) {
       return context.json(
@@ -95,9 +93,27 @@ export function registerAdminUserRoutes({
     return context.json({ user });
   });
 
-  app.post('/api/admin/users/:userId/vault-creator', async (context) => {
+  app.post('/api/admin/users/:userId/system-capabilities/:capability', async (context) => {
     const userId = context.req.param('userId');
-    const user = await authorizationServices.grantVaultCreator({ userId });
+    const capability = context.req.param('capability');
+
+    if (!isSystemCapability(capability)) {
+      return context.json(
+        {
+          error: {
+            code: 'authorization.invalid_system_capability',
+            message: 'Invalid system capability',
+          },
+        },
+        400,
+      );
+    }
+
+    const user = await authorizationServices.grantSystemCapability({
+      userId,
+      capability,
+      createdBy: context.get('userId'),
+    });
 
     if (user === null) {
       return context.json(
@@ -114,11 +130,11 @@ export function registerAdminUserRoutes({
     return context.json({ user });
   });
 
-  app.delete('/api/admin/users/:userId/global-admin', async (context) => {
+  app.delete('/api/admin/users/:userId/root', async (context) => {
     const userId = context.req.param('userId');
 
     try {
-      const user = await authorizationServices.revokeGlobalAdmin({ userId });
+      const user = await authorizationServices.revokeRoot({ userId });
 
       if (user === null) {
         return context.json(
@@ -134,10 +150,7 @@ export function registerAdminUserRoutes({
 
       return context.json({ user });
     } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.message === 'authorization.last_root' || error.message === 'authorization.last_global_admin')
-      ) {
+      if (error instanceof Error && error.message === 'authorization.last_root') {
         return context.json(
           {
             error: {
@@ -153,9 +166,23 @@ export function registerAdminUserRoutes({
     }
   });
 
-  app.delete('/api/admin/users/:userId/vault-creator', async (context) => {
+  app.delete('/api/admin/users/:userId/system-capabilities/:capability', async (context) => {
     const userId = context.req.param('userId');
-    const user = await authorizationServices.revokeVaultCreator({ userId });
+    const capability = context.req.param('capability');
+
+    if (!isSystemCapability(capability)) {
+      return context.json(
+        {
+          error: {
+            code: 'authorization.invalid_system_capability',
+            message: 'Invalid system capability',
+          },
+        },
+        400,
+      );
+    }
+
+    const user = await authorizationServices.revokeSystemCapability({ userId, capability });
 
     if (user === null) {
       return context.json(

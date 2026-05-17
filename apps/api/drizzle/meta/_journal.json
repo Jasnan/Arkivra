@@ -113,6 +113,13 @@
       "when": 1779321600000,
       "tag": "0015_authorization_refactor",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779408000000,
+      "tag": "0016_chat_user_id_ownership",
+      "breakpoints": true
     }
   ]
 }

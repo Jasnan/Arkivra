@@ -5,7 +5,12 @@ import type { VaultsServices } from '../vaults/vaults.services.js';
 import type { ChatIntent } from './chat.types.js';
 import type { ChatScopeInput, ChatServices } from './chat.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { requireVaultAccess, requireVaultPermission } from '../vaults/vaults.middleware.js';
+import {
+  requireCanReadVault,
+  requireCanUseDocumentChat,
+  requireCanUseSemanticRetrieval,
+  requireVaultAccess,
+} from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 
 function parseTitle(value: unknown) {
@@ -70,7 +75,7 @@ async function getGlobalChatScope({
 
   const vaults = await vaultServices.listUserVaults({ userId });
   const vaultIds = vaults
-    .filter(vault => vault.permissions.includes('documents.read'))
+    .filter(vault => vault.aiAccessLevel === 'full')
     .map(vault => vault.id);
 
   return { type: 'global', vaultIds };
@@ -288,6 +293,23 @@ export function registerChatRoutes({
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
 
   app.use('/api/chats', requireAuthentication());
+  app.use('/api/chats', async (context, next) => {
+    const userId = context.get('userId');
+
+    if (userId === null) {
+      return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
+    }
+
+    const vaults = await vaultsServices.listUserVaults({ userId });
+    if (!vaults.some(vault => vault.aiAccessLevel === 'full')) {
+      return context.json(
+        { error: { code: 'authorization.ai_access_required', message: 'AI access required' } },
+        403,
+      );
+    }
+
+    await next();
+  });
   createScopedChatHandlers({
     app,
     basePath: '/api/chats',
@@ -297,7 +319,7 @@ export function registerChatRoutes({
 
   app.use('/api/vaults/:vaultId/chats', requireAuthentication());
   app.use('/api/vaults/:vaultId/chats', requireVaultAccess({ services: vaultsServices }));
-  app.use('/api/vaults/:vaultId/chats', requireVaultPermission('documents.read'));
+  app.use('/api/vaults/:vaultId/chats', requireCanReadVault(), requireCanUseSemanticRetrieval());
   createScopedChatHandlers({
     app,
     basePath: '/api/vaults/:vaultId/chats',
@@ -310,7 +332,7 @@ export function registerChatRoutes({
     '/api/vaults/:vaultId/documents/:documentId/chats',
     requireVaultAccess({ services: vaultsServices }),
   );
-  app.use('/api/vaults/:vaultId/documents/:documentId/chats', requireVaultPermission('documents.read'));
+  app.use('/api/vaults/:vaultId/documents/:documentId/chats', requireCanReadVault(), requireCanUseDocumentChat());
   createScopedChatHandlers({
     app,
     basePath: '/api/vaults/:vaultId/documents/:documentId/chats',

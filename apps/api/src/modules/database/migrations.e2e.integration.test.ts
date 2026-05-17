@@ -421,7 +421,7 @@ describe.sequential('migrations smoke', () => {
     const columnKeys = new Set(columns.map(row => `${row.table_name}.${row.column_name}`));
 
     expect(columnKeys).toContain('chat_conversations.vault_id');
-    expect(columnKeys).toContain('chat_conversations.created_by');
+    expect(columnKeys).toContain('chat_conversations.user_id');
     expect(columnKeys).toContain('chat_conversations.title');
     expect(columnKeys).toContain('chat_conversations.deleted_at');
     expect(columnKeys).toContain('chat_messages.conversation_id');
@@ -441,7 +441,7 @@ describe.sequential('migrations smoke', () => {
 
     const indexNames = indexes.map(row => row.indexname);
     expect(indexNames).toContain('chat_conversations_vault_created_idx');
-    expect(indexNames).toContain('chat_conversations_created_by_vault_idx');
+    expect(indexNames).toContain('chat_conversations_user_id_vault_idx');
     expect(indexNames).toContain('chat_messages_conversation_created_idx');
     expect(indexNames).toContain('chat_messages_vault_created_idx');
   });

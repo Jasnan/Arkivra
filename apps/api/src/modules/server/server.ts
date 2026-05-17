@@ -25,6 +25,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { registerAuthRoutes } from '../auth/auth.routes.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { createAuthorizationServices } from '../authorization/authorization.services.js';
+import { registerAuthorizationRoutes } from '../authorization/authorization.routes.js';
 import { registerVaultRoutes } from '../vaults/vaults.routes.js';
 import { registerDocumentRoutes } from '../documents/documents.routes.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
@@ -171,12 +172,10 @@ export function createServer({
     context.set('systemRole', null);
     context.set('systemCapabilities', []);
     context.set('isRoot', false);
-    context.set('isGlobalAdmin', false);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
     context.set('vaultAiAccessLevel', 'none');
-    context.set('vaultPermissions', []);
     await next();
   });
 
@@ -204,7 +203,7 @@ export function createServer({
     await next();
   });
 
-  registerAuthRoutes({ app, auth, authorizationServices: authzServices });
+  registerAuthRoutes({ app, auth, authorizationServices: authzServices, config });
   registerVaultRoutes({ app, db });
   registerFolderRoutes({ app, db });
   registerDocumentRoutes({
@@ -233,6 +232,7 @@ export function createServer({
   });
   registerTagRoutes({ app, db });
   registerBackupRoutes({ app, config, backupQueue, backupServices });
+  registerAuthorizationRoutes({ app, authorizationServices: authzServices });
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
   registerAdminAiRoutes({ app, aiServices });
@@ -284,7 +284,6 @@ export function createServer({
       systemRole: c.get('systemRole'),
       systemCapabilities: c.get('systemCapabilities'),
       isRoot: c.get('isRoot'),
-      isGlobalAdmin: c.get('isGlobalAdmin'),
       canCreateVault: c.get('canCreateVault'),
       authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),
       twoFactor,

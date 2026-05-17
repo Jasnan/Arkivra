@@ -3,7 +3,6 @@ import type {
   AiAccessLevel,
   SystemCapability,
   SystemRole,
-  VaultMemberPermission,
   VaultRole,
 } from '../authorization/authorization.types.js';
 
@@ -21,11 +20,9 @@ export type ServerContext = {
     systemRole: SystemRole | null;
     systemCapabilities: SystemCapability[];
     isRoot: boolean;
-    isGlobalAdmin: boolean;
     canCreateVault: boolean;
     vaultId: string | null;
     vaultRole: VaultRole | null;
     vaultAiAccessLevel: AiAccessLevel;
-    vaultPermissions: VaultMemberPermission[];
   };
 };

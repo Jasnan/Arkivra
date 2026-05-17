@@ -6,7 +6,7 @@ import type { VaultsServices } from '../vaults/vaults.services.js';
 import type { DocumentTranslationServices, TranslationSource } from './translations.services.js';
 import { z } from 'zod';
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { requireVaultAccess, requireVaultPermission } from '../vaults/vaults.middleware.js';
+import { requireCanReadVault, requireVaultAccess } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
 import { SUPPORTED_TRANSLATION_LANGUAGES } from './translations.services.js';
 
@@ -152,7 +152,7 @@ export function registerTranslationRoutes({
   const resolvedVaultServices = vaultServices ?? createVaultsServices({ db });
   const basePath = '/api/vaults/:vaultId/documents/:documentId/translations';
 
-  app.use(basePath, requireAuthentication(), requireVaultAccess({ services: resolvedVaultServices }), requireVaultPermission('documents.read'));
+  app.use(basePath, requireAuthentication(), requireVaultAccess({ services: resolvedVaultServices }), requireCanReadVault());
 
   app.post(basePath, async (context) => {
     const vaultId = context.get('vaultId');

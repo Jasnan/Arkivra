@@ -3,7 +3,7 @@ import type { ServerContext } from '../../server/server.types.js';
 import type { AdminAiServices } from './ai.services.js';
 import { z } from 'zod';
 import { requireAuthentication } from '../../auth/auth.middleware.js';
-import { requireGlobalAdmin } from '../../authorization/authorization.middleware.js';
+import { requireRoot } from '../../authorization/authorization.middleware.js';
 
 const aiSettingsSchema = z.object({
   ollamaHost: z.string().url(),
@@ -26,8 +26,8 @@ export function registerAdminAiRoutes({
   app: Hono<ServerContext>;
   aiServices: AdminAiServices;
 }) {
-  app.use('/api/admin/ai', requireAuthentication(), requireGlobalAdmin());
-  app.use('/api/admin/ai/*', requireAuthentication(), requireGlobalAdmin());
+  app.use('/api/admin/ai', requireAuthentication(), requireRoot());
+  app.use('/api/admin/ai/*', requireAuthentication(), requireRoot());
 
   app.get('/api/admin/ai/settings', async (context) => {
     const settings = await aiServices.getSettings();

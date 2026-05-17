@@ -30,7 +30,7 @@ export const chatConversationsTable = pgTable(
     ...createTimestampColumns(),
     vaultId: text('vault_id')
       .references(() => vaultsTable.id, { onDelete: 'cascade' }),
-    createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => usersTable.id, { onDelete: 'set null' }),
     scope: text('scope', { enum: ['global', 'vault', 'document'] }).notNull().default('vault'),
     documentId: text('document_id').references(() => documentsTable.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default('New chat'),
@@ -38,8 +38,8 @@ export const chatConversationsTable = pgTable(
   },
   (table) => [
     index('chat_conversations_vault_created_idx').on(table.vaultId, table.createdAt),
-    index('chat_conversations_created_by_vault_idx').on(table.createdBy, table.vaultId),
-    index('chat_conversations_scope_created_idx').on(table.createdBy, table.scope, table.createdAt),
+    index('chat_conversations_user_id_vault_idx').on(table.userId, table.vaultId),
+    index('chat_conversations_scope_user_idx').on(table.userId, table.scope, table.createdAt),
     index('chat_conversations_document_created_idx').on(table.documentId, table.createdAt),
   ],
 );
@@ -54,7 +54,7 @@ export const chatMessagesTable = pgTable(
       .references(() => chatConversationsTable.id, { onDelete: 'cascade' }),
     vaultId: text('vault_id')
       .references(() => vaultsTable.id, { onDelete: 'cascade' }),
-    createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => usersTable.id, { onDelete: 'set null' }),
     scope: text('scope', { enum: ['global', 'vault', 'document'] }).notNull().default('vault'),
     documentId: text('document_id').references(() => documentsTable.id, { onDelete: 'cascade' }),
     role: text('role', { enum: ['user', 'assistant'] }).notNull(),
@@ -68,7 +68,7 @@ export const chatMessagesTable = pgTable(
   (table) => [
     index('chat_messages_conversation_created_idx').on(table.conversationId, table.createdAt),
     index('chat_messages_vault_created_idx').on(table.vaultId, table.createdAt),
-    index('chat_messages_scope_created_idx').on(table.createdBy, table.scope, table.createdAt),
+    index('chat_messages_scope_user_idx').on(table.userId, table.scope, table.createdAt),
   ],
 );
 

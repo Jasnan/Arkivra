@@ -51,46 +51,14 @@ export function isAiAccessLevel(value: unknown): value is AiAccessLevel {
   return typeof value === 'string' && (AI_ACCESS_LEVELS as readonly string[]).includes(value);
 }
 
+export function isPermissionRequestType(value: unknown): value is PermissionRequestType {
+  return typeof value === 'string' && (PERMISSION_REQUEST_TYPES as readonly string[]).includes(value);
+}
+
+export function isEmailInvitationType(value: unknown): value is EmailInvitationType {
+  return typeof value === 'string' && (EMAIL_INVITATION_TYPES as readonly string[]).includes(value);
+}
+
 export function normalizeSystemCapabilities(capabilities: readonly SystemCapability[]) {
   return [...new Set(capabilities)];
-}
-
-/**
- * Deprecated compatibility for routes that Phase 2 will rename to semantic authorization middleware.
- * These values are no longer persisted and must not be used for new authorization decisions.
- */
-export const VAULT_MEMBER_PERMISSIONS = [
-  'documents.read',
-  'documents.create',
-  'documents.update',
-  'documents.delete',
-  'documents.download',
-  'tags.manage',
-  'members.invite',
-  'members.manage',
-] as const;
-
-/** @deprecated Use VaultRole and semantic authorization helpers instead. */
-export type VaultMemberPermission = (typeof VAULT_MEMBER_PERMISSIONS)[number];
-
-/** @deprecated Default editor/viewer roles instead of permission arrays. */
-export const DEFAULT_MEMBER_PERMISSIONS: readonly VaultMemberPermission[] = [
-  'documents.read',
-  'documents.create',
-  'documents.update',
-  'documents.delete',
-  'documents.download',
-  'tags.manage',
-];
-
-/** @deprecated Only used by legacy route payload parsing until Phase 2. */
-export function isVaultMemberPermission(value: unknown): value is VaultMemberPermission {
-  return (
-    typeof value === 'string' && (VAULT_MEMBER_PERMISSIONS as readonly string[]).includes(value)
-  );
-}
-
-/** @deprecated Only used by legacy route payload parsing until Phase 2. */
-export function normalizeVaultMemberPermissions(permissions: readonly VaultMemberPermission[]) {
-  return [...new Set(permissions)];
 }

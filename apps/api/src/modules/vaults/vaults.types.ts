@@ -1,6 +1,5 @@
 import type {
   AiAccessLevel,
-  VaultMemberPermission,
   VaultRole,
 } from '../authorization/authorization.types.js';
 
@@ -17,7 +16,5 @@ export type VaultAccess = {
   deletedAt: Date | null;
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
-  permissions: VaultMemberPermission[];
   isRoot: boolean;
-  isGlobalAdmin: boolean;
 };

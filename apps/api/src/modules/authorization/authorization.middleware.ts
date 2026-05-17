@@ -2,7 +2,7 @@ import { createMiddleware } from 'hono/factory';
 
 export function requireRoot() {
   return createMiddleware(async (context, next) => {
-    if (!context.get('isRoot') && !context.get('isGlobalAdmin')) {
+    if (!context.get('isRoot')) {
       return context.json(
         {
           error: {
@@ -16,9 +16,4 @@ export function requireRoot() {
 
     await next();
   });
-}
-
-/** @deprecated Use requireRoot. Kept until admin routes are fully renamed in Phase 2. */
-export function requireGlobalAdmin() {
-  return requireRoot();
 }

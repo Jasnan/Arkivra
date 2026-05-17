@@ -218,7 +218,6 @@ describe('auth integration', () => {
       systemRole: 'member',
       systemCapabilities: [],
       isRoot: false,
-      isGlobalAdmin: false,
       canCreateVault: false,
       authMethods: {
         hasPassword: true,

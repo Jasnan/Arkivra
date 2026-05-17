@@ -17,7 +17,9 @@ function createMockVaultsServices() {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
+      aiAccessLevel: 'none',
       permissions: [],
+      isRoot: false,
       isGlobalAdmin: false,
       userId,
     })),
@@ -25,6 +27,15 @@ function createMockVaultsServices() {
     getVaultForUser: vi.fn(async () => null),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
+    createPermissionRequest: vi.fn(async ({ type, requestedBy, vaultId, targetUserId, payload }) => ({
+      id: 'perm_req_1',
+      type,
+      status: 'pending',
+      requestedBy,
+      vaultId: vaultId ?? null,
+      targetUserId: targetUserId ?? null,
+      payload: payload ?? {},
+    })),
     removeMember: vi.fn(async () => ({ userId: 'usr_member_1' })),
     softDeleteVault: vi.fn(async () => ({ id: 'vlt_test_1' })),
     updateVaultIdentity: vi.fn(async ({ name, description }) => ({ id: 'vlt_test_1', name, description })),
@@ -47,11 +58,10 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isGlobalAdmin', false);
+    context.set('isRoot', false);
     context.set('canCreateVault', canCreateVault);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultPermissions', []);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -193,8 +203,13 @@ describe('vaults integration', () => {
       body: JSON.stringify({ name: 'Finance' }),
     });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(202);
     expect(services.createVault).not.toHaveBeenCalled();
+    expect(services.createPermissionRequest).toHaveBeenCalledWith({
+      type: 'vault.create',
+      requestedBy: 'usr_1',
+      payload: { name: 'Finance', description: null },
+    });
   });
 
   test('forbids vault detail access when user is not a member', async () => {
@@ -222,7 +237,9 @@ describe('vaults integration', () => {
       fileCount: 2,
       totalSize: 2048,
       role: 'owner',
+      aiAccessLevel: 'none',
       permissions: [],
+      isRoot: false,
       isGlobalAdmin: false,
     }));
 
@@ -248,8 +265,10 @@ describe('vaults integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'member',
+      role: 'editor',
+      aiAccessLevel: 'none',
       permissions: ['documents.read'],
+      isRoot: false,
       isGlobalAdmin: false,
     }));
 
@@ -261,7 +280,7 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_1',
       },
-      body: JSON.stringify({ userId: 'usr_2', role: 'member', permissions: ['documents.read'] }),
+      body: JSON.stringify({ userId: 'usr_2', role: 'editor', permissions: ['documents.read'] }),
     });
 
     expect(response.status).toBe(403);
@@ -276,7 +295,9 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
+      aiAccessLevel: 'none',
       permissions: [],
+      isRoot: false,
       isGlobalAdmin: false,
     }));
 
@@ -290,8 +311,8 @@ describe('vaults integration', () => {
       },
       body: JSON.stringify({
         userId: 'usr_2',
-        role: 'member',
-        permissions: ['documents.read', 'documents.create'],
+        role: 'editor',
+        aiAccessLevel: 'none',
       }),
     });
 
@@ -300,7 +321,7 @@ describe('vaults integration', () => {
       vaultId: 'vlt_1',
       userId: 'usr_2',
       role: 'editor',
-      permissions: ['documents.read', 'documents.create'],
+      aiAccessLevel: 'none',
     });
   });
 
@@ -312,8 +333,10 @@ describe('vaults integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'member',
+      role: 'editor',
+      aiAccessLevel: 'none',
       permissions: ['members.manage'],
+      isRoot: false,
       isGlobalAdmin: false,
     }));
 
@@ -324,10 +347,10 @@ describe('vaults integration', () => {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_member',
       },
-      body: JSON.stringify({ userId: 'usr_3', role: 'member', permissions: ['documents.read'] }),
+      body: JSON.stringify({ userId: 'usr_3', role: 'editor', permissions: ['documents.read'] }),
     });
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(403);
   });
 
   test('transfers ownership to another member', async () => {
@@ -339,7 +362,9 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
+      aiAccessLevel: 'none',
       permissions: [],
+      isRoot: false,
       isGlobalAdmin: false,
     }));
 
@@ -353,11 +378,13 @@ describe('vaults integration', () => {
       body: JSON.stringify({ userId: 'usr_2' }),
     });
 
-    expect(response.status).toBe(200);
-    expect(services.upsertMember).toHaveBeenCalledWith({
+    expect(response.status).toBe(202);
+    expect(services.createPermissionRequest).toHaveBeenCalledWith({
+      type: 'vault.owner_promote',
+      requestedBy: 'usr_owner',
       vaultId: 'vlt_1',
-      userId: 'usr_2',
-      role: 'owner',
+      targetUserId: 'usr_2',
+      payload: { role: 'owner' },
     });
   });
 });

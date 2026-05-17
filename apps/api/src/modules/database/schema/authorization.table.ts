@@ -1,47 +1,80 @@
-import { index, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { createPrimaryKeyField, createTimestampColumns } from './helpers.js';
 import { usersTable } from './users.table.js';
-import { vaultMembersTable } from './vaults.table.js';
+import { vaultMembersTable, vaultsTable } from './vaults.table.js';
 
-export const userGlobalRolesTable = pgTable(
-  'user_global_roles',
+export const systemCapabilitiesTable = pgTable(
+  'system_capabilities',
   {
     userId: text('user_id')
       .notNull()
       .references(() => usersTable.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: ['global_admin', 'vault_creator'] }).notNull(),
+    capability: text('capability', { enum: ['system.create_vaults'] }).notNull(),
+    createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   },
   (table) => [
-    primaryKey({ columns: [table.userId, table.role], name: 'user_global_roles_pk' }),
-    index('user_global_roles_role_idx').on(table.role),
+    primaryKey({ columns: [table.userId, table.capability], name: 'system_capabilities_pk' }),
+    index('system_capabilities_capability_idx').on(table.capability),
   ],
 );
 
-export const vaultMemberPermissionsTable = pgTable(
-  'vault_member_permissions',
+export const permissionRequestsTable = pgTable(
+  'permission_requests',
   {
-    vaultMemberId: text('vault_member_id')
-      .notNull()
-      .references(() => vaultMembersTable.id, { onDelete: 'cascade' }),
-    permission: text('permission', {
-      enum: [
-        'documents.read',
-        'documents.create',
-        'documents.update',
-        'documents.delete',
-        'documents.download',
-        'tags.manage',
-        'members.invite',
-        'members.manage',
-      ],
+    ...createPrimaryKeyField({ prefix: 'perm_req' }),
+    ...createTimestampColumns(),
+
+    type: text('type', {
+      enum: ['vault.create', 'vault.delete', 'vault.owner_promote', 'vault.ai_escalation'],
     }).notNull(),
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    status: text('status', { enum: ['pending', 'approved', 'rejected', 'cancelled'] })
+      .notNull()
+      .default('pending'),
+    requestedBy: text('requested_by')
+      .notNull()
+      .references(() => usersTable.id, { onDelete: 'cascade' }),
+    reviewedBy: text('reviewed_by').references(() => usersTable.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { mode: 'date' }),
+    vaultId: text('vault_id').references(() => vaultsTable.id, { onDelete: 'cascade' }),
+    targetUserId: text('target_user_id').references(() => usersTable.id, { onDelete: 'cascade' }),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    result: jsonb('result').$type<Record<string, unknown>>(),
   },
   (table) => [
-    primaryKey({
-      columns: [table.vaultMemberId, table.permission],
-      name: 'vault_member_permissions_pk',
-    }),
-    index('vault_member_permissions_permission_idx').on(table.permission),
+    index('permission_requests_status_created_idx').on(table.status, table.createdAt),
+    index('permission_requests_requested_by_idx').on(table.requestedBy),
+    index('permission_requests_vault_idx').on(table.vaultId),
+  ],
+);
+
+export const emailInvitationsTable = pgTable(
+  'email_invitations',
+  {
+    ...createPrimaryKeyField({ prefix: 'invite' }),
+    ...createTimestampColumns(),
+
+    type: text('type', { enum: ['root_account', 'vault_member'] }).notNull(),
+    status: text('status', { enum: ['pending', 'accepted', 'revoked', 'expired'] })
+      .notNull()
+      .default('pending'),
+    email: text('email').notNull(),
+    invitedBy: text('invited_by').references(() => usersTable.id, { onDelete: 'set null' }),
+    acceptedBy: text('accepted_by').references(() => usersTable.id, { onDelete: 'set null' }),
+    acceptedAt: timestamp('accepted_at', { mode: 'date' }),
+    expiresAt: timestamp('expires_at', { mode: 'date' }),
+    vaultId: text('vault_id').references(() => vaultsTable.id, { onDelete: 'cascade' }),
+    vaultMemberId: text('vault_member_id').references(() => vaultMembersTable.id, { onDelete: 'set null' }),
+    vaultRole: text('vault_role', { enum: ['owner', 'editor', 'viewer'] }),
+    aiAccessLevel: text('ai_access_level', { enum: ['none', 'document_chat', 'full'] })
+      .notNull()
+      .default('none'),
+    systemRole: text('system_role', { enum: ['root', 'member'] }),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (table) => [
+    index('email_invitations_email_status_idx').on(table.email, table.status),
+    index('email_invitations_vault_idx').on(table.vaultId),
+    index('email_invitations_invited_by_idx').on(table.invitedBy),
   ],
 );

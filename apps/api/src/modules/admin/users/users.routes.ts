@@ -57,12 +57,15 @@ export function registerAdminUserRoutes({
 
       return context.json({ user });
     } catch (error) {
-      if (error instanceof Error && error.message === 'authorization.last_global_admin') {
+      if (
+        error instanceof Error &&
+        (error.message === 'authorization.last_root' || error.message === 'authorization.last_global_admin')
+      ) {
         return context.json(
           {
             error: {
-              code: 'authorization.last_global_admin',
-              message: 'At least one active global admin is required',
+              code: 'authorization.last_root',
+              message: 'At least one active root is required',
             },
           },
           409,
@@ -131,12 +134,15 @@ export function registerAdminUserRoutes({
 
       return context.json({ user });
     } catch (error) {
-      if (error instanceof Error && error.message === 'authorization.last_global_admin') {
+      if (
+        error instanceof Error &&
+        (error.message === 'authorization.last_root' || error.message === 'authorization.last_global_admin')
+      ) {
         return context.json(
           {
             error: {
-              code: 'authorization.last_global_admin',
-              message: 'At least one active global admin is required',
+              code: 'authorization.last_root',
+              message: 'At least one active root is required',
             },
           },
           409,

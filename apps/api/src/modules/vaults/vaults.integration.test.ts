@@ -299,7 +299,7 @@ describe('vaults integration', () => {
     expect(services.upsertMember).toHaveBeenCalledWith({
       vaultId: 'vlt_1',
       userId: 'usr_2',
-      role: 'member',
+      role: 'editor',
       permissions: ['documents.read', 'documents.create'],
     });
   });

@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createAuth } from '../../auth/auth.services.js';
 import { parseConfig } from '../../config/config.js';
 import { setupDatabase } from '../../database/database.js';
-import { documentChunksTable, documentsTable, userGlobalRolesTable, usersTable, vaultsTable } from '../../database/schema/index.js';
+import { documentChunksTable, documentsTable, usersTable, vaultsTable } from '../../database/schema/index.js';
 import { createEncryptionServices } from '../../encryption/encryption.services.js';
 import { createServer } from '../../server/server.js';
 import { createStorageDriver } from '../../storage/storage.services.js';
@@ -180,7 +180,7 @@ describe.sequential('backups e2e', () => {
     const sessionCookie = signUpResponse.headers.get('set-cookie')!.split(';', 1)[0];
     const signUpBody = await signUpResponse.json() as { user: { id: string } };
     userId = signUpBody.user.id;
-    await db.insert(userGlobalRolesTable).values({ userId, role: 'global_admin' }).onConflictDoNothing();
+    await db.update(usersTable).set({ systemRole: 'root' }).where(eq(usersTable.id, userId));
 
     const createVaultResponse = await app.request('/api/vaults', {
       method: 'POST',

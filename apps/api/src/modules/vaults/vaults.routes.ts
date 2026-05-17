@@ -40,7 +40,11 @@ function getValidDescription(value: unknown) {
 }
 
 function getValidRole(value: unknown): VaultRole | null {
-  return value === 'owner' || value === 'member' ? value : null;
+  if (value === 'member') {
+    return 'editor';
+  }
+
+  return value === 'owner' || value === 'editor' || value === 'viewer' ? value : null;
 }
 
 function getValidPermissions(value: unknown): VaultMemberPermission[] | null {

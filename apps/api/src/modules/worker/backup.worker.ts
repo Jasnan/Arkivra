@@ -13,10 +13,11 @@ const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
 const PUBLIC_TABLES_IN_RESTORE_ORDER = [
   'users',
-  'user_global_roles',
+  'system_capabilities',
   'vaults',
   'vault_members',
-  'vault_member_permissions',
+  'permission_requests',
+  'email_invitations',
   'documents',
   'document_chunks',
   'tags',

@@ -1,8 +1,10 @@
-import type { VaultMemberPermission } from '../authorization/authorization.types.js';
+import type {
+  AiAccessLevel,
+  VaultMemberPermission,
+  VaultRole,
+} from '../authorization/authorization.types.js';
 
-export const VAULT_ROLES = ['owner', 'member'] as const;
-
-export type VaultRole = (typeof VAULT_ROLES)[number];
+export type { AiAccessLevel, VaultRole };
 
 export type VaultAccess = {
   id: string;
@@ -14,6 +16,8 @@ export type VaultAccess = {
   updatedAt: Date;
   deletedAt: Date | null;
   role: VaultRole | null;
+  aiAccessLevel: AiAccessLevel;
   permissions: VaultMemberPermission[];
+  isRoot: boolean;
   isGlobalAdmin: boolean;
 };

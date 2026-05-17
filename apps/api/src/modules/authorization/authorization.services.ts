@@ -1,17 +1,55 @@
 import type { Database } from '../database/database.js';
-import type { GlobalRole } from './authorization.types.js';
+import type {
+  AiAccessLevel,
+  SystemCapability,
+  SystemRole,
+  VaultAuthorizationState,
+  VaultRole,
+} from './authorization.types.js';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { authAccountsTable, userGlobalRolesTable, usersTable } from '../database/schema/index.js';
+import {
+  authAccountsTable,
+  systemCapabilitiesTable,
+  usersTable,
+  vaultMembersTable,
+  vaultsTable,
+} from '../database/schema/index.js';
+
+const CREATE_VAULTS_CAPABILITY = 'system.create_vaults' satisfies SystemCapability;
+
+function isRootRole(role: SystemRole) {
+  return role === 'root';
+}
+
+function canVaultRoleRead(role: VaultRole | null) {
+  return role === 'owner' || role === 'editor' || role === 'viewer';
+}
+
+function canVaultRoleMutateDocuments(role: VaultRole | null) {
+  return role === 'owner' || role === 'editor';
+}
+
+function canVaultRoleManageMembers(role: VaultRole | null) {
+  return role === 'owner';
+}
+
+function canUseDocumentChatLevel(aiAccessLevel: AiAccessLevel) {
+  return aiAccessLevel === 'document_chat' || aiAccessLevel === 'full';
+}
+
+function canUseSemanticRetrievalLevel(aiAccessLevel: AiAccessLevel) {
+  return aiAccessLevel === 'full';
+}
 
 export function createAuthorizationServices({ db }: { db: Database }) {
-  async function ensureBootstrapGlobalAdmin({ userId }: { userId: string }) {
-    const [existingAdmin] = await db
-      .select({ userId: userGlobalRolesTable.userId })
-      .from(userGlobalRolesTable)
-      .where(eq(userGlobalRolesTable.role, 'global_admin'))
+  async function ensureBootstrapRoot({ userId }: { userId: string }) {
+    const [existingRoot] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.systemRole, 'root'), isNull(usersTable.disabledAt)))
       .limit(1);
 
-    if (existingAdmin !== undefined) {
+    if (existingRoot !== undefined) {
       return false;
     }
 
@@ -26,20 +64,20 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     }
 
     await db
-      .insert(userGlobalRolesTable)
-      .values({ userId, role: 'global_admin' })
-      .onConflictDoNothing();
+      .update(usersTable)
+      .set({ systemRole: 'root', updatedAt: new Date() })
+      .where(eq(usersTable.id, userId));
 
     return true;
   }
 
-  async function listGlobalRolesForUser({ userId }: { userId: string }) {
+  async function listSystemCapabilitiesForUser({ userId }: { userId: string }) {
     const rows = await db
-      .select({ role: userGlobalRolesTable.role })
-      .from(userGlobalRolesTable)
-      .where(eq(userGlobalRolesTable.userId, userId));
+      .select({ capability: systemCapabilitiesTable.capability })
+      .from(systemCapabilitiesTable)
+      .where(eq(systemCapabilitiesTable.userId, userId));
 
-    return rows.map((row) => row.role as GlobalRole);
+    return rows.map(row => row.capability as SystemCapability);
   }
 
   async function getUserAuthorizationState({ userId }: { userId: string }) {
@@ -47,6 +85,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       .select({
         id: usersTable.id,
         disabledAt: usersTable.disabledAt,
+        systemRole: usersTable.systemRole,
       })
       .from(usersTable)
       .where(eq(usersTable.id, userId))
@@ -56,23 +95,33 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       return null;
     }
 
-    const globalRoles = await listGlobalRolesForUser({ userId });
+    const systemCapabilities = await listSystemCapabilitiesForUser({ userId });
+    const isRoot = isRootRole(user.systemRole as SystemRole);
+    const canCreateVault = isRoot || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
 
     return {
       userId: user.id,
       disabledAt: user.disabledAt,
-      globalRoles,
-      isGlobalAdmin: globalRoles.includes('global_admin'),
-      canCreateVault: globalRoles.includes('global_admin') || globalRoles.includes('vault_creator'),
+      systemRole: user.systemRole as SystemRole,
+      systemCapabilities,
+      isRoot,
+      canCreateVault,
+      // Deprecated response compatibility until UI/API terminology is fully renamed.
+      globalRoles: [
+        ...(isRoot ? ['global_admin' as const] : []),
+        ...(systemCapabilities.includes(CREATE_VAULTS_CAPABILITY)
+          ? ['vault_creator' as const]
+          : []),
+      ],
+      isGlobalAdmin: isRoot,
     };
   }
 
-  async function countActiveGlobalAdmins() {
+  async function countActiveRoots() {
     const [row] = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(userGlobalRolesTable)
-      .innerJoin(usersTable, eq(userGlobalRolesTable.userId, usersTable.id))
-      .where(and(eq(userGlobalRolesTable.role, 'global_admin'), isNull(usersTable.disabledAt)));
+      .from(usersTable)
+      .where(and(eq(usersTable.systemRole, 'root'), isNull(usersTable.disabledAt)));
 
     return row?.count ?? 0;
   }
@@ -85,6 +134,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         name: usersTable.name,
         emailVerified: usersTable.emailVerified,
         twoFactorEnabled: usersTable.twoFactorEnabled,
+        systemRole: usersTable.systemRole,
         disabledAt: usersTable.disabledAt,
         createdAt: usersTable.createdAt,
         updatedAt: usersTable.updatedAt,
@@ -92,28 +142,28 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       .from(usersTable)
       .orderBy(asc(usersTable.createdAt));
 
-    const roles =
+    const capabilities =
       users.length === 0
         ? []
         : await db
             .select({
-              userId: userGlobalRolesTable.userId,
-              role: userGlobalRolesTable.role,
+              userId: systemCapabilitiesTable.userId,
+              capability: systemCapabilitiesTable.capability,
             })
-            .from(userGlobalRolesTable)
+            .from(systemCapabilitiesTable)
             .where(
               inArray(
-                userGlobalRolesTable.userId,
-                users.map((user) => user.id),
+                systemCapabilitiesTable.userId,
+                users.map(user => user.id),
               ),
             );
 
-    const rolesByUserId = new Map<string, GlobalRole[]>();
+    const capabilitiesByUserId = new Map<string, SystemCapability[]>();
 
-    for (const role of roles) {
-      const current = rolesByUserId.get(role.userId) ?? [];
-      current.push(role.role as GlobalRole);
-      rolesByUserId.set(role.userId, current);
+    for (const capability of capabilities) {
+      const current = capabilitiesByUserId.get(capability.userId) ?? [];
+      current.push(capability.capability as SystemCapability);
+      capabilitiesByUserId.set(capability.userId, current);
     }
 
     const accounts =
@@ -129,7 +179,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
             .where(
               inArray(
                 authAccountsTable.userId,
-                users.map((user) => user.id),
+                users.map(user => user.id),
               ),
             );
 
@@ -141,40 +191,54 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       accountsByUserId.set(account.userId, current);
     }
 
-    return users.map((user) => ({
-      ...user,
-      globalRoles: rolesByUserId.get(user.id) ?? [],
-      isGlobalAdmin: (rolesByUserId.get(user.id) ?? []).includes('global_admin'),
-      canCreateVault:
-        (rolesByUserId.get(user.id) ?? []).includes('global_admin')
-        || (rolesByUserId.get(user.id) ?? []).includes('vault_creator'),
-      authMethods: {
-        hasPassword: (accountsByUserId.get(user.id) ?? []).some(account => account.providerId === 'credential' && account.password),
-        oauthProviders: (accountsByUserId.get(user.id) ?? [])
-          .filter(account => account.providerId !== 'credential')
-          .map(account => account.providerId),
-        primaryOAuthProvider: (accountsByUserId.get(user.id) ?? []).find(account => account.providerId !== 'credential')?.providerId ?? null,
-      },
-    }));
+    return users.map((user) => {
+      const systemRole = user.systemRole as SystemRole;
+      const systemCapabilities = capabilitiesByUserId.get(user.id) ?? [];
+      const isRoot = isRootRole(systemRole);
+      const canCreateVault = isRoot || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
+
+      return {
+        ...user,
+        systemRole,
+        systemCapabilities,
+        isRoot,
+        canCreateVault,
+        // Deprecated response compatibility until UI/API terminology is fully renamed.
+        globalRoles: [
+          ...(isRoot ? ['global_admin' as const] : []),
+          ...(systemCapabilities.includes(CREATE_VAULTS_CAPABILITY)
+            ? ['vault_creator' as const]
+            : []),
+        ],
+        isGlobalAdmin: isRoot,
+        authMethods: {
+          hasPassword: (accountsByUserId.get(user.id) ?? []).some(account => account.providerId === 'credential' && account.password),
+          oauthProviders: (accountsByUserId.get(user.id) ?? [])
+            .filter(account => account.providerId !== 'credential')
+            .map(account => account.providerId),
+          primaryOAuthProvider: (accountsByUserId.get(user.id) ?? []).find(account => account.providerId !== 'credential')?.providerId ?? null,
+        },
+      };
+    });
   }
 
-  async function getUserWithRoles({ userId }: { userId: string }) {
+  async function getUserWithAuthorization({ userId }: { userId: string }) {
     const users = await listUsers();
-    return users.find((user) => user.id === userId) ?? null;
+    return users.find(user => user.id === userId) ?? null;
   }
 
   async function setUserDisabled({ userId, disabled }: { userId: string; disabled: boolean }) {
-    const user = await getUserWithRoles({ userId });
+    const user = await getUserWithAuthorization({ userId });
 
     if (user === null) {
       return null;
     }
 
-    if (disabled && user.isGlobalAdmin && user.disabledAt === null) {
-      const activeGlobalAdminCount = await countActiveGlobalAdmins();
+    if (disabled && user.isRoot && user.disabledAt === null) {
+      const activeRootCount = await countActiveRoots();
 
-      if (activeGlobalAdminCount <= 1) {
-        throw new Error('authorization.last_global_admin');
+      if (activeRootCount <= 1) {
+        throw new Error('authorization.last_root');
       }
     }
 
@@ -186,89 +250,281 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       })
       .where(eq(usersTable.id, userId));
 
-    return getUserWithRoles({ userId });
+    return getUserWithAuthorization({ userId });
   }
 
-  async function grantGlobalAdmin({ userId }: { userId: string }) {
-    const user = await getUserWithRoles({ userId });
+  async function grantRoot({ userId }: { userId: string }) {
+    const user = await getUserWithAuthorization({ userId });
 
     if (user === null) {
       return null;
     }
 
     await db
-      .insert(userGlobalRolesTable)
-      .values({ userId, role: 'global_admin' })
-      .onConflictDoNothing();
+      .update(usersTable)
+      .set({ systemRole: 'root', updatedAt: new Date() })
+      .where(eq(usersTable.id, userId));
 
-    return getUserWithRoles({ userId });
+    return getUserWithAuthorization({ userId });
   }
 
-  async function revokeGlobalAdmin({ userId }: { userId: string }) {
-    const user = await getUserWithRoles({ userId });
+  async function revokeRoot({ userId }: { userId: string }) {
+    const user = await getUserWithAuthorization({ userId });
 
     if (user === null) {
       return null;
     }
 
-    if (user.isGlobalAdmin && user.disabledAt === null) {
-      const activeGlobalAdminCount = await countActiveGlobalAdmins();
+    if (user.isRoot && user.disabledAt === null) {
+      const activeRootCount = await countActiveRoots();
 
-      if (activeGlobalAdminCount <= 1) {
-        throw new Error('authorization.last_global_admin');
+      if (activeRootCount <= 1) {
+        throw new Error('authorization.last_root');
       }
     }
 
     await db
-      .delete(userGlobalRolesTable)
+      .update(usersTable)
+      .set({ systemRole: 'member', updatedAt: new Date() })
+      .where(eq(usersTable.id, userId));
+
+    return getUserWithAuthorization({ userId });
+  }
+
+  async function grantSystemCapability({
+    userId,
+    capability,
+    createdBy,
+  }: {
+    userId: string;
+    capability: SystemCapability;
+    createdBy?: string | null;
+  }) {
+    const user = await getUserWithAuthorization({ userId });
+
+    if (user === null) {
+      return null;
+    }
+
+    await db
+      .insert(systemCapabilitiesTable)
+      .values({ userId, capability, createdBy: createdBy ?? null })
+      .onConflictDoNothing();
+
+    return getUserWithAuthorization({ userId });
+  }
+
+  async function revokeSystemCapability({
+    userId,
+    capability,
+  }: {
+    userId: string;
+    capability: SystemCapability;
+  }) {
+    const user = await getUserWithAuthorization({ userId });
+
+    if (user === null) {
+      return null;
+    }
+
+    await db
+      .delete(systemCapabilitiesTable)
       .where(
-        and(eq(userGlobalRolesTable.userId, userId), eq(userGlobalRolesTable.role, 'global_admin')),
+        and(
+          eq(systemCapabilitiesTable.userId, userId),
+          eq(systemCapabilitiesTable.capability, capability),
+        ),
       );
 
-    return getUserWithRoles({ userId });
+    return getUserWithAuthorization({ userId });
+  }
+
+  async function getVaultAuthorizationState({
+    vaultId,
+    userId,
+  }: {
+    vaultId: string;
+    userId: string;
+  }): Promise<VaultAuthorizationState | null> {
+    const userState = await getUserAuthorizationState({ userId });
+
+    if (userState === null || userState.disabledAt !== null) {
+      return null;
+    }
+
+    const [member] = await db
+      .select({
+        vaultId: vaultsTable.id,
+        role: vaultMembersTable.role,
+        aiAccessLevel: vaultMembersTable.aiAccessLevel,
+      })
+      .from(vaultsTable)
+      .leftJoin(
+        vaultMembersTable,
+        and(eq(vaultMembersTable.vaultId, vaultsTable.id), eq(vaultMembersTable.userId, userId)),
+      )
+      .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
+      .limit(1);
+
+    if (member === undefined) {
+      return null;
+    }
+
+    const role = member.role as VaultRole | null;
+    const aiAccessLevel = (member.aiAccessLevel ?? 'none') as AiAccessLevel;
+
+    if (!userState.isRoot && role === null) {
+      return null;
+    }
+
+    return {
+      userId,
+      vaultId,
+      isRoot: userState.isRoot,
+      role,
+      aiAccessLevel,
+    };
+  }
+
+  function canAccessVault(state: VaultAuthorizationState | null) {
+    return state !== null && (state.isRoot || canVaultRoleRead(state.role));
+  }
+
+  function canReadVault(state: VaultAuthorizationState | null) {
+    return canAccessVault(state);
+  }
+
+  function canManageVault(state: VaultAuthorizationState | null) {
+    return state !== null && (state.isRoot || state.role === 'owner');
+  }
+
+  function canManageVaultMembers(state: VaultAuthorizationState | null) {
+    return state !== null && (state.isRoot || canVaultRoleManageMembers(state.role));
+  }
+
+  function canMutateVaultDocuments(state: VaultAuthorizationState | null) {
+    return state !== null && (state.isRoot || canVaultRoleMutateDocuments(state.role));
+  }
+
+  async function canCreateVault({ userId }: { userId: string }) {
+    const state = await getUserAuthorizationState({ userId });
+    return state?.disabledAt === null && state.canCreateVault;
+  }
+
+  function canUseDocumentChat(state: VaultAuthorizationState | null) {
+    return state !== null && canUseDocumentChatLevel(state.aiAccessLevel);
+  }
+
+  async function getReadableVaultIdsForUser({ userId }: { userId: string }) {
+    const state = await getUserAuthorizationState({ userId });
+
+    if (state === null || state.disabledAt !== null) {
+      return [];
+    }
+
+    if (state.isRoot) {
+      const rows = await db
+        .select({ id: vaultsTable.id })
+        .from(vaultsTable)
+        .where(isNull(vaultsTable.deletedAt));
+
+      return rows.map(row => row.id);
+    }
+
+    const rows = await db
+      .select({ id: vaultMembersTable.vaultId })
+      .from(vaultMembersTable)
+      .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
+      .where(and(eq(vaultMembersTable.userId, userId), isNull(vaultsTable.deletedAt)));
+
+    return rows.map(row => row.id);
+  }
+
+  async function getAiAuthorizedVaultIdsForUser({ userId }: { userId: string }) {
+    const state = await getUserAuthorizationState({ userId });
+
+    if (state === null || state.disabledAt !== null) {
+      return [];
+    }
+
+    const rows = await db
+      .select({ id: vaultMembersTable.vaultId })
+      .from(vaultMembersTable)
+      .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
+      .where(
+        and(
+          eq(vaultMembersTable.userId, userId),
+          eq(vaultMembersTable.aiAccessLevel, 'full'),
+          isNull(vaultsTable.deletedAt),
+        ),
+      );
+
+    return rows.map(row => row.id);
+  }
+
+  async function canUseGlobalChat({ userId }: { userId: string }) {
+    const vaultIds = await getAiAuthorizedVaultIdsForUser({ userId });
+    return vaultIds.length > 0;
+  }
+
+  function canUseSemanticRetrieval(state: VaultAuthorizationState | null) {
+    return state !== null && canUseSemanticRetrievalLevel(state.aiAccessLevel);
+  }
+
+  async function grantGlobalAdmin({ userId }: { userId: string }) {
+    return grantRoot({ userId });
+  }
+
+  async function revokeGlobalAdmin({ userId }: { userId: string }) {
+    try {
+      return await revokeRoot({ userId });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'authorization.last_root') {
+        throw new Error('authorization.last_global_admin');
+      }
+
+      throw error;
+    }
   }
 
   async function grantVaultCreator({ userId }: { userId: string }) {
-    const user = await getUserWithRoles({ userId });
-
-    if (user === null) {
-      return null;
-    }
-
-    await db
-      .insert(userGlobalRolesTable)
-      .values({ userId, role: 'vault_creator' })
-      .onConflictDoNothing();
-
-    return getUserWithRoles({ userId });
+    return grantSystemCapability({ userId, capability: CREATE_VAULTS_CAPABILITY });
   }
 
   async function revokeVaultCreator({ userId }: { userId: string }) {
-    const user = await getUserWithRoles({ userId });
-
-    if (user === null) {
-      return null;
-    }
-
-    await db
-      .delete(userGlobalRolesTable)
-      .where(
-        and(eq(userGlobalRolesTable.userId, userId), eq(userGlobalRolesTable.role, 'vault_creator')),
-      );
-
-    return getUserWithRoles({ userId });
+    return revokeSystemCapability({ userId, capability: CREATE_VAULTS_CAPABILITY });
   }
 
   return {
-    countActiveGlobalAdmins,
-    ensureBootstrapGlobalAdmin,
+    canAccessVault,
+    canCreateVault,
+    canManageVault,
+    canManageVaultMembers,
+    canMutateVaultDocuments,
+    canReadVault,
+    canUseDocumentChat,
+    canUseGlobalChat,
+    canUseSemanticRetrieval,
+    countActiveGlobalAdmins: countActiveRoots,
+    countActiveRoots,
+    ensureBootstrapGlobalAdmin: ensureBootstrapRoot,
+    ensureBootstrapRoot,
+    getAiAuthorizedVaultIdsForUser,
+    getReadableVaultIdsForUser,
     getUserAuthorizationState,
-    getUserWithRoles,
+    getUserWithAuthorization,
+    getUserWithRoles: getUserWithAuthorization,
+    getVaultAuthorizationState,
     grantGlobalAdmin,
+    grantRoot,
+    grantSystemCapability,
     grantVaultCreator,
-    listGlobalRolesForUser,
+    listGlobalRolesForUser: listSystemCapabilitiesForUser,
+    listSystemCapabilitiesForUser,
     listUsers,
     revokeGlobalAdmin,
+    revokeRoot,
+    revokeSystemCapability,
     revokeVaultCreator,
     setUserDisabled,
   };

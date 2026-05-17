@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { userGlobalRolesTable, usersTable, vaultsTable } from '../database/schema/index.js';
+import { systemCapabilitiesTable, usersTable, vaultsTable } from '../database/schema/index.js';
 import { createAuth } from '../auth/auth.services.js';
 import { parseConfig } from '../config/config.js';
 import { setupDatabase } from '../database/database.js';
@@ -118,13 +118,13 @@ describe.sequential('authorization e2e', () => {
     ownerUserId = owner.userId;
     memberUserId = member.userId;
 
-    const globalAdminRowsBeforeMe =
+    const rootRowsBeforeMe =
       db === null
         ? []
         : await db
-            .select({ userId: userGlobalRolesTable.userId })
-            .from(userGlobalRolesTable)
-            .where(eq(userGlobalRolesTable.role, 'global_admin'));
+            .select({ userId: usersTable.id })
+            .from(usersTable)
+            .where(eq(usersTable.systemRole, 'root'));
     const [oldestUser] =
       db === null
         ? []
@@ -145,14 +145,14 @@ describe.sequential('authorization e2e', () => {
     };
     expect(firstAdminMeBody.userId).toBe(firstAdmin.userId);
 
-    if (globalAdminRowsBeforeMe.length === 0 && oldestUser?.id === firstAdmin.userId) {
+    if (rootRowsBeforeMe.length === 0 && oldestUser?.id === firstAdmin.userId) {
       expect(firstAdminMeBody.isGlobalAdmin).toBe(true);
       expect(firstAdminMeBody.canCreateVault).toBe(true);
     } else if (db !== null) {
       await db
-        .insert(userGlobalRolesTable)
-        .values({ userId: firstAdmin.userId, role: 'global_admin' })
-        .onConflictDoNothing();
+        .update(usersTable)
+        .set({ systemRole: 'root' })
+        .where(eq(usersTable.id, firstAdmin.userId));
     }
 
     const ownerMeResponse = await app.request('/api/me', {
@@ -186,8 +186,8 @@ describe.sequential('authorization e2e', () => {
     expect(createVaultResponse.status).toBe(403);
     if (db !== null) {
       await db
-        .insert(userGlobalRolesTable)
-        .values({ userId: owner.userId, role: 'vault_creator' })
+        .insert(systemCapabilitiesTable)
+        .values({ userId: owner.userId, capability: 'system.create_vaults' })
         .onConflictDoNothing();
     }
 
@@ -272,13 +272,13 @@ describe.sequential('authorization e2e', () => {
     });
     expect(allowedUploadResponse.status).toBe(201);
 
-    const activeGlobalAdminsBeforeRevoke =
+    const activeRootsBeforeRevoke =
       db === null
         ? []
         : await db
-            .select({ userId: userGlobalRolesTable.userId })
-            .from(userGlobalRolesTable)
-            .where(eq(userGlobalRolesTable.role, 'global_admin'));
+            .select({ userId: usersTable.id })
+            .from(usersTable)
+            .where(eq(usersTable.systemRole, 'root'));
     const revokeLastAdminResponse = await app.request(
       `/api/admin/users/${firstAdmin.userId}/global-admin`,
       {
@@ -288,7 +288,7 @@ describe.sequential('authorization e2e', () => {
     );
     expect([200, 409]).toContain(revokeLastAdminResponse.status);
     expect(revokeLastAdminResponse.status).toBe(
-      activeGlobalAdminsBeforeRevoke.length <= 1 ? 409 : 200,
+      activeRootsBeforeRevoke.length <= 1 ? 409 : 200,
     );
   }, 30_000);
 });

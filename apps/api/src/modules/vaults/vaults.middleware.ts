@@ -49,7 +49,9 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
 
     context.set('vaultId', vaultId);
     context.set('vaultRole', vault.role);
+    context.set('vaultAiAccessLevel', vault.aiAccessLevel);
     context.set('vaultPermissions', vault.permissions);
+    context.set('isRoot', vault.isRoot || context.get('isRoot'));
     context.set('isGlobalAdmin', vault.isGlobalAdmin || context.get('isGlobalAdmin'));
 
     await next();
@@ -58,7 +60,7 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
 
 export function requireVaultRole(...roles: VaultRole[]) {
   return createMiddleware(async (context, next) => {
-    if (context.get('isGlobalAdmin')) {
+    if (context.get('isRoot') || context.get('isGlobalAdmin')) {
       await next();
       return;
     }
@@ -83,7 +85,7 @@ export function requireVaultRole(...roles: VaultRole[]) {
 
 export function requireVaultPermission(...permissions: VaultMemberPermission[]) {
   return createMiddleware(async (context, next) => {
-    if (context.get('isGlobalAdmin') || context.get('vaultRole') === 'owner') {
+    if (context.get('isRoot') || context.get('isGlobalAdmin') || context.get('vaultRole') === 'owner') {
       await next();
       return;
     }

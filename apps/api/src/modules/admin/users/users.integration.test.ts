@@ -86,10 +86,14 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
+    context.set('systemRole', isGlobalAdmin ? 'root' : 'member');
+    context.set('systemCapabilities', []);
+    context.set('isRoot', isGlobalAdmin);
     context.set('isGlobalAdmin', isGlobalAdmin);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
+    context.set('vaultAiAccessLevel', 'none');
     context.set('vaultPermissions', []);
     await next();
   });

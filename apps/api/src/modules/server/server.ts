@@ -168,10 +168,14 @@ export function createServer({
     context.set('user', null);
     context.set('session', null);
     context.set('userDisabled', false);
+    context.set('systemRole', null);
+    context.set('systemCapabilities', []);
+    context.set('isRoot', false);
     context.set('isGlobalAdmin', false);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
+    context.set('vaultAiAccessLevel', 'none');
     context.set('vaultPermissions', []);
     await next();
   });
@@ -277,6 +281,9 @@ export function createServer({
     return c.json({
       userId,
       sessionId: session.id,
+      systemRole: c.get('systemRole'),
+      systemCapabilities: c.get('systemCapabilities'),
+      isRoot: c.get('isRoot'),
       isGlobalAdmin: c.get('isGlobalAdmin'),
       canCreateVault: c.get('canCreateVault'),
       authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),

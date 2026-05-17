@@ -358,6 +358,7 @@ export function DocumentsPage() {
   }
 
   function openCreateFolderDialog(parentId: string | null) {
+    setContextMenu(null);
     setCreateFolderParentId(parentId);
     setIsCreateFolderOpen(true);
   }
@@ -867,6 +868,7 @@ export function DocumentsPage() {
       </ChakraDialog.Root>
 
       <RenameItemDialog
+        open={renameTarget !== null}
         target={renameTarget}
         value={renameValue}
         isPending={renameMutation.isPending}
@@ -879,6 +881,7 @@ export function DocumentsPage() {
       />
 
       <MoveItemDialog
+        open={moveTarget !== null}
         target={moveTarget}
         value={moveDestinationId}
         destinations={moveDestinations}
@@ -893,6 +896,7 @@ export function DocumentsPage() {
       />
 
       <ItemInfoDialog
+        open={infoTarget !== null}
         target={infoTarget}
         folderPath={infoFolderPath}
         onClose={() => setInfoTarget(null)}

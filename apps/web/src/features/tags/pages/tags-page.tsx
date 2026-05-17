@@ -55,25 +55,27 @@ interface TagAction {
 }
 
 function DeleteTagDialog({
+  open,
   tag,
   isPending,
   onClose,
   onConfirm,
 }: {
-  tag: Tag;
+  open: boolean;
+  tag: Tag | null;
   isPending: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const attachedDocuments = tag.documentsCount ?? 0;
+  const attachedDocuments = tag?.documentsCount ?? 0;
   return (
-    <ChakraDialog.Root open onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root open={open} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
           <ChakraDialog.Content>
             <ChakraDialog.Header>
-              <ChakraDialog.Title>{`Delete “${tag.name}”?`}</ChakraDialog.Title>
+              <ChakraDialog.Title>{`Delete “${tag?.name ?? 'tag'}”?`}</ChakraDialog.Title>
               <ChakraDialog.CloseTrigger asChild>
                 <CloseButton size="sm" />
               </ChakraDialog.CloseTrigger>
@@ -103,11 +105,13 @@ function DeleteTagDialog({
 }
 
 function DeleteTagsDialog({
+  open,
   tags,
   isPending,
   onClose,
   onConfirm,
 }: {
+  open: boolean;
   tags: Tag[];
   isPending: boolean;
   onClose: () => void;
@@ -116,7 +120,7 @@ function DeleteTagsDialog({
   const attachedDocuments = tags.reduce((total, tag) => total + (tag.documentsCount ?? 0), 0);
 
   return (
-    <ChakraDialog.Root open onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root open={open} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -420,6 +424,14 @@ export function TagsPage() {
     await queryClient.invalidateQueries({ queryKey: tagQueryKeys.all });
   }
 
+  function closeDeleteDialogs({ restoreFocus = true } = {}) {
+    setTagPendingDelete(null);
+    setTagsPendingBulkDelete([]);
+    if (restoreFocus) {
+      restoreFocusTarget();
+    }
+  }
+
   const createMutation = useMutation({
     mutationFn: createTag,
     onSuccess: async () => {
@@ -448,14 +460,13 @@ export function TagsPage() {
     mutationFn: async (tagsToDelete: Array<{ tagId: string }>) =>
       Promise.all(tagsToDelete.map((tagToDelete) => deleteTag(tagToDelete))),
     onSuccess: async (_data, variables) => {
-      await invalidateTagQueries();
       toast.success(
         variables.length === 1 ? 'Tag deleted.' : `${variables.length} tags deleted.`,
       );
       const deletedTagIds = new Set(variables.map((item) => item.tagId));
       setSelectedTagIds((current) => current.filter((id) => !deletedTagIds.has(id)));
-      setTagPendingDelete(null);
-      setTagsPendingBulkDelete([]);
+      closeDeleteDialogs({ restoreFocus: false });
+      await invalidateTagQueries();
       restoreFocusTarget();
     },
     onError: (error) => {
@@ -471,15 +482,13 @@ export function TagsPage() {
 
       if (tagPendingDelete && !deleteMutation.isPending) {
         event.preventDefault();
-        setTagPendingDelete(null);
-        restoreFocusTarget();
+        closeDeleteDialogs();
         return;
       }
 
       if (tagsPendingBulkDelete.length > 0 && !deleteMutation.isPending) {
         event.preventDefault();
-        setTagsPendingBulkDelete([]);
-        restoreFocusTarget();
+        closeDeleteDialogs();
       }
     }
 
@@ -724,39 +733,32 @@ export function TagsPage() {
         onSubmit={handleSubmit}
       />
 
-      {tagPendingDelete ? (
-        <DeleteTagDialog
-          tag={tagPendingDelete}
-          isPending={deleteMutation.isPending}
-          onClose={() => {
-            setTagPendingDelete(null);
-            restoreFocusTarget();
-          }}
-          onConfirm={() => {
-            deleteMutation.mutate([{
-              tagId: tagPendingDelete.id,
-            }]);
-          }}
-        />
-      ) : null}
+      <DeleteTagDialog
+        open={tagPendingDelete !== null}
+        tag={tagPendingDelete}
+        isPending={deleteMutation.isPending}
+        onClose={closeDeleteDialogs}
+        onConfirm={() => {
+          if (!tagPendingDelete) return;
+          deleteMutation.mutate([{
+            tagId: tagPendingDelete.id,
+          }]);
+        }}
+      />
 
-      {tagsPendingBulkDelete.length > 0 ? (
-        <DeleteTagsDialog
-          tags={tagsPendingBulkDelete}
-          isPending={deleteMutation.isPending}
-          onClose={() => {
-            setTagsPendingBulkDelete([]);
-            restoreFocusTarget();
-          }}
-          onConfirm={() => {
-            deleteMutation.mutate(
-              tagsPendingBulkDelete.map((tag) => ({
-                tagId: tag.id,
-              })),
-            );
-          }}
-        />
-      ) : null}
+      <DeleteTagsDialog
+        open={tagsPendingBulkDelete.length > 0}
+        tags={tagsPendingBulkDelete}
+        isPending={deleteMutation.isPending}
+        onClose={closeDeleteDialogs}
+        onConfirm={() => {
+          deleteMutation.mutate(
+            tagsPendingBulkDelete.map((tag) => ({
+              tagId: tag.id,
+            })),
+          );
+        }}
+      />
 
       {contextMenu !== null ? (
         <TagContextMenu

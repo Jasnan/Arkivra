@@ -25,7 +25,6 @@ import {
   AdminOverviewPage,
   AdminUserAccessPage,
   AdminUsersPage,
-  AdminVaultsPage,
 } from '@/features/admin/pages/admin-page'
 import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page'
 import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page'
@@ -274,10 +273,10 @@ const adminBackupsRoute = createRoute({
   component: AdminBackupsPage,
 })
 
-const adminVaultsRoute = createRoute({
+const legacyAdminVaultRedirectRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/vaults',
-  component: AdminVaultsPage,
+  component: () => <Navigate to={ROUTES.adminOverview} />,
 })
 
 const adminAiSettingsRoute = createRoute({
@@ -329,7 +328,7 @@ const routeTree = rootRoute.addChildren([
     adminUsersRoute,
     adminUserAccessRoute,
     adminBackupsRoute,
-    adminVaultsRoute,
+    legacyAdminVaultRedirectRoute,
     adminAiSettingsRoute,
     catchAllRoute,
   ]),

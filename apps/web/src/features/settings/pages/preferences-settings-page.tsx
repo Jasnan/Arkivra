@@ -1,4 +1,4 @@
-import { Heading, Stack, Text } from '@chakra-ui/react';
+import { Heading, Stack } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Separator } from '@/components/ui/separator';
@@ -49,22 +49,19 @@ export function PreferencesSettingsPage() {
   const [defaultChatAnswerMode, setDefaultChatAnswerMode] = useState<ChatResponseMode>('text');
 
   return (
-    <SettingsPageFrame title="Preferences">
-      <SettingsSection title="Preferences" description="Set regional formatting, document view, and chat answer defaults.">
-        <Stack gap="5">
-          <Stack gap="3">
-            <Stack gap="1">
+    <SettingsPageFrame title="Preferences" density="compact">
+      <SettingsSection title="Preferences" density="compact">
+        <Stack gap="3.5">
+          <Stack gap="2.5">
+            <Stack gap="0.5">
               <Heading as="h3" fontSize="sm" fontWeight="semibold" lineHeight="short">
                 Regional
               </Heading>
-              <Text textStyle="sm" color="fg.muted">
-                Choose how dates, language, and time zones appear across Arkivra.
-              </Text>
             </Stack>
-            <SettingsRows>
+            <SettingsRows density="compact">
               <SettingsRow
+                density="compact"
                 label="Language"
-                description="Language used for the app interface."
                 control={
                   <SettingsDropdown
                     ariaLabel="Language"
@@ -75,8 +72,8 @@ export function PreferencesSettingsPage() {
                 }
               />
               <SettingsRow
+                density="compact"
                 label="Timezone"
-                description="Timezone used for document and activity timestamps."
                 control={
                   <SettingsDropdown
                     ariaLabel="Timezone"
@@ -87,8 +84,8 @@ export function PreferencesSettingsPage() {
                 }
               />
               <SettingsRow
+                density="compact"
                 label="Date format"
-                description="Date style used in tables and metadata panels."
                 control={
                   <SettingsDropdown
                     ariaLabel="Date format"
@@ -103,19 +100,16 @@ export function PreferencesSettingsPage() {
 
           <Separator />
 
-          <Stack gap="3">
-            <Stack gap="1">
+          <Stack gap="2.5">
+            <Stack gap="0.5">
               <Heading as="h3" fontSize="sm" fontWeight="semibold" lineHeight="short">
                 Defaults
               </Heading>
-              <Text textStyle="sm" color="fg.muted">
-                Choose the starting layout and answer style for everyday workflows.
-              </Text>
             </Stack>
-            <SettingsRows>
+            <SettingsRows density="compact">
               <SettingsRow
+                density="compact"
                 label="Default view"
-                description="Initial layout for document browsing."
                 control={
                   <SettingsDropdown
                     ariaLabel="Default view"
@@ -126,8 +120,8 @@ export function PreferencesSettingsPage() {
                 }
               />
               <SettingsRow
+                density="compact"
                 label="Default chat answer mode"
-                description="Answer style used when starting a new chat."
                 control={
                   <AnswerModePicker
                     value={defaultChatAnswerMode}

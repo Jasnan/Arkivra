@@ -159,12 +159,6 @@ const adminNavItems = [
     icon: <DatabaseBackup size={16} />,
   },
   {
-    to: ROUTES.adminVaults,
-    label: 'Vault oversight',
-    description: 'Ownership ledger',
-    icon: <Vault size={16} />,
-  },
-  {
     to: ROUTES.adminAiSettings,
     label: 'AI settings',
     description: 'Ollama defaults',
@@ -394,7 +388,7 @@ function PrimarySidebar({
       <RailTooltip label="Arkivra">
         <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit' }}>
           <Flex
-            boxSize="11"
+            boxSize="9"
             align="center"
             justify="center"
             rounded="lg"
@@ -625,6 +619,7 @@ function SecondarySidebar({
                   description={item.description}
                   icon={item.icon}
                   active={item.to === currentPathname}
+                  density="compact"
                 />
               ))}
             </Stack>
@@ -639,6 +634,7 @@ function SecondarySidebar({
                 description={item.description}
                 icon={item.icon}
                 active={item.to === currentPathname}
+                density="compact"
               />
             ))}
           </Stack>
@@ -725,13 +721,13 @@ function WorkspaceHeader({
   return (
     <Flex
       as="header"
-      h="3.5rem"
+      h={{ base: '3.5rem', lg: '3.25rem' }}
       shrink={0}
       align="center"
       borderBottomWidth="1px"
       borderColor="border.surface"
       bg="bg.workspace"
-      px={{ base: '4', md: '5' }}
+      px={{ base: '4', md: '5', lg: '4' }}
     >
       <Flex minW="0" flex="1" align="center" gap="3">
         {hasSecondarySidebar ? (

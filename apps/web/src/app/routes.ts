@@ -50,7 +50,6 @@ export const ROUTES = {
   adminUsers: '/admin/users',
   adminUserAccess: (userId: string) => `/admin/users/${userId}/access` as const,
   adminBackups: '/admin/backups',
-  adminVaults: '/admin/vaults',
   adminAiSettings: '/admin/ai-settings',
 
   // Root

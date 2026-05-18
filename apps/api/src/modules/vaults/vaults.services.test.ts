@@ -48,8 +48,23 @@ describe('vaults services', () => {
       where: vi.fn(() => query),
       orderBy: vi.fn(async () => rows),
     };
+    let memberCountQuery: {
+      from: ReturnType<typeof vi.fn>;
+      where: ReturnType<typeof vi.fn>;
+      groupBy: ReturnType<typeof vi.fn>;
+    };
+    memberCountQuery = {
+      from: vi.fn(() => memberCountQuery),
+      where: vi.fn(() => memberCountQuery),
+      groupBy: vi.fn(async () => [
+        { vaultId: 'vlt_1', memberCount: 2 },
+        { vaultId: 'vlt_2', memberCount: 1 },
+      ]),
+    };
     const db = {
-      select: vi.fn(() => query),
+      select: vi.fn()
+        .mockReturnValueOnce(query)
+        .mockReturnValueOnce(memberCountQuery),
     } as unknown as Database;
     const services = createVaultsServices({ db });
 
@@ -61,6 +76,7 @@ describe('vaults services', () => {
       id: 'vlt_1',
       ownerUserId: 'usr_root_1',
       ownerEmail: 'root-one@example.com',
+      memberCount: 2,
     });
   });
 });

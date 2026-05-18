@@ -46,8 +46,8 @@ export function AboutSettingsPage() {
 
   return (
     <SettingsPageFrame>
-      <Box maxW="4xl" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p={{ base: '5', md: '7' }} shadow="xs">
-        <Stack gap="7">
+      <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p={{ base: '5', md: '6' }} shadow="xs">
+        <Stack gap="6">
           <Stack gap="3">
             <Heading as="h2" fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" lineHeight="short">
               About Arkivra
@@ -64,7 +64,7 @@ export function AboutSettingsPage() {
             <MetaItem icon={<CalendarDays size={17} />} label="Commit Date" value={commitDate} />
           </SimpleGrid>
 
-          <Stack gap="3">
+          <Stack gap="2.5">
             <Heading as="h3" fontSize="lg" fontWeight="semibold">
               Links
             </Heading>
@@ -83,15 +83,15 @@ export function AboutSettingsPage() {
                     borderColor="border.surface"
                     bg="bg.subtle"
                     color="fg"
-                    px="4"
-                    py="3.5"
+                    px="3.5"
+                    py="3"
                     textDecoration="none"
                     _hover={{ borderColor: 'teal.solid', bg: 'bg.muted', color: 'fg' }}
                   >
-                    <HStack justify="space-between" gap="4">
-                      <HStack gap="3" minW="0">
-                        <Flex boxSize="11" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
-                          <Icon size={20} />
+                    <HStack justify="space-between" gap="3">
+                      <HStack gap="2.5" minW="0">
+                        <Flex boxSize="10" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
+                          <Icon size={18} />
                         </Flex>
                         <Stack gap="0.5" minW="0">
                           <Text fontSize="sm" fontWeight="semibold" color="fg">
@@ -116,7 +116,7 @@ export function AboutSettingsPage() {
             flexWrap="wrap"
             borderTopWidth="1px"
             borderColor="border.surface"
-            pt="5"
+            pt="4"
             textStyle="sm"
             color="fg.muted"
           >
@@ -141,7 +141,7 @@ function MetaItem({
   value: string;
 }) {
   return (
-    <HStack gap="2.5" rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="3.5" py="3">
+    <HStack gap="2.5" rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="3.5" py="2.5" minH="11">
       <Box color="fg.muted" flexShrink={0}>
         {icon}
       </Box>

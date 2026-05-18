@@ -378,7 +378,23 @@ export function createVaultsServices({ db }: { db: Database }) {
       }
     }
 
-    return Array.from(vaultsById.values());
+    const vaults = Array.from(vaultsById.values());
+    const memberCountRows = vaults.length === 0
+      ? []
+      : await db
+          .select({
+            vaultId: vaultMembersTable.vaultId,
+            memberCount: sql<number>`count(*)::int`.mapWith(Number),
+          })
+          .from(vaultMembersTable)
+          .where(inArray(vaultMembersTable.vaultId, vaults.map(vault => vault.id)))
+          .groupBy(vaultMembersTable.vaultId);
+    const memberCountsByVaultId = new Map(memberCountRows.map(row => [row.vaultId, row.memberCount]));
+
+    return vaults.map(vault => ({
+      ...vault,
+      memberCount: memberCountsByVaultId.get(vault.id) ?? 0,
+    }));
   }
 
   async function createPermissionRequest({

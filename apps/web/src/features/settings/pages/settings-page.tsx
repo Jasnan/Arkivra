@@ -8,7 +8,6 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import type { MeResponse } from '@/features/me/me.types';
-import { acceptEmailInvitation } from '@/features/invitations/invitations.api';
 import { authClient } from '@/lib/auth-client';
 import {
   KeyValueRows,
@@ -69,7 +68,6 @@ export function SettingsPage() {
   const accountCreatedAt = (sessionData?.user as SessionUserMetadata | undefined)?.createdAt;
 
   const [profileDraft, setProfileDraft] = useState<{ name: string } | null>(null);
-  const [invitationId, setInvitationId] = useState('');
   const profileName = profileDraft?.name ?? sessionData?.user.name ?? '';
   const profileEmail = sessionData?.user.email ?? '';
 
@@ -95,27 +93,15 @@ export function SettingsPage() {
     },
   });
 
-  const acceptInvitationMutation = useMutation({
-    mutationFn: acceptEmailInvitation,
-    onSuccess: async () => {
-      toast.success('Invitation accepted.');
-      setInvitationId('');
-      await queryClient.invalidateQueries({ queryKey: meQueryKeys.all });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not accept invitation.');
-    },
-  });
-
   if (sessionPending) {
     return <Text textStyle="sm">Loading your account...</Text>;
   }
 
   return (
-    <SettingsPageFrame title="Account">
+    <SettingsPageFrame title="Account" density="compact">
       <SettingsSection
         title="Profile information"
-        description="Update your personal details."
+        density="compact"
         actions={
           <Button type="submit" form="settings-profile-form" size="sm" disabled={profileMutation.isPending}>
             {profileMutation.isPending ? 'Saving...' : 'Save'}
@@ -129,12 +115,12 @@ export function SettingsPage() {
             profileMutation.mutate();
           }}
         >
-          <Grid gap="4" templateColumns={{ base: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }}>
+          <Grid gap={{ base: '4', lg: '3' }} templateColumns={{ base: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }}>
             <Field>
               <FieldLabel htmlFor="settings-name">Name</FieldLabel>
               <Input
                 id="settings-name"
-                mt="2"
+                mt="1.5"
                 value={profileName}
                 onChange={(event) => setProfileDraft({ name: event.target.value })}
                 placeholder="Your name"
@@ -144,14 +130,14 @@ export function SettingsPage() {
               <FieldLabel htmlFor="settings-email">Email</FieldLabel>
               <Input
                 id="settings-email"
-                mt="2"
+                mt="1.5"
                 type="email"
                 value={profileEmail}
                 readOnly
                 disabled
                 placeholder="you@example.com"
               />
-              <Text mt="2" textStyle="xs" color="fg.muted">
+              <Text mt="1.5" textStyle="xs" color="fg.muted">
                 Email changes are managed from Security.
               </Text>
             </Field>
@@ -159,8 +145,9 @@ export function SettingsPage() {
         </chakra.form>
       </SettingsSection>
 
-      <SettingsSection title="Account status" description="Overview of your account.">
+      <SettingsSection title="Account status" density="compact">
         <KeyValueRows
+          density="compact"
           rows={[
             { label: 'Signed in as', value: profileEmail || 'Unknown' },
             { label: 'Account type', value: getAccountTypeLabel(meQuery.data?.authMethods) },
@@ -177,34 +164,6 @@ export function SettingsPage() {
             { label: 'Account created', value: formatDateTime(accountCreatedAt) },
           ]}
         />
-      </SettingsSection>
-
-      <SettingsSection title="Invitations" description="Accept a pending email invitation for this account.">
-        <chakra.form
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            acceptInvitationMutation.mutate({
-              invitationId: invitationId.trim() || undefined,
-              email: profileEmail || undefined,
-            });
-          }}
-        >
-          <Grid gap="4" templateColumns={{ base: '1fr', lg: 'minmax(0, 1fr) auto' }} alignItems="end">
-            <Field>
-              <FieldLabel htmlFor="settings-invitation-token">Invitation token</FieldLabel>
-              <Input
-                id="settings-invitation-token"
-                mt="2"
-                value={invitationId}
-                onChange={(event) => setInvitationId(event.target.value)}
-                placeholder="invite_..."
-              />
-            </Field>
-            <Button type="submit" disabled={acceptInvitationMutation.isPending}>
-              {acceptInvitationMutation.isPending ? 'Accepting...' : 'Accept invitation'}
-            </Button>
-          </Grid>
-        </chakra.form>
       </SettingsSection>
     </SettingsPageFrame>
   );

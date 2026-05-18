@@ -18,25 +18,43 @@ export function SettingsPageFrame({
   actions,
   children,
   description,
+  density = 'default',
   title,
 }: {
   title?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
+  density?: 'default' | 'compact';
   children: ReactNode;
 }) {
+  const isCompact = density === 'compact';
+
   return (
-    <Stack as="section" gap="5" maxW="6xl" pb="8" pt="5">
+    <Stack
+      as="section"
+      gap={isCompact ? { base: '4', lg: '3' } : '5'}
+      maxW="6xl"
+      pb={isCompact ? '6' : '8'}
+      pt={isCompact ? { base: '4', lg: '3' } : '5'}
+      css={isCompact
+        ? {
+            '--arkivra-controlHeight': '2.25rem',
+            '--arkivra-controlPaddingX': '0.625rem',
+            '--arkivra-rowPaddingY': '0.625rem',
+            '--arkivra-sectionPadding': '1rem',
+          }
+        : undefined}
+    >
       {title ? (
         <Flex
           as="header"
           direction={{ base: 'column', lg: 'row' }}
           align={{ base: 'stretch', lg: 'flex-end' }}
           justify="space-between"
-          gap="3"
+          gap={isCompact ? '2' : '3'}
         >
-          <Stack gap="1.5">
-            <Heading as="h1" textStyle="2xl" fontWeight="semibold" lineHeight="short">
+          <Stack gap={isCompact ? '1' : '1.5'}>
+            <Heading as="h1" textStyle={isCompact ? 'xl' : '2xl'} fontWeight="semibold" lineHeight="short">
               {title}
             </Heading>
             {description ? (
@@ -49,7 +67,7 @@ export function SettingsPageFrame({
         </Flex>
       ) : null}
 
-      <Stack gap="4">{children}</Stack>
+      <Stack gap={isCompact ? '3' : '4'}>{children}</Stack>
     </Stack>
   );
 }
@@ -59,22 +77,26 @@ export function SettingsSection({
   description,
   actions,
   children,
+  density = 'default',
 }: {
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
+  density?: 'default' | 'compact';
 }) {
+  const isCompact = density === 'compact';
+
   return (
     <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="var(--arkivra-sectionPadding, 1.25rem)" shadow="xs">
-      <Stack gap="4">
+      <Stack gap={isCompact ? '3' : '4'}>
         <Flex
           direction={{ base: 'column', md: 'row' }}
           align={{ base: 'stretch', md: 'flex-start' }}
           justify="space-between"
-          gap="3"
+          gap={isCompact ? '2' : '3'}
         >
-          <Stack gap="1">
+          <Stack gap={isCompact ? '0.5' : '1'}>
             <Heading as="h2" fontSize="md" fontWeight="semibold" lineHeight="short">
               {title}
             </Heading>
@@ -92,9 +114,15 @@ export function SettingsSection({
   );
 }
 
-export function SettingsRows({ children }: { children: ReactNode }) {
+export function SettingsRows({
+  children,
+  density = 'default',
+}: {
+  children: ReactNode;
+  density?: 'default' | 'compact';
+}) {
   return (
-    <Stack gap="0" divideY="1px" divideColor="border.surface">
+    <Stack gap="0" divideY="1px" divideColor={density === 'compact' ? 'border.muted' : 'border.surface'}>
       {children}
     </Stack>
   );
@@ -105,20 +133,24 @@ export function SettingsRow({
   description,
   meta,
   control,
+  density = 'default',
 }: {
   label: ReactNode;
   description?: ReactNode;
   meta?: ReactNode;
   control?: ReactNode;
+  density?: 'default' | 'compact';
 }) {
+  const isCompact = density === 'compact';
+
   return (
     <Grid
-      gap={{ base: '3', lg: '5' }}
-      py="var(--arkivra-rowPaddingY, 0.875rem)"
-      templateColumns={{ base: '1fr', lg: control ? 'minmax(0, 1fr) minmax(13rem, 17rem)' : '1fr' }}
+      gap={{ base: '3', lg: isCompact ? '3' : '5' }}
+      py={isCompact ? '2' : 'var(--arkivra-rowPaddingY, 0.875rem)'}
+      templateColumns={{ base: '1fr', lg: control ? `minmax(0, 1fr) minmax(${isCompact ? '11rem' : '13rem'}, ${isCompact ? '15rem' : '17rem'})` : '1fr' }}
       alignItems="center"
     >
-      <Stack gap="1" minW="0">
+      <Stack gap={isCompact ? '0.5' : '1'} minW="0">
         <Text fontSize="sm" fontWeight="medium" color="fg">
           {label}
         </Text>
@@ -143,14 +175,24 @@ export function SettingsRow({
 }
 
 export function KeyValueRows({
+  density = 'default',
   rows,
 }: {
+  density?: 'default' | 'compact';
   rows: Array<{ label: string; value: ReactNode }>;
 }) {
+  const isCompact = density === 'compact';
+
   return (
     <Stack gap="0" divideY="1px" divideColor="border.surface">
       {rows.map((row) => (
-        <Flex key={row.label} align="center" justify="space-between" gap="4" py="var(--arkivra-rowPaddingY, 0.875rem)">
+        <Flex
+          key={row.label}
+          align="center"
+          justify="space-between"
+          gap={isCompact ? '3' : '4'}
+          py={isCompact ? '2' : 'var(--arkivra-rowPaddingY, 0.875rem)'}
+        >
           <Text textStyle="sm" color="fg.muted">
             {row.label}
           </Text>
@@ -164,13 +206,16 @@ export function KeyValueRows({
 }
 
 export function SettingsStatusBadge({
+  density = 'default',
   tone,
   children,
 }: {
+  density?: 'default' | 'compact';
   tone: SettingsStatusTone;
   children?: ReactNode;
 }) {
   const styles = statusToneStyles[tone];
+  const isCompact = density === 'compact';
 
   return (
     <Badge
@@ -179,12 +224,14 @@ export function SettingsStatusBadge({
       color={styles.color}
       display="inline-flex"
       alignItems="center"
-      gap="1.5"
+      gap={isCompact ? '1' : '1.5'}
       rounded="full"
-      px="2"
-      py="0.5"
+      px={isCompact ? '1.5' : '2'}
+      py={isCompact ? '0' : '0.5'}
+      fontSize={isCompact ? 'xs' : undefined}
+      lineHeight={isCompact ? '1.25rem' : undefined}
     >
-      <Box boxSize="1.5" rounded="full" bg="currentColor" />
+      <Box boxSize={isCompact ? '1' : '1.5'} rounded="full" bg="currentColor" />
       {children ?? styles.label}
     </Badge>
   );

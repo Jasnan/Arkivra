@@ -77,6 +77,7 @@ export interface AdminVault {
   ownerUserId: string | null;
   ownerEmail: string | null;
   ownerName: string | null;
+  memberCount: number;
 }
 
 export interface AdminAiSettings {

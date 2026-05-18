@@ -57,7 +57,7 @@ import {
   useAdminVaultsQuery,
   usePermissionRequestsQuery,
 } from '@/features/admin/admin.queries';
-import type { AdminAiSettings, AdminUser, EmailInvitation, PermissionRequest } from '@/features/admin/admin.types';
+import type { AdminAiSettings, AdminUser, AdminVault, EmailInvitation, PermissionRequest } from '@/features/admin/admin.types';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
@@ -90,7 +90,7 @@ type AdminUserContextMenuState = {
   y: number;
 } | null;
 
-const ADMIN_USERS_GRID_COLUMNS = 'minmax(14rem, 1.45fr) 8.5rem 8rem 8.5rem minmax(8rem, 0.8fr) minmax(9rem, 0.85fr) 3rem';
+const ADMIN_USERS_GRID_COLUMNS = 'minmax(13rem, 1.45fr) 7.5rem 7rem 7.5rem minmax(7.5rem, 0.8fr) minmax(8rem, 0.85fr) 2.75rem';
 
 const userStatusFilterOptions = [
   { value: 'all', label: 'All statuses' },
@@ -154,9 +154,9 @@ function AdminUserActionItem({
       disabled={action.disabled}
       color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}
       alignItems="flex-start"
-      gap="3"
+      gap="2.5"
       px="3"
-      py="3"
+      py="2.5"
       onSelect={onSelect}
     >
       <ActionMenuItemIcon icon={action.icon} tone={iconTone} />
@@ -267,10 +267,10 @@ function AdminUserContextMenu({
             display="flex"
             w="full"
             alignItems="flex-start"
-            gap="3"
+            gap="2.5"
             rounded="md"
             px="3"
-            py="3"
+            py="2.5"
             textAlign="left"
             color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}
             _hover={{ bg: action.tone === 'success' ? 'teal.subtle' : 'bg.subtle' }}
@@ -354,7 +354,7 @@ function AdminAccessBoundary({
 
   if (!isEnabled) {
     return (
-      <SettingsPageFrame title={title ?? accessTitle} description="Root access is required to open this page.">
+      <SettingsPageFrame title={title ?? accessTitle} description="Root access is required to open this page." density="compact">
         <Alert variant="destructive">
           <AlertDescription>
             Root access is required to open this page.
@@ -365,9 +365,66 @@ function AdminAccessBoundary({
   }
 
   return (
-    <SettingsPageFrame title={title} description={description}>
+    <SettingsPageFrame title={title} description={description} density="compact">
       {children}
     </SettingsPageFrame>
+  );
+}
+
+function getVaultOwnerLabel(vault: AdminVault) {
+  return vault.ownerName?.trim() || vault.ownerEmail || 'Unassigned';
+}
+
+function VaultOwnershipTable({ vaults }: { vaults: AdminVault[] }) {
+  return (
+    <Box overflowX="auto">
+      <chakra.table w="full" minW="42rem" borderCollapse="collapse">
+        <chakra.thead>
+          <chakra.tr borderBottomWidth="1px" borderColor="border.surface">
+            {['Vault Name', 'Owner Account', 'Members', 'Created Date'].map((heading) => (
+              <chakra.th
+                key={heading}
+                px="3"
+                py="2"
+                textAlign={heading === 'Members' ? 'right' : 'left'}
+                fontSize="xs"
+                fontWeight="semibold"
+                color="fg.muted"
+              >
+                {heading}
+              </chakra.th>
+            ))}
+          </chakra.tr>
+        </chakra.thead>
+        <chakra.tbody>
+          {vaults.map((vault) => (
+            <chakra.tr key={vault.id} borderBottomWidth="1px" borderColor="border.surface" _last={{ borderBottomWidth: '0' }}>
+              <chakra.td px="3" py="2.5" fontSize="sm" fontWeight="medium" color="fg">
+                {vault.name}
+              </chakra.td>
+              <chakra.td px="3" py="2.5">
+                <Stack gap="0.5" minW="0">
+                  <Text fontSize="sm" fontWeight="medium" color="fg">
+                    {getVaultOwnerLabel(vault)}
+                  </Text>
+                  {vault.ownerName && vault.ownerEmail ? (
+                    <Text fontSize="xs" color="fg.muted">
+                      {vault.ownerEmail}
+                    </Text>
+                  ) : null}
+                </Stack>
+              </chakra.td>
+              <chakra.td px="3" py="2.5" textAlign="right" fontSize="sm" color="fg">
+                {formatCount(vault.memberCount, 'member')}
+              </chakra.td>
+              <chakra.td px="3" py="2.5" fontSize="sm" color="fg.muted">
+                {formatDate(vault.createdAt)}
+              </chakra.td>
+            </chakra.tr>
+          ))}
+        </chakra.tbody>
+      </chakra.table>
+    </Box>
   );
 }
 
@@ -416,8 +473,9 @@ export function AdminOverviewPage() {
       isEnabled={isEnabled}
       isLoading={meQuery.isLoading}
     >
-      <SettingsSection title="Instance overview" description="Current installation-wide resources visible to the admin API.">
+      <SettingsSection title="Instance overview" density="compact">
         <KeyValueRows
+          density="compact"
           rows={[
             { label: 'Backups', value: backupsQuery.isLoading ? 'Loading...' : formatCount(backups.length, 'archive') },
             { label: 'Users', value: usersQuery.isLoading ? 'Loading...' : formatCount(users.length, 'account') },
@@ -426,17 +484,28 @@ export function AdminOverviewPage() {
         />
       </SettingsSection>
 
-      <SettingsSection title="Approval queue" description="Pending authorization requests requiring root review.">
+      <SettingsSection title="Vault ownership" density="compact">
+        {vaultsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading vaults...</Text> : null}
+        {!vaultsQuery.isLoading && vaults.length === 0 ? (
+          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="3" textStyle="sm" color="fg.muted">
+            No active vaults found.
+          </Box>
+        ) : null}
+        {vaults.length > 0 ? <VaultOwnershipTable vaults={vaults} /> : null}
+      </SettingsSection>
+
+      <SettingsSection title="Approval queue" density="compact">
         {permissionRequestsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading requests...</Text> : null}
         {!permissionRequestsQuery.isLoading && permissionRequests.length === 0 ? (
-          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="3" textStyle="sm" color="fg.muted">
             No pending requests.
           </Box>
         ) : null}
         {permissionRequests.length > 0 ? (
-          <SettingsRows>
+          <SettingsRows density="compact">
             {permissionRequests.map((request) => (
               <SettingsRow
+                density="compact"
                 key={request.id}
                 label={getPermissionRequestLabel(request)}
                 description={getPermissionRequestDescription(request)}
@@ -502,13 +571,12 @@ export function AdminBackupsPage() {
   return (
     <AdminAccessBoundary
       title="Backups"
-      description="Create a new archive or restore one already stored on the server."
       isEnabled={isEnabled}
       isLoading={meQuery.isLoading}
     >
       <SettingsSection
         title="Archive control"
-        description="Backups are installation-wide and affect all vaults and users."
+        density="compact"
         actions={
           <CreateButton
             type="button"
@@ -522,20 +590,21 @@ export function AdminBackupsPage() {
       >
         {backupsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading backups...</Text> : null}
         {!backupsQuery.isLoading && backups.length === 0 ? (
-          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="3" textStyle="sm" color="fg.muted">
             No backups available yet.
           </Box>
         ) : null}
 
         {backups.length > 0 ? (
-          <SettingsRows>
+          <SettingsRows density="compact">
             {backups.map(backup => (
               <SettingsRow
+                density="compact"
                 key={backup.id}
                 label={backup.fileName}
                 description={`Created ${formatDate(backup.createdAt)} · ${formatBytes(backup.size)}`}
                 control={
-                  <HStack gap="3" flexWrap="wrap" justify={{ base: 'flex-start', lg: 'flex-end' }}>
+                  <HStack gap="2.5" flexWrap="wrap" justify={{ base: 'flex-start', lg: 'flex-end' }}>
                     <chakra.a
                       href={getBackupDownloadUrl({ backupId: backup.id })}
                       color="teal.solid"
@@ -694,27 +763,27 @@ export function AdminUsersPage() {
   }
 
   return (
-    <Stack as="section" gap="6" h="full" minH="0" overflowY="auto" bg="bg.workspace" px={{ base: '4', lg: '8' }} py={{ base: '5', lg: '7' }}>
-      <Flex align={{ base: 'stretch', xl: 'start' }} direction={{ base: 'column', xl: 'row' }} justify="space-between" gap="4">
+    <Stack as="section" gap="4" h="full" minH="0" overflowY="auto" bg="bg.workspace" px={{ base: '4', lg: '6' }} py={{ base: '4', lg: '5' }}>
+      <Flex align={{ base: 'stretch', xl: 'start' }} direction={{ base: 'column', xl: 'row' }} justify="space-between" gap="3">
         <Stack gap="1">
-          <Text as="h1" textStyle="3xl" fontWeight="bold" color="fg">
+          <Text as="h1" textStyle="2xl" fontWeight="bold" color="fg">
             Users
           </Text>
-          <Text textStyle="md" color="fg.muted">
-            Manage users, roles, and vault access across your instance.
+          <Text textStyle="sm" color="fg.muted">
+            Manage users, roles, and vault access.
           </Text>
         </Stack>
 
-        <Flex align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="3" minW="0">
-          <Box position="relative" w={{ base: 'full', md: '18rem' }}>
+        <Flex align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="2.5" minW="0">
+          <Box position="relative" w={{ base: 'full', md: '16rem' }}>
             <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
-              <Search size={18} />
+              <Search size={16} />
             </Box>
             <Input
               value={userSearch}
               placeholder="Search users..."
               aria-label="Search users"
-              h="12"
+              h="10"
               pl="10"
               rounded="md"
               bg="bg.surface"
@@ -725,7 +794,7 @@ export function AdminUsersPage() {
 
           <Box w={{ base: 'full', md: '10.5rem' }}>
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as AdminUserStatusFilter)}>
-              <SelectTrigger aria-label="Filter users by status" h="12" bg="bg.surface" borderColor="border.strong">
+              <SelectTrigger aria-label="Filter users by status" h="10" rounded="md" bg="bg.surface" borderColor="border.strong">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -738,7 +807,7 @@ export function AdminUsersPage() {
 
           <Box w={{ base: 'full', md: '10rem' }}>
             <Select value={accessFilter} onValueChange={(value) => setAccessFilter(value as AdminUserAccessFilter)}>
-              <SelectTrigger aria-label="Filter users by role" h="12" bg="bg.surface" borderColor="border.strong">
+              <SelectTrigger aria-label="Filter users by role" h="10" rounded="md" bg="bg.surface" borderColor="border.strong">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -749,14 +818,14 @@ export function AdminUsersPage() {
             </Select>
           </Box>
 
-          <Button h="12" px="4" colorPalette="teal" onClick={openInviteDialog}>
-            <Plus size={18} />
+          <Button h="10" px="3.5" colorPalette="teal" onClick={openInviteDialog}>
+            <Plus size={16} />
             Invite user
           </Button>
         </Flex>
       </Flex>
 
-      <SimpleGrid columns={{ base: 1, sm: 2, xl: 5 }} gap="4">
+      <SimpleGrid columns={{ base: 1, sm: 2, xl: 5 }} gap="3">
         {[
           { label: 'Total users', value: userStats.total, icon: UsersRound, color: 'fg.success' },
           { label: 'Root users', value: userStats.root, icon: ShieldCheck, color: 'fg.success' },
@@ -767,16 +836,16 @@ export function AdminUsersPage() {
           const Icon = stat.icon;
 
           return (
-            <Box key={stat.label} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="5" py="4" shadow="xs">
-              <HStack gap="3" color="fg.muted">
+            <Box key={stat.label} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3" shadow="xs">
+              <HStack gap="2.5" color="fg.muted">
                 <Box color={stat.color}>
-                  <Icon size={22} />
+                  <Icon size={18} />
                 </Box>
                 <Text textStyle="sm" fontWeight="medium" color="fg.muted">
                   {stat.label}
                 </Text>
               </HStack>
-              <Text mt="3" fontSize="2xl" fontWeight="bold" lineHeight="1" color="fg">
+              <Text mt="2" fontSize="xl" fontWeight="bold" lineHeight="1" color="fg">
                 {stat.value}
               </Text>
             </Box>
@@ -788,11 +857,11 @@ export function AdminUsersPage() {
         <Grid
           display={{ base: 'none', lg: visibleUsers.length > 0 ? 'grid' : 'none' }}
           gridTemplateColumns={ADMIN_USERS_GRID_COLUMNS}
-          gap="3"
+          gap="2.5"
           borderBottomWidth="1px"
           borderColor="border.surface"
           px="1"
-          pb="3"
+          pb="2"
           textStyle="sm"
           fontWeight="medium"
           color="fg.muted"
@@ -808,7 +877,7 @@ export function AdminUsersPage() {
 
         {usersQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading users...</Text> : null}
         {!usersQuery.isLoading && visibleUsers.length === 0 ? (
-          <Box mt="4" rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box mt="3" rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="3" textStyle="sm" color="fg.muted">
             No users match the current filters.
           </Box>
         ) : null}
@@ -823,21 +892,21 @@ export function AdminUsersPage() {
                   key={user.id}
                   as="article"
                   alignItems="center"
-                  gap="3"
+                  gap="2.5"
                   borderBottomWidth="1px"
                   borderColor="border.surface"
                   px="1"
-                  py={{ base: '4', lg: '6' }}
+                  py={{ base: '3', lg: '3.5' }}
                   templateColumns={{ base: 'minmax(0, 1fr) auto', lg: ADMIN_USERS_GRID_COLUMNS }}
                   _last={{ borderBottomWidth: '0' }}
                   onContextMenu={(event) => openUserContextMenu(event, user)}
                 >
-                  <HStack gap="4" minW="0">
-                    <Flex boxSize="10" shrink="0" align="center" justify="center" rounded="full" bg="bg.muted" color="fg" fontWeight="semibold">
+                  <HStack gap="3" minW="0">
+                    <Flex boxSize="9" shrink="0" align="center" justify="center" rounded="full" bg="bg.muted" color="fg" fontWeight="semibold">
                       {getUserInitial(user)}
                     </Flex>
-                    <Stack gap="1" minW="0">
-                      <Text fontSize="md" fontWeight="semibold" color="fg" truncate>
+                    <Stack gap="0.5" minW="0">
+                      <Text fontSize="sm" fontWeight="semibold" color="fg" truncate>
                         {user.name ?? user.email}
                       </Text>
                       <Text truncate fontSize="sm" color="fg.muted">
@@ -853,7 +922,7 @@ export function AdminUsersPage() {
                     variant="subtle"
                     rounded="sm"
                     px="2"
-                    py="1"
+                    py="0.5"
                     textTransform="none"
                   >
                     {getUserRoleLabel(user)}
@@ -866,7 +935,7 @@ export function AdminUsersPage() {
                     variant="subtle"
                     rounded="sm"
                     px="2"
-                    py="1"
+                    py="0.5"
                     textTransform="none"
                   >
                     {user.disabledAt ? 'Disabled' : 'Active'}
@@ -883,7 +952,7 @@ export function AdminUsersPage() {
                     {getUserAccessSummary(user)}
                   </Text>
 
-                  <Stack display={{ base: 'none', lg: 'flex' }} gap="1">
+                  <Stack display={{ base: 'none', lg: 'flex' }} gap="0.5">
                     <Text textStyle="sm" color="fg.muted">
                       {joined.date}
                     </Text>
@@ -920,6 +989,10 @@ export function AdminUsersPage() {
       <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
         <DialogContent maxW="34rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
           <chakra.form
+            css={{
+              '--arkivra-controlHeight': '2.25rem',
+              '--arkivra-controlPaddingX': '0.625rem',
+            }}
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
               if (createdInvitation) return;
@@ -954,9 +1027,9 @@ export function AdminUsersPage() {
             </Box>
 
             {createdInvitation ? (
-              <Stack gap="3" px="4" py="4" bg="bg.subtle">
-                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="4" shadow="xs">
-                  <Stack gap="4">
+              <Stack gap="3" px="4" py="3" bg="bg.subtle">
+                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="3" shadow="xs">
+                  <Stack gap="3">
                     <HStack gap="3" align="start">
                       <Flex boxSize="9" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
                         <Check size={19} />
@@ -971,8 +1044,9 @@ export function AdminUsersPage() {
                       </Stack>
                     </HStack>
 
-                    <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="4" py="3">
+                    <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="3" py="2">
                       <KeyValueRows
+                        density="compact"
                         rows={[
                           { label: 'Email', value: createdInvitation.email },
                           { label: 'System role', value: createdInvitation.systemRole === 'root' ? 'Root' : 'Member' },
@@ -983,16 +1057,16 @@ export function AdminUsersPage() {
                   </Stack>
                 </Card>
 
-                <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3">
+                <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="3" py="2.5">
                   <Text textStyle="sm" color="fg.muted">
                     Advanced vault, AI, and audit controls live in user access management after the account exists.
                   </Text>
                 </Box>
               </Stack>
             ) : (
-              <Stack gap="3" px="4" py="4" bg="bg.subtle">
-                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="4" shadow="xs">
-                  <Stack gap="4">
+              <Stack gap="3" px="4" py="3" bg="bg.subtle">
+                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="3" shadow="xs">
+                  <Stack gap="3">
                     <Field>
                       <FieldLabel htmlFor="admin-root-invite-email">Email address</FieldLabel>
                       <Box position="relative">
@@ -1001,7 +1075,7 @@ export function AdminUsersPage() {
                           type="email"
                           value={rootInviteEmail}
                           placeholder="user@example.com"
-                          h="11"
+                          h="10"
                           pr="11"
                           borderColor="border.strong"
                           onChange={(event) => setRootInviteEmail(event.target.value)}
@@ -1015,9 +1089,9 @@ export function AdminUsersPage() {
                     <Field>
                       <FieldLabel>System role</FieldLabel>
                       <Select value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
-                        <SelectTrigger aria-label="System role" h="11" borderColor="border.strong">
-                          <HStack gap="3">
-                            <UserRound size={18} />
+                        <SelectTrigger aria-label="System role" h="10" rounded="md" borderColor="border.strong">
+                          <HStack gap="2.5">
+                            <UserRound size={16} />
                             <SelectValue />
                           </HStack>
                         </SelectTrigger>
@@ -1050,16 +1124,15 @@ export function AdminUsersPage() {
               </Stack>
             )}
 
-            <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3.5">
-              <Flex align="center" justify="flex-end" gap="3" w="full">
-                <Button type="button" variant="outline" h="12" px="6" onClick={() => setIsInviteDialogOpen(false)}>
+            <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3">
+              <Flex align="center" justify="flex-end" gap="2.5" w="full">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsInviteDialogOpen(false)}>
                   {createdInvitation ? 'Close' : 'Cancel'}
                 </Button>
                 {createdInvitation ? (
                   <Button
                     type="button"
-                    h="12"
-                    px="6"
+                    size="sm"
                     colorPalette="teal"
                     onClick={() => {
                       setIsInviteDialogOpen(false);
@@ -1069,8 +1142,8 @@ export function AdminUsersPage() {
                     Manage access
                   </Button>
                 ) : (
-                  <Button type="submit" h="12" px="6" colorPalette="teal" disabled={createRootInvitationMutation.isPending}>
-                    <Send size={18} />
+                  <Button type="submit" size="sm" colorPalette="teal" disabled={createRootInvitationMutation.isPending}>
+                    <Send size={16} />
                     {createRootInvitationMutation.isPending ? 'Sending...' : 'Send invitation'}
                   </Button>
                 )}
@@ -1229,49 +1302,6 @@ export function AdminUserAccessPage() {
   );
 }
 
-export function AdminVaultsPage() {
-  const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isRoot === true;
-  const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
-  const vaults = vaultsQuery.data?.vaults ?? [];
-
-  return (
-    <AdminAccessBoundary
-      title="Vault oversight"
-      description="Inspect active vault ownership across the installation."
-      isEnabled={isEnabled}
-      isLoading={meQuery.isLoading}
-    >
-      <SettingsSection title="Ownership ledger" description="Vault-specific access remains inside each vault's settings page.">
-        {vaultsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading vaults...</Text> : null}
-        {!vaultsQuery.isLoading && vaults.length === 0 ? (
-          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
-            No active vaults found.
-          </Box>
-        ) : null}
-
-        {vaults.length > 0 ? (
-          <SettingsRows>
-            {vaults.map(vault => (
-              <SettingsRow
-                key={vault.id}
-                label={vault.name}
-                description={`Owner: ${vault.ownerName ?? 'Unknown'}${vault.ownerEmail ? ` (${vault.ownerEmail})` : ''}`}
-                meta={
-                  <Stack gap="1" textAlign={{ base: 'left', lg: 'right' }}>
-                    <Text textStyle="sm" color="fg.muted">{vault.id}</Text>
-                    <Text textStyle="sm" color="fg.muted">Created {formatDate(vault.createdAt)}</Text>
-                  </Stack>
-                }
-              />
-            ))}
-          </SettingsRows>
-        ) : null}
-      </SettingsSection>
-    </AdminAccessBoundary>
-  );
-}
-
 export function AdminAiSettingsPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
@@ -1303,13 +1333,12 @@ export function AdminAiSettingsPage() {
   return (
     <AdminAccessBoundary
       title="AI settings"
-      description="Configure the Ollama host and default model used by instance-level AI services."
       isEnabled={isEnabled}
       isLoading={meQuery.isLoading}
     >
       <SettingsSection
         title="Ollama defaults"
-        description="These settings apply globally to the instance, not to a single user or vault."
+        density="compact"
         actions={
           <SaveButton
             type="submit"
@@ -1329,12 +1358,12 @@ export function AdminAiSettingsPage() {
             aiSettingsMutation.mutate();
           }}
         >
-          <Grid gap="4" templateColumns={{ base: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }}>
+          <Grid gap={{ base: '4', lg: '3' }} templateColumns={{ base: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }}>
             <Field>
               <FieldLabel htmlFor="admin-ollama-host">Ollama host</FieldLabel>
               <Input
                 id="admin-ollama-host"
-                mt="2"
+                mt="1.5"
                 type="url"
                 value={aiDraft.ollamaHost}
                 placeholder="http://127.0.0.1:11434"
@@ -1345,7 +1374,7 @@ export function AdminAiSettingsPage() {
               <FieldLabel htmlFor="admin-ollama-model">Default model</FieldLabel>
               <Input
                 id="admin-ollama-model"
-                mt="2"
+                mt="1.5"
                 value={aiDraft.model}
                 placeholder="gemma4:e4b"
                 onChange={(event) => setAiDraftOverride((draft) => ({ ...draft, model: event.target.value }))}

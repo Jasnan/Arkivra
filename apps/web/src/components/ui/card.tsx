@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Box, Heading, Text } from '@chakra-ui/react';
 
 export function Card(props: React.ComponentProps<typeof Box>) {
-  return <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" shadow="sm" {...props} />;
+  return <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" shadow="sm" {...props} />;
 }
 
 export function CardHeader(props: React.ComponentProps<typeof Box>) {

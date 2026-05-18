@@ -68,7 +68,7 @@ export function DatePresetSelector({
           mt="4"
           gap="3"
           borderLeftWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           pl={{ base: '3', sm: '4' }}
           direction={{ base: 'column', sm: 'row' }}
         >
@@ -94,7 +94,7 @@ export function DatePresetSelector({
                 onChange={(event) => onCustomDateFromChange(event.target.value)}
                 h="10"
                 rounded="lg"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.surface"
                 pl="11"
               />
@@ -123,7 +123,7 @@ export function DatePresetSelector({
                 onChange={(event) => onCustomDateToChange(event.target.value)}
                 h="10"
                 rounded="lg"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.surface"
                 pl="11"
               />

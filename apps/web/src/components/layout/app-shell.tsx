@@ -330,7 +330,7 @@ function RailLink({
           color={active ? 'fg' : 'fg.muted'}
           bg={active ? 'bg.sidebar' : 'transparent'}
           borderWidth="1px"
-          borderColor={active ? 'border.subtle' : 'transparent'}
+          borderColor={active ? 'border.surface' : 'transparent'}
           cursor="pointer"
           transition="background-color 120ms ease, color 120ms ease"
           _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
@@ -353,7 +353,7 @@ function RailLink({
           color={active ? 'fg' : 'fg.muted'}
           bg={active ? 'bg.sidebar' : 'transparent'}
           borderWidth="1px"
-          borderColor={active ? 'border.subtle' : 'transparent'}
+          borderColor={active ? 'border.surface' : 'transparent'}
           transition="background-color 120ms ease, color 120ms ease"
           _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
         >
@@ -386,7 +386,7 @@ function PrimarySidebar({
       direction="column"
       align="center"
       borderRightWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.rail"
       pt="2.5"
       pb="4"
@@ -400,7 +400,7 @@ function PrimarySidebar({
             rounded="lg"
             bg="bg.sidebar"
             borderWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             overflow="hidden"
           >
             <ArkivraLogo boxSize="full" color="teal.solid" />
@@ -433,7 +433,7 @@ function PrimarySidebar({
               rounded="lg"
               color="fg.muted"
               borderWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.sidebar"
               cursor="pointer"
               _hover={{ color: 'fg', bg: 'bg.muted' }}
@@ -448,7 +448,7 @@ function PrimarySidebar({
                 overflow="hidden"
                 rounded="lg"
                 borderWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.surface"
                 p="1.5"
                 shadow="lg"
@@ -546,7 +546,7 @@ function SecondarySidebar({
       transition="width 180ms ease, border-color 180ms ease, box-shadow 180ms ease"
     >
       {kind === 'vault' && customContent ? null : (
-        <Flex h="3.5rem" align="center" borderBottomWidth="1px" borderColor="border.subtle" px="5">
+        <Flex h="3.5rem" align="center" borderBottomWidth="1px" borderColor="border.surface" px="5">
           <Text truncate fontSize="xl" fontWeight="medium" color="fg">
             {title}
           </Text>
@@ -729,7 +729,7 @@ function WorkspaceHeader({
       shrink={0}
       align="center"
       borderBottomWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.workspace"
       px={{ base: '4', md: '5' }}
     >
@@ -773,7 +773,7 @@ function WorkspaceHeader({
           gap="2.5"
           rounded="md"
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.workspace"
           px="3"
           color="fg.subtle"
@@ -1072,7 +1072,7 @@ export function AppShell() {
                     alignItems="center"
                     justifyContent="space-between"
                     borderWidth="1px"
-                    borderColor="border.subtle"
+                    borderColor="border.surface"
                     bg="bg.workspace"
                     px="4"
                     py="3"
@@ -1122,7 +1122,7 @@ export function AppShell() {
             p="0"
             onOpenAutoFocus={(event) => event.preventDefault()}
           >
-            <Flex borderBottomWidth="1px" borderColor="border.subtle" p={{ base: '4', sm: '5' }}>
+            <Flex borderBottomWidth="1px" borderColor="border.surface" p={{ base: '4', sm: '5' }}>
               <HStack w="full" gap="3">
                 <Box position="relative" flex="1">
                   <Box position="absolute" left="4" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
@@ -1174,7 +1174,7 @@ export function AppShell() {
                   h="10"
                   w="10"
                   rounded="md"
-                  borderColor="border.subtle"
+                  borderColor="border.surface"
                   bg="bg.surface"
                   color="fg.muted"
                   _hover={{ color: 'fg' }}
@@ -1221,7 +1221,7 @@ export function AppShell() {
                       w="full"
                       rounded="md"
                       borderWidth="1px"
-                      borderColor="border.subtle"
+                      borderColor="border.surface"
                       bg="bg.surface"
                       px="4"
                       py="4"
@@ -1287,7 +1287,7 @@ export function AppShell() {
         >
           <DialogContent maxW="40rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
             <chakra.form onSubmit={handleCreateVaultSubmit}>
-              <Box borderBottomWidth="1px" borderColor="border.subtle" px="4" py="2" pr={{ base: '13', lg: '14' }}>
+              <Box borderBottomWidth="1px" borderColor="border.surface" px="4" py="2" pr={{ base: '13', lg: '14' }}>
                 <DialogHeader>
                   <HStack gap="2.5" align="center">
                     <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
@@ -1304,7 +1304,7 @@ export function AppShell() {
               </Box>
 
               <Stack gap="3" px="4" py="4" bg="bg.subtle">
-                <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="4" shadow="xs">
                   <Stack gap="4">
                     <Field>
                       <FieldLabel htmlFor="shell-create-vault-name">Vault name</FieldLabel>
@@ -1352,7 +1352,7 @@ export function AppShell() {
                 </HStack>
               </Stack>
 
-              <Box borderTopWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3.5">
+              <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3.5">
                 <Flex align="center" justify="flex-end" gap="3" w="full">
                   <Button
                     type="button"

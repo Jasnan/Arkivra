@@ -112,7 +112,7 @@ function VaultPlaceholderTab() {
       </HStack>
       <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }}>
         {placeholderSkeletonKeys.map((key) => (
-          <Stack key={key} gap="3" rounded="lg" borderWidth="1px" borderColor="border.subtle" p="4">
+          <Stack key={key} gap="3" rounded="lg" borderWidth="1px" borderColor="border.surface" p="4">
             <Skeleton h="4" w="45%" />
             <Skeleton h="3" w="100%" />
             <Skeleton h="3" w="86%" />
@@ -137,7 +137,7 @@ function VaultSecondaryMenu({
 }) {
   return (
     <Stack gap="4">
-      <Stack gap="3" borderBottomWidth="1px" borderColor="border.subtle" px="1" pb="4">
+      <Stack gap="3" borderBottomWidth="1px" borderColor="border.surface" px="1" pb="4">
         <HStack minW="0" gap="3" align="center">
           <Flex
             boxSize="10"
@@ -715,7 +715,7 @@ export function DocumentsPage() {
           justify="space-between"
           gap="4"
           borderBottomWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           px={{ base: '4', lg: '6' }}
           py="4"
         >
@@ -851,7 +851,7 @@ export function DocumentsPage() {
           align="center"
           gap="4"
           borderBottomWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           px={{ base: '4', lg: '6' }}
           py="3"
         >
@@ -894,7 +894,7 @@ export function DocumentsPage() {
               w={{ base: '14rem', lg: '16rem', xl: '17.5rem' }}
               flexShrink={0}
               borderRightWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.workspace"
               px="3"
               py="4"
@@ -915,14 +915,14 @@ export function DocumentsPage() {
 
             <Flex minW="0" flex="1" direction="column" overflow="hidden">
               {activeIsLoading ? (
-                <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
+                <Box borderBottomWidth="1px" borderColor="border.surface" px="6" py="4">
                   <Text fontSize="sm" color="fg.muted">
                     Loading folder...
                   </Text>
                 </Box>
               ) : null}
               {activeIsError ? (
-                <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
+                <Box borderBottomWidth="1px" borderColor="border.surface" px="6" py="4">
                   <Text fontSize="sm" color="fg.error">
                     Unable to load this folder.
                   </Text>

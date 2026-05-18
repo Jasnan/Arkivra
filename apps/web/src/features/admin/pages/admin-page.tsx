@@ -251,7 +251,7 @@ function AdminUserContextMenu({
         top={`${state.y}px`}
         rounded="lg"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.surface"
         p="1.5"
         shadow="xl"
@@ -429,7 +429,7 @@ export function AdminOverviewPage() {
       <SettingsSection title="Approval queue" description="Pending authorization requests requiring root review.">
         {permissionRequestsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading requests...</Text> : null}
         {!permissionRequestsQuery.isLoading && permissionRequests.length === 0 ? (
-          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
             No pending requests.
           </Box>
         ) : null}
@@ -522,7 +522,7 @@ export function AdminBackupsPage() {
       >
         {backupsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading backups...</Text> : null}
         {!backupsQuery.isLoading && backups.length === 0 ? (
-          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
             No backups available yet.
           </Box>
         ) : null}
@@ -767,7 +767,7 @@ export function AdminUsersPage() {
           const Icon = stat.icon;
 
           return (
-            <Box key={stat.label} rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" px="5" py="4" shadow="xs">
+            <Box key={stat.label} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="5" py="4" shadow="xs">
               <HStack gap="3" color="fg.muted">
                 <Box color={stat.color}>
                   <Icon size={22} />
@@ -790,7 +790,7 @@ export function AdminUsersPage() {
           gridTemplateColumns={ADMIN_USERS_GRID_COLUMNS}
           gap="3"
           borderBottomWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           px="1"
           pb="3"
           textStyle="sm"
@@ -808,7 +808,7 @@ export function AdminUsersPage() {
 
         {usersQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading users...</Text> : null}
         {!usersQuery.isLoading && visibleUsers.length === 0 ? (
-          <Box mt="4" rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box mt="4" rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
             No users match the current filters.
           </Box>
         ) : null}
@@ -825,10 +825,11 @@ export function AdminUsersPage() {
                   alignItems="center"
                   gap="3"
                   borderBottomWidth="1px"
-                  borderColor="border.subtle"
+                  borderColor="border.surface"
                   px="1"
                   py={{ base: '4', lg: '6' }}
                   templateColumns={{ base: 'minmax(0, 1fr) auto', lg: ADMIN_USERS_GRID_COLUMNS }}
+                  _last={{ borderBottomWidth: '0' }}
                   onContextMenu={(event) => openUserContextMenu(event, user)}
                 >
                   <HStack gap="4" minW="0">
@@ -936,7 +937,7 @@ export function AdminUsersPage() {
               });
             }}
           >
-            <Box borderBottomWidth="1px" borderColor="border.subtle" px="4" py="2" pr={{ base: '13', lg: '14' }}>
+            <Box borderBottomWidth="1px" borderColor="border.surface" px="4" py="2" pr={{ base: '13', lg: '14' }}>
               <DialogHeader>
                 <HStack gap="2.5" align="center">
                   <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
@@ -954,7 +955,7 @@ export function AdminUsersPage() {
 
             {createdInvitation ? (
               <Stack gap="3" px="4" py="4" bg="bg.subtle">
-                <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="4" shadow="xs">
                   <Stack gap="4">
                     <HStack gap="3" align="start">
                       <Flex boxSize="9" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
@@ -970,7 +971,7 @@ export function AdminUsersPage() {
                       </Stack>
                     </HStack>
 
-                    <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" px="4" py="3">
+                    <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="4" py="3">
                       <KeyValueRows
                         rows={[
                           { label: 'Email', value: createdInvitation.email },
@@ -982,7 +983,7 @@ export function AdminUsersPage() {
                   </Stack>
                 </Card>
 
-                <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3">
+                <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3">
                   <Text textStyle="sm" color="fg.muted">
                     Advanced vault, AI, and audit controls live in user access management after the account exists.
                   </Text>
@@ -990,7 +991,7 @@ export function AdminUsersPage() {
               </Stack>
             ) : (
               <Stack gap="3" px="4" py="4" bg="bg.subtle">
-                <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="4" shadow="xs">
                   <Stack gap="4">
                     <Field>
                       <FieldLabel htmlFor="admin-root-invite-email">Email address</FieldLabel>
@@ -1049,7 +1050,7 @@ export function AdminUsersPage() {
               </Stack>
             )}
 
-            <Box borderTopWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3.5">
+            <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3.5">
               <Flex align="center" justify="flex-end" gap="3" w="full">
                 <Button type="button" variant="outline" h="12" px="6" onClick={() => setIsInviteDialogOpen(false)}>
                   {createdInvitation ? 'Close' : 'Cancel'}
@@ -1120,7 +1121,7 @@ export function AdminUserAccessPage() {
         description="This invite has not resolved to an active user account yet."
       >
         <SettingsSection title="Access management" description="Detailed permissions become available after the user accepts the invitation.">
-          <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+          <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
             <Stack gap="2">
               <Text textStyle="sm" fontWeight="medium" color="fg">
                 Invite pending
@@ -1162,7 +1163,7 @@ export function AdminUserAccessPage() {
         </HStack>
 
         <SimpleGrid columns={{ base: 1, lg: 2 }} gap="4">
-          <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+          <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
             <Stack gap="3">
               <Text textStyle="sm" fontWeight="semibold" color="fg">
                 System permissions
@@ -1177,7 +1178,7 @@ export function AdminUserAccessPage() {
             </Stack>
           </Box>
 
-          <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+          <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
             <Stack gap="3">
               <Text textStyle="sm" fontWeight="semibold" color="fg">
                 Access expansion
@@ -1189,7 +1190,7 @@ export function AdminUserAccessPage() {
           </Box>
         </SimpleGrid>
 
-        <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
+        <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="4">
           <Stack gap="3">
             <HStack justify="space-between" gap="3" align="start">
               <Stack gap="1">
@@ -1204,7 +1205,7 @@ export function AdminUserAccessPage() {
             </HStack>
 
             {vaults.length > 0 ? (
-              <Stack gap="0" divideY="1px" divideColor="border.subtle">
+              <Stack gap="0" divideY="1px" divideColor="border.surface">
                 {vaults.slice(0, 4).map((vault) => (
                   <Flex key={vault.id} align="center" justify="space-between" gap="4" py="3">
                     <Text textStyle="sm" fontWeight="medium" color="fg">
@@ -1244,7 +1245,7 @@ export function AdminVaultsPage() {
       <SettingsSection title="Ownership ledger" description="Vault-specific access remains inside each vault's settings page.">
         {vaultsQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading vaults...</Text> : null}
         {!vaultsQuery.isLoading && vaults.length === 0 ? (
-          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.subtle" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
+          <Box rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="4" textStyle="sm" color="fg.muted">
             No active vaults found.
           </Box>
         ) : null}

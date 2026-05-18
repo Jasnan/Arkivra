@@ -3,6 +3,11 @@ import { createSystem, defaultConfig, defineConfig } from '@chakra-ui/react';
 const config = defineConfig({
   theme: {
     tokens: {
+      borders: {
+        ui: { value: '1px solid {colors.border.surface}' },
+        divider: { value: '1px solid {colors.border.divider}' },
+      },
+
       fonts: {
         body: { value: 'var(--arkivra-font-body)' },
 
@@ -297,15 +302,23 @@ const config = defineConfig({
         // Border colors
         border: {
           DEFAULT: {
-            value: { base: '#e3e7ea', _dark: '#242a35' },
+            value: { base: '#dee5ea', _dark: '#242a35' },
           },
 
           subtle: {
-            value: { base: '#e8edf0', _dark: '#1c212b' },
+            value: { base: '#e6ebef', _dark: '#1c212b' },
+          },
+
+          surface: {
+            value: { base: '#dee5ea', _dark: '#242a35' },
+          },
+
+          divider: {
+            value: { base: '#e3e8ec', _dark: '#202632' },
           },
 
           strong: {
-            value: { base: '#d5dbe0', _dark: '#313846' },
+            value: { base: '#cfd8df', _dark: '#313846' },
           },
 
           inverted: {
@@ -511,6 +524,12 @@ const config = defineConfig({
 
     'button, input, select, textarea': {
       font: 'inherit',
+    },
+
+    ':where([data-scope="dialog"][data-part="content"], [data-scope="drawer"][data-part="content"], [data-scope="menu"][data-part="content"], [data-scope="popover"][data-part="content"], [data-scope="select"][data-part="content"])': {
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: 'border.surface',
     },
   },
 });

@@ -50,7 +50,7 @@ export function TagBadge({ color, name }: { color?: string | null; name: string 
       maxW="full"
       rounded="md"
       borderWidth={backgroundColor.toUpperCase() === '#FFFFFF' ? '1px' : undefined}
-      borderColor="border.subtle"
+      borderColor="border.surface"
       px="2.5"
       py="1"
       fontSize="sm"

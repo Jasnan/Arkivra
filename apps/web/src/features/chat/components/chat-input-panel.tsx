@@ -68,7 +68,7 @@ export function ChatInputPanel({
         maxW="54rem"
         rounded="lg"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.surface"
         p="3"
         boxShadow="md"
@@ -147,7 +147,7 @@ export function ChatInputPanel({
                     overflow="hidden"
                     rounded="lg"
                     borderWidth="1px"
-                    borderColor="border.subtle"
+                    borderColor="border.surface"
                     bg="bg.surface"
                     shadow="lg"
                   >

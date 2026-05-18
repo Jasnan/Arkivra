@@ -46,7 +46,7 @@ export function AboutSettingsPage() {
 
   return (
     <SettingsPageFrame>
-      <Box maxW="4xl" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p={{ base: '5', md: '7' }} shadow="xs">
+      <Box maxW="4xl" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p={{ base: '5', md: '7' }} shadow="xs">
         <Stack gap="7">
           <Stack gap="3">
             <Heading as="h2" fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" lineHeight="short">
@@ -80,7 +80,7 @@ export function AboutSettingsPage() {
                     rel="noreferrer"
                     rounded="lg"
                     borderWidth="1px"
-                    borderColor="border.subtle"
+                    borderColor="border.surface"
                     bg="bg.subtle"
                     color="fg"
                     px="4"
@@ -115,7 +115,7 @@ export function AboutSettingsPage() {
             gap="1.5"
             flexWrap="wrap"
             borderTopWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             pt="5"
             textStyle="sm"
             color="fg.muted"
@@ -141,7 +141,7 @@ function MetaItem({
   value: string;
 }) {
   return (
-    <HStack gap="2.5" rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" px="3.5" py="3">
+    <HStack gap="2.5" rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="3.5" py="3">
       <Box color="fg.muted" flexShrink={0}>
         {icon}
       </Box>

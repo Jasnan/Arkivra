@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { chakra } from '@chakra-ui/react';
+import { Box, chakra } from '@chakra-ui/react';
 import { cn } from '@/lib/utils';
 
 interface RadioGroupContextValue {
@@ -68,11 +68,28 @@ export function RadioGroupItem({ className, name, ref, value, ...props }: RadioG
   const checked = context?.value === value;
 
   return (
-    <span
-      className={cn(
-        'relative inline-flex aspect-square h-4 w-4 shrink-0 items-center justify-center rounded-full border border-input bg-background text-primary shadow-xs outline-none transition focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-2 has-disabled:cursor-not-allowed has-disabled:opacity-50',
-        className,
-      )}
+    <Box
+      as="span"
+      position="relative"
+      display="inline-flex"
+      aspectRatio="1"
+      h="4"
+      flexShrink="0"
+      alignItems="center"
+      justifyContent="center"
+      rounded="full"
+      borderWidth="1px"
+      borderColor={checked ? 'teal.solid' : 'border.surface'}
+      bg="bg.surface"
+      color="teal.solid"
+      shadow="xs"
+      outline="none"
+      transition="border-color 120ms ease, box-shadow 120ms ease"
+      _focusWithin={{
+        borderColor: 'teal.solid',
+        boxShadow: '0 0 0 2px var(--chakra-colors-teal-focus-ring)',
+      }}
+      className={className}
     >
       <input
         ref={ref}
@@ -85,6 +102,6 @@ export function RadioGroupItem({ className, name, ref, value, ...props }: RadioG
         {...props}
       />
       {checked ? <span className="size-2 rounded-full bg-current" /> : null}
-    </span>
+    </Box>
   );
 }

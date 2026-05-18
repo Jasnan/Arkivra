@@ -126,7 +126,7 @@ export function ThemeToggle() {
                           minH="var(--arkivra-controlHeight, 2.5rem)"
                           rounded="md"
                           borderWidth="1px"
-                          borderColor={selected ? 'teal.solid' : 'border.subtle'}
+                          borderColor={selected ? 'teal.solid' : 'border.surface'}
                           bg={selected ? 'teal.subtle' : 'bg.subtle'}
                           color={selected ? 'teal.fg' : 'fg'}
                           fontSize="sm"
@@ -165,7 +165,7 @@ export function ThemeToggle() {
                               boxSize="8"
                               rounded="md"
                               borderWidth="1px"
-                              borderColor={selected ? 'fg' : 'border.subtle'}
+                              borderColor={selected ? 'fg' : 'border.surface'}
                               bg={option.color}
                               color="white"
                               cursor="pointer"
@@ -203,7 +203,7 @@ export function ThemeToggle() {
                           minH="var(--arkivra-controlHeight, 2.5rem)"
                           rounded="md"
                           borderWidth="1px"
-                          borderColor={selected ? 'teal.solid' : 'border.subtle'}
+                          borderColor={selected ? 'teal.solid' : 'border.surface'}
                           bg={selected ? 'teal.subtle' : 'bg.subtle'}
                           color={selected ? 'teal.fg' : 'fg'}
                           px="2"

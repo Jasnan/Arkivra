@@ -918,7 +918,7 @@ function PdfPreviewFrame({
         overflow="hidden"
         rounded="lg"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.surface"
       >
         <Flex
@@ -928,7 +928,7 @@ function PdfPreviewFrame({
           gap="3"
           wrap="wrap"
           borderBottomWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.surface"
           px={{ base: '3', md: '4' }}
         >
@@ -1000,7 +1000,7 @@ function PdfPreviewFrame({
             >
               <ZoomIn size={16} />
             </Button>
-            <Flex align="center" gap="1" rounded="md" borderWidth="1px" borderColor="border.subtle" p="0.5">
+            <Flex align="center" gap="1" rounded="md" borderWidth="1px" borderColor="border.surface" p="0.5">
               <Button
                 type="button"
                 size="sm"
@@ -1203,7 +1203,7 @@ function PdfPreviewFrame({
         overflow="hidden"
         rounded="lg"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.surface"
       >
         <Flex
@@ -1212,7 +1212,7 @@ function PdfPreviewFrame({
           justify="space-between"
           gap="3"
           borderBottomWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           px="4"
         >
           <Box minW="0">
@@ -1269,7 +1269,7 @@ function PdfPreviewFrame({
     >
       <Portal>
         <ChakraMenu.Positioner>
-          <ChakraMenu.Content zIndex="dropdown" minW="13rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+          <ChakraMenu.Content zIndex="dropdown" minW="13rem" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="1.5" shadow="lg">
             <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }}>
               <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'bg.subtle', color: 'fg' }}>
                 <Languages size={16} />
@@ -1278,7 +1278,7 @@ function PdfPreviewFrame({
               </ChakraMenu.TriggerItem>
               <Portal>
                 <ChakraMenu.Positioner>
-                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="1.5" shadow="lg">
                     {availableTranslationLanguages.map(language => (
                       <ChakraMenu.Item
                         key={language.value}
@@ -1321,7 +1321,7 @@ function PdfPreviewFrame({
     >
       <Portal>
         <ChakraMenu.Positioner>
-          <ChakraMenu.Content zIndex="dropdown" minW="14rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+          <ChakraMenu.Content zIndex="dropdown" minW="14rem" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="1.5" shadow="lg">
             <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }}>
               <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'bg.subtle', color: 'fg' }}>
                 <Languages size={16} />
@@ -1330,7 +1330,7 @@ function PdfPreviewFrame({
               </ChakraMenu.TriggerItem>
               <Portal>
                 <ChakraMenu.Positioner>
-                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="1.5" shadow="lg">
                     {availableTranslationLanguages.map(language => (
                       <ChakraMenu.Item
                         key={language.value}
@@ -1382,7 +1382,7 @@ function PdfPreviewFrame({
     >
       <Portal>
         <ChakraMenu.Positioner>
-          <ChakraMenu.Content zIndex="dropdown" minW="14rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+          <ChakraMenu.Content zIndex="dropdown" minW="14rem" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="1.5" shadow="lg">
             <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }}>
               <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'bg.subtle', color: 'fg' }}>
                 <Languages size={16} />
@@ -1391,7 +1391,7 @@ function PdfPreviewFrame({
               </ChakraMenu.TriggerItem>
               <Portal>
                 <ChakraMenu.Positioner>
-                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="1.5" shadow="lg">
+                  <ChakraMenu.Content zIndex="dropdown" minW="10rem" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="1.5" shadow="lg">
                     {availableTranslationLanguages.map(language => (
                       <ChakraMenu.Item
                         key={language.value}
@@ -1984,7 +1984,7 @@ export function DocumentDetailPage() {
         align="stretch"
         gap="5"
         borderBottomWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         pb="0"
       >
         <Flex align="center" justify="space-between" gap="4" pt={{ base: '1', md: '0' }}>
@@ -2177,7 +2177,7 @@ export function DocumentDetailPage() {
                       overflow="auto"
                       rounded="lg"
                       borderWidth="1px"
-                      borderColor="border.subtle"
+                      borderColor="border.surface"
                       bg="bg.surface"
                       px={{ base: '4', md: '8' }}
                       py={{ base: '5', md: '7' }}
@@ -2204,7 +2204,7 @@ export function DocumentDetailPage() {
                       rounded="lg"
                       borderWidth="1px"
                       borderStyle="dashed"
-                      borderColor="border.subtle"
+                      borderColor="border.surface"
                       bg="bg.surface"
                       px="6"
                       textAlign="center"
@@ -2297,7 +2297,7 @@ export function DocumentDetailPage() {
                         type="text"
                         value={currentName}
                         mt="2"
-                        borderColor="border.subtle"
+                        borderColor="border.surface"
                         bg="bg.surface"
                         autoFocus
                         onChange={(event) => setRenameValue(event.target.value)}
@@ -2343,7 +2343,7 @@ export function DocumentDetailPage() {
                         type="date"
                         value={currentDocumentDate}
                         mt="2"
-                        borderColor="border.subtle"
+                        borderColor="border.surface"
                         bg="bg.surface"
                         autoFocus
                         onChange={(event) => setDocumentDateValue(event.target.value)}
@@ -2400,7 +2400,7 @@ export function DocumentDetailPage() {
                         onValueChange={setLanguageValue}
                         positioning={{ sameWidth: true }}
                       >
-                        <SelectTrigger mt="2" borderColor="border.subtle" bg="bg.surface">
+                        <SelectTrigger mt="2" borderColor="border.surface" bg="bg.surface">
                           <SelectValue placeholder="Select source language" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2538,7 +2538,7 @@ export function DocumentDetailPage() {
                             event.preventDefault();
                           }}
                         >
-                        <Box borderBottomWidth="1px" borderColor="border.subtle" p="2">
+                        <Box borderBottomWidth="1px" borderColor="border.surface" p="2">
                           <Field>
                             <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
                               Filter tags

@@ -16,7 +16,7 @@ export function Separator({
     <ChakraSeparator
       ref={ref}
       orientation={orientation}
-      borderColor="border.subtle"
+      borderColor="border.surface"
       {...props}
     />
   );

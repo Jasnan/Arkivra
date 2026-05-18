@@ -96,7 +96,7 @@ export function TagDialog({
                         justifyContent="center"
                         rounded="xl"
                         borderWidth="1px"
-                        borderColor={colorValue === color ? 'fg/35' : 'border.subtle'}
+                        borderColor={colorValue === color ? 'fg/35' : 'border.surface'}
                         ring={colorValue === color ? '2px' : undefined}
                         ringColor={colorValue === color ? 'fg/10' : undefined}
                         style={{ backgroundColor: color }}
@@ -109,7 +109,7 @@ export function TagDialog({
                         ) : null}
                       </chakra.button>
                     ))}
-                    <chakra.button type="button" aria-label="Choose custom color" display="inline-flex" boxSize="10" alignItems="center" justifyContent="center" rounded="xl" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" color="fg" cursor="pointer" _hover={{ borderColor: 'fg/20' }} onClick={() => customColorInputRef.current?.click()}>
+                    <chakra.button type="button" aria-label="Choose custom color" display="inline-flex" boxSize="10" alignItems="center" justifyContent="center" rounded="xl" borderWidth="1px" borderColor="border.surface" bg="bg.surface" color="fg" cursor="pointer" _hover={{ borderColor: 'fg/20' }} onClick={() => customColorInputRef.current?.click()}>
                       <Plus size={20} />
                     </chakra.button>
                     <chakra.button type="button" aria-label="Reset tag color" display="inline-flex" boxSize="10" alignItems="center" justifyContent="center" rounded="xl" color="fg.muted" cursor="pointer" _hover={{ bg: 'teal.subtle', color: 'fg' }} onClick={() => onColorChange('#D8FF75')}>

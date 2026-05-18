@@ -34,7 +34,7 @@ export function ChatContextHeader({
           gap="2"
           rounded="full"
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.surface"
           px="3"
           py="1.5"

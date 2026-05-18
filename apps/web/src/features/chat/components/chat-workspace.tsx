@@ -374,7 +374,7 @@ export function ChatWorkspace({
           minH="0"
           overflow="hidden"
           borderRightWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.sidebar"
           pb="3"
         >
@@ -394,7 +394,7 @@ export function ChatWorkspace({
         overflow="hidden"
         rounded="0"
         borderWidth="0"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.workspace"
         shadow="none"
       >
@@ -439,7 +439,7 @@ export function ChatWorkspace({
             w="full"
             maxW="full"
             borderBottomWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             px="4"
             py="3"
             minW="0"
@@ -475,7 +475,7 @@ export function ChatWorkspace({
                 <Drawer.Backdrop bg="blackAlpha.500" />
                 <Drawer.Positioner>
                   <Drawer.Content maxH="84vh" roundedTop="xl" bg="bg.sidebar">
-                    <Drawer.Header borderBottomWidth="1px" borderColor="border.subtle" px="5" py="4">
+                    <Drawer.Header borderBottomWidth="1px" borderColor="border.surface" px="5" py="4">
                       <Flex align="center" justify="space-between" gap="4" pr="8">
                         <Box minW="0">
                           <Drawer.Title fontSize="lg" fontWeight="semibold">
@@ -578,7 +578,7 @@ export function ChatWorkspace({
                           lineHeight="1.75"
                           color="fg"
                           borderWidth="1px"
-                          borderColor="border.subtle"
+                          borderColor="border.surface"
                         >
                           {streamingText.length > 0 ? (
                             <MarkdownMessage content={streamingText} citations={[]} />
@@ -663,7 +663,7 @@ function ChatConversationSkeleton() {
           maxW="44rem"
           rounded="lg"
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.surface"
           px="5"
           py="4"

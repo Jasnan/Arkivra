@@ -217,7 +217,7 @@ function Panel(props: ComponentProps<typeof Box>) {
   return (
     <Box
       borderWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.surface"
       rounded="md"
       p={{ base: '4', md: '5' }}
@@ -466,7 +466,7 @@ function ScanStep({
                 aria-label="Authenticator setup QR code"
                 bg="white"
                 borderWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 rounded="md"
                 p={{ base: '3', sm: '4' }}
                 role="img"
@@ -511,7 +511,7 @@ function ScanStep({
               <Collapsible.Content>
                 <Box
                   borderWidth="1px"
-                  borderColor="border.subtle"
+                  borderColor="border.surface"
                   bg="bg.subtle"
                   rounded="md"
                   p="4"
@@ -705,7 +705,7 @@ function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
         mx="auto"
         w="100%"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         rounded="md"
         p={{ base: '4', md: '5' }}
       >

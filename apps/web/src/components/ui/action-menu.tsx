@@ -24,7 +24,7 @@ export function ActionMenuTriggerButton({
       w="calc(var(--arkivra-controlHeight, 2.5rem) - 0.25rem)"
       rounded="lg"
       borderWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.surface"
       color="fg.muted"
       _hover={{ bg: 'bg.subtle', color: 'fg' }}

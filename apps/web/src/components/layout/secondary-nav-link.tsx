@@ -17,6 +17,7 @@ export function SecondaryNavLink({
   onExpand,
   onCollapse,
   reserveDisclosureSpace = false,
+  density = 'default',
 }: {
   to: string;
   label: string;
@@ -29,19 +30,21 @@ export function SecondaryNavLink({
   onExpand?: () => void;
   onCollapse?: () => void;
   reserveDisclosureSpace?: boolean;
+  density?: 'default' | 'compact';
 }) {
   const hasExpansionState = expansionState !== undefined;
   const isExpanded = expansionState === 'expanded';
   const showDisclosureSlot = hasExpansionState || reserveDisclosureSpace;
+  const isCompact = density === 'compact';
 
   return (
     <Flex
       align="center"
       gap="2"
-      minH={description ? '12' : '9'}
+      minH={description ? (isCompact ? '10' : '12') : (isCompact ? '8' : '9')}
       rounded="md"
       px="2.5"
-      py={description ? '2' : undefined}
+      py={description ? (isCompact ? '1.5' : '2') : undefined}
       ml={`${Math.min(depth, 6) * 0.8}rem`}
       textStyle="sidebar"
       color={active ? 'teal.fg' : 'fg.muted'}
@@ -102,7 +105,7 @@ export function SecondaryNavLink({
         }}
         style={{ color: 'inherit', textDecoration: 'none', minWidth: 0, flex: 1 }}
       >
-        <Flex align="center" gap="2.5" minW="0">
+        <Flex align="center" gap={isCompact ? '2' : '2.5'} minW="0">
           <Flex boxSize="4.5" align="center" justify="center" shrink={0}>
             {icon}
           </Flex>

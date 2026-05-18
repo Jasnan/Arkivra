@@ -100,7 +100,7 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
           >
             <Flex
               shrink={0}
-              boxSize="11"
+              boxSize="9"
               align="center"
               justify="center"
               rounded="xl"

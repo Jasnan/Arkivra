@@ -27,7 +27,7 @@ import {
   SettingsStatusBadge,
 } from '../components/settings-ui';
 
-const securityActionButtonMinWidth = '10rem';
+const securityActionButtonMinWidth = '9rem';
 
 function settingsButtonLink(to: string, label: string) {
   return (
@@ -36,15 +36,15 @@ function settingsButtonLink(to: string, label: string) {
       style={{
         alignItems: 'center',
         backgroundColor: 'var(--chakra-colors-teal-solid)',
-        borderRadius: '0.5rem',
+        borderRadius: '0.375rem',
         color: 'var(--chakra-colors-fg-inverted)',
         display: 'inline-flex',
         fontSize: '0.875rem',
         fontWeight: 600,
-        height: '2.25rem',
+        height: '2.125rem',
         justifyContent: 'center',
         minWidth: securityActionButtonMinWidth,
-        padding: '0 0.875rem',
+        padding: '0 0.75rem',
       }}
     >
       {label}
@@ -257,18 +257,19 @@ export function SecuritySettingsPage() {
   }
 
   return (
-    <SettingsPageFrame title="Security">
-      <Stack gap="4" maxW="5xl">
-        <SettingsSection title="Two-factor authentication" description="Protect your account with an authenticator app.">
-          <SettingsRows>
+    <SettingsPageFrame title="Security" density="compact">
+      <Stack gap="3" maxW="5xl">
+        <SettingsSection title="Two-factor authentication" density="compact">
+          <SettingsRows density="compact">
             <SettingsRow
+              density="compact"
               label="Authenticator app"
               description={isTwoFactorEnabled
                 ? 'Your account requires an authenticator code at sign-in.'
                 : 'Warning: add a second sign-in step before relying on this instance for sensitive documents.'}
               control={
-                <HStack gap="3">
-                  <SettingsStatusBadge tone={isTwoFactorEnabled ? 'enabled' : 'warning'}>
+                <HStack gap="2.5">
+                  <SettingsStatusBadge density="compact" tone={isTwoFactorEnabled ? 'enabled' : 'warning'}>
                     {isTwoFactorEnabled ? 'Enabled' : 'Disabled'}
                   </SettingsStatusBadge>
                   {settingsButtonLink(isTwoFactorEnabled ? ROUTES.twoFactorManage : ROUTES.twoFactorSetup, isTwoFactorEnabled ? 'Manage 2FA' : 'Enable 2FA')}
@@ -278,14 +279,15 @@ export function SecuritySettingsPage() {
           </SettingsRows>
         </SettingsSection>
 
-        <SettingsSection title="Password management" description="Control password-based access for this account.">
-          <SettingsRows>
+        <SettingsSection title="Password management" density="compact">
+          <SettingsRows density="compact">
             <SettingsRow
+              density="compact"
               label="Password"
               description={hasPassword ? 'Password sign-in is available for this account.' : 'This account currently uses linked OAuth sign-in.'}
               control={
-                <HStack gap="3">
-                  <SettingsStatusBadge tone={hasPassword ? 'enabled' : 'inactive'}>
+                <HStack gap="2.5">
+                  <SettingsStatusBadge density="compact" tone={hasPassword ? 'enabled' : 'inactive'}>
                     {hasPassword ? 'Enabled' : 'Inactive'}
                   </SettingsStatusBadge>
                   {hasPassword ? (
@@ -308,10 +310,10 @@ export function SecuritySettingsPage() {
             />
           </SettingsRows>
           {!hasPassword && isSetPasswordOpen ? (
-            <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
+            <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
               <chakra.form onSubmit={handleSetPasswordSubmit}>
-                <Stack gap="4">
-                  <Stack gap="1">
+                <Stack gap="3">
+                  <Stack gap="0.5">
                     <Text fontSize="sm" fontWeight="medium" color="fg">
                       Set password
                     </Text>
@@ -374,9 +376,10 @@ export function SecuritySettingsPage() {
 
                   {setPasswordError ? <FieldError>{setPasswordError}</FieldError> : null}
 
-                  <HStack justify="flex-end" gap="3">
+                  <HStack justify="flex-end" gap="2.5">
                     <Button
                       type="button"
+                      size="sm"
                       variant="outline"
                       onClick={() => {
                         setIsSetPasswordOpen(false);
@@ -389,6 +392,7 @@ export function SecuritySettingsPage() {
                     </Button>
                     <Button
                       type="submit"
+                      size="sm"
                       loading={isSettingPassword}
                       loadingText="Setting password..."
                     >
@@ -401,14 +405,15 @@ export function SecuritySettingsPage() {
           ) : null}
         </SettingsSection>
 
-        <SettingsSection title="Email verification" description="Verified email keeps account recovery and notifications reliable.">
-          <SettingsRows>
+        <SettingsSection title="Email verification" density="compact">
+          <SettingsRows density="compact">
             <SettingsRow
+              density="compact"
               label="Primary email"
               description={sessionData?.user.email ?? 'No email address available.'}
               control={
-                <HStack gap="3">
-                  <SettingsStatusBadge tone={isEmailVerified ? 'verified' : 'warning'}>
+                <HStack gap="2.5" flexWrap="wrap" justify="flex-end">
+                  <SettingsStatusBadge density="compact" tone={isEmailVerified ? 'verified' : 'warning'}>
                     {isEmailVerified ? 'Verified' : 'Unverified'}
                   </SettingsStatusBadge>
                   {!isEmailVerified ? (
@@ -440,10 +445,10 @@ export function SecuritySettingsPage() {
             />
           </SettingsRows>
           {isEmailChangeOpen ? (
-            <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
+            <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
               <chakra.form onSubmit={handleEmailChangeSubmit}>
-                <Stack gap="4">
-                  <Stack gap="1">
+                <Stack gap="3">
+                  <Stack gap="0.5">
                     <Text fontSize="sm" fontWeight="medium" color="fg">
                       Change email address
                     </Text>
@@ -482,9 +487,10 @@ export function SecuritySettingsPage() {
 
                   {emailChangeError ? <FieldError>{emailChangeError}</FieldError> : null}
 
-                  <HStack justify="flex-end" gap="3">
+                  <HStack justify="flex-end" gap="2.5">
                     <Button
                       type="button"
+                      size="sm"
                       variant="outline"
                       onClick={() => {
                         setIsEmailChangeOpen(false);
@@ -496,6 +502,7 @@ export function SecuritySettingsPage() {
                     </Button>
                     <Button
                       type="submit"
+                      size="sm"
                       disabled={verificationMethod.type === 'unavailable'}
                       loading={emailChangeMutation.isPending}
                       loadingText="Requesting..."

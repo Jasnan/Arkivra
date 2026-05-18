@@ -170,7 +170,7 @@ export function SettingsSessionsSection() {
   return (
     <SettingsSection
       title="Sessions"
-      description="Review signed-in devices and remove access you no longer recognize."
+      density="compact"
       actions={
         <Button
           type="button"
@@ -186,25 +186,25 @@ export function SettingsSessionsSection() {
         </Button>
       }
     >
-      <Stack gap="3">
+      <Stack gap="2">
         {sortedSessions.length > 0 ? (
           sortedSessions.map((session) => {
             const isCurrentSession = session.id === meQuery.data?.sessionId;
             const display = getSessionDisplay(session);
 
             return (
-              <Box key={session.id} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
-                <Flex align="center" justify="space-between" gap="4">
-                  <HStack gap="3" minW="0">
-                    <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
-                      <Laptop size={18} />
+              <Box key={session.id} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
+                <Flex align="center" justify="space-between" gap="3">
+                  <HStack gap="2.5" minW="0">
+                    <Flex boxSize="8" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
+                      <Laptop size={16} />
                     </Flex>
                     <Stack gap="0.5" minW="0">
                       <HStack gap="2" flexWrap="wrap">
                         <Text fontSize="sm" fontWeight="semibold">
                           {isCurrentSession ? 'Current session' : 'Active session'}
                         </Text>
-                        {isCurrentSession ? <SettingsStatusBadge tone="enabled">This device</SettingsStatusBadge> : null}
+                        {isCurrentSession ? <SettingsStatusBadge density="compact" tone="enabled">This device</SettingsStatusBadge> : null}
                       </HStack>
                       <Text textStyle="sm" color="fg.muted" truncate>
                         {display.device}
@@ -215,7 +215,7 @@ export function SettingsSessionsSection() {
                     </Stack>
                   </HStack>
                   {isCurrentSession ? (
-                    <Text flexShrink={0} textStyle="sm" fontWeight="medium" color="teal.fg">
+                    <Text flexShrink={0} fontSize="xs" fontWeight="medium" color="teal.fg">
                       Active now
                     </Text>
                   ) : (
@@ -236,34 +236,31 @@ export function SettingsSessionsSection() {
             );
           })
         ) : (
-          <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
-            <Flex align="center" justify="space-between" gap="4">
-              <HStack gap="3" minW="0">
-                <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
-                  <Laptop size={18} />
+          <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
+            <Flex align="center" justify="space-between" gap="3">
+              <HStack gap="2.5" minW="0">
+                <Flex boxSize="8" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
+                  <Laptop size={16} />
                 </Flex>
                 <Stack gap="0.5" minW="0">
                   <HStack gap="2">
                     <Text fontSize="sm" fontWeight="semibold">
                       Current session
                     </Text>
-                    <SettingsStatusBadge tone="enabled">This device</SettingsStatusBadge>
+                    <SettingsStatusBadge density="compact" tone="enabled">This device</SettingsStatusBadge>
                   </HStack>
                   <Text textStyle="sm" color="fg.muted" truncate>
                     {currentBrowserLabel} · {currentHostLabel}
                   </Text>
                 </Stack>
               </HStack>
-              <Text flexShrink={0} textStyle="sm" fontWeight="medium" color="teal.fg">
+              <Text flexShrink={0} fontSize="xs" fontWeight="medium" color="teal.fg">
                 Active now
               </Text>
             </Flex>
           </Box>
         )}
       </Stack>
-      <Text textStyle="xs" color="fg.muted">
-        Sessions are sorted with this device first, then active sessions by most recent activity.
-      </Text>
     </SettingsSection>
   );
 }

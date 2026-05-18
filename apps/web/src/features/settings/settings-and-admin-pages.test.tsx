@@ -7,7 +7,6 @@ import {
   AdminOverviewPage,
   AdminUserAccessPage,
   AdminUsersPage,
-  AdminVaultsPage,
 } from '@/features/admin/pages/admin-page';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { useAccentColor } from '@/components/providers/accent-color-context';
@@ -1350,6 +1349,7 @@ describe('settings, admin, and about pages', () => {
               ownerUserId: 'usr_owner',
               ownerEmail: 'owner@example.com',
               ownerName: 'Owner',
+              memberCount: 3,
             },
           ],
         });
@@ -1361,10 +1361,9 @@ describe('settings, admin, and about pages', () => {
 
     let view = await renderWithProviders(<AdminOverviewPage />);
     expect(await screen.findByText(/1 vault/i)).toBeInTheDocument();
-    view.unmount();
-
-    view = await renderWithProviders(<AdminVaultsPage />);
     expect(await screen.findByText(/invoices vault/i)).toBeInTheDocument();
+    expect(screen.getByText(/owner@example.com/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 members/i)).toBeInTheDocument();
     view.unmount();
 
     view = await renderWithProviders(<AdminBackupsPage />);
@@ -1477,6 +1476,7 @@ describe('settings, admin, and about pages', () => {
               ownerUserId: 'usr_owner',
               ownerEmail: 'owner@example.com',
               ownerName: 'Owner',
+              memberCount: 3,
             },
           ],
         });
@@ -1556,6 +1556,7 @@ describe('settings, admin, and about pages', () => {
               ownerUserId: 'usr_owner',
               ownerEmail: 'owner@example.com',
               ownerName: 'Owner',
+              memberCount: 3,
             },
           ],
         });

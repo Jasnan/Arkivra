@@ -2,12 +2,15 @@ import type { FormEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCircle2, Clock3, Info, Lightbulb, Mail, Plus, Search, Send, ShieldCheck, ShieldX, Trash2, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
+import { Check, CheckCircle2, Clock3, Mail, Plus, Search, Send, ShieldCheck, ShieldX, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   CreateButton,
@@ -18,7 +21,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -55,8 +57,7 @@ import {
   useAdminVaultsQuery,
   usePermissionRequestsQuery,
 } from '@/features/admin/admin.queries';
-import type { AdminAiSettings, AdminUser, PermissionRequest } from '@/features/admin/admin.types';
-import type { AiAccessLevel, VaultRole } from '@/features/vaults/vaults.types';
+import type { AdminAiSettings, AdminUser, EmailInvitation, PermissionRequest } from '@/features/admin/admin.types';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
@@ -70,12 +71,6 @@ import {
 type AdminUserStatusFilter = 'all' | 'active' | 'disabled';
 type AdminUserAccessFilter = 'all' | 'root' | 'create-vaults' | 'member';
 type InviteSystemRole = 'root' | 'member';
-interface InviteVaultMembershipDraft {
-  id: string;
-  vaultId: string;
-  role: VaultRole;
-  aiAccessLevel: AiAccessLevel;
-}
 
 type AdminUserActionKey = 'manage-access' | 'resend-invitation' | 'deactivate-user' | 'view-activity';
 
@@ -114,27 +109,6 @@ const inviteSystemRoleOptions: Array<{ value: InviteSystemRole; label: string }>
   { value: 'member', label: 'Member' },
   { value: 'root', label: 'Root' },
 ];
-
-const inviteVaultRoleOptions: Array<{ value: VaultRole; label: string }> = [
-  { value: 'viewer', label: 'Viewer' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'owner', label: 'Owner' },
-];
-
-const inviteAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
-  { value: 'none', label: 'No AI access' },
-  { value: 'document_chat', label: 'Document chat' },
-  { value: 'full', label: 'Full AI access' },
-];
-
-let inviteVaultMembershipDraftId = 0;
-
-const createInviteVaultMembershipDraft = (): InviteVaultMembershipDraft => ({
-  id: `invite-vault-${inviteVaultMembershipDraftId += 1}`,
-  vaultId: '',
-  role: 'viewer',
-  aiAccessLevel: 'none',
-});
 
 function formatCount(value: number | undefined, singular: string, plural = `${singular}s`) {
   const safeValue = value ?? 0;
@@ -591,22 +565,18 @@ export function AdminBackupsPage() {
 
 export function AdminUsersPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const meQuery = useMeQuery();
   const isEnabled = meQuery.data?.isRoot === true;
   const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
-  const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
   const users = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data?.users]);
-  const vaults = useMemo(() => vaultsQuery.data?.vaults ?? [], [vaultsQuery.data?.vaults]);
   const [userSearch, setUserSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdminUserStatusFilter>('all');
   const [accessFilter, setAccessFilter] = useState<AdminUserAccessFilter>('all');
   const [rootInviteEmail, setRootInviteEmail] = useState('');
   const [inviteSystemRole, setInviteSystemRole] = useState<InviteSystemRole>('member');
   const [inviteCanCreateVaults, setInviteCanCreateVaults] = useState(false);
-  const [inviteVaultMemberships, setInviteVaultMemberships] = useState<InviteVaultMembershipDraft[]>(() => [
-    createInviteVaultMembershipDraft(),
-  ]);
-  const [createdInvitationToken, setCreatedInvitationToken] = useState<string | null>(null);
+  const [createdInvitation, setCreatedInvitation] = useState<EmailInvitation | null>(null);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [userContextMenu, setUserContextMenu] = useState<AdminUserContextMenuState>(null);
   const visibleUsers = useMemo(() => {
@@ -634,27 +604,6 @@ export function AdminUsersPage() {
     invited: 0,
   }), [users]);
 
-  function updateInviteVaultMembership(
-    membershipId: string,
-    patch: Partial<Omit<InviteVaultMembershipDraft, 'id'>>,
-  ) {
-    setInviteVaultMemberships((memberships) =>
-      memberships.map((membership) =>
-        membership.id === membershipId ? { ...membership, ...patch } : membership,
-      ),
-    );
-  }
-
-  function removeInviteVaultMembership(membershipId: string) {
-    setInviteVaultMemberships((memberships) => {
-      if (memberships.length === 1) {
-        return [createInviteVaultMembershipDraft()];
-      }
-
-      return memberships.filter((membership) => membership.id !== membershipId);
-    });
-  }
-
   const updateUserMutation = useMutation({
     mutationFn: updateAdminUser,
     onSuccess: async (_, variables) => {
@@ -674,7 +623,7 @@ export function AdminUsersPage() {
         description: 'Edit roles, permissions and vault access',
         icon: UserRound,
         tone: 'success',
-        onSelect: () => toast.info('User access management will be added in an upcoming admin update.'),
+        onSelect: () => void navigate({ to: ROUTES.adminUserAccess(user.id) }),
       },
       {
         key: 'resend-invitation',
@@ -715,14 +664,18 @@ export function AdminUsersPage() {
     mutationFn: createRootEmailInvitation,
     onSuccess: ({ invitation }) => {
       toast.success(`Invitation created for ${invitation.email}.`);
-      setCreatedInvitationToken(invitation.id);
+      setCreatedInvitation(invitation);
       setRootInviteEmail('');
-      setInviteVaultMemberships([createInviteVaultMembershipDraft()]);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not create root invitation.');
     },
   });
+
+  function openInviteDialog() {
+    setCreatedInvitation(null);
+    setIsInviteDialogOpen(true);
+  }
 
   if (meQuery.isLoading) {
     return <Text textStyle="sm">Loading admin context...</Text>;
@@ -796,7 +749,7 @@ export function AdminUsersPage() {
             </Select>
           </Box>
 
-          <Button h="12" px="4" colorPalette="teal" onClick={() => setIsInviteDialogOpen(true)}>
+          <Button h="12" px="4" colorPalette="teal" onClick={openInviteDialog}>
             <Plus size={18} />
             Invite user
           </Button>
@@ -964,10 +917,12 @@ export function AdminUsersPage() {
       ) : null}
 
       <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-        <DialogContent maxW="7xl" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
+        <DialogContent maxW="34rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
           <chakra.form
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
+              if (createdInvitation) return;
+
               const email = rootInviteEmail.trim();
               if (!email) {
                 toast.error('Email is required.');
@@ -977,289 +932,299 @@ export function AdminUsersPage() {
                 email,
                 systemRole: inviteSystemRole,
                 systemCapabilities: inviteCanCreateVaults ? ['system.create_vaults'] : [],
-                vaultMemberships: inviteVaultMemberships
-                  .filter((membership) => membership.vaultId.length > 0)
-                  .map((membership) => ({
-                    vaultId: membership.vaultId,
-                    role: membership.role,
-                    aiAccessLevel: membership.aiAccessLevel,
-                  })),
+                vaultMemberships: [],
               });
             }}
           >
-            <Box borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '5', lg: '8' }} py="6">
+            <Box borderBottomWidth="1px" borderColor="border.subtle" px="4" py="2" pr={{ base: '13', lg: '14' }}>
               <DialogHeader>
-                <DialogTitle>Invite user</DialogTitle>
-                <DialogDescription>
-                  Send an invitation to a new user.
-                </DialogDescription>
+                <HStack gap="2.5" align="center">
+                  <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
+                    <UserRoundPlus size={18} />
+                  </Flex>
+                  <Stack gap="0.5" minW="0">
+                    <DialogTitle>{createdInvitation ? 'Invitation sent' : 'Invite user'}</DialogTitle>
+                    <DialogDescription>
+                      {createdInvitation ? `Invite created for ${createdInvitation.email}.` : 'Send an invitation to a new user.'}
+                    </DialogDescription>
+                  </Stack>
+                </HStack>
               </DialogHeader>
             </Box>
 
-            <Grid templateColumns={{ base: '1fr', xl: 'minmax(0, 1fr) 27rem' }} minH={{ xl: '33rem' }}>
-              <Stack gap="7" px={{ base: '5', lg: '8' }} py="7">
-                <Stack gap="6">
-                  <Text as="h2" textStyle="lg" fontWeight="semibold" color="fg">
-                    User information
-                  </Text>
-
-                  <Field>
-                    <FieldLabel htmlFor="admin-root-invite-email">Email address</FieldLabel>
-                    <Box position="relative">
-                      <Input
-                        id="admin-root-invite-email"
-                        type="email"
-                        value={rootInviteEmail}
-                        placeholder="user@example.com"
-                        h="12"
-                        pr="11"
-                        borderColor="border.strong"
-                        onChange={(event) => setRootInviteEmail(event.target.value)}
-                      />
-                      <Box position="absolute" right="4" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
-                        <Mail size={18} />
-                      </Box>
-                    </Box>
-                  </Field>
-                </Stack>
-
-                <Grid gap="5" templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) minmax(15rem, 1fr)' }} alignItems="center">
-                  <Field>
-                    <FieldLabel>System role</FieldLabel>
-                    <Select value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
-                      <SelectTrigger aria-label="System role" h="12" borderColor="border.strong">
-                        <HStack gap="3">
-                          <UserRound size={18} />
-                          <SelectValue />
-                        </HStack>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {inviteSystemRoleOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-
-                  <Checkbox
-                    checked={inviteCanCreateVaults}
-                    onCheckedChange={setInviteCanCreateVaults}
-                    alignSelf={{ base: 'flex-start', md: 'end' }}
-                    pb={{ md: '1' }}
-                  >
-                    <Stack gap="1">
-                      <Text color="fg">Can create vaults</Text>
-                      <Text textStyle="sm" color="fg.muted">
-                        Allows the user to create new vaults.
-                      </Text>
-                    </Stack>
-                  </Checkbox>
-                </Grid>
-
-                <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p={{ base: '4', lg: '5' }}>
-                  <Stack gap="5">
-                    <Stack gap="1">
-                      <Text textStyle="md" fontWeight="semibold" color="fg">
-                        Initial vault access <Text as="span" fontWeight="normal" color="fg.muted">(optional)</Text>
-                      </Text>
-                      <Text textStyle="sm" color="fg.muted">
-                        Pre-assign vault access for this user. You can always change this later.
-                      </Text>
-                    </Stack>
-
-                    <Stack gap="4">
-                      <Grid
-                        display={{ base: 'none', md: 'grid' }}
-                        gap="4"
-                        templateColumns="minmax(0, 1.1fr) minmax(0, 0.92fr) minmax(0, 0.92fr) 3rem"
-                      >
-                        <Text textStyle="sm" fontWeight="medium" color="fg">Vault</Text>
-                        <Text textStyle="sm" fontWeight="medium" color="fg">Role</Text>
-                        <Text textStyle="sm" fontWeight="medium" color="fg">AI access</Text>
-                        <Text srOnly>Remove</Text>
-                      </Grid>
-
-                      {inviteVaultMemberships.map((membership) => (
-                        <Grid
-                          key={membership.id}
-                          gap="4"
-                          alignItems="end"
-                          templateColumns={{ base: '1fr', md: 'minmax(0, 1.1fr) minmax(0, 0.92fr) minmax(0, 0.92fr) 3rem' }}
-                        >
-                          <Field>
-                            <FieldLabel display={{ md: 'none' }}>Vault</FieldLabel>
-                            <Select
-                              value={membership.vaultId || '__none__'}
-                              onValueChange={(value) => updateInviteVaultMembership(membership.id, { vaultId: value === '__none__' ? '' : value })}
-                            >
-                              <SelectTrigger aria-label="Initial vault membership" h="12" borderColor="border.strong">
-                                <SelectValue placeholder="Choose a vault..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">Choose a vault...</SelectItem>
-                                {vaults.map((vault) => (
-                                  <SelectItem key={vault.id} value={vault.id}>{vault.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </Field>
-
-                          <Field>
-                            <FieldLabel display={{ md: 'none' }}>Role</FieldLabel>
-                            <Select
-                              value={membership.role}
-                              onValueChange={(value) => updateInviteVaultMembership(membership.id, { role: value as VaultRole })}
-                              disabled={!membership.vaultId}
-                            >
-                              <SelectTrigger aria-label="Initial vault role" h="12" borderColor="border.strong">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {inviteVaultRoleOptions.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </Field>
-
-                          <Field>
-                            <FieldLabel display={{ md: 'none' }}>AI access</FieldLabel>
-                            <Select
-                              value={membership.aiAccessLevel}
-                              onValueChange={(value) => updateInviteVaultMembership(membership.id, { aiAccessLevel: value as AiAccessLevel })}
-                              disabled={!membership.vaultId}
-                            >
-                              <SelectTrigger aria-label="Initial AI access" h="12" borderColor="border.strong">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {inviteAiAccessOptions.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </Field>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="Remove vault access row"
-                            onClick={() => removeInviteVaultMembership(membership.id)}
-                          >
-                            <Trash2 size={18} />
-                          </Button>
-                        </Grid>
-                      ))}
-                    </Stack>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      alignSelf="flex-start"
-                      onClick={() => setInviteVaultMemberships((memberships) => [...memberships, createInviteVaultMembershipDraft()])}
-                    >
-                      <Plus size={18} />
-                      Add another vault
-                    </Button>
-                  </Stack>
-                </Box>
-
-                <HStack gap="4" rounded="md" borderWidth="1px" borderColor="blue.200" bg="bg.info" px="5" py="4" color="fg.info">
-                  <Info size={22} />
-                  <Text textStyle="sm" color="fg">
-                    The invited user will receive an email with instructions to set up their account.
-                  </Text>
-                </HStack>
-              </Stack>
-
-              <Stack gap="5" borderLeftWidth={{ xl: '1px' }} borderTopWidth={{ base: '1px', xl: '0' }} borderColor="border.subtle" bg="bg.subtle" px={{ base: '5', lg: '8' }} py="7">
-                <Box rounded="md" borderWidth="1px" borderColor="teal.muted" bg="teal.subtle" p="6">
-                  <Stack gap="6">
-                    <HStack gap="4">
-                      <Flex boxSize="12" align="center" justify="center" rounded="full" bg="bg.success" color="fg.success">
-                        <Mail size={24} />
+            {createdInvitation ? (
+              <Stack gap="3" px="4" py="4" bg="bg.subtle">
+                <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+                  <Stack gap="4">
+                    <HStack gap="3" align="start">
+                      <Flex boxSize="9" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
+                        <Check size={19} />
                       </Flex>
-                      <Text textStyle="md" fontWeight="semibold" color="fg">
-                        What happens next?
-                      </Text>
-                    </HStack>
-
-                    {[
-                      ['1', 'Invitation sent', 'User receives an email invitation.'],
-                      ['2', 'Account setup', 'User sets up their account and sign in.'],
-                      ['3', 'Access granted', 'User can access assigned vaults and features.'],
-                    ].map(([step, title, description], index) => (
-                      <Grid key={step} templateColumns="2rem minmax(0, 1fr)" gap="4">
-                        <Stack align="center" gap="2">
-                          <Flex boxSize="8" align="center" justify="center" rounded="full" bg="teal.solid" color="fg.inverted" textStyle="sm" fontWeight="semibold">
-                            {step}
-                          </Flex>
-                          {index < 2 ? <Box w="1px" h="7" borderLeftWidth="1px" borderStyle="dashed" borderColor="teal.muted" /> : null}
-                        </Stack>
-                        <Stack gap="1" pb={index < 2 ? '1' : '0'}>
-                          <Text textStyle="sm" fontWeight="semibold" color="fg">
-                            {title}
-                          </Text>
-                          <Text textStyle="sm" color="fg.muted">
-                            {description}
-                          </Text>
-                        </Stack>
-                      </Grid>
-                    ))}
-                  </Stack>
-                </Box>
-
-                <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="6">
-                  <Stack gap="5">
-                    <HStack gap="3">
-                      <Lightbulb size={22} />
-                      <Text textStyle="md" fontWeight="semibold" color="fg">
-                        Tips
-                      </Text>
-                    </HStack>
-                    {[
-                      "You can manage this user's permissions after they accept the invitation.",
-                      'System role and capabilities can be updated at any time.',
-                      'Vault access and AI permissions can be modified later from the user access page.',
-                    ].map((tip) => (
-                      <HStack key={tip} gap="3" align="start">
-                        <Box color="fg.success" pt="0.5">
-                          <Check size={18} />
-                        </Box>
-                        <Text textStyle="sm" color="fg.muted">
-                          {tip}
+                      <Stack gap="1" minW="0">
+                        <Text fontWeight="semibold" color="fg">
+                          Invitation is ready
                         </Text>
-                      </HStack>
-                    ))}
+                        <Text textStyle="sm" color="fg.muted">
+                          The user can accept the email invite and complete account setup.
+                        </Text>
+                      </Stack>
+                    </HStack>
+
+                    <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" px="4" py="3">
+                      <KeyValueRows
+                        rows={[
+                          { label: 'Email', value: createdInvitation.email },
+                          { label: 'System role', value: createdInvitation.systemRole === 'root' ? 'Root' : 'Member' },
+                          { label: 'Status', value: 'Pending acceptance' },
+                        ]}
+                      />
+                    </Box>
                   </Stack>
+                </Card>
+
+                <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3">
+                  <Text textStyle="sm" color="fg.muted">
+                    Advanced vault, AI, and audit controls live in user access management after the account exists.
+                  </Text>
                 </Box>
               </Stack>
-            </Grid>
+            ) : (
+              <Stack gap="3" px="4" py="4" bg="bg.subtle">
+                <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+                  <Stack gap="4">
+                    <Field>
+                      <FieldLabel htmlFor="admin-root-invite-email">Email address</FieldLabel>
+                      <Box position="relative">
+                        <Input
+                          id="admin-root-invite-email"
+                          type="email"
+                          value={rootInviteEmail}
+                          placeholder="user@example.com"
+                          h="11"
+                          pr="11"
+                          borderColor="border.strong"
+                          onChange={(event) => setRootInviteEmail(event.target.value)}
+                        />
+                        <Box position="absolute" right="4" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
+                          <Mail size={18} />
+                        </Box>
+                      </Box>
+                    </Field>
 
-            {createdInvitationToken ? (
-              <Box px={{ base: '5', lg: '8' }} pb="4">
-                <Text fontSize="sm" color="fg.muted">
-                  Invitation token: <Text as="span" fontFamily="mono" color="fg">{createdInvitationToken}</Text>
+                    <Field>
+                      <FieldLabel>System role</FieldLabel>
+                      <Select value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
+                        <SelectTrigger aria-label="System role" h="11" borderColor="border.strong">
+                          <HStack gap="3">
+                            <UserRound size={18} />
+                            <SelectValue />
+                          </HStack>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {inviteSystemRoleOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+
+                    <Checkbox
+                      checked={inviteCanCreateVaults}
+                      onCheckedChange={setInviteCanCreateVaults}
+                      alignItems="flex-start"
+                    >
+                      <Stack gap="1">
+                        <Text color="fg" fontWeight="medium">Can create vaults</Text>
+                        <Text textStyle="sm" color="fg.muted">
+                          Allow this user to create new vaults.
+                        </Text>
+                      </Stack>
+                    </Checkbox>
+                  </Stack>
+                </Card>
+
+                <Text textStyle="sm" color="fg.muted">
+                  The user will receive an email invitation to create their account.
                 </Text>
-              </Box>
-            ) : null}
+              </Stack>
+            )}
 
-            <Box borderTopWidth="1px" borderColor="border.subtle" px={{ base: '5', lg: '8' }} py="5">
-              <DialogFooter>
+            <Box borderTopWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3.5">
+              <Flex align="center" justify="flex-end" gap="3" w="full">
                 <Button type="button" variant="outline" h="12" px="6" onClick={() => setIsInviteDialogOpen(false)}>
-                  Cancel
+                  {createdInvitation ? 'Close' : 'Cancel'}
                 </Button>
-                <Button type="submit" h="12" px="6" colorPalette="teal" disabled={createRootInvitationMutation.isPending}>
-                  <Send size={18} />
-                  {createRootInvitationMutation.isPending ? 'Sending...' : 'Send invitation'}
-                </Button>
-              </DialogFooter>
+                {createdInvitation ? (
+                  <Button
+                    type="button"
+                    h="12"
+                    px="6"
+                    colorPalette="teal"
+                    onClick={() => {
+                      setIsInviteDialogOpen(false);
+                      void navigate({ to: ROUTES.adminUserAccess(createdInvitation.acceptedBy ?? createdInvitation.id) });
+                    }}
+                  >
+                    Manage access
+                  </Button>
+                ) : (
+                  <Button type="submit" h="12" px="6" colorPalette="teal" disabled={createRootInvitationMutation.isPending}>
+                    <Send size={18} />
+                    {createRootInvitationMutation.isPending ? 'Sending...' : 'Send invitation'}
+                  </Button>
+                )}
+              </Flex>
             </Box>
           </chakra.form>
         </DialogContent>
       </Dialog>
     </Stack>
+  );
+}
+
+export function AdminUserAccessPage() {
+  const params = useParams({ strict: false }) as { userId?: string };
+  const userId = params.userId ?? '';
+  const meQuery = useMeQuery();
+  const isEnabled = meQuery.data?.isRoot === true;
+  const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
+  const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
+  const users = usersQuery.data?.users ?? [];
+  const vaults = vaultsQuery.data?.vaults ?? [];
+  const user = users.find((candidate) => candidate.id === userId);
+
+  if (meQuery.isLoading) {
+    return <Text textStyle="sm">Loading admin context...</Text>;
+  }
+
+  if (!isEnabled) {
+    return (
+      <SettingsPageFrame title="User access" description="Root access is required to open this page.">
+        <Alert variant="destructive">
+          <AlertDescription>
+            Root access is required to manage user access.
+          </AlertDescription>
+        </Alert>
+      </SettingsPageFrame>
+    );
+  }
+
+  if (usersQuery.isLoading || vaultsQuery.isLoading) {
+    return <Text textStyle="sm" color="fg.muted">Loading access profile...</Text>;
+  }
+
+  if (!user) {
+    return (
+      <SettingsPageFrame
+        title="Pending access profile"
+        description="This invite has not resolved to an active user account yet."
+      >
+        <SettingsSection title="Access management" description="Detailed permissions become available after the user accepts the invitation.">
+          <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+            <Stack gap="2">
+              <Text textStyle="sm" fontWeight="medium" color="fg">
+                Invite pending
+              </Text>
+              <Text textStyle="sm" color="fg.muted">
+                Keep the invite flow quick. Vault matrices, AI feature permissions, audit visibility, and granular overrides live here once an account exists.
+              </Text>
+            </Stack>
+          </Box>
+        </SettingsSection>
+      </SettingsPageFrame>
+    );
+  }
+
+  return (
+    <SettingsPageFrame
+      title="User access"
+      description="Manage long-term permissions, vault access, AI features, and audit visibility outside the invite flow."
+    >
+      <SettingsSection
+        title={user.email}
+        description="Use this workspace for access changes after the user has joined Arkivra."
+        actions={<Badge variant="secondary">{getUserRoleLabel(user)}</Badge>}
+      >
+        <HStack gap="2" flexWrap="wrap">
+          {['Overview', 'Access', 'Security', 'Activity'].map((tab) => (
+            <Badge
+              key={tab}
+              variant={tab === 'Access' ? 'default' : 'secondary'}
+              bg={tab === 'Access' ? 'teal.subtle' : 'bg.subtle'}
+              color={tab === 'Access' ? 'teal.fg' : 'fg.muted'}
+              rounded="full"
+              px="3"
+              py="1"
+            >
+              {tab}
+            </Badge>
+          ))}
+        </HStack>
+
+        <SimpleGrid columns={{ base: 1, lg: 2 }} gap="4">
+          <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+            <Stack gap="3">
+              <Text textStyle="sm" fontWeight="semibold" color="fg">
+                System permissions
+              </Text>
+              <KeyValueRows
+                rows={[
+                  { label: 'Role', value: getUserRoleLabel(user) },
+                  { label: 'Create vaults', value: user.canCreateVault ? 'Allowed' : 'Not allowed' },
+                  { label: 'Status', value: user.disabledAt ? 'Disabled' : 'Active' },
+                ]}
+              />
+            </Stack>
+          </Box>
+
+          <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+            <Stack gap="3">
+              <Text textStyle="sm" fontWeight="semibold" color="fg">
+                Access expansion
+              </Text>
+              <Text textStyle="sm" color="fg.muted">
+                Vault permission matrices, AI feature permissions, granular overrides, and audit events belong in this dedicated management surface.
+              </Text>
+            </Stack>
+          </Box>
+        </SimpleGrid>
+
+        <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
+          <Stack gap="3">
+            <HStack justify="space-between" gap="3" align="start">
+              <Stack gap="1">
+                <Text textStyle="sm" fontWeight="semibold" color="fg">
+                  Vault permissions
+                </Text>
+                <Text textStyle="sm" color="fg.muted">
+                  Dedicated matrix for current and future vault-level access controls.
+                </Text>
+              </Stack>
+              <Badge variant="secondary">{formatCount(vaults.length, 'vault')}</Badge>
+            </HStack>
+
+            {vaults.length > 0 ? (
+              <Stack gap="0" divideY="1px" divideColor="border.subtle">
+                {vaults.slice(0, 4).map((vault) => (
+                  <Flex key={vault.id} align="center" justify="space-between" gap="4" py="3">
+                    <Text textStyle="sm" fontWeight="medium" color="fg">
+                      {vault.name}
+                    </Text>
+                    <Text textStyle="sm" color="fg.muted">
+                      Configure role, AI features, and overrides
+                    </Text>
+                  </Flex>
+                ))}
+              </Stack>
+            ) : (
+              <Text textStyle="sm" color="fg.muted">
+                No vaults are available yet.
+              </Text>
+            )}
+          </Stack>
+        </Box>
+      </SettingsSection>
+    </SettingsPageFrame>
   );
 }
 

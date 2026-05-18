@@ -101,9 +101,11 @@ export function DialogContent({
         >
           {children}
           {hideCloseButton ? null : (
-            <ChakraDialog.CloseTrigger className="absolute right-6 top-6 inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <ChakraDialog.CloseTrigger
+              aria-label="Close"
+              className="absolute right-6 top-6 inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <X className="size-5" />
-              <span className="sr-only">Close</span>
             </ChakraDialog.CloseTrigger>
           )}
         </ChakraDialog.Content>

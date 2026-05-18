@@ -23,6 +23,7 @@ import {
   AdminAiSettingsPage,
   AdminBackupsPage,
   AdminOverviewPage,
+  AdminUserAccessPage,
   AdminUsersPage,
   AdminVaultsPage,
 } from '@/features/admin/pages/admin-page'
@@ -261,6 +262,12 @@ const adminUsersRoute = createRoute({
   component: AdminUsersPage,
 })
 
+const adminUserAccessRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/users/$userId/access',
+  component: AdminUserAccessPage,
+})
+
 const adminBackupsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/backups',
@@ -320,6 +327,7 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     adminOverviewRoute,
     adminUsersRoute,
+    adminUserAccessRoute,
     adminBackupsRoute,
     adminVaultsRoute,
     adminAiSettingsRoute,

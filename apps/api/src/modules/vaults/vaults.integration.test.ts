@@ -156,6 +156,27 @@ describe('vaults integration', () => {
     });
   });
 
+  test('creates vault with omitted optional description', async () => {
+    const services = createMockVaultsServices();
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({ name: 'Finance', description: null }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(services.createVault).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      name: 'Finance',
+      description: null,
+    });
+  });
+
   test('updates vault identity for owner', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
@@ -186,6 +207,39 @@ describe('vaults integration', () => {
       vaultId: 'vlt_1',
       name: 'Team Vault',
       description: 'Updated description',
+    });
+  });
+
+  test('updates vault identity with omitted optional description', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      description: 'Old description',
+      fileCount: 2,
+      totalSize: 2048,
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({ name: 'Team Vault', description: null }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.updateVaultIdentity).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      name: 'Team Vault',
+      description: null,
     });
   });
 

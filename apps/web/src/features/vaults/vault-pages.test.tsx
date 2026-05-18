@@ -46,6 +46,8 @@ describe('vault pages', () => {
 
     expect(await screen.findByText('Personal')).toBeInTheDocument();
     expect(screen.getByText('Household records')).toBeInTheDocument();
+    expect(screen.getByText('Access')).toBeInTheDocument();
+    expect(screen.getByText('Owner')).toBeInTheDocument();
     expect(screen.getByText('Files')).toBeInTheDocument();
     expect(screen.getByText('Size')).toBeInTheDocument();
     expect(screen.getByText('Modified')).toBeInTheDocument();
@@ -141,7 +143,7 @@ describe('vault pages', () => {
       method: 'POST',
     }));
 
-    await user.type(within(dialog).getByLabelText(/^name$/i), 'Home Vault');
+    await user.type(within(dialog).getByLabelText(/vault name/i), 'Home Vault');
     await user.type(within(dialog).getByLabelText(/description/i), 'Documents for home life');
     await user.click(within(dialog).getByRole('button', { name: /create vault/i }));
 
@@ -245,7 +247,7 @@ describe('vault pages', () => {
     expect(await screen.findByText(/request a vault and a root can approve it/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /create vault/i }));
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
-    await user.type(within(dialog).getByLabelText(/^name$/i), 'Shared Vault');
+    await user.type(within(dialog).getByLabelText(/vault name/i), 'Shared Vault');
     await user.click(within(dialog).getByRole('button', { name: /request vault/i }));
 
     await waitFor(() => {

@@ -1,8 +1,8 @@
 import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, HStack, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
+import { Box, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderDot, FolderOpen, Grid3X3, List, Settings2 } from 'lucide-react';
+import { FolderDot, FolderOpen, Grid3X3, Info, List, Settings2 } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
@@ -10,13 +10,21 @@ import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { CreateButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatBytes } from '@/features/documents/documents.utils';
@@ -32,7 +40,7 @@ import type { VaultSummary } from '@/features/vaults/vaults.types';
 
 type VaultsView = FileBrowserView;
 
-const VAULTS_LIST_GRID_COLUMNS = 'minmax(0, 1fr) 4rem 5.75rem 7.5rem 2.5rem';
+const VAULTS_LIST_GRID_COLUMNS = 'minmax(0, 1fr) 7rem 4rem 5.75rem 7.5rem 2.5rem';
 
 type VaultContextMenuState = {
   vault: VaultSummary;
@@ -466,6 +474,7 @@ export function VaultsPage() {
                 color="fg.muted"
               >
                 <Text as="span">Name</Text>
+                <Text as="span">Access</Text>
                 <Text as="span">Files</Text>
                 <Text as="span">Size</Text>
                 <Text as="span">Modified</Text>
@@ -514,11 +523,12 @@ export function VaultsPage() {
                         {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
                       </Text>
                     ) : null}
-                    <Text truncate fontSize="xs" fontWeight="semibold" color={vault.role === null ? 'fg.warning' : 'fg.muted'}>
-                      {getParticipationLabel(vault)}
-                    </Text>
                   </Stack>
                 </Flex>
+
+                <Text display={{ base: 'none', md: 'block' }} truncate fontSize="sm" fontWeight="semibold" color={vault.role === null ? 'fg.warning' : 'fg.muted'}>
+                  {getParticipationLabel(vault)}
+                </Text>
 
                 <Flex
                   display={{ base: 'none', md: 'flex' }}
@@ -565,9 +575,8 @@ export function VaultsPage() {
         )}
       </Box>
 
-      <ChakraDialog.Root
+      <Dialog
         open={isCreateModalOpen}
-        onOpenChange={(e) => { if (!e.open && !createMutation.isPending) closeCreateModal(); }}
         finalFocusEl={() => createButtonRef.current}
         onExitComplete={() => {
           if (!shouldRestoreCreateButtonFocusRef.current) {
@@ -577,30 +586,59 @@ export function VaultsPage() {
           shouldRestoreCreateButtonFocusRef.current = false;
           restoreCreateButtonFocus();
         }}
-        restoreFocus
-        size={{ mdDown: 'full', md: 'lg' }}
+        onOpenChange={(open) => {
+          if (!open && !createMutation.isPending) {
+            closeCreateModal();
+          }
+        }}
       >
-        <Portal>
-          <ChakraDialog.Backdrop />
-          <ChakraDialog.Positioner>
-            <ChakraDialog.Content>
-              <ChakraDialog.Header>
-                <ChakraDialog.Title>New vault</ChakraDialog.Title>
-                <ChakraDialog.CloseTrigger asChild>
-                  <CloseButton size="sm" />
-                </ChakraDialog.CloseTrigger>
-              </ChakraDialog.Header>
-              <ChakraDialog.Body>
-                <form id="create-vault-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleCreateSubmit}>
+        <DialogContent maxW="40rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
+          <chakra.form id="create-vault-form" onSubmit={handleCreateSubmit}>
+            <Box borderBottomWidth="1px" borderColor="border.subtle" px="4" py="2" pr={{ base: '13', lg: '14' }}>
+              <DialogHeader>
+                <HStack gap="2.5" align="center">
+                  <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
+                    <FolderDot size={18} />
+                  </Flex>
+                  <Stack gap="0.5" minW="0">
+                    <DialogTitle>New vault</DialogTitle>
+                    <DialogDescription>
+                      Create a new vault for organizing documents and access.
+                    </DialogDescription>
+                  </Stack>
+                </HStack>
+              </DialogHeader>
+            </Box>
+
+            <Stack gap="3" px="4" py="4" bg="bg.subtle">
+              <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+                <Stack gap="4">
                   <Field>
-                    <FieldLabel htmlFor="create-vault-name">Name</FieldLabel>
-                    <Input id="create-vault-name" type="text" required autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Personal Vault" />
+                    <FieldLabel htmlFor="create-vault-name">Vault name</FieldLabel>
+                    <Input
+                      id="create-vault-name"
+                      type="text"
+                      required
+                      autoFocus
+                      value={name}
+                      placeholder="Personal Vault"
+                      h="11"
+                      borderColor="border.strong"
+                      onChange={(event) => setName(event.target.value)}
+                    />
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="create-vault-description">Description</FieldLabel>
-                    <Textarea id="create-vault-description" value={description} onChange={(event) => setDescription(event.target.value)} minH="6rem" resize="vertical" placeholder="Optional" />
-                    <FieldDescription>Optional context to help identify this vault later.</FieldDescription>
+                    <FieldLabel htmlFor="create-vault-description">Description (optional)</FieldLabel>
+                    <Textarea
+                      id="create-vault-description"
+                      value={description}
+                      minH="6rem"
+                      resize="vertical"
+                      placeholder="Optional"
+                      borderColor="border.strong"
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
                   </Field>
 
                   {!canCreateVault ? (
@@ -608,22 +646,32 @@ export function VaultsPage() {
                       Vault creation will be queued for root approval.
                     </Text>
                   ) : null}
-                </form>
-              </ChakraDialog.Body>
-              <ChakraDialog.Footer>
-                <ChakraDialog.ActionTrigger asChild>
-                  <Button type="button" variant="outline" onClick={closeCreateModal} disabled={createMutation.isPending}>
-                    Cancel
-                  </Button>
-                </ChakraDialog.ActionTrigger>
-                <CreateButton type="button" disabled={createMutation.isPending} onClick={() => { (document.getElementById('create-vault-form') as HTMLFormElement)?.requestSubmit(); }}>
+                </Stack>
+              </Card>
+
+              <HStack gap="2" align="start" color="fg.muted">
+                <Box mt="0.5" flexShrink="0">
+                  <Info size={16} />
+                </Box>
+                <Text textStyle="sm">
+                  Vault permissions and member access can be configured after creation.
+                </Text>
+              </HStack>
+            </Stack>
+
+            <Box borderTopWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3.5">
+              <Flex align="center" justify="flex-end" gap="3" w="full">
+                <Button type="button" variant="outline" h="12" px="6" onClick={closeCreateModal} disabled={createMutation.isPending}>
+                  Cancel
+                </Button>
+                <CreateButton type="button" h="12" px="6" disabled={createMutation.isPending} onClick={() => { (document.getElementById('create-vault-form') as HTMLFormElement)?.requestSubmit(); }}>
                   {createMutation.isPending ? 'Submitting...' : canCreateVault ? 'Create vault' : 'Request vault'}
                 </CreateButton>
-              </ChakraDialog.Footer>
-            </ChakraDialog.Content>
-          </ChakraDialog.Positioner>
-        </Portal>
-      </ChakraDialog.Root>
+              </Flex>
+            </Box>
+          </chakra.form>
+        </DialogContent>
+      </Dialog>
 
       {contextMenu !== null ? (
         <VaultContextMenu

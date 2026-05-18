@@ -39,7 +39,16 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
@@ -1273,65 +1282,95 @@ export function AppShell() {
             closeCreateVault();
           }}
         >
-          <DialogContent maxW="lg" overflow="hidden" bg="bg.surface" p="0">
-            <Box borderBottomWidth="1px" borderColor="border.subtle" px="5" py="4">
-              <Text fontSize="lg" fontWeight="semibold" color="fg">
-                New vault
-              </Text>
-            </Box>
-            <chakra.form style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.25rem' }} onSubmit={handleCreateVaultSubmit}>
-              <Stack gap="2">
-                <chakra.label htmlFor="shell-create-vault-name" fontSize="sm" fontWeight="medium" color="fg">
-                  Name
-                </chakra.label>
-                <Input
-                  id="shell-create-vault-name"
-                  type="text"
-                  required
-                  autoFocus
-                  value={newVaultName}
-                  onChange={(event) => setNewVaultName(event.target.value)}
-                  placeholder="Personal Vault"
-                />
+          <DialogContent maxW="40rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
+            <chakra.form onSubmit={handleCreateVaultSubmit}>
+              <Box borderBottomWidth="1px" borderColor="border.subtle" px="4" py="2" pr={{ base: '13', lg: '14' }}>
+                <DialogHeader>
+                  <HStack gap="2.5" align="center">
+                    <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
+                      <Vault size={18} />
+                    </Flex>
+                    <Stack gap="0.5" minW="0">
+                      <DialogTitle>New vault</DialogTitle>
+                      <DialogDescription>
+                        Create a new vault for organizing documents and access.
+                      </DialogDescription>
+                    </Stack>
+                  </HStack>
+                </DialogHeader>
+              </Box>
+
+              <Stack gap="3" px="4" py="4" bg="bg.subtle">
+                <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+                  <Stack gap="4">
+                    <Field>
+                      <FieldLabel htmlFor="shell-create-vault-name">Vault name</FieldLabel>
+                      <Input
+                        id="shell-create-vault-name"
+                        type="text"
+                        required
+                        autoFocus
+                        value={newVaultName}
+                        placeholder="Personal Vault"
+                        h="11"
+                        borderColor="border.strong"
+                        onChange={(event) => setNewVaultName(event.target.value)}
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="shell-create-vault-description">Description (optional)</FieldLabel>
+                      <Textarea
+                        id="shell-create-vault-description"
+                        value={newVaultDescription}
+                        minH="6rem"
+                        resize="vertical"
+                        placeholder="Optional"
+                        borderColor="border.strong"
+                        onChange={(event) => setNewVaultDescription(event.target.value)}
+                      />
+                    </Field>
+
+                    {meQuery.data?.canCreateVault === true ? null : (
+                      <Text fontSize="sm" color="fg.muted">
+                        This will be queued for root approval.
+                      </Text>
+                    )}
+                  </Stack>
+                </Card>
+
+                <HStack gap="2" align="start" color="fg.muted">
+                  <Box mt="0.5" flexShrink="0">
+                    <Info size={16} />
+                  </Box>
+                  <Text textStyle="sm">
+                    Vault permissions and member access can be configured after creation.
+                  </Text>
+                </HStack>
               </Stack>
 
-              <Stack gap="2">
-                <chakra.label htmlFor="shell-create-vault-description" fontSize="sm" fontWeight="medium" color="fg">
-                  Description
-                </chakra.label>
-                <Textarea
-                  id="shell-create-vault-description"
-                  value={newVaultDescription}
-                  onChange={(event) => setNewVaultDescription(event.target.value)}
-                  minH="6rem"
-                  resize="vertical"
-                  placeholder="Optional"
-                />
-                <Text fontSize="xs" color="fg.muted">
-                  {meQuery.data?.canCreateVault === true
-                    ? 'Optional context to help identify this vault later.'
-                    : 'This will be queued for root approval.'}
-                </Text>
-              </Stack>
-
-              <Flex justify="flex-end" gap="3" pt="2">
-                <ChakraButton
-                  type="button"
-                  variant="outline"
-                  disabled={createVaultMutation.isPending}
-                  onClick={closeCreateVault}
-                >
-                  Cancel
-                </ChakraButton>
-                <ChakraButton type="submit" colorPalette="teal" disabled={createVaultMutation.isPending}>
-                  <Plus size={16} />
-                  {createVaultMutation.isPending
-                    ? 'Submitting...'
-                    : meQuery.data?.canCreateVault === true
-                      ? 'Create vault'
-                      : 'Request vault'}
-                </ChakraButton>
-              </Flex>
+              <Box borderTopWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3.5">
+                <Flex align="center" justify="flex-end" gap="3" w="full">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    h="12"
+                    px="6"
+                    disabled={createVaultMutation.isPending}
+                    onClick={closeCreateVault}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" h="12" px="6" colorPalette="teal" disabled={createVaultMutation.isPending}>
+                    <Plus size={18} />
+                    {createVaultMutation.isPending
+                      ? 'Submitting...'
+                      : meQuery.data?.canCreateVault === true
+                        ? 'Create vault'
+                        : 'Request vault'}
+                  </Button>
+                </Flex>
+              </Box>
             </chakra.form>
           </DialogContent>
         </Dialog>

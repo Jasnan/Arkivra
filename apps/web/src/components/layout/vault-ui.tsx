@@ -30,7 +30,7 @@ export function PageIntro({
       justify="space-between"
       gap="3"
       borderBottomWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       pb="5"
     >
       <Stack gap="2">
@@ -102,7 +102,7 @@ export function SurfacePanel({
       ? { bg: 'bg.inverted', color: 'fg.inverted' }
       : {
           borderWidth: '1px',
-          borderColor: variant === 'raised' ? 'border' : 'border.subtle',
+          borderColor: variant === 'raised' ? 'border' : 'border.surface',
           bg: variant === 'soft' || variant === 'subtle' ? 'bg.subtle' : 'bg.surface',
           shadow: variant === 'raised' ? 'lg' : 'sm',
         };
@@ -202,7 +202,7 @@ export function Toolbar({
       gap="3"
       rounded="lg"
       borderWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.surface"
       p="4"
       className={className}
@@ -228,7 +228,7 @@ export function DocumentList({
   className,
 }: PropsWithChildren<{ className?: string }>) {
   return (
-    <Stack gap="0" divideY="1px" divideColor="border.subtle" className={className}>
+    <Stack gap="0" divideY="1px" divideColor="border.surface" className={className}>
       {children}
     </Stack>
   );

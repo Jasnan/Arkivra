@@ -106,7 +106,7 @@ function SectionPanel({
 }) {
   return (
     <SurfacePanel
-      borderColor={danger ? 'border.error' : 'border.subtle'}
+      borderColor={danger ? 'border.error' : 'border.surface'}
       bg={danger ? 'red.subtle' : 'bg.surface'}
       overflow="hidden"
       p="0"
@@ -275,7 +275,7 @@ export function TwoFactorManagementPage() {
         />
         <SurfacePanel p="5">
           <Stack gap="4">
-            <Alert display="flex" alignItems="flex-start" gap="3" colorPalette="gray" borderColor="border.subtle">
+            <Alert display="flex" alignItems="flex-start" gap="3" colorPalette="gray" borderColor="border.surface">
               <ShieldOff size={20} style={{ flexShrink: 0, marginTop: '0.125rem' }} />
               <Stack gap="1">
                 <AlertTitle>2FA is not enabled</AlertTitle>
@@ -586,7 +586,7 @@ function GeneratedBackupCodesPanel({
 
         <Grid
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           rounded="md"
           overflow="hidden"
           templateColumns={{ base: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }}
@@ -600,7 +600,7 @@ function GeneratedBackupCodesPanel({
               py="3"
               borderBottomWidth={index < codes.length - 1 ? '1px' : undefined}
               borderRightWidth={{ base: undefined, sm: index % 2 === 0 ? '1px' : undefined }}
-              borderColor="border.subtle"
+              borderColor="border.surface"
             >
               <Text fontFamily="mono" fontSize="sm" fontWeight="semibold">
                 {code}

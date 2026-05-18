@@ -26,7 +26,7 @@ export function TypographyPicker({ onValueChange, value }: TypographyPickerProps
             minH="var(--arkivra-controlHeight, 2.5rem)"
             rounded="md"
             borderWidth="1px"
-            borderColor={selected ? 'teal.solid' : 'border.subtle'}
+            borderColor={selected ? 'teal.solid' : 'border.surface'}
             bg={selected ? 'teal.subtle' : 'bg.subtle'}
             color="fg"
             px="1.5"

@@ -54,7 +54,7 @@ export function AnswerModePicker({
           gap="1.5"
           px={triggerWidth ? 'var(--arkivra-controlPaddingX, 0.75rem)' : '2.5'}
           rounded={triggerWidth ? 'md' : 'lg'}
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg={triggerWidth ? 'bg.surface' : undefined}
           color={triggerWidth ? 'fg' : 'fg.muted'}
           shadow="none"
@@ -81,7 +81,7 @@ export function AnswerModePicker({
           overflow="hidden"
           rounded="lg"
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.surface"
           shadow="lg"
         >

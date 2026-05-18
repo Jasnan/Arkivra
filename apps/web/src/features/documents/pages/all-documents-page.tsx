@@ -553,7 +553,7 @@ export function AllDocumentsPage() {
               showColorSwatch
             />
 
-            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
+            <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="4">
               <Text fontSize="sm" fontWeight="semibold" color="fg">Uploaded date</Text>
 
               <DatePresetSelector
@@ -643,7 +643,7 @@ export function AllDocumentsPage() {
                   });
                 }}
               >
-                <Flex borderBottomWidth="1px" borderColor="border.subtle" px={{ base: '4', sm: '5' }} py="var(--arkivra-listHeaderPaddingY, 0.75rem)">
+                <Flex borderBottomWidth="1px" borderColor="border.surface" px={{ base: '4', sm: '5' }} py="var(--arkivra-listHeaderPaddingY, 0.75rem)">
                   <Flex align="center" gap="2.5" w="full">
                     <Flex w="10" ml="-1" justify="center" color="teal.solid" aria-hidden="true">
                       <Folder size={18} />

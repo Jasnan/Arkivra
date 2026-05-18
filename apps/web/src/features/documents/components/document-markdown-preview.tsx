@@ -65,7 +65,7 @@ const markdownComponents: Components = {
     );
   },
   hr({ node: _node, ...props }) {
-    return <chakra.hr my="6" borderColor="border.subtle" {...props} />;
+    return <chakra.hr my="6" borderColor="border.surface" {...props} />;
   },
   table({ node: _node, ...props }) {
     return (
@@ -78,7 +78,7 @@ const markdownComponents: Components = {
     return (
       <chakra.th
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.subtle"
         px="3"
         py="2"
@@ -93,7 +93,7 @@ const markdownComponents: Components = {
     return (
       <chakra.td
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         px="3"
         py="2"
         color="fg"
@@ -109,7 +109,7 @@ const markdownComponents: Components = {
         overflowX="auto"
         rounded="md"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.subtle"
         p="4"
         fontFamily="mono"

@@ -57,7 +57,7 @@ export function MessageBubble({
             </Flex>
           </>
         ) : (
-          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="lg" bg="bg.surface" px={{ base: '4', md: '5' }} py={{ base: '3', md: '4' }} textStyle="chat" color="fg" borderWidth="1px" borderColor="border.subtle" shadow="xs">
+          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="lg" bg="bg.surface" px={{ base: '4', md: '5' }} py={{ base: '3', md: '4' }} textStyle="chat" color="fg" borderWidth="1px" borderColor="border.surface" shadow="xs">
             <MarkdownMessage
               content={displayContent}
               citations={message.citations}

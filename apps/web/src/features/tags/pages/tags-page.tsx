@@ -138,7 +138,7 @@ function DeleteTagsDialog({
                     ? `These tags are currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'} in total. Deleting them here will remove those tags from all attached documents.`
                     : 'These tags are not attached to any documents right now.'}
                 </Text>
-                <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" px="4" py="3">
+                <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="4" py="3">
                   <Text fontSize="sm" color="fg">
                     {tags.map((tag) => tag.name).join(', ')}
                   </Text>
@@ -265,7 +265,7 @@ function TagContextMenu({
         top={`${state.y}px`}
         rounded="lg"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.surface"
         p="1.5"
         shadow="xl"
@@ -573,7 +573,7 @@ export function TagsPage() {
         justify="space-between"
         gap="3"
         borderBottomWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.workspace"
         px={{ base: '4', lg: '6' }}
         py="3"
@@ -621,7 +621,7 @@ export function TagsPage() {
         ) : null}
 
         {!tagsQuery.isLoading && filteredTags.length > 0 ? (
-          <Stack gap="0" borderTopWidth="1px" borderColor="border.subtle">
+          <Stack gap="0" borderColor="border.surface">
             <Grid
               display={{ base: 'none', md: 'grid' }}
               templateColumns={TAGS_LIST_GRID_COLUMNS}
@@ -630,7 +630,7 @@ export function TagsPage() {
               top="0"
               zIndex="1"
               borderBottomWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.workspace"
               px="6"
               py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
@@ -661,12 +661,13 @@ export function TagsPage() {
                   gap="4"
                   h="var(--arkivra-listRowHeight, 4.5rem)"
                   borderBottomWidth="1px"
-                  borderColor="border.subtle"
+                  borderColor="border.surface"
                   bg={isSelected ? 'teal.subtle' : 'bg.workspace'}
                   px="6"
                   py="var(--arkivra-rowPaddingY, 0.875rem)"
                   transition="background-color 0.15s ease"
                   _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.workspaceMuted' }}
+                  _last={{ borderBottomWidth: '0' }}
                   onContextMenu={(event) => openContextMenu(event, tag)}
                 >
                   <SelectionCheckbox

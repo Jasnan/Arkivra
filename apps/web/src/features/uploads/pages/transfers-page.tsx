@@ -168,7 +168,7 @@ export function TransfersPage() {
               align="center"
               rounded="lg"
               borderWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.subtle"
               px="4"
               fontSize="sm"
@@ -226,7 +226,7 @@ export function TransfersPage() {
             rounded="lg"
             borderWidth="1px"
             borderStyle="dashed"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             bg="bg.subtle"
             px={{ base: '6', sm: '10' }}
             py={{ base: '12', sm: '16' }}
@@ -290,7 +290,7 @@ export function TransfersPage() {
             </Stack>
             <Flex flexWrap="wrap" align="center" gap="3" fontSize="sm" color="fg.muted">
               <Text as="span" fontWeight="semibold" color="fg">{state.items.length} files</Text>
-              <Separator orientation="vertical" h="5" bg="border.subtle" />
+              <Separator orientation="vertical" h="5" bg="border.surface" />
               <Text as="span">{formatBytes(uploadedBytes)}</Text>
             </Flex>
           </Stack>
@@ -363,7 +363,7 @@ export function TransfersPage() {
           templateColumns="minmax(0, 1.3fr) 140px 160px 160px"
           gap="4"
           borderBottomWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           px="7"
           py="4"
           fontSize="sm"
@@ -384,7 +384,7 @@ export function TransfersPage() {
             <Box
               key={item.id}
               borderBottomWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               px="7"
               py="4"
               _last={{ borderBottomWidth: 0 }}
@@ -454,7 +454,7 @@ export function TransfersPage() {
             open={isCompletedExpanded}
             onOpenChange={setIsCompletedExpanded}
             borderTopWidth={nonCompletedItems.length > 0 ? '1px' : '0'}
-            borderColor="border.subtle"
+            borderColor="border.surface"
           >
             <CollapsibleTrigger asChild>
               <chakra.button
@@ -488,7 +488,7 @@ export function TransfersPage() {
 
             <CollapsibleContent>
               {completedItems.map((item) => (
-                <Box key={item.id} borderTopWidth="1px" borderColor="border.subtle" px="7" py="4">
+                <Box key={item.id} borderTopWidth="1px" borderColor="border.surface" px="7" py="4">
                   <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
                     <Box minW="0">
                       <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>

@@ -33,7 +33,7 @@ export function InfoTooltip({
             minW="6"
             rounded="full"
             borderWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             bg="bg.surface"
             color="fg.muted"
             _hover={{ bg: 'bg.subtle', color: 'fg' }}

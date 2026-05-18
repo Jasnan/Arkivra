@@ -43,7 +43,7 @@ export function TooltipContent({
           ref={ref}
           maxW="64"
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.elevated"
           color="fg.muted"
           px="3"

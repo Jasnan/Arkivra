@@ -139,7 +139,7 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter borderTopWidth="1px" borderColor="border.subtle" px="3" py="3">
+      <SidebarFooter borderTopWidth="1px" borderColor="border.surface" px="3" py="3">
         <SidebarGroup gap="3">
           <SidebarGroupLabel display={open ? undefined : 'none'}>
             Settings

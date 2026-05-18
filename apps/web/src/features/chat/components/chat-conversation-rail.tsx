@@ -30,7 +30,7 @@ export function ChatConversationRail({
   return (
     <>
       {showHeader ? (
-        <Flex align="center" justify="space-between" gap="3" px="4" py="4" borderBottomWidth="1px" borderColor="border.subtle">
+        <Flex align="center" justify="space-between" gap="3" px="4" py="4" borderBottomWidth="1px" borderColor="border.surface">
           <Flex align="center" gap="2" fontSize="sm" fontWeight="semibold" color="fg">
             Conversations
           </Flex>

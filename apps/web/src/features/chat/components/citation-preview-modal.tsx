@@ -99,7 +99,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
         <Flex h="100%" minH="0" direction={{ base: 'column', lg: 'row' }}>
           <Box flex="1" minH="0">
             <Box bg="bg.subtle" minH="0" h="100%" display="flex" flexDirection="column">
-              <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="5">
+              <Box borderBottomWidth="1px" borderColor="border.surface" px="6" py="5">
                 <DialogTitle>{citation.documentName}</DialogTitle>
                 <DialogDescription>
                   {activePage !== null ? `Page ${activePage}` : 'Document preview unavailable'}
@@ -110,7 +110,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                 align="center"
                 justify="space-between"
                 borderBottomWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 px="6"
                 py="3"
               >
@@ -183,7 +183,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                     rounded="2xl"
                     borderWidth="1px"
                     borderStyle="dashed"
-                    borderColor="border.subtle"
+                    borderColor="border.surface"
                     bg="bg.subtle"
                     p="8"
                     textAlign="center"
@@ -300,7 +300,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                 <Text fontSize="xs" fontWeight="semibold" textTransform="uppercase" letterSpacing="0.16em" color="fg.muted">
                   Matched text
                 </Text>
-                <Box rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4" fontSize="sm" lineHeight="1.6" color="fg">
+                <Box rounded="2xl" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4" fontSize="sm" lineHeight="1.6" color="fg">
                   {citation.snippet}
                 </Box>
               </Flex>
@@ -312,7 +312,7 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
                   </Text>
                   <Flex direction="column" gap="3">
                     {figureEvidence.map((figure) => (
-                      <Box key={figure.id} rounded="2xl" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+                      <Box key={figure.id} rounded="2xl" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
                         <Flex align="center" gap="2" fontSize="sm" flexWrap="wrap">
                           <Text fontWeight="medium" color="fg">{figure.label}</Text>
                           {figure.pageLabel ? (

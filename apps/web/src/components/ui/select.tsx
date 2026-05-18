@@ -4,7 +4,6 @@ import {
   createListCollection,
 } from '@chakra-ui/react';
 import { Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface SelectOption {
   label: string;
@@ -112,10 +111,30 @@ export function SelectTrigger({ className, children, ref, ...props }: SelectTrig
     <ChakraSelect.Control>
       <ChakraSelect.Trigger
         ref={ref}
-        className={cn(
-          'flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 text-left text-sm font-medium text-foreground outline-none transition focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate',
-          className,
-        )}
+        className={className}
+        display="flex"
+        h="var(--arkivra-controlHeight, 2.5rem)"
+        w="full"
+        alignItems="center"
+        justifyContent="space-between"
+        gap="2"
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.surface"
+        bg="bg.surface"
+        px="var(--arkivra-controlPaddingX, 0.75rem)"
+        textAlign="left"
+        fontSize="sm"
+        fontWeight="medium"
+        color="fg"
+        outline="none"
+        transition="border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease"
+        _hover={{ borderColor: 'border.strong', bg: 'bg.surface' }}
+        _focusVisible={{
+          borderColor: 'teal.solid',
+          boxShadow: '0 0 0 2px var(--chakra-colors-teal-focus-ring)',
+        }}
+        _disabled={{ cursor: 'not-allowed', opacity: 0.5 }}
         {...props}
       >
         {children}
@@ -167,10 +186,17 @@ export function SelectContent({
     <ChakraSelect.Positioner>
       <ChakraSelect.Content
         ref={setContentRef}
-        className={cn(
-          'z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-lg border border-border/70 bg-card text-card-foreground shadow-lg',
-          className,
-        )}
+        className={className}
+        zIndex="dropdown"
+        maxH="24rem"
+        minW="8rem"
+        overflow="hidden"
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.surface"
+        bg="bg.surface"
+        color="fg"
+        shadow="lg"
         {...props}
       >
         {children}
@@ -185,7 +211,12 @@ export function SelectLabel({ className, ref, ...props }: SelectLabelProps) {
   return (
     <ChakraSelect.Label
       ref={ref}
-      className={cn('px-3 py-2 text-sm font-medium text-foreground', className)}
+      className={className}
+      px="3"
+      py="2"
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg"
       {...props}
     />
   );
@@ -206,10 +237,24 @@ export function SelectItem({ className, children, ref, value, ...props }: Select
     <ChakraSelect.Item
       ref={ref}
       item={item}
-      className={cn(
-        'relative flex w-full cursor-default select-none items-center rounded-md py-2 pl-9 pr-3 text-sm font-medium text-muted-foreground outline-none transition focus:bg-secondary/70 focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        className,
-      )}
+      className={className}
+      position="relative"
+      display="flex"
+      w="full"
+      cursor="default"
+      userSelect="none"
+      alignItems="center"
+      rounded="md"
+      py="2"
+      ps="9"
+      pe="3"
+      fontSize="sm"
+      fontWeight="medium"
+      color="fg.muted"
+      outline="none"
+      transition="background-color 120ms ease, color 120ms ease"
+      _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+      _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       {...props}
     >
       <span className="absolute left-3 flex size-4 items-center justify-center">
@@ -228,7 +273,12 @@ export function SelectSeparator({ className, ref, ...props }: SelectSeparatorPro
   return (
     <ChakraSelect.ItemGroupLabel
       ref={ref}
-      className={cn('-mx-1 my-1 h-px bg-border/70 p-0', className)}
+      className={className}
+      mx="-1"
+      my="1"
+      h="1px"
+      bg="border.divider"
+      p="0"
       {...props}
     />
   );

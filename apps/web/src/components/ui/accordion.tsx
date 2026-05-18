@@ -28,7 +28,7 @@ export function Accordion({
 }
 
 export function AccordionItem(props: React.ComponentProps<typeof ChakraAccordion.Item>) {
-  return <ChakraAccordion.Item borderColor="border.subtle" {...props} />;
+  return <ChakraAccordion.Item borderColor="border.surface" {...props} />;
 }
 
 export function AccordionTrigger({

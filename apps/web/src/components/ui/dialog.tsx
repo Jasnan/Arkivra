@@ -64,7 +64,8 @@ export function DialogOverlay({ className, ref, ...props }: DialogOverlayProps) 
   return (
     <ChakraDialog.Backdrop
       ref={ref}
-      className={cn('fixed inset-0 z-50 bg-background/65 backdrop-blur-sm', className)}
+      className={cn('fixed inset-0 z-50 backdrop-blur-sm', className)}
+      bg="rgba(11, 13, 18, 0.65)"
       {...props}
     />
   );
@@ -93,10 +94,12 @@ export function DialogContent({
       <ChakraDialog.Positioner className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
         <ChakraDialog.Content
           ref={ref}
-          className={cn(
-            'relative z-50 w-full overflow-hidden rounded-lg border border-border/70 bg-card shadow-xl',
-            className,
-          )}
+          className={cn('relative z-50 w-full overflow-hidden', className)}
+          rounded="lg"
+          borderWidth="1px"
+          borderColor="border.surface"
+          bg="bg.surface"
+          shadow="xl"
           {...(props as any)}
         >
           {children}

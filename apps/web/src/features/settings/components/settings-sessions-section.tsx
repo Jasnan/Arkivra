@@ -193,7 +193,7 @@ export function SettingsSessionsSection() {
             const display = getSessionDisplay(session);
 
             return (
-              <Box key={session.id} rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+              <Box key={session.id} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
                 <Flex align="center" justify="space-between" gap="4">
                   <HStack gap="3" minW="0">
                     <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
@@ -236,7 +236,7 @@ export function SettingsSessionsSection() {
             );
           })
         ) : (
-          <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+          <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
             <Flex align="center" justify="space-between" gap="4">
               <HStack gap="3" minW="0">
                 <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>

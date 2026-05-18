@@ -112,7 +112,7 @@ function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
       bg={tokens.bg}
       color={tokens.color}
       aria-hidden="true"
-      {...{ outline: '1px solid', outlineColor: 'border.subtle' } as any}
+      {...{ outline: '1px solid', outlineColor: 'border.surface' } as any}
     >
       <Flex direction="column" align="center" lineHeight="none">
         <File size={14} style={{ marginBottom: '2px' }} />
@@ -220,15 +220,22 @@ export function DocumentLibraryTable({
         css={{
           '& thead th': {
             paddingBlock: 'var(--arkivra-listHeaderPaddingY, 0.75rem)',
+            borderColor: 'var(--chakra-colors-border-divider)',
           },
           '& tbody tr': {
             height: 'var(--arkivra-listRowHeight, 4.5rem)',
+            borderColor: 'var(--chakra-colors-border-divider)',
           },
           '& tbody td': {
             paddingBlock: '0',
+            borderColor: 'var(--chakra-colors-border-divider)',
+          },
+          '& tbody tr:last-of-type td': {
+            borderBottomWidth: '0',
           },
           '& [data-selected]': {
             background: 'var(--chakra-colors-bg-subtle)',
+            borderColor: 'var(--chakra-colors-teal-muted)',
           },
         }}
       >

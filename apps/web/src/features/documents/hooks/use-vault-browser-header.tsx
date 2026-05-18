@@ -28,7 +28,7 @@ const uploadMenuItemProps = {
 const toolbarControlStyles = {
   h: '10',
   rounded: 'md',
-  borderColor: 'border.subtle',
+  borderColor: 'border.surface',
   bg: 'bg.surface',
   shadow: 'none',
   _hover: { borderColor: 'fg/30', bg: 'bg.surface' },
@@ -136,7 +136,7 @@ export function useVaultBrowserHeader({
       justify="space-between"
       gap="3"
       borderBottomWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.workspace"
       px={{ base: '4', lg: '6' }}
       py="3"
@@ -180,7 +180,7 @@ export function useVaultBrowserHeader({
                 minW="12rem"
                 rounded="lg"
                 borderWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.surface"
                 p="1.5"
                 shadow="lg"
@@ -263,7 +263,7 @@ export function useVaultBrowserHeader({
                 overflow="hidden"
                 rounded="lg"
                 borderWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.surface"
                 p="1.5"
                 shadow="lg"
@@ -285,7 +285,7 @@ export function useVaultBrowserHeader({
           overflow="hidden"
           rounded="md"
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.surface"
         >
           <chakra.button
@@ -317,7 +317,7 @@ export function useVaultBrowserHeader({
             color={browserView === 'list' ? 'white' : 'fg.muted'}
             bg={browserView === 'list' ? 'teal.solid' : 'transparent'}
             borderLeftWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             _hover={{ bg: browserView === 'list' ? 'teal.solid' : 'bg.subtle', color: browserView === 'list' ? 'white' : 'fg' }}
             _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
             onClick={() => setBrowserView('list')}

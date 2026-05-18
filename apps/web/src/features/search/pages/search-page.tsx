@@ -58,7 +58,7 @@ function FileTypeBadge({ name, mimeType }: { name: string; mimeType: string }) {
       justify="center"
       rounded="lg"
       borderWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.surface"
       color="fg.muted"
       aria-hidden="true"
@@ -291,10 +291,12 @@ function SearchResultSnippet({ result }: { result: SearchResultItem }) {
 function SearchResultRow({
   result,
   detailSearch,
+  isLast,
   query,
 }: {
   result: SearchResultItem;
   detailSearch: Record<string, string>;
+  isLast?: boolean;
   query: string;
 }) {
   const documentTo = ROUTES.vaultDocument(result.vaultId, result.documentId);
@@ -313,8 +315,8 @@ function SearchResultRow({
         alignItems="start"
         templateColumns={{ base: '1fr', md: SEARCH_RESULT_COLUMNS }}
         gap={{ base: '3', xl: '4' }}
-        borderBottomWidth="1px"
-        borderColor="border.subtle"
+        borderBottomWidth={isLast ? '0' : '1px'}
+        borderColor="border.surface"
         bg="bg.workspace"
         px={{ base: '4', lg: '6' }}
         py="var(--arkivra-rowPaddingY, 0.875rem)"
@@ -408,7 +410,7 @@ function SearchModeControl({
       gap="3"
       rounded="lg"
       borderWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.surface"
       px="3"
       py="2"
@@ -815,7 +817,7 @@ export function SearchPage() {
               showColorSwatch
             />
 
-            <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="4">
+            <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="4">
               <Text fontSize="sm" fontWeight="semibold" color="fg">
                 Uploaded date
               </Text>
@@ -859,7 +861,7 @@ export function SearchPage() {
               justify="space-between"
               gap="3"
               borderBottomWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.workspace"
               px={{ base: '4', lg: '6' }}
               py="3"
@@ -874,7 +876,7 @@ export function SearchPage() {
                 rounded="full"
                 bg="bg.surface"
                 borderWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 px="3"
                 py="1"
                 fontSize="xs"
@@ -900,7 +902,7 @@ export function SearchPage() {
                   rounded="lg"
                   borderWidth="1px"
                   borderStyle="dashed"
-                  borderColor="border.subtle"
+                  borderColor="border.surface"
                   bg="bg.surface"
                   p="6"
                   color="fg.muted"
@@ -927,7 +929,7 @@ export function SearchPage() {
                   templateColumns={SEARCH_RESULT_COLUMNS}
                   gap="4"
                   borderBottomWidth="1px"
-                  borderColor="border.subtle"
+                  borderColor="border.surface"
                   bg="bg.workspace"
                   px="6"
                   py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
@@ -940,11 +942,12 @@ export function SearchPage() {
                   <Text as="span">Modified</Text>
                 </Grid>
 
-                {results.map((result) => (
+                {results.map((result, index) => (
                   <SearchResultRow
                     key={`${result.vaultId}-${result.documentId}`}
                     result={result}
                     detailSearch={detailSearch}
+                    isLast={index === results.length - 1}
                     query={debouncedQuery}
                   />
                 ))}

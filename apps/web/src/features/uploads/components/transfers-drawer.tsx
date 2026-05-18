@@ -155,7 +155,7 @@ function TransferSection({ title, items }: { title: string; items: DisplayTransf
       <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase">
         {title}
       </Text>
-      <Stack gap="0" divideY="1px" divideColor="border.subtle">
+      <Stack gap="0" divideY="1px" divideColor="border.surface">
         {items.map(item => <TransferRow key={item.key} item={item} />)}
       </Stack>
     </Stack>
@@ -180,7 +180,7 @@ export function TransfersDrawer({
         <Drawer.Backdrop bg="blackAlpha.500" />
         <Drawer.Positioner>
           <Drawer.Content w={{ base: '100vw', md: '34rem', xl: '38rem' }} maxW="100vw" bg="bg.surface">
-            <Drawer.Header borderBottomWidth="1px" borderColor="border.subtle">
+            <Drawer.Header borderBottomWidth="1px" borderColor="border.surface">
               <Flex w="full" minW="0" align="center" gap="3" pr="9">
                 <Drawer.Title flex="0 0 auto" fontSize="xl">
                   Transfers

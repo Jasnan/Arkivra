@@ -66,7 +66,7 @@ export function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <Box rounded="lg" borderWidth="1px" borderColor="border.subtle" bg="bg.surface" p="var(--arkivra-sectionPadding, 1.25rem)" shadow="xs">
+    <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="var(--arkivra-sectionPadding, 1.25rem)" shadow="xs">
       <Stack gap="4">
         <Flex
           direction={{ base: 'column', md: 'row' }}
@@ -94,7 +94,7 @@ export function SettingsSection({
 
 export function SettingsRows({ children }: { children: ReactNode }) {
   return (
-    <Stack gap="0" divideY="1px" divideColor="border.subtle">
+    <Stack gap="0" divideY="1px" divideColor="border.surface">
       {children}
     </Stack>
   );
@@ -148,7 +148,7 @@ export function KeyValueRows({
   rows: Array<{ label: string; value: ReactNode }>;
 }) {
   return (
-    <Stack gap="0" divideY="1px" divideColor="border.subtle">
+    <Stack gap="0" divideY="1px" divideColor="border.surface">
       {rows.map((row) => (
         <Flex key={row.label} align="center" justify="space-between" gap="4" py="var(--arkivra-rowPaddingY, 0.875rem)">
           <Text textStyle="sm" color="fg.muted">
@@ -216,7 +216,7 @@ export function SettingsDropdown({
           justifyContent="space-between"
           gap="2"
           rounded="md"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.surface"
           px="var(--arkivra-controlPaddingX, 0.75rem)"
           shadow="none"
@@ -241,7 +241,7 @@ export function SettingsDropdown({
           <Menu.Content
             rounded="lg"
             borderWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             bg="bg.surface"
             p="1.5"
             shadow="lg"
@@ -316,7 +316,7 @@ export function InlineRecommendation({
       gap="3"
       rounded="md"
       borderWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.subtle"
       px="3.5"
       py="var(--arkivra-rowPaddingY, 0.875rem)"
@@ -340,5 +340,5 @@ export function InlineRecommendation({
 }
 
 export function SectionDivider() {
-  return <Separator borderColor="border.subtle" />;
+  return <Separator borderColor="border.surface" />;
 }

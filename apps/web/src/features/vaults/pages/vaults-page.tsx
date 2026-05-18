@@ -152,7 +152,7 @@ function VaultContextMenu({
         top={`${state.y}px`}
         rounded="lg"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.surface"
         p="1.5"
         shadow="xl"
@@ -324,7 +324,7 @@ export function VaultsPage() {
         justify="flex-end"
         gap="3"
         borderBottomWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.workspace"
         px={{ base: '4', lg: '6' }}
         py="3"
@@ -337,7 +337,7 @@ export function VaultsPage() {
           overflow="hidden"
           rounded="md"
           borderWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           bg="bg.surface"
         >
           <chakra.button
@@ -369,7 +369,7 @@ export function VaultsPage() {
             color={vaultsView === 'list' ? 'white' : 'fg.muted'}
             bg={vaultsView === 'list' ? 'teal.solid' : 'transparent'}
             borderLeftWidth="1px"
-            borderColor="border.subtle"
+            borderColor="border.surface"
             _hover={{ bg: vaultsView === 'list' ? 'teal.solid' : 'bg.subtle', color: vaultsView === 'list' ? 'white' : 'fg' }}
             _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
             onClick={() => setVaultsView('list')}
@@ -417,7 +417,7 @@ export function VaultsPage() {
                 cursor="pointer"
                 rounded="md"
                 borderWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.workspace"
                 px="5"
                 py="var(--arkivra-gridItemPadding, 1.25rem)"
@@ -475,7 +475,7 @@ export function VaultsPage() {
             ))}
           </Grid>
         ) : (
-          <Stack gap="0" borderTopWidth={vaults.length > 0 ? '1px' : '0'} borderColor="border.subtle">
+          <Stack gap="0" borderColor="border.surface">
             {vaults.length > 0 ? (
               <Grid
                 display={{ base: 'none', md: 'grid' }}
@@ -485,7 +485,7 @@ export function VaultsPage() {
                 top="0"
                 zIndex="1"
                 borderBottomWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.workspace"
                 px="6"
                 py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
@@ -512,12 +512,13 @@ export function VaultsPage() {
                 h="var(--arkivra-listRowHeight, 4.5rem)"
                 cursor="pointer"
                 borderBottomWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.workspace"
                 px="6"
                 py="var(--arkivra-rowPaddingY, 0.875rem)"
                 transition="background-color 0.15s ease, border-color 0.15s ease"
                 _hover={{ bg: 'bg.workspaceMuted' }}
+                _last={{ borderBottomWidth: '0' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
                 onClick={() => navigate({ to: ROUTES.vaultRoot(vault.id) })}
                 onContextMenu={(event) => openContextMenu(event, vault)}
@@ -613,7 +614,7 @@ export function VaultsPage() {
       >
         <DialogContent maxW="40rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
           <chakra.form id="create-vault-form" onSubmit={handleCreateSubmit}>
-            <Box borderBottomWidth="1px" borderColor="border.subtle" px="4" py="2" pr={{ base: '13', lg: '14' }}>
+            <Box borderBottomWidth="1px" borderColor="border.surface" px="4" py="2" pr={{ base: '13', lg: '14' }}>
               <DialogHeader>
                 <HStack gap="2.5" align="center">
                   <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
@@ -630,7 +631,7 @@ export function VaultsPage() {
             </Box>
 
             <Stack gap="3" px="4" py="4" bg="bg.subtle">
-              <Card rounded="xl" borderColor="border.subtle" bg="bg.elevated" p="4" shadow="xs">
+              <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="4" shadow="xs">
                 <Stack gap="4">
                   <Field>
                     <FieldLabel htmlFor="create-vault-name">Vault name</FieldLabel>
@@ -678,7 +679,7 @@ export function VaultsPage() {
               </HStack>
             </Stack>
 
-            <Box borderTopWidth="1px" borderColor="border.subtle" bg="bg.surface" px="4" py="3.5">
+            <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3.5">
               <Flex align="center" justify="flex-end" gap="3" w="full">
                 <Button type="button" variant="outline" h="12" px="6" onClick={closeCreateModal} disabled={createMutation.isPending}>
                   Cancel

@@ -203,11 +203,10 @@ function getBrowserItemSurfaceStyles({
 
   if (isContextTarget) {
     styles.bg = contextBg;
-    if (contextBorderColor) {
-      styles.borderColor = contextBorderColor;
-    }
+    styles.borderColor = contextBorderColor ?? 'border.strong';
   } else if (isSelected) {
     styles.bg = 'teal.subtle';
+    styles.borderColor = 'teal.muted';
   }
 
   return styles;
@@ -595,7 +594,7 @@ export function BrowserContextMenu({
         top={`${state.y}px`}
         rounded="lg"
         borderWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.surface"
         p="1.5"
         shadow="xl"
@@ -709,8 +708,7 @@ export function BrowserItemList({
       flex="1"
       minH="0"
       overflow="hidden"
-      borderTopWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.workspace"
       onContextMenu={onOpenBackgroundContextMenu}
     >
@@ -719,7 +717,7 @@ export function BrowserItemList({
         templateColumns={resolvedListGridColumns}
         gap="4"
         borderBottomWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         px="6"
         py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
         fontSize="sm"
@@ -745,7 +743,7 @@ export function BrowserItemList({
           computeItemKey={(index, item) => item ? getBrowserItemKey(item) : `__item_${index}`}
           initialItemCount={Math.min(items.length, 24)}
           style={{ height: '100%' }}
-          itemContent={(_, item) => {
+          itemContent={(index, item) => {
             if (item === undefined) {
               return null;
             }
@@ -777,8 +775,8 @@ export function BrowserItemList({
                 tabIndex={0}
                 draggable={isDraggable && !isMutating}
                 h={`${listRowHeight}px`}
-                borderBottomWidth="1px"
-                borderColor="border.subtle"
+                borderBottomWidth={index === items.length - 1 ? '0' : '1px'}
+                borderColor="border.surface"
                 cursor="pointer"
                 outline="none"
                 {...itemSurfaceStyles}
@@ -953,8 +951,7 @@ export function BrowserItemGrid({
       role="listbox"
       aria-label="Folder items"
       aria-multiselectable="true"
-      borderTopWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.workspace"
       onContextMenu={onOpenBackgroundContextMenu}
     >
@@ -995,7 +992,7 @@ export function BrowserItemGrid({
               p="var(--arkivra-gridItemPadding, 1.25rem)"
               rounded="md"
               borderWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.workspace"
               transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
               _hover={{
@@ -1051,7 +1048,7 @@ export function BrowserItemGrid({
               p="var(--arkivra-gridItemPadding, 1.25rem)"
               rounded="md"
               borderWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.workspace"
               transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
               _hover={{
@@ -1363,7 +1360,7 @@ function OpenMoveItemDialog({
                   overflow="hidden"
                   rounded="lg"
                   borderWidth="1px"
-                  borderColor="border.subtle"
+                  borderColor="border.surface"
                   bg="bg.surface"
                 >
                   {isLoading ? (
@@ -1380,7 +1377,7 @@ function OpenMoveItemDialog({
                       computeItemKey={(index, destination) => destination?.id ?? `__destination_${index}`}
                       initialItemCount={Math.min(filteredDestinations.length, 32)}
                       style={{ height: '100%' }}
-                      itemContent={(_, destination) => {
+                      itemContent={(index, destination) => {
                         if (destination === undefined) {
                           return null;
                         }
@@ -1400,8 +1397,8 @@ function OpenMoveItemDialog({
                             minH="3rem"
                             alignItems="center"
                             gap="3"
-                            borderBottomWidth="1px"
-                            borderColor="border.subtle"
+                            borderBottomWidth={index === filteredDestinations.length - 1 ? '0' : '1px'}
+                            borderColor="border.surface"
                             bg={isSelected ? 'teal.subtle' : 'transparent'}
                             px="3"
                             py="2"

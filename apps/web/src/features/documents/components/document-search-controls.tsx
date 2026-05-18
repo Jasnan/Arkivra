@@ -52,7 +52,7 @@ export function ActiveFilterChip({ label, onRemove }: { label: string; onRemove:
       gap="2"
       rounded="md"
       borderWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.subtle"
       px="3"
       py="1.5"
@@ -158,7 +158,7 @@ export function SearchFilterMultiSelect({
             placeholder={triggerLabel}
             h="var(--arkivra-controlHeight, 2.5rem)"
             rounded={controlSize === 'toolbar' ? 'md' : 'xl'}
-            borderColor="border.subtle"
+            borderColor="border.surface"
             bg="bg.surface"
             px="var(--arkivra-controlPaddingX, 0.75rem)"
             pr={selectedValues.length > 0 ? '16' : '10'}
@@ -197,7 +197,7 @@ export function SearchFilterMultiSelect({
               pointerEvents="auto"
               rounded="lg"
               borderWidth="1px"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.surface"
               p={controlSize === 'toolbar' ? '1.5' : '2'}
               shadow="lg"
@@ -435,7 +435,7 @@ export function DocumentSearchControls<TSortValue extends string>({
         rounded={isWorkspaceLayout ? '0' : 'lg'}
         borderWidth={isWorkspaceLayout ? '0' : '1px'}
         borderBottomWidth={isWorkspaceLayout ? '1px' : undefined}
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg={isWorkspaceLayout ? 'bg.workspace' : 'bg.surface'}
         px={isWorkspaceLayout ? { base: '4', lg: '6' } : undefined}
         py={isWorkspaceLayout ? '3' : undefined}
@@ -497,7 +497,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                       <Drawer.Backdrop bg="blackAlpha.500" />
                       <Drawer.Positioner>
                         <Drawer.Content maxH="86vh" roundedTop="xl" bg="bg.surface">
-                          <Drawer.Header borderBottomWidth="1px" borderColor="border.subtle" px="5" py="4">
+                          <Drawer.Header borderBottomWidth="1px" borderColor="border.surface" px="5" py="4">
                             <Flex w="full" align="center" justify="space-between" gap="4">
                               <Box minW="0">
                                 <Drawer.Title fontSize="lg" fontWeight="semibold">
@@ -533,7 +533,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                             {renderFilterContent()}
                           </Drawer.Body>
 
-                          <Drawer.Footer borderTopWidth="1px" borderColor="border.subtle" px="5" py="4">
+                          <Drawer.Footer borderTopWidth="1px" borderColor="border.surface" px="5" py="4">
                             <Button type="button" w="full" onClick={onCloseFilters}>
                               Show results
                             </Button>
@@ -562,7 +562,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                           overflow="hidden"
                           rounded="lg"
                           borderWidth="1px"
-                          borderColor="border.subtle"
+                          borderColor="border.surface"
                           bg="bg.surface"
                           shadow="xl"
                         >
@@ -670,7 +670,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                     minW="11rem"
                     rounded="lg"
                     borderWidth="1px"
-                    borderColor="border.subtle"
+                    borderColor="border.surface"
                     bg="bg.surface"
                     p="1.5"
                     shadow="lg"

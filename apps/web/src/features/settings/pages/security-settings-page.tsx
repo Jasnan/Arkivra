@@ -308,7 +308,7 @@ export function SecuritySettingsPage() {
             />
           </SettingsRows>
           {!hasPassword && isSetPasswordOpen ? (
-            <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+            <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
               <chakra.form onSubmit={handleSetPasswordSubmit}>
                 <Stack gap="4">
                   <Stack gap="1">
@@ -440,7 +440,7 @@ export function SecuritySettingsPage() {
             />
           </SettingsRows>
           {isEmailChangeOpen ? (
-            <Box rounded="md" borderWidth="1px" borderColor="border.subtle" bg="bg.subtle" p="4">
+            <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="4">
               <chakra.form onSubmit={handleEmailChangeSubmit}>
                 <Stack gap="4">
                   <Stack gap="1">

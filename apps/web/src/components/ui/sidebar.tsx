@@ -110,7 +110,7 @@ export function Sidebar({
         h="full"
         bg={variant === 'inset' ? 'transparent' : 'bg.surface'}
         borderRightWidth={variant === 'inset' ? undefined : '1px'}
-        borderColor="border.subtle"
+        borderColor="border.surface"
         pointerEvents={isOffcanvas ? 'none' : undefined}
         overflow={isOffcanvas ? 'hidden' : undefined}
         opacity={isOffcanvas ? 0 : undefined}
@@ -161,7 +161,7 @@ export function SidebarRail(props: SidebarRailProps) {
       w="1px"
       transform="translateX(50%)"
       borderRadius="full"
-      bg="border.subtle"
+      bg="border.surface"
       pointerEvents="none"
       {...props}
     />

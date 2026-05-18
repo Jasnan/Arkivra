@@ -349,7 +349,7 @@ export function DocumentTrashPage() {
       direction={{ base: 'column', md: 'row' }}
       gap="3"
       borderBottomWidth="1px"
-      borderColor="border.subtle"
+      borderColor="border.surface"
       bg="bg.workspace"
       px={{ base: '4', lg: '6' }}
       py="3"
@@ -418,7 +418,7 @@ export function DocumentTrashPage() {
               justifyContent="space-between"
               gap="2"
               rounded="md"
-              borderColor="border.subtle"
+              borderColor="border.surface"
               bg="bg.surface"
               px="3"
               shadow="none"
@@ -449,7 +449,7 @@ export function DocumentTrashPage() {
                 minW="12rem"
                 rounded="lg"
                 borderWidth="1px"
-                borderColor="border.subtle"
+                borderColor="border.surface"
                 bg="bg.surface"
                 p="1.5"
                 shadow="lg"
@@ -524,7 +524,7 @@ export function DocumentTrashPage() {
           align="center"
           gap="4"
           borderBottomWidth="1px"
-          borderColor="border.subtle"
+          borderColor="border.surface"
           px={{ base: '4', lg: '6' }}
           py="3"
         >
@@ -534,14 +534,14 @@ export function DocumentTrashPage() {
       {secondaryToolbar}
 
       {isLoading ? (
-        <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
+        <Box borderBottomWidth="1px" borderColor="border.surface" px="6" py="4">
           <Text fontSize="sm" color="fg.muted">
             Loading trash...
           </Text>
         </Box>
       ) : null}
       {isError ? (
-        <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
+        <Box borderBottomWidth="1px" borderColor="border.surface" px="6" py="4">
           <Text fontSize="sm" color="fg.error">
             Unable to load trash.
           </Text>
@@ -652,7 +652,7 @@ export function DocumentTrashPage() {
         zIndex="1"
         flexShrink={0}
         borderTopWidth="1px"
-        borderColor="border.subtle"
+        borderColor="border.surface"
         bg="bg.workspace"
         px={{ base: '4', lg: '6' }}
         py="2.5"

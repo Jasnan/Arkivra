@@ -1,6 +1,6 @@
 import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
-import { Box, Flex, HStack, Menu, Portal, Text } from '@chakra-ui/react';
+import { Box, Flex, HStack, Menu, Portal, Text, chakra } from '@chakra-ui/react';
 import { ArrowUpDown, Check, ChevronDown, FileUp, FolderPlus, FolderUp, Grid3X3, List, Upload } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
@@ -45,7 +45,6 @@ export function useVaultBrowserHeader({
   vaultName,
   currentFolderId,
   breadcrumbs,
-  activeResultCount,
   selectedCount,
   browserView,
   setBrowserView,
@@ -66,7 +65,6 @@ export function useVaultBrowserHeader({
   vaultName: string;
   currentFolderId: string | null;
   breadcrumbs: FolderBreadcrumb[];
-  activeResultCount: number;
   selectedCount: number;
   browserView: FileBrowserView;
   setBrowserView: Dispatch<SetStateAction<FileBrowserView>>;
@@ -132,7 +130,7 @@ export function useVaultBrowserHeader({
     onDropOnFolder,
   ]);
 
-  const secondaryHeader = useMemo(() => (
+  const contentsToolbar = useMemo(() => (
     <Flex
       align="center"
       justify="space-between"
@@ -143,31 +141,8 @@ export function useVaultBrowserHeader({
       px={{ base: '4', lg: '6' }}
       py="3"
     >
-      <HStack gap="2">
-        <Button
-          type="button"
-          size="icon"
-          variant={browserView === 'grid' ? 'solid' : 'ghost'}
-          aria-label="Grid view"
-          onClick={() => setBrowserView('grid')}
-        >
-          <Grid3X3 size={17} />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant={browserView === 'list' ? 'solid' : 'ghost'}
-          aria-label="List view"
-          onClick={() => setBrowserView('list')}
-        >
-          <List size={17} />
-        </Button>
-        <Text fontSize="xs" color="fg.muted">
-          {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
-          {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
-        </Text>
-      </HStack>
-      <HStack gap="2">
+      <Box flex="1" />
+      <HStack gap="2" justify="flex-end">
         {selectedCount > 0 ? (
           <Button type="button" size="sm" variant="outline" onClick={onClearSelection}>
             Clear
@@ -305,10 +280,54 @@ export function useVaultBrowserHeader({
             </Menu.Positioner>
           </Portal>
         </Menu.Root>
+        <HStack
+          gap="0"
+          overflow="hidden"
+          rounded="md"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.surface"
+        >
+          <chakra.button
+            type="button"
+            aria-label="Grid view"
+            aria-pressed={browserView === 'grid'}
+            display="inline-flex"
+            h="10"
+            w="12"
+            alignItems="center"
+            justifyContent="center"
+            color={browserView === 'grid' ? 'white' : 'fg.muted'}
+            bg={browserView === 'grid' ? 'teal.solid' : 'transparent'}
+            _hover={{ bg: browserView === 'grid' ? 'teal.solid' : 'bg.subtle', color: browserView === 'grid' ? 'white' : 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
+            onClick={() => setBrowserView('grid')}
+          >
+            <Grid3X3 size={17} />
+          </chakra.button>
+          <chakra.button
+            type="button"
+            aria-label="List view"
+            aria-pressed={browserView === 'list'}
+            display="inline-flex"
+            h="10"
+            w="12"
+            alignItems="center"
+            justifyContent="center"
+            color={browserView === 'list' ? 'white' : 'fg.muted'}
+            bg={browserView === 'list' ? 'teal.solid' : 'transparent'}
+            borderLeftWidth="1px"
+            borderColor="border.subtle"
+            _hover={{ bg: browserView === 'list' ? 'teal.solid' : 'bg.subtle', color: browserView === 'list' ? 'white' : 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
+            onClick={() => setBrowserView('list')}
+          >
+            <List size={17} />
+          </chakra.button>
+        </HStack>
       </HStack>
     </Flex>
   ), [
-    activeResultCount,
     browserSort,
     browserView,
     currentFolderId,
@@ -322,9 +341,12 @@ export function useVaultBrowserHeader({
     setBrowserView,
   ]);
 
+  const secondaryHeader = contentsToolbar;
+
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
 
   return {
+    contentsToolbar,
     isInWorkspaceShell,
     secondaryHeader,
     workspaceHeader,

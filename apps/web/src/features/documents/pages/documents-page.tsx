@@ -1,11 +1,12 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, Home, Info, MoveRight, Pencil, Tags, Trash2 } from 'lucide-react';
+import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
+import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, Home, Info, MoveRight, Pencil, Tags, Trash2, Vault } from 'lucide-react';
 import { useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { useBrowserDragDrop } from '@/features/documents/hooks/use-browser-drag-drop';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
@@ -52,9 +55,12 @@ import type {
   ItemDialogTarget,
 } from '@/features/file-browser/components/vault-browser.types';
 import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import { VaultSidebarTree } from '@/features/vaults/components/vault-sidebar-tree';
 import { joinVaultAsRoot } from '@/features/vaults/vaults.api';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
+
+type VaultPageTab = 'contents' | 'members' | 'activity' | 'ai-chat' | 'settings';
 
 function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor');
@@ -75,6 +81,125 @@ const rootJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = 
   { value: 'document_chat', label: 'Document chat' },
   { value: 'full', label: 'Full AI access' },
 ];
+
+const vaultPageTabs: Array<{ value: VaultPageTab; label: string }> = [
+  { value: 'contents', label: 'Contents' },
+  { value: 'members', label: 'Members' },
+  { value: 'activity', label: 'Activity' },
+  { value: 'ai-chat', label: 'AI Chat' },
+  { value: 'settings', label: 'Settings' },
+];
+const placeholderSkeletonKeys = ['summary', 'primary', 'secondary', 'tertiary', 'quaternary', 'final'];
+
+function VaultPlaceholderTab() {
+  return (
+    <Flex
+      aria-label="Loading tab preview"
+      flex="1"
+      minH="0"
+      direction="column"
+      gap="5"
+      px={{ base: '4', lg: '6' }}
+      pt="0"
+      pb="6"
+    >
+      <HStack gap="3">
+        <Skeleton boxSize="10" rounded="lg" />
+        <Stack gap="2" flex="1" maxW="28rem">
+          <Skeleton h="4" w="64%" />
+          <Skeleton h="3" w="42%" />
+        </Stack>
+      </HStack>
+      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }}>
+        {placeholderSkeletonKeys.map((key) => (
+          <Stack key={key} gap="3" rounded="lg" borderWidth="1px" borderColor="border.subtle" p="4">
+            <Skeleton h="4" w="45%" />
+            <Skeleton h="3" w="100%" />
+            <Skeleton h="3" w="86%" />
+            <Skeleton h="3" w="58%" />
+          </Stack>
+        ))}
+      </Grid>
+    </Flex>
+  );
+}
+
+function VaultSecondaryMenu({
+  activeTab,
+  description,
+  name,
+  onTabChange,
+}: {
+  activeTab: VaultPageTab;
+  description: string;
+  name: string;
+  onTabChange: (tab: VaultPageTab) => void;
+}) {
+  return (
+    <Stack gap="4">
+      <Stack gap="3" borderBottomWidth="1px" borderColor="border.subtle" px="1" pb="4">
+        <HStack minW="0" gap="3" align="center">
+          <Flex
+            boxSize="10"
+            shrink={0}
+            align="center"
+            justify="center"
+            rounded="lg"
+            borderWidth="1px"
+            borderColor="teal.200"
+            bg="teal.50"
+            color="teal.600"
+          >
+            <Vault size={22} strokeWidth={1.8} />
+          </Flex>
+          <Box minW="0">
+            <Text fontSize="md" fontWeight="semibold" lineHeight="1.2" color="fg" truncate>
+              {name}
+            </Text>
+            <TooltipProvider>
+              <Tooltip positioning={{ placement: 'right' }}>
+                <TooltipTrigger asChild>
+                  <Text mt="0.5" fontSize="xs" color="fg.muted" truncate cursor="default">
+                    {description}
+                  </Text>
+                </TooltipTrigger>
+                <TooltipContent maxW="16rem">{description}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </Box>
+        </HStack>
+      </Stack>
+
+      <Stack gap="1">
+        {vaultPageTabs.map((tab) => {
+          const active = activeTab === tab.value;
+
+          return (
+            <chakra.button
+              key={tab.value}
+              type="button"
+              display="flex"
+              minH="9"
+              alignItems="center"
+              rounded="md"
+              px="2.5"
+              textAlign="left"
+              textStyle="sidebar"
+              fontWeight={active ? 'semibold' : 'medium'}
+              color={active ? 'teal.fg' : 'fg.muted'}
+              bg={active ? 'teal.subtle' : 'transparent'}
+              _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
+              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+              onClick={() => onTabChange(tab.value)}
+            >
+              {tab.label}
+            </chakra.button>
+          );
+        })}
+      </Stack>
+    </Stack>
+  );
+}
 
 function getBrowserItemUpdatedTime(item: BrowserItem) {
   const value = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
@@ -138,6 +263,8 @@ export function DocumentsPage() {
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
   const [joinRole, setJoinRole] = useState<VaultRole>('owner');
   const [joinAiAccessLevel, setJoinAiAccessLevel] = useState<AiAccessLevel>('full');
+  const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([]);
+  const [activeVaultTab, setActiveVaultTab] = useState<VaultPageTab>('contents');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const directoryInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
@@ -158,7 +285,6 @@ export function DocumentsPage() {
     () => [...(folderItemsQuery.data?.items ?? [])].sort((left, right) => compareBrowserItems(left, right, browserSort)),
     [browserSort, folderItemsQuery.data?.items],
   );
-  const activeResultCount = browserItems.length;
   const activeIsLoading = folderItemsQuery.isLoading;
   const activeIsError = folderItemsQuery.isError;
   const emptyState =
@@ -525,7 +651,6 @@ export function DocumentsPage() {
     vaultName: vaultQuery.data?.vault.name ?? 'Vault',
     currentFolderId,
     breadcrumbs: folderItemsQuery.data?.breadcrumbs ?? [],
-    activeResultCount,
     selectedCount,
     browserView,
     setBrowserView,
@@ -542,6 +667,23 @@ export function DocumentsPage() {
     onDragLeaveFolder: handleDragLeaveFolder,
     onDropOnFolder: handleDropOnFolder,
   });
+  const vaultSecondaryContent = useMemo(() => {
+    const vault = vaultQuery.data?.vault;
+
+    if (!vault || isRestrictedRootOverview) {
+      return null;
+    }
+
+    return (
+      <VaultSecondaryMenu
+        activeTab={activeVaultTab}
+        description={vault.description?.trim() || 'No description set.'}
+        name={vault.name ?? 'Vault'}
+        onTabChange={setActiveVaultTab}
+      />
+    );
+  }, [activeVaultTab, isRestrictedRootOverview, vaultQuery.data?.vault]);
+  useWorkspaceSecondary(vaultSecondaryContent);
 
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
@@ -699,6 +841,8 @@ export function DocumentsPage() {
     folderId: currentFolderId,
     name: currentFolderId === null ? 'Vault root' : folderItemsQuery.data?.folder?.name ?? 'Folder',
   };
+  const vault = vaultQuery.data.vault;
+  const vaultName = vault.name ?? 'Vault';
 
   return (
     <Flex as="section" h="full" minH="0" direction="column" overflow="hidden">
@@ -716,105 +860,154 @@ export function DocumentsPage() {
           </Box>
         </Flex>
       ) : null}
-      {browserHeader.secondaryHeader}
-      {activeIsLoading ? (
-        <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
-          <Text fontSize="sm" color="fg.muted">
-            Loading folder...
-          </Text>
-        </Box>
-      ) : null}
-      {activeIsError ? (
-        <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
-          <Text fontSize="sm" color="fg.error">
-            Unable to load this folder.
-          </Text>
-        </Box>
-      ) : null}
+      <Tabs
+        defaultValue="contents"
+        value={activeVaultTab}
+        onValueChange={(value) => setActiveVaultTab(value as VaultPageTab)}
+        display="flex"
+        flex="1"
+        minH="0"
+        flexDirection="column"
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={handleUploadInputChange}
+        />
+        <input
+          ref={directoryInputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={handleUploadInputChange}
+        />
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        hidden
-        onChange={handleUploadInputChange}
-      />
-      <input
-        ref={directoryInputRef}
-        type="file"
-        multiple
-        hidden
-        onChange={handleUploadInputChange}
-      />
+        <TabsContent value="contents" display="flex" flex="1" minH="0" flexDirection="column" p="0">
+          {browserHeader.contentsToolbar}
+          <Flex flex="1" minH="0" overflow="hidden">
+            <Box
+              as="aside"
+              role="complementary"
+              aria-label="Vault file tree"
+              w={{ base: '14rem', lg: '16rem', xl: '17.5rem' }}
+              flexShrink={0}
+              borderRightWidth="1px"
+              borderColor="border.subtle"
+              bg="bg.workspace"
+              px="3"
+              py="4"
+              overflowY="auto"
+            >
+              <VaultSidebarTree
+                vaults={[{ id: vaultId, name: vaultName }]}
+                activeVaultId={vaultId}
+                activeVaultRootOnly
+                expandedValue={vaultTreeExpandedValue}
+                onExpandedValueChange={setVaultTreeExpandedValue}
+                currentFolderId={currentFolderId}
+                currentDocumentId={null}
+                folders={folderTreeQuery.data?.folders ?? []}
+                documents={folderTreeQuery.data?.documents ?? []}
+              />
+            </Box>
 
-      {!activeIsLoading && emptyState ? (
-        <Flex
-          flex="1"
-          minH="0"
-          direction="column"
-          align="center"
-          justify="center"
-          gap="3"
-          color="fg.muted"
-          onContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
-        >
-          <Folder size={28} />
-          <Text fontWeight="medium" color="fg">
-            {currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
-          </Text>
-          <Text fontSize="sm">Create a folder or upload documents here.</Text>
-          <HStack gap="2">
-            <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
-              <FolderPlus size={16} />
-              New folder
-            </Button>
-          </HStack>
-        </Flex>
-      ) : null}
+            <Flex minW="0" flex="1" direction="column" overflow="hidden">
+              {activeIsLoading ? (
+                <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
+                  <Text fontSize="sm" color="fg.muted">
+                    Loading folder...
+                  </Text>
+                </Box>
+              ) : null}
+              {activeIsError ? (
+                <Box borderBottomWidth="1px" borderColor="border.subtle" px="6" py="4">
+                  <Text fontSize="sm" color="fg.error">
+                    Unable to load this folder.
+                  </Text>
+                </Box>
+              ) : null}
 
-      {!activeIsLoading && !activeIsError && !emptyState ? (
-        browserView === 'list' ? (
-          <BrowserItemList
-            items={browserItems}
-            vaultId={vaultId}
-            selectedItemKeys={selectedItemKeys}
-            contextItemKey={contextItemKey}
-            draggedItemKeys={draggedItemKeys}
-            dropTarget={dropTarget}
-            onOpenItem={openItem}
-            onSelectItem={selectBrowserItem}
-            getItemActions={getItemActions}
-            onDragStartItem={handleItemDragStart}
-            onDragEndItem={handleItemDragEnd}
-            onDragOverFolder={handleDragOverFolder}
-            onDragLeaveFolder={handleDragLeaveFolder}
-            onDropOnFolder={handleDropOnFolder}
-            onOpenContextMenu={openContextMenu}
-            onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
-            isMutating={itemMutationPending}
-          />
-        ) : (
-          <BrowserItemGrid
-            items={browserItems}
-            vaultId={vaultId}
-            selectedItemKeys={selectedItemKeys}
-            contextItemKey={contextItemKey}
-            draggedItemKeys={draggedItemKeys}
-            dropTarget={dropTarget}
-            onOpenItem={openItem}
-            onSelectItem={selectBrowserItem}
-            getItemActions={getItemActions}
-            onDragStartItem={handleItemDragStart}
-            onDragEndItem={handleItemDragEnd}
-            onDragOverFolder={handleDragOverFolder}
-            onDragLeaveFolder={handleDragLeaveFolder}
-            onDropOnFolder={handleDropOnFolder}
-            onOpenContextMenu={openContextMenu}
-            onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
-            isMutating={itemMutationPending}
-          />
-        )
-      ) : null}
+              {!activeIsLoading && emptyState ? (
+                <Flex
+                  flex="1"
+                  minH="0"
+                  direction="column"
+                  align="center"
+                  justify="center"
+                  gap="3"
+                  color="fg.muted"
+                  onContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
+                >
+                  <Folder size={28} />
+                  <Text fontWeight="medium" color="fg">
+                    {currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
+                  </Text>
+                  <Text fontSize="sm">Create a folder or upload documents here.</Text>
+                  <HStack gap="2">
+                    <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
+                      <FolderPlus size={16} />
+                      New folder
+                    </Button>
+                  </HStack>
+                </Flex>
+              ) : null}
+
+              {!activeIsLoading && !activeIsError && !emptyState ? (
+                browserView === 'list' ? (
+                  <BrowserItemList
+                    items={browserItems}
+                    vaultId={vaultId}
+                    selectedItemKeys={selectedItemKeys}
+                    contextItemKey={contextItemKey}
+                    draggedItemKeys={draggedItemKeys}
+                    dropTarget={dropTarget}
+                    onOpenItem={openItem}
+                    onSelectItem={selectBrowserItem}
+                    getItemActions={getItemActions}
+                    onDragStartItem={handleItemDragStart}
+                    onDragEndItem={handleItemDragEnd}
+                    onDragOverFolder={handleDragOverFolder}
+                    onDragLeaveFolder={handleDragLeaveFolder}
+                    onDropOnFolder={handleDropOnFolder}
+                    onOpenContextMenu={openContextMenu}
+                    onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
+                    isMutating={itemMutationPending}
+                  />
+                ) : (
+                  <BrowserItemGrid
+                    items={browserItems}
+                    vaultId={vaultId}
+                    selectedItemKeys={selectedItemKeys}
+                    contextItemKey={contextItemKey}
+                    draggedItemKeys={draggedItemKeys}
+                    dropTarget={dropTarget}
+                    onOpenItem={openItem}
+                    onSelectItem={selectBrowserItem}
+                    getItemActions={getItemActions}
+                    onDragStartItem={handleItemDragStart}
+                    onDragEndItem={handleItemDragEnd}
+                    onDragOverFolder={handleDragOverFolder}
+                    onDragLeaveFolder={handleDragLeaveFolder}
+                    onDropOnFolder={handleDropOnFolder}
+                    onOpenContextMenu={openContextMenu}
+                    onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
+                    isMutating={itemMutationPending}
+                  />
+                )
+              ) : null}
+            </Flex>
+          </Flex>
+        </TabsContent>
+        {vaultPageTabs
+          .filter(tab => tab.value !== 'contents')
+          .map(tab => (
+            <TabsContent key={tab.value} value={tab.value} display="flex" flex="1" minH="0" flexDirection="column" p="0">
+              <VaultPlaceholderTab />
+            </TabsContent>
+          ))}
+      </Tabs>
 
       <ChakraDialog.Root
         open={isCreateFolderOpen}

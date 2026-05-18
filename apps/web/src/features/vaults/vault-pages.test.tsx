@@ -44,6 +44,11 @@ describe('vault pages', () => {
 
     await renderWithProviders(<VaultsPage />);
 
+    const createVaultButton = await screen.findByRole('button', { name: /create vault/i });
+    const vaultToolbar = createVaultButton.closest('header');
+    expect(vaultToolbar).not.toBeNull();
+    expect(within(vaultToolbar as HTMLElement).getByRole('button', { name: 'Grid view' })).toBeInTheDocument();
+    expect(within(vaultToolbar as HTMLElement).getByRole('button', { name: 'List view' })).toBeInTheDocument();
     expect(await screen.findByText('Personal')).toBeInTheDocument();
     expect(screen.getByText('Household records')).toBeInTheDocument();
     expect(screen.getByText('Access')).toBeInTheDocument();

@@ -1,9 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link } from '@tanstack/react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/app-shell';
-import { ROUTES } from '@/app/routes';
 import { renderWithProviders } from '@/test/utils';
 
 const authClientMock = vi.hoisted(() => ({
@@ -26,26 +24,6 @@ function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { 'content-type': 'application/json' },
-  });
-}
-
-function expectHiddenLink(name: string) {
-  const node = screen.queryByRole('link', { name, hidden: true })
-    ?? screen.queryByRole('button', { name, hidden: true })
-    ?? screen.queryByRole('treeitem', { name, hidden: true });
-
-  if (node) expect(node as HTMLElement).not.toBeVisible();
-}
-
-async function openTreeBranch(name: string) {
-  const button = await screen.findByRole('button', { name, hidden: true });
-
-  if (button.getAttribute('data-state') === 'open') return;
-
-  fireEvent.click(button);
-
-  await waitFor(() => {
-    expect(screen.getByRole('button', { name, hidden: true })).toHaveAttribute('data-state', 'open');
   });
 }
 
@@ -241,7 +219,7 @@ describe('app shell account menu', () => {
     expect(screen.queryByRole('button', { name: /expand sidebar/i })).not.toBeInTheDocument();
   });
 
-  it('shows vaults under the secondary sidebar root on the vault index', async () => {
+  it('hides the secondary sidebar on the vault index', async () => {
     await renderWithProviders(
       <AppShell />,
       {
@@ -250,42 +228,44 @@ describe('app shell account menu', () => {
       },
     );
 
-    expect(await screen.findByRole('button', { name: /create vault/i, hidden: true })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(await screen.findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'closed');
-    expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toHaveAttribute('data-state', 'closed');
-    expect(screen.getAllByText('Vaults')).toHaveLength(2);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Vaults', hidden: true }));
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'closed');
-    });
-    expectHiddenLink('MyDocs');
-    expectHiddenLink('MyFiles');
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Vaults', hidden: true }));
-    expect(await screen.findByRole('button', { name: 'MyDocs', hidden: true })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Secondary', hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/secondary sidebar/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'MyDocs', hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'MyFiles', hidden: true })).not.toBeInTheDocument();
   });
 
-  it('toggles the secondary sidebar from the workspace header', async () => {
+  it('keeps the secondary sidebar available on the vault browser route', async () => {
     await renderWithProviders(
       <AppShell />,
       {
-        initialEntries: ['/vaults'],
-        routePath: '/vaults',
+        initialEntries: ['/vaults/vlt_1'],
+        routePath: '/vaults/:vaultId',
       },
     );
 
-    const createVaultButton = await screen.findByRole('button', { name: /create vault/i, hidden: true });
-    const secondarySidebar = createVaultButton.closest('aside');
+    const secondarySidebar = screen
+      .getAllByRole('complementary', { hidden: true })
+      .find(element => element.getAttribute('aria-label') === 'Secondary');
+    if (!secondarySidebar) {
+      throw new Error('Secondary sidebar not found');
+    }
+    expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByTitle('Hide secondary sidebar')).toBeInTheDocument();
+  });
+
+  it('keeps the secondary sidebar available on document routes', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1/doc_1'],
+        routePath: '/vaults/:vaultId/:documentId',
+      },
+    );
+
+    const activeVaultButton = await screen.findByRole('button', { name: 'MyDocs', hidden: true });
+    const secondarySidebar = activeVaultButton.closest('aside');
     expect(secondarySidebar).not.toBeNull();
     expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Vaults', hidden: true }));
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'closed');
-    });
 
     fireEvent.click(screen.getByTitle('Hide secondary sidebar'));
 
@@ -298,37 +278,8 @@ describe('app shell account menu', () => {
 
     await waitFor(() => {
       expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
-      expect(screen.getByRole('button', { name: 'Vaults', hidden: true })).toHaveAttribute('data-state', 'closed');
-    });
-  });
-
-  it('keeps all vaults visible and lets Chakra expand the active vault tree', async () => {
-    await renderWithProviders(
-      <AppShell />,
-      {
-        initialEntries: ['/vaults/vlt_1'],
-        routePath: '/vaults/:vaultId',
-      },
-    );
-
-    expect(await screen.findByRole('button', { name: /create vault/i, hidden: true })).toBeInTheDocument();
-    const myDocsButton = await screen.findByRole('button', { name: 'MyDocs', hidden: true });
-    expect(myDocsButton).toHaveAttribute('data-state', 'closed');
-    expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toHaveAttribute('data-state', 'closed');
-    expect(screen.queryByRole('button', { name: 'Cloud Drive', hidden: true })).not.toBeInTheDocument();
-
-    fireEvent.click(myDocsButton);
-    await waitFor(() => {
       expect(screen.getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
     });
-
-    expect(await screen.findByRole('button', { name: 'Insurance', hidden: true })).toBeInTheDocument();
-    expect(screen.getByText('Invoices')).toBeInTheDocument();
-    expect(screen.getByText('Vault Overview.pdf')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'closed');
-    expectHiddenLink('Policies');
-    expectHiddenLink('Quarterly Budget Summary.pdf');
-    expectHiddenLink('Claims');
   });
 
   it.each([
@@ -350,212 +301,6 @@ describe('app shell account menu', () => {
     expect(screen.queryByRole('button', { name: 'MyFiles', hidden: true })).not.toBeInTheDocument();
   });
 
-  it('reveals nested folders after Chakra branch clicks', async () => {
-    await renderWithProviders(
-      <AppShell />,
-      {
-        initialEntries: ['/vaults/vlt_1?folderId=fld_3'],
-        routePath: '/vaults/:vaultId',
-      },
-    );
-
-    await openTreeBranch('MyDocs');
-    await openTreeBranch('Insurance');
-    await openTreeBranch('Policies');
-
-    expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(screen.getByText('Claims')).toBeInTheDocument();
-    expect(screen.getByText('Invoices')).toBeInTheDocument();
-  });
-
-  it('reveals the active document after Chakra branch clicks', async () => {
-    await renderWithProviders(
-      <AppShell />,
-      {
-        initialEntries: ['/vaults/vlt_1'],
-        routePath: '/vaults/:vaultId',
-      },
-    );
-
-    await openTreeBranch('MyDocs');
-    await openTreeBranch('Insurance');
-    await openTreeBranch('Policies');
-
-    expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(screen.getByText('Quarterly Budget Summary.pdf')).toBeInTheDocument();
-  });
-
-  it('expands branch clicks and retains nested expansion state', async () => {
-    await renderWithProviders(
-      <AppShell />,
-      {
-        initialEntries: ['/vaults/vlt_1'],
-        routePath: '/vaults/:vaultId',
-      },
-    );
-
-    const vaultButton = await screen.findByRole('button', { name: 'MyDocs', hidden: true });
-    expect(vaultButton).toHaveAttribute('data-state', 'closed');
-
-    fireEvent.click(vaultButton);
-
-    expect(await screen.findByRole('button', { name: 'Insurance', hidden: true })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
-
-    fireEvent.click(screen.getByRole('button', { name: 'MyDocs', hidden: true }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'closed');
-      expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).not.toBeVisible();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'MyDocs', hidden: true }));
-
-    const insuranceButton = await screen.findByRole('button', { name: 'Insurance', hidden: true });
-    expect(screen.getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(insuranceButton).toHaveAttribute('data-state', 'closed');
-    expectHiddenLink('Policies');
-
-    fireEvent.click(insuranceButton);
-
-    expect(await screen.findByRole('button', { name: 'Policies', hidden: true })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'closed');
-    expectHiddenLink('Claims');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Insurance', hidden: true }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'closed');
-      expect(screen.getByRole('button', { name: 'Policies', hidden: true })).not.toBeVisible();
-    });
-    expectHiddenLink('Claims');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Insurance', hidden: true }));
-    const policiesButton = await screen.findByRole('button', { name: 'Policies', hidden: true });
-
-    fireEvent.click(policiesButton);
-
-    expect(await screen.findByText('Claims')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'open');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Policies', hidden: true }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-      expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'closed');
-      expect(screen.getByText('Claims')).not.toBeVisible();
-    });
-  });
-
-  it('lets collapsed vault branches toggle without route-managed expansion', async () => {
-    await renderWithProviders(
-      <AppShell />,
-      {
-        initialEntries: ['/vaults/vlt_1'],
-        routePath: '/vaults/:vaultId',
-      },
-    );
-
-    expect(await screen.findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'closed');
-    expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toHaveAttribute('data-state', 'closed');
-
-    fireEvent.click(screen.getByRole('button', { name: 'MyFiles', hidden: true }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'MyFiles', hidden: true })).toHaveAttribute('data-state', 'open');
-    });
-    expect(screen.queryByText('Cloud Drive')).not.toBeInTheDocument();
-  });
-
-  it('remembers vault tree expansion after leaving and returning to vault routes', async () => {
-    const { router } = await renderWithProviders(
-      <AppShell />,
-      {
-        initialEntries: ['/vaults/vlt_1'],
-        routePaths: ['/vaults', '/vaults/:vaultId', '/chat'],
-        rootComponent: true,
-      },
-    );
-
-    await openTreeBranch('MyDocs');
-    await openTreeBranch('Insurance');
-    expect(screen.getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-
-    await router.navigate({ to: ROUTES.chat });
-
-    await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'MyDocs', hidden: true })).not.toBeInTheDocument();
-    });
-
-    await router.navigate({ to: ROUTES.vaults });
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
-      expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-    });
-  });
-
-  it('does not force nested branches open when navigating to another folder', async () => {
-    await renderWithProviders(
-      <AppShell />,
-      {
-        initialEntries: ['/vaults/vlt_1'],
-        routePath: '/vaults/:vaultId',
-      },
-    );
-
-    await openTreeBranch('MyDocs');
-    await openTreeBranch('Insurance');
-    await openTreeBranch('Policies');
-
-    expect(await screen.findByText('Claims')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'open');
-
-    fireEvent.click(screen.getByText('Invoices'));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-      expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'open');
-      expect(screen.getByText('Claims')).not.toBeVisible();
-    });
-  });
-
-  it('reveals the current folder after navigation outside the sidebar', async () => {
-    await renderWithProviders(
-      <>
-        <AppShell />
-        <Link to={ROUTES.vaultRoot('vlt_1')} search={{ folderId: 'fld_3' } as any}>
-          Open claims from pane
-        </Link>
-      </>,
-      {
-        initialEntries: ['/vaults/vlt_1'],
-        routePath: '/vaults/:vaultId',
-      },
-    );
-
-    const insuranceButton = await screen.findByRole('button', { name: 'Insurance', hidden: true });
-
-    await openTreeBranch('MyDocs');
-    fireEvent.click(insuranceButton);
-    expect(await screen.findByRole('button', { name: 'Policies', hidden: true })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Insurance', hidden: true }));
-    expectHiddenLink('Policies');
-
-    fireEvent.click(screen.getByRole('link', { name: 'Open claims from pane' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
-      expect(screen.getByRole('button', { name: 'Policies', hidden: true })).toHaveAttribute('data-state', 'open');
-      expect(screen.getByRole('treeitem', { name: 'Claims', hidden: true })).toHaveAttribute('data-selected', '');
-    });
-  });
 
   it('opens quick search from the trigger and Meta+K shortcut', async () => {
     const user = userEvent.setup();

@@ -2,7 +2,7 @@
 import { useEffect, useMemo } from 'react';
 import { TreeView, createTreeCollection } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';
-import { Folder, FolderDot, FolderOpen, FolderOpenDot } from 'lucide-react';
+import { Folder, FolderDot, FolderOpen, FolderOpenDot, Vault } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { DocumentFileIcon } from '@/features/documents/components/document-file-icon';
 import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
@@ -87,11 +87,13 @@ function buildFolderNodes({
 function createVaultTreeCollection({
   vaults,
   activeVaultId,
+  activeVaultRootOnly,
   folders,
   documents,
 }: {
   vaults: Array<{ id: string; name: string }>;
   activeVaultId?: string | null;
+  activeVaultRootOnly?: boolean;
   folders: FolderTreeEntry[];
   documents: FolderTreeDocumentEntry[];
 }) {
@@ -118,7 +120,10 @@ function createVaultTreeCollection({
     documentsByFolderId.set(folderId, sortByName(childDocuments));
   }
 
-  const vaultNodes = vaults.map((vault): VaultTreeNode => {
+  const visibleVaults = activeVaultRootOnly && activeVaultId
+    ? vaults.filter(vault => vault.id === activeVaultId)
+    : vaults;
+  const vaultNodes = visibleVaults.map((vault): VaultTreeNode => {
     const children = activeVaultId === vault.id
       ? buildFolderNodes({ vaultId: vault.id, foldersByParentId, documentsByFolderId, parentId: null })
       : [];
@@ -136,14 +141,16 @@ function createVaultTreeCollection({
     id: 'ROOT',
     name: '',
     type: 'root',
-    children: [
-      {
-        id: rootValue(),
-        name: 'Vaults',
-        type: 'root',
-        children: vaultNodes,
-      },
-    ],
+    children: activeVaultRootOnly && activeVaultId
+      ? vaultNodes
+      : [
+          {
+            id: rootValue(),
+            name: 'Vaults',
+            type: 'root',
+            children: vaultNodes,
+          },
+        ],
   };
 
   return createTreeCollection<VaultTreeNode>({
@@ -158,7 +165,11 @@ function getNodeIcon(node: VaultTreeNode, isExpanded = false) {
     return <DocumentFileIcon name={node.document.name} mimeType={node.document.mimeType} iconSize={18} boxSize="5" />;
   }
 
-  if (node.type === 'vault' || node.type === 'root') {
+  if (node.type === 'vault') {
+    return <Vault size={18} strokeWidth={2.1} />;
+  }
+
+  if (node.type === 'root') {
     return isExpanded ? <FolderOpenDot size={18} strokeWidth={2.1} /> : <FolderDot size={18} strokeWidth={2.1} />;
   }
 
@@ -194,6 +205,7 @@ function getFolderAncestorValues(folderId: string | null, folders: FolderTreeEnt
 export function VaultSidebarTree({
   vaults,
   activeVaultId,
+  activeVaultRootOnly = false,
   expandedValue,
   onExpandedValueChange,
   currentFolderId,
@@ -203,6 +215,7 @@ export function VaultSidebarTree({
 }: {
   vaults: Array<{ id: string; name: string }>;
   activeVaultId?: string | null;
+  activeVaultRootOnly?: boolean;
   expandedValue: string[];
   onExpandedValueChange: (expandedValue: string[]) => void;
   currentFolderId: string | null;
@@ -212,8 +225,8 @@ export function VaultSidebarTree({
 }) {
   const navigate = useNavigate();
   const collection = useMemo(
-    () => createVaultTreeCollection({ vaults, activeVaultId, folders, documents }),
-    [activeVaultId, documents, folders, vaults],
+    () => createVaultTreeCollection({ vaults, activeVaultId, activeVaultRootOnly, folders, documents }),
+    [activeVaultId, activeVaultRootOnly, documents, folders, vaults],
   );
   const activeDocumentFolderId = useMemo(
     () => documents.find(document => document.id === currentDocumentId)?.folderId ?? null,
@@ -228,11 +241,10 @@ export function VaultSidebarTree({
 
   useEffect(() => {
     if (!activeVaultId) return;
-    if (!currentFolderId && !currentDocumentId) return;
 
     const folderIdToReveal = currentDocumentId ? activeDocumentFolderId : currentFolderId;
     const valuesToExpand = [
-      rootValue(),
+      ...(activeVaultRootOnly ? [] : [rootValue()]),
       vaultValue(activeVaultId),
       ...getFolderAncestorValues(folderIdToReveal, folders),
     ];

@@ -2,7 +2,7 @@ import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderDot, FolderOpen, Grid3X3, Info, List, Settings2 } from 'lucide-react';
+import { FolderDot, FolderOpen, Grid3X3, Info, List, Settings2, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
@@ -319,8 +319,9 @@ export function VaultsPage() {
   return (
     <Stack as="section" gap="0" h="full" minH="0">
       <Flex
+        as="header"
         align="center"
-        justify="flex-start"
+        justify="flex-end"
         gap="3"
         borderBottomWidth="1px"
         borderColor="border.subtle"
@@ -328,37 +329,55 @@ export function VaultsPage() {
         px={{ base: '4', lg: '6' }}
         py="3"
       >
-        <HStack gap="2">
-          <Button
+        <CreateButton ref={createButtonRef} onClick={openCreateModal}>
+          Create vault
+        </CreateButton>
+        <HStack
+          gap="0"
+          overflow="hidden"
+          rounded="md"
+          borderWidth="1px"
+          borderColor="border.subtle"
+          bg="bg.surface"
+        >
+          <chakra.button
             type="button"
-            size="icon"
-            variant={vaultsView === 'grid' ? 'solid' : 'ghost'}
             aria-label="Grid view"
+            aria-pressed={vaultsView === 'grid'}
+            display="inline-flex"
+            h="10"
+            w="12"
+            alignItems="center"
+            justifyContent="center"
+            color={vaultsView === 'grid' ? 'white' : 'fg.muted'}
+            bg={vaultsView === 'grid' ? 'teal.solid' : 'transparent'}
+            _hover={{ bg: vaultsView === 'grid' ? 'teal.solid' : 'bg.subtle', color: vaultsView === 'grid' ? 'white' : 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
             onClick={() => setVaultsView('grid')}
           >
             <Grid3X3 size={17} />
-          </Button>
-          <Button
+          </chakra.button>
+          <chakra.button
             type="button"
-            size="icon"
-            variant={vaultsView === 'list' ? 'solid' : 'ghost'}
             aria-label="List view"
+            aria-pressed={vaultsView === 'list'}
+            display="inline-flex"
+            h="10"
+            w="12"
+            alignItems="center"
+            justifyContent="center"
+            color={vaultsView === 'list' ? 'white' : 'fg.muted'}
+            bg={vaultsView === 'list' ? 'teal.solid' : 'transparent'}
+            borderLeftWidth="1px"
+            borderColor="border.subtle"
+            _hover={{ bg: vaultsView === 'list' ? 'teal.solid' : 'bg.subtle', color: vaultsView === 'list' ? 'white' : 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
             onClick={() => setVaultsView('list')}
           >
             <List size={17} />
-          </Button>
+          </chakra.button>
         </HStack>
       </Flex>
-
-      {!isInWorkspaceShell ? (
-        <Box px={{ base: '4', lg: '6' }} pt={{ base: '4', lg: '6' }} pb="4">
-          <Flex justify="flex-start">
-            <CreateButton ref={createButtonRef} onClick={openCreateModal}>
-              Create vault
-            </CreateButton>
-          </Flex>
-        </Box>
-      ) : null}
 
       <Box
         flex="1"
@@ -436,7 +455,7 @@ export function VaultsPage() {
                 </Box>
 
                 <Flex boxSize="16" align="center" justify="center" color="teal.fg">
-                  <FolderDot size={48} strokeWidth={1.7} />
+                  <Vault size={48} strokeWidth={1.7} />
                 </Flex>
                 <Text mt="4" maxW="full" truncate fontSize="md" fontWeight="semibold" color="fg">
                   {vault.name}
@@ -511,7 +530,7 @@ export function VaultsPage() {
               >
                 <Flex minW="0" align="center" gap="3">
                   <Flex boxSize="var(--arkivra-listIconSize, 2.5rem)" shrink="0" align="center" justify="center" color="teal.fg">
-                    <FolderDot size={28} strokeWidth={1.5} />
+                    <Vault size={28} strokeWidth={1.5} />
                   </Flex>
 
                   <Stack minW="0" flex="1" gap="1">

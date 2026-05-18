@@ -545,11 +545,13 @@ function SecondarySidebar({
       pointerEvents={isOpen ? undefined : 'none'}
       transition="width 180ms ease, border-color 180ms ease, box-shadow 180ms ease"
     >
-      <Flex h="3.5rem" align="center" borderBottomWidth="1px" borderColor="border.subtle" px="5">
-        <Text truncate fontSize="xl" fontWeight="medium" color="fg">
-          {title}
-        </Text>
-      </Flex>
+      {kind === 'vault' && customContent ? null : (
+        <Flex h="3.5rem" align="center" borderBottomWidth="1px" borderColor="border.subtle" px="5">
+          <Text truncate fontSize="xl" fontWeight="medium" color="fg">
+            {title}
+          </Text>
+        </Flex>
+      )}
 
       <Box
         flex="1"
@@ -563,7 +565,7 @@ function SecondarySidebar({
         {kind === 'vault' ? (
           customContent ? (
             <Stack gap="4">
-              {canCreateVault ? (
+              {canCreateVault && !activeVaultId ? (
                 <ChakraButton
                   type="button"
                   size="sm"
@@ -582,7 +584,7 @@ function SecondarySidebar({
             </Stack>
           ) : (
             <Flex direction="column" gap="4" minH="0" flex="1">
-              {canCreateVault ? (
+              {canCreateVault && !activeVaultId ? (
                 <ChakraButton
                   type="button"
                   size="sm"
@@ -601,6 +603,7 @@ function SecondarySidebar({
                 <VaultSidebarTree
                   vaults={vaults}
                   activeVaultId={treeVaultId}
+                  activeVaultRootOnly={Boolean(activeVaultId)}
                   expandedValue={vaultTreeExpandedValue}
                   onExpandedValueChange={setVaultTreeExpandedValue}
                   currentFolderId={currentFolderId}
@@ -812,7 +815,7 @@ function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'settings' | 'ad
 
 function shouldHideSecondarySidebar(pathname: string) {
   const parts = pathname.split('/').filter(Boolean);
-  return pathname === ROUTES.search || pathname === ROUTES.tags || parts[0] === 'trash';
+  return pathname === ROUTES.vaults || pathname === ROUTES.search || pathname === ROUTES.tags || parts[0] === 'trash';
 }
 
 export function AppShell() {

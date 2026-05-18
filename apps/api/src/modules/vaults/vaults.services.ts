@@ -1,7 +1,7 @@
 import type { Database } from '../database/database.js';
 import type { AiAccessLevel, VaultAccess, VaultRole } from './vaults.types.js';
 import type { PermissionRequestType } from '../authorization/authorization.types.js';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   documentsTable,
   usersTable,
@@ -349,7 +349,7 @@ export function createVaultsServices({ db }: { db: Database }) {
   }
 
   async function listAllVaults() {
-    return db
+    const rows = await db
       .select({
         id: vaultsTable.id,
         name: vaultsTable.name,
@@ -366,7 +366,19 @@ export function createVaultsServices({ db }: { db: Database }) {
       )
       .leftJoin(usersTable, eq(vaultMembersTable.userId, usersTable.id))
       .where(isNull(vaultsTable.deletedAt))
-      .orderBy(desc(vaultsTable.createdAt));
+      .orderBy(desc(vaultsTable.createdAt), asc(vaultMembersTable.createdAt));
+
+    const vaultsById = new Map<string, typeof rows[number]>();
+
+    for (const row of rows) {
+      const existing = vaultsById.get(row.id);
+
+      if (existing === undefined || (existing.ownerUserId === null && row.ownerUserId !== null)) {
+        vaultsById.set(row.id, row);
+      }
+    }
+
+    return Array.from(vaultsById.values());
   }
 
   async function createPermissionRequest({

@@ -5,6 +5,7 @@ import {
   AdminAiSettingsPage,
   AdminBackupsPage,
   AdminOverviewPage,
+  AdminUserAccessPage,
   AdminUsersPage,
   AdminVaultsPage,
 } from '@/features/admin/pages/admin-page';
@@ -1421,6 +1422,158 @@ describe('settings, admin, and about pages', () => {
         }),
       );
     });
+  });
+
+  it('opens a compact invite dialog focused on identity and system permissions', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_admin',
+          sessionId: 'ses_admin',
+          systemRole: 'root',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: true,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/users') {
+        return jsonResponse({
+          users: [
+            {
+              id: 'usr_1',
+              email: 'alex@example.com',
+              name: 'Alex',
+              emailVerified: true,
+              twoFactorEnabled: true,
+              disabledAt: null,
+              createdAt: '2026-04-01T00:00:00.000Z',
+              updatedAt: '2026-04-10T00:00:00.000Z',
+              systemRole: 'member',
+              systemCapabilities: [],
+              isRoot: false,
+              canCreateVault: false,
+              authMethods: {
+                hasPassword: true,
+                oauthProviders: ['google'],
+                primaryOAuthProvider: 'google',
+              },
+            },
+          ],
+        });
+      }
+
+      if (url === '/api/admin/vaults') {
+        return jsonResponse({
+          vaults: [
+            {
+              id: 'vlt_1',
+              name: 'Invoices Vault',
+              createdAt: '2026-04-01T00:00:00.000Z',
+              updatedAt: '2026-04-10T00:00:00.000Z',
+              ownerUserId: 'usr_owner',
+              ownerEmail: 'owner@example.com',
+              ownerName: 'Owner',
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<AdminUsersPage />);
+    await user.click(await screen.findByRole('button', { name: /invite user/i }));
+
+    expect(await screen.findByLabelText(/email address/i)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /system role/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/can create vaults/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/the user will receive an email invitation to create their account/i)).toBeInTheDocument();
+    expect(screen.queryByText(/invitation flow/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /user information/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /system permissions/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /optional starter access/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/starter vault/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/add another vault/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ai features/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/the invited user will receive an email with instructions/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no ai access/i)).not.toBeInTheDocument();
+  });
+
+  it('renders detailed user access management outside the invite modal', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_admin',
+          sessionId: 'ses_admin',
+          systemRole: 'root',
+          systemCapabilities: ['system.create_vaults'],
+          isRoot: true,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/users') {
+        return jsonResponse({
+          users: [
+            {
+              id: 'usr_1',
+              email: 'alex@example.com',
+              name: 'Alex',
+              emailVerified: true,
+              twoFactorEnabled: true,
+              disabledAt: null,
+              createdAt: '2026-04-01T00:00:00.000Z',
+              updatedAt: '2026-04-10T00:00:00.000Z',
+              systemRole: 'member',
+              systemCapabilities: [],
+              isRoot: false,
+              canCreateVault: false,
+              authMethods: {
+                hasPassword: true,
+                oauthProviders: ['google'],
+                primaryOAuthProvider: 'google',
+              },
+            },
+          ],
+        });
+      }
+
+      if (url === '/api/admin/vaults') {
+        return jsonResponse({
+          vaults: [
+            {
+              id: 'vlt_1',
+              name: 'Invoices Vault',
+              createdAt: '2026-04-01T00:00:00.000Z',
+              updatedAt: '2026-04-10T00:00:00.000Z',
+              ownerUserId: 'usr_owner',
+              ownerEmail: 'owner@example.com',
+              ownerName: 'Owner',
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<AdminUserAccessPage />, {
+      initialEntries: ['/admin/users/usr_1/access'],
+      routePath: '/admin/users/:userId/access',
+    });
+
+    expect(await screen.findByRole('heading', { name: /user access/i })).toBeInTheDocument();
+    expect(screen.getByText(/alex@example.com/i)).toBeInTheDocument();
+    expect(screen.getByText(/vault permission matrices, AI feature permissions/i)).toBeInTheDocument();
+    expect(screen.getByText(/Invoices Vault/i)).toBeInTheDocument();
   });
 
   it('shows app metadata and project links on the settings about page', async () => {

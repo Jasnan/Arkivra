@@ -2,11 +2,14 @@ import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
-import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, Home, Info, MoveRight, Pencil, Tags, Trash2, Vault } from 'lucide-react';
-import { useParams, useSearch } from '@tanstack/react-router';
+import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings, Tags, Trash2, Users, Vault } from 'lucide-react';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
+import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
+import { ROUTES } from '@/app/routes';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -61,6 +64,7 @@ import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries'
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
 type VaultPageTab = 'contents' | 'members' | 'activity' | 'ai-chat' | 'settings';
+type VaultRootPageTab = Exclude<VaultPageTab, 'ai-chat' | 'settings'>;
 
 function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor');
@@ -82,13 +86,15 @@ const rootJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = 
   { value: 'full', label: 'Full AI access' },
 ];
 
-const vaultPageTabs: Array<{ value: VaultPageTab; label: string }> = [
-  { value: 'contents', label: 'Contents' },
-  { value: 'members', label: 'Members' },
-  { value: 'activity', label: 'Activity' },
-  { value: 'ai-chat', label: 'AI Chat' },
-  { value: 'settings', label: 'Settings' },
-];
+const vaultRootTabs = ['contents', 'members', 'activity'] satisfies VaultRootPageTab[];
+
+const vaultPageTabs = [
+  { value: 'contents', label: 'Contents', description: 'Documents & folders', icon: FolderOpen, route: 'root' },
+  { value: 'members', label: 'Members', description: 'Access & permissions', icon: Users, route: 'root' },
+  { value: 'activity', label: 'Activity', description: 'Vault events & history', icon: History, route: 'root' },
+  { value: 'ai-chat', label: 'Vault Chat', description: 'Chat with vault documents', icon: MessageSquare, route: 'chat' },
+  { value: 'settings', label: 'Settings', description: 'Vault configuration', icon: Settings, route: 'settings' },
+] satisfies Array<{ value: VaultPageTab; label: string; description: string; icon: SecondaryNavIcon; route: 'root' | 'chat' | 'settings' }>;
 const placeholderSkeletonKeys = ['summary', 'primary', 'secondary', 'tertiary', 'quaternary', 'final'];
 
 function VaultPlaceholderTab() {
@@ -128,74 +134,52 @@ function VaultSecondaryMenu({
   activeTab,
   description,
   name,
-  onTabChange,
+  vaultId,
 }: {
   activeTab: VaultPageTab;
   description: string;
   name: string;
-  onTabChange: (tab: VaultPageTab) => void;
+  vaultId: string;
 }) {
   return (
-    <Stack gap="4">
-      <Stack gap="3" borderBottomWidth="1px" borderColor="border.surface" px="1" pb="4">
-        <HStack minW="0" gap="3" align="center">
-          <Flex
-            boxSize="10"
-            shrink={0}
-            align="center"
-            justify="center"
-            rounded="lg"
-            borderWidth="1px"
-            borderColor="teal.200"
-            bg="teal.50"
-            color="teal.600"
-          >
-            <Vault size={22} strokeWidth={1.8} />
-          </Flex>
-          <Box minW="0">
-            <Text fontSize="md" fontWeight="semibold" lineHeight="1.2" color="fg" truncate>
-              {name}
-            </Text>
-            <TooltipProvider>
-              <Tooltip positioning={{ placement: 'right' }}>
-                <TooltipTrigger asChild>
-                  <Text mt="0.5" fontSize="xs" color="fg.muted" truncate cursor="default">
-                    {description}
-                  </Text>
-                </TooltipTrigger>
-                <TooltipContent maxW="16rem">{description}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </Box>
-        </HStack>
+    <Stack gap="0">
+      <Stack gap="2.5" px="3.5" pb="3.5">
+        <Box minW="0">
+          <Text fontSize="sm" fontWeight="semibold" lineHeight="1.2" color="fg" truncate>
+            {name}
+          </Text>
+          <TooltipProvider>
+            <Tooltip positioning={{ placement: 'right' }}>
+              <TooltipTrigger asChild>
+                <Text mt="0.5" textStyle="caption" color="fg.muted" truncate cursor="default">
+                  {description}
+                </Text>
+              </TooltipTrigger>
+              <TooltipContent maxW="16rem">{description}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </Box>
       </Stack>
 
-      <Stack gap="1">
-        {vaultPageTabs.map((tab) => {
-          const active = activeTab === tab.value;
-
-          return (
-            <chakra.button
-              key={tab.value}
-              type="button"
-              display="flex"
-              minH="9"
-              alignItems="center"
-              rounded="md"
-              px="2.5"
-              textAlign="left"
-              textStyle="sidebar"
-              fontWeight={active ? 'semibold' : 'medium'}
-              color={active ? 'teal.fg' : 'fg.muted'}
-              bg={active ? 'teal.subtle' : 'transparent'}
-              _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
-              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
-              onClick={() => onTabChange(tab.value)}
-            >
-              {tab.label}
-            </chakra.button>
-          );
-        })}
+      <Stack gap="1" mt="3px">
+        {vaultPageTabs.map((tab) => (
+          <SecondaryNavLink
+            key={tab.value}
+            to={
+              tab.route === 'chat'
+                ? ROUTES.vaultChat(vaultId)
+                : tab.route === 'settings'
+                  ? ROUTES.vaultSettings(vaultId)
+                  : ROUTES.vaultRoot(vaultId)
+            }
+            search={tab.route === 'root' && tab.value !== 'contents' ? { tab: tab.value } : undefined}
+            label={tab.label}
+            description={tab.description}
+            icon={tab.icon}
+            active={activeTab === tab.value}
+            density="compact"
+          />
+        ))}
       </Stack>
     </Stack>
   );
@@ -245,8 +229,12 @@ function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: File
 export function DocumentsPage() {
   const params = useParams({ strict: false }) as { vaultId?: string };
   const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const navigate = useNavigate();
   const vaultId = params.vaultId ?? '';
   const currentFolderId = search.folderId ?? null;
+  const currentVaultTab = vaultRootTabs.includes(search.tab as VaultRootPageTab)
+    ? search.tab as VaultRootPageTab
+    : 'contents';
   const queryClient = useQueryClient();
 
   const [browserView, setBrowserView] = useState<FileBrowserView>(getInitialBrowserView);
@@ -264,7 +252,6 @@ export function DocumentsPage() {
   const [joinRole, setJoinRole] = useState<VaultRole>('owner');
   const [joinAiAccessLevel, setJoinAiAccessLevel] = useState<AiAccessLevel>('full');
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([]);
-  const [activeVaultTab, setActiveVaultTab] = useState<VaultPageTab>('contents');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const directoryInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
@@ -676,13 +663,13 @@ export function DocumentsPage() {
 
     return (
       <VaultSecondaryMenu
-        activeTab={activeVaultTab}
+        activeTab={currentVaultTab}
         description={vault.description?.trim() || 'No description set.'}
         name={vault.name ?? 'Vault'}
-        onTabChange={setActiveVaultTab}
+        vaultId={vaultId}
       />
     );
-  }, [activeVaultTab, isRestrictedRootOverview, vaultQuery.data?.vault]);
+  }, [currentVaultTab, isRestrictedRootOverview, vaultId, vaultQuery.data?.vault]);
   useWorkspaceSecondary(vaultSecondaryContent);
 
   if (!vaultId) {
@@ -862,8 +849,14 @@ export function DocumentsPage() {
       ) : null}
       <Tabs
         defaultValue="contents"
-        value={activeVaultTab}
-        onValueChange={(value) => setActiveVaultTab(value as VaultPageTab)}
+        value={currentVaultTab}
+        onValueChange={(value) => {
+          const tab = value as VaultRootPageTab;
+          void navigate({
+            to: ROUTES.vaultRoot(vaultId),
+            search: tab === 'contents' ? undefined : { tab },
+          });
+        }}
         display="flex"
         flex="1"
         minH="0"

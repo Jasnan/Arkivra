@@ -52,6 +52,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
+import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
 import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-context';
 import { ROUTES } from '@/app/routes';
@@ -112,59 +113,68 @@ const primaryNavItems: PrimaryNavItem[] = [
   { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
 ];
 
+const PRIMARY_RAIL_ITEM_SIZE = '3.40rem';
+
+interface SecondaryRouteNavItem {
+  to: string;
+  label: string;
+  description: string;
+  icon: SecondaryNavIcon;
+}
+
 const settingsNavItems = [
   {
     to: ROUTES.settingsAccount,
     label: 'Account',
     description: 'Profile & account details',
-    icon: <UserCircle2 size={16} />,
+    icon: UserCircle2,
   },
   {
     to: ROUTES.settingsSecurity,
     label: 'Security',
     description: 'Password, 2FA & sessions',
-    icon: <Shield size={16} />,
+    icon: Shield,
   },
   {
     to: ROUTES.settingsPreferences,
     label: 'Preferences',
     description: 'Regional & workflow defaults',
-    icon: <SlidersHorizontal size={16} />,
+    icon: SlidersHorizontal,
   },
   {
     to: ROUTES.settingsAbout,
     label: 'About',
     description: 'Version & information',
-    icon: <Info size={16} />,
+    icon: Info,
   },
-] as const;
+] satisfies readonly SecondaryRouteNavItem[];
 
 const adminNavItems = [
   {
     to: ROUTES.adminOverview,
     label: 'Overview',
     description: 'Instance status',
-    icon: <LayoutDashboard size={16} />,
+    icon: LayoutDashboard,
   },
   {
     to: ROUTES.adminUsers,
     label: 'Users management',
     description: 'Access & privileges',
-    icon: <Users size={16} />,
+    icon: Users,
   },
   {
     to: ROUTES.adminBackups,
     label: 'Backups',
     description: 'Archive control',
-    icon: <DatabaseBackup size={16} />,
+    icon: DatabaseBackup,
   },
   {
     to: ROUTES.adminAiSettings,
     label: 'AI settings',
     description: 'Ollama defaults',
-    icon: <BrainCircuit size={16} />,
+    icon: BrainCircuit,
   },
-] as const;
+] satisfies readonly SecondaryRouteNavItem[];
 
 const QUICK_SEARCH_QUERY_DEBOUNCE_MS = 280;
 
@@ -317,7 +327,7 @@ function RailLink({
           type="button"
           aria-label={item.label}
           display="flex"
-          boxSize="9"
+          boxSize={PRIMARY_RAIL_ITEM_SIZE}
           alignItems="center"
           justifyContent="center"
           rounded="lg"
@@ -340,7 +350,7 @@ function RailLink({
     <RailTooltip label={item.label}>
       <Link to={item.to} aria-label={item.label} style={{ color: 'inherit', textDecoration: 'none' }}>
         <Flex
-          boxSize="9"
+          boxSize={PRIMARY_RAIL_ITEM_SIZE}
           align="center"
           justify="center"
           rounded="lg"
@@ -402,7 +412,14 @@ function PrimarySidebar({
         </Link>
       </RailTooltip>
 
-      <Stack as="nav" aria-label="Primary" gap="2.5" mt="6" align="center">
+      <Stack
+        as="nav"
+        aria-label="Primary"
+        gap="1"
+        mt="6"
+        w={PRIMARY_RAIL_ITEM_SIZE}
+        align="center"
+      >
         {primaryNavItems.map((item) => (
           <RailLink key={item.id} item={item} active={activeNavId === item.id} onOpenTransfers={onOpenTransfers} />
         ))}
@@ -432,7 +449,7 @@ function PrimarySidebar({
               cursor="pointer"
               _hover={{ color: 'fg', bg: 'bg.muted' }}
             >
-              <UserCircle2 size={19} />
+              <UserCircle2 size={20} strokeWidth={2.1} />
             </chakra.button>
           </Menu.Trigger>
           <Portal>
@@ -484,6 +501,36 @@ function PrimarySidebar({
   );
 }
 
+function isSecondaryRouteNavItemActive(to: string, pathname: string) {
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+function SecondaryRouteNavList({
+  items,
+  currentPathname,
+  label,
+}: {
+  items: readonly SecondaryRouteNavItem[];
+  currentPathname: string;
+  label: string;
+}) {
+  return (
+    <Stack as="nav" aria-label={label} gap="1">
+      {items.map((item) => (
+        <SecondaryNavLink
+          key={item.to}
+          to={item.to}
+          label={item.label}
+          description={item.description}
+          icon={item.icon}
+          active={isSecondaryRouteNavItemActive(item.to, currentPathname)}
+          density="compact"
+        />
+      ))}
+    </Stack>
+  );
+}
+
 function SecondarySidebar({
   title,
   kind,
@@ -519,6 +566,7 @@ function SecondarySidebar({
     enabled: kind === 'vault' && Boolean(treeVaultId),
   });
   const vaults = vaultsQuery.data?.vaults ?? [];
+  const usesSecondaryNavSystem = kind === 'settings' || kind === 'admin' || (kind === 'vault' && customContent !== null);
 
   return (
     <Flex
@@ -531,7 +579,7 @@ function SecondarySidebar({
       shrink={0}
       direction="column"
       borderRightWidth={isOpen ? '1px' : '0'}
-      borderRightColor="border"
+      borderRightColor="border.surface"
       boxShadow={isOpen ? '1px 0 0 var(--chakra-colors-border-subtle)' : 'none'}
       bg="bg.sidebar"
       overflow="hidden"
@@ -540,7 +588,13 @@ function SecondarySidebar({
       transition="width 180ms ease, border-color 180ms ease, box-shadow 180ms ease"
     >
       {kind === 'vault' && customContent ? null : (
-        <Flex h="3.5rem" align="center" borderBottomWidth="1px" borderColor="border.surface" px="5">
+        <Flex
+          h="3.5rem"
+          align="center"
+          borderBottomWidth={kind === 'settings' || kind === 'admin' ? '0' : '1px'}
+          borderColor="border.surface"
+          px={usesSecondaryNavSystem ? '4' : '5'}
+        >
           <Text truncate fontSize="xl" fontWeight="medium" color="fg">
             {title}
           </Text>
@@ -551,8 +605,8 @@ function SecondarySidebar({
         flex="1"
         minH="0"
         overflowY={kind === 'vault' && customContent === null ? 'hidden' : 'auto'}
-        px="3"
-        py="4"
+        px={usesSecondaryNavSystem ? '2' : '3'}
+        py={usesSecondaryNavSystem ? '3.5' : '4'}
         display={kind === 'vault' && customContent === null ? 'flex' : undefined}
         flexDirection={kind === 'vault' && customContent === null ? 'column' : undefined}
       >
@@ -610,34 +664,18 @@ function SecondarySidebar({
           )
         ) : kind === 'settings' ? (
           customContent ?? (
-            <Stack gap="1">
-              {settingsNavItems.map((item) => (
-                <SecondaryNavLink
-                  key={item.to}
-                  to={item.to}
-                  label={item.label}
-                  description={item.description}
-                  icon={item.icon}
-                  active={item.to === currentPathname}
-                  density="compact"
-                />
-              ))}
-            </Stack>
+            <SecondaryRouteNavList
+              items={settingsNavItems}
+              currentPathname={currentPathname}
+              label="Settings navigation"
+            />
           )
         ) : kind === 'admin' ? (
-          <Stack gap="1">
-            {adminNavItems.map((item) => (
-              <SecondaryNavLink
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                description={item.description}
-                icon={item.icon}
-                active={item.to === currentPathname}
-                density="compact"
-              />
-            ))}
-          </Stack>
+          <SecondaryRouteNavList
+            items={adminNavItems}
+            currentPathname={currentPathname}
+            label="Admin navigation"
+          />
         ) : customContent ?? (
           kind === 'chat' ? (
             <Text px="2" py="4" fontSize="sm" color="fg.muted">
@@ -645,8 +683,8 @@ function SecondarySidebar({
             </Text>
           ) : (
             <Stack gap="1">
-              <SecondaryNavLink to={ROUTES.settingsAccount} label="Settings" icon={<Settings size={16} />} />
-              <SecondaryNavLink to={ROUTES.settingsAbout} label="About" icon={<Info size={16} />} />
+              <SecondaryNavLink to={ROUTES.settingsAccount} label="Settings" icon={Settings} />
+              <SecondaryNavLink to={ROUTES.settingsAbout} label="About" icon={Info} />
             </Stack>
           )
         )}

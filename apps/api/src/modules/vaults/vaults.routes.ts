@@ -123,7 +123,7 @@ export function registerVaultRoutes({
       );
     }
 
-    if (body.description !== undefined && description === null && typeof body.description !== 'string') {
+    if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
       return context.json(
         {
           error: {
@@ -216,7 +216,7 @@ export function registerVaultRoutes({
       );
     }
 
-    if (body.description !== undefined && description === null && typeof body.description !== 'string') {
+    if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
       return context.json(
         {
           error: {

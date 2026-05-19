@@ -1,10 +1,11 @@
 import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
-import { Box, Flex, HStack, Menu, Portal, Text, chakra } from '@chakra-ui/react';
-import { ArrowUpDown, Check, ChevronDown, FileUp, FolderPlus, FolderUp, Grid3X3, List, Upload } from 'lucide-react';
+import { Box, Flex, HStack, Menu, Portal, Text } from '@chakra-ui/react';
+import { ArrowUpDown, Check, ChevronDown, FileUp, FolderPlus, FolderUp, Upload } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { Button } from '@/components/ui/button';
+import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
 import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
 import type { BrowserDropTarget, FileBrowserSort, FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
@@ -112,37 +113,8 @@ export function useVaultBrowserHeader({
     vaultName,
   ]);
 
-  const workspaceHeader = useMemo(() => ({
-    left: (
-      <VaultRouteBreadcrumbs
-        entries={breadcrumbEntries}
-        dropTarget={dropTarget}
-        onDragOverFolder={onDragOverFolder}
-        onDragLeaveFolder={onDragLeaveFolder}
-        onDropOnFolder={onDropOnFolder}
-      />
-    ),
-  }), [
-    breadcrumbEntries,
-    dropTarget,
-    onDragLeaveFolder,
-    onDragOverFolder,
-    onDropOnFolder,
-  ]);
-
-  const contentsToolbar = useMemo(() => (
-    <Flex
-      align="center"
-      justify="space-between"
-      gap="3"
-      borderBottomWidth="1px"
-      borderColor="border.surface"
-      bg="bg.workspace"
-      px={{ base: '4', lg: '6' }}
-      py="3"
-    >
-      <Box flex="1" />
-      <HStack gap="2" justify="flex-end">
+  const browserActions = useMemo(() => (
+    <HStack gap="2" justify="flex-end">
         {selectedCount > 0 ? (
           <Button type="button" size="sm" variant="outline" onClick={onClearSelection}>
             Clear
@@ -280,53 +252,8 @@ export function useVaultBrowserHeader({
             </Menu.Positioner>
           </Portal>
         </Menu.Root>
-        <HStack
-          gap="0"
-          overflow="hidden"
-          rounded="md"
-          borderWidth="1px"
-          borderColor="border.surface"
-          bg="bg.surface"
-        >
-          <chakra.button
-            type="button"
-            aria-label="Grid view"
-            aria-pressed={browserView === 'grid'}
-            display="inline-flex"
-            h="10"
-            w="12"
-            alignItems="center"
-            justifyContent="center"
-            color={browserView === 'grid' ? 'white' : 'fg.muted'}
-            bg={browserView === 'grid' ? 'teal.solid' : 'transparent'}
-            _hover={{ bg: browserView === 'grid' ? 'teal.solid' : 'bg.subtle', color: browserView === 'grid' ? 'white' : 'fg' }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
-            onClick={() => setBrowserView('grid')}
-          >
-            <Grid3X3 size={17} />
-          </chakra.button>
-          <chakra.button
-            type="button"
-            aria-label="List view"
-            aria-pressed={browserView === 'list'}
-            display="inline-flex"
-            h="10"
-            w="12"
-            alignItems="center"
-            justifyContent="center"
-            color={browserView === 'list' ? 'white' : 'fg.muted'}
-            bg={browserView === 'list' ? 'teal.solid' : 'transparent'}
-            borderLeftWidth="1px"
-            borderColor="border.surface"
-            _hover={{ bg: browserView === 'list' ? 'teal.solid' : 'bg.subtle', color: browserView === 'list' ? 'white' : 'fg' }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
-            onClick={() => setBrowserView('list')}
-          >
-            <List size={17} />
-          </chakra.button>
-        </HStack>
+        <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
       </HStack>
-    </Flex>
   ), [
     browserSort,
     browserView,
@@ -341,14 +268,50 @@ export function useVaultBrowserHeader({
     setBrowserView,
   ]);
 
-  const secondaryHeader = contentsToolbar;
+  const workspaceHeader = useMemo(() => ({
+    left: (
+      <VaultRouteBreadcrumbs
+        entries={breadcrumbEntries}
+        dropTarget={dropTarget}
+        onDragOverFolder={onDragOverFolder}
+        onDragLeaveFolder={onDragLeaveFolder}
+        onDropOnFolder={onDropOnFolder}
+      />
+    ),
+    actions: browserActions,
+  }), [
+    breadcrumbEntries,
+    browserActions,
+    dropTarget,
+    onDragLeaveFolder,
+    onDragOverFolder,
+    onDropOnFolder,
+  ]);
 
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
+
+  const contentsToolbar = useMemo(() => isInWorkspaceShell ? null : (
+    <Flex
+      align="center"
+      justify="space-between"
+      gap="3"
+      borderBottomWidth="1px"
+      borderColor="border.surface"
+      bg="bg.workspace"
+      px={{ base: '4', lg: '6' }}
+      py="3"
+    >
+      <Box flex="1" />
+      {browserActions}
+    </Flex>
+  ), [
+    browserActions,
+    isInWorkspaceShell,
+  ]);
 
   return {
     contentsToolbar,
     isInWorkspaceShell,
-    secondaryHeader,
     workspaceHeader,
   };
 }

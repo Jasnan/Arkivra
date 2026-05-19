@@ -5,7 +5,6 @@ import type { FolderSummary, FolderTreeEntry } from '@/features/file-browser/fil
 
 export { getDocumentTypeLabel };
 
-export const FILE_BROWSER_VIEW_STORAGE_KEY = 'arkivra:file-browser:view';
 export const FILE_BROWSER_SORT_STORAGE_KEY = 'arkivra:file-browser:sort';
 
 export type FileBrowserView = 'list' | 'grid';
@@ -77,18 +76,6 @@ export interface ContextMenuPosition {
 }
 
 export type ContextMenuState = ContextMenuPosition | null;
-
-export function getInitialBrowserView(): FileBrowserView {
-  if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
-    return 'list';
-  }
-
-  try {
-    return window.localStorage.getItem(FILE_BROWSER_VIEW_STORAGE_KEY) === 'grid' ? 'grid' : 'list';
-  } catch {
-    return 'list';
-  }
-}
 
 export function getInitialBrowserSort(): FileBrowserSort {
   if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {

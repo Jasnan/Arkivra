@@ -100,8 +100,8 @@ describe('documents page', () => {
     expect(await screen.findByRole('tab', { name: /contents/i })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: /members/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /ask about this vault/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /settings/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /ask about this vault/i })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: /vault file tree/i, hidden: true })).not.toBeInTheDocument();
   });
 

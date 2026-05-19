@@ -748,7 +748,7 @@ function WorkspaceHeader({
   return (
     <Flex
       as="header"
-      h={{ base: '3.5rem', lg: '3.25rem' }}
+      h={{ base: '3.75rem', lg: '3.75rem' }}
       shrink={0}
       align="center"
       borderBottomWidth="1px"
@@ -782,7 +782,6 @@ function WorkspaceHeader({
       </Flex>
 
       <HStack ml="4" gap="2" zIndex="1" flexShrink={0}>
-        {headerConfig?.actions}
         <ChakraButton
           display={{ base: 'none', lg: 'inline-flex' }}
           type="button"
@@ -790,23 +789,21 @@ function WorkspaceHeader({
           aria-keyshortcuts="Meta+K"
           onClick={onOpenQuickSearch}
           variant="plain"
-          justifyContent="flex-start"
-          w={{ lg: '13rem', xl: '15rem' }}
-          h="9"
-          gap="2.5"
+          justifyContent="center"
+          h="var(--arkivra-controlHeight, 2.5rem)"
+          minH="var(--arkivra-controlHeight, 2.5rem)"
+          w="auto"
+          gap="2"
           rounded="md"
           borderWidth="1px"
           borderColor="border.surface"
           bg="bg.workspace"
-          px="3"
+          px="2.5"
           color="fg.subtle"
-          _hover={{ borderColor: 'border.strong', color: 'fg.muted' }}
+          _hover={{ borderColor: 'border.strong', bg: 'bg.workspace', color: 'fg.muted' }}
           _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
         >
           <Search size={18} strokeWidth={2} />
-          <Text flex="1" minW="0" textAlign="left" truncate fontSize="sm" fontWeight="medium">
-            Quick search...
-          </Text>
           <Kbd size="md" flexShrink={0} color="fg.muted" aria-hidden="true">
             super+k
           </Kbd>
@@ -822,6 +819,7 @@ function WorkspaceHeader({
         >
           <Search size={18} />
         </IconButton>
+        {headerConfig?.actions}
       </HStack>
     </Flex>
   );

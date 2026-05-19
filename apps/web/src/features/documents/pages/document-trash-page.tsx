@@ -1,12 +1,11 @@
 import type { MouseEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActionBar,
   Box,
   CloseButton,
   Dialog as ChakraDialog,
   Flex,
-  HStack,
   Menu,
   Portal,
   Stack,
@@ -14,7 +13,7 @@ import {
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ArrowUpDown, Check, ChevronDown, Grid3X3, List, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowUpDown, Check, ChevronDown, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
@@ -34,17 +33,16 @@ import {
   BrowserItemGrid,
   BrowserItemList,
 } from '@/features/file-browser/components/vault-browser-components';
+import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
+import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
 import {
-  FILE_BROWSER_VIEW_STORAGE_KEY,
   getBrowserItemKey,
-  getInitialBrowserView,
 } from '@/features/file-browser/components/vault-browser.types';
 import type {
   BrowserAction,
   BrowserContextItem,
   BrowserItem,
   ContextMenuState,
-  FileBrowserView,
 } from '@/features/file-browser/components/vault-browser.types';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
@@ -53,9 +51,9 @@ type TrashSort = 'name_asc' | 'name_desc' | 'deleted_desc';
 const TRASH_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) minmax(9rem, 12rem) 9.5rem 7rem 2.75rem';
 
 const trashSortOptions: Array<{ value: TrashSort; label: string }> = [
-  { value: 'name_asc', label: 'Name A-Z' },
-  { value: 'name_desc', label: 'Name Z-A' },
-  { value: 'deleted_desc', label: 'Recently deleted' },
+  { value: 'name_asc', label: 'A → Z' },
+  { value: 'name_desc', label: 'Z → A' },
+  { value: 'deleted_desc', label: 'Recent' },
 ];
 
 function getResolvedVaultId(
@@ -153,7 +151,7 @@ export function DocumentTrashPage() {
   const queryVaultId = selectedVaultIds.length === 1 ? selectedVaultIds[0] : undefined;
   const deletedDocumentsQuery = useDeletedDocumentsQuery({ vaultId: queryVaultId });
 
-  const [browserView, setBrowserView] = useState<FileBrowserView>(getInitialBrowserView);
+  const [browserView, setBrowserView] = usePreferredFileBrowserView();
   const [browserSort, setBrowserSort] = useState<TrashSort>('deleted_desc');
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [pendingPermanentDelete, setPendingPermanentDelete] = useState<DeletedDocumentSummary[]>([]);
@@ -163,7 +161,7 @@ export function DocumentTrashPage() {
     [deletedDocumentsQuery.data?.documents],
   );
   const retentionDays = deletedDocumentsQuery.data?.retentionDays ?? 30;
-  const vaultOptions = vaultsQuery.data?.vaults ?? [];
+  const vaultOptions = useMemo(() => vaultsQuery.data?.vaults ?? [], [vaultsQuery.data?.vaults]);
   const selectedVaultIdSet = useMemo(() => new Set(selectedVaultIds), [selectedVaultIds]);
   const visibleDocuments = useMemo(
     () => deletedDocuments
@@ -258,21 +256,14 @@ export function DocumentTrashPage() {
   });
   const itemMutationPending = restoreMutation.isPending || permanentDeleteMutation.isPending;
 
-  useEffect(() => {
-    try {
-      window.localStorage?.setItem?.(FILE_BROWSER_VIEW_STORAGE_KEY, browserView);
-    } catch {
-    }
-  }, [browserView]);
-
-  function updateVaultFilter(values: string[]) {
+  const updateVaultFilter = useCallback((values: string[]) => {
     navigate({
       to: ROUTES.trash,
       search: values.length > 0 ? { vaultId: values } : {},
       replace: true,
     } as any);
     clearSelection();
-  }
+  }, [clearSelection, navigate]);
 
   function openDocument(item: BrowserItem) {
     if (item.type !== 'document') {
@@ -326,15 +317,6 @@ export function DocumentTrashPage() {
     ];
   }
 
-  const workspaceHeader = useMemo(() => ({
-    left: (
-      <Stack gap="0.5" minW="0">
-        <Text fontWeight="semibold" color="fg">Trash</Text>
-      </Stack>
-    ),
-  }), []);
-  const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
-
   const selectedVaultsLabel =
     selectedVaultIds.length === 0
       ? 'All vaults'
@@ -342,43 +324,15 @@ export function DocumentTrashPage() {
         ? vaultOptions.find((vault) => vault.id === selectedVaultIds[0])?.name ?? '1 vault'
         : `${selectedVaultIds.length} vaults`;
 
-  const secondaryToolbar = (
-    <Flex
-      align={{ base: 'stretch', md: 'center' }}
-      justify="space-between"
-      direction={{ base: 'column', md: 'row' }}
-      gap="3"
-      borderBottomWidth="1px"
-      borderColor="border.surface"
-      bg="bg.workspace"
-      px={{ base: '4', lg: '6' }}
-      py="3"
-    >
-      <HStack gap="2" minW="0" flexWrap="wrap">
-        <Button
-          type="button"
-          size="icon"
-          variant={browserView === 'grid' ? 'solid' : 'ghost'}
-          aria-label="Grid view"
-          onClick={() => setBrowserView('grid')}
-        >
-          <Grid3X3 size={17} />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant={browserView === 'list' ? 'solid' : 'ghost'}
-          aria-label="List view"
-          onClick={() => setBrowserView('list')}
-        >
-          <List size={17} />
-        </Button>
-        <Text fontSize="xs" color="fg.muted">
-          {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
-          {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
-        </Text>
-      </HStack>
+  const trashItemCount = useMemo(() => (
+    <Text whiteSpace="nowrap" fontSize="xs" color="fg.muted">
+      {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
+      {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
+    </Text>
+  ), [activeResultCount, selectedCount]);
 
+  const trashHeaderActions = useMemo(() => (
+    <Flex align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="2" minW="0">
       <Flex align={{ sm: 'center' }} direction={{ base: 'column', sm: 'row' }} gap="2" minW="0">
         {selectedCount > 0 ? (
           <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
@@ -413,8 +367,8 @@ export function DocumentTrashPage() {
               variant="outline"
               aria-label="Sort trashed documents"
               h="10"
-              w={{ base: 'full', sm: 'auto' }}
-              minW="11rem"
+              w={{ base: 'full', sm: '10rem' }}
+              minW={{ base: '0', sm: '10rem' }}
               justifyContent="space-between"
               gap="2"
               rounded="md"
@@ -466,8 +420,8 @@ export function DocumentTrashPage() {
                       minH="10"
                       rounded="md"
                       py="2"
-                      ps="10"
-                      pe="3"
+                      ps="3"
+                      pe="10"
                       fontSize="sm"
                       fontWeight="medium"
                       color="fg"
@@ -476,7 +430,7 @@ export function DocumentTrashPage() {
                     >
                       <Box
                         position="absolute"
-                        left="2.5"
+                        right="2.5"
                         top="50%"
                         display="flex"
                         boxSize="5"
@@ -509,9 +463,53 @@ export function DocumentTrashPage() {
         >
           Empty trash
         </DeleteButton>
+        <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
       </Flex>
     </Flex>
-  );
+  ), [
+    browserItems.length,
+    browserSort,
+    browserView,
+    clearSelection,
+    itemMutationPending,
+    selectedCount,
+    selectedSortLabel,
+    selectedVaultIds,
+    selectedVaultsLabel,
+    setBrowserView,
+    updateVaultFilter,
+    vaultOptions,
+    vaultsQuery.isLoading,
+    visibleDocuments,
+  ]);
+
+  const workspaceHeader = useMemo(() => ({
+    left: (
+      <Stack direction={{ base: 'column', sm: 'row' }} align={{ sm: 'center' }} gap={{ base: '0.5', sm: '3' }} minW="0">
+        <Text fontWeight="semibold" color="fg">Trash</Text>
+        {trashItemCount}
+      </Stack>
+    ),
+    actions: trashHeaderActions,
+  }), [trashHeaderActions, trashItemCount]);
+  const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
+
+  const secondaryToolbar = useMemo(() => isInWorkspaceShell ? null : (
+    <Flex
+      align={{ base: 'stretch', md: 'center' }}
+      justify="space-between"
+      direction={{ base: 'column', md: 'row' }}
+      gap="3"
+      borderBottomWidth="1px"
+      borderColor="border.surface"
+      bg="bg.workspace"
+      px={{ base: '4', lg: '6' }}
+      py="3"
+    >
+      {trashItemCount}
+      {trashHeaderActions}
+    </Flex>
+  ), [isInWorkspaceShell, trashHeaderActions, trashItemCount]);
 
   const noOpDragStart = () => {};
   const noOpDragEnd = () => {};

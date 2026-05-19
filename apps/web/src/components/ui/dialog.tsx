@@ -24,6 +24,8 @@ export function Dialog({ onOpenChange, ...props }: DialogRootProps) {
     >
       <ChakraDialog.Root
         placement="center"
+        lazyMount
+        unmountOnExit
         onOpenChange={(event) => {
           onOpenChange?.(event.open);
           if (!event.open) {
@@ -58,13 +60,23 @@ export function DialogClose(props: React.ComponentProps<typeof ChakraDialog.Clos
   return <ChakraDialog.CloseTrigger {...props} />;
 }
 
+type DialogBodyProps = React.ComponentPropsWithRef<typeof ChakraDialog.Body>;
+
+export const DialogBody = ({ className, ...props }: DialogBodyProps) => (
+  <ChakraDialog.Body className={className} {...props} />
+);
+
 type DialogOverlayProps = React.ComponentPropsWithRef<typeof ChakraDialog.Backdrop>;
 
 export function DialogOverlay({ className, ref, ...props }: DialogOverlayProps) {
   return (
     <ChakraDialog.Backdrop
       ref={ref}
-      className={cn('fixed inset-0 z-50 backdrop-blur-sm', className)}
+      className={className}
+      position="fixed"
+      inset="0"
+      zIndex="modal"
+      backdropFilter="blur(4px)"
       bg="rgba(11, 13, 18, 0.65)"
       {...props}
     />
@@ -91,10 +103,23 @@ export function DialogContent({
   return (
     <Portal>
       <DialogOverlay />
-      <ChakraDialog.Positioner className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+      <ChakraDialog.Positioner
+        position="fixed"
+        inset="0"
+        zIndex="modal"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        px="4"
+        py="8"
+      >
         <ChakraDialog.Content
           ref={ref}
-          className={cn('relative z-50 w-full overflow-hidden', className)}
+          className={className}
+          position="relative"
+          zIndex="modal"
+          w="full"
+          overflow="hidden"
           rounded="lg"
           borderWidth="1px"
           borderColor="border.surface"
@@ -102,27 +127,55 @@ export function DialogContent({
           shadow="xl"
           {...(props as any)}
         >
-          {children}
           {hideCloseButton ? null : (
             <ChakraDialog.CloseTrigger
               aria-label="Close"
-              className="absolute right-6 top-6 inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              position="absolute"
+              top="6"
+              right="6"
+              display="inline-flex"
+              alignItems="center"
+              justifyContent="center"
+              boxSize="9"
+              rounded="full"
+              color="fg.muted"
+              transition="background 0.15s ease, color 0.15s ease"
+              _hover={{ bg: 'bg.subtle', color: 'fg' }}
+              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
             >
-              <X className="size-5" />
+              <X size={20} />
             </ChakraDialog.CloseTrigger>
           )}
+          {children}
         </ChakraDialog.Content>
       </ChakraDialog.Positioner>
     </Portal>
   );
 }
 
-export const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <ChakraDialog.Header className={cn('flex flex-col gap-2', className)} {...props} />
+type DialogHeaderProps = React.ComponentPropsWithRef<typeof ChakraDialog.Header>;
+
+export const DialogHeader = ({ className, ...props }: DialogHeaderProps) => (
+  <ChakraDialog.Header
+    className={className}
+    display="flex"
+    flexDirection="column"
+    gap="2"
+    {...props}
+  />
 );
 
-export const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <ChakraDialog.Footer className={cn('flex flex-wrap justify-end gap-3', className)} {...props} />
+type DialogFooterProps = React.ComponentPropsWithRef<typeof ChakraDialog.Footer>;
+
+export const DialogFooter = ({ className, ...props }: DialogFooterProps) => (
+  <ChakraDialog.Footer
+    className={className}
+    display="flex"
+    flexWrap="wrap"
+    justifyContent="flex-end"
+    gap="3"
+    {...props}
+  />
 );
 
 type DialogTitleProps = React.ComponentPropsWithRef<typeof ChakraDialog.Title>;
@@ -131,7 +184,10 @@ export function DialogTitle({ className, ref, ...props }: DialogTitleProps) {
   return (
     <ChakraDialog.Title
       ref={ref}
-      className={cn('font-display text-xl font-semibold text-foreground', className)}
+      className={cn('font-display', className)}
+      fontSize="xl"
+      fontWeight="semibold"
+      color="fg"
       {...props}
     />
   );
@@ -143,7 +199,10 @@ export function DialogDescription({ className, ref, ...props }: DialogDescriptio
   return (
     <ChakraDialog.Description
       ref={ref}
-      className={cn('text-sm leading-6 text-muted-foreground', className)}
+      className={className}
+      fontSize="sm"
+      lineHeight="1.55"
+      color="fg.muted"
       {...props}
     />
   );

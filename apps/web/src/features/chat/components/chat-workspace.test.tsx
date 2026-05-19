@@ -227,8 +227,8 @@ describe('chat workspace new chat drafts', () => {
     expect(createConversationMock).not.toHaveBeenCalled();
     expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
     expect(screen.getByText(/start typing your question below/i)).toBeInTheDocument();
-    expect(screen.getAllByText('New chat').length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByLabelText(/delete new chat/i)).not.toBeInTheDocument();
+    expect(screen.getByText('New chat')).toBeInTheDocument();
+    expect(screen.getByLabelText(/delete new chat/i)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/chat message/i), 'Hello from a draft');
     await user.click(screen.getByRole('button', { name: /send message/i }));
@@ -246,6 +246,57 @@ describe('chat workspace new chat drafts', () => {
         content: 'Hello from a draft',
       }),
     );
+  });
+
+  it('discards an unsaved new chat from the conversation list', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    const showHistoryButton = screen.queryByRole('button', { name: /show history/i });
+    if (showHistoryButton) {
+      await user.click(showHistoryButton);
+    }
+
+    await user.click(screen.getByRole('button', { name: /new chat/i }));
+    expect(screen.getByText('New chat')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/delete new chat/i));
+
+    expect(deleteConversationMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/start typing your question below/i)).not.toBeInTheDocument();
+    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
+  });
+
+  it('opens a blank draft from a route-selected conversation', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+        selectedConversationId="chat_existing"
+      />,
+    );
+
+    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
+
+    const showHistoryButton = screen.queryByRole('button', { name: /show history/i });
+    if (showHistoryButton) {
+      await user.click(showHistoryButton);
+    }
+
+    await user.click(screen.getByRole('button', { name: /new chat/i }));
+
+    expect(createConversationMock).not.toHaveBeenCalled();
+    expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
+    expect(screen.getByText(/start typing your question below/i)).toBeInTheDocument();
+    expect(screen.getByText('New chat')).toBeInTheDocument();
   });
 
   it('adds vault chips to a draft before creating the conversation snapshot', async () => {
@@ -299,11 +350,18 @@ describe('chat workspace new chat drafts', () => {
     await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
     await user.click(screen.getByRole('button', { name: /add selected/i }));
 
-    expect(await screen.findByText('Changing context creates a new conversation.')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /continue in new chat/i }));
+    expect(await screen.findByText('Start a new conversation with updated context?')).toBeInTheDocument();
+    expect(screen.getByText(/current conversation will remain unchanged/i)).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: /current conversation context/i })).toHaveTextContent('Finance');
+    expect(screen.getByRole('list', { name: /new conversation context/i })).toHaveTextContent('Finance');
+    expect(screen.getByRole('list', { name: /new conversation context/i })).toHaveTextContent('Legal');
+    await user.click(screen.getByRole('button', { name: /continue in new conversation/i }));
 
     await waitFor(() => {
       expect(createConversationMock).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /start a new conversation with updated context/i })).not.toBeInTheDocument();
     });
     expect(createConversationMock).toHaveBeenCalledWith({
       title: 'Existing chat',

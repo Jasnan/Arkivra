@@ -13,6 +13,8 @@ const defaultPreferences: Required<UserUiPreferencesUpdate> = {
   language: 'en',
   timezone: 'auto',
   dateFormat: 'medium',
+  showExtractedTextTab: false,
+  defaultFileBrowserView: 'list',
 } satisfies Omit<UserUiPreferencesUpdate, never>;
 
 type UserUiPreferencesRow = typeof userUiPreferencesTable.$inferSelect;
@@ -34,6 +36,8 @@ function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
     language: row.language,
     timezone: row.timezone,
     dateFormat: row.dateFormat,
+    showExtractedTextTab: row.showExtractedTextTab,
+    defaultFileBrowserView: row.defaultFileBrowserView,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

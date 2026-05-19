@@ -1028,6 +1028,106 @@ describe('settings, admin, and about pages', () => {
     expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').language).toBe('de');
   });
 
+  it('applies and persists the default project view preference', async () => {
+    const user = userEvent.setup();
+    let preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+      showExtractedTextTab: false,
+      defaultFileBrowserView: 'list',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({ preferences });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        preferences = {
+          ...preferences,
+          ...JSON.parse(String(init.body)),
+          updatedAt: '2026-05-15T01:00:00.000Z',
+        };
+        return jsonResponse({ preferences });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferencesSettingsPage />);
+
+    await user.click(screen.getByRole('button', { name: /default view/i }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /grid/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ defaultFileBrowserView: 'grid' }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').defaultFileBrowserView).toBe('grid');
+  });
+
+  it('applies and persists the extracted text tab preference', async () => {
+    const user = userEvent.setup();
+    let preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+      showExtractedTextTab: false,
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({ preferences });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        preferences = {
+          ...preferences,
+          ...JSON.parse(String(init.body)),
+          updatedAt: '2026-05-15T01:00:00.000Z',
+        };
+        return jsonResponse({ preferences });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferencesSettingsPage />);
+
+    await user.click(await screen.findByRole('checkbox', { name: /show extracted text tab/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ showExtractedTextTab: true }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').showExtractedTextTab).toBe(true);
+  });
+
   it('links to the dedicated 2FA management page from settings', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

@@ -1,4 +1,4 @@
-import { pgTable, text } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text } from 'drizzle-orm/pg-core';
 import { createTimestampColumns } from './helpers.js';
 import { usersTable } from './users.table.js';
 
@@ -19,4 +19,6 @@ export const userUiPreferencesTable = pgTable('user_ui_preferences', {
   language: text('language', { enum: ['en', 'de', 'fr'] }).notNull().default('en'),
   timezone: text('timezone', { enum: ['auto', 'utc', 'europe-berlin', 'america-new-york'] }).notNull().default('auto'),
   dateFormat: text('date_format', { enum: ['medium', 'numeric', 'short'] }).notNull().default('medium'),
+  showExtractedTextTab: boolean('show_extracted_text_tab').notNull().default(false),
+  defaultFileBrowserView: text('default_file_browser_view', { enum: ['list', 'grid'] }).notNull().default('list'),
 });

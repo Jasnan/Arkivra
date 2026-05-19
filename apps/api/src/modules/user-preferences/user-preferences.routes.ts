@@ -19,6 +19,8 @@ const userUiPreferencesUpdateSchema = z
     language: z.enum(['en', 'de', 'fr']).optional(),
     timezone: z.enum(['auto', 'utc', 'europe-berlin', 'america-new-york']).optional(),
     dateFormat: z.enum(['medium', 'numeric', 'short']).optional(),
+    showExtractedTextTab: z.boolean().optional(),
+    defaultFileBrowserView: z.enum(['list', 'grid']).optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0);

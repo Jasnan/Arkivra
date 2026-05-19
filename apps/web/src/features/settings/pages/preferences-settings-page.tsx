@@ -2,6 +2,7 @@ import { Heading, Stack } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import type { ChatResponseMode } from '@/features/chat/chat.api';
 import { AnswerModePicker } from '@/features/chat/components/answer-mode-picker';
 import {
@@ -41,11 +42,14 @@ export function PreferencesSettingsPage() {
     language,
     timezone,
     dateFormat,
+    defaultFileBrowserView,
     setLanguage,
     setTimezone,
     setDateFormat,
+    setDefaultFileBrowserView,
+    showExtractedTextTab,
+    setShowExtractedTextTab,
   } = useAccentColor();
-  const [defaultView, setDefaultView] = useState('list');
   const [defaultChatAnswerMode, setDefaultChatAnswerMode] = useState<ChatResponseMode>('text');
 
   return (
@@ -110,12 +114,25 @@ export function PreferencesSettingsPage() {
               <SettingsRow
                 density="compact"
                 label="Default view"
+                description="Choose how project contents open before any session changes."
                 control={
                   <SettingsDropdown
                     ariaLabel="Default view"
                     options={defaultViewOptions}
-                    value={defaultView}
-                    onValueChange={setDefaultView}
+                    value={defaultFileBrowserView}
+                    onValueChange={(value) => setDefaultFileBrowserView(value as typeof defaultFileBrowserView)}
+                  />
+                }
+              />
+              <SettingsRow
+                density="compact"
+                label="Extracted text tab"
+                description="Show extracted document text in document detail views."
+                control={
+                  <Switch
+                    aria-label="Show extracted text tab"
+                    checked={showExtractedTextTab}
+                    onCheckedChange={setShowExtractedTextTab}
                   />
                 }
               />

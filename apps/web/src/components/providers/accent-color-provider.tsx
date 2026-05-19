@@ -14,6 +14,7 @@ import type {
   AppearanceFontSize,
   AppearanceRadius,
   PreferenceDateFormat,
+  PreferenceFileBrowserView,
   PreferenceLanguage,
   PreferenceTimezone,
   ThemeMode,
@@ -36,7 +37,17 @@ const PREFERENCES_SYNC_DEBOUNCE_MS = 450;
 
 type UserUiPreferenceValues = Pick<
   UserUiPreferences,
-  'accentColor' | 'dateFormat' | 'density' | 'fontFamily' | 'fontSize' | 'language' | 'radius' | 'themeMode' | 'timezone'
+  | 'accentColor'
+  | 'dateFormat'
+  | 'defaultFileBrowserView'
+  | 'density'
+  | 'fontFamily'
+  | 'fontSize'
+  | 'language'
+  | 'radius'
+  | 'showExtractedTextTab'
+  | 'themeMode'
+  | 'timezone'
 >;
 
 type PreferenceSource = 'default' | 'local-storage' | 'server';
@@ -56,6 +67,8 @@ const defaultUiPreferences: UserUiPreferenceValues = {
   language: 'en',
   timezone: 'auto',
   dateFormat: 'medium',
+  showExtractedTextTab: false,
+  defaultFileBrowserView: 'list',
 };
 
 const fontSizeScales: Record<AppearanceFontSize, string> = {
@@ -385,6 +398,10 @@ function isPreferenceDateFormat(value: string | null): value is PreferenceDateFo
   return value === 'medium' || value === 'numeric' || value === 'short';
 }
 
+function isPreferenceFileBrowserView(value: string | null): value is PreferenceFileBrowserView {
+  return value === 'list' || value === 'grid';
+}
+
 function getStoredValue(key: string) {
   if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
     return null;
@@ -440,8 +457,27 @@ function normalizeCachedPreferences(value: unknown) {
   const dateFormat = typeof candidate.dateFormat === 'string' && isPreferenceDateFormat(candidate.dateFormat)
     ? candidate.dateFormat
     : defaultUiPreferences.dateFormat;
+  const showExtractedTextTab = typeof candidate.showExtractedTextTab === 'boolean'
+    ? candidate.showExtractedTextTab
+    : defaultUiPreferences.showExtractedTextTab;
+  const defaultFileBrowserView = typeof candidate.defaultFileBrowserView === 'string'
+    && isPreferenceFileBrowserView(candidate.defaultFileBrowserView)
+    ? candidate.defaultFileBrowserView
+    : defaultUiPreferences.defaultFileBrowserView;
 
-  return { themeMode, accentColor, density, fontFamily, fontSize, radius, language, timezone, dateFormat };
+  return {
+    themeMode,
+    accentColor,
+    density,
+    fontFamily,
+    fontSize,
+    radius,
+    language,
+    timezone,
+    dateFormat,
+    showExtractedTextTab,
+    defaultFileBrowserView,
+  };
 }
 
 function normalizePreferenceValues(value: unknown): UserUiPreferenceValues {
@@ -555,6 +591,10 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   const [language, setLanguageState] = useState<PreferenceLanguage>(initialPreferences.preferences.language);
   const [timezone, setTimezoneState] = useState<PreferenceTimezone>(initialPreferences.preferences.timezone);
   const [dateFormat, setDateFormatState] = useState<PreferenceDateFormat>(initialPreferences.preferences.dateFormat);
+  const [showExtractedTextTab, setShowExtractedTextTabState] = useState(initialPreferences.preferences.showExtractedTextTab);
+  const [defaultFileBrowserView, setDefaultFileBrowserViewState] = useState<PreferenceFileBrowserView>(
+    initialPreferences.preferences.defaultFileBrowserView,
+  );
   const [preferenceSource, setPreferenceSource] = useState<PreferenceSource>(initialPreferences.source);
   const [pendingServerPatch, setPendingServerPatch] = useState<UserUiPreferencesUpdate | null>(null);
   const currentPreferencesRef = useRef<UserUiPreferenceValues>(initialPreferences.preferences);
@@ -577,7 +617,21 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     language,
     timezone,
     dateFormat,
-  }), [accentColor, dateFormat, density, fontFamily, fontSize, language, radius, themeMode, timezone]);
+    defaultFileBrowserView,
+    showExtractedTextTab,
+  }), [
+    accentColor,
+    dateFormat,
+    defaultFileBrowserView,
+    density,
+    fontFamily,
+    fontSize,
+    language,
+    radius,
+    showExtractedTextTab,
+    themeMode,
+    timezone,
+  ]);
 
   function applyPreferences(nextPreferences: UserUiPreferenceValues, source: PreferenceSource) {
     currentPreferencesRef.current = nextPreferences;
@@ -592,6 +646,8 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     setLanguageState(nextPreferences.language);
     setTimezoneState(nextPreferences.timezone);
     setDateFormatState(nextPreferences.dateFormat);
+    setShowExtractedTextTabState(nextPreferences.showExtractedTextTab);
+    setDefaultFileBrowserViewState(nextPreferences.defaultFileBrowserView);
   }
 
   function queueServerPatch(patch: UserUiPreferencesUpdate) {
@@ -729,23 +785,43 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   const value = useMemo<AccentColorContextValue>(() => ({
     accentColor,
     dateFormat,
+    defaultFileBrowserView,
     density,
     fontFamily,
     fontSize,
     language,
     radius,
+    showExtractedTextTab,
     themeMode,
     timezone,
     setAccentColor: (nextAccentColor) => updatePreferences({ accentColor: nextAccentColor }),
     setDateFormat: (nextDateFormat) => updatePreferences({ dateFormat: nextDateFormat }),
+    setDefaultFileBrowserView: (nextDefaultFileBrowserView) => updatePreferences({
+      defaultFileBrowserView: nextDefaultFileBrowserView,
+    }),
     setDensity: (nextDensity) => updatePreferences({ density: nextDensity }),
     setFontFamily: (nextFontFamily) => updatePreferences({ fontFamily: nextFontFamily }),
     setFontSize: (nextFontSize) => updatePreferences({ fontSize: nextFontSize }),
     setLanguage: (nextLanguage) => updatePreferences({ language: nextLanguage }),
     setRadius: (nextRadius) => updatePreferences({ radius: nextRadius }),
+    setShowExtractedTextTab: (nextShowExtractedTextTab) => updatePreferences({
+      showExtractedTextTab: nextShowExtractedTextTab,
+    }),
     setThemeMode: (nextThemeMode) => updatePreferences({ themeMode: nextThemeMode }),
     setTimezone: (nextTimezone) => updatePreferences({ timezone: nextTimezone }),
-  }), [accentColor, dateFormat, density, fontFamily, fontSize, language, radius, themeMode, timezone]);
+  }), [
+    accentColor,
+    dateFormat,
+    defaultFileBrowserView,
+    density,
+    fontFamily,
+    fontSize,
+    language,
+    radius,
+    showExtractedTextTab,
+    themeMode,
+    timezone,
+  ]);
 
   return (
     <AccentColorContext value={value}>

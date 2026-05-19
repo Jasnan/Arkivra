@@ -5,6 +5,7 @@ import type {
   AppearanceFontSize,
   AppearanceRadius,
   PreferenceDateFormat,
+  PreferenceFileBrowserView,
   PreferenceLanguage,
   PreferenceTimezone,
   ThemeMode,
@@ -20,6 +21,8 @@ export interface UserUiPreferences {
   language: PreferenceLanguage;
   timezone: PreferenceTimezone;
   dateFormat: PreferenceDateFormat;
+  showExtractedTextTab: boolean;
+  defaultFileBrowserView: PreferenceFileBrowserView;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +30,16 @@ export interface UserUiPreferences {
 export type UserUiPreferencesUpdate = Partial<
   Pick<
     UserUiPreferences,
-    'accentColor' | 'dateFormat' | 'density' | 'fontFamily' | 'fontSize' | 'language' | 'radius' | 'themeMode' | 'timezone'
+    'accentColor'
+    | 'dateFormat'
+    | 'defaultFileBrowserView'
+    | 'density'
+    | 'fontFamily'
+    | 'fontSize'
+    | 'language'
+    | 'radius'
+    | 'showExtractedTextTab'
+    | 'themeMode'
+    | 'timezone'
   >
 >;

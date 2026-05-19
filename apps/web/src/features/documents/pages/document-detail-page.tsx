@@ -39,6 +39,7 @@ import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -1538,6 +1539,7 @@ export function DocumentDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showExtractedTextTab } = useAccentColor();
   const pathParts = location.pathname.split('/').filter(Boolean);
   const isTrashDocumentRoute = pathParts[0] === 'trash';
   const deletedDocumentsQuery = useDeletedDocumentsQuery({ enabled: isTrashDocumentRoute });
@@ -1863,8 +1865,10 @@ export function DocumentDetailPage() {
     displayContent,
   );
   const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
+  const canShowExtractedTextTab = showExtractedTextTab && !isTrashDocumentRoute;
   const detailActiveTab =
-    isTrashDocumentRoute && (activeTab === 'chat' || activeTab === 'content')
+    (activeTab === 'content' && !canShowExtractedTextTab)
+    || (isTrashDocumentRoute && activeTab === 'chat')
       ? 'preview'
       : activeTab;
 
@@ -2064,7 +2068,7 @@ export function DocumentDetailPage() {
                 <ImageIcon size={16} />
                 Preview
               </TabsTrigger>
-              {!isTrashDocumentRoute ? (
+              {canShowExtractedTextTab ? (
                 <TabsTrigger
                   value="content"
                   {...documentTabTriggerStyles}

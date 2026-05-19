@@ -4,6 +4,7 @@ import { Checkbox as ChakraCheckbox, Table, Box, Flex, Text } from '@chakra-ui/r
 import { File } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { formatBytes } from '@/features/documents/documents.utils';
+import { getFileDisplayName } from '@/features/file-browser/components/vault-browser.types';
 import type { SearchResultTag } from '@/features/search/search.types';
 import { getDocumentSelectionKey } from './document-library-utils';
 
@@ -295,11 +296,11 @@ export function DocumentLibraryTable({
                           transition="colors"
                           _hover={{ color: 'teal.solid' }}
                         >
-                          {document.name}
+                          {getFileDisplayName(document.name)}
                         </Text>
                         {document.originalName && document.originalName !== document.name ? (
                           <Text mt="1" truncate fontSize="sm" color="fg.muted">
-                            {document.originalName}
+                            {getFileDisplayName(document.originalName)}
                           </Text>
                         ) : null}
                         {document.snippet ? (

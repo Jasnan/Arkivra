@@ -301,9 +301,9 @@ const densityScales: Record<AppearanceDensity, Record<string, string>> = {
     listHeaderPaddingY: '0.5rem',
     listRowHeight: '3.5rem',
     listIconSize: '2rem',
-    gridItemHeight: '12rem',
-    gridItemPadding: '1rem',
-    gridItemGap: '1.25rem',
+    gridItemHeight: '7rem',
+    gridItemPadding: '0.625rem',
+    gridItemGap: '0.55rem',
   },
   comfortable: {
     controlHeight: '2.5rem',
@@ -315,9 +315,9 @@ const densityScales: Record<AppearanceDensity, Record<string, string>> = {
     listHeaderPaddingY: '0.75rem',
     listRowHeight: '4.5rem',
     listIconSize: '2.5rem',
-    gridItemHeight: '14rem',
-    gridItemPadding: '1.25rem',
-    gridItemGap: '2rem',
+    gridItemHeight: '8rem',
+    gridItemPadding: '0.75rem',
+    gridItemGap: '0.8rem',
   },
   relaxed: {
     controlHeight: '2.75rem',
@@ -329,9 +329,9 @@ const densityScales: Record<AppearanceDensity, Record<string, string>> = {
     listHeaderPaddingY: '0.875rem',
     listRowHeight: '5rem',
     listIconSize: '2.75rem',
-    gridItemHeight: '15.5rem',
-    gridItemPadding: '1.5rem',
-    gridItemGap: '2.25rem',
+    gridItemHeight: '10rem',
+    gridItemPadding: '1rem',
+    gridItemGap: '1.05rem',
   },
 };
 

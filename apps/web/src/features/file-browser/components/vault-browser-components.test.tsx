@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { BrowserItemList, MoveItemDialog, RenameItemDialog } from './vault-browser-components';
+import { BrowserItemGrid, BrowserItemList, MoveItemDialog, RenameItemDialog } from './vault-browser-components';
 import type { BrowserItem, MoveDestination } from './vault-browser.types';
 import { renderWithProviders } from '@/test/utils';
 
@@ -202,5 +202,45 @@ describe('move item dialog', () => {
     });
 
     expect(onDragOverFolder.mock.calls.at(-1)?.[1]).toBe('fld_projects');
+  });
+
+  it('shortens comfortable grid item names over twelve characters with a full-name hover title', async () => {
+    const longFolder: BrowserItem = {
+      type: 'folder',
+      folder: {
+        ...folderTarget.folder,
+        id: 'fld_long_name',
+        name: 'jasnan_niederlassungs_erlaubnis',
+      },
+    };
+
+    await renderWithProviders(
+      <BrowserItemGrid
+        items={[longFolder]}
+        vaultId="vlt_1"
+        selectedItemKeys={new Set()}
+        draggedItemKeys={new Set()}
+        dropTarget={null}
+        onOpenItem={vi.fn()}
+        onSelectItem={vi.fn()}
+        getItemActions={() => []}
+        onDragStartItem={vi.fn()}
+        onDragEndItem={vi.fn()}
+        onDragOverFolder={vi.fn()}
+        onDragLeaveFolder={vi.fn()}
+        onDropOnFolder={vi.fn()}
+        onOpenContextMenu={vi.fn()}
+        onOpenBackgroundContextMenu={vi.fn()}
+      />,
+    );
+
+    const gridName = await screen.findByText('jasnan_niederlass...');
+
+    expect(gridName).toHaveAttribute('aria-label', 'jasnan_niederlassungs_erlaubnis');
+    expect(gridName).toHaveStyle({
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    });
   });
 });

@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, DragEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties, DragEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { Box, Checkbox as ChakraCheckbox, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
@@ -8,6 +8,7 @@ import { ROUTES } from '@/app/routes';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Button } from '@/components/ui/button';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -26,7 +27,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { formatBytes } from '@/features/documents/documents.utils';
-import { getBrowserItemKey, getDocumentTypeLabel, getItemName } from './vault-browser.types';
+import { getBrowserItemKey, getDocumentTypeLabel, getFileDisplayName, getItemDisplayName, getItemName } from './vault-browser.types';
 import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
 
 const BROWSER_SCROLL_HEIGHT = '100%';
@@ -38,14 +39,35 @@ const listRowHeights = {
 const BREADCRUMB_LABEL_MAX_LENGTH = 10;
 const LIST_GRID_COLUMNS = 'minmax(0, 1fr) 6rem 8.5rem 2.75rem';
 const SELECTABLE_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) 6rem 8.5rem 2.75rem';
-const gridItemNameStyles = {
-  display: '-webkit-box',
+const GRID_ITEM_WIDTH = '10.75rem';
+const GRID_ITEM_GAP = '0.8rem';
+const GRID_ITEM_HEIGHT = '8rem';
+const GRID_ITEM_PADDING = '0.75rem';
+const GRID_ITEM_NAME_MAX_LENGTH = 20;
+const singleLineGridItemNameStyle: CSSProperties = {
+  display: 'block',
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
   overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  overflowWrap: 'normal',
+  wordBreak: 'normal',
+};
+const twoLineGridItemNameStyle: CSSProperties = {
+  display: '-webkit-box',
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   WebkitBoxOrient: 'vertical',
   WebkitLineClamp: '2',
   whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
   wordBreak: 'break-word',
-} as const;
+};
 
 export interface VaultBreadcrumbEntry {
   key: string;
@@ -71,13 +93,13 @@ function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'di
     <Box
       ref={ref}
       {...props}
-      style={{ ...style, paddingTop: 'var(--arkivra-gridItemGap, 2rem)' }}
+      style={{ ...style, paddingTop: `var(--arkivra-gridItemGap, ${GRID_ITEM_GAP})` }}
       display="grid"
-      gridTemplateColumns="repeat(auto-fill, minmax(13.5rem, 13.5rem))"
-      gap="var(--arkivra-gridItemGap, 2rem)"
+      gridTemplateColumns={`repeat(auto-fill, minmax(${GRID_ITEM_WIDTH}, ${GRID_ITEM_WIDTH}))`}
+      gap={`var(--arkivra-gridItemGap, ${GRID_ITEM_GAP})`}
       alignContent="start"
-      px={{ base: '4', lg: '6' }}
-      pb="var(--arkivra-gridItemGap, 2rem)"
+      px={{ base: '3', lg: '4' }}
+      pb={`var(--arkivra-gridItemGap, ${GRID_ITEM_GAP})`}
     />
   );
 }
@@ -130,8 +152,8 @@ function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'l
 
   if (item.type === 'folder') {
     return (
-      <Flex boxSize={isList ? '10' : '16'} shrink={0} align="center" justify="center" color="teal.fg">
-        <Folder size={isList ? 30 : 42} strokeWidth={1.5} />
+      <Flex boxSize={isList ? '10' : '12'} shrink={0} align="center" justify="center" color="teal.fg">
+        <Folder size={isList ? 30 : 34} strokeWidth={1.5} />
       </Flex>
     );
   }
@@ -142,9 +164,9 @@ function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'l
   });
 
   return (
-    <Flex boxSize={isList ? '10' : '16'} shrink={0} align="center" justify="center" color={color}>
-      <Box position="relative" boxSize={isList ? '9' : '11'} color={color}>
-        <DocumentIcon size={isList ? 36 : 44} strokeWidth={1.5} />
+    <Flex boxSize={isList ? '10' : '12'} shrink={0} align="center" justify="center" color={color}>
+      <Box position="relative" boxSize={isList ? '9' : '9'} color={color}>
+        <DocumentIcon size={isList ? 36 : 36} strokeWidth={1.5} />
         <Text
           as="span"
           position="absolute"
@@ -157,7 +179,7 @@ function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'l
           bg={badgeBg}
           px="1"
           py="0.5"
-          fontSize={isList ? '0.46rem' : '0.52rem'}
+          fontSize={isList ? '0.46rem' : '0.46rem'}
           fontWeight="bold"
           letterSpacing="normal"
           lineHeight="1"
@@ -241,6 +263,14 @@ function truncateBreadcrumbLabel(label: string) {
   }
 
   return `${label.slice(0, BREADCRUMB_LABEL_MAX_LENGTH - 3).trimEnd()}...`;
+}
+
+function truncateGridItemName(name: string) {
+  if (name.length <= GRID_ITEM_NAME_MAX_LENGTH) {
+    return name;
+  }
+
+  return `${name.slice(0, GRID_ITEM_NAME_MAX_LENGTH - 3).trimEnd()}...`;
 }
 
 function getVisibleVaultBreadcrumbs(entries: VaultBreadcrumbEntry[]) {
@@ -529,6 +559,74 @@ function BrowserItemActions({
   );
 }
 
+function GridItemActions({
+  item,
+  actions,
+  disabled,
+}: {
+  item: BrowserItem;
+  actions: BrowserAction[];
+  disabled?: boolean;
+}) {
+  return (
+    <Box
+      className="browser-grid-actions"
+      position="absolute"
+      top="2"
+      right="2"
+      zIndex="1"
+      opacity="0"
+      pointerEvents="none"
+      transform="translateY(-2px)"
+      transition="opacity 120ms ease, transform 120ms ease"
+      css={{
+        '@media (hover: none)': {
+          opacity: 1,
+          pointerEvents: 'auto',
+          transform: 'none',
+        },
+      }}
+    >
+      <BrowserItemActions
+        item={item}
+        actions={actions}
+        disabled={disabled}
+      />
+    </Box>
+  );
+}
+
+function GridItemName({
+  density,
+  name,
+}: {
+  density: string;
+  name: string;
+}) {
+  const displayName = truncateGridItemName(name);
+
+  return (
+    <TooltipProvider delayDuration={20}>
+      <Tooltip openDelay={20} closeDelay={0} positioning={{ placement: 'top' }}>
+        <TooltipTrigger asChild>
+          <Text
+            data-grid-item-name
+            aria-label={name}
+            fontSize="sm"
+            fontWeight="medium"
+            lineHeight="short"
+            color="fg"
+            style={density === 'relaxed' ? twoLineGridItemNameStyle : singleLineGridItemNameStyle}
+          >
+            {displayName}
+          </Text>
+        </TooltipTrigger>
+        <TooltipContent>{name}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function BrowserContextMenu({
   state,
   actions,
@@ -749,6 +847,7 @@ export function BrowserItemList({
             }
 
             const name = getItemName(item);
+            const displayName = getItemDisplayName(item);
             const updatedAt = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
             const actions = getItemActions(item);
             const itemKey = getBrowserItemKey(item);
@@ -825,7 +924,7 @@ export function BrowserItemList({
                       <Flex minW="0" align="center" gap="3">
                         <FileBrowserIcon item={item} size="list" />
                         <Box minW="0">
-                          <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                          <Text truncate fontWeight="semibold" color="fg">{displayName}</Text>
                           <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
                             Folder - Updated {formatDateOnly(updatedAt)}
                           </Text>
@@ -861,10 +960,10 @@ export function BrowserItemList({
                       <Flex minW="0" align="center" gap="3">
                         <FileBrowserIcon item={item} size="list" />
                         <Box minW="0">
-                          <Text truncate fontWeight="semibold" color="fg">{name}</Text>
+                          <Text truncate fontWeight="semibold" color="fg">{displayName}</Text>
                           {item.document.originalName !== item.document.name ? (
                             <Text mt="1" truncate textStyle="xs" color="fg.muted">
-                              {item.document.originalName}
+                              {getFileDisplayName(item.document.originalName)}
                             </Text>
                           ) : null}
                         </Box>
@@ -943,6 +1042,8 @@ export function BrowserItemGrid({
   isMutating?: boolean;
   isDraggable?: boolean;
 }) {
+  const { density } = useAccentColor();
+
   return (
     <Box
       h={BROWSER_SCROLL_HEIGHT}
@@ -967,6 +1068,7 @@ export function BrowserItemGrid({
           }
 
           const name = getItemName(item);
+          const displayName = getItemDisplayName(item);
           const actions = getItemActions(item);
           const itemKey = getBrowserItemKey(item);
           const isSelected = selectedItemKeys.has(itemKey);
@@ -989,7 +1091,7 @@ export function BrowserItemGrid({
               display="flex"
               alignItems="center"
               justifyContent="center"
-              p="var(--arkivra-gridItemPadding, 1.25rem)"
+              p={`var(--arkivra-gridItemPadding, ${GRID_ITEM_PADDING})`}
               rounded="md"
               borderWidth="1px"
               borderColor="border.surface"
@@ -1002,16 +1104,10 @@ export function BrowserItemGrid({
               {...itemSurfaceStyles}
               {...folderDropStyles}
             >
-              <Stack align="center" justify="center" gap="4" w="full" h="full" textAlign="center">
-                <Box position="absolute" top="3" right="3">
-                  <BrowserItemActions
-                    item={item}
-                    actions={actions}
-                    disabled={isMutating}
-                  />
-                </Box>
+              <Stack align="center" justify="center" gap="2.5" w="full" h="full" textAlign="center">
+                <GridItemActions item={item} actions={actions} disabled={isMutating} />
                 {selectable ? (
-                  <Box position="absolute" top="3" left="3">
+                  <Box position="absolute" top="2" left="2">
                     <SelectionCheckbox
                       checked={isSelected}
                       label={`Select ${name}`}
@@ -1019,10 +1115,12 @@ export function BrowserItemGrid({
                     />
                   </Box>
                 ) : null}
-                <Stack align="center" gap="4" w="full" minW="0">
+                <Stack align="center" gap="2.5" w="full" minW="0">
                   <FileBrowserIcon item={item} />
                   <chakra.button
                     type="button"
+                    w="full"
+                    maxW="full"
                     minW="0"
                     textAlign="center"
                     cursor="pointer"
@@ -1032,8 +1130,8 @@ export function BrowserItemGrid({
                       onOpenItem(item);
                     }}
                   >
-                    <Box minW="0" maxW="full" px="2">
-                      <Text fontSize="lg" fontWeight="medium" color="fg" {...gridItemNameStyles}>{name}</Text>
+                    <Box w="full" minW="0" maxW="full" px="1">
+                      <GridItemName name={displayName} density={density} />
                     </Box>
                   </chakra.button>
                 </Stack>
@@ -1045,7 +1143,7 @@ export function BrowserItemGrid({
               display="flex"
               alignItems="center"
               justifyContent="center"
-              p="var(--arkivra-gridItemPadding, 1.25rem)"
+              p={`var(--arkivra-gridItemPadding, ${GRID_ITEM_PADDING})`}
               rounded="md"
               borderWidth="1px"
               borderColor="border.surface"
@@ -1057,16 +1155,10 @@ export function BrowserItemGrid({
               }}
               {...itemSurfaceStyles}
             >
-              <Stack align="center" justify="center" gap="4" w="full" h="full" textAlign="center">
-                <Box position="absolute" top="3" right="3">
-                  <BrowserItemActions
-                    item={item}
-                    actions={actions}
-                    disabled={isMutating}
-                  />
-                </Box>
+              <Stack align="center" justify="center" gap="2.5" w="full" h="full" textAlign="center">
+                <GridItemActions item={item} actions={actions} disabled={isMutating} />
                 {selectable ? (
-                  <Box position="absolute" top="3" left="3">
+                  <Box position="absolute" top="2" left="2">
                     <SelectionCheckbox
                       checked={isSelected}
                       label={`Select ${name}`}
@@ -1074,15 +1166,15 @@ export function BrowserItemGrid({
                     />
                   </Box>
                 ) : null}
-                <Stack align="center" gap="4" w="full" minW="0">
+                <Stack align="center" gap="2.5" w="full" minW="0">
                   <FileBrowserIcon item={item} />
                   <Link
                     to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
-                    style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
+                    style={{ display: 'block', width: '100%', maxWidth: '100%', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <Box minW="0" maxW="full" px="2">
-                      <Text fontSize="lg" fontWeight="medium" color="fg" {...gridItemNameStyles}>{name}</Text>
+                    <Box w="full" minW="0" maxW="full" px="1">
+                      <GridItemName name={displayName} density={density} />
                     </Box>
                   </Link>
                   {renderDocumentGridMeta?.(item)}
@@ -1094,7 +1186,7 @@ export function BrowserItemGrid({
           return item.type === 'folder' ? (
             <Box
               position="relative"
-              h="var(--arkivra-gridItemHeight, 14rem)"
+              h={`var(--arkivra-gridItemHeight, ${GRID_ITEM_HEIGHT})`}
               role="option"
               aria-selected={isSelected}
               tabIndex={0}
@@ -1112,13 +1204,20 @@ export function BrowserItemGrid({
               onDrop={isDraggable ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
               onContextMenu={(event) => onOpenContextMenu(event, item)}
               _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+              css={{
+                '&:hover .browser-grid-actions, &:focus-within .browser-grid-actions': {
+                  opacity: 1,
+                  pointerEvents: 'auto',
+                  transform: 'none',
+                },
+              }}
             >
               {body}
             </Box>
           ) : (
             <Box
               position="relative"
-              h="var(--arkivra-gridItemHeight, 14rem)"
+              h={`var(--arkivra-gridItemHeight, ${GRID_ITEM_HEIGHT})`}
               role="option"
               aria-selected={isSelected}
               tabIndex={0}
@@ -1132,6 +1231,13 @@ export function BrowserItemGrid({
               onDragEnd={isDraggable ? onDragEndItem : undefined}
               onContextMenu={(event) => onOpenContextMenu(event, item)}
               _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+              css={{
+                '&:hover .browser-grid-actions, &:focus-within .browser-grid-actions': {
+                  opacity: 1,
+                  pointerEvents: 'auto',
+                  transform: 'none',
+                },
+              }}
             >
               {body}
             </Box>

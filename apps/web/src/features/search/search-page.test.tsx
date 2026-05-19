@@ -461,7 +461,7 @@ describe('documents library search controls', () => {
 
     await user.type(screen.getByLabelText(/search documents/i), 'arkivra');
 
-    expect(await screen.findByText(/receipt for groceries\.txt/i)).toBeInTheDocument();
+    expect(await screen.findByText(/receipt for groceries/i)).toBeInTheDocument();
     expect(screen.getByText('Arkivra', { selector: 'mark' })).toBeInTheDocument();
   });
 
@@ -543,7 +543,7 @@ describe('documents library search controls', () => {
 
     await user.type(screen.getByLabelText(/search documents/i), 'contract');
 
-    expect(await screen.findByText(/employment contract\.pdf/i)).toBeInTheDocument();
+    expect(await screen.findByText(/employment contract/i)).toBeInTheDocument();
   });
 
   it('sends vault, tag, date, and sort filters to the backend', async () => {
@@ -856,7 +856,7 @@ describe('documents library search controls', () => {
       routePath: '/documents',
     });
 
-    await screen.findByText('Alpha.pdf');
+    await screen.findByText('Alpha');
 
     await user.click(screen.getByRole('checkbox', { name: /select alpha\.pdf/i }));
     await user.click(screen.getByRole('checkbox', { name: /select bravo\.pdf/i }));

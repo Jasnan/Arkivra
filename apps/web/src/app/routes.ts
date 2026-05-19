@@ -10,8 +10,8 @@ export const ROUTES = {
   // Vaults
   vaults: '/vaults',
   vaultRoot: (vaultId: string) => `/vaults/${vaultId}` as const,
-  vaultChat: (vaultId: string) => `/vaults/${vaultId}/chat` as const,
-  vaultSettings: (vaultId: string) => `/vaults/${vaultId}/settings` as const,
+  vaultChat: (vaultId: string) => `/vaults/${vaultId}?tab=ai-chat` as const,
+  vaultSettings: (vaultId: string) => `/vaults/${vaultId}?tab=settings` as const,
   vaultDocument: (vaultId: string, documentId: string) =>
     `/vaults/${vaultId}/${documentId}` as const,
   vaultDocumentChat: (vaultId: string, documentId: string) =>

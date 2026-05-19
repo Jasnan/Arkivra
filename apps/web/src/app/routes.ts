@@ -10,15 +10,19 @@ export const ROUTES = {
   // Vaults
   vaults: '/vaults',
   vaultRoot: (vaultId: string) => `/vaults/${vaultId}` as const,
-  vaultChat: (vaultId: string) => `/vaults/${vaultId}?tab=ai-chat` as const,
+  vaultChat: (vaultId: string) => `/chat?vaultId=${vaultId}` as const,
   vaultSettings: (vaultId: string) => `/vaults/${vaultId}?tab=settings` as const,
   vaultDocument: (vaultId: string, documentId: string) =>
     `/vaults/${vaultId}/${documentId}` as const,
   vaultDocumentChat: (vaultId: string, documentId: string) =>
-    `/vaults/${vaultId}/${documentId}/chat` as const,
+    `/chat?vaultId=${vaultId}&documentId=${documentId}` as const,
 
-  // Chat (global, cross-vault)
+  // Chat
   chat: '/chat',
+  chatConversation: (conversationId: string) => `/chat/${conversationId}` as const,
+  chatWithVault: (vaultId: string) => `/chat?vaultId=${vaultId}` as const,
+  chatWithDocument: (vaultId: string, documentId: string, documentName?: string) =>
+    `/chat?vaultId=${vaultId}&documentId=${documentId}${documentName ? `&documentName=${encodeURIComponent(documentName)}` : ''}` as const,
 
   // Trash (global, cross-vault)
   trash: '/trash',

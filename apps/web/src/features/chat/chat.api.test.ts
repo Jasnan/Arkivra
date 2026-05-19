@@ -13,11 +13,14 @@ describe('chat api helpers', () => {
     vi.restoreAllMocks();
   });
 
-  it('creates a vault conversation', async () => {
+  it('creates a pre-scoped vault conversation through the unified chat endpoint', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       conversation: {
         id: 'cht_1',
         vaultId: 'vlt_1',
+        documentId: null,
+        scope: 'vault',
+        contextSnapshot: { type: 'vault', vaultId: 'vlt_1' },
         userId: 'usr_1',
         title: 'Retention',
         createdAt: '2026-04-30T10:00:00.000Z',
@@ -29,13 +32,17 @@ describe('chat api helpers', () => {
     const result = await createChatConversation({ vaultId: 'vlt_1', title: 'Retention' });
 
     expect(result.conversation.id).toBe('cht_1');
-    expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/chats', expect.objectContaining({
+    expect(fetchMock).toHaveBeenCalledWith('/api/chats', expect.objectContaining({
       method: 'POST',
       credentials: 'include',
+      body: JSON.stringify({
+        title: 'Retention',
+        contextSnapshot: { type: 'vault', vaultId: 'vlt_1' },
+      }),
     }));
   });
 
-  it('loads chat model options for a document scope', async () => {
+  it('loads chat model options from the unified endpoint', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       options: {
         defaultModel: 'gemma4:e4b',
@@ -44,11 +51,11 @@ describe('chat api helpers', () => {
     }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await getChatModelOptions({ vaultId: 'vlt_1', documentId: 'doc_1' });
+    const result = await getChatModelOptions();
 
     expect(result.options.models).toEqual(['gemma4:e4b', 'qwen2.5:7b']);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/vaults/vlt_1/documents/doc_1/chats/options',
+      '/api/chats/options',
       expect.objectContaining({ credentials: 'include' }),
     );
   });
@@ -72,8 +79,6 @@ describe('chat api helpers', () => {
     const doneIds: string[] = [];
 
     await streamChatMessage({
-      vaultId: 'vlt_1',
-      documentId: 'doc_1',
       chatId: 'cht_1',
       content: 'Hello',
       intent: 'compare',
@@ -89,7 +94,7 @@ describe('chat api helpers', () => {
     expect(tokens).toEqual(['Hi']);
     expect(doneIds).toEqual(['msg_1', 'msg_2']);
     expect(fetch).toHaveBeenCalledWith(
-      '/api/vaults/vlt_1/documents/doc_1/chats/cht_1/messages/stream',
+      '/api/chats/cht_1/messages/stream',
       expect.objectContaining({
         body: JSON.stringify({
           content: 'Hello',

@@ -4,7 +4,7 @@ import { documentsTable } from './documents.table.js';
 import { usersTable } from './users.table.js';
 import { vaultsTable } from './vaults.table.js';
 import type { Citation } from '../../search/search.types.js';
-import type { ChatIntent } from '../../chat/chat.types.js';
+import type { ChatContextSnapshot, ChatIntent } from '../../chat/chat.types.js';
 
 export type ChatMessageGenerationMetrics = {
   promptEvalCount: number | null;
@@ -33,6 +33,7 @@ export const chatConversationsTable = pgTable(
     userId: text('user_id').references(() => usersTable.id, { onDelete: 'set null' }),
     scope: text('scope', { enum: ['global', 'vault', 'document'] }).notNull().default('vault'),
     documentId: text('document_id').references(() => documentsTable.id, { onDelete: 'cascade' }),
+    contextSnapshot: jsonb('context_snapshot').$type<ChatContextSnapshot>().notNull(),
     title: text('title').notNull().default('New chat'),
     deletedAt: timestamp('deleted_at', { mode: 'date' }),
   },

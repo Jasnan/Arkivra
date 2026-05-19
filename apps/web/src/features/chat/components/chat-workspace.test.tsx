@@ -9,6 +9,11 @@ const deleteConversationMock = vi.hoisted(() => vi.fn());
 const streamChatMessageMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../chat.api', () => ({
+  getChatContextSnapshot: ({ vaultId, documentId }: { vaultId?: string; documentId?: string }) => {
+    if (vaultId && documentId) return { type: 'document', vaultId, documentId };
+    if (vaultId) return { type: 'vault', vaultId };
+    return { type: 'global', vaultIds: [] };
+  },
   streamChatMessage: streamChatMessageMock,
 }));
 
@@ -26,14 +31,9 @@ vi.mock('@/features/vaults/vaults.queries', () => ({
 vi.mock('../chat.queries', () => ({
   chatQueryKeys: {
     all: ['chat'],
-    scope: ({ vaultId, documentId }: { vaultId?: string | null; documentId?: string | null }) =>
-      [vaultId ?? 'global', documentId ?? 'all-documents'],
-    modelOptions: (scope: { vaultId?: string | null; documentId?: string | null }) =>
-      ['chat', ...(scope.vaultId ?? 'global' ? [scope.vaultId ?? 'global'] : ['global']), scope.documentId ?? 'all-documents', 'model-options'],
-    conversations: ({ vaultId, documentId }: { vaultId?: string | null; documentId?: string | null }) =>
-      ['chat', vaultId ?? 'global', documentId ?? 'all-documents', 'conversations'],
-    conversation: ({ vaultId, documentId }: { vaultId?: string | null; documentId?: string | null }, chatId: string) =>
-      ['chat', vaultId ?? 'global', documentId ?? 'all-documents', 'conversation', chatId],
+    modelOptions: () => ['chat', 'model-options'],
+    conversations: () => ['chat', 'conversations'],
+    conversation: (chatId: string) => ['chat', 'conversation', chatId],
   },
   useChatConversationQuery: ({ chatId }: { chatId: string }) => ({
     data: chatId === 'chat_existing'
@@ -44,6 +44,7 @@ vi.mock('../chat.queries', () => ({
             scope: 'global',
             vaultId: null,
             documentId: null,
+            contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
             userId: 'usr_1',
             createdAt: '2026-05-05T10:00:00.000Z',
             updatedAt: '2026-05-05T10:05:00.000Z',
@@ -125,6 +126,7 @@ vi.mock('../chat.queries', () => ({
           scope: 'global',
           vaultId: null,
           documentId: null,
+          contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
           userId: 'usr_1',
           createdAt: '2026-05-05T10:00:00.000Z',
           updatedAt: '2026-05-05T10:05:00.000Z',
@@ -164,6 +166,7 @@ describe('chat workspace new chat drafts', () => {
         scope: 'global',
         vaultId: null,
         documentId: null,
+        contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
         userId: 'usr_1',
         createdAt: '2026-05-05T11:00:00.000Z',
         updatedAt: '2026-05-05T11:00:00.000Z',
@@ -229,8 +232,6 @@ describe('chat workspace new chat drafts', () => {
       expect(createConversationMock).toHaveBeenCalledTimes(1);
     });
     expect(createConversationMock).toHaveBeenCalledWith({
-      vaultId: undefined,
-      documentId: undefined,
       title: 'Hello from a draft',
     });
     expect(streamChatMessageMock).toHaveBeenCalledWith(

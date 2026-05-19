@@ -1332,7 +1332,7 @@ describe('tags and documents pages', () => {
     expect(screen.getByText('const preview = true;')).toBeInTheDocument();
   });
 
-  it('shows document chat as a tab and removes the legacy action item', async () => {
+  it('shows the unified document chat entry point and removes the legacy action item', async () => {
     const user = userEvent.setup();
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1372,26 +1372,19 @@ describe('tags and documents pages', () => {
         return jsonResponse({ tags: [] });
       }
 
-      if (
-        url.endsWith('/api/vaults/vlt_1/documents/doc_1/chats') &&
-        (!init || init.method === undefined)
-      ) {
-        return jsonResponse({ conversations: [] });
-      }
-
       throw new Error(`Unhandled request ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
     await renderWithProviders(<DocumentDetailPage />, {
-      initialEntries: ['/vaults/vlt_1/doc_1/chat'],
-      routePath: '/vaults/:vaultId/:documentId/chat',
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
     });
 
     await screen.findByRole('tab', { name: /preview/i });
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^chat$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: /^ask$/i })).toBeInTheDocument();
   });
 });

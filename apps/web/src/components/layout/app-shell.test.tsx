@@ -315,10 +315,9 @@ describe('app shell account menu', () => {
       },
     );
 
-    const quickSearchTrigger = screen.getByText('Quick search...').closest('button');
-    expect(quickSearchTrigger).not.toBeNull();
+    const quickSearchTrigger = screen.getByRole('button', { name: /quick search/i });
 
-    fireEvent.click(quickSearchTrigger!);
+    fireEvent.click(quickSearchTrigger);
     expect(await screen.findByLabelText(/quick search modal/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /close search/i }));
@@ -340,9 +339,8 @@ describe('app shell account menu', () => {
       },
     );
 
-    const quickSearchTrigger = screen.getByText('Quick search...').closest('button');
-    expect(quickSearchTrigger).not.toBeNull();
-    fireEvent.click(quickSearchTrigger!);
+    const quickSearchTrigger = screen.getByRole('button', { name: /quick search/i });
+    fireEvent.click(quickSearchTrigger);
 
     const quickSearchInput = await screen.findByLabelText(/quick search modal/i);
     const fetchMock = vi.mocked(fetch);

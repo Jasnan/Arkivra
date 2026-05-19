@@ -1,4 +1,4 @@
-import type { ChangeEvent, FormEvent, MouseEvent, SetStateAction } from 'react';
+import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
-import { useAccentColor } from '@/components/providers/accent-color-context';
 import { ROUTES } from '@/app/routes';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -38,6 +37,7 @@ import {
   MoveItemDialog,
   RenameItemDialog,
 } from '@/features/file-browser/components/vault-browser-components';
+import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
 import {
   FILE_BROWSER_SORT_STORAGE_KEY,
   getBrowserItemKey,
@@ -51,7 +51,6 @@ import type {
   BrowserItem,
   ContextMenuState,
   FileBrowserSort,
-  FileBrowserView,
   InfoDialogTarget,
   ItemDialogTarget,
 } from '@/features/file-browser/components/vault-browser.types';
@@ -174,6 +173,14 @@ function VaultPageTabs({
               {tab.label}
             </TabsTrigger>
           ))}
+          <TabsTrigger
+            value="chat"
+            aria-label="Ask about this vault"
+            {...vaultTabTriggerStyles}
+          >
+            <MessageSquare size={16} aria-hidden="true" />
+            Ask about this vault
+          </TabsTrigger>
         </TabsList>
       </Flex>
     </Box>
@@ -345,9 +352,7 @@ export function DocumentsPage() {
     ? search.tab as VaultRootPageTab
     : 'contents';
   const queryClient = useQueryClient();
-  const { defaultFileBrowserView } = useAccentColor();
-
-  const [browserView, setBrowserView] = useState<FileBrowserView>(defaultFileBrowserView);
+  const [browserView, setBrowserView] = usePreferredFileBrowserView();
   const [browserSort, setBrowserSort] = useState<FileBrowserSort>(getInitialBrowserSort);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
@@ -365,7 +370,6 @@ export function DocumentsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const directoryInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
-  const hasSessionBrowserViewOverrideRef = useRef(false);
 
   const vaultQuery = useVaultQuery({ vaultId });
   const isRestrictedRootOverview = vaultQuery.data?.vault.accessMode === 'admin';
@@ -539,12 +543,6 @@ export function DocumentsPage() {
       window.removeEventListener('arkivra:uploads-completed', handleUploadCompleted);
     };
   }, [queryClient, vaultId]);
-
-  useEffect(() => {
-    if (!hasSessionBrowserViewOverrideRef.current) {
-      setBrowserView(defaultFileBrowserView);
-    }
-  }, [defaultFileBrowserView]);
 
   useEffect(() => {
     try {
@@ -779,11 +777,6 @@ export function DocumentsPage() {
     createFolderMutation.mutate();
   }
 
-  function setSessionBrowserView(nextView: SetStateAction<FileBrowserView>) {
-    hasSessionBrowserViewOverrideRef.current = true;
-    setBrowserView(nextView);
-  }
-
   const browserHeader = useVaultBrowserHeader({
     vaultId,
     vaultName: vaultQuery.data?.vault.name ?? 'Vault',
@@ -791,7 +784,7 @@ export function DocumentsPage() {
     breadcrumbs: folderItemsQuery.data?.breadcrumbs ?? [],
     selectedCount,
     browserView,
-    setBrowserView: setSessionBrowserView,
+    setBrowserView,
     browserSort,
     setBrowserSort,
     dropTarget,
@@ -983,6 +976,11 @@ export function DocumentsPage() {
         defaultValue="contents"
         value={currentVaultTab}
         onValueChange={(value) => {
+          if (value === 'chat') {
+            void navigate({ to: ROUTES.chat, search: { vaultId } as any });
+            return;
+          }
+
           const tab = value as VaultPageTab;
 
           void navigate({
@@ -1011,19 +1009,6 @@ export function DocumentsPage() {
         />
 
         {browserHeader.contentsToolbar}
-        <Flex
-          align="center"
-          justify="flex-end"
-          borderBottomWidth="1px"
-          borderColor="border.surface"
-          px={{ base: '4', lg: '6' }}
-          py="3"
-        >
-          <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.chat, search: { vaultId } as any })}>
-            <MessageSquare size={16} />
-            Ask about this vault
-          </Button>
-        </Flex>
         <VaultPageTabs activeTab={currentVaultTab} />
 
         <TabsContent value="contents" display="flex" flex="1" minH="0" flexDirection="column" p="0">

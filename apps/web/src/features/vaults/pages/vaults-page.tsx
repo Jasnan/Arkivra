@@ -2,11 +2,11 @@ import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderDot, FolderOpen, Grid3X3, Info, List, Settings2, Vault } from 'lucide-react';
+import { FolderDot, FolderOpen, Info, Settings2, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
-import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
+import { useWorkspaceHeader, useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { CreateButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -28,17 +28,12 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatBytes } from '@/features/documents/documents.utils';
-import {
-  FILE_BROWSER_VIEW_STORAGE_KEY,
-  getInitialBrowserView,
-} from '@/features/file-browser/components/vault-browser.types';
-import type { FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
+import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
+import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
 import { useMeQuery } from '@/features/me/me.queries';
 import { createVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { VaultSummary } from '@/features/vaults/vaults.types';
-
-type VaultsView = FileBrowserView;
 
 const VAULTS_LIST_GRID_COLUMNS = 'minmax(0, 1fr) 7rem 4rem 5.75rem 7.5rem 2.5rem';
 
@@ -201,7 +196,7 @@ export function VaultsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState>(null);
-  const [vaultsView, setVaultsView] = useState<VaultsView>(getInitialBrowserView);
+  const [vaultsView, setVaultsView] = usePreferredFileBrowserView();
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const shouldRestoreCreateButtonFocusRef = useRef(false);
@@ -252,16 +247,6 @@ export function VaultsPage() {
 
     window.setTimeout(() => createButtonRef.current?.focus(), 0);
   }, [isCreateModalOpen]);
-
-  function openCreateModal() {
-    setIsCreateModalOpen(true);
-  }
-
-  useEffect(() => {
-    try {
-      window.localStorage?.setItem?.(FILE_BROWSER_VIEW_STORAGE_KEY, vaultsView);
-    } catch {}
-  }, [vaultsView]);
 
   function closeCreateModal() {
     if (createMutation.isPending) {
@@ -314,70 +299,37 @@ export function VaultsPage() {
     });
   }
 
-  const isInWorkspaceShell = useWorkspaceSecondary(null);
+  const vaultHeaderActions = useMemo(() => (
+    <HStack gap="2">
+      <CreateButton ref={createButtonRef} onClick={() => setIsCreateModalOpen(true)}>
+        Create vault
+      </CreateButton>
+      <FileBrowserViewToggle value={vaultsView} onValueChange={setVaultsView} />
+    </HStack>
+  ), [vaultsView, setVaultsView]);
+  const workspaceHeader = useMemo(() => ({
+    actions: vaultHeaderActions,
+  }), [vaultHeaderActions]);
+  const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
+  useWorkspaceSecondary(null);
 
   return (
     <Stack as="section" gap="0" h="full" minH="0">
-      <Flex
-        as="header"
-        align="center"
-        justify="flex-end"
-        gap="3"
-        borderBottomWidth="1px"
-        borderColor="border.surface"
-        bg="bg.workspace"
-        px={{ base: '4', lg: '6' }}
-        py="3"
-      >
-        <CreateButton ref={createButtonRef} onClick={openCreateModal}>
-          Create vault
-        </CreateButton>
-        <HStack
-          gap="0"
-          overflow="hidden"
-          rounded="md"
-          borderWidth="1px"
+      {!isInWorkspaceShell ? (
+        <Flex
+          as="header"
+          align="center"
+          justify="flex-end"
+          gap="3"
+          borderBottomWidth="1px"
           borderColor="border.surface"
-          bg="bg.surface"
+          bg="bg.workspace"
+          px={{ base: '4', lg: '6' }}
+          py="3"
         >
-          <chakra.button
-            type="button"
-            aria-label="Grid view"
-            aria-pressed={vaultsView === 'grid'}
-            display="inline-flex"
-            h="10"
-            w="12"
-            alignItems="center"
-            justifyContent="center"
-            color={vaultsView === 'grid' ? 'white' : 'fg.muted'}
-            bg={vaultsView === 'grid' ? 'teal.solid' : 'transparent'}
-            _hover={{ bg: vaultsView === 'grid' ? 'teal.solid' : 'bg.subtle', color: vaultsView === 'grid' ? 'white' : 'fg' }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
-            onClick={() => setVaultsView('grid')}
-          >
-            <Grid3X3 size={17} />
-          </chakra.button>
-          <chakra.button
-            type="button"
-            aria-label="List view"
-            aria-pressed={vaultsView === 'list'}
-            display="inline-flex"
-            h="10"
-            w="12"
-            alignItems="center"
-            justifyContent="center"
-            color={vaultsView === 'list' ? 'white' : 'fg.muted'}
-            bg={vaultsView === 'list' ? 'teal.solid' : 'transparent'}
-            borderLeftWidth="1px"
-            borderColor="border.surface"
-            _hover={{ bg: vaultsView === 'list' ? 'teal.solid' : 'bg.subtle', color: vaultsView === 'list' ? 'white' : 'fg' }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '-2px' }}
-            onClick={() => setVaultsView('list')}
-          >
-            <List size={17} />
-          </chakra.button>
-        </HStack>
-      </Flex>
+          {vaultHeaderActions}
+        </Flex>
+      ) : null}
 
       <Box
         flex="1"

@@ -1,4 +1,4 @@
-import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
+import type { ChangeEvent, FormEvent, MouseEvent, SetStateAction } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { ROUTES } from '@/app/routes';
 import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -40,10 +41,8 @@ import {
 } from '@/features/file-browser/components/vault-browser-components';
 import {
   FILE_BROWSER_SORT_STORAGE_KEY,
-  FILE_BROWSER_VIEW_STORAGE_KEY,
   getBrowserItemKey,
   getInitialBrowserSort,
-  getInitialBrowserView,
   getItemName,
   getMoveDestinations,
 } from '@/features/file-browser/components/vault-browser.types';
@@ -348,8 +347,9 @@ export function DocumentsPage() {
     ? search.tab as VaultRootPageTab
     : 'contents';
   const queryClient = useQueryClient();
+  const { defaultFileBrowserView } = useAccentColor();
 
-  const [browserView, setBrowserView] = useState<FileBrowserView>(getInitialBrowserView);
+  const [browserView, setBrowserView] = useState<FileBrowserView>(defaultFileBrowserView);
   const [browserSort, setBrowserSort] = useState<FileBrowserSort>(getInitialBrowserSort);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
@@ -367,6 +367,7 @@ export function DocumentsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const directoryInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
+  const hasSessionBrowserViewOverrideRef = useRef(false);
 
   const vaultQuery = useVaultQuery({ vaultId });
   const isRestrictedRootOverview = vaultQuery.data?.vault.accessMode === 'admin';
@@ -542,11 +543,10 @@ export function DocumentsPage() {
   }, [queryClient, vaultId]);
 
   useEffect(() => {
-    try {
-      window.localStorage?.setItem?.(FILE_BROWSER_VIEW_STORAGE_KEY, browserView);
-    } catch {
+    if (!hasSessionBrowserViewOverrideRef.current) {
+      setBrowserView(defaultFileBrowserView);
     }
-  }, [browserView]);
+  }, [defaultFileBrowserView]);
 
   useEffect(() => {
     try {
@@ -781,6 +781,11 @@ export function DocumentsPage() {
     createFolderMutation.mutate();
   }
 
+  function setSessionBrowserView(nextView: SetStateAction<FileBrowserView>) {
+    hasSessionBrowserViewOverrideRef.current = true;
+    setBrowserView(nextView);
+  }
+
   const browserHeader = useVaultBrowserHeader({
     vaultId,
     vaultName: vaultQuery.data?.vault.name ?? 'Vault',
@@ -788,7 +793,7 @@ export function DocumentsPage() {
     breadcrumbs: folderItemsQuery.data?.breadcrumbs ?? [],
     selectedCount,
     browserView,
-    setBrowserView,
+    setBrowserView: setSessionBrowserView,
     browserSort,
     setBrowserSort,
     dropTarget,

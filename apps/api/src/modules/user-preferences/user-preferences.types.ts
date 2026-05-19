@@ -7,6 +7,7 @@ export type UiRadius = 'none' | 'sm' | 'md' | 'lg' | 'xl';
 export type UiLanguage = 'en' | 'de' | 'fr';
 export type UiTimezone = 'auto' | 'utc' | 'europe-berlin' | 'america-new-york';
 export type UiDateFormat = 'medium' | 'numeric' | 'short';
+export type UiFileBrowserView = 'list' | 'grid';
 
 export interface UserUiPreferences {
   themeMode: UiThemeMode;
@@ -18,6 +19,8 @@ export interface UserUiPreferences {
   language: UiLanguage;
   timezone: UiTimezone;
   dateFormat: UiDateFormat;
+  showExtractedTextTab: boolean;
+  defaultFileBrowserView: UiFileBrowserView;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +28,16 @@ export interface UserUiPreferences {
 export type UserUiPreferencesUpdate = Partial<
   Pick<
     UserUiPreferences,
-    'accentColor' | 'dateFormat' | 'density' | 'fontFamily' | 'fontSize' | 'language' | 'radius' | 'themeMode' | 'timezone'
+    'accentColor'
+    | 'dateFormat'
+    | 'defaultFileBrowserView'
+    | 'density'
+    | 'fontFamily'
+    | 'fontSize'
+    | 'language'
+    | 'radius'
+    | 'showExtractedTextTab'
+    | 'themeMode'
+    | 'timezone'
   >
 >;

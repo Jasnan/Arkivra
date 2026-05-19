@@ -20,24 +20,29 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export type PreferenceLanguage = 'en' | 'de' | 'fr';
 export type PreferenceTimezone = 'auto' | 'utc' | 'europe-berlin' | 'america-new-york';
 export type PreferenceDateFormat = 'medium' | 'numeric' | 'short';
+export type PreferenceFileBrowserView = 'list' | 'grid';
 
 export interface AccentColorContextValue {
   accentColor: AccentColor;
   dateFormat: PreferenceDateFormat;
+  defaultFileBrowserView: PreferenceFileBrowserView;
   density: AppearanceDensity;
   fontFamily: AppearanceFont;
   fontSize: AppearanceFontSize;
   language: PreferenceLanguage;
   radius: AppearanceRadius;
+  showExtractedTextTab: boolean;
   themeMode: ThemeMode;
   timezone: PreferenceTimezone;
   setAccentColor: (accentColor: AccentColor) => void;
   setDateFormat: (dateFormat: PreferenceDateFormat) => void;
+  setDefaultFileBrowserView: (defaultFileBrowserView: PreferenceFileBrowserView) => void;
   setDensity: (density: AppearanceDensity) => void;
   setFontFamily: (fontFamily: AppearanceFont) => void;
   setFontSize: (fontSize: AppearanceFontSize) => void;
   setLanguage: (language: PreferenceLanguage) => void;
   setRadius: (radius: AppearanceRadius) => void;
+  setShowExtractedTextTab: (showExtractedTextTab: boolean) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
   setTimezone: (timezone: PreferenceTimezone) => void;
 }

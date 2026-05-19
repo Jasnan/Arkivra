@@ -15,6 +15,8 @@ function createPreferences() {
     language: 'en',
     timezone: 'auto',
     dateFormat: 'medium',
+    showExtractedTextTab: false,
+    defaultFileBrowserView: 'list',
     createdAt: '2026-05-15T00:00:00.000Z',
     updatedAt: '2026-05-15T00:00:00.000Z',
   } as const;
@@ -83,13 +85,25 @@ describe('user preferences routes', () => {
     const response = await app.request('/api/me/preferences', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accentColor: 'blue', fontFamily: 'sora', timezone: 'europe-berlin' }),
+      body: JSON.stringify({
+        accentColor: 'blue',
+        fontFamily: 'sora',
+        defaultFileBrowserView: 'grid',
+        showExtractedTextTab: true,
+        timezone: 'europe-berlin',
+      }),
     });
 
     expect(response.status).toBe(200);
     expect(services.updatePreferences).toHaveBeenCalledWith({
       userId: 'usr_test',
-      preferences: { accentColor: 'blue', fontFamily: 'sora', timezone: 'europe-berlin' },
+      preferences: {
+        accentColor: 'blue',
+        fontFamily: 'sora',
+        defaultFileBrowserView: 'grid',
+        showExtractedTextTab: true,
+        timezone: 'europe-berlin',
+      },
     });
   });
 

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { ChatResponseMode } from '../chat.api';
 import { AnswerModePicker } from './answer-mode-picker';
+import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
+import { ChatContextAddMenu, ContextChipList } from './chat-context-selector';
 
 export function ChatInputPanel({
   disabled,
@@ -17,6 +19,12 @@ export function ChatInputPanel({
   modelOptionsError,
   onSelectedModelChange,
   onResponseModeChange,
+  context,
+  contextLocked,
+  onAddVaults,
+  onAddDocuments,
+  onRemoveVault,
+  onRemoveDocument,
   value,
   onValueChange,
   textareaRef,
@@ -31,6 +39,12 @@ export function ChatInputPanel({
   modelOptionsError?: string | null;
   onSelectedModelChange?: (nextValue: string) => void;
   onResponseModeChange: (nextValue: ChatResponseMode) => void;
+  context?: DraftChatContext;
+  contextLocked?: boolean;
+  onAddVaults?: () => void;
+  onAddDocuments?: () => void;
+  onRemoveVault?: (vault: DraftChatVault) => void;
+  onRemoveDocument?: (document: DraftChatDocument) => void;
   value: string;
   onValueChange: (nextValue: string) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -73,6 +87,15 @@ export function ChatInputPanel({
         p="3"
         boxShadow="md"
       >
+        {context && onRemoveVault && onRemoveDocument ? (
+          <ContextChipList
+            context={context}
+            locked={Boolean(contextLocked)}
+            onRemoveVault={onRemoveVault}
+            onRemoveDocument={onRemoveDocument}
+          />
+        ) : null}
+
         <Textarea
           ref={textareaRef}
           aria-label="Chat message"
@@ -111,6 +134,13 @@ export function ChatInputPanel({
 
         <Flex align="center" justify="space-between" gap="3" pt="3">
           <Flex align="center" gap="2" minW="0" flex="1" flexWrap="wrap">
+            {onAddVaults && onAddDocuments ? (
+              <ChatContextAddMenu
+                disabled={disabled}
+                onAddVaults={onAddVaults}
+                onAddDocuments={onAddDocuments}
+              />
+            ) : null}
             <AnswerModePicker disabled={disabled} value={responseMode} onValueChange={onResponseModeChange} />
 
             {hasModelPicker ? (

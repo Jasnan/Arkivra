@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { ChatApiScope } from './chat.api';
 import {
   createChatConversation,
   deleteChatConversation,

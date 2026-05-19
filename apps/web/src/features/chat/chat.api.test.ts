@@ -42,6 +42,40 @@ describe('chat api helpers', () => {
     }));
   });
 
+  it('creates a composed context conversation through the unified chat endpoint', async () => {
+    const contextSnapshot = {
+      type: 'selection' as const,
+      vaults: [{ vaultId: 'vlt_1', name: 'Finance' }],
+      documents: [{ vaultId: 'vlt_2', documentId: 'doc_2', name: 'Passport.pdf', vaultName: 'Identity' }],
+    };
+    const fetchMock = vi.fn(async () => jsonResponse({
+      conversation: {
+        id: 'cht_2',
+        vaultId: null,
+        documentId: null,
+        scope: 'global',
+        contextSnapshot,
+        userId: 'usr_1',
+        title: 'Compare context',
+        createdAt: '2026-04-30T10:00:00.000Z',
+        updatedAt: '2026-04-30T10:00:00.000Z',
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await createChatConversation({ title: 'Compare context', contextSnapshot });
+
+    expect(result.conversation.contextSnapshot).toEqual(contextSnapshot);
+    expect(fetchMock).toHaveBeenCalledWith('/api/chats', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({
+        title: 'Compare context',
+        contextSnapshot,
+      }),
+    }));
+  });
+
   it('loads chat model options from the unified endpoint', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       options: {

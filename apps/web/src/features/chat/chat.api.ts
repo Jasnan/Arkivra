@@ -41,14 +41,16 @@ export async function getChatModelOptions() {
 
 export async function createChatConversation({
   title,
+  contextSnapshot,
   ...scope
 }: ChatApiScope & {
   title?: string;
+  contextSnapshot?: ChatContextSnapshot;
 }) {
   return fetchJson<{ conversation: ChatConversation }>('/api/chats', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ title, contextSnapshot: getChatContextSnapshot(scope) }),
+    body: JSON.stringify({ title, contextSnapshot: contextSnapshot ?? getChatContextSnapshot(scope) }),
   });
 }
 

@@ -5,7 +5,9 @@ import type { Citation, CitationImageAsset, DocumentSearchServices } from '../se
 import type {
   ChatConversation,
   ChatConversationDetail,
+  ChatContextDocumentRef,
   ChatContextSnapshot,
+  ChatContextVaultRef,
   ChatGenerationMetrics,
   ChatIntent,
   ChatMessage,
@@ -239,7 +241,57 @@ function toMessage(row: ChatMessageRow): ChatMessage {
 }
 
 function isGlobalScope(scope: ChatScopeInput) {
-  return scope.type === 'global';
+  return scope.type === 'global' || scope.type === 'selection';
+}
+
+function normalizeOptionalLabel(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeVaultRefs(vaults: ChatContextVaultRef[]) {
+  const seen = new Set<string>();
+  const normalized: ChatContextVaultRef[] = [];
+
+  for (const vault of vaults) {
+    const vaultId = vault.vaultId.trim();
+    if (vaultId.length === 0 || seen.has(vaultId)) {
+      continue;
+    }
+
+    seen.add(vaultId);
+    normalized.push({
+      vaultId,
+      ...(normalizeOptionalLabel(vault.name) ? { name: normalizeOptionalLabel(vault.name) } : {}),
+    });
+  }
+
+  return normalized;
+}
+
+function normalizeDocumentRefs(documents: ChatContextDocumentRef[]) {
+  const seen = new Set<string>();
+  const normalized: ChatContextDocumentRef[] = [];
+
+  for (const document of documents) {
+    const vaultId = document.vaultId.trim();
+    const documentId = document.documentId.trim();
+    const key = `${vaultId}:${documentId}`;
+    if (vaultId.length === 0 || documentId.length === 0 || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    normalized.push({
+      vaultId,
+      documentId,
+      ...(normalizeOptionalLabel(document.name) ? { name: normalizeOptionalLabel(document.name) } : {}),
+      ...(normalizeOptionalLabel(document.vaultName) ? { vaultName: normalizeOptionalLabel(document.vaultName) } : {}),
+      ...(normalizeOptionalLabel(document.path) ? { path: normalizeOptionalLabel(document.path) } : {}),
+    });
+  }
+
+  return normalized;
 }
 
 function normalizeConversationContextSnapshot(row: ChatConversationRow): ChatContextSnapshot {
@@ -255,12 +307,23 @@ function normalizeConversationContextSnapshot(row: ChatConversationRow): ChatCon
       type: 'document',
       vaultId: row.contextSnapshot.vaultId,
       documentId: row.contextSnapshot.documentId,
+      ...(row.contextSnapshot.vaultName ? { vaultName: row.contextSnapshot.vaultName } : {}),
+      ...(row.contextSnapshot.documentName ? { documentName: row.contextSnapshot.documentName } : {}),
+    };
+  }
+
+  if (row.contextSnapshot.type === 'selection') {
+    return {
+      type: 'selection',
+      vaults: normalizeVaultRefs(row.contextSnapshot.vaults),
+      documents: normalizeDocumentRefs(row.contextSnapshot.documents),
     };
   }
 
   return {
     type: 'vault',
     vaultId: row.contextSnapshot.vaultId,
+    ...(row.contextSnapshot.vaultName ? { vaultName: row.contextSnapshot.vaultName } : {}),
   };
 }
 
@@ -744,7 +807,7 @@ export function normalizeChatGenerationError(error: unknown) {
 }
 
 function getScopeValues(scope: ChatScopeInput) {
-  if (scope.type === 'global') {
+  if (scope.type === 'global' || scope.type === 'selection') {
     return {
       scope: 'global' as const,
       vaultId: null,
@@ -767,16 +830,97 @@ function getScopeValues(scope: ChatScopeInput) {
   };
 }
 
-function getSearchScope(scope: ChatScopeInput) {
+async function searchHybridForScope({
+  searchServices,
+  scope,
+  query,
+  limit,
+}: {
+  searchServices: DocumentSearchServices;
+  scope: ChatScopeInput;
+  query: string;
+  limit: number;
+}) {
   if (scope.type === 'global') {
-    return { vaultIds: scope.vaultIds };
+    return searchServices.searchHybrid({
+      vaultIds: scope.vaultIds,
+      query,
+      limit,
+      mode: 'hybrid',
+    });
+  }
+
+  if (scope.type === 'vault') {
+    return searchServices.searchHybrid({
+      vaultId: scope.vaultId,
+      query,
+      limit,
+      mode: 'hybrid',
+    });
   }
 
   if (scope.type === 'document') {
-    return { vaultId: scope.vaultId, documentId: scope.documentId };
+    return searchServices.searchHybrid({
+      vaultId: scope.vaultId,
+      documentId: scope.documentId,
+      query,
+      limit,
+      mode: 'hybrid',
+    });
   }
 
-  return { vaultId: scope.vaultId };
+  const selectedVaultIds = normalizeVaultRefs(scope.vaults).map(vault => vault.vaultId);
+  const selectedVaultIdsSet = new Set(selectedVaultIds);
+  const documentRefs = normalizeDocumentRefs(scope.documents)
+    .filter(document => !selectedVaultIdsSet.has(document.vaultId));
+  const searches = [
+    selectedVaultIds.length > 0
+      ? searchServices.searchHybrid({
+          vaultIds: selectedVaultIds,
+          query,
+          limit,
+          mode: 'hybrid',
+        })
+      : null,
+    ...documentRefs.map(document =>
+      searchServices.searchHybrid({
+        vaultId: document.vaultId,
+        documentId: document.documentId,
+        query,
+        limit,
+        mode: 'hybrid',
+      }),
+    ),
+  ].filter((search): search is ReturnType<DocumentSearchServices['searchHybrid']> => search !== null);
+
+  if (searches.length === 0) {
+    return {
+      query,
+      limit,
+      mode: 'hybrid' as const,
+      citations: [],
+    };
+  }
+
+  const results = await Promise.all(searches);
+  const citationsByChunkId = new Map<string, Citation>();
+  for (const result of results) {
+    for (const citation of result.citations) {
+      const current = citationsByChunkId.get(citation.chunkId);
+      if (current === undefined || citation.score > current.score) {
+        citationsByChunkId.set(citation.chunkId, citation);
+      }
+    }
+  }
+
+  return {
+    query,
+    limit,
+    mode: results.some(result => result.mode === 'hybrid') ? 'hybrid' as const : 'fts' as const,
+    citations: [...citationsByChunkId.values()]
+      .sort((left, right) => right.score - left.score)
+      .slice(0, limit),
+  };
 }
 
 function getConversationOwnershipConditions({
@@ -1391,11 +1535,11 @@ export function createChatServices({
             }
 
             send({ type: 'status', label: 'retrieval' });
-            const result = await searchServices.searchHybrid({
-              ...getSearchScope(scope),
+            const result = await searchHybridForScope({
+              searchServices,
+              scope,
               query: content,
               limit: citationLimit,
-              mode: 'hybrid',
             });
             citations = rankCitationsForQuestion({
               question: content,

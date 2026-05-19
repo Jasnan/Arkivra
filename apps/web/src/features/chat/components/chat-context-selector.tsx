@@ -5,7 +5,7 @@ import { Virtuoso } from 'react-virtuoso';
 import { Box, Checkbox as ChakraCheckbox, CloseButton, Flex, Stack, Text, chakra } from '@chakra-ui/react';
 import { Check, FileText, Folder, Lock, Paperclip, Search, Vault, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +13,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
 import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem } from '@/features/search/search.types';
@@ -324,37 +325,82 @@ export function ContextChipList({
   const normalized = normalizeDraftContext(context);
   const hasContext = !isDraftContextEmpty(normalized);
 
-  if (!hasContext) {
-    return null;
-  }
-
   return (
-    <Flex align="center" gap="2" flexWrap="wrap" pb="2">
-      <Text as="span" flexShrink="0" fontSize="xs" fontWeight="semibold" color="fg.muted">
-        {locked ? 'Chatting Across:' : 'Context:'}
-      </Text>
-      {normalized.vaults.map(vault => (
+    <Flex align="center" gap="2" flexWrap="wrap" pb="2" aria-label="Active conversation context">
+      <Flex align="center" gap="2" flexShrink="0">
+        <Text as="span" fontSize="xs" fontWeight="semibold" color="fg.muted">
+          Context:
+        </Text>
+        {locked ? <LockedContextBadge /> : null}
+      </Flex>
+      {hasContext ? (
+        <>
+          {normalized.vaults.map(vault => (
+            <ContextChip
+              key={vaultKey(vault)}
+              icon={<Vault size={14} />}
+              label={vault.name ?? vault.vaultId}
+              locked={locked}
+              removeLabel={`Remove ${vault.name ?? vault.vaultId} from context`}
+              onRemove={() => onRemoveVault(vault)}
+            />
+          ))}
+          {normalized.documents.map(document => (
+            <ContextChip
+              key={documentKey(document)}
+              icon={<FileText size={14} />}
+              label={document.name ?? document.documentId}
+              detail={document.vaultName}
+              locked={locked}
+              removeLabel={`Remove ${document.name ?? document.documentId} from context`}
+              onRemove={() => onRemoveDocument(document)}
+            />
+          ))}
+        </>
+      ) : (
         <ContextChip
-          key={vaultKey(vault)}
           icon={<Vault size={14} />}
-          label={vault.name ?? vault.vaultId}
+          label="All accessible vaults"
           locked={locked}
-          removeLabel={`Remove ${vault.name ?? vault.vaultId} from context`}
-          onRemove={() => onRemoveVault(vault)}
+          readOnly
         />
-      ))}
-      {normalized.documents.map(document => (
-        <ContextChip
-          key={documentKey(document)}
-          icon={<FileText size={14} />}
-          label={document.name ?? document.documentId}
-          detail={document.vaultName}
-          locked={locked}
-          removeLabel={`Remove ${document.name ?? document.documentId} from context`}
-          onRemove={() => onRemoveDocument(document)}
-        />
-      ))}
+      )}
     </Flex>
+  );
+}
+
+function LockedContextBadge() {
+  return (
+    <Tooltip positioning={{ placement: 'top' }}>
+      <TooltipTrigger asChild>
+        <chakra.button
+          type="button"
+          aria-label="Locked Context: this conversation uses a fixed document and vault context"
+          cursor="help"
+          display="inline-flex"
+          alignItems="center"
+          gap="1"
+          rounded="full"
+          borderWidth="1px"
+          borderColor="border.surface"
+          bg="bg.subtle"
+          px="2"
+          py="1"
+          color="fg.muted"
+          fontSize="0.68rem"
+          fontWeight="semibold"
+          lineHeight="1"
+          textTransform="uppercase"
+          _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+        >
+          <Lock size={11} />
+          Locked Context
+        </chakra.button>
+      </TooltipTrigger>
+      <TooltipContent>
+        This conversation uses a fixed document and vault context to preserve consistent references and history.
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -363,6 +409,7 @@ function ContextChip({
   label,
   detail,
   locked,
+  readOnly,
   removeLabel,
   onRemove,
 }: {
@@ -370,8 +417,9 @@ function ContextChip({
   label: string;
   detail?: string;
   locked: boolean;
-  removeLabel: string;
-  onRemove: () => void;
+  readOnly?: boolean;
+  removeLabel?: string;
+  onRemove?: () => void;
 }) {
   return (
     <Flex
@@ -405,21 +453,23 @@ function ContextChip({
           {detail}
         </Text>
       ) : null}
-      <chakra.button
-        type="button"
-        aria-label={removeLabel}
-        display="inline-flex"
-        alignItems="center"
-        justifyContent="center"
-        rounded="full"
-        color="fg.muted"
-        cursor="pointer"
-        _hover={{ bg: 'bg.muted', color: 'fg' }}
-        _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
-        onClick={onRemove}
-      >
-        <X size={13} />
-      </chakra.button>
+      {!readOnly && removeLabel && onRemove ? (
+        <chakra.button
+          type="button"
+          aria-label={removeLabel}
+          display="inline-flex"
+          alignItems="center"
+          justifyContent="center"
+          rounded="full"
+          color="fg.muted"
+          cursor="pointer"
+          _hover={{ bg: 'bg.muted', color: 'fg' }}
+          _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+          onClick={onRemove}
+        >
+          <X size={13} />
+        </chakra.button>
+      ) : null}
     </Flex>
   );
 }
@@ -476,45 +526,66 @@ export function VaultSelectionDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent maxW="42rem">
+    <Dialog open={open} size="md" onOpenChange={onOpenChange}>
+      <DialogContent hideCloseButton>
+        <DialogClose asChild>
+          <CloseButton
+            size="sm"
+            position="absolute"
+            top="3"
+            right="3"
+            aria-label="Close add vaults dialog"
+          />
+        </DialogClose>
         <DialogHeader style={{ padding: '1.25rem 1.25rem 0.75rem' }}>
           <DialogTitle>Add Vaults</DialogTitle>
-          <DialogDescription>Select vaults with full AI access.</DialogDescription>
+          <DialogDescription>Only vaults with full AI access are shown.</DialogDescription>
         </DialogHeader>
-        <Box px="5" pb="4">
-          <Flex align="center" gap="2" mb="3">
-            <Search size={16} color="var(--chakra-colors-fg-muted)" />
-            <Input
-              aria-label="Search vaults"
-              value={query}
-              placeholder="Search vaults"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </Flex>
-          <Box h="22rem" rounded="lg" borderWidth="1px" borderColor="border.surface" overflow="hidden">
-            {filteredVaults.length === 0 ? (
-              <Flex h="full" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
-                <Text fontSize="sm">No vaults found.</Text>
-              </Flex>
-            ) : (
-              <Virtuoso
-                style={{ height: '100%' }}
-                data={filteredVaults}
-                initialItemCount={Math.min(filteredVaults.length, 24)}
-                itemContent={(_, vault) => (
-                  <Box px="2" py="1.5">
-                    <VaultSelectionRow
-                      vault={vault}
-                      selected={selectedIds.has(vault.id)}
-                      onToggle={() => toggleVault(vault.id)}
-                    />
-                  </Box>
-                )}
+        <DialogBody asChild>
+          <Stack gap="3" px="5" pb="4">
+            <Box position="relative">
+              <Box
+                position="absolute"
+                left="3"
+                top="50%"
+                transform="translateY(-50%)"
+                color="fg.muted"
+                pointerEvents="none"
+              >
+                <Search size={16} />
+              </Box>
+              <Input
+                aria-label="Search vaults"
+                value={query}
+                placeholder="Search vaults"
+                pl="9"
+                onChange={(event) => setQuery(event.target.value)}
               />
-            )}
-          </Box>
-        </Box>
+            </Box>
+            <Box h="22rem" rounded="lg" borderWidth="1px" borderColor="border.surface" overflow="hidden">
+              {filteredVaults.length === 0 ? (
+                <Flex h="full" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
+                  <Text fontSize="sm">No vaults found.</Text>
+                </Flex>
+              ) : (
+                <Virtuoso
+                  style={{ height: '100%' }}
+                  data={filteredVaults}
+                  initialItemCount={Math.min(filteredVaults.length, 24)}
+                  itemContent={(_, vault) => (
+                    <Box px="2" py="1">
+                      <VaultSelectionRow
+                        vault={vault}
+                        selected={selectedIds.has(vault.id)}
+                        onToggle={() => toggleVault(vault.id)}
+                      />
+                    </Box>
+                  )}
+                />
+              )}
+            </Box>
+          </Stack>
+        </DialogBody>
         <DialogFooter style={{ padding: '0 1.25rem 1.25rem' }}>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -559,8 +630,8 @@ function VaultSelectionRow({
         <ChakraCheckbox.Indicator />
       </ChakraCheckbox.Control>
       <Flex align="center" gap="3" minW="0" flex="1">
-        <Flex boxSize="9" align="center" justify="center" rounded="md" bg="bg.surface" color="teal.fg">
-          <Vault size={18} />
+        <Flex boxSize="10" align="center" justify="center" color="teal.fg" flexShrink="0">
+          <Vault size={36} strokeWidth={1.5} />
         </Flex>
         <Box minW="0" flex="1">
           <Text truncate fontSize="sm" fontWeight="semibold" color="fg">
@@ -589,15 +660,24 @@ export function DocumentSelectionDialog({
   onConfirm: (documents: DraftChatDocument[]) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [vaultFilter, setVaultFilter] = useState('all');
+  const [selectedFilterVaultIds, setSelectedFilterVaultIds] = useState<string[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<Map<string, DraftChatDocument>>(new Map());
   const selectableVaults = useMemo(
     () => vaults.filter(vault => vault.aiAccessLevel === 'document_chat' || vault.aiAccessLevel === 'full'),
     [vaults],
   );
-  const effectiveVaultIds = vaultFilter === 'all'
+  const effectiveVaultIds = selectedFilterVaultIds.length === 0
     ? selectableVaults.map(vault => vault.id)
-    : [vaultFilter];
+    : selectedFilterVaultIds;
+  const selectedFilterVaults = useMemo(
+    () => selectableVaults.filter(vault => selectedFilterVaultIds.includes(vault.id)),
+    [selectableVaults, selectedFilterVaultIds],
+  );
+  const selectedFilterVaultsLabel = useMemo(() => {
+    if (selectedFilterVaults.length === 0) return 'All vaults';
+    if (selectedFilterVaults.length <= 2) return selectedFilterVaults.map(vault => vault.name).join(', ');
+    return `${selectedFilterVaults[0].name}, ${selectedFilterVaults[1].name} +${selectedFilterVaults.length - 2}`;
+  }, [selectedFilterVaults]);
   const documentQuery = useGlobalSearchDocumentsQuery({
     query,
     pageIndex: 0,
@@ -612,7 +692,7 @@ export function DocumentSelectionDialog({
     if (!open) return;
     setSelectedDocuments(new Map(context.documents.map(document => [documentKey(document), document])));
     setQuery('');
-    setVaultFilter('all');
+    setSelectedFilterVaultIds([]);
   }, [context.documents, open]);
 
   function toggleDocument(document: SearchResultItem) {
@@ -640,67 +720,93 @@ export function DocumentSelectionDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent maxW="48rem">
+    <Dialog open={open} size="md" onOpenChange={onOpenChange}>
+      <DialogContent hideCloseButton>
+        <DialogClose asChild>
+          <CloseButton
+            size="sm"
+            position="absolute"
+            top="3"
+            right="3"
+            aria-label="Close add documents dialog"
+          />
+        </DialogClose>
         <DialogHeader style={{ padding: '1.25rem 1.25rem 0.75rem' }}>
           <DialogTitle>Add Documents</DialogTitle>
-          <DialogDescription>Select indexed documents from vaults with AI access.</DialogDescription>
+          <DialogDescription>Only indexed documents from vaults with AI access are shown.</DialogDescription>
         </DialogHeader>
-        <Stack gap="3" px="5" pb="4">
-          <Flex gap="2" direction={{ base: 'column', sm: 'row' }}>
-            <Flex align="center" gap="2" flex="1">
-              <Search size={16} color="var(--chakra-colors-fg-muted)" />
-              <Input
-                aria-label="Search documents"
-                value={query}
-                placeholder="Search documents"
-                onChange={(event) => setQuery(event.target.value)}
-              />
+        <DialogBody asChild>
+          <Stack gap="3" px="5" pb="4">
+            <Flex gap="2" direction={{ base: 'column', sm: 'row' }}>
+              <Box position="relative" flex="1">
+                <Box
+                  position="absolute"
+                  left="3"
+                  top="50%"
+                  transform="translateY(-50%)"
+                  color="fg.muted"
+                  pointerEvents="none"
+                >
+                  <Search size={16} />
+                </Box>
+                <Input
+                  aria-label="Search documents"
+                  value={query}
+                  placeholder="Search documents"
+                  pl="9"
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </Box>
+              <Box w={{ base: 'full', sm: '14rem' }}>
+                <SearchFilterMultiSelect
+                  label="Vaults"
+                  triggerLabel={selectedFilterVaultsLabel}
+                  triggerAriaLabel="Vault filter"
+                  searchLabel="Search vaults"
+                  searchPlaceholder="Search vaults"
+                  emptyLabel="No vaults found."
+                  loadingLabel="Loading vaults..."
+                  options={selectableVaults.map(vault => ({
+                    value: vault.id,
+                    label: vault.name,
+                  }))}
+                  selectedValues={selectedFilterVaultIds}
+                  onValueChange={setSelectedFilterVaultIds}
+                  onClear={() => setSelectedFilterVaultIds([])}
+                  hideLabel
+                  controlSize="toolbar"
+                />
+              </Box>
             </Flex>
-            <Box w={{ base: 'full', sm: '14rem' }}>
-              <Select value={vaultFilter} onValueChange={setVaultFilter}>
-                <SelectTrigger aria-label="Filter by vault">
-                  <SelectValue placeholder="All vaults" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All vaults</SelectItem>
-                  {selectableVaults.map(vault => (
-                    <SelectItem key={vault.id} value={vault.id}>
-                      {vault.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Box>
-          </Flex>
 
-          <Box h="24rem" rounded="lg" borderWidth="1px" borderColor="border.surface" overflow="hidden">
-            {documentQuery.isLoading ? (
-              <Flex h="full" align="center" justify="center" px="6" color="fg.muted">
-                <Text fontSize="sm">Loading documents...</Text>
-              </Flex>
-            ) : documents.length === 0 ? (
-              <Flex h="full" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
-                <Text fontSize="sm">No documents found.</Text>
-              </Flex>
-            ) : (
-              <Virtuoso
-                style={{ height: '100%' }}
-                data={documents}
-                initialItemCount={Math.min(documents.length, 24)}
-                itemContent={(_, document) => (
-                  <Box px="2" py="1.5">
-                    <DocumentSelectionRow
-                      document={document}
-                      selected={selectedDocuments.has(`${document.vaultId}:${document.documentId}`)}
-                      onToggle={() => toggleDocument(document)}
-                    />
-                  </Box>
-                )}
-              />
-            )}
-          </Box>
-        </Stack>
+            <Box h="24rem" rounded="lg" borderWidth="1px" borderColor="border.surface" overflow="hidden">
+              {documentQuery.isLoading ? (
+                <Flex h="full" align="center" justify="center" px="6" color="fg.muted">
+                  <Text fontSize="sm">Loading documents...</Text>
+                </Flex>
+              ) : documents.length === 0 ? (
+                <Flex h="full" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
+                  <Text fontSize="sm">No documents found.</Text>
+                </Flex>
+              ) : (
+                <Virtuoso
+                  style={{ height: '100%' }}
+                  data={documents}
+                  initialItemCount={Math.min(documents.length, 24)}
+                  itemContent={(_, document) => (
+                    <Box px="2" py="1">
+                      <DocumentSelectionRow
+                        document={document}
+                        selected={selectedDocuments.has(`${document.vaultId}:${document.documentId}`)}
+                        onToggle={() => toggleDocument(document)}
+                      />
+                    </Box>
+                  )}
+                />
+              )}
+            </Box>
+          </Stack>
+        </DialogBody>
         <DialogFooter style={{ padding: '0 1.25rem 1.25rem' }}>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -794,40 +900,177 @@ function DocumentSelectionRow({
 export function ConversationForkDialog({
   open,
   isPending,
+  currentContext,
+  nextContext,
   onOpenChange,
   onConfirm,
 }: {
   open: boolean;
   isPending?: boolean;
+  currentContext: DraftChatContext;
+  nextContext: DraftChatContext;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent maxW="28rem">
-        <DialogHeader style={{ padding: '1.25rem 1.25rem 0.75rem' }}>
-          <DialogTitle>Changing context creates a new conversation.</DialogTitle>
+    <Dialog open={open} size="md" onOpenChange={onOpenChange}>
+      <DialogContent hideCloseButton>
+        <DialogClose asChild>
+          <CloseButton
+            size="sm"
+            position="absolute"
+            top="3"
+            right="3"
+            aria-label="Close context change dialog"
+          />
+        </DialogClose>
+        <DialogHeader style={{ padding: '1.25rem 3.5rem 0.75rem 1.25rem' }}>
+          <DialogTitle>Start a new conversation with updated context?</DialogTitle>
           <DialogDescription>
-            The current conversation keeps its original retrieval scope.
+            Conversations preserve their original document and vault context to keep references, retrieval results, and answers consistent over time.
           </DialogDescription>
         </DialogHeader>
+        <DialogBody asChild>
+          <Stack gap="4" px="5" pb="4">
+            <Stack gap="2" color="fg.muted" fontSize="sm" lineHeight="1.55">
+              <Text>
+                Adding or removing documents or vaults creates a new conversation with the updated context.
+              </Text>
+              <Text>
+                Your current conversation will remain unchanged.
+              </Text>
+            </Stack>
+            <ConversationContextPreview
+              title="Current Conversation Context"
+              context={currentContext}
+            />
+            <ConversationContextPreview
+              title="New Conversation Context"
+              context={nextContext}
+              emphasized
+            />
+          </Stack>
+        </DialogBody>
         <DialogFooter style={{ padding: '0 1.25rem 1.25rem' }}>
           <Button type="button" variant="outline" disabled={isPending} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button type="button" disabled={isPending} onClick={onConfirm}>
-            Continue in New Chat
+            Continue in New Conversation
           </Button>
         </DialogFooter>
-        <CloseButton
-          size="sm"
-          position="absolute"
-          top="3"
-          right="3"
-          aria-label="Close context change dialog"
-          onClick={() => onOpenChange(false)}
-        />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ConversationContextPreview({
+  title,
+  context,
+  emphasized,
+}: {
+  title: string;
+  context: DraftChatContext;
+  emphasized?: boolean;
+}) {
+  const normalized = normalizeDraftContext(context);
+  const hasContext = !isDraftContextEmpty(normalized);
+
+  return (
+    <Box
+      rounded="lg"
+      borderWidth="1px"
+      borderColor={emphasized ? 'teal.muted' : 'border.surface'}
+      bg={emphasized ? 'teal.subtle' : 'bg.subtle'}
+      px="3.5"
+      py="3"
+    >
+      <Text mb="2" fontSize="xs" fontWeight="semibold" color="fg.muted">
+        {title}
+      </Text>
+      <Flex
+        role="list"
+        aria-label={title}
+        maxH="7.5rem"
+        overflowY="auto"
+        gap="2"
+        flexWrap="wrap"
+        pr="1"
+      >
+        {hasContext ? (
+          <>
+            {normalized.vaults.map(vault => (
+              <ContextPreviewChip
+                key={vaultKey(vault)}
+                icon={<Vault size={14} />}
+                label={vault.name ?? vault.vaultId}
+                typeLabel="Vault"
+              />
+            ))}
+            {normalized.documents.map(document => (
+              <ContextPreviewChip
+                key={documentKey(document)}
+                icon={<FileText size={14} />}
+                label={document.name ?? document.documentId}
+                detail={document.vaultName}
+                typeLabel="Document"
+              />
+            ))}
+          </>
+        ) : (
+          <ContextPreviewChip
+            icon={<Vault size={14} />}
+            label="All accessible vaults"
+            typeLabel="Global context"
+          />
+        )}
+      </Flex>
+    </Box>
+  );
+}
+
+function ContextPreviewChip({
+  icon,
+  label,
+  detail,
+  typeLabel,
+}: {
+  icon: ReactNode;
+  label: string;
+  detail?: string;
+  typeLabel: string;
+}) {
+  const accessibleLabel = detail ? `${typeLabel}: ${label}, ${detail}` : `${typeLabel}: ${label}`;
+
+  return (
+    <Flex
+      role="listitem"
+      aria-label={accessibleLabel}
+      align="center"
+      gap="1.5"
+      minW="0"
+      maxW="100%"
+      rounded="full"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      px="2.5"
+      py="1.5"
+      color="fg"
+      fontSize="xs"
+      fontWeight="medium"
+    >
+      <Box as="span" color="fg.muted" flexShrink="0">
+        {icon}
+      </Box>
+      <Text as="span" minW="0" truncate>
+        {label}
+      </Text>
+      {detail ? (
+        <Text as="span" display={{ base: 'none', sm: 'inline' }} color="fg.muted" truncate>
+          {detail}
+        </Text>
+      ) : null}
+    </Flex>
   );
 }

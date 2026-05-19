@@ -1,10 +1,10 @@
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, MessageSquarePlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ChatConversation } from '../chat.types';
 import type { useChatConversationsQuery } from '../chat.queries';
-import { formatDate, NEW_CHAT_DRAFT_ID } from './chat-utils';
+import { formatDate } from './chat-utils';
 
 export function ChatConversationRail({
   showHeader = true,
@@ -30,7 +30,7 @@ export function ChatConversationRail({
   return (
     <>
       {showHeader ? (
-        <Flex align="center" justify="space-between" gap="3" px="4" py="4" borderBottomWidth="1px" borderColor="border.surface">
+        <Flex align="center" justify="space-between" gap="3" px="0" py="4" borderBottomWidth="1px" borderColor="border.surface">
           <Flex align="center" gap="2" fontSize="sm" fontWeight="semibold" color="fg">
             Conversations
           </Flex>
@@ -38,11 +38,13 @@ export function ChatConversationRail({
             type="button"
             variant="outline"
             colorPalette="teal"
+            aria-label="New chat"
+            title="New chat"
             onClick={onCreateConversation}
             disabled={createConversationPending}
-            style={{ height: '2rem', borderRadius: '0.5rem', padding: '0 0.75rem' }}
+            style={{ height: '2rem', width: '2rem', borderRadius: '0.5rem', padding: '0' }}
           >
-            <Text as="span" fontSize="xs" fontWeight="semibold">New chat</Text>
+            <MessageSquarePlus size={16} />
           </Button>
         </Flex>
       ) : (
@@ -51,11 +53,13 @@ export function ChatConversationRail({
             type="button"
             variant="solid"
             colorPalette="teal"
+            aria-label="New chat"
+            title="New chat"
             onClick={onCreateConversation}
             disabled={createConversationPending}
-            style={{ height: '2rem', borderRadius: '0.5rem', padding: '0 0.75rem' }}
+            style={{ height: '2rem', width: '2rem', borderRadius: '0.5rem', padding: '0' }}
           >
-            <Text as="span" fontSize="xs" fontWeight="semibold">New chat</Text>
+            <MessageSquarePlus size={16} />
           </Button>
         </Flex>
       )}
@@ -68,7 +72,7 @@ export function ChatConversationRail({
         flex="1"
         overflowY="auto"
         overflowX="hidden"
-        px={showHeader ? '4' : '0'}
+        px="0"
         mt={showHeader ? '4' : '2'}
       >
         {conversationsQuery.isLoading ? (
@@ -96,7 +100,7 @@ export function ChatConversationRail({
                             flex="1"
                             overflow="hidden"
                             rounded="md"
-                            px="3"
+                            px="3.5"
                             py="2.5"
                             pr="8"
                             textAlign="left"
@@ -128,24 +132,22 @@ export function ChatConversationRail({
                         </TooltipTrigger>
                         <TooltipContent>{conversation.title}</TooltipContent>
                       </Tooltip>
-                      {conversation.id === NEW_CHAT_DRAFT_ID ? null : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Delete ${conversation.title}`}
-                          position="absolute"
-                          right="1"
-                          top="50%"
-                          transform="translateY(-50%)"
-                          opacity="0"
-                          _groupHover={{ opacity: '1' }}
-                          style={{ height: '1.5rem', width: '1.5rem', borderRadius: '9999px', flexShrink: 0 }}
-                          onClick={() => onDeleteConversation(conversation.id)}
-                        >
-                          <Trash2 size={12} />
-                        </Button>
-                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${conversation.title}`}
+                        position="absolute"
+                        right="1"
+                        top="50%"
+                        transform="translateY(-50%)"
+                        opacity="0"
+                        _groupHover={{ opacity: '1' }}
+                        style={{ height: '1.5rem', width: '1.5rem', borderRadius: '9999px', flexShrink: 0 }}
+                        onClick={() => onDeleteConversation(conversation.id)}
+                      >
+                        <Trash2 size={12} />
+                      </Button>
                     </Flex>
                   ))}
                 </Flex>

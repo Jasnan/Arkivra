@@ -189,6 +189,7 @@ export function ChatWorkspace({
   const [pendingForkContext, setPendingForkContext] = useState<DraftChatContext | null>(null);
   const [isForkDialogOpen, setIsForkDialogOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previousSelectedConversationIdRef = useRef(selectedConversationId);
   const isStreaming = isAssistantResponsePending || streamStatus !== null;
   const shouldAutoSelectLatestConversation = !vaultId && !documentId && selectedConversationId === undefined;
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
@@ -317,11 +318,11 @@ export function ChatWorkspace({
   }, []);
 
   useEffect(() => {
-    if (selectedConversationId !== undefined && selectedConversationId !== selectedChatId) {
-      setSelectedChatId(selectedConversationId);
-      resetComposerState();
-    }
-  }, [resetComposerState, selectedChatId, selectedConversationId]);
+    if (selectedConversationId === previousSelectedConversationIdRef.current) return;
+    previousSelectedConversationIdRef.current = selectedConversationId;
+    setSelectedChatId(selectedConversationId ?? '');
+    resetComposerState();
+  }, [resetComposerState, selectedConversationId]);
 
   useEffect(() => {
     if (selectedConversationId === undefined && selectedChatId.length === 0) {
@@ -349,10 +350,17 @@ export function ChatWorkspace({
   }, [handleSelectConversation]);
 
   const handleDeleteConversation = useCallback(async (chatId: string) => {
+    if (chatId === NEW_CHAT_DRAFT_ID) {
+      setSelectedChatId('');
+      setDraftContext(initialDraftContext);
+      resetComposerState();
+      return;
+    }
+
     await deleteConversation.mutateAsync({ chatId });
     if (selectedChatId === chatId) setSelectedChatId('');
     await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
-  }, [deleteConversation, queryClient, selectedChatId]);
+  }, [deleteConversation, initialDraftContext, queryClient, resetComposerState, selectedChatId]);
 
   const handleDeleteConversationClick = useCallback((chatId: string) => {
     void handleDeleteConversation(chatId);
@@ -810,6 +818,8 @@ export function ChatWorkspace({
       <ConversationForkDialog
         open={isForkDialogOpen}
         isPending={createConversation.isPending}
+        currentContext={displayedContext}
+        nextContext={pendingForkContext ?? displayedContext}
         onOpenChange={handleForkDialogOpenChange}
         onConfirm={() => {
           void handleConfirmFork();

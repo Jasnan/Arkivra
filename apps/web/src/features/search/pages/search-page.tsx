@@ -786,7 +786,6 @@ export function SearchPage() {
               options={vaults.map((vault) => ({
                 value: vault.id,
                 label: vault.name,
-                meta: vault.aiAccessLevel === 'full' ? 'Full AI' : undefined,
               }))}
               selectedValues={selectedVaultIds}
               isLoading={vaultsQuery.isLoading}

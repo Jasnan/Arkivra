@@ -217,7 +217,8 @@ export function SearchFilterMultiSelect({
                     gap="2"
                     minH={controlSize === 'toolbar' ? 'var(--arkivra-menuItemMinHeight, 2.5rem)' : undefined}
                     rounded="md"
-                    px={controlSize === 'toolbar' ? '10' : '3'}
+                    px={controlSize === 'toolbar' ? '3' : '3'}
+                    pr={controlSize === 'toolbar' ? '10' : '3'}
                     py="var(--arkivra-menuItemPaddingY, 0.5rem)"
                     fontSize="sm"
                     fontWeight="medium"
@@ -249,7 +250,8 @@ export function SearchFilterMultiSelect({
                       minH={controlSize === 'toolbar' ? 'var(--arkivra-menuItemMinHeight, 2.5rem)' : undefined}
                       rounded="md"
                       bg={controlSize === 'toolbar' && isSelected ? 'teal.subtle' : undefined}
-                      px={controlSize === 'toolbar' ? '10' : '3'}
+                      px={controlSize === 'toolbar' ? '3' : '3'}
+                      pr={controlSize === 'toolbar' ? '10' : '3'}
                       py="var(--arkivra-menuItemPaddingY, 0.5rem)"
                       position="relative"
                       fontSize="sm"
@@ -263,7 +265,7 @@ export function SearchFilterMultiSelect({
                       {controlSize === 'toolbar' ? (
                         <Box
                           position="absolute"
-                          left="2.5"
+                          right="2.5"
                           top="50%"
                           display="flex"
                           boxSize="5"

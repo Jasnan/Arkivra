@@ -178,6 +178,11 @@ const adminNavItems = [
 
 const QUICK_SEARCH_QUERY_DEBOUNCE_MS = 280;
 
+function isChatPath(pathname: string) {
+  const parts = pathname.split('/').filter(Boolean);
+  return parts[0] === 'chat' || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'));
+}
+
 const accountMenuItemProps = {
   cursor: 'default',
   color: 'fg.muted',
@@ -225,7 +230,7 @@ function buildBreadcrumbs({
   const currentDocumentLabel = documentName ?? 'Document';
 
   if (parts.length === 0 || pathname === ROUTES.vaults) return [{ label: 'Vaults' }];
-  if (pathname === ROUTES.chat) return [{ label: 'Chat' }];
+  if (isChatPath(pathname)) return [{ label: 'Chat' }];
   if (pathname === ROUTES.trash) return [{ label: 'Trash' }];
   if (parts[0] === 'trash' && parts[1]) return [{ label: 'Trash', to: ROUTES.trash }, { label: currentDocumentLabel }];
   if (pathname === ROUTES.tags) return [{ label: 'Tags' }];
@@ -287,7 +292,7 @@ function buildBreadcrumbs({
 function primaryNavId(pathname: string): PrimaryNavItem['id'] | null {
   const parts = pathname.split('/').filter(Boolean);
 
-  if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
+  if (isChatPath(pathname)) return 'chat';
   if (pathname === ROUTES.search) return 'search';
   if (pathname === ROUTES.tags) return 'tags';
   if (pathname === ROUTES.trash || parts[0] === 'trash') return 'trash';
@@ -532,7 +537,6 @@ function SecondaryRouteNavList({
 }
 
 function SecondarySidebar({
-  title,
   kind,
   isOpen,
   activeVaultId,
@@ -543,7 +547,6 @@ function SecondarySidebar({
   canCreateVault,
   onCreateVault,
 }: {
-  title: string;
   kind: 'vault' | 'chat' | 'settings' | 'admin' | 'standard';
   isOpen: boolean;
   activeVaultId?: string | null;
@@ -566,7 +569,7 @@ function SecondarySidebar({
     enabled: kind === 'vault' && Boolean(treeVaultId),
   });
   const vaults = vaultsQuery.data?.vaults ?? [];
-  const usesSecondaryNavSystem = kind === 'settings' || kind === 'admin' || (kind === 'vault' && customContent !== null);
+  const usesSecondaryNavSystem = kind === 'settings' || kind === 'admin' || (kind === 'chat' && customContent !== null) || (kind === 'vault' && customContent !== null);
 
   return (
     <Flex
@@ -587,20 +590,6 @@ function SecondarySidebar({
       pointerEvents={isOpen ? undefined : 'none'}
       transition="width 180ms ease, border-color 180ms ease, box-shadow 180ms ease"
     >
-      {kind === 'vault' && customContent ? null : (
-        <Flex
-          h="3.5rem"
-          align="center"
-          borderBottomWidth={kind === 'settings' || kind === 'admin' ? '0' : '1px'}
-          borderColor="border.surface"
-          px={usesSecondaryNavSystem ? '4' : '5'}
-        >
-          <Text truncate fontSize="xl" fontWeight="medium" color="fg">
-            {title}
-          </Text>
-        </Flex>
-      )}
-
       <Box
         flex="1"
         minH="0"
@@ -840,7 +829,7 @@ function WorkspaceHeader({
 
 function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'settings' | 'admin' | 'standard' {
   const parts = pathname.split('/').filter(Boolean);
-  if (pathname === ROUTES.chat || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'))) return 'chat';
+  if (isChatPath(pathname)) return 'chat';
   if (parts[0] === 'settings') return 'settings';
   if (parts[0] === 'admin') return 'admin';
   if (parts[0] === 'vaults' || pathname === ROUTES.vaults) return 'vault';
@@ -878,8 +867,7 @@ export function AppShell() {
     [location.search],
   );
   const currentFolderId = (location.search as Record<string, string | undefined>).folderId ?? null;
-  const isChatRoute =
-    location.pathname === ROUTES.chat || (pathParts[0] === 'vaults' && (pathParts[2] === 'chat' || pathParts[3] === 'chat'));
+  const isChatRoute = isChatPath(location.pathname);
   const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
   const isAdminUsersRoute = location.pathname === ROUTES.adminUsers;
@@ -1063,7 +1051,6 @@ export function AppShell() {
           />
           {hasSecondarySidebar ? (
             <SecondarySidebar
-              title={secondaryKind === 'chat' ? 'Chat' : secondaryKind === 'settings' ? 'Settings' : secondaryKind === 'admin' ? 'Admin' : 'Arkivra'}
               kind={secondaryKind}
               isOpen={isSecondarySidebarOpen}
               activeVaultId={activeVaultId}

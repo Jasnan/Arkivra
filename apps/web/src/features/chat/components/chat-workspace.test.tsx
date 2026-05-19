@@ -23,7 +23,12 @@ vi.mock('@/features/vaults/vaults.queries', () => ({
     isLoading: false,
   }),
   useVaultsQuery: () => ({
-    data: { vaults: [{ id: 'vlt_1', name: 'Finance', aiAccessLevel: 'full' }] },
+    data: {
+      vaults: [
+        { id: 'vlt_1', name: 'Finance', fileCount: 4, aiAccessLevel: 'full' },
+        { id: 'vlt_2', name: 'Legal', fileCount: 2, aiAccessLevel: 'full' },
+      ],
+    },
     isLoading: false,
   }),
 }));
@@ -233,6 +238,7 @@ describe('chat workspace new chat drafts', () => {
     });
     expect(createConversationMock).toHaveBeenCalledWith({
       title: 'Hello from a draft',
+      contextSnapshot: { type: 'global', vaultIds: [] },
     });
     expect(streamChatMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -240,6 +246,77 @@ describe('chat workspace new chat drafts', () => {
         content: 'Hello from a draft',
       }),
     );
+  });
+
+  it('adds vault chips to a draft before creating the conversation snapshot', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    const showHistoryButton = screen.queryByRole('button', { name: /show history/i });
+    if (showHistoryButton) {
+      await user.click(showHistoryButton);
+    }
+
+    await user.click(screen.getByRole('button', { name: /new chat/i }));
+    await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
+    await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
+    await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
+    await user.click(screen.getByRole('button', { name: /add selected/i }));
+
+    expect(await screen.findByText('Legal')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/chat message/i), 'Summarize contracts');
+    await user.click(screen.getByRole('button', { name: /send message/i }));
+
+    await waitFor(() => {
+      expect(createConversationMock).toHaveBeenCalledTimes(1);
+    });
+    expect(createConversationMock).toHaveBeenCalledWith({
+      title: 'Summarize contracts',
+      contextSnapshot: { type: 'vault', vaultId: 'vlt_2', vaultName: 'Legal' },
+    });
+  });
+
+  it('forks a locked conversation instead of mutating its context', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
+    await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
+    await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
+    await user.click(screen.getByRole('button', { name: /add selected/i }));
+
+    expect(await screen.findByText('Changing context creates a new conversation.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /continue in new chat/i }));
+
+    await waitFor(() => {
+      expect(createConversationMock).toHaveBeenCalledTimes(1);
+    });
+    expect(createConversationMock).toHaveBeenCalledWith({
+      title: 'Existing chat',
+      contextSnapshot: {
+        type: 'selection',
+        vaults: [
+          { vaultId: 'vlt_1', name: 'Finance' },
+          { vaultId: 'vlt_2', name: 'Legal' },
+        ],
+        documents: [],
+      },
+    });
+    expect(streamChatMessageMock).not.toHaveBeenCalled();
   });
 
   it('shows the assistant loading state immediately after submit', async () => {

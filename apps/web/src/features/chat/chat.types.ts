@@ -50,8 +50,22 @@ export interface ChatConversation {
 
 export type ChatContextSnapshot =
   | { type: 'global'; vaultIds: string[] }
-  | { type: 'vault'; vaultId: string }
-  | { type: 'document'; vaultId: string; documentId: string };
+  | { type: 'vault'; vaultId: string; vaultName?: string }
+  | { type: 'document'; vaultId: string; documentId: string; vaultName?: string; documentName?: string }
+  | { type: 'selection'; vaults: ChatContextVaultRef[]; documents: ChatContextDocumentRef[] };
+
+export interface ChatContextVaultRef {
+  vaultId: string;
+  name?: string;
+}
+
+export interface ChatContextDocumentRef {
+  vaultId: string;
+  documentId: string;
+  name?: string;
+  vaultName?: string;
+  path?: string;
+}
 
 export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
 

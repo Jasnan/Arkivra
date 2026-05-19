@@ -3,7 +3,7 @@ import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { VaultAccess } from '../vaults/vaults.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
-import type { ChatContextSnapshot, ChatIntent } from './chat.types.js';
+import type { ChatContextDocumentRef, ChatContextSnapshot, ChatContextVaultRef, ChatIntent } from './chat.types.js';
 import type { ChatScopeInput, ChatServices } from './chat.services.js';
 import { and, eq } from 'drizzle-orm';
 import { requireAuthentication } from '../auth/auth.middleware.js';
@@ -81,6 +81,107 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function parseStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.map(item => typeof item === 'string' ? item.trim() : '').filter(item => item.length > 0)
+    : [];
+}
+
+function parseOptionalString(value: unknown) {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function dedupeVaultRefs(vaults: ChatContextVaultRef[]) {
+  const seen = new Set<string>();
+  const deduped: ChatContextVaultRef[] = [];
+
+  for (const vault of vaults) {
+    const vaultId = vault.vaultId.trim();
+    if (vaultId.length === 0 || seen.has(vaultId)) {
+      continue;
+    }
+
+    seen.add(vaultId);
+    deduped.push({
+      vaultId,
+      ...(vault.name ? { name: vault.name } : {}),
+    });
+  }
+
+  return deduped;
+}
+
+function dedupeDocumentRefs(documents: ChatContextDocumentRef[]) {
+  const seen = new Set<string>();
+  const deduped: ChatContextDocumentRef[] = [];
+
+  for (const document of documents) {
+    const vaultId = document.vaultId.trim();
+    const documentId = document.documentId.trim();
+    const key = `${vaultId}:${documentId}`;
+    if (vaultId.length === 0 || documentId.length === 0 || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push({
+      vaultId,
+      documentId,
+      ...(document.name ? { name: document.name } : {}),
+      ...(document.vaultName ? { vaultName: document.vaultName } : {}),
+      ...(document.path ? { path: document.path } : {}),
+    });
+  }
+
+  return deduped;
+}
+
+function parseVaultRefs(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return dedupeVaultRefs(value.map((item) => {
+    if (typeof item === 'string') {
+      return { vaultId: item.trim() };
+    }
+
+    if (!isRecord(item)) {
+      return { vaultId: '' };
+    }
+
+    return {
+      vaultId: typeof item.vaultId === 'string' ? item.vaultId.trim() : '',
+      name: parseOptionalString(item.name),
+    };
+  }));
+}
+
+function parseDocumentRefs(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return dedupeDocumentRefs(value.map((item) => {
+    if (!isRecord(item)) {
+      return { vaultId: '', documentId: '' };
+    }
+
+    return {
+      vaultId: typeof item.vaultId === 'string' ? item.vaultId.trim() : '',
+      documentId: typeof item.documentId === 'string' ? item.documentId.trim() : '',
+      name: parseOptionalString(item.name),
+      vaultName: parseOptionalString(item.vaultName),
+      path: parseOptionalString(item.path),
+    };
+  }));
+}
+
 function canReadVault(vault: VaultAccess) {
   return vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer';
 }
@@ -99,6 +200,18 @@ function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapsh
     : isRecord(body.context)
       ? body.context
       : body;
+  const rawVaultRefs = parseVaultRefs(rawContext.vaults);
+  const rawVaultIdRefs = parseStringArray(rawContext.vaultIds).map(vaultId => ({ vaultId }));
+  const rawDocumentRefs = parseDocumentRefs(rawContext.documents);
+
+  if (rawContext.type === 'selection' || rawVaultRefs.length > 0 || rawDocumentRefs.length > 0) {
+    return {
+      type: 'selection',
+      vaults: dedupeVaultRefs([...rawVaultRefs, ...rawVaultIdRefs]),
+      documents: rawDocumentRefs,
+    };
+  }
+
   const rawVaultId = rawContext.vaultId;
   const rawDocumentId = rawContext.documentId;
 
@@ -107,6 +220,8 @@ function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapsh
       type: 'document',
       vaultId: typeof rawVaultId === 'string' ? rawVaultId.trim() : '',
       documentId: typeof rawDocumentId === 'string' ? rawDocumentId.trim() : '',
+      vaultName: parseOptionalString(rawContext.vaultName),
+      documentName: parseOptionalString(rawContext.documentName),
     };
   }
 
@@ -114,13 +229,14 @@ function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapsh
     return {
       type: 'vault',
       vaultId: typeof rawVaultId === 'string' ? rawVaultId.trim() : '',
+      vaultName: parseOptionalString(rawContext.vaultName),
     };
   }
 
   return { type: 'global', vaultIds: [] };
 }
 
-async function documentExists({
+async function getDocumentContext({
   db,
   vaultId,
   documentId,
@@ -130,7 +246,7 @@ async function documentExists({
   documentId: string;
 }) {
   const [document] = await db
-    .select({ id: documentsTable.id })
+    .select({ id: documentsTable.id, name: documentsTable.name })
     .from(documentsTable)
     .where(and(
       eq(documentsTable.id, documentId),
@@ -139,7 +255,7 @@ async function documentExists({
     ))
     .limit(1);
 
-  return document !== undefined;
+  return document ?? null;
 }
 
 async function resolveCreatableContext({
@@ -177,6 +293,71 @@ async function resolveCreatableContext({
     return { ok: true, scope: { type: 'global', vaultIds } };
   }
 
+  if (requestedContext.type === 'selection') {
+    const vaults: ChatContextVaultRef[] = [];
+    const documents: ChatContextDocumentRef[] = [];
+
+    for (const requestedVault of dedupeVaultRefs(requestedContext.vaults)) {
+      const vault = await vaultServices.getVaultForUser({ vaultId: requestedVault.vaultId, userId });
+
+      if (vault === null) {
+        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+      }
+
+      if (!canUseVaultChat(vault)) {
+        return {
+          ok: false,
+          status: 403,
+          code: 'authorization.ai_access_required',
+          message: 'Vault chat requires full AI access',
+        };
+      }
+
+      vaults.push({ vaultId: vault.id, name: vault.name });
+    }
+
+    for (const requestedDocument of dedupeDocumentRefs(requestedContext.documents)) {
+      const vault = await vaultServices.getVaultForUser({ vaultId: requestedDocument.vaultId, userId });
+
+      if (vault === null) {
+        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+      }
+
+      if (!canUseDocumentChat(vault)) {
+        return {
+          ok: false,
+          status: 403,
+          code: 'authorization.ai_access_required',
+          message: 'Document chat requires document chat or full AI access',
+        };
+      }
+
+      const document = await getDocumentContext({
+        db,
+        vaultId: requestedDocument.vaultId,
+        documentId: requestedDocument.documentId,
+      });
+
+      if (document === null) {
+        return { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
+      }
+
+      documents.push({
+        vaultId: vault.id,
+        documentId: document.id,
+        name: document.name,
+        vaultName: vault.name,
+        ...(requestedDocument.path ? { path: requestedDocument.path } : {}),
+      });
+    }
+
+    if (vaults.length === 0 && documents.length === 0) {
+      return { ok: false, status: 400, code: 'chat.invalid_context', message: 'Context selection is empty' };
+    }
+
+    return { ok: true, scope: { type: 'selection', vaults, documents } };
+  }
+
   if (requestedContext.vaultId.length === 0) {
     return { ok: false, status: 400, code: 'chat.invalid_context', message: 'vaultId is required' };
   }
@@ -189,7 +370,7 @@ async function resolveCreatableContext({
 
   if (requestedContext.type === 'vault') {
     return canUseVaultChat(vault)
-      ? { ok: true, scope: requestedContext }
+      ? { ok: true, scope: { type: 'vault', vaultId: vault.id, vaultName: vault.name } }
       : {
           ok: false,
           status: 403,
@@ -211,14 +392,23 @@ async function resolveCreatableContext({
     };
   }
 
-  const exists = await documentExists({
+  const document = await getDocumentContext({
     db,
     vaultId: requestedContext.vaultId,
     documentId: requestedContext.documentId,
   });
 
-  return exists
-    ? { ok: true, scope: requestedContext }
+  return document !== null
+    ? {
+        ok: true,
+        scope: {
+          type: 'document',
+          vaultId: vault.id,
+          documentId: document.id,
+          vaultName: vault.name,
+          documentName: document.name,
+        },
+      }
     : { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
 }
 
@@ -257,6 +447,43 @@ async function resolveUsableContext({
         };
   }
 
+  if (snapshot.type === 'selection') {
+    if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) {
+      return {
+        ok: false,
+        status: 403,
+        code: 'authorization.ai_access_required',
+        message: 'AI access required',
+      };
+    }
+
+    for (const vaultRef of dedupeVaultRefs(snapshot.vaults)) {
+      const vault = await vaultServices.getVaultForUser({ vaultId: vaultRef.vaultId, userId });
+      if (vault === null || !canUseVaultChat(vault)) {
+        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+      }
+    }
+
+    for (const documentRef of dedupeDocumentRefs(snapshot.documents)) {
+      const vault = await vaultServices.getVaultForUser({ vaultId: documentRef.vaultId, userId });
+      if (vault === null || !canUseDocumentChat(vault)) {
+        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+      }
+
+      const document = await getDocumentContext({
+        db,
+        vaultId: documentRef.vaultId,
+        documentId: documentRef.documentId,
+      });
+
+      if (document === null) {
+        return { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
+      }
+    }
+
+    return { ok: true, scope: snapshot };
+  }
+
   const vault = await vaultServices.getVaultForUser({ vaultId: snapshot.vaultId, userId });
 
   if (vault === null) {
@@ -273,8 +500,8 @@ async function resolveUsableContext({
     return { ok: false, status: 403, code: 'authorization.ai_access_required', message: 'AI access required' };
   }
 
-  const exists = await documentExists({ db, vaultId: snapshot.vaultId, documentId: snapshot.documentId });
-  return exists
+  const document = await getDocumentContext({ db, vaultId: snapshot.vaultId, documentId: snapshot.documentId });
+  return document !== null
     ? { ok: true, scope: snapshot }
     : { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
 }

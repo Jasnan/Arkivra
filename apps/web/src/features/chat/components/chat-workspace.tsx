@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
 import type { ChatApiScope, ChatResponseMode } from '../chat.api';
-import { getChatContextSnapshot, streamChatMessage } from '../chat.api';
+import { streamChatMessage } from '../chat.api';
 import {
   chatQueryKeys,
   useChatConversationQuery,
@@ -30,6 +30,7 @@ import {
   useChatModelOptionsQuery,
 } from '../chat.queries';
 import type { ChatContextSnapshot, ChatConversation, ChatIntent, ChatStreamStatus } from '../chat.types';
+import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
 import type {
   ChatMetricsByMessageId,
   ChatWorkspaceProps,
@@ -44,6 +45,18 @@ import {
   getLatestIntent,
 } from './chat-utils';
 import { ChatConversationRail } from './chat-conversation-rail';
+import {
+  ConversationForkDialog,
+  DocumentSelectionDialog,
+  VaultSelectionDialog,
+  contextSnapshotFromDraft,
+  createEmptyDraftContext,
+  draftContextFromSnapshot,
+  getDraftContextFromScope,
+  hydrateDraftContextLabels,
+  removeDocumentFromDraftContext,
+  removeVaultFromDraftContext,
+} from './chat-context-selector';
 import { ChatEmptyState } from './chat-empty-state';
 import { ChatInputPanel } from './chat-input-panel';
 import { VirtualChatTimeline } from './virtual-chat-timeline';
@@ -60,6 +73,82 @@ function scopeFromContextSnapshot(snapshot: ChatContextSnapshot): ChatApiScope {
   return {};
 }
 
+function conversationScopeValuesFromSnapshot(snapshot: ChatContextSnapshot) {
+  if (snapshot.type === 'document') {
+    return {
+      scope: 'document' as const,
+      vaultId: snapshot.vaultId,
+      documentId: snapshot.documentId,
+    };
+  }
+
+  if (snapshot.type === 'vault') {
+    return {
+      scope: 'vault' as const,
+      vaultId: snapshot.vaultId,
+      documentId: null,
+    };
+  }
+
+  return {
+    scope: 'global' as const,
+    vaultId: null,
+    documentId: null,
+  };
+}
+
+function getContextAccessMessage(snapshot: ChatContextSnapshot) {
+  if (snapshot.type === 'document') {
+    return 'Document chat requires document chat or full AI access on this vault.';
+  }
+
+  if (snapshot.type === 'vault') {
+    return 'Root accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
+  }
+
+  if (snapshot.type === 'selection') {
+    return 'Selected context includes vaults or documents without the required AI access.';
+  }
+
+  return 'Root accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.';
+}
+
+function canUseContextSnapshot({
+  snapshot,
+  aiAccessByVaultId,
+  hasFullAiVault,
+}: {
+  snapshot: ChatContextSnapshot;
+  aiAccessByVaultId: Map<string, 'none' | 'document_chat' | 'full'>;
+  hasFullAiVault: boolean;
+}) {
+  if (snapshot.type === 'global') {
+    if (snapshot.vaultIds.length === 0) return hasFullAiVault;
+    return snapshot.vaultIds.every(vaultId => aiAccessByVaultId.get(vaultId) === 'full');
+  }
+
+  if (snapshot.type === 'vault') {
+    return aiAccessByVaultId.get(snapshot.vaultId) === 'full';
+  }
+
+  if (snapshot.type === 'document') {
+    const access = aiAccessByVaultId.get(snapshot.vaultId);
+    return access === 'document_chat' || access === 'full';
+  }
+
+  if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) {
+    return false;
+  }
+
+  return (
+    snapshot.vaults.every(vault => aiAccessByVaultId.get(vault.vaultId) === 'full')
+    && snapshot.documents.every((document) => {
+      const access = aiAccessByVaultId.get(document.vaultId);
+      return access === 'document_chat' || access === 'full';
+    })
+  );
+}
+
 export function ChatWorkspace({
   scope,
   documentName,
@@ -72,14 +161,18 @@ export function ChatWorkspace({
 }: ChatWorkspaceProps) {
   const isFullHeight = heightClassName === 'h-full';
   const { vaultId, documentId } = scope;
-  const isDocumentDraft = Boolean(vaultId && documentId);
-  const isGlobalDraft = !vaultId;
   const queryClient = useQueryClient();
   const conversationsQuery = useChatConversationsQuery();
   const modelOptionsQuery = useChatModelOptionsQuery();
   const createConversation = useCreateChatConversationMutation();
   const deleteConversation = useDeleteChatConversationMutation();
+  const vaultsQuery = useVaultsQuery();
+  const initialDraftContext = useMemo(
+    () => getDraftContextFromScope({ vaultId, documentId, documentName }),
+    [documentId, documentName, vaultId],
+  );
   const [selectedChatId, setSelectedChatId] = useState(selectedConversationId ?? '');
+  const [draftContext, setDraftContext] = useState<DraftChatContext>(initialDraftContext);
   const [localMessages, setLocalMessages] = useState<LocalMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
@@ -91,6 +184,10 @@ export function ChatWorkspace({
   const [currentIntent, setCurrentIntent] = useState<ChatIntent | null>(null);
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
+  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
+  const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false);
+  const [pendingForkContext, setPendingForkContext] = useState<DraftChatContext | null>(null);
+  const [isForkDialogOpen, setIsForkDialogOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isStreaming = isAssistantResponsePending || streamStatus !== null;
   const shouldAutoSelectLatestConversation = !vaultId && !documentId && selectedConversationId === undefined;
@@ -99,29 +196,54 @@ export function ChatWorkspace({
     ? ''
     : selectedChatId || (shouldAutoSelectLatestConversation ? conversationsQuery.data?.conversations[0]?.id : '') || '';
   const selectedChatQuery = useChatConversationQuery({ chatId: effectiveSelectedChatId });
-  const activeScope = selectedChatQuery.data?.conversation.contextSnapshot
-    ? scopeFromContextSnapshot(selectedChatQuery.data.conversation.contextSnapshot)
-    : scope;
+  const hydratedDraftContext = useMemo(
+    () => hydrateDraftContextLabels({ context: draftContext, vaults: vaultsQuery.data?.vaults ?? [] }),
+    [draftContext, vaultsQuery.data?.vaults],
+  );
+  const draftContextSnapshot = useMemo(
+    () => contextSnapshotFromDraft(hydratedDraftContext),
+    [hydratedDraftContext],
+  );
+  const lockedContextSnapshot = selectedChatQuery.data?.conversation.contextSnapshot ?? null;
+  const activeContextSnapshot = lockedContextSnapshot ?? draftContextSnapshot;
+  const activeScope = scopeFromContextSnapshot(activeContextSnapshot);
+  const displayedContext = useMemo(
+    () => lockedContextSnapshot
+      ? hydrateDraftContextLabels({
+          context: draftContextFromSnapshot(lockedContextSnapshot),
+          vaults: vaultsQuery.data?.vaults ?? [],
+        })
+      : hydratedDraftContext,
+    [hydratedDraftContext, lockedContextSnapshot, vaultsQuery.data?.vaults],
+  );
+  const isContextLocked = effectiveSelectedChatId.length > 0;
   const activeVaultId = activeScope.vaultId;
   const activeDocumentId = activeScope.documentId;
   const isActiveDocumentChat = Boolean(activeVaultId && activeDocumentId);
   const isActiveGlobalChat = !activeVaultId;
   const experience = getChatExperienceConfig({ scope: activeScope, documentName });
   const vaultQuery = useVaultQuery({ vaultId: activeVaultId ?? '' });
-  const vaultsQuery = useVaultsQuery();
-  const vaultAiAccessLevel = activeVaultId ? vaultQuery.data?.vault.aiAccessLevel ?? 'none' : 'none';
+  const vaultAiAccessLevel = activeVaultId ? vaultQuery.data?.vault.aiAccessLevel : undefined;
+  const aiAccessByVaultId = useMemo(() => {
+    const accessByVaultId = new Map<string, 'none' | 'document_chat' | 'full'>();
+    for (const vault of vaultsQuery.data?.vaults ?? []) {
+      accessByVaultId.set(vault.id, vault.aiAccessLevel);
+    }
+
+    if (activeVaultId && vaultAiAccessLevel) {
+      accessByVaultId.set(activeVaultId, vaultAiAccessLevel);
+    }
+
+    return accessByVaultId;
+  }, [activeVaultId, vaultAiAccessLevel, vaultsQuery.data?.vaults]);
   const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some((vault) => vault.aiAccessLevel === 'full');
-  const canUseChat =
-    isActiveDocumentChat
-      ? vaultQuery.isLoading || vaultAiAccessLevel === 'document_chat' || vaultAiAccessLevel === 'full'
-      : isActiveGlobalChat
-        ? vaultsQuery.isLoading || hasFullAiVault
-        : vaultQuery.isLoading || vaultAiAccessLevel === 'full';
-  const aiAccessMessage = isActiveDocumentChat
-    ? 'Document chat requires document chat or full AI access on this vault.'
-    : isActiveGlobalChat
-      ? 'Root accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.'
-      : 'Root accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
+  const isContextAccessLoading = vaultsQuery.isLoading || (activeVaultId ? vaultQuery.isLoading : false);
+  const canUseChat = isContextAccessLoading || canUseContextSnapshot({
+    snapshot: activeContextSnapshot,
+    aiAccessByVaultId,
+    hasFullAiVault,
+  });
+  const aiAccessMessage = getContextAccessMessage(activeContextSnapshot);
 
   const availableModels = modelOptionsQuery.data?.options.models ?? [];
   const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
@@ -143,14 +265,15 @@ export function ChatWorkspace({
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
     if (!isDraftConversation) return conversations;
+    const draftScopeValues = conversationScopeValuesFromSnapshot(draftContextSnapshot);
     return [
       {
         id: NEW_CHAT_DRAFT_ID,
         title: 'New chat',
-        scope: isDocumentDraft ? 'document' : isGlobalDraft ? 'global' : 'vault',
-        vaultId: vaultId ?? null,
-        documentId: documentId ?? null,
-        contextSnapshot: getChatContextSnapshot(scope),
+        scope: draftScopeValues.scope,
+        vaultId: draftScopeValues.vaultId,
+        documentId: draftScopeValues.documentId,
+        contextSnapshot: draftContextSnapshot,
         userId: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -159,12 +282,8 @@ export function ChatWorkspace({
     ];
   }, [
     conversationsQuery.data?.conversations,
-    documentId,
-    isDocumentDraft,
     isDraftConversation,
-    isGlobalDraft,
-    scope,
-    vaultId,
+    draftContextSnapshot,
   ]);
   const conversationSections = useMemo(() => {
     const sections = new Map<string, ChatConversation[]>();
@@ -204,12 +323,19 @@ export function ChatWorkspace({
     }
   }, [resetComposerState, selectedChatId, selectedConversationId]);
 
+  useEffect(() => {
+    if (selectedConversationId === undefined && selectedChatId.length === 0) {
+      setDraftContext(initialDraftContext);
+    }
+  }, [initialDraftContext, selectedChatId, selectedConversationId]);
+
   const handleCreateConversation = useCallback(() => {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
+    setDraftContext(selectedConversationId === undefined ? initialDraftContext : createEmptyDraftContext());
     setIsMobileConversationRailOpen(false);
     resetComposerState();
     focusComposer();
-  }, [focusComposer, resetComposerState]);
+  }, [focusComposer, initialDraftContext, resetComposerState, selectedConversationId]);
 
   const handleSelectConversation = useCallback((chatId: string) => {
     setSelectedChatId(chatId);
@@ -238,6 +364,78 @@ export function ChatWorkspace({
     focusComposer();
   }
 
+  function applyContextChange(nextContext: DraftChatContext) {
+    const hydratedNextContext = hydrateDraftContextLabels({
+      context: nextContext,
+      vaults: vaultsQuery.data?.vaults ?? [],
+    });
+
+    if (isContextLocked) {
+      setPendingForkContext(hydratedNextContext);
+      setIsForkDialogOpen(true);
+      return;
+    }
+
+    setDraftContext(hydratedNextContext);
+  }
+
+  function handleVaultSelectionConfirm(vaults: DraftChatVault[]) {
+    applyContextChange({
+      vaults,
+      documents: displayedContext.documents,
+    });
+  }
+
+  function handleDocumentSelectionConfirm(documents: DraftChatDocument[]) {
+    applyContextChange({
+      vaults: displayedContext.vaults,
+      documents,
+    });
+  }
+
+  function handleRemoveVault(vault: DraftChatVault) {
+    applyContextChange(removeVaultFromDraftContext(displayedContext, vault.vaultId));
+  }
+
+  function handleRemoveDocument(document: DraftChatDocument) {
+    applyContextChange(removeDocumentFromDraftContext(displayedContext, document));
+  }
+
+  function handleForkDialogOpenChange(open: boolean) {
+    setIsForkDialogOpen(open);
+    if (!open) {
+      setPendingForkContext(null);
+    }
+  }
+
+  async function handleConfirmFork() {
+    if (pendingForkContext === null) {
+      setIsForkDialogOpen(false);
+      return;
+    }
+
+    try {
+      const contextSnapshot = contextSnapshotFromDraft(pendingForkContext);
+      const title = composerValue.trim() || selectedChatQuery.data?.conversation.title;
+      const result = await createConversation.mutateAsync({ contextSnapshot, title });
+      const chatId = result.conversation.id;
+
+      setDraftContext(pendingForkContext);
+      setSelectedChatId(chatId);
+      setIsForkDialogOpen(false);
+      setPendingForkContext(null);
+      onConversationCreated?.(chatId);
+      queryClient.setQueryData(chatQueryKeys.conversation(chatId), {
+        conversation: { ...result.conversation, messages: [] },
+      });
+      await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
+      focusComposer();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not create a new chat.';
+      toast.error(message);
+    }
+  }
+
   async function handleSend(content: string, intentOverride?: ChatIntent | null) {
     setStreamError(null);
     setStreamingText('');
@@ -246,7 +444,10 @@ export function ChatWorkspace({
 
     let chatId = effectiveSelectedChatId;
     if (!chatId) {
-      const result = await createConversation.mutateAsync({ ...scope, title: content });
+      const result = await createConversation.mutateAsync({
+        contextSnapshot: contextSnapshotFromDraft(hydratedDraftContext),
+        title: content,
+      });
       chatId = result.conversation.id;
       setSelectedChatId(chatId);
       onConversationCreated?.(chatId);
@@ -579,12 +780,41 @@ export function ChatWorkspace({
           }
           onSelectedModelChange={setSelectedModel}
           onResponseModeChange={setResponseMode}
+          context={displayedContext}
+          contextLocked={isContextLocked}
+          onAddVaults={() => setIsVaultDialogOpen(true)}
+          onAddDocuments={() => setIsDocumentDialogOpen(true)}
+          onRemoveVault={handleRemoveVault}
+          onRemoveDocument={handleRemoveDocument}
           value={composerValue}
           onValueChange={setComposerValue}
           textareaRef={textareaRef}
           onSubmit={handleSend}
         />
       </Box>
+
+      <VaultSelectionDialog
+        open={isVaultDialogOpen}
+        context={displayedContext}
+        vaults={vaultsQuery.data?.vaults ?? []}
+        onOpenChange={setIsVaultDialogOpen}
+        onConfirm={handleVaultSelectionConfirm}
+      />
+      <DocumentSelectionDialog
+        open={isDocumentDialogOpen}
+        context={displayedContext}
+        vaults={vaultsQuery.data?.vaults ?? []}
+        onOpenChange={setIsDocumentDialogOpen}
+        onConfirm={handleDocumentSelectionConfirm}
+      />
+      <ConversationForkDialog
+        open={isForkDialogOpen}
+        isPending={createConversation.isPending}
+        onOpenChange={handleForkDialogOpenChange}
+        onConfirm={() => {
+          void handleConfirmFork();
+        }}
+      />
     </Box>
   );
 }

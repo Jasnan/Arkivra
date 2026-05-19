@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -14,7 +14,6 @@ import {
 import {
   AlertCircle,
   MessageSquare,
-  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -43,13 +42,11 @@ import {
   conversationDayLabel,
   getChatExperienceConfig,
   getLatestIntent,
-  statusLabel,
 } from './chat-utils';
 import { ChatConversationRail } from './chat-conversation-rail';
 import { ChatEmptyState } from './chat-empty-state';
 import { ChatInputPanel } from './chat-input-panel';
-import { MarkdownMessage } from './markdown-message';
-import { MessageBubble } from './message-bubble';
+import { VirtualChatTimeline } from './virtual-chat-timeline';
 
 export function ChatWorkspace({
   scope,
@@ -83,7 +80,6 @@ export function ChatWorkspace({
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isStreaming = isAssistantResponsePending || streamStatus !== null;
   const vaultAiAccessLevel = vaultId ? vaultQuery.data?.vault.aiAccessLevel ?? 'none' : 'none';
   const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some((vault) => vault.aiAccessLevel === 'full');
@@ -106,24 +102,6 @@ export function ChatWorkspace({
     ...scope,
     chatId: effectiveSelectedChatId,
   });
-
-  const scrollToMessagesEnd = useCallback(() => {
-    const scroll = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    };
-
-    if (typeof window.requestAnimationFrame !== 'function') {
-      scroll();
-      return undefined;
-    }
-
-    const frame = window.requestAnimationFrame(scroll);
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    return scrollToMessagesEnd();
-  }, [isStreaming, localMessages, scrollToMessagesEnd, selectedChatQuery.data?.conversation.messages, streamingText]);
 
   const availableModels = modelOptionsQuery.data?.options.models ?? [];
   const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
@@ -506,10 +484,10 @@ export function ChatWorkspace({
           </Box>
         </Box>
 
-        <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
-          <ScrollArea.Viewport h="full">
-            <ScrollArea.Content minH="full">
-              {shouldShowEmptyState ? (
+        {shouldShowEmptyState ? (
+          <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
+            <ScrollArea.Viewport h="full">
+              <ScrollArea.Content minH="full">
                 <ChatEmptyState
                   title={experience.emptyTitle}
                   description={experience.emptyDescription}
@@ -520,84 +498,42 @@ export function ChatWorkspace({
                     void handleSend(prompt);
                   }}
                 />
-              ) : selectedChatQuery.isLoading && messages.length === 0 ? (
+              </ScrollArea.Content>
+            </ScrollArea.Viewport>
+            <ScrollArea.Scrollbar bg="transparent">
+              <ScrollArea.Thumb />
+            </ScrollArea.Scrollbar>
+          </ScrollArea.Root>
+        ) : selectedChatQuery.isLoading && messages.length === 0 ? (
+          <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
+            <ScrollArea.Viewport h="full">
+              <ScrollArea.Content minH="full">
                 <ChatConversationSkeleton />
-              ) : (
-                <Flex
-                  direction="column"
-                  gap="4"
-                  mx="auto"
-                  minW="0"
-                  w="100%"
-                  maxW="72rem"
-                  overflowX="hidden"
-                  px="4"
-                  pt={{ base: '5', md: '6' }}
-                  pb="12"
-                  sm={{ px: '6' }}
-                >
-                  <Box mt="auto" aria-hidden="true" />
-                  {messages.map((message) => (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      currentVaultId={vaultId}
-                      scope={scope}
-                      activeStatus={streamStatus}
-                      metrics={metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined}
-                      onQuickReplySelect={
-                        isGlobalChat
-                          ? (reply) => {
-                              void handleSend(reply, effectiveIntent);
-                            }
-                          : undefined
-                      }
-                    />
-                  ))}
-                  {streamingText.length > 0 || isStreaming ? (
-                    <Flex gap="3">
-                      <Flex
-                        mt="1"
-                        boxSize="9"
-                        shrink="0"
-                        align="center"
-                        justify="center"
-                        rounded="lg"
-                        bg="teal.subtle"
-                        color="teal.fg"
-                      >
-                        <Sparkles size={16} />
-                      </Flex>
-                      <Box w="100%" maxW="min(44rem, calc(100% - 3rem))">
-                        <Box
-                          rounded="lg"
-                          bg="bg.surface"
-                          px="5"
-                          py="4"
-                          fontSize="sm"
-                          lineHeight="1.75"
-                          color="fg"
-                          borderWidth="1px"
-                          borderColor="border.surface"
-                        >
-                          {streamingText.length > 0 ? (
-                            <MarkdownMessage content={streamingText} citations={[]} />
-                          ) : (
-                            <StreamingAnswerSkeleton label={statusLabel(streamStatus, scope)} />
-                          )}
-                        </Box>
-                      </Box>
-                    </Flex>
-                  ) : null}
-                  <div ref={messagesEndRef} />
-                </Flex>
-              )}
-            </ScrollArea.Content>
-          </ScrollArea.Viewport>
-          <ScrollArea.Scrollbar bg="transparent">
-            <ScrollArea.Thumb />
-          </ScrollArea.Scrollbar>
-        </ScrollArea.Root>
+              </ScrollArea.Content>
+            </ScrollArea.Viewport>
+            <ScrollArea.Scrollbar bg="transparent">
+              <ScrollArea.Thumb />
+            </ScrollArea.Scrollbar>
+          </ScrollArea.Root>
+        ) : (
+          <VirtualChatTimeline
+            conversationId={effectiveSelectedChatId}
+            messages={messages}
+            currentVaultId={vaultId}
+            scope={scope}
+            activeStatus={streamStatus}
+            metricsByMessageId={metricsByMessageId}
+            streamingText={streamingText}
+            isStreaming={isStreaming}
+            onQuickReplySelect={
+              isGlobalChat
+                ? (reply) => {
+                    void handleSend(reply, effectiveIntent);
+                  }
+                : undefined
+            }
+          />
+        )}
 
         <ChatInputPanel
           disabled={!canUseChat || isStreaming || createConversation.isPending}
@@ -620,22 +556,6 @@ export function ChatWorkspace({
         />
       </Box>
     </Box>
-  );
-}
-
-function StreamingAnswerSkeleton({ label }: { label: string }) {
-  return (
-    <Flex direction="column" gap="3" w="100%" minW="12rem">
-      <Status.Root colorPalette="teal" size="sm">
-        <Status.Indicator />
-        {label}
-      </Status.Root>
-      <Flex direction="column" gap="2" w="100%">
-        <Skeleton h="3" w="100%" />
-        <Skeleton h="3" w="92%" />
-        <Skeleton h="3" w="72%" />
-      </Flex>
-    </Flex>
   );
 }
 

@@ -31,7 +31,6 @@ export function SourcesAccordion({
         value={isOpen ? 'sources' : undefined}
         onValueChange={(value) => setIsOpen(value === 'sources')}
         mt="4"
-        mb={isOpen ? { base: '10rem', md: '9rem' } : '0'}
         borderTopWidth="1px"
         borderTopColor="border"
         pt="2"
@@ -67,7 +66,7 @@ export function SourcesAccordion({
                     rounded="2xl"
                     bg="bg.surface"
                     px="4"
-                    py="3"
+                    py="2.5"
                     textAlign="left"
                     cursor="pointer"
                     _hover={{ bg: 'teal.subtle' }}

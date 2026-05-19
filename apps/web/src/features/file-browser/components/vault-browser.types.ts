@@ -53,6 +53,7 @@ export interface BrowserAction {
 }
 
 export type ItemDialogTarget = BrowserItem | null;
+export type MoveDialogTarget = BrowserItem | BrowserItem[] | null;
 export type InfoDialogTarget = BrowserContextItem | null;
 
 export interface MoveDestination {
@@ -183,12 +184,16 @@ export function getMoveDestinations({
   target,
 }: {
   folders: FolderTreeEntry[];
-  target: ItemDialogTarget;
+  target: MoveDialogTarget;
 }) {
-  const allowedFolders = target?.type === 'folder'
+  const targets = Array.isArray(target) ? target : target === null ? [] : [target];
+  const selectedFolders = targets.filter((item): item is BrowserFolderItem => item.type === 'folder');
+  const allowedFolders = selectedFolders.length > 0
     ? folders.filter(folder =>
-        folder.id !== target.folder.id
-        && !isFolderDescendant({ folders, folderId: target.folder.id, candidateId: folder.id }),
+        selectedFolders.every(targetFolder =>
+          folder.id !== targetFolder.folder.id
+          && !isFolderDescendant({ folders, folderId: targetFolder.folder.id, candidateId: folder.id }),
+        ),
       )
     : folders;
 

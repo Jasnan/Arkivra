@@ -1,6 +1,7 @@
-import type { ComponentPropsWithoutRef, CSSProperties, DragEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties, DragEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import { Fragment, forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
+import type { VirtuosoGridProps } from 'react-virtuoso';
 import { Box, Checkbox as ChakraCheckbox, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Check, Folder, Home, Search } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
@@ -28,9 +29,8 @@ import { Input } from '@/components/ui/input';
 import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getBrowserItemKey, getDocumentTypeLabel, getFileDisplayName, getItemDisplayName, getItemName } from './vault-browser.types';
-import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination } from './vault-browser.types';
+import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination, MoveDialogTarget } from './vault-browser.types';
 
-const BROWSER_SCROLL_HEIGHT = '100%';
 const listRowHeights = {
   compact: 56,
   comfortable: 72,
@@ -88,28 +88,35 @@ export interface BrowserListCell {
   content: ReactNode;
 }
 
-function VirtuosoGridList({ style, ref, ...props }: ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) {
-  return (
-    <Box
+const virtuosoGridComponents: VirtuosoGridProps<BrowserItem, unknown>['components'] = {
+  // eslint-disable-next-line react/no-forward-ref -- react-virtuoso's documented grid adapter passes its measured list ref this way.
+  List: forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(({ style, children, ...props }, ref) => (
+    <div
       ref={ref}
       {...props}
-      style={{ ...style, paddingTop: `var(--arkivra-gridItemGap, ${GRID_ITEM_GAP})` }}
-      display="grid"
-      gridTemplateColumns={`repeat(auto-fill, minmax(${GRID_ITEM_WIDTH}, ${GRID_ITEM_WIDTH}))`}
-      gap={`var(--arkivra-gridItemGap, ${GRID_ITEM_GAP})`}
-      alignContent="start"
-      px={{ base: '3', lg: '4' }}
-      pb={`var(--arkivra-gridItemGap, ${GRID_ITEM_GAP})`}
-    />
-  );
-}
-
-const virtuosoGridComponents = {
-  List: VirtuosoGridList,
-  Item: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => (
-    <Box {...props} minW="0">
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        ...style,
+      }}
+    >
       {children}
-    </Box>
+    </div>
+  )),
+  Item: ({ children, ...props }) => (
+    <div
+      {...props}
+      style={{
+        padding: `calc(var(--arkivra-gridItemGap, ${GRID_ITEM_GAP}) / 2)`,
+        width: `calc(${GRID_ITEM_WIDTH} + var(--arkivra-gridItemGap, ${GRID_ITEM_GAP}))`,
+        display: 'flex',
+        flex: 'none',
+        alignContent: 'stretch',
+        boxSizing: 'border-box',
+      }}
+    >
+      {children}
+    </div>
   ),
 };
 
@@ -803,6 +810,8 @@ export function BrowserItemList({
       role="listbox"
       aria-label="Folder items"
       aria-multiselectable="true"
+      display="flex"
+      flexDirection="column"
       flex="1"
       minH="0"
       overflow="hidden"
@@ -816,6 +825,7 @@ export function BrowserItemList({
         gap="4"
         borderBottomWidth="1px"
         borderColor="border.surface"
+        flexShrink="0"
         px="6"
         py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
         fontSize="sm"
@@ -834,7 +844,7 @@ export function BrowserItemList({
         <Text as="span" srOnly>Actions</Text>
       </Grid>
 
-      <Box h={BROWSER_SCROLL_HEIGHT}>
+      <Box flex="1" minH="0" overflow="hidden">
         <Virtuoso
           data={items}
           fixedItemHeight={listRowHeight}
@@ -1046,14 +1056,17 @@ export function BrowserItemGrid({
 
   return (
     <Box
-      h={BROWSER_SCROLL_HEIGHT}
-      minH="0"
+      h="full"
       flex="1"
+      minH="0"
+      overflow="hidden"
       role="listbox"
       aria-label="Folder items"
       aria-multiselectable="true"
+      boxSizing="border-box"
       borderColor="border.surface"
       bg="bg.workspace"
+      px={{ base: '3', lg: '4' }}
       onContextMenu={onOpenBackgroundContextMenu}
     >
       <VirtuosoGrid
@@ -1061,7 +1074,7 @@ export function BrowserItemGrid({
         components={virtuosoGridComponents}
         computeItemKey={(index, item) => item ? getBrowserItemKey(item) : `__item_${index}`}
         initialItemCount={Math.min(items.length, 24)}
-        style={{ height: '100%' }}
+        style={{ height: '100%', width: '100%' }}
         itemContent={(_, item) => {
           if (item === undefined) {
             return null;
@@ -1186,6 +1199,7 @@ export function BrowserItemGrid({
           return item.type === 'folder' ? (
             <Box
               position="relative"
+              w="full"
               h={`var(--arkivra-gridItemHeight, ${GRID_ITEM_HEIGHT})`}
               role="option"
               aria-selected={isSelected}
@@ -1217,6 +1231,7 @@ export function BrowserItemGrid({
           ) : (
             <Box
               position="relative"
+              w="full"
               h={`var(--arkivra-gridItemHeight, ${GRID_ITEM_HEIGHT})`}
               role="option"
               aria-selected={isSelected}
@@ -1272,6 +1287,46 @@ const closedMoveDialogTarget: BrowserItem = {
     updatedAt: '',
   },
 };
+
+function getMoveDialogTargets(target: MoveDialogTarget) {
+  if (Array.isArray(target)) {
+    return target;
+  }
+
+  return target === null ? [] : [target];
+}
+
+function getMoveDialogTargetKey(targets: BrowserItem[]) {
+  if (targets.length === 0) {
+    return '__closed_move_dialog__';
+  }
+
+  return targets.map(item => getBrowserItemKey(item)).join('|');
+}
+
+function getMoveDialogTitle(targets: BrowserItem[]) {
+  if (targets.length === 1) {
+    return `Move ${getItemName(targets[0]!)}`;
+  }
+
+  return `Move ${targets.length} items`;
+}
+
+function getCommonDestinationId(targets: BrowserItem[]) {
+  if (targets.length === 0) {
+    return null;
+  }
+
+  const [firstTarget] = targets;
+  const firstDestinationId = firstTarget.type === 'folder' ? firstTarget.folder.parentId : firstTarget.document.folderId;
+
+  return targets.every((target) => {
+    const destinationId = target.type === 'folder' ? target.folder.parentId : target.document.folderId;
+    return destinationId === firstDestinationId;
+  })
+    ? firstDestinationId
+    : undefined;
+}
 
 export function RenameItemDialog({
   open,
@@ -1346,12 +1401,12 @@ export function MoveItemDialog({
   onClose,
   onSubmit,
 }: MoveItemDialogProps) {
-  const dialogTarget = target ?? closedMoveDialogTarget;
+  const dialogTargets = getMoveDialogTargets(target);
 
   return (
     <OpenMoveItemDialog
       open={open}
-      target={dialogTarget}
+      targets={dialogTargets.length > 0 ? dialogTargets : [closedMoveDialogTarget]}
       value={value}
       destinations={destinations}
       isPending={isPending}
@@ -1365,7 +1420,7 @@ export function MoveItemDialog({
 
 interface MoveItemDialogProps {
   open: boolean;
-  target: ItemDialogTarget;
+  target: MoveDialogTarget;
   value: string | null;
   destinations: MoveDestination[];
   isPending: boolean;
@@ -1377,12 +1432,12 @@ interface MoveItemDialogProps {
 
 interface OpenMoveItemDialogProps extends Omit<MoveItemDialogProps, 'target'> {
   open: boolean;
-  target: BrowserItem;
+  targets: BrowserItem[];
 }
 
 function OpenMoveItemDialog({
   open,
-  target,
+  targets,
   value,
   destinations,
   isPending,
@@ -1391,12 +1446,9 @@ function OpenMoveItemDialog({
   onClose,
   onSubmit,
 }: OpenMoveItemDialogProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const targetKey = getBrowserItemKey(target);
-
-  useEffect(() => {
-    setSearchQuery('');
-  }, [targetKey]);
+  const targetKey = getMoveDialogTargetKey(targets);
+  const [searchState, setSearchState] = useState({ targetKey: '', value: '' });
+  const searchQuery = searchState.targetKey === targetKey ? searchState.value : '';
 
   const filteredDestinations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
@@ -1411,9 +1463,14 @@ function OpenMoveItemDialog({
     });
   }, [destinations, searchQuery]);
 
-  const currentDestinationId = target.type === 'folder' ? target.folder.parentId : target.document.folderId;
+  const currentDestinationId = getCommonDestinationId(targets);
   const selectedDestination = destinations.find(destination => destination.id === value) ?? destinations[0] ?? null;
-  const canSubmitMove = !isLoading && !isPending && selectedDestination !== null && value === selectedDestination.id && value !== currentDestinationId;
+  const canSubmitMove = !isLoading
+    && !isPending
+    && targets.length > 0
+    && selectedDestination !== null
+    && value === selectedDestination.id
+    && (currentDestinationId === undefined || value !== currentDestinationId);
 
   return (
     <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
@@ -1422,7 +1479,7 @@ function OpenMoveItemDialog({
         <ChakraDialog.Positioner>
           <ChakraDialog.Content>
             <ChakraDialog.Header>
-              <ChakraDialog.Title>{`Move ${getItemName(target)}`}</ChakraDialog.Title>
+              <ChakraDialog.Title>{getMoveDialogTitle(targets)}</ChakraDialog.Title>
               <ChakraDialog.CloseTrigger asChild>
                 <CloseButton size="sm" />
               </ChakraDialog.CloseTrigger>
@@ -1451,7 +1508,7 @@ function OpenMoveItemDialog({
                     disabled={isLoading || isPending}
                     pl="9"
                     placeholder="Find a destination"
-                    onChange={(event) => setSearchQuery(event.target.value)}
+                    onChange={(event) => setSearchState({ targetKey, value: event.target.value })}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         event.preventDefault();
@@ -1489,7 +1546,7 @@ function OpenMoveItemDialog({
                         }
 
                         const isSelected = destination.id === value;
-                        const isCurrent = destination.id === currentDestinationId;
+                        const isCurrent = currentDestinationId !== undefined && destination.id === currentDestinationId;
                         const icon = destination.id === null ? <Home size={16} /> : <Folder size={16} />;
 
                         return (

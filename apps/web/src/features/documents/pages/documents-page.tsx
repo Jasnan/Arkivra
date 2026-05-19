@@ -1,8 +1,8 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
-import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings, Tags, Trash2, Users, Vault } from 'lucide-react';
+import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
+import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings, Tags, Trash2, Users } from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -191,6 +191,22 @@ function getBrowserItemSize(item: BrowserItem) {
   return item.type === 'folder' ? 0 : item.document.originalSize;
 }
 
+function getCommonBrowserItemParentId(items: BrowserItem[]) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  const [firstItem] = items;
+  const firstParentId = firstItem.type === 'folder' ? firstItem.folder.parentId : firstItem.document.folderId;
+
+  return items.every((item) => {
+    const parentId = item.type === 'folder' ? item.folder.parentId : item.document.folderId;
+    return parentId === firstParentId;
+  })
+    ? firstParentId
+    : undefined;
+}
+
 function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: FileBrowserSort) {
   if (left.type !== right.type) {
     return left.type === 'folder' ? -1 : 1;
@@ -241,7 +257,7 @@ export function DocumentsPage() {
   const [folderName, setFolderName] = useState('');
   const [renameTarget, setRenameTarget] = useState<ItemDialogTarget>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [moveTarget, setMoveTarget] = useState<ItemDialogTarget>(null);
+  const [moveTargets, setMoveTargets] = useState<BrowserItem[]>([]);
   const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
   const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
@@ -285,6 +301,8 @@ export function DocumentsPage() {
     selectedCount,
     clearSelection,
     selectSingleItem,
+    toggleBrowserItem,
+    toggleAllBrowserItems,
     selectBrowserItem,
   } = useBrowserSelection({
     currentFolderId,
@@ -297,6 +315,7 @@ export function DocumentsPage() {
       : null;
   const {
     deleteMutation,
+    deleteItemsMutation,
     createFolderMutation,
     renameMutation,
     moveMutation,
@@ -320,7 +339,7 @@ export function DocumentsPage() {
       setRenameValue('');
     },
     onMoveSuccess: () => {
-      setMoveTarget(null);
+      setMoveTargets([]);
       setMoveDestinationId(null);
     },
   });
@@ -374,9 +393,11 @@ export function DocumentsPage() {
     },
   });
   const moveDestinations = useMemo(
-    () => getMoveDestinations({ folders: folderTreeQuery.data?.folders ?? [], target: moveTarget }),
-    [folderTreeQuery.data?.folders, moveTarget],
+    () => getMoveDestinations({ folders: folderTreeQuery.data?.folders ?? [], target: moveTargets }),
+    [folderTreeQuery.data?.folders, moveTargets],
   );
+  const allItemsSelected = browserItems.length > 0 && selectedCount === browserItems.length;
+  const someItemsSelected = selectedCount > 0 && !allItemsSelected;
   const infoFolderPath = useMemo(() => {
     if (infoTarget === null) {
       return 'Vault root';
@@ -480,8 +501,18 @@ export function DocumentsPage() {
 
   function openMoveDialog(item: BrowserItem) {
     setContextMenu(null);
-    setMoveTarget(item);
+    setMoveTargets([item]);
     setMoveDestinationId(item.type === 'folder' ? item.folder.parentId : item.document.folderId);
+  }
+
+  function openSelectedItemsMoveDialog() {
+    if (selectedItems.length === 0) {
+      return;
+    }
+
+    setContextMenu(null);
+    setMoveTargets(selectedItems);
+    setMoveDestinationId(getCommonBrowserItemParentId(selectedItems) ?? null);
   }
 
   function openInfoDialog(item: BrowserContextItem) {
@@ -608,16 +639,21 @@ export function DocumentsPage() {
   function handleMoveSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (moveTarget === null) {
+    if (moveTargets.length === 0) {
       return;
     }
 
-    const currentDestinationId = moveTarget.type === 'folder' ? moveTarget.folder.parentId : moveTarget.document.folderId;
-    if (moveDestinationId === currentDestinationId) {
+    const currentDestinationId = getCommonBrowserItemParentId(moveTargets);
+    if (currentDestinationId !== undefined && moveDestinationId === currentDestinationId) {
       return;
     }
 
-    moveMutation.mutate({ target: moveTarget, destinationId: moveDestinationId });
+    if (moveTargets.length === 1) {
+      moveMutation.mutate({ target: moveTargets[0]!, destinationId: moveDestinationId });
+      return;
+    }
+
+    moveItemsMutation.mutate({ targets: moveTargets, destinationId: moveDestinationId });
   }
 
   function handleCreateFolderSubmit(event: FormEvent<HTMLFormElement>) {
@@ -907,11 +943,16 @@ export function DocumentsPage() {
                     items={browserItems}
                     vaultId={vaultId}
                     selectedItemKeys={selectedItemKeys}
+                    selectable
+                    allItemsSelected={allItemsSelected}
+                    someItemsSelected={someItemsSelected}
                     contextItemKey={contextItemKey}
                     draggedItemKeys={draggedItemKeys}
                     dropTarget={dropTarget}
                     onOpenItem={openItem}
                     onSelectItem={selectBrowserItem}
+                    onToggleAllItems={toggleAllBrowserItems}
+                    onToggleItem={toggleBrowserItem}
                     getItemActions={getItemActions}
                     onDragStartItem={handleItemDragStart}
                     onDragEndItem={handleItemDragEnd}
@@ -927,11 +968,13 @@ export function DocumentsPage() {
                     items={browserItems}
                     vaultId={vaultId}
                     selectedItemKeys={selectedItemKeys}
+                    selectable
                     contextItemKey={contextItemKey}
                     draggedItemKeys={draggedItemKeys}
                     dropTarget={dropTarget}
                     onOpenItem={openItem}
                     onSelectItem={selectBrowserItem}
+                    onToggleItem={toggleBrowserItem}
                     getItemActions={getItemActions}
                     onDragStartItem={handleItemDragStart}
                     onDragEndItem={handleItemDragEnd}
@@ -968,6 +1011,38 @@ export function DocumentsPage() {
           />
         </TabsContent>
       </Tabs>
+
+      <ActionBar.Root open={selectedCount > 0}>
+        <Portal>
+          <ActionBar.Positioner>
+            <ActionBar.Content>
+              <ActionBar.SelectionTrigger>
+                {selectedCount} selected
+              </ActionBar.SelectionTrigger>
+              <ActionBar.Separator />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canUpdateItems || itemMutationPending}
+                onClick={openSelectedItemsMoveDialog}
+              >
+                <MoveRight size={16} />
+                Move to
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                colorPalette="red"
+                disabled={!canDeleteItems || itemMutationPending}
+                onClick={() => deleteItemsMutation.mutate(selectedItems)}
+              >
+                <Trash2 size={16} />
+                Delete
+              </Button>
+            </ActionBar.Content>
+          </ActionBar.Positioner>
+        </Portal>
+      </ActionBar.Root>
 
       <ChakraDialog.Root
         open={isCreateFolderOpen}
@@ -1034,15 +1109,15 @@ export function DocumentsPage() {
       />
 
       <MoveItemDialog
-        open={moveTarget !== null}
-        target={moveTarget}
+        open={moveTargets.length > 0}
+        target={moveTargets}
         value={moveDestinationId}
         destinations={moveDestinations}
-        isPending={moveMutation.isPending}
+        isPending={moveMutation.isPending || moveItemsMutation.isPending}
         isLoading={folderTreeQuery.isLoading}
         onValueChange={setMoveDestinationId}
         onClose={() => {
-          setMoveTarget(null);
+          setMoveTargets([]);
           setMoveDestinationId(null);
         }}
         onSubmit={handleMoveSubmit}

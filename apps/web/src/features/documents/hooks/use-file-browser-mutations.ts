@@ -98,6 +98,29 @@ export function useFileBrowserMutations({
       toast.error(error instanceof Error ? error.message : 'Could not delete document.');
     },
   });
+  const deleteItemsMutation = useMutation({
+    mutationFn: async (items: BrowserItem[]) =>
+      Promise.all(items.map((item) => {
+        if (item.type === 'folder') {
+          return softDeleteFolder({ vaultId, folderId: item.folder.id });
+        }
+
+        return softDeleteDocument({ vaultId, documentId: item.document.id });
+      })),
+    onSuccess: async (_data, items) => {
+      toast.success(
+        items.length === 1
+          ? 'Item moved to trash.'
+          : `${items.length} items moved to trash.`,
+      );
+      onClearSelection();
+      await invalidateBrowserData();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not delete selected items.');
+      void invalidateBrowserData();
+    },
+  });
   const createFolderMutation = useMutation({
     mutationFn: () => createFolder({
       vaultId,
@@ -156,6 +179,7 @@ export function useFileBrowserMutations({
       if (movedCount > 0) {
         toast.success(movedCount === 1 ? 'Item moved.' : `${movedCount} items moved.`);
       }
+      onMoveSuccess();
       onClearSelection();
       await invalidateBrowserData();
     },
@@ -182,6 +206,7 @@ export function useFileBrowserMutations({
 
   return {
     deleteMutation,
+    deleteItemsMutation,
     createFolderMutation,
     renameMutation,
     moveMutation,
@@ -191,6 +216,7 @@ export function useFileBrowserMutations({
     downloadDocuments,
     itemMutationPending: deleteMutation.isPending
       || deleteFolderMutation.isPending
+      || deleteItemsMutation.isPending
       || renameMutation.isPending
       || moveMutation.isPending
       || moveItemsMutation.isPending,

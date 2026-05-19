@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { BrowserItemGrid, BrowserItemList, MoveItemDialog, RenameItemDialog } from './vault-browser-components';
+import { getMoveDestinations } from './vault-browser.types';
 import type { BrowserItem, MoveDestination } from './vault-browser.types';
 import { renderWithProviders } from '@/test/utils';
 
@@ -94,6 +95,49 @@ function ControlledMoveDialogHarness({ onClose }: { onClose: () => void }) {
 }
 
 describe('move item dialog', () => {
+  it('lists common move destinations for multiple selected folders and documents', () => {
+    const destinations = getMoveDestinations({
+      folders: [
+        { id: 'fld_projects', parentId: null, name: 'Projects', path: 'Projects', depth: 0 },
+        { id: 'fld_invoices', parentId: 'fld_projects', name: 'Invoices', path: 'Projects/Invoices', depth: 1 },
+        { id: 'fld_archive', parentId: null, name: 'Archive', path: 'Archive', depth: 0 },
+        { id: 'fld_receipts', parentId: 'fld_archive', name: 'Receipts', path: 'Archive/Receipts', depth: 1 },
+      ],
+      target: [
+        folderTarget,
+        {
+          type: 'folder',
+          folder: {
+            ...folderTarget.folder,
+            id: 'fld_archive',
+            name: 'Archive',
+          },
+        },
+        documentTarget,
+      ],
+    });
+
+    expect(destinations.map(destination => destination.id)).toEqual([null]);
+  });
+
+  it('labels the move dialog for multiple selected items', async () => {
+    await renderWithProviders(
+      <MoveItemDialog
+        open
+        target={[folderTarget, documentTarget]}
+        value={null}
+        destinations={destinations}
+        isPending={false}
+        isLoading={false}
+        onValueChange={vi.fn()}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole('dialog', { name: /move 2 items/i })).toBeInTheDocument();
+  });
+
   it('filters folder destinations and selects a matching folder', async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();

@@ -5,6 +5,7 @@ import type { Citation, CitationImageAsset, DocumentSearchServices } from '../se
 import type {
   ChatConversation,
   ChatConversationDetail,
+  ChatContextSnapshot,
   ChatGenerationMetrics,
   ChatIntent,
   ChatMessage,
@@ -119,10 +120,7 @@ type ChatModelOptions = {
 
 type ChatConversationRow = typeof chatConversationsTable.$inferSelect;
 type ChatMessageRow = typeof chatMessagesTable.$inferSelect;
-export type ChatScopeInput =
-  | { type: 'global'; vaultIds: string[] }
-  | { type: 'vault'; vaultId: string }
-  | { type: 'document'; vaultId: string; documentId: string };
+export type ChatScopeInput = ChatContextSnapshot;
 
 const ollamaChatChunkSchema = z.object({
   message: z.object({
@@ -203,11 +201,14 @@ function toIso(value: Date | string) {
 }
 
 function toConversation(row: ChatConversationRow): ChatConversation {
+  const contextSnapshot = normalizeConversationContextSnapshot(row);
+
   return {
     id: row.id,
     vaultId: row.vaultId,
     documentId: row.documentId,
     scope: row.scope,
+    contextSnapshot,
     userId: row.userId,
     title: row.title,
     createdAt: toIso(row.createdAt),
@@ -239,6 +240,28 @@ function toMessage(row: ChatMessageRow): ChatMessage {
 
 function isGlobalScope(scope: ChatScopeInput) {
   return scope.type === 'global';
+}
+
+function normalizeConversationContextSnapshot(row: ChatConversationRow): ChatContextSnapshot {
+  if (row.contextSnapshot.type === 'global') {
+    return {
+      type: 'global',
+      vaultIds: [...new Set(row.contextSnapshot.vaultIds.filter(vaultId => vaultId.length > 0))],
+    };
+  }
+
+  if (row.contextSnapshot.type === 'document') {
+    return {
+      type: 'document',
+      vaultId: row.contextSnapshot.vaultId,
+      documentId: row.contextSnapshot.documentId,
+    };
+  }
+
+  return {
+    type: 'vault',
+    vaultId: row.contextSnapshot.vaultId,
+  };
 }
 
 export function buildGlobalIntentSystemPrompt(intent: ChatIntent) {
@@ -756,26 +779,16 @@ function getSearchScope(scope: ChatScopeInput) {
   return { vaultId: scope.vaultId };
 }
 
-function getConversationScopeConditions({
-  scope,
+function getConversationOwnershipConditions({
   userId,
   chatId,
 }: {
-  scope: ChatScopeInput;
   userId: string;
   chatId?: string;
 }) {
-  const values = getScopeValues(scope);
   return and(
     ...(chatId ? [eq(chatConversationsTable.id, chatId)] : []),
     eq(chatConversationsTable.userId, userId),
-    eq(chatConversationsTable.scope, values.scope),
-    values.vaultId === null
-      ? isNull(chatConversationsTable.vaultId)
-      : eq(chatConversationsTable.vaultId, values.vaultId),
-    values.documentId === null
-      ? isNull(chatConversationsTable.documentId)
-      : eq(chatConversationsTable.documentId, values.documentId),
     isNull(chatConversationsTable.deletedAt),
   );
 }
@@ -1107,17 +1120,11 @@ export function createChatServices({
   listAvailableModels: (args: { host: string }) => Promise<string[]>;
   fetchImpl?: typeof fetch;
 }) {
-  async function listConversations({
-    scope,
-    userId,
-  }: {
-    scope: ChatScopeInput;
-    userId: string;
-  }) {
+  async function listConversations({ userId }: { userId: string }) {
     const rows = await db
       .select()
       .from(chatConversationsTable)
-      .where(getConversationScopeConditions({ scope, userId }))
+      .where(getConversationOwnershipConditions({ userId }))
       .orderBy(desc(chatConversationsTable.updatedAt), desc(chatConversationsTable.createdAt));
 
     return { conversations: rows.map(toConversation) };
@@ -1137,6 +1144,7 @@ export function createChatServices({
       vaultId: scopeValues.vaultId,
       documentId: scopeValues.documentId,
       scope: scopeValues.scope,
+      contextSnapshot: scope,
       userId,
       title: title && title.trim().length > 0 ? truncate(title, 96) : DEFAULT_CHAT_TITLE,
       updatedAt: new Date(),
@@ -1150,18 +1158,16 @@ export function createChatServices({
   }
 
   async function getConversation({
-    scope,
     userId,
     chatId,
   }: {
-    scope: ChatScopeInput;
     userId: string;
     chatId: string;
   }): Promise<ChatConversationDetail | null> {
     const [conversation] = await db
       .select()
       .from(chatConversationsTable)
-      .where(getConversationScopeConditions({ scope, userId, chatId }))
+      .where(getConversationOwnershipConditions({ userId, chatId }))
       .limit(1);
 
     if (conversation === undefined) {
@@ -1181,11 +1187,9 @@ export function createChatServices({
   }
 
   async function deleteConversation({
-    scope,
     userId,
     chatId,
   }: {
-    scope: ChatScopeInput;
     userId: string;
     chatId: string;
   }) {
@@ -1195,7 +1199,7 @@ export function createChatServices({
         deletedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(getConversationScopeConditions({ scope, userId, chatId }))
+      .where(getConversationOwnershipConditions({ userId, chatId }))
       .returning();
 
     return row !== undefined;
@@ -1215,7 +1219,6 @@ export function createChatServices({
   }
 
   async function createMessageStream({
-    scope,
     userId,
     chatId,
     content,
@@ -1223,7 +1226,6 @@ export function createChatServices({
     responseMode,
     model,
   }: {
-    scope: ChatScopeInput;
     userId: string;
     chatId: string;
     content: string;
@@ -1231,13 +1233,14 @@ export function createChatServices({
     responseMode: 'text' | 'multimodal';
     model?: string;
   }) {
-    const conversation = await getConversation({ scope, userId, chatId });
+    const conversation = await getConversation({ userId, chatId });
 
     if (conversation === null) {
       return null;
     }
 
     const now = new Date();
+    const scope = conversation.contextSnapshot;
     const scopeValues = getScopeValues(scope);
     const [userMessageRow] = await db.insert(chatMessagesTable).values({
       conversationId: chatId,

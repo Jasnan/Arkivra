@@ -57,7 +57,14 @@ function PublicAuthLayout() {
 
 function VaultChatRedirect() {
   const { vaultId } = useParams({ strict: false }) as { vaultId?: string };
-  return vaultId ? <Navigate to={ROUTES.vaultRoot(vaultId)} search={{ tab: 'ai-chat' }} replace /> : <Navigate to={ROUTES.vaults} replace />;
+  return vaultId ? <Navigate to={ROUTES.chat} search={{ vaultId }} replace /> : <Navigate to={ROUTES.chat} replace />;
+}
+
+function DocumentChatRedirect() {
+  const { vaultId, documentId } = useParams({ strict: false }) as { vaultId?: string; documentId?: string };
+  return vaultId && documentId
+    ? <Navigate to={ROUTES.chat} search={{ vaultId, documentId }} replace />
+    : <Navigate to={ROUTES.chat} replace />;
 }
 
 function ProtectedAppShell() {
@@ -159,12 +166,19 @@ const documentRoute = createRoute({
 const documentChatRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/$documentId/chat',
-  component: DocumentDetailPage,
+  component: DocumentChatRedirect,
 })
 
 const chatRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/chat',
+  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
+  component: ChatPage,
+})
+
+const chatConversationRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/chat/$conversationId',
   component: ChatPage,
 })
 
@@ -315,6 +329,7 @@ const routeTree = rootRoute.addChildren([
     documentRoute,
     documentChatRoute,
     chatRoute,
+    chatConversationRoute,
     trashRoute,
     trashDocumentRoute,
     tagsRoute,

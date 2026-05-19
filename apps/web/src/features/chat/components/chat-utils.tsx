@@ -15,8 +15,11 @@ export interface ChatWorkspaceProps {
   scope: ChatApiScope;
   documentName?: string;
   inputPlaceholder: string;
+  selectedConversationId?: string;
   heightClassName?: string;
   renderConversationRailInSecondary?: boolean;
+  onConversationCreated?: (chatId: string) => void;
+  onConversationSelected?: (chatId: string) => void;
 }
 
 export interface LocalMessage extends ChatMessage {

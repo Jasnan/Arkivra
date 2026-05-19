@@ -1,10 +1,16 @@
 import type { Citation } from '../search/search.types.js';
 
+export type ChatContextSnapshot =
+  | { type: 'global'; vaultIds: string[] }
+  | { type: 'vault'; vaultId: string }
+  | { type: 'document'; vaultId: string; documentId: string };
+
 export type ChatConversation = {
   id: string;
   vaultId: string | null;
   documentId: string | null;
   scope: 'global' | 'vault' | 'document';
+  contextSnapshot: ChatContextSnapshot;
   userId: string | null;
   title: string;
   createdAt: string;

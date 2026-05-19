@@ -56,7 +56,6 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
 import {
   getDocumentDownloadUrl,
@@ -107,7 +106,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type PreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported';
-type DetailTab = 'preview' | 'content' | 'metadata' | 'chat';
+type DetailTab = 'preview' | 'content' | 'metadata';
 
 const documentTabTriggerStyles = {
   h: '11',
@@ -1573,9 +1572,7 @@ export function DocumentDetailPage() {
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [isDocumentDateEditing, setIsDocumentDateEditing] = useState(false);
   const [isLanguageEditing, setIsLanguageEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<DetailTab>(
-    location.pathname.endsWith('/chat') ? 'chat' : 'preview',
-  );
+  const [activeTab, setActiveTab] = useState<DetailTab>('preview');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState('');
@@ -1673,12 +1670,6 @@ export function DocumentDetailPage() {
 
     navigate({ to: ROUTES.search, search: searchReturnParams as any });
   }
-
-  useEffect(() => {
-    if (location.pathname.endsWith('/chat')) {
-      setActiveTab('chat');
-    }
-  }, [location.pathname]);
 
   useEffect(() => {
     async function handleUploadCompleted(event: Event) {
@@ -1867,8 +1858,7 @@ export function DocumentDetailPage() {
   const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
   const canShowExtractedTextTab = showExtractedTextTab && !isTrashDocumentRoute;
   const detailActiveTab =
-    (activeTab === 'content' && !canShowExtractedTextTab)
-    || (isTrashDocumentRoute && activeTab === 'chat')
+    activeTab === 'content' && !canShowExtractedTextTab
       ? 'preview'
       : activeTab;
 
@@ -2084,20 +2074,26 @@ export function DocumentDetailPage() {
                 <Tags size={16} />
                 Metadata
               </TabsTrigger>
-              {!isTrashDocumentRoute ? (
-                <TabsTrigger
-                  value="chat"
-                  {...documentTabTriggerStyles}
-                >
-                  <MessageSquare size={16} />
-                  Chat
-                </TabsTrigger>
-              ) : null}
             </TabsList>
           </Tabs>
         </Box>
 
         <Flex align="center" gap="2" flexShrink={0} ml="auto">
+          {!isTrashDocumentRoute ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => navigate({
+                to: ROUTES.chat,
+                search: { vaultId, documentId, documentName: document.name } as any,
+              })}
+            >
+              <MessageSquare size={16} />
+              Ask
+            </Button>
+          ) : null}
+
           {isTrashDocumentRoute ? (
             <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.trash })}>
               <ArrowLeft size={16} />
@@ -2168,7 +2164,7 @@ export function DocumentDetailPage() {
         flex="1"
         h="full"
         minH="0"
-        pt={detailActiveTab === 'chat' ? '0' : '3'}
+        pt="3"
       >
             {detailActiveTab === 'preview' ? (
               <Flex h="full" minH="0" direction="column" gap="4">
@@ -2668,15 +2664,6 @@ export function DocumentDetailPage() {
                   </SaveButton>
                 ) : null}
               </chakra.form>
-            ) : null}
-
-            {detailActiveTab === 'chat' ? (
-              <ChatWorkspace
-                scope={{ vaultId, documentId }}
-                documentName={document.name}
-                inputPlaceholder="Ask about this document..."
-                heightClassName="h-full"
-              />
             ) : null}
         </Box>
 

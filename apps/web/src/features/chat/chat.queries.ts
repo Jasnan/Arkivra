@@ -10,44 +10,37 @@ import {
 
 export const chatQueryKeys = {
   all: ['chat'] as const,
-  scope: ({ vaultId, documentId }: ChatApiScope) =>
-    [vaultId ?? 'global', documentId ?? 'all-documents'] as const,
-  modelOptions: (scope: ChatApiScope) =>
-    [...chatQueryKeys.all, ...chatQueryKeys.scope(scope), 'model-options'] as const,
-  conversations: (scope: ChatApiScope) =>
-    [...chatQueryKeys.all, ...chatQueryKeys.scope(scope), 'conversations'] as const,
-  conversation: (scope: ChatApiScope, chatId: string) =>
-    [...chatQueryKeys.all, ...chatQueryKeys.scope(scope), 'conversation', chatId] as const,
+  modelOptions: () => [...chatQueryKeys.all, 'model-options'] as const,
+  conversations: () => [...chatQueryKeys.all, 'conversations'] as const,
+  conversation: (chatId: string) => [...chatQueryKeys.all, 'conversation', chatId] as const,
 };
 
-export function useChatModelOptionsQuery(scope: ChatApiScope, { enabled = true }: { enabled?: boolean } = {}) {
+export function useChatModelOptionsQuery({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
-    queryKey: chatQueryKeys.modelOptions(scope),
-    queryFn: () => getChatModelOptions(scope),
+    queryKey: chatQueryKeys.modelOptions(),
+    queryFn: () => getChatModelOptions(),
     enabled,
     staleTime: 30_000,
   });
 }
 
-export function useChatConversationsQuery(scope: ChatApiScope) {
+export function useChatConversationsQuery() {
   return useQuery({
-    queryKey: chatQueryKeys.conversations(scope),
-    queryFn: () => listChatConversations(scope),
-    enabled: !scope.documentId || Boolean(scope.vaultId),
+    queryKey: chatQueryKeys.conversations(),
+    queryFn: () => listChatConversations(),
     staleTime: 15_000,
   });
 }
 
 export function useChatConversationQuery({
   chatId,
-  ...scope
-}: ChatApiScope & {
+}: {
   chatId: string;
 }) {
   return useQuery({
-    queryKey: chatQueryKeys.conversation(scope, chatId),
-    queryFn: () => getChatConversation({ ...scope, chatId }),
-    enabled: (!scope.documentId || Boolean(scope.vaultId)) && chatId.length > 0,
+    queryKey: chatQueryKeys.conversation(chatId),
+    queryFn: () => getChatConversation({ chatId }),
+    enabled: chatId.length > 0,
   });
 }
 

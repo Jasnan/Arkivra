@@ -477,6 +477,28 @@ describe.sequential('migrations smoke', () => {
     expect(byKey['chat_messages.document_id']?.is_nullable).toBe('YES');
   });
 
+  test('0018 adds immutable context snapshots to chat conversations', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'chat_conversations'
+          AND column_name = 'context_snapshot'
+      `,
+    );
+
+    expect(rows[0]?.data_type).toBe('jsonb');
+    expect(rows[0]?.is_nullable).toBe('NO');
+  });
+
   test('document_chunks.embedding remains a 1024-dim pgvector column', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');

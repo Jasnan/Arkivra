@@ -11,7 +11,6 @@ import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { ROUTES } from '@/app/routes';
-import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -63,7 +62,7 @@ import { joinVaultAsRoot } from '@/features/vaults/vaults.api';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
-type VaultPageTab = 'contents' | 'members' | 'activity' | 'ai-chat' | 'settings';
+type VaultPageTab = 'contents' | 'members' | 'activity' | 'settings';
 type VaultRootPageTab = VaultPageTab;
 
 function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
@@ -86,15 +85,14 @@ const rootJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = 
   { value: 'full', label: 'Full AI access' },
 ];
 
-const vaultRootTabs = ['contents', 'members', 'activity', 'settings', 'ai-chat'] satisfies VaultRootPageTab[];
+const vaultRootTabs = ['contents', 'members', 'activity', 'settings'] satisfies VaultRootPageTab[];
 
 const vaultPageTabs = [
   { value: 'contents', label: 'Contents', description: 'Documents & folders', icon: FolderOpen, route: 'root' },
   { value: 'members', label: 'Members', description: 'Access & permissions', icon: Users, route: 'root' },
   { value: 'activity', label: 'Activity', description: 'Vault events & history', icon: History, route: 'root' },
   { value: 'settings', label: 'Settings', description: 'Vault configuration', icon: Settings, route: 'settings' },
-  { value: 'ai-chat', label: 'Vault Chat', description: 'Chat with vault documents', icon: MessageSquare, route: 'chat' },
-] satisfies Array<{ value: VaultPageTab; label: string; description: string; icon: SecondaryNavIcon; route: 'root' | 'chat' | 'settings' }>;
+] satisfies Array<{ value: VaultPageTab; label: string; description: string; icon: SecondaryNavIcon; route: 'root' | 'settings' }>;
 const placeholderSkeletonKeys = ['summary', 'primary', 'secondary', 'tertiary', 'quaternary', 'final'];
 
 const vaultTabTriggerStyles = {
@@ -1013,6 +1011,19 @@ export function DocumentsPage() {
         />
 
         {browserHeader.contentsToolbar}
+        <Flex
+          align="center"
+          justify="flex-end"
+          borderBottomWidth="1px"
+          borderColor="border.surface"
+          px={{ base: '4', lg: '6' }}
+          py="3"
+        >
+          <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.chat, search: { vaultId } as any })}>
+            <MessageSquare size={16} />
+            Ask about this vault
+          </Button>
+        </Flex>
         <VaultPageTabs activeTab={currentVaultTab} />
 
         <TabsContent value="contents" display="flex" flex="1" minH="0" flexDirection="column" p="0">
@@ -1123,13 +1134,6 @@ export function DocumentsPage() {
           <Box px={{ base: '4', lg: '6' }} py="5">
             <VaultSettingsPanel vaultId={vaultId} />
           </Box>
-        </TabsContent>
-        <TabsContent value="ai-chat" display="flex" flex="1" minH="0" flexDirection="column" p="0">
-          <ChatWorkspace
-            scope={{ vaultId }}
-            inputPlaceholder="Ask about documents in this vault..."
-            heightClassName="h-full"
-          />
         </TabsContent>
       </Tabs>
 

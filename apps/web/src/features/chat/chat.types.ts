@@ -41,11 +41,17 @@ export interface ChatConversation {
   vaultId: string | null;
   documentId: string | null;
   scope: 'global' | 'vault' | 'document';
+  contextSnapshot: ChatContextSnapshot;
   userId: string | null;
   title: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ChatContextSnapshot =
+  | { type: 'global'; vaultIds: string[] }
+  | { type: 'vault'; vaultId: string }
+  | { type: 'document'; vaultId: string; documentId: string };
 
 export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
 

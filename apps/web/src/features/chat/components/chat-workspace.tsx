@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -19,8 +19,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
-import { streamChatMessage } from '../chat.api';
-import type { ChatResponseMode } from '../chat.api';
+import type { ChatApiScope, ChatResponseMode } from '../chat.api';
+import { getChatContextSnapshot, streamChatMessage } from '../chat.api';
 import {
   chatQueryKeys,
   useChatConversationQuery,
@@ -29,7 +29,7 @@ import {
   useDeleteChatConversationMutation,
   useChatModelOptionsQuery,
 } from '../chat.queries';
-import type { ChatConversation, ChatIntent, ChatStreamStatus } from '../chat.types';
+import type { ChatContextSnapshot, ChatConversation, ChatIntent, ChatStreamStatus } from '../chat.types';
 import type {
   ChatMetricsByMessageId,
   ChatWorkspaceProps,
@@ -48,26 +48,38 @@ import { ChatEmptyState } from './chat-empty-state';
 import { ChatInputPanel } from './chat-input-panel';
 import { VirtualChatTimeline } from './virtual-chat-timeline';
 
+function scopeFromContextSnapshot(snapshot: ChatContextSnapshot): ChatApiScope {
+  if (snapshot.type === 'document') {
+    return { vaultId: snapshot.vaultId, documentId: snapshot.documentId };
+  }
+
+  if (snapshot.type === 'vault') {
+    return { vaultId: snapshot.vaultId };
+  }
+
+  return {};
+}
+
 export function ChatWorkspace({
   scope,
   documentName,
   inputPlaceholder,
+  selectedConversationId,
   heightClassName = 'h-[calc(100vh-14rem)] min-h-[32rem]',
   renderConversationRailInSecondary = false,
+  onConversationCreated,
+  onConversationSelected,
 }: ChatWorkspaceProps) {
   const isFullHeight = heightClassName === 'h-full';
   const { vaultId, documentId } = scope;
-  const isDocumentChat = Boolean(vaultId && documentId);
-  const isGlobalChat = !vaultId;
-  const experience = getChatExperienceConfig({ scope, documentName });
+  const isDocumentDraft = Boolean(vaultId && documentId);
+  const isGlobalDraft = !vaultId;
   const queryClient = useQueryClient();
-  const conversationsQuery = useChatConversationsQuery(scope);
-  const modelOptionsQuery = useChatModelOptionsQuery(scope);
-  const vaultQuery = useVaultQuery({ vaultId: vaultId ?? '' });
-  const vaultsQuery = useVaultsQuery();
+  const conversationsQuery = useChatConversationsQuery();
+  const modelOptionsQuery = useChatModelOptionsQuery();
   const createConversation = useCreateChatConversationMutation();
   const deleteConversation = useDeleteChatConversationMutation();
-  const [selectedChatId, setSelectedChatId] = useState('');
+  const [selectedChatId, setSelectedChatId] = useState(selectedConversationId ?? '');
   const [localMessages, setLocalMessages] = useState<LocalMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
@@ -81,27 +93,35 @@ export function ChatWorkspace({
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isStreaming = isAssistantResponsePending || streamStatus !== null;
-  const vaultAiAccessLevel = vaultId ? vaultQuery.data?.vault.aiAccessLevel ?? 'none' : 'none';
-  const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some((vault) => vault.aiAccessLevel === 'full');
-  const canUseChat =
-    isDocumentChat
-      ? vaultQuery.isLoading || vaultAiAccessLevel === 'document_chat' || vaultAiAccessLevel === 'full'
-      : isGlobalChat
-        ? vaultsQuery.isLoading || hasFullAiVault
-        : vaultQuery.isLoading || vaultAiAccessLevel === 'full';
-  const aiAccessMessage = isDocumentChat
-    ? 'Document chat requires document chat or full AI access on this vault.'
-    : isGlobalChat
-      ? 'Root accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.'
-      : 'Root accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
+  const shouldAutoSelectLatestConversation = !vaultId && !documentId && selectedConversationId === undefined;
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation
     ? ''
-    : selectedChatId || conversationsQuery.data?.conversations[0]?.id || '';
-  const selectedChatQuery = useChatConversationQuery({
-    ...scope,
-    chatId: effectiveSelectedChatId,
-  });
+    : selectedChatId || (shouldAutoSelectLatestConversation ? conversationsQuery.data?.conversations[0]?.id : '') || '';
+  const selectedChatQuery = useChatConversationQuery({ chatId: effectiveSelectedChatId });
+  const activeScope = selectedChatQuery.data?.conversation.contextSnapshot
+    ? scopeFromContextSnapshot(selectedChatQuery.data.conversation.contextSnapshot)
+    : scope;
+  const activeVaultId = activeScope.vaultId;
+  const activeDocumentId = activeScope.documentId;
+  const isActiveDocumentChat = Boolean(activeVaultId && activeDocumentId);
+  const isActiveGlobalChat = !activeVaultId;
+  const experience = getChatExperienceConfig({ scope: activeScope, documentName });
+  const vaultQuery = useVaultQuery({ vaultId: activeVaultId ?? '' });
+  const vaultsQuery = useVaultsQuery();
+  const vaultAiAccessLevel = activeVaultId ? vaultQuery.data?.vault.aiAccessLevel ?? 'none' : 'none';
+  const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some((vault) => vault.aiAccessLevel === 'full');
+  const canUseChat =
+    isActiveDocumentChat
+      ? vaultQuery.isLoading || vaultAiAccessLevel === 'document_chat' || vaultAiAccessLevel === 'full'
+      : isActiveGlobalChat
+        ? vaultsQuery.isLoading || hasFullAiVault
+        : vaultQuery.isLoading || vaultAiAccessLevel === 'full';
+  const aiAccessMessage = isActiveDocumentChat
+    ? 'Document chat requires document chat or full AI access on this vault.'
+    : isActiveGlobalChat
+      ? 'Root accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.'
+      : 'Root accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
 
   const availableModels = modelOptionsQuery.data?.options.models ?? [];
   const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
@@ -127,9 +147,10 @@ export function ChatWorkspace({
       {
         id: NEW_CHAT_DRAFT_ID,
         title: 'New chat',
-        scope: isDocumentChat ? 'document' : isGlobalChat ? 'global' : 'vault',
+        scope: isDocumentDraft ? 'document' : isGlobalDraft ? 'global' : 'vault',
         vaultId: vaultId ?? null,
         documentId: documentId ?? null,
+        contextSnapshot: getChatContextSnapshot(scope),
         userId: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -139,9 +160,10 @@ export function ChatWorkspace({
   }, [
     conversationsQuery.data?.conversations,
     documentId,
-    isDocumentChat,
+    isDocumentDraft,
     isDraftConversation,
-    isGlobalChat,
+    isGlobalDraft,
+    scope,
     vaultId,
   ]);
   const conversationSections = useMemo(() => {
@@ -175,6 +197,13 @@ export function ChatWorkspace({
     setMetricsByMessageId({});
   }, []);
 
+  useEffect(() => {
+    if (selectedConversationId !== undefined && selectedConversationId !== selectedChatId) {
+      setSelectedChatId(selectedConversationId);
+      resetComposerState();
+    }
+  }, [resetComposerState, selectedChatId, selectedConversationId]);
+
   const handleCreateConversation = useCallback(() => {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
     setIsMobileConversationRailOpen(false);
@@ -185,7 +214,8 @@ export function ChatWorkspace({
   const handleSelectConversation = useCallback((chatId: string) => {
     setSelectedChatId(chatId);
     resetComposerState();
-  }, [resetComposerState]);
+    onConversationSelected?.(chatId);
+  }, [onConversationSelected, resetComposerState]);
 
   const handleSelectMobileConversation = useCallback((chatId: string) => {
     handleSelectConversation(chatId);
@@ -193,10 +223,10 @@ export function ChatWorkspace({
   }, [handleSelectConversation]);
 
   const handleDeleteConversation = useCallback(async (chatId: string) => {
-    await deleteConversation.mutateAsync({ ...scope, chatId });
+    await deleteConversation.mutateAsync({ chatId });
     if (selectedChatId === chatId) setSelectedChatId('');
-    await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
-  }, [deleteConversation, queryClient, scope, selectedChatId]);
+    await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
+  }, [deleteConversation, queryClient, selectedChatId]);
 
   const handleDeleteConversationClick = useCallback((chatId: string) => {
     void handleDeleteConversation(chatId);
@@ -212,25 +242,26 @@ export function ChatWorkspace({
     setStreamError(null);
     setStreamingText('');
     setIsAssistantResponsePending(true);
-    const resolvedIntent = isGlobalChat ? (intentOverride ?? effectiveIntent) : null;
+    const resolvedIntent = isActiveGlobalChat ? (intentOverride ?? effectiveIntent) : null;
 
     let chatId = effectiveSelectedChatId;
     if (!chatId) {
       const result = await createConversation.mutateAsync({ ...scope, title: content });
       chatId = result.conversation.id;
       setSelectedChatId(chatId);
-      queryClient.setQueryData(chatQueryKeys.conversation(scope, chatId), {
+      onConversationCreated?.(chatId);
+      queryClient.setQueryData(chatQueryKeys.conversation(chatId), {
         conversation: { ...result.conversation, messages: [] },
       });
-      await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) });
+      await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
     }
 
     const optimisticMessage: LocalMessage = {
       id: `local-${Date.now()}`,
       conversationId: chatId,
-      vaultId: vaultId ?? null,
-      documentId: documentId ?? null,
-      scope: isDocumentChat ? 'document' : isGlobalChat ? 'global' : 'vault',
+      vaultId: activeVaultId ?? null,
+      documentId: activeDocumentId ?? null,
+      scope: isActiveDocumentChat ? 'document' : isActiveGlobalChat ? 'global' : 'vault',
       userId: null,
       role: 'user',
       content,
@@ -248,7 +279,6 @@ export function ChatWorkspace({
 
     try {
       await streamChatMessage({
-        ...scope,
         chatId,
         content,
         intent: resolvedIntent ?? undefined,
@@ -262,8 +292,8 @@ export function ChatWorkspace({
           setIsAssistantResponsePending(false);
           setStreamStatus(null);
           void Promise.all([
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) }),
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(scope, chatId) }),
+            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() }),
+            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(chatId) }),
           ]);
         },
         onDone: (payload) => {
@@ -276,8 +306,8 @@ export function ChatWorkspace({
           setIsAssistantResponsePending(false);
           setStreamStatus(null);
           void Promise.all([
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations(scope) }),
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(scope, chatId) }),
+            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() }),
+            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(chatId) }),
           ]);
         },
       });
@@ -492,8 +522,8 @@ export function ChatWorkspace({
                   title={experience.emptyTitle}
                   description={experience.emptyDescription}
                   promptSuggestions={experience.promptSuggestions}
-                  guidedPrompts={isGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
-                  onGuidedPromptSelect={isGlobalChat ? handleGuidedPromptSelect : undefined}
+                  guidedPrompts={isActiveGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
+                  onGuidedPromptSelect={isActiveGlobalChat ? handleGuidedPromptSelect : undefined}
                   onPromptSelect={(prompt) => {
                     void handleSend(prompt);
                   }}
@@ -519,14 +549,14 @@ export function ChatWorkspace({
           <VirtualChatTimeline
             conversationId={effectiveSelectedChatId}
             messages={messages}
-            currentVaultId={vaultId}
-            scope={scope}
+            currentVaultId={activeVaultId}
+            scope={activeScope}
             activeStatus={streamStatus}
             metricsByMessageId={metricsByMessageId}
             streamingText={streamingText}
             isStreaming={isStreaming}
             onQuickReplySelect={
-              isGlobalChat
+              isActiveGlobalChat
                 ? (reply) => {
                     void handleSend(reply, effectiveIntent);
                   }

@@ -2,6 +2,7 @@ import { fetchJson } from '@/lib/api';
 import type {
   ChatConversation,
   ChatConversationDetail,
+  ChatContextSnapshot,
   ChatIntent,
   ChatModelOptions,
   ChatStreamDonePayload,
@@ -18,24 +19,24 @@ export interface ChatApiScope {
 
 export type ChatResponseMode = 'text' | 'multimodal';
 
-function getChatBasePath({ vaultId, documentId }: ChatApiScope) {
+export function getChatContextSnapshot({ vaultId, documentId }: ChatApiScope): ChatContextSnapshot {
   if (vaultId && documentId) {
-    return `/api/vaults/${vaultId}/documents/${documentId}/chats`;
+    return { type: 'document', vaultId, documentId };
   }
 
   if (vaultId) {
-    return `/api/vaults/${vaultId}/chats`;
+    return { type: 'vault', vaultId };
   }
 
-  return '/api/chats';
+  return { type: 'global', vaultIds: [] };
 }
 
-export async function listChatConversations(scope: ChatApiScope) {
-  return fetchJson<{ conversations: ChatConversation[] }>(getChatBasePath(scope));
+export async function listChatConversations() {
+  return fetchJson<{ conversations: ChatConversation[] }>('/api/chats');
 }
 
-export async function getChatModelOptions(scope: ChatApiScope) {
-  return fetchJson<{ options: ChatModelOptions }>(`${getChatBasePath(scope)}/options`);
+export async function getChatModelOptions() {
+  return fetchJson<{ options: ChatModelOptions }>('/api/chats/options');
 }
 
 export async function createChatConversation({
@@ -44,31 +45,29 @@ export async function createChatConversation({
 }: ChatApiScope & {
   title?: string;
 }) {
-  return fetchJson<{ conversation: ChatConversation }>(getChatBasePath(scope), {
+  return fetchJson<{ conversation: ChatConversation }>('/api/chats', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, contextSnapshot: getChatContextSnapshot(scope) }),
   });
 }
 
 export async function getChatConversation({
   chatId,
-  ...scope
-}: ChatApiScope & {
+}: {
   chatId: string;
 }) {
   return fetchJson<{ conversation: ChatConversationDetail }>(
-    `${getChatBasePath(scope)}/${chatId}`,
+    `/api/chats/${chatId}`,
   );
 }
 
 export async function deleteChatConversation({
   chatId,
-  ...scope
-}: ChatApiScope & {
+}: {
   chatId: string;
 }) {
-  return fetchJson<void>(`${getChatBasePath(scope)}/${chatId}`, {
+  return fetchJson<void>(`/api/chats/${chatId}`, {
     method: 'DELETE',
   });
 }
@@ -103,8 +102,6 @@ function dispatchSseEvent({
 }
 
 export async function streamChatMessage({
-  vaultId,
-  documentId,
   chatId,
   content,
   intent,
@@ -112,7 +109,7 @@ export async function streamChatMessage({
   responseMode = 'multimodal',
   signal,
   ...callbacks
-}: ChatApiScope & {
+}: {
   chatId: string;
   content: string;
   intent?: ChatIntent;
@@ -120,7 +117,7 @@ export async function streamChatMessage({
   responseMode?: ChatResponseMode;
   signal?: AbortSignal;
 } & StreamCallbacks) {
-  const response = await fetch(`${getChatBasePath({ vaultId, documentId })}/${chatId}/messages/stream`, {
+  const response = await fetch(`/api/chats/${chatId}/messages/stream`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },

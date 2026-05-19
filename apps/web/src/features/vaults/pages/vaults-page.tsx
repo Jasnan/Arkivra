@@ -460,11 +460,17 @@ export function VaultsPage() {
                 <Text mt="4" maxW="full" truncate fontSize="md" fontWeight="semibold" color="fg">
                   {vault.name}
                 </Text>
-                {getVaultDescription(vault.description) ? (
-                  <Text mt="1" maxW="full" truncate fontSize="sm" color="fg.muted">
-                    {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
-                  </Text>
-                ) : null}
+                <Text
+                  mt="1"
+                  maxW="full"
+                  minH="5"
+                  truncate
+                  fontSize="sm"
+                  color="fg.muted"
+                  visibility={getVaultDescription(vault.description) ? 'visible' : 'hidden'}
+                >
+                  {getDescriptionPreview(getVaultDescription(vault.description) ?? 'Description')}
+                </Text>
                 <Text mt="3" fontSize="sm" color="fg.muted">
                   {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'} • {formatBytes(vault.totalSize)}
                 </Text>

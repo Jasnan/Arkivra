@@ -120,6 +120,27 @@ export function getItemName(item: BrowserContextItem) {
   return item.type === 'folder' ? item.folder.name : item.document.name;
 }
 
+export function getFileDisplayName(name: string) {
+  const lastSlashIndex = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+  const basenameStart = lastSlashIndex + 1;
+  const basename = name.slice(basenameStart);
+  const lastDotIndex = basename.lastIndexOf('.');
+
+  if (lastDotIndex <= 0) {
+    return name;
+  }
+
+  return `${name.slice(0, basenameStart)}${basename.slice(0, lastDotIndex)}`;
+}
+
+export function getItemDisplayName(item: BrowserContextItem) {
+  if (item.type !== 'document') {
+    return getItemName(item);
+  }
+
+  return getFileDisplayName(item.document.name);
+}
+
 export function getBrowserItemKey(item: BrowserItem) {
   return item.type === 'folder' ? `folder-${item.folder.id}` : `document-${item.document.id}`;
 }

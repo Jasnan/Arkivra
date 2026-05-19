@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
-import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page';
+import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 import { renderWithProviders } from '@/test/utils';
 
@@ -265,7 +265,7 @@ describe('vault pages', () => {
     expect(await screen.findByText(/vault creation request queued/i)).toBeInTheDocument();
   });
 
-  it('loads vault settings and invites a member', async () => {
+  it('loads vault settings and updates vault identity', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -297,6 +297,20 @@ describe('vault pages', () => {
         });
       }
 
+      if (url.endsWith('/api/vaults/vlt_1/folders/items?folderId=root')) {
+        return jsonResponse({
+          folder: null,
+          breadcrumbs: [],
+          folders: [],
+          documents: [],
+          items: [],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/folders/tree')) {
+        return jsonResponse({ folders: [], documents: [] });
+      }
+
       if (url.endsWith('/api/vaults/vlt_1/members') && init?.method === 'POST') {
         return jsonResponse({
           member: {
@@ -324,11 +338,12 @@ describe('vault pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<VaultSettingsPage />, {
-      initialEntries: ['/vaults/vlt_1/settings'],
-      routePath: '/vaults/:vaultId/settings',
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1?tab=settings'],
+      routePath: '/vaults/:vaultId',
     });
 
+    expect(await screen.findByRole('tab', { name: /settings/i })).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByText(/personal/i)).toBeInTheDocument();
     await user.clear(screen.getByLabelText(/name/i));
     await user.type(screen.getByLabelText(/name/i), 'Personal Vault');
@@ -344,6 +359,79 @@ describe('vault pages', () => {
       }));
     });
 
+    expect(screen.queryByRole('button', { name: /add member/i })).not.toBeInTheDocument();
+  });
+
+  it('invites a member from the vault members tab', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1')) {
+        return jsonResponse({
+          vault: {
+            id: 'vlt_1',
+            name: 'Personal',
+            description: 'Household records',
+            role: 'owner',
+            aiAccessLevel: 'full',
+            isRoot: false,
+            isMember: true,
+            accessMode: 'member',
+          },
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/folders/items?folderId=root')) {
+        return jsonResponse({
+          folder: null,
+          breadcrumbs: [],
+          folders: [],
+          documents: [],
+          items: [],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/folders/tree')) {
+        return jsonResponse({ folders: [], documents: [] });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/members') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          members: [
+            {
+              userId: 'usr_owner',
+              role: 'owner',
+              email: 'owner@example.com',
+              name: 'Owner',
+              aiAccessLevel: 'full',
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/members') && init?.method === 'POST') {
+        return jsonResponse({
+          member: {
+            userId: 'usr_new',
+            role: 'viewer',
+            email: 'new@example.com',
+            name: 'New Member',
+            aiAccessLevel: 'none',
+          },
+        }, 201);
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1?tab=members'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    expect(await screen.findByRole('tab', { name: /members/i })).toHaveAttribute('aria-selected', 'true');
     await user.type(screen.getByPlaceholderText(/usr_/i), 'usr_new');
     await user.click(screen.getByRole('button', { name: /add member/i }));
 

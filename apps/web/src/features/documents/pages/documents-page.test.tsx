@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { renderWithProviders } from '@/test/utils';
@@ -15,7 +15,7 @@ describe('documents page', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the active vault file tree inside the browser pane', async () => {
+  it('renders vault sections as tabs above the browser contents', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -93,9 +93,11 @@ describe('documents page', () => {
       routePath: '/vaults/:vaultId',
     });
 
-    const fileTree = await screen.findByRole('complementary', { name: /vault file tree/i, hidden: true });
-    expect(within(fileTree).getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(within(fileTree).getByRole('button', { name: 'Insurance', hidden: true })).toBeInTheDocument();
-    expect(within(fileTree).queryByRole('button', { name: /create vault/i, hidden: true })).not.toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: /contents/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /members/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /vault chat/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: /vault file tree/i, hidden: true })).not.toBeInTheDocument();
   });
 });

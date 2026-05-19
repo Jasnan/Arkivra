@@ -5,6 +5,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  useParams,
 } from '@tanstack/react-router'
 import { AuthLayout, AuthLoadingState } from '@/features/auth/auth-layout'
 import { EmailVerificationPage } from '@/features/auth/pages/email-verification-page'
@@ -52,6 +53,11 @@ function PublicAuthLayout() {
       <Outlet />
     </AuthLayout>
   )
+}
+
+function VaultChatRedirect() {
+  const { vaultId } = useParams({ strict: false }) as { vaultId?: string };
+  return vaultId ? <Navigate to={ROUTES.vaultRoot(vaultId)} search={{ tab: 'ai-chat' }} replace /> : <Navigate to={ROUTES.vaults} replace />;
 }
 
 function ProtectedAppShell() {
@@ -141,7 +147,7 @@ const vaultSettingsRoute = createRoute({
 const vaultChatRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/chat',
-  component: ChatPage,
+  component: VaultChatRedirect,
 })
 
 const documentRoute = createRoute({

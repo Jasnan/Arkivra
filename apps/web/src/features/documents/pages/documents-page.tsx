@@ -6,10 +6,10 @@ import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, Histor
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
 import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { ROUTES } from '@/app/routes';
+import { ChatWorkspace } from '@/features/chat/components/chat-workspace';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -19,8 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { useBrowserDragDrop } from '@/features/documents/hooks/use-browser-drag-drop';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
@@ -58,13 +57,14 @@ import type {
   ItemDialogTarget,
 } from '@/features/file-browser/components/vault-browser.types';
 import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
-import { VaultSidebarTree } from '@/features/vaults/components/vault-sidebar-tree';
+import { VaultMembersPanel } from '@/features/vaults/components/vault-members-panel';
+import { VaultSettingsPanel } from '@/features/vaults/components/vault-settings-panel';
 import { joinVaultAsRoot } from '@/features/vaults/vaults.api';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
 type VaultPageTab = 'contents' | 'members' | 'activity' | 'ai-chat' | 'settings';
-type VaultRootPageTab = Exclude<VaultPageTab, 'ai-chat' | 'settings'>;
+type VaultRootPageTab = VaultPageTab;
 
 function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor');
@@ -86,16 +86,35 @@ const rootJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = 
   { value: 'full', label: 'Full AI access' },
 ];
 
-const vaultRootTabs = ['contents', 'members', 'activity'] satisfies VaultRootPageTab[];
+const vaultRootTabs = ['contents', 'members', 'activity', 'settings', 'ai-chat'] satisfies VaultRootPageTab[];
 
 const vaultPageTabs = [
   { value: 'contents', label: 'Contents', description: 'Documents & folders', icon: FolderOpen, route: 'root' },
   { value: 'members', label: 'Members', description: 'Access & permissions', icon: Users, route: 'root' },
   { value: 'activity', label: 'Activity', description: 'Vault events & history', icon: History, route: 'root' },
-  { value: 'ai-chat', label: 'Vault Chat', description: 'Chat with vault documents', icon: MessageSquare, route: 'chat' },
   { value: 'settings', label: 'Settings', description: 'Vault configuration', icon: Settings, route: 'settings' },
+  { value: 'ai-chat', label: 'Vault Chat', description: 'Chat with vault documents', icon: MessageSquare, route: 'chat' },
 ] satisfies Array<{ value: VaultPageTab; label: string; description: string; icon: SecondaryNavIcon; route: 'root' | 'chat' | 'settings' }>;
 const placeholderSkeletonKeys = ['summary', 'primary', 'secondary', 'tertiary', 'quaternary', 'final'];
+
+const vaultTabTriggerStyles = {
+  h: '11',
+  roundedTop: 'md',
+  roundedBottom: '0',
+  borderBottomWidth: '2px',
+  borderColor: 'transparent',
+  px: '3',
+  pb: '3',
+  pt: '2',
+  color: 'fg.muted',
+  _hover: { bg: 'teal.subtle', color: 'fg' },
+  _selected: {
+    bg: 'teal.subtle',
+    borderColor: 'teal.solid',
+    color: 'teal.fg',
+    shadow: 'none',
+  },
+} as const;
 
 function VaultPlaceholderTab() {
   return (
@@ -130,58 +149,36 @@ function VaultPlaceholderTab() {
   );
 }
 
-function VaultSecondaryMenu({
+function VaultPageTabs({
   activeTab,
-  description,
-  name,
-  vaultId,
 }: {
   activeTab: VaultPageTab;
-  description: string;
-  name: string;
-  vaultId: string;
 }) {
   return (
-    <Stack gap="0">
-      <Stack gap="2.5" px="3.5" pb="3.5">
-        <Box minW="0">
-          <Text fontSize="sm" fontWeight="semibold" lineHeight="1.2" color="fg" truncate>
-            {name}
-          </Text>
-          <TooltipProvider>
-            <Tooltip positioning={{ placement: 'right' }}>
-              <TooltipTrigger asChild>
-                <Text mt="0.5" textStyle="caption" color="fg.muted" truncate cursor="default">
-                  {description}
-                </Text>
-              </TooltipTrigger>
-              <TooltipContent maxW="16rem">{description}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </Box>
-      </Stack>
-
-      <Stack gap="1" mt="3px">
-        {vaultPageTabs.map((tab) => (
-          <SecondaryNavLink
-            key={tab.value}
-            to={
-              tab.route === 'chat'
-                ? ROUTES.vaultChat(vaultId)
-                : tab.route === 'settings'
-                  ? ROUTES.vaultSettings(vaultId)
-                  : ROUTES.vaultRoot(vaultId)
-            }
-            search={tab.route === 'root' && tab.value !== 'contents' ? { tab: tab.value } : undefined}
-            label={tab.label}
-            description={tab.description}
-            icon={tab.icon}
-            active={activeTab === tab.value}
-            density="compact"
-          />
-        ))}
-      </Stack>
-    </Stack>
+    <Box
+      borderBottomWidth="1px"
+      borderColor="border.surface"
+      bg="bg.workspace"
+      px={{ base: '4', lg: '6' }}
+      pt="2.5"
+      overflowX="auto"
+    >
+      <Flex align="center" justify="space-between" gap="3" overflowX="auto">
+        <TabsList gap="2" rounded="0" bg="transparent" p="0">
+          {vaultPageTabs.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              aria-current={activeTab === tab.value ? 'page' : undefined}
+              {...vaultTabTriggerStyles}
+            >
+              <tab.icon size={16} aria-hidden="true" />
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Flex>
+    </Box>
   );
 }
 
@@ -251,7 +248,6 @@ export function DocumentsPage() {
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
   const [joinRole, setJoinRole] = useState<VaultRole>('owner');
   const [joinAiAccessLevel, setJoinAiAccessLevel] = useState<AiAccessLevel>('full');
-  const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const directoryInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
@@ -654,23 +650,7 @@ export function DocumentsPage() {
     onDragLeaveFolder: handleDragLeaveFolder,
     onDropOnFolder: handleDropOnFolder,
   });
-  const vaultSecondaryContent = useMemo(() => {
-    const vault = vaultQuery.data?.vault;
-
-    if (!vault || isRestrictedRootOverview) {
-      return null;
-    }
-
-    return (
-      <VaultSecondaryMenu
-        activeTab={currentVaultTab}
-        description={vault.description?.trim() || 'No description set.'}
-        name={vault.name ?? 'Vault'}
-        vaultId={vaultId}
-      />
-    );
-  }, [currentVaultTab, isRestrictedRootOverview, vaultId, vaultQuery.data?.vault]);
-  useWorkspaceSecondary(vaultSecondaryContent);
+  useWorkspaceSecondary(null);
 
   if (!vaultId) {
     return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
@@ -828,9 +808,6 @@ export function DocumentsPage() {
     folderId: currentFolderId,
     name: currentFolderId === null ? 'Vault root' : folderItemsQuery.data?.folder?.name ?? 'Folder',
   };
-  const vault = vaultQuery.data.vault;
-  const vaultName = vault.name ?? 'Vault';
-
   return (
     <Flex as="section" h="full" minH="0" direction="column" overflow="hidden">
       {!browserHeader.isInWorkspaceShell ? (
@@ -851,7 +828,8 @@ export function DocumentsPage() {
         defaultValue="contents"
         value={currentVaultTab}
         onValueChange={(value) => {
-          const tab = value as VaultRootPageTab;
+          const tab = value as VaultPageTab;
+
           void navigate({
             to: ROUTES.vaultRoot(vaultId),
             search: tab === 'contents' ? undefined : { tab },
@@ -877,35 +855,11 @@ export function DocumentsPage() {
           onChange={handleUploadInputChange}
         />
 
-        <TabsContent value="contents" display="flex" flex="1" minH="0" flexDirection="column" p="0">
-          {browserHeader.contentsToolbar}
-          <Flex flex="1" minH="0" overflow="hidden">
-            <Box
-              as="aside"
-              role="complementary"
-              aria-label="Vault file tree"
-              w={{ base: '14rem', lg: '16rem', xl: '17.5rem' }}
-              flexShrink={0}
-              borderRightWidth="1px"
-              borderColor="border.surface"
-              bg="bg.workspace"
-              px="3"
-              py="4"
-              overflowY="auto"
-            >
-              <VaultSidebarTree
-                vaults={[{ id: vaultId, name: vaultName }]}
-                activeVaultId={vaultId}
-                activeVaultRootOnly
-                expandedValue={vaultTreeExpandedValue}
-                onExpandedValueChange={setVaultTreeExpandedValue}
-                currentFolderId={currentFolderId}
-                currentDocumentId={null}
-                folders={folderTreeQuery.data?.folders ?? []}
-                documents={folderTreeQuery.data?.documents ?? []}
-              />
-            </Box>
+        {browserHeader.contentsToolbar}
+        <VaultPageTabs activeTab={currentVaultTab} />
 
+        <TabsContent value="contents" display="flex" flex="1" minH="0" flexDirection="column" p="0">
+          <Flex flex="1" minH="0" overflow="hidden">
             <Flex minW="0" flex="1" direction="column" overflow="hidden">
               {activeIsLoading ? (
                 <Box borderBottomWidth="1px" borderColor="border.surface" px="6" py="4">
@@ -993,13 +947,26 @@ export function DocumentsPage() {
             </Flex>
           </Flex>
         </TabsContent>
-        {vaultPageTabs
-          .filter(tab => tab.value !== 'contents')
-          .map(tab => (
-            <TabsContent key={tab.value} value={tab.value} display="flex" flex="1" minH="0" flexDirection="column" p="0">
-              <VaultPlaceholderTab />
-            </TabsContent>
-          ))}
+        <TabsContent value="members" display="flex" flex="1" minH="0" flexDirection="column" overflowY="auto" p="0">
+          <Box px={{ base: '4', lg: '6' }} py="5">
+            <VaultMembersPanel vault={vaultQuery.data.vault} vaultId={vaultId} />
+          </Box>
+        </TabsContent>
+        <TabsContent value="activity" display="flex" flex="1" minH="0" flexDirection="column" p="0">
+          <VaultPlaceholderTab />
+        </TabsContent>
+        <TabsContent value="settings" display="flex" flex="1" minH="0" flexDirection="column" overflowY="auto" p="0">
+          <Box px={{ base: '4', lg: '6' }} py="5">
+            <VaultSettingsPanel vaultId={vaultId} />
+          </Box>
+        </TabsContent>
+        <TabsContent value="ai-chat" display="flex" flex="1" minH="0" flexDirection="column" p="0">
+          <ChatWorkspace
+            scope={{ vaultId }}
+            inputPlaceholder="Ask about documents in this vault..."
+            heightClassName="h-full"
+          />
+        </TabsContent>
       </Tabs>
 
       <ChakraDialog.Root

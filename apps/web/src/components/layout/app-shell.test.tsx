@@ -250,6 +250,8 @@ describe('app shell account menu', () => {
       throw new Error('Secondary sidebar not found');
     }
     expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
+    expect(await within(secondarySidebar).findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
+    expect(await within(secondarySidebar).findByRole('button', { name: 'Insurance', hidden: true })).toBeInTheDocument();
     expect(screen.getByTitle('Hide secondary sidebar')).toBeInTheDocument();
   });
 

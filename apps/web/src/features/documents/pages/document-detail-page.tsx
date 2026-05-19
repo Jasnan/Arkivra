@@ -112,7 +112,7 @@ const documentTabTriggerStyles = {
   h: '11',
   roundedTop: 'md',
   roundedBottom: '0',
-  borderBottomWidth: '2px',
+  borderBottomWidth: '0',
   borderColor: 'transparent',
   px: '3',
   pb: '3',
@@ -121,17 +121,35 @@ const documentTabTriggerStyles = {
   _hover: { bg: 'teal.subtle', color: 'fg' },
   _selected: {
     bg: 'teal.subtle',
-    borderColor: 'teal.solid',
+    borderColor: 'transparent',
     color: 'teal.fg',
     shadow: 'none',
   },
 } as const;
 
+const documentActionTriggerStyles = {
+  h: '10',
+  w: '10',
+  rounded: 'md',
+  borderColor: 'border.surface',
+  bg: 'bg.surface',
+  color: 'fg.muted',
+  shadow: 'none',
+  _hover: { borderColor: 'fg/30', bg: 'bg.surface', color: 'fg' },
+  _focusVisible: {
+    borderColor: 'teal.solid',
+    outline: '2px solid',
+    outlineColor: 'teal.focusRing',
+    outlineOffset: '1px',
+  },
+} as const;
+
 const searchReturnParamKeys = ['q', 'vaultId', 'tagId', 'dateFrom', 'dateTo', 'sortBy'] as const;
+const documentFileExtensionPattern = /\.[^/.]+$/;
 const pdfPreviewRevealDelayMs = 120;
 const pdfPreviewFadeMs = 420;
 const pdfPreviewPadding = 32;
-const pdfPreviewToolbarHeight = 88;
+const pdfPreviewToolbarMinHeight = 64;
 const pdfPreviewCommitCoverDelayMs = 120;
 const pdfPreviewMinZoom = 0.5;
 const pdfPreviewMaxZoom = 3;
@@ -204,6 +222,10 @@ function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null | un
   return language.name || language.code.toUpperCase();
 }
 
+function getDocumentTitle(name: string) {
+  return name.replace(documentFileExtensionPattern, '');
+}
+
 function getTranslationTargetLanguages(sourceLanguage: DocumentLanguageMetadata | null | undefined) {
   const sourceCode = sourceLanguage?.code.toLocaleLowerCase().split('-')[0];
 
@@ -274,6 +296,10 @@ function getSelectionTextWithin(element: HTMLElement | null) {
   return text;
 }
 
+function isPdfTextLayerTarget(target: EventTarget | null) {
+  return target instanceof Element && target.closest('.react-pdf__Page__textContent span, .textLayer span') !== null;
+}
+
 function getMenuAnchorRect(point: PdfMenuPoint | undefined) {
   const x = point?.x ?? 0;
   const y = point?.y ?? 0;
@@ -336,13 +362,16 @@ function PdfPreviewFrame({
   sourceLanguage?: DocumentLanguageMetadata | null;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
   const visiblePageRef = useRef<HTMLDivElement | null>(null);
   const activeTranslationControllerRef = useRef<AbortController | null>(null);
   const revealTimeoutRef = useRef<number | null>(null);
   const transitionTimeoutRef = useRef<number | null>(null);
   const commitCoverTimeoutRef = useRef<number | null>(null);
   const requestedPageNumberRef = useRef(1);
+  const suppressTextSelectionMenuRef = useRef(false);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [toolbarHeight, setToolbarHeight] = useState(pdfPreviewToolbarMinHeight);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [visiblePageNumber, setVisiblePageNumber] = useState(1);
@@ -358,7 +387,6 @@ function PdfPreviewFrame({
   const [pageContextMenu, setPageContextMenu] = useState<{ open: boolean; point: PdfMenuPoint } | null>(null);
   const [textSelectionMenu, setTextSelectionMenu] = useState<TextSelectionMenuState | null>(null);
   const [visualSelectionMenu, setVisualSelectionMenu] = useState<VisualSelectionMenuState | null>(null);
-  const [isAreaSelectionMode, setIsAreaSelectionMode] = useState(false);
   const [areaDrag, setAreaDrag] = useState<AreaDragState | null>(null);
   const [visualSelectionRect, setVisualSelectionRect] = useState<NormalizedRect | null>(null);
   const [isTranslationPending, setIsTranslationPending] = useState(false);
@@ -382,6 +410,32 @@ function PdfPreviewFrame({
     });
 
     observer.observe(viewport);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const toolbarElement = toolbarRef.current;
+
+    if (!toolbarElement) {
+      return undefined;
+    }
+
+    function updateToolbarHeight(element: HTMLDivElement) {
+      const nextHeight = Math.max(
+        Math.ceil(element.getBoundingClientRect().height),
+        pdfPreviewToolbarMinHeight,
+      );
+      setToolbarHeight((currentHeight) => (
+        currentHeight === nextHeight ? currentHeight : nextHeight
+      ));
+    }
+
+    updateToolbarHeight(toolbarElement);
+    const observer = new ResizeObserver(() => updateToolbarHeight(toolbarElement));
+    observer.observe(toolbarElement);
+
     return () => {
       observer.disconnect();
     };
@@ -414,7 +468,7 @@ function PdfPreviewFrame({
 
   const pageViewportWidth = Math.max(viewportSize.width - pdfPreviewPadding * 2, 0);
   const pageViewportHeight = Math.max(
-    viewportSize.height - pdfPreviewToolbarHeight - pdfPreviewPadding * 2,
+    viewportSize.height - toolbarHeight - pdfPreviewPadding * 2,
     0,
   );
   const fitPageWidth = pageAspectRatio
@@ -792,7 +846,7 @@ function PdfPreviewFrame({
   }
 
   function handlePageContextMenu(event: React.MouseEvent<HTMLDivElement>) {
-    if (!isReady || isAreaSelectionMode || translationsDisabled) {
+    if (!isReady || translationsDisabled) {
       return;
     }
 
@@ -806,7 +860,12 @@ function PdfPreviewFrame({
   }
 
   function handlePageMouseUp(event: React.MouseEvent<HTMLDivElement>) {
-    if (isAreaSelectionMode || !isReady || translationsDisabled) {
+    if (suppressTextSelectionMenuRef.current) {
+      suppressTextSelectionMenuRef.current = false;
+      return;
+    }
+
+    if (!isReady || translationsDisabled) {
       return;
     }
 
@@ -828,12 +887,19 @@ function PdfPreviewFrame({
   }
 
   function handleAreaPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (!isAreaSelectionMode || !isReady || translationsDisabled || visiblePageRef.current === null) {
+    if (
+      event.button !== 0
+      || !isReady
+      || translationsDisabled
+      || visiblePageRef.current === null
+      || isPdfTextLayerTarget(event.target)
+    ) {
       return;
     }
 
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    suppressTextSelectionMenuRef.current = true;
     window.getSelection()?.removeAllRanges();
     const start = getNormalizedPointFromClient({
       clientX: event.clientX,
@@ -922,7 +988,8 @@ function PdfPreviewFrame({
         bg="bg.surface"
       >
         <Flex
-          h={`${pdfPreviewToolbarHeight}px`}
+          ref={toolbarRef}
+          minH={`${pdfPreviewToolbarMinHeight}px`}
           align="center"
           justify="space-between"
           gap="3"
@@ -931,6 +998,7 @@ function PdfPreviewFrame({
           borderColor="border.surface"
           bg="bg.surface"
           px={{ base: '3', md: '4' }}
+          py="2"
         >
           <Flex align="center" gap="1.5" minW="0">
             <Button
@@ -1041,25 +1109,6 @@ function PdfPreviewFrame({
           </Flex>
 
           <Flex align="center" gap="2">
-            {!translationsDisabled ? (
-              <Button
-                type="button"
-                size="sm"
-                variant={isAreaSelectionMode ? 'solid' : 'outline'}
-                aria-pressed={isAreaSelectionMode}
-                disabled={!isReady}
-                onClick={() => {
-                  setIsAreaSelectionMode(value => !value);
-                  setTextSelectionMenu(null);
-                  setPageContextMenu(null);
-                  setVisualSelectionMenu(null);
-                  setVisualSelectionRect(null);
-                }}
-              >
-                <ScanText size={16} />
-                Area
-              </Button>
-            ) : null}
             <Button type="button" size="sm" variant="outline" onClick={onPrint}>
               <Printer size={16} />
               Print
@@ -1070,7 +1119,7 @@ function PdfPreviewFrame({
           <Flex
             position="absolute"
             insetX="0"
-            top={`${pdfPreviewToolbarHeight}px`}
+            top={`${toolbarHeight}px`}
             bottom="0"
             zIndex="1"
             align="center"
@@ -1085,16 +1134,13 @@ function PdfPreviewFrame({
             </Text>
           </Flex>
         ) : null}
-        <Flex
+        <Box
           position="absolute"
           insetX="0"
-          top={`${pdfPreviewToolbarHeight}px`}
+          top={`${toolbarHeight}px`}
           bottom="0"
-          align="center"
-          justify="center"
           overflow="auto"
           bg="bg.surface"
-          p={`${pdfPreviewPadding}px`}
           opacity={isReady ? 1 : 0}
           pointerEvents={isReady ? 'auto' : 'none'}
           transform={isReady ? 'scale(1)' : 'scale(0.992)'}
@@ -1103,96 +1149,96 @@ function PdfPreviewFrame({
           aria-hidden={!isReady}
           willChange="opacity, transform"
         >
-          {viewportSize.width > 0 ? (
-            <Box
-              ref={visiblePageRef}
-              position="relative"
-              w={`${pageWidth}px`}
-              h={pageHeight ? `${pageHeight}px` : undefined}
-              minH={pageHeight ? `${pageHeight}px` : undefined}
-              flexShrink="0"
-              onContextMenu={handlePageContextMenu}
-              onMouseUp={handlePageMouseUp}
-            >
-              <PdfDocument
-                file={src}
-                loading={null}
-                error={null}
-                onLoadSuccess={handleDocumentLoadSuccess}
-                onLoadError={() => setLoadError(true)}
+          <Flex
+            w="max-content"
+            minW="full"
+            h="max-content"
+            minH="full"
+            align="center"
+            justify="center"
+            p={`${pdfPreviewPadding}px`}
+          >
+            {viewportSize.width > 0 ? (
+              <Box
+                ref={visiblePageRef}
+                position="relative"
+                w={`${pageWidth}px`}
+                h={pageHeight ? `${pageHeight}px` : undefined}
+                minH={pageHeight ? `${pageHeight}px` : undefined}
+                flexShrink="0"
+                onContextMenu={handlePageContextMenu}
+                onMouseUp={handlePageMouseUp}
+                onPointerDown={handleAreaPointerDown}
+                onPointerMove={handleAreaPointerMove}
+                onPointerUp={handleAreaPointerUp}
+                onPointerCancel={() => setAreaDrag(null)}
               >
-                <Box
-                  opacity={isReady && (!isPageTransitioning || !isPendingPageRendered) ? 1 : 0}
-                  transition={`opacity ${pdfPreviewFadeMs}ms ease`}
-                  willChange="opacity"
+                <PdfDocument
+                  file={src}
+                  loading={null}
+                  error={null}
+                  onLoadSuccess={handleDocumentLoadSuccess}
+                  onLoadError={() => setLoadError(true)}
                 >
-                  <PdfPage
-                    key={`${src}-${visiblePageNumber}-${Math.round(pageWidth)}`}
-                    pageNumber={visiblePageNumber}
-                    width={pageWidth}
-                    loading={null}
-                    error={null}
-                    renderAnnotationLayer={false}
-                    renderTextLayer
-                    onLoadSuccess={handlePageLoadSuccess}
-                    onRenderSuccess={() => handleVisiblePageRenderSuccess(visiblePageNumber)}
-                    onRenderError={() => setLoadError(true)}
-                  />
-                </Box>
-                {hasPendingLayer ? (
                   <Box
-                    position="absolute"
-                    inset="0"
-                    opacity={isPendingLayerVisible ? 1 : 0}
+                    opacity={isReady && (!isPageTransitioning || !isPendingPageRendered) ? 1 : 0}
                     transition={`opacity ${pdfPreviewFadeMs}ms ease`}
                     willChange="opacity"
                   >
                     <PdfPage
-                      key={`${src}-${pendingLayerPageNumber}-${Math.round(pageWidth)}`}
-                      pageNumber={pendingLayerPageNumber}
+                      key={`${src}-${visiblePageNumber}-${Math.round(pageWidth)}`}
+                      pageNumber={visiblePageNumber}
                       width={pageWidth}
                       loading={null}
                       error={null}
                       renderAnnotationLayer={false}
                       renderTextLayer
                       onLoadSuccess={handlePageLoadSuccess}
-                      onRenderSuccess={() => handlePendingPageRenderSuccess(pendingLayerPageNumber)}
+                      onRenderSuccess={() => handleVisiblePageRenderSuccess(visiblePageNumber)}
                       onRenderError={() => setLoadError(true)}
                     />
                   </Box>
+                  {hasPendingLayer ? (
+                    <Box
+                      position="absolute"
+                      inset="0"
+                      opacity={isPendingLayerVisible ? 1 : 0}
+                      transition={`opacity ${pdfPreviewFadeMs}ms ease`}
+                      willChange="opacity"
+                    >
+                      <PdfPage
+                        key={`${src}-${pendingLayerPageNumber}-${Math.round(pageWidth)}`}
+                        pageNumber={pendingLayerPageNumber}
+                        width={pageWidth}
+                        loading={null}
+                        error={null}
+                        renderAnnotationLayer={false}
+                        renderTextLayer
+                        onLoadSuccess={handlePageLoadSuccess}
+                        onRenderSuccess={() => handlePendingPageRenderSuccess(pendingLayerPageNumber)}
+                        onRenderError={() => setLoadError(true)}
+                      />
+                    </Box>
+                  ) : null}
+                </PdfDocument>
+                {activeAreaRect !== null ? (
+                  <Box
+                    aria-hidden="true"
+                    position="absolute"
+                    zIndex="3"
+                    borderWidth="2px"
+                    borderColor="teal.solid"
+                    bg="teal.subtle"
+                    opacity="0.78"
+                    pointerEvents="none"
+                    shadow="0 0 0 1px var(--chakra-colors-bg-surface)"
+                    {...getRectStyle(activeAreaRect)}
+                  />
                 ) : null}
-              </PdfDocument>
-              {isAreaSelectionMode ? (
-                <Box
-                  position="absolute"
-                  inset="0"
-                  zIndex="2"
-                  cursor="crosshair"
-                  userSelect="none"
-                  touchAction="none"
-                  onPointerDown={handleAreaPointerDown}
-                  onPointerMove={handleAreaPointerMove}
-                  onPointerUp={handleAreaPointerUp}
-                  onPointerCancel={() => setAreaDrag(null)}
-                />
-              ) : null}
-              {activeAreaRect !== null ? (
-                <Box
-                  aria-hidden="true"
-                  position="absolute"
-                  zIndex="3"
-                  borderWidth="2px"
-                  borderColor="teal.solid"
-                  bg="teal.subtle"
-                  opacity="0.78"
-                  pointerEvents="none"
-                  shadow="0 0 0 1px var(--chakra-colors-bg-surface)"
-                  {...getRectStyle(activeAreaRect)}
-                />
-              ) : null}
-            </Box>
-          ) : null}
-        </Flex>
+              </Box>
+            ) : null}
+          </Flex>
+        </Box>
       </Box>
     </Box>
     {translationPane !== null && !translationsDisabled ? (
@@ -1975,109 +2021,42 @@ export function DocumentDetailPage() {
       minH="0"
       gap="0"
       px={isTrashDocumentRoute ? { base: '4', lg: '6' } : undefined}
-      py={isTrashDocumentRoute ? '4' : undefined}
+      pt={isTrashDocumentRoute ? '4' : { base: '3', md: '4' }}
       pb="0"
     >
       <Flex
         as="header"
-        direction="column"
         align="stretch"
-        gap="5"
-        borderBottomWidth="1px"
-        borderColor="border.surface"
+        gap={{ base: '2', md: '4' }}
+        minH="12"
+        overflow="hidden"
         pb="0"
       >
-        <Flex align="center" justify="space-between" gap="4" pt={{ base: '1', md: '0' }}>
-          <Flex align="center" gap="3" minW="0">
-            <Heading
-              as="h1"
-              textStyle="xl"
-              fontWeight="semibold"
-              lineHeight="short"
-              truncate
-            >
-              {document.name}
-            </Heading>
-            <Box
-              as="span"
-              flexShrink={0}
-              rounded="md"
-              bg="teal.subtle"
-              px="2"
-              py="1"
-              fontSize="xs"
-              fontWeight="medium"
-              color="teal.fg"
-            >
-              Document
-            </Box>
-          </Flex>
+        <Heading
+          as="h1"
+          flex="0 1 18rem"
+          minW={{ base: '7rem', md: '10rem' }}
+          maxW={{ base: '11rem', md: '18rem', xl: '26rem' }}
+          alignSelf="center"
+          textStyle="xl"
+          fontWeight="semibold"
+          lineHeight="short"
+          truncate
+        >
+          {getDocumentTitle(document.name)}
+        </Heading>
 
-          <Flex align="center" gap="2">
-            {isTrashDocumentRoute ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.trash })}>
-                <ArrowLeft size={16} />
-                Trash
-              </Button>
-            ) : null}
-
-            {searchReturnParams ? (
-              <Button type="button" size="sm" variant="outline" onClick={returnToSearchResults}>
-                <ArrowLeft size={16} />
-                Search results
-              </Button>
-            ) : null}
-
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <ActionMenuTriggerButton label={`Open actions for ${document.name}`} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" minW="56">
-                {!isTrashDocumentRoute ? (
-                  <DropdownMenuItem asChild>
-                    <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
-                      <ActionMenuItemIcon icon={Download} />
-                      Download original
-                    </a>
-                  </DropdownMenuItem>
-                ) : null}
-                {canPrint ? (
-                  <DropdownMenuItem onSelect={handlePrintClick}>
-                    <ActionMenuItemIcon icon={Printer} />
-                    Print
-                  </DropdownMenuItem>
-                ) : null}
-                {!isTrashDocumentRoute || document.isDeleted ? <DropdownMenuSeparator /> : null}
-                {document.isDeleted ? (
-                  <DropdownMenuItem
-                    disabled={restoreMutation.isPending}
-                    onSelect={() => {
-                      restoreMutation.mutate({ vaultId, documentId });
-                    }}
-                  >
-                    <ActionMenuItemIcon icon={RotateCcw} />
-                    {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    color="fg.error"
-                    _hover={{ bg: 'bg.error', color: 'fg.error' }}
-                    _focus={{ bg: 'bg.error', color: 'fg.error' }}
-                    disabled={deleteMutation.isPending}
-                    onSelect={() => setIsDeleteDialogOpen(true)}
-                  >
-                    <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-                    Move to trash
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </Flex>
-        </Flex>
-
-        <Flex align="center" justify="space-between" gap="3" overflowX="auto">
-          <Tabs value={detailActiveTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
-            <TabsList gap="2" rounded="0" bg="transparent" p="0">
+        <Box
+          flex="1 1 auto"
+          minW="0"
+          alignSelf="stretch"
+          display="flex"
+          justifyContent="flex-end"
+          overflowX="auto"
+          overflowY="hidden"
+        >
+          <Tabs w="max-content" flexShrink={0} value={detailActiveTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
+            <TabsList gap="2" minW="max-content" rounded="0" borderBottomWidth="0" bg="transparent" p="0">
               <TabsTrigger
                 value="preview"
                 {...documentTabTriggerStyles}
@@ -2112,6 +2091,72 @@ export function DocumentDetailPage() {
               ) : null}
             </TabsList>
           </Tabs>
+        </Box>
+
+        <Flex align="center" gap="2" flexShrink={0} ml="auto">
+          {isTrashDocumentRoute ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.trash })}>
+              <ArrowLeft size={16} />
+              Trash
+            </Button>
+          ) : null}
+
+          {searchReturnParams ? (
+            <Button type="button" size="sm" variant="outline" onClick={returnToSearchResults}>
+              <ArrowLeft size={16} />
+              Search results
+            </Button>
+          ) : null}
+
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <ActionMenuTriggerButton
+                label={`Open actions for ${document.name}`}
+                {...documentActionTriggerStyles}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" minW="56">
+              {!isTrashDocumentRoute ? (
+                <DropdownMenuItem value="download-original" asChild>
+                  <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
+                    <ActionMenuItemIcon icon={Download} />
+                    Download original
+                  </a>
+                </DropdownMenuItem>
+              ) : null}
+              {canPrint ? (
+                <DropdownMenuItem value="print" onSelect={handlePrintClick}>
+                  <ActionMenuItemIcon icon={Printer} />
+                  Print
+                </DropdownMenuItem>
+              ) : null}
+              {!isTrashDocumentRoute || document.isDeleted ? <DropdownMenuSeparator /> : null}
+              {document.isDeleted ? (
+                <DropdownMenuItem
+                  value="restore-document"
+                  disabled={restoreMutation.isPending}
+                  onSelect={() => {
+                    restoreMutation.mutate({ vaultId, documentId });
+                  }}
+                >
+                  <ActionMenuItemIcon icon={RotateCcw} />
+                  {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  value="move-to-trash"
+                  color="fg.error"
+                  _hover={{ bg: 'bg.error', color: 'fg.error' }}
+                  _focus={{ bg: 'bg.error', color: 'fg.error' }}
+                  disabled={deleteMutation.isPending}
+                  onSelect={() => setIsDeleteDialogOpen(true)}
+                >
+                  <ActionMenuItemIcon icon={Trash2} tone="destructive" />
+                  Move to trash
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </Flex>
       </Flex>
 
@@ -2119,7 +2164,7 @@ export function DocumentDetailPage() {
         flex="1"
         h="full"
         minH="0"
-        pt={detailActiveTab === 'chat' ? '0' : '5'}
+        pt={detailActiveTab === 'chat' ? '0' : '3'}
       >
             {detailActiveTab === 'preview' ? (
               <Flex h="full" minH="0" direction="column" gap="4">

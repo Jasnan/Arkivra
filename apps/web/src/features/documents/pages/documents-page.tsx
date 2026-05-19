@@ -6,6 +6,7 @@ import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, Histor
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { DeleteButton } from '@/components/ui/action-buttons';
 import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { ROUTES } from '@/app/routes';
@@ -207,6 +208,104 @@ function getCommonBrowserItemParentId(items: BrowserItem[]) {
     : undefined;
 }
 
+function getDeleteConfirmTitle(items: BrowserItem[]) {
+  if (items.length === 1) {
+    return `Move "${getItemName(items[0]!)}" to trash?`;
+  }
+
+  return `Move ${items.length} items to trash?`;
+}
+
+function getDeleteConfirmDescription(items: BrowserItem[]) {
+  const hasFolder = items.some(item => item.type === 'folder');
+
+  if (items.length === 1) {
+    return hasFolder
+      ? 'This folder and its contents will be moved to Trash.'
+      : 'This document will be moved to Trash.';
+  }
+
+  return hasFolder
+    ? 'The selected folders, their contents, and selected documents will be moved to Trash.'
+    : 'The selected documents will be moved to Trash.';
+}
+
+function DeleteItemsConfirmDialog({
+  items,
+  isPending,
+  onClose,
+  onConfirm,
+}: {
+  items: BrowserItem[];
+  isPending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <ChakraDialog.Root
+      open={items.length > 0}
+      onOpenChange={(event) => {
+        if (!event.open && !isPending) {
+          onClose();
+        }
+      }}
+      size={{ mdDown: 'full', md: 'lg' }}
+    >
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>{getDeleteConfirmTitle(items)}</ChakraDialog.Title>
+              <CloseButton size="sm" disabled={isPending} onClick={onClose} />
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <Stack gap="4">
+                <Text color="fg.muted" fontSize="sm">
+                  {getDeleteConfirmDescription(items)}
+                </Text>
+                <Stack
+                  as="ul"
+                  gap="2"
+                  m="0"
+                  maxH="56"
+                  overflowY="auto"
+                  rounded="md"
+                  borderWidth="1px"
+                  borderColor="border.surface"
+                  bg="bg.subtle"
+                  p="3"
+                  ps="6"
+                >
+                  {items.map(item => (
+                    <Text
+                      as="li"
+                      key={getBrowserItemKey(item)}
+                      fontSize="sm"
+                      color="fg"
+                      overflowWrap="anywhere"
+                    >
+                      {getItemName(item)}
+                    </Text>
+                  ))}
+                </Stack>
+              </Stack>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+                Cancel
+              </Button>
+              <DeleteButton type="button" disabled={isPending} onClick={onConfirm}>
+                {isPending ? 'Moving...' : 'Move to trash'}
+              </DeleteButton>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
+  );
+}
+
 function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: FileBrowserSort) {
   if (left.type !== right.type) {
     return left.type === 'folder' ? -1 : 1;
@@ -261,6 +360,7 @@ export function DocumentsPage() {
   const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
   const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [pendingTrashItems, setPendingTrashItems] = useState<BrowserItem[]>([]);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
   const [joinRole, setJoinRole] = useState<VaultRole>('owner');
   const [joinAiAccessLevel, setJoinAiAccessLevel] = useState<AiAccessLevel>('full');
@@ -314,14 +414,11 @@ export function DocumentsPage() {
       ? getBrowserItemKey(contextMenu.item)
       : null;
   const {
-    deleteMutation,
     deleteItemsMutation,
     createFolderMutation,
     renameMutation,
     moveMutation,
     moveItemsMutation,
-    deleteFolderMutation,
-    deleteDocument,
     downloadDocuments,
     itemMutationPending,
   } = useFileBrowserMutations({
@@ -520,6 +617,25 @@ export function DocumentsPage() {
     setInfoTarget(item);
   }
 
+  function openDeleteConfirm(items: BrowserItem[]) {
+    if (items.length === 0) {
+      return;
+    }
+
+    setContextMenu(null);
+    setPendingTrashItems(items);
+  }
+
+  function confirmPendingDelete() {
+    if (pendingTrashItems.length === 0) {
+      return;
+    }
+
+    deleteItemsMutation.mutate(pendingTrashItems, {
+      onSuccess: () => setPendingTrashItems([]),
+    });
+  }
+
   function openContextMenu(event: MouseEvent<HTMLElement>, item: BrowserContextItem) {
     const actions = getItemActions(item).filter(action => !action.disabled);
 
@@ -590,8 +706,8 @@ export function DocumentsPage() {
           label: 'Move to trash',
           icon: Trash2,
           tone: 'destructive',
-          disabled: !canDeleteItems || deleteFolderMutation.isPending,
-          onSelect: () => deleteFolderMutation.mutate(item.folder),
+          disabled: !canDeleteItems || deleteItemsMutation.isPending,
+          onSelect: () => openDeleteConfirm([item]),
         },
       ];
     }
@@ -620,8 +736,8 @@ export function DocumentsPage() {
         label: 'Move to trash',
         icon: Trash2,
         tone: 'destructive',
-        disabled: !canDeleteItems || deleteMutation.isPending,
-        onSelect: () => deleteDocument(item.document),
+        disabled: !canDeleteItems || deleteItemsMutation.isPending,
+        onSelect: () => openDeleteConfirm([item]),
       },
     ];
   }
@@ -1034,7 +1150,7 @@ export function DocumentsPage() {
                 variant="outline"
                 colorPalette="red"
                 disabled={!canDeleteItems || itemMutationPending}
-                onClick={() => deleteItemsMutation.mutate(selectedItems)}
+                onClick={() => openDeleteConfirm(selectedItems)}
               >
                 <Trash2 size={16} />
                 Delete
@@ -1128,6 +1244,13 @@ export function DocumentsPage() {
         target={infoTarget}
         folderPath={infoFolderPath}
         onClose={() => setInfoTarget(null)}
+      />
+
+      <DeleteItemsConfirmDialog
+        items={pendingTrashItems}
+        isPending={deleteItemsMutation.isPending}
+        onClose={() => setPendingTrashItems([])}
+        onConfirm={confirmPendingDelete}
       />
 
       {contextMenu !== null ? (

@@ -154,7 +154,7 @@ function getItemKindLabel(item: BrowserContextItem) {
   return item.type === 'folder' ? 'Folder' : getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
 }
 
-function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' }) {
+export function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' }) {
   const isList = size === 'list';
 
   if (item.type === 'folder') {
@@ -603,7 +603,7 @@ function GridItemActions({
   );
 }
 
-function GridItemName({
+export function GridItemName({
   density,
   name,
 }: {

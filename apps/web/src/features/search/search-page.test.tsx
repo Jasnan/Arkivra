@@ -306,6 +306,8 @@ describe('global search page', () => {
     expect(resultUrl.searchParams.get('source')).toBe('search');
     expect(resultUrl.searchParams.get('q')).toBe('invoice');
     expect(resultUrl.searchParams.get('sortBy')).toBe('created_desc');
+    expect(screen.getByText('Invoice')).toBeInTheDocument();
+    expect(screen.queryByText('Invoice.pdf')).not.toBeInTheDocument();
     expect(screen.queryByText('Finance')).not.toBeInTheDocument();
     expect(screen.queryByText('Modified')).not.toBeInTheDocument();
     expect(screen.queryByText('Size')).not.toBeInTheDocument();

@@ -1,6 +1,7 @@
 import { Flex, SimpleGrid, Text, chakra } from '@chakra-ui/react';
 import { MessageSquare } from 'lucide-react';
 import type { Search } from 'lucide-react';
+import { AppEmptyState } from '@/components/ui/empty-state';
 import { Separator } from '@/components/ui/separator';
 import type { GlobalGuidedPrompt } from './chat-utils';
 
@@ -25,27 +26,14 @@ export function ChatEmptyState({
 
   return (
     <Flex minH="100%" align="center" justify="center" px="6" py="6">
-      <Flex direction="column" align="center" textAlign="center" maxW="container.md" mx="auto" w="100%">
-        <Flex
-          boxSize="12"
-          align="center"
-          justify="center"
-          rounded="lg"
-          bg="teal.subtle"
-          color="teal.fg"
-        >
-          <MessageSquare size={22} />
-        </Flex>
-
-        <Flex direction="column" gap="0" mt="3">
-          <Text as="h3" fontSize={{ base: 'xl', sm: '2xl' }} fontWeight="semibold" letterSpacing="tight" color="fg">
-            {title}
-          </Text>
-          <Text fontSize="sm" lineHeight="1.45" color="fg.muted" maxW="container.sm" mx="auto">
-            {description}
-          </Text>
-        </Flex>
-
+      <AppEmptyState
+        title={title}
+        description={description}
+        icon={<MessageSquare size={22} />}
+        maxW="container.md"
+        mx="auto"
+        w="100%"
+      >
         {hasGuidedPrompts ? (
           <SimpleGrid
             columns={{ base: 1, sm: 2, xl: 4 }}
@@ -148,7 +136,7 @@ export function ChatEmptyState({
         </Flex>
 
         <Text mt="2.5" fontSize="sm" color="fg.muted">Start typing your question below</Text>
-      </Flex>
+      </AppEmptyState>
     </Flex>
   );
 }

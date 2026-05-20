@@ -14,6 +14,7 @@ import {
   LoaderCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { buildTransferSections, failureStatuses } from '../transfers-display';
 import type { DisplayTransfer, DisplayTransferStatus } from '../transfers-display';
@@ -207,10 +208,11 @@ export function TransfersDrawer({
                   <TransferSection title="Failure" items={sections.failure} />
                 </Stack>
               ) : (
-                <Flex minH="22rem" direction="column" align="center" justify="center" gap="4" color="fg.muted">
-                  <ArrowDownUp size={56} strokeWidth={1.6} />
-                  <Text fontWeight="medium">No transfers yet</Text>
-                </Flex>
+                <CenteredEmptyState
+                  title="No transfers yet"
+                  icon={<ArrowDownUp size={28} strokeWidth={1.8} />}
+                  containerProps={{ minH: '22rem' }}
+                />
               )}
             </Drawer.Body>
             <Drawer.CloseTrigger asChild>

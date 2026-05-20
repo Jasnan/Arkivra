@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { AppEmptyState } from '@/components/ui/empty-state';
 import {
   Dialog,
   DialogContent,
@@ -1245,31 +1246,25 @@ export function AppShell() {
 
             <Box maxH="70vh" overflowY="auto" p={{ base: '4', sm: '5' }}>
               {debouncedSearchValue.length === 0 ? (
-                <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
-                  <Flex boxSize="12" align="center" justify="center" rounded="md" bg="bg.subtle" color="teal.solid">
-                    <FileSearch size={20} />
-                  </Flex>
-                  <Box>
-                    <Text fontWeight="medium" color="fg">Start typing to search</Text>
-                    <Text mt="1" fontSize="sm" color="fg.muted">
-                      Results will appear here without leaving the current page.
-                    </Text>
-                  </Box>
-                </Stack>
+                <AppEmptyState
+                  title="Start typing to search"
+                  description="Results will appear here without leaving the current page."
+                  icon={<FileSearch size={24} />}
+                  px="6"
+                  py="16"
+                />
               ) : quickSearchQuery.isLoading ? (
                 <Text px="2" py="10" fontSize="sm" color="fg.muted">Searching documents...</Text>
               ) : quickSearchQuery.isError ? (
                 <Text px="2" py="10" fontSize="sm" color="fg.error">Unable to run quick search.</Text>
               ) : (quickSearchQuery.data?.results.length ?? 0) === 0 ? (
-                <Stack align="center" justify="center" gap="3" px="6" py="16" textAlign="center">
-                  <Flex boxSize="12" align="center" justify="center" rounded="md" bg="bg.subtle" color="fg.muted">
-                    <SearchX size={20} />
-                  </Flex>
-                  <Box>
-                    <Text fontWeight="medium" color="fg">No matching documents</Text>
-                    <Text mt="1" fontSize="sm" color="fg.muted">Try a different name, phrase, or keyword.</Text>
-                  </Box>
-                </Stack>
+                <AppEmptyState
+                  title="No matching documents"
+                  description="Try a different name, phrase, or keyword."
+                  icon={<SearchX size={24} />}
+                  px="6"
+                  py="16"
+                />
               ) : (
                 <Stack gap="2">
                   {(quickSearchQuery.data?.results ?? []).map((result) => (

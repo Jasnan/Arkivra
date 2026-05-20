@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, EmptyState, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
+import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings, Tags, Trash2, Users } from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { DeleteButton } from '@/components/ui/action-buttons';
 import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { ROUTES } from '@/app/routes';
+import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -1039,29 +1040,24 @@ export function DocumentsPage() {
               ) : null}
 
               {!activeIsLoading && emptyState ? (
-                <EmptyState.Root
-                  flex="1"
-                  minH="0"
-                  onContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
-                >
-                  <EmptyState.Content>
-                    <EmptyState.Indicator>
-                      <Folder size={28} />
-                    </EmptyState.Indicator>
-                    <EmptyState.Title>
-                      {currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
-                    </EmptyState.Title>
-                    <EmptyState.Description>
-                      Create a folder or upload documents here.
-                    </EmptyState.Description>
-                  <HStack gap="2">
-                    <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
-                      <FolderPlus size={16} />
-                      New folder
-                    </Button>
-                  </HStack>
-                  </EmptyState.Content>
-                </EmptyState.Root>
+                <CenteredEmptyState
+                  title={currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
+                  description="Create a folder or upload documents here."
+                  icon={<Folder size={28} />}
+                  action={(
+                    <HStack gap="2">
+                      <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
+                        <FolderPlus size={16} />
+                        New folder
+                      </Button>
+                    </HStack>
+                  )}
+                  containerProps={{
+                    flex: '1',
+                    minH: '0',
+                    onContextMenu: (event) => openContextMenu(event, backgroundContextItem),
+                  }}
+                />
               ) : null}
 
               {!activeIsLoading && !activeIsError && !emptyState ? (

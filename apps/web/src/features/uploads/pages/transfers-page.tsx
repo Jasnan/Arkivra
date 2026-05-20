@@ -19,6 +19,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
+import { AppEmptyState } from '@/components/ui/empty-state';
 import {
   Collapsible,
   CollapsibleContent,
@@ -376,9 +377,14 @@ export function TransfersPage() {
         </Grid>
 
         {state.items.length === 0 ? (
-          <Text px="7" py="12" textAlign="center" textStyle="sm">
-            Add files above to start uploading
-          </Text>
+          <AppEmptyState
+            title="No transfers yet"
+            description="Add files above to start uploading."
+            icon={<FileUp size={28} />}
+            minH="12rem"
+            px="7"
+            py="8"
+          />
         ) : (
           nonCompletedItems.map((item) => (
             <Box

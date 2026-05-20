@@ -1,11 +1,12 @@
 import type { FormEvent, MouseEvent } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionBar,
   Box,
   Checkbox as ChakraCheckbox,
   Flex,
   Grid,
+  HStack,
   Stack,
   Text,
   CloseButton,
@@ -14,12 +15,12 @@ import {
   chakra,
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Files, Pencil, Trash2 } from 'lucide-react';
+import { Files, Pencil, Tags, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { EmptyState } from '@/components/layout/vault-ui';
 import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
+import { CenteredEmptyState } from '@/components/ui/empty-state';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
@@ -380,10 +382,10 @@ export function TagsPage() {
   const someVisibleSelected =
     filteredTags.some((tag) => selectedTagIds.includes(tag.id)) && !allVisibleSelected;
 
-  function rememberFocusTarget(target?: HTMLElement | null) {
+  const rememberFocusTarget = useCallback((target?: HTMLElement | null) => {
     focusRestoreTargetRef.current =
       target ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
-  }
+  }, []);
 
   function restoreFocusTarget() {
     const target = focusRestoreTargetRef.current;
@@ -395,7 +397,7 @@ export function TagsPage() {
     }
   }
 
-  function openCreateDialog(trigger?: HTMLButtonElement | null) {
+  const openCreateDialog = useCallback((trigger?: HTMLButtonElement | null) => {
     rememberFocusTarget(trigger ?? createButtonRef.current);
     setDialogMode('create');
     setEditingTagId(null);
@@ -403,7 +405,7 @@ export function TagsPage() {
     setFormDescription('');
     setFormColor(DEFAULT_TAG_COLOR);
     setIsDialogOpen(true);
-  }
+  }, [rememberFocusTarget]);
 
   function openEditDialog(tag: Tag, trigger?: HTMLButtonElement | null) {
     rememberFocusTarget(trigger);
@@ -564,43 +566,60 @@ export function TagsPage() {
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const tagsHeaderLeft = useMemo(() => (
+    <HStack gap="4" minW="0" w="full">
+      <Text as="h1" flexShrink={0} fontSize="lg" fontWeight="semibold" color="fg">
+        Tags
+      </Text>
+      <Box w="full" maxW={{ base: '16rem', md: '24rem' }}>
+        <Field>
+          <FieldLabel htmlFor="tag-filter" srOnly>
+            Search tags
+          </FieldLabel>
+          <Input
+            id="tag-filter"
+            value={filterText}
+            onChange={(event) => setFilterText(event.target.value)}
+            placeholder="Search tags"
+          />
+        </Field>
+      </Box>
+    </HStack>
+  ), [filterText]);
+  const tagsHeaderActions = useMemo(() => (
+    <CreateButton
+      ref={createButtonRef}
+      type="button"
+      onClick={(event) => openCreateDialog(event.currentTarget)}
+    >
+      Create tag
+    </CreateButton>
+  ), [openCreateDialog]);
+  const workspaceHeader = useMemo(() => ({
+    left: tagsHeaderLeft,
+    actions: tagsHeaderActions,
+  }), [tagsHeaderActions, tagsHeaderLeft]);
+  const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
 
   return (
     <Stack as="section" gap="0" h="full" minH="0">
-      <Flex
-        align={{ base: 'stretch', md: 'center' }}
-        direction={{ base: 'column', md: 'row' }}
-        justify="space-between"
-        gap="3"
-        borderBottomWidth="1px"
-        borderColor="border.surface"
-        bg="bg.workspace"
-        px={{ base: '4', lg: '6' }}
-        py="3"
-      >
-        <Box w="full" maxW={{ md: '24rem' }}>
-          <Field>
-            <FieldLabel htmlFor="tag-filter" srOnly>
-              Search tags
-            </FieldLabel>
-            <Input
-              id="tag-filter"
-              value={filterText}
-              onChange={(event) => setFilterText(event.target.value)}
-              placeholder="Search tags"
-            />
-          </Field>
-        </Box>
-
-        <CreateButton
-          ref={createButtonRef}
-          type="button"
-          alignSelf={{ base: 'flex-start', md: 'center' }}
-          onClick={(event) => openCreateDialog(event.currentTarget)}
+      {!isInWorkspaceShell ? (
+        <Flex
+          as="header"
+          align={{ base: 'stretch', md: 'center' }}
+          direction={{ base: 'column', md: 'row' }}
+          justify="space-between"
+          gap="3"
+          borderBottomWidth="1px"
+          borderColor="border.surface"
+          bg="bg.workspace"
+          px={{ base: '4', lg: '6' }}
+          py="3"
         >
-          Create tag
-        </CreateButton>
-      </Flex>
+          {tagsHeaderLeft}
+          {tagsHeaderActions}
+        </Flex>
+      ) : null}
 
       <Box flex="1" minH="0" overflowY="auto" bg="bg.workspace">
         {tagsQuery.isLoading ? (
@@ -610,14 +629,20 @@ export function TagsPage() {
           <Text px="6" py="6" textStyle="sm" color="fg.error">Unable to load tags.</Text>
         ) : null}
         {!tagsQuery.isLoading && tags.length === 0 ? (
-          <Box px="6" py="8">
-            <EmptyState description="No tags yet. Create the first one to start organizing documents." />
-          </Box>
+          <CenteredEmptyState
+            title="No tags yet"
+            description="Create the first one to start organizing documents."
+            icon={<Tags size={28} />}
+            containerProps={{ h: 'full', minH: '22rem', px: '6', py: '8' }}
+          />
         ) : null}
         {!tagsQuery.isLoading && tags.length > 0 && filteredTags.length === 0 ? (
-          <Box px="6" py="8">
-            <EmptyState description="No tags match that search." />
-          </Box>
+          <CenteredEmptyState
+            title="No tags found"
+            description="No tags match that search."
+            icon={<Tags size={28} />}
+            containerProps={{ h: 'full', minH: '22rem', px: '6', py: '8' }}
+          />
         ) : null}
 
         {!tagsQuery.isLoading && filteredTags.length > 0 ? (

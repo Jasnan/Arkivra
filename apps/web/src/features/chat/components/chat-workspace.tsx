@@ -103,14 +103,14 @@ function getContextAccessMessage(snapshot: ChatContextSnapshot) {
   }
 
   if (snapshot.type === 'vault') {
-    return 'Admin accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
+    return 'To chat with this vault, join it as a member with full AI access. Admin access alone is not enough.';
   }
 
   if (snapshot.type === 'selection') {
     return 'Selected context includes vaults or documents without the required AI access.';
   }
 
-  return 'Admin accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.';
+  return 'To start using chat, join at least one vault as a member with full AI access. Admin access alone is not enough.';
 }
 
 function canUseContextSnapshot({
@@ -647,7 +647,7 @@ export function ChatWorkspace({
               sm={{ px: '6' }}
             >
               <AlertCircle size={16} />
-              {aiAccessMessage} Admin status does not grant AI access.
+              {aiAccessMessage}
             </Flex>
           ) : null}
 
@@ -732,6 +732,7 @@ export function ChatWorkspace({
                   description={experience.emptyDescription}
                   promptSuggestions={experience.promptSuggestions}
                   guidedPrompts={isActiveGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
+                  disabled={!canUseChat}
                   onGuidedPromptSelect={isActiveGlobalChat ? handleGuidedPromptSelect : undefined}
                   onPromptSelect={(prompt) => {
                     void handleSend(prompt);

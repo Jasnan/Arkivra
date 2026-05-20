@@ -9,6 +9,7 @@ export function ChatEmptyState({
   description,
   promptSuggestions,
   guidedPrompts,
+  disabled,
   onPromptSelect,
   onGuidedPromptSelect,
 }: {
@@ -16,6 +17,7 @@ export function ChatEmptyState({
   description: string;
   promptSuggestions: readonly { label: string; icon: typeof Search }[];
   guidedPrompts?: readonly GlobalGuidedPrompt[];
+  disabled?: boolean;
   onPromptSelect: (prompt: string) => void;
   onGuidedPromptSelect?: (prompt: GlobalGuidedPrompt) => void;
 }) {
@@ -67,9 +69,11 @@ export function ChatEmptyState({
                   p="4"
                   textAlign="left"
                   shadow="xs"
-                  cursor="pointer"
+                  cursor={disabled ? 'not-allowed' : 'pointer'}
+                  disabled={disabled}
                   minH="9.5rem"
-                  _hover={{ borderColor: 'teal.muted', bg: 'bg.subtle' }}
+                  opacity={disabled ? 0.55 : undefined}
+                  _hover={disabled ? undefined : { borderColor: 'teal.muted', bg: 'bg.subtle' }}
                   onClick={() => onGuidedPromptSelect?.(prompt)}
                 >
                   <Flex align="flex-start" gap="3">
@@ -120,8 +124,10 @@ export function ChatEmptyState({
                 fontSize="sm"
                 fontWeight="medium"
                 color="fg"
-                cursor="pointer"
-                _hover={{ borderColor: 'teal.muted', bg: 'bg.subtle' }}
+                cursor={disabled ? 'not-allowed' : 'pointer'}
+                disabled={disabled}
+                opacity={disabled ? 0.55 : undefined}
+                _hover={disabled ? undefined : { borderColor: 'teal.muted', bg: 'bg.subtle' }}
                 onClick={() => onPromptSelect(label)}
               >
                 <Flex boxSize="7" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">

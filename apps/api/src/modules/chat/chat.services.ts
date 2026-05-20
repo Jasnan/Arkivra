@@ -269,7 +269,7 @@ function normalizeVaultRefs(vaults: ChatContextVaultRef[]) {
   return normalized;
 }
 
-function normalizeDocumentRefs(documents: ChatContextDocumentRef[]) {
+function normalizeDocumentRefs(documents: ChatContextDocumentRef[], selectedVaultIds = new Set<string>()) {
   const seen = new Set<string>();
   const normalized: ChatContextDocumentRef[] = [];
 
@@ -277,7 +277,7 @@ function normalizeDocumentRefs(documents: ChatContextDocumentRef[]) {
     const vaultId = document.vaultId.trim();
     const documentId = document.documentId.trim();
     const key = `${vaultId}:${documentId}`;
-    if (vaultId.length === 0 || documentId.length === 0 || seen.has(key)) {
+    if (vaultId.length === 0 || documentId.length === 0 || selectedVaultIds.has(vaultId) || seen.has(key)) {
       continue;
     }
 
@@ -313,10 +313,13 @@ function normalizeConversationContextSnapshot(row: ChatConversationRow): ChatCon
   }
 
   if (row.contextSnapshot.type === 'selection') {
+    const vaults = normalizeVaultRefs(row.contextSnapshot.vaults);
+    const selectedVaultIds = new Set(vaults.map(vault => vault.vaultId));
+
     return {
       type: 'selection',
-      vaults: normalizeVaultRefs(row.contextSnapshot.vaults),
-      documents: normalizeDocumentRefs(row.contextSnapshot.documents),
+      vaults,
+      documents: normalizeDocumentRefs(row.contextSnapshot.documents, selectedVaultIds),
     };
   }
 

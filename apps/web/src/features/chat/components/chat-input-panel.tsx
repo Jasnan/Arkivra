@@ -60,6 +60,10 @@ export function ChatInputPanel({
     textarea.style.height = `${Math.min(textarea.scrollHeight, 224)}px`;
   }, [textareaRef, value]);
 
+  useEffect(() => {
+    if (disabled) setIsModelPopoverOpen(false);
+  }, [disabled]);
+
   function submit() {
     const content = value.trim();
     if (content.length === 0 || disabled) return;
@@ -91,6 +95,7 @@ export function ChatInputPanel({
           <ContextChipList
             context={context}
             locked={Boolean(contextLocked)}
+            disabled={disabled}
             onRemoveVault={onRemoveVault}
             onRemoveDocument={onRemoveDocument}
           />
@@ -146,7 +151,7 @@ export function ChatInputPanel({
             {hasModelPicker ? (
               <Popover.Root
                 open={isModelPopoverOpen}
-                onOpenChange={(event) => setIsModelPopoverOpen(event.open)}
+                onOpenChange={(event) => setIsModelPopoverOpen(disabled ? false : event.open)}
               >
                 <Popover.Trigger asChild>
                   <Button
@@ -154,6 +159,7 @@ export function ChatInputPanel({
                     variant="ghost"
                     aria-label="Select model"
                     title="Select model"
+                    disabled={disabled}
                     minW="0"
                     maxW={{ base: '11rem', sm: '18rem' }}
                     h="9"

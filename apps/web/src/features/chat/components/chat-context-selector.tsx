@@ -391,17 +391,23 @@ export function ChatContextAddMenu({
 export function ContextChipList({
   context,
   locked,
+  disabled,
   onRemoveVault,
   onRemoveDocument,
 }: {
   context: DraftChatContext;
   locked: boolean;
+  disabled?: boolean;
   onRemoveVault: (vault: DraftChatVault) => void;
   onRemoveDocument: (document: DraftChatDocument) => void;
 }) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const normalized = normalizeDraftContext(context);
   const summary = getDraftContextSummary(normalized);
+
+  useEffect(() => {
+    if (disabled) setIsDetailsOpen(false);
+  }, [disabled]);
 
   return (
     <>
@@ -430,6 +436,7 @@ export function ContextChipList({
           px="2"
           color="fg.muted"
           fontSize="xs"
+          disabled={disabled}
           onClick={() => setIsDetailsOpen(true)}
         >
           View all

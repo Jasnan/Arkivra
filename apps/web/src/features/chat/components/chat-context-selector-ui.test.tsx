@@ -96,4 +96,21 @@ describe('context chip list', () => {
       '1 vault and 4 individual files attached',
     );
   });
+
+  it('disables the context details button when context controls are disabled', async () => {
+    await renderWithProviders(
+      <ContextChipList
+        locked={false}
+        disabled
+        context={{
+          vaults: [{ vaultId: 'vlt_1', name: 'Tax Documents' }],
+          documents: [],
+        }}
+        onRemoveVault={vi.fn()}
+        onRemoveDocument={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /view all/i })).toBeDisabled();
+  });
 });

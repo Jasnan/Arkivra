@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FileSortMenu } from '@/features/documents/components/file-sort-menu';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { useBrowserDragDrop } from '@/features/documents/hooks/use-browser-drag-drop';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
@@ -148,12 +149,15 @@ function VaultPlaceholderTab() {
 
 function VaultPageTabs({
   activeTab,
+  browserSort,
+  onSortChange,
 }: {
   activeTab: VaultPageTab;
+  browserSort: FileBrowserSort;
+  onSortChange: (value: FileBrowserSort) => void;
 }) {
   return (
     <Box
-      borderBottomWidth="1px"
       borderColor="border.surface"
       bg="bg.workspace"
       px={{ base: '4', lg: '6' }}
@@ -175,13 +179,16 @@ function VaultPageTabs({
           ))}
           <TabsTrigger
             value="chat"
-            aria-label="Ask about this vault"
+            aria-label="Chat"
             {...vaultTabTriggerStyles}
           >
             <MessageSquare size={16} aria-hidden="true" />
-            Ask about this vault
+            Chat
           </TabsTrigger>
         </TabsList>
+        <Box flexShrink={0} w={{ base: '10', sm: '10rem' }} maxW="10rem" transform="translateY(-3px)">
+          <FileSortMenu value={browserSort} onValueChange={onSortChange} />
+        </Box>
       </Flex>
     </Box>
   );
@@ -785,8 +792,6 @@ export function DocumentsPage() {
     selectedCount,
     browserView,
     setBrowserView,
-    browserSort,
-    setBrowserSort,
     dropTarget,
     onClearSelection: clearSelection,
     onNavigateFolder: navigateToFolder,
@@ -1009,7 +1014,11 @@ export function DocumentsPage() {
         />
 
         {browserHeader.contentsToolbar}
-        <VaultPageTabs activeTab={currentVaultTab} />
+        <VaultPageTabs
+          activeTab={currentVaultTab}
+          browserSort={browserSort}
+          onSortChange={setBrowserSort}
+        />
 
         <TabsContent value="contents" display="flex" flex="1" minH="0" flexDirection="column" p="0">
           <Flex flex="1" minH="0" overflow="hidden">

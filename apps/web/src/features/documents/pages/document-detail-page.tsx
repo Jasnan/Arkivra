@@ -2090,7 +2090,7 @@ export function DocumentDetailPage() {
               })}
             >
               <MessageSquare size={16} />
-              Ask
+              Chat
             </Button>
           ) : null}
 

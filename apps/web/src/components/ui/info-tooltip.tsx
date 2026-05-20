@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { IconButton, Text } from '@chakra-ui/react';
 import { CircleHelp } from 'lucide-react';
 import {
@@ -10,11 +10,13 @@ import {
 
 export function InfoTooltip({
   content,
+  contentProps,
   label = 'Show help tooltip',
   triggerClassName,
   contentClassName,
 }: {
   content: ReactNode;
+  contentProps?: Omit<ComponentProps<typeof TooltipContent>, 'children' | 'className'>;
   label?: string;
   triggerClassName?: string;
   contentClassName?: string;
@@ -42,7 +44,7 @@ export function InfoTooltip({
             <CircleHelp size={14} />
           </IconButton>
         </TooltipTrigger>
-        <TooltipContent className={contentClassName}>
+        <TooltipContent className={contentClassName} {...contentProps}>
           <Text as="span" fontSize="sm" lineHeight="1.45">
             {content}
           </Text>

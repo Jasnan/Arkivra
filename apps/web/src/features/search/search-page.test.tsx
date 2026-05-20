@@ -1,6 +1,10 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
+import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-context';
 import { AllDocumentsPage } from '@/features/documents/pages/all-documents-page';
 import { SearchPage } from '@/features/search/pages/search-page';
 import { renderWithProviders } from '@/test/utils';
@@ -17,9 +21,74 @@ async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, trigg
   await user.click(await screen.findByRole('menuitemradio', { name: optionName }));
 }
 
+function WorkspaceHeaderHarness({ children }: { children: ReactNode }) {
+  const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
+
+  return (
+    <WorkspaceLayoutContext value={{ setHeaderConfig, setSecondaryContent: vi.fn() }}>
+      <div data-testid="app-shell-header">{headerConfig?.content}</div>
+      {children}
+    </WorkspaceLayoutContext>
+  );
+}
+
 describe('global search page', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('moves the search controls into the workspace shell header', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isRoot: false },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 0,
+          pageSize: 25,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(
+      <WorkspaceHeaderHarness>
+        <SearchPage />
+      </WorkspaceHeaderHarness>,
+      {
+        initialEntries: ['/search?q=invoice'],
+        routePath: '/search',
+      },
+    );
+
+    const shellHeader = screen.getByTestId('app-shell-header');
+    expect(await screen.findAllByLabelText(/search documents/i)).toHaveLength(1);
+    expect(within(shellHeader).getByText('Search')).toBeInTheDocument();
+    expect(within(shellHeader).getByLabelText(/search documents/i)).toHaveValue('invoice');
+    expect(within(shellHeader).getByText(/semantic search/i)).toBeInTheDocument();
   });
 
   it('uses the migrated search and filter controls', async () => {
@@ -73,7 +142,7 @@ describe('global search page', () => {
     expect(await screen.findByText('Sherlock')).toBeInTheDocument();
     expect(await screen.findByText('Invoices')).toBeInTheDocument();
     expect(screen.getByText(/1 Apr 2026 - 30 Apr 2026/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sort/i })).toHaveTextContent(/name a-z/i);
+    expect(screen.getByRole('button', { name: /sort/i })).toHaveTextContent(/a → z/i);
 
     await waitFor(() => {
       expect(
@@ -168,6 +237,78 @@ describe('global search page', () => {
     expect(resultUrl.searchParams.get('dateTo')).toBe('2026-04-30');
     expect(resultUrl.searchParams.get('sortBy')).toBe('name_asc');
     expect(resultUrl.searchParams.has('pageIndex')).toBe(false);
+  });
+
+  it('renders grid results as filename-only cards', async () => {
+    const user = userEvent.setup();
+
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Finance', role: 'owner', aiAccessLevel: 'full', isRoot: false },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 0,
+          pageSize: 25,
+          resultsCount: 1,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Finance',
+              documentId: 'doc_1',
+              name: 'Invoice.pdf',
+              originalName: 'Invoice.pdf',
+              originalSize: 42000,
+              mimeType: 'application/pdf',
+              documentDate: '2026-04-10T00:00:00.000Z',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+              matchedChunksCount: 0,
+              bestChunk: null,
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?q=invoice'],
+      routePath: '/search',
+    });
+
+    await user.click(screen.getByRole('button', { name: /grid view/i }));
+
+    const resultLink = await screen.findByRole('link', { name: /^open invoice\.pdf$/i });
+    const resultUrl = new URL(resultLink.getAttribute('href')!, 'http://localhost');
+    expect(resultUrl.pathname).toBe('/vaults/vlt_1/doc_1');
+    expect(resultUrl.searchParams.get('source')).toBe('search');
+    expect(resultUrl.searchParams.get('q')).toBe('invoice');
+    expect(resultUrl.searchParams.get('sortBy')).toBe('created_desc');
+    expect(screen.queryByText('Finance')).not.toBeInTheDocument();
+    expect(screen.queryByText('Modified')).not.toBeInTheDocument();
+    expect(screen.queryByText('Size')).not.toBeInTheDocument();
   });
 
   it('debounces search input before querying the backend', async () => {

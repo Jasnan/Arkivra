@@ -745,6 +745,45 @@ function WorkspaceHeader({
 }) {
   if (headerConfig?.hidden) return null;
 
+  if (headerConfig?.content) {
+    return (
+      <Flex
+        as="header"
+        minH={{ base: '3.75rem', lg: '3.75rem' }}
+        shrink={0}
+        align="stretch"
+        borderBottomWidth="1px"
+        borderColor="border.surface"
+        bg="bg.workspace"
+      >
+        {hasSecondarySidebar ? (
+          <Flex align="center" px={{ base: '4', md: '5', lg: '4' }}>
+            <IconButton
+              display={{ base: 'none', md: 'inline-flex' }}
+              type="button"
+              aria-label={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
+              title={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
+              variant="ghost"
+              color="fg.muted"
+              flexShrink={0}
+              onClick={onToggleSecondarySidebar}
+            >
+              {isSecondarySidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+            </IconButton>
+          </Flex>
+        ) : null}
+        <Box minW="0" flex="1">
+          {headerConfig.content}
+        </Box>
+        {headerConfig.actions ? (
+          <HStack px={{ base: '4', md: '5', lg: '4' }} gap="2" zIndex="1" flexShrink={0}>
+            {headerConfig.actions}
+          </HStack>
+        ) : null}
+      </Flex>
+    );
+  }
+
   return (
     <Flex
       as="header"

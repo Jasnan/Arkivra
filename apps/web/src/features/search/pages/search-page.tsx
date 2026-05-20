@@ -2,11 +2,12 @@ import type { ComponentPropsWithoutRef } from 'react';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import type { VirtuosoGridProps } from 'react-virtuoso';
-import { Box, Flex, Grid, HStack, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
+import { Box, EmptyState, Flex, Grid, HStack, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
 import { Check, FileSearch, FileText, SearchX, Vault, X } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
@@ -18,6 +19,9 @@ import type { DocumentSearchControlFilter } from '@/features/documents/component
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
 import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
+import { FileBrowserIcon, GridItemName } from '@/features/file-browser/components/vault-browser-components';
+import { getFileDisplayName } from '@/features/file-browser/components/vault-browser.types';
+import type { BrowserItem } from '@/features/file-browser/components/vault-browser.types';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import type { SearchMode, SearchResultItem, SearchSortBy } from '@/features/search/search.types';
@@ -488,13 +492,18 @@ function SearchResultList({
 
 function SearchResultGridCard({
   detailSearch,
-  query,
   result,
 }: {
   detailSearch: Record<string, string>;
-  query: string;
   result: SearchResultItem;
 }) {
+  const { density } = useAccentColor();
+  const displayName = getFileDisplayName(result.name);
+  const browserItem = {
+    type: 'document',
+    document: result,
+  } as unknown as BrowserItem;
+
   return (
     <Link
       to={ROUTES.vaultDocument(result.vaultId, result.documentId)}
@@ -517,18 +526,12 @@ function SearchResultGridCard({
         _hover={{ bg: 'bg.workspaceMuted', borderColor: 'border.strong' }}
         _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
       >
-        <Text
-        maxW="full"
-        overflow="hidden"
-        fontSize="sm"
-        fontWeight="semibold"
-        color="fg"
-        textAlign="center"
-        lineClamp="2"
-        wordBreak="break-word"
-        >
-          <HighlightedTitle text={result.name} query={query} />
-        </Text>
+        <Stack align="center" justify="center" gap="2.5" w="full" minW="0" textAlign="center">
+          <FileBrowserIcon item={browserItem} />
+          <Box w="full" minW="0" maxW="full" px="1">
+            <GridItemName name={displayName} density={density} />
+          </Box>
+        </Stack>
       </Flex>
     </Link>
   );
@@ -536,11 +539,9 @@ function SearchResultGridCard({
 
 function SearchResultGrid({
   detailSearch,
-  query,
   results,
 }: {
   detailSearch: Record<string, string>;
-  query: string;
   results: SearchResultItem[];
 }) {
   return (
@@ -562,7 +563,6 @@ function SearchResultGrid({
           <SearchResultGridCard
             result={result}
             detailSearch={detailSearch}
-            query={query}
           />
         ) : null}
       />
@@ -1068,16 +1068,16 @@ export function SearchPage() {
 
       <Flex flex="1" minH="0" direction="column" overflow="hidden" bg="bg.workspace">
         {!hasActiveSearch ? (
-          <Flex h="full" minH="0" align="center" justify="center" px="6" py="10">
-            <Stack align="center" gap="3" maxW="md" color="fg.muted" textAlign="center">
-              <Box color="teal.solid" aria-hidden="true">
+          <EmptyState.Root h="full" minH="0" display="flex" alignItems="center" justifyContent="center" px="6" py="10">
+            <EmptyState.Content>
+              <EmptyState.Indicator color="teal.solid">
                 <FileSearch size={32} />
-              </Box>
-              <Text fontWeight="semibold" color="fg">
+              </EmptyState.Indicator>
+              <EmptyState.Title>
                 Search your documents
-              </Text>
-            </Stack>
-          </Flex>
+              </EmptyState.Title>
+            </EmptyState.Content>
+          </EmptyState.Root>
         ) : (
           <Flex flex="1" minH="0" direction="column" overflow="hidden">
             <Flex
@@ -1119,29 +1119,28 @@ export function SearchPage() {
             ) : null}
 
             {!searchQuery.isLoading && !searchQuery.isError && results.length === 0 ? (
-              <Flex px={{ base: '4', lg: '6' }} py="8">
-                <Stack
-                  align="center"
-                  gap="3"
-                  w="full"
+              <Box px={{ base: '4', lg: '6' }} py="8">
+                <EmptyState.Root
                   rounded="lg"
                   borderWidth="1px"
                   borderStyle="dashed"
                   borderColor="border.surface"
                   bg="bg.surface"
                   p="6"
-                  color="fg.muted"
-                  textAlign="center"
                 >
-                  <SearchX size={24} />
-                  <Text fontWeight="semibold" color="fg">
+                  <EmptyState.Content>
+                    <EmptyState.Indicator>
+                      <SearchX size={24} />
+                    </EmptyState.Indicator>
+                    <EmptyState.Title>
                     No matches found
-                  </Text>
-                  <Text fontSize="sm">
+                    </EmptyState.Title>
+                    <EmptyState.Description>
                     Adjust the query or filters and try again.
-                  </Text>
-                </Stack>
-              </Flex>
+                    </EmptyState.Description>
+                  </EmptyState.Content>
+                </EmptyState.Root>
+              </Box>
             ) : null}
 
             {results.length > 0 ? (
@@ -1155,7 +1154,6 @@ export function SearchPage() {
                 <SearchResultGrid
                   results={results}
                   detailSearch={detailSearch}
-                  query={debouncedQuery}
                 />
               )
             ) : null}

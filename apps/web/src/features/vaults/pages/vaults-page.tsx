@@ -1,6 +1,6 @@
 import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, EmptyState, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderDot, FolderOpen, Info, Settings2, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
@@ -346,13 +346,21 @@ export function VaultsPage() {
         ) : null}
 
         {!vaultsQuery.isLoading && vaults.length === 0 ? (
-          <Flex minH="44" align="center" justify="center" textAlign="center">
-            <Text maxW="sm" fontSize="sm" color="fg.muted">
-              {meQuery.data?.canCreateVault
-                ? 'No vaults yet. Create your first vault to start storing documents.'
-                : 'No vaults available yet. Request a vault and a root can approve it.'}
-            </Text>
-          </Flex>
+          <EmptyState.Root minH="44">
+            <EmptyState.Content>
+              <EmptyState.Indicator>
+                <Vault size={32} />
+              </EmptyState.Indicator>
+              <EmptyState.Title>
+                No vaults yet
+              </EmptyState.Title>
+              <EmptyState.Description>
+                {meQuery.data?.canCreateVault
+                  ? 'Create your first vault to start storing documents.'
+                  : 'No vaults available yet. Request a vault and a root can approve it.'}
+              </EmptyState.Description>
+            </EmptyState.Content>
+          </EmptyState.Root>
         ) : vaultsView === 'grid' ? (
           <Grid gap="var(--arkivra-gridItemGap, 2rem)" templateColumns={{ base: 'repeat(1, minmax(0, 1fr))', md: 'repeat(auto-fill, minmax(14rem, 1fr))' }}>
             {vaults.map((vault) => (

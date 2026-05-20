@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
+import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, EmptyState, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings, Tags, Trash2, Users } from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -1039,28 +1039,29 @@ export function DocumentsPage() {
               ) : null}
 
               {!activeIsLoading && emptyState ? (
-                <Flex
+                <EmptyState.Root
                   flex="1"
                   minH="0"
-                  direction="column"
-                  align="center"
-                  justify="center"
-                  gap="3"
-                  color="fg.muted"
                   onContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
                 >
-                  <Folder size={28} />
-                  <Text fontWeight="medium" color="fg">
-                    {currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
-                  </Text>
-                  <Text fontSize="sm">Create a folder or upload documents here.</Text>
+                  <EmptyState.Content>
+                    <EmptyState.Indicator>
+                      <Folder size={28} />
+                    </EmptyState.Indicator>
+                    <EmptyState.Title>
+                      {currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
+                    </EmptyState.Title>
+                    <EmptyState.Description>
+                      Create a folder or upload documents here.
+                    </EmptyState.Description>
                   <HStack gap="2">
                     <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
                       <FolderPlus size={16} />
                       New folder
                     </Button>
                   </HStack>
-                </Flex>
+                  </EmptyState.Content>
+                </EmptyState.Root>
               ) : null}
 
               {!activeIsLoading && !activeIsError && !emptyState ? (

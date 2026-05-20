@@ -14,8 +14,31 @@ type DialogRootProps = Omit<
   onOpenChange?: (open: boolean) => void;
 };
 
-export function Dialog({ onOpenChange, ...props }: DialogRootProps) {
+export function Dialog({ onOpenChange, onEscapeKeyDown, closeOnEscape, open, ...props }: DialogRootProps) {
   const triggerElementRef = React.useRef<HTMLElement | null>(null);
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    onOpenChange?.(open);
+    if (!open) {
+      window.setTimeout(() => triggerElementRef.current?.focus(), 0);
+    }
+  }, [onOpenChange]);
+
+  React.useEffect(() => {
+    if (!open || closeOnEscape === false) {
+      return;
+    }
+
+    function closeOnEscapeKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) {
+        return;
+      }
+
+      handleOpenChange(false);
+    }
+
+    window.addEventListener('keydown', closeOnEscapeKey);
+    return () => window.removeEventListener('keydown', closeOnEscapeKey);
+  }, [closeOnEscape, handleOpenChange, open]);
 
   return (
     <DialogFocusContext value={{ setTriggerElement: (element) => {
@@ -26,11 +49,18 @@ export function Dialog({ onOpenChange, ...props }: DialogRootProps) {
         placement="center"
         lazyMount
         unmountOnExit
-        onOpenChange={(event) => {
-          onOpenChange?.(event.open);
-          if (!event.open) {
-            window.setTimeout(() => triggerElementRef.current?.focus(), 0);
+        open={open}
+        closeOnEscape={closeOnEscape}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event);
+          if (event.defaultPrevented || closeOnEscape === false) {
+            return;
           }
+
+          handleOpenChange(false);
+        }}
+        onOpenChange={(event) => {
+          handleOpenChange(event.open);
         }}
         {...props}
       />
@@ -94,9 +124,9 @@ export function DialogContent({
   className,
   children,
   hideCloseButton = false,
-  onEscapeKeyDown: _onEscapeKeyDown,
-  onOpenAutoFocus: _onOpenAutoFocus,
-  onPointerDownOutside: _onPointerDownOutside,
+  onEscapeKeyDown,
+  onOpenAutoFocus,
+  onPointerDownOutside,
   ref,
   ...props
 }: DialogContentProps) {
@@ -125,6 +155,9 @@ export function DialogContent({
           borderColor="border.surface"
           bg="bg.surface"
           shadow="xl"
+          onEscapeKeyDown={onEscapeKeyDown}
+          onOpenAutoFocus={onOpenAutoFocus}
+          onPointerDownOutside={onPointerDownOutside}
           {...(props as any)}
         >
           {hideCloseButton ? null : (

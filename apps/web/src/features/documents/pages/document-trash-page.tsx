@@ -313,7 +313,7 @@ export function DocumentTrashPage() {
       },
       {
         key: 'permanent-delete',
-        label: 'Delete permanently',
+        label: 'Delete',
         icon: Trash2,
         tone: 'destructive',
         disabled: itemMutationPending,
@@ -580,7 +580,7 @@ export function DocumentTrashPage() {
         open={pendingPermanentDelete.length > 0}
         title={
           pendingPermanentDelete.length === 0
-            ? 'Delete permanently?'
+            ? 'Delete?'
             : pendingPermanentDelete.length === browserItems.length
               ? 'Empty trash?'
               : pendingPermanentDelete.length === 1
@@ -595,7 +595,7 @@ export function DocumentTrashPage() {
         confirmLabel={
           pendingPermanentDelete.length === browserItems.length && pendingPermanentDelete.length > 0
             ? 'Empty trash'
-            : 'Delete permanently'
+            : 'Delete'
         }
         pendingLabel="Deleting..."
         isPending={permanentDeleteMutation.isPending}
@@ -630,7 +630,7 @@ export function DocumentTrashPage() {
                 disabled={itemMutationPending}
                 onClick={() => setPendingPermanentDelete(selectedDocuments)}
               >
-                Delete permanently
+                Delete
               </Button>
             </ActionBar.Content>
           </ActionBar.Positioner>

@@ -308,7 +308,7 @@ function DeleteItemsConfirmDialog({
                 Cancel
               </Button>
               <DeleteButton type="button" disabled={isPending} onClick={onConfirm}>
-                {isPending ? 'Moving...' : 'Move to trash'}
+                {isPending ? 'Moving...' : 'Trash'}
               </DeleteButton>
             </ChakraDialog.Footer>
           </ChakraDialog.Content>
@@ -471,6 +471,10 @@ export function DocumentsPage() {
       toast.error(error instanceof Error ? error.message : 'Could not join vault.');
     },
   });
+  const isJoinVaultFormDirty = joinRole !== 'owner' || joinAiAccessLevel !== 'full';
+  const canDismissJoinVaultDialog = !isJoinVaultFormDirty && !joinVaultMutation.isPending;
+  const isCreateFolderFormDirty = folderName.trim().length > 0;
+  const canDismissCreateFolderDialog = !isCreateFolderFormDirty && !createFolderMutation.isPending;
   const {
     dropTarget,
     draggedItemKeys,
@@ -663,7 +667,7 @@ export function DocumentsPage() {
         { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(null) },
         {
           key: 'upload-files',
-          label: 'Upload files',
+          label: 'Upload',
           icon: FileUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadFilesPicker(null),
@@ -691,7 +695,7 @@ export function DocumentsPage() {
         },
         {
           key: 'upload-files',
-          label: 'Upload files',
+          label: 'Upload',
           icon: FileUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadFilesPicker(currentFolderId),
@@ -707,7 +711,7 @@ export function DocumentsPage() {
         { key: 'info', label: 'Info', icon: Info, onSelect: () => openInfoDialog(item) },
         {
           key: 'trash',
-          label: 'Move to trash',
+          label: 'Trash',
           icon: Trash2,
           tone: 'destructive',
           disabled: !canDeleteItems || deleteItemsMutation.isPending,
@@ -737,7 +741,7 @@ export function DocumentsPage() {
       { key: 'info', label: 'Info', icon: Info, onSelect: () => openInfoDialog(item) },
       {
         key: 'trash',
-        label: 'Move to trash',
+        label: 'Trash',
         icon: Trash2,
         tone: 'destructive',
         disabled: !canDeleteItems || deleteItemsMutation.isPending,
@@ -849,7 +853,7 @@ export function DocumentsPage() {
             </Text>
           </Box>
           <Button type="button" onClick={() => setIsJoinDialogOpen(true)}>
-            Join vault
+            Join
           </Button>
         </Flex>
 
@@ -867,7 +871,7 @@ export function DocumentsPage() {
             </Text>
             <HStack justify="center">
               <Button type="button" onClick={() => setIsJoinDialogOpen(true)}>
-                Join vault
+                Join
               </Button>
             </HStack>
           </Stack>
@@ -875,6 +879,8 @@ export function DocumentsPage() {
 
         <ChakraDialog.Root
           open={isJoinDialogOpen}
+          closeOnEscape={canDismissJoinVaultDialog}
+          closeOnInteractOutside={canDismissJoinVaultDialog}
           onOpenChange={(event) => {
             if (!event.open && !joinVaultMutation.isPending) {
               setIsJoinDialogOpen(false);
@@ -944,7 +950,7 @@ export function DocumentsPage() {
                       </Button>
                     </ChakraDialog.ActionTrigger>
                     <Button type="submit" disabled={joinVaultMutation.isPending}>
-                      {joinVaultMutation.isPending ? 'Joining...' : 'Join vault'}
+                      {joinVaultMutation.isPending ? 'Joining...' : 'Join'}
                     </Button>
                   </ChakraDialog.Footer>
                 </chakra.form>
@@ -1162,6 +1168,8 @@ export function DocumentsPage() {
 
       <ChakraDialog.Root
         open={isCreateFolderOpen}
+        closeOnEscape={canDismissCreateFolderDialog}
+        closeOnInteractOutside={canDismissCreateFolderDialog}
         onOpenChange={(event) => {
           setIsCreateFolderOpen(event.open);
           if (!event.open) {
@@ -1202,7 +1210,7 @@ export function DocumentsPage() {
                     </Button>
                   </ChakraDialog.ActionTrigger>
                   <Button type="submit" disabled={folderName.trim().length === 0 || createFolderMutation.isPending}>
-                    {createFolderMutation.isPending ? 'Creating...' : 'Create folder'}
+                    {createFolderMutation.isPending ? 'Creating...' : 'Create'}
                   </Button>
                 </ChakraDialog.Footer>
               </form>

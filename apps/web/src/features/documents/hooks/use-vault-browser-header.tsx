@@ -147,7 +147,7 @@ export function useVaultBrowserHeader({
               >
                 <Menu.Item value="upload-files" {...uploadMenuItemProps} onClick={onOpenUploadFiles}>
                   <FileUp size={16} />
-                  Upload files
+                  Upload
                 </Menu.Item>
                 <Menu.Item value="upload-folder" {...uploadMenuItemProps} onClick={onOpenUploadDirectory}>
                   <FolderUp size={16} />

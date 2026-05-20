@@ -182,7 +182,7 @@ export function SettingsSessionsSection() {
           }}
         >
           <LogOut size={15} />
-          {signOutOtherSessionsMutation.isPending ? 'Signing out...' : 'Sign out other sessions'}
+          {signOutOtherSessionsMutation.isPending ? 'Signing out...' : 'Sign out others'}
         </Button>
       }
     >

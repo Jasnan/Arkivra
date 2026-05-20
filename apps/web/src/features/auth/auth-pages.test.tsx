@@ -151,7 +151,7 @@ describe('auth pages', () => {
     await user.type(screen.getByLabelText(/name/i), 'Alex');
     await user.type(screen.getByLabelText(/email/i), 'alex@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'secret123');
-    await user.click(screen.getByRole('button', { name: /create account/i }));
+    await user.click(screen.getByRole('button', { name: /^create$/i }));
 
     expect(authClientMock.signUp.email).toHaveBeenCalledWith(expect.objectContaining({
       name: 'Alex',
@@ -164,7 +164,7 @@ describe('auth pages', () => {
     const user = userEvent.setup();
     await renderWithProviders(<RequestPasswordResetPage />);
     await user.type(screen.getByLabelText(/email/i), 'alex@example.com');
-    await user.click(screen.getByRole('button', { name: /send reset link/i }));
+    await user.click(screen.getByRole('button', { name: /send link/i }));
 
     expect(authClientMock.requestPasswordReset).toHaveBeenCalledWith(expect.objectContaining({
       email: 'alex@example.com',
@@ -236,11 +236,11 @@ describe('auth pages', () => {
     await user.click(screen.getByRole('button', { name: /can't scan/i }));
     expect(await screen.findByDisplayValue('ABC123')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /continue to verify code/i }));
+    await user.click(screen.getByRole('button', { name: /verify code/i }));
     for (const [index, digit] of ['1', '2', '3', '4', '5', '6'].entries()) {
       await user.type(screen.getByLabelText(new RegExp(`digit ${index + 1}`, 'i')), digit);
     }
-    await user.click(screen.getByRole('button', { name: /enable two-factor authentication/i }));
+    await user.click(screen.getByRole('button', { name: /enable 2fa/i }));
 
     expect(authClientMock.twoFactor.verifyTotp).toHaveBeenCalledWith({ code: '123456' });
     expect(await screen.findByText(/two-factor authentication enabled/i)).toBeInTheDocument();

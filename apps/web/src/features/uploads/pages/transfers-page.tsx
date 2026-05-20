@@ -327,7 +327,7 @@ export function TransfersPage() {
                   }}
                 >
                   <ActionMenuItemIcon icon={CheckCircle2} />
-                  Clear status
+                  Clear
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={state.items.length === 0}
@@ -335,7 +335,7 @@ export function TransfersPage() {
                   onSelect={handleClearAll}
                 >
                   <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-                  Cancel and clear all
+                  Clear all
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -567,11 +567,11 @@ export function TransfersPage() {
               <ChakraDialog.Footer>
                 <ChakraDialog.ActionTrigger asChild>
                   <Button type="button" variant="outline" onClick={() => setIsClearAllDialogOpen(false)} disabled={isClearingAll}>
-                    Keep transfers
+                    Keep
                   </Button>
                 </ChakraDialog.ActionTrigger>
                 <Button type="button" bg="fg.error" color="fg.inverted" disabled={isClearingAll} onClick={() => void handleConfirmClearAll()}>
-                  {isClearingAll ? 'Clearing...' : 'Cancel and clear all'}
+                  {isClearingAll ? 'Clearing...' : 'Clear all'}
                 </Button>
               </ChakraDialog.Footer>
             </ChakraDialog.Content>

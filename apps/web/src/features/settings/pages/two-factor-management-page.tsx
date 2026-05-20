@@ -455,7 +455,7 @@ function ManagementOverview({
             <>
               <Button type="button" variant="outline" minW={{ md: '240px' }} onClick={() => window.location.assign(getReplaceAuthenticatorURL())}>
                 <RotateCw size={16} />
-                Reconnect authenticator
+                Reconnect
               </Button>
               <Text fontSize="xs" color="fg.muted" textAlign={{ base: 'left', md: 'right' }}>
                 Replace your current authenticator
@@ -475,7 +475,7 @@ function ManagementOverview({
           actions={(
             <Button type="button" variant="outline" minW={{ md: '240px' }} onClick={onRegenerate}>
               <RotateCw size={16} />
-              Regenerate backup codes
+              Regenerate codes
             </Button>
           )}
         />

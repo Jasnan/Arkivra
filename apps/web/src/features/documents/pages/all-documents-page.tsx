@@ -825,7 +825,7 @@ export function AllDocumentsPage() {
                   );
                 }}
               >
-                Download selected
+                Download
               </Button>
               <Button
                 size="sm"
@@ -840,7 +840,7 @@ export function AllDocumentsPage() {
                   );
                 }}
               >
-                Delete selected
+                Delete
               </Button>
             </ActionBar.Content>
           </ActionBar.Positioner>

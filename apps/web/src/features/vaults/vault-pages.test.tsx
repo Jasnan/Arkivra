@@ -44,7 +44,7 @@ describe('vault pages', () => {
 
     await renderWithProviders(<VaultsPage />);
 
-    const createVaultButton = await screen.findByRole('button', { name: /create vault/i });
+    const createVaultButton = await screen.findByRole('button', { name: /new vault/i });
     const vaultToolbar = createVaultButton.closest('header');
     expect(vaultToolbar).not.toBeNull();
     expect(within(vaultToolbar as HTMLElement).getByRole('button', { name: 'Grid view' })).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe('vault pages', () => {
 
     await renderWithProviders(<VaultsPage />);
 
-    await user.click(await screen.findByRole('button', { name: /create vault/i }));
+    await user.click(await screen.findByRole('button', { name: /new vault/i }));
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
     expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
       method: 'POST',
@@ -150,7 +150,7 @@ describe('vault pages', () => {
 
     await user.type(within(dialog).getByLabelText(/vault name/i), 'Home Vault');
     await user.type(within(dialog).getByLabelText(/description/i), 'Documents for home life');
-    await user.click(within(dialog).getByRole('button', { name: /create vault/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^create$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
@@ -188,7 +188,7 @@ describe('vault pages', () => {
 
     await renderWithProviders(<VaultsPage />);
 
-    const createButton = await screen.findByRole('button', { name: /create vault/i });
+    const createButton = await screen.findByRole('button', { name: /new vault/i });
     await user.click(createButton);
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
 
@@ -200,6 +200,81 @@ describe('vault pages', () => {
     await waitFor(() => {
       expect(createButton).toHaveFocus();
     });
+  });
+
+  it('allows escape to close a pristine new vault form', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/vaults' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          vaults: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<VaultsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /new vault/i }));
+    await screen.findByRole('dialog', { name: /new vault/i });
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /new vault/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps the dirty new vault form open when escape is pressed', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/vaults' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          vaults: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<VaultsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /new vault/i }));
+    const dialog = await screen.findByRole('dialog', { name: /new vault/i });
+    const nameInput = within(dialog).getByLabelText(/vault name/i);
+
+    await user.type(nameInput, 'Home Vault');
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByRole('dialog', { name: /new vault/i })).toBeInTheDocument();
+    expect(nameInput).toHaveValue('Home Vault');
   });
 
   it('queues vault creation requests for users without vault creation capability', async () => {
@@ -250,10 +325,10 @@ describe('vault pages', () => {
     await renderWithProviders(<VaultsPage />);
 
     expect(await screen.findByText(/request a vault and an admin can approve it/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /create vault/i }));
+    await user.click(screen.getByRole('button', { name: /new vault/i }));
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
     await user.type(within(dialog).getByLabelText(/vault name/i), 'Shared Vault');
-    await user.click(within(dialog).getByRole('button', { name: /request vault/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^request$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults', expect.objectContaining({
@@ -349,7 +424,7 @@ describe('vault pages', () => {
     await user.type(screen.getByLabelText(/name/i), 'Personal Vault');
     await user.clear(screen.getByLabelText(/description/i));
     await user.type(screen.getByLabelText(/description/i), 'Updated household records');
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({
@@ -359,7 +434,7 @@ describe('vault pages', () => {
       }));
     });
 
-    expect(screen.queryByRole('button', { name: /add member/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^add$/i })).not.toBeInTheDocument();
   });
 
   it('invites a member from the vault members tab', async () => {
@@ -433,7 +508,7 @@ describe('vault pages', () => {
 
     expect(await screen.findByRole('tab', { name: /members/i })).toHaveAttribute('aria-selected', 'true');
     await user.type(screen.getByPlaceholderText(/usr_/i), 'usr_new');
-    await user.click(screen.getByRole('button', { name: /add member/i }));
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/members', expect.objectContaining({

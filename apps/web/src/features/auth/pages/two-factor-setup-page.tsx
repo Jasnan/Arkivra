@@ -581,7 +581,7 @@ function ScanStep({
             <Grid templateColumns="1fr" gap="2" mt={{ md: 'auto' }}>
               <Button type="button" variant="outline" onClick={() => downloadBackupCodes(backupCodes)}>
                 <Download size={16} />
-                Download codes (TXT)
+                Download TXT
               </Button>
               <Button type="button" variant="outline" onClick={() => copyText(backupText, 'Backup codes copied.')}>
                 <ClipboardCopy size={16} />
@@ -605,7 +605,7 @@ function ScanStep({
           </Button>
         </HStack>
         <Button type="button" onClick={onContinue}>
-          Continue to verify code
+          Verify code
           <ArrowRight size={16} />
         </Button>
       </HStack>
@@ -663,7 +663,7 @@ function ConfirmStep({
             </Button>
           </HStack>
           <Button type="submit" loading={isVerifying} loadingText={isReplaceMode ? 'Reconnecting...' : 'Enabling...'}>
-            {isReplaceMode ? 'Reconnect authenticator' : 'Enable two-factor authentication'}
+            {isReplaceMode ? 'Reconnect' : 'Enable 2FA'}
           </Button>
         </HStack>
       </VStack>

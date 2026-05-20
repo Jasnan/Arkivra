@@ -1841,6 +1841,9 @@ export function DocumentDetailPage() {
   const isMetadataSaving = renameMutation.isPending || dateMutation.isPending || languageMutation.isPending;
   const normalizedCreateTagName = createTagNameValue.trim();
   const createTagDescription = createTagDescriptionValue.trim();
+  const isCreateTagDialogDirty = normalizedCreateTagName.length > 0
+    || createTagDescription.length > 0
+    || createTagColorValue !== '#D8FF75';
   const isCreateTagSaveDisabled =
     normalizedCreateTagName.length === 0 ||
     createTagMutation.isPending ||
@@ -2104,7 +2107,7 @@ export function DocumentDetailPage() {
           {searchReturnParams ? (
             <Button type="button" size="sm" variant="outline" onClick={returnToSearchResults}>
               <ArrowLeft size={16} />
-              Search results
+              Results
             </Button>
           ) : null}
 
@@ -2120,7 +2123,7 @@ export function DocumentDetailPage() {
                 <DropdownMenuItem value="download-original" asChild>
                   <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
                     <ActionMenuItemIcon icon={Download} />
-                    Download original
+                    Download
                   </a>
                 </DropdownMenuItem>
               ) : null}
@@ -2140,7 +2143,7 @@ export function DocumentDetailPage() {
                   }}
                 >
                   <ActionMenuItemIcon icon={RotateCcw} />
-                  {restoreMutation.isPending ? 'Restoring...' : 'Restore document'}
+                  {restoreMutation.isPending ? 'Restoring...' : 'Restore'}
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem
@@ -2152,7 +2155,7 @@ export function DocumentDetailPage() {
                   onSelect={() => setIsDeleteDialogOpen(true)}
                 >
                   <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-                  Move to trash
+                  Trash
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -2635,7 +2638,7 @@ export function DocumentDetailPage() {
                           {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
                             <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
                               <Plus size={16} />
-                              <Text flex="1" truncate>{`Create new tag "${tagSearchValue.trim()}"`}</Text>
+                              <Text flex="1" truncate>{`New tag "${tagSearchValue.trim()}"`}</Text>
                             </DropdownMenuItem>
                           ) : null}
                           {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
@@ -2660,7 +2663,7 @@ export function DocumentDetailPage() {
                     mt="5"
                     disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged && !hasLanguageChanged)}
                   >
-                    {isMetadataSaving ? 'Saving...' : 'Save changes'}
+                    {isMetadataSaving ? 'Saving...' : 'Save'}
                   </SaveButton>
                 ) : null}
               </chakra.form>
@@ -2699,7 +2702,7 @@ export function DocumentDetailPage() {
                   </Button>
                 </ChakraDialog.ActionTrigger>
                 <DeleteButton type="button" disabled={deleteMutation.isPending} onClick={() => { deleteMutation.mutate({ vaultId, documentId }); }}>
-                  {deleteMutation.isPending ? 'Moving...' : 'Move to trash'}
+                  {deleteMutation.isPending ? 'Moving...' : 'Trash'}
                 </DeleteButton>
               </ChakraDialog.Footer>
             </ChakraDialog.Content>
@@ -2709,11 +2712,12 @@ export function DocumentDetailPage() {
 
       <TagDialog
         isOpen={isCreateTagDialogOpen}
-        title="Create tag"
-        submitLabel="Create tag"
+        title="New tag"
+        submitLabel="Create"
         pendingLabel="Creating..."
         closeLabel="Close create tag dialog"
         isPending={createTagMutation.isPending || assignTagMutation.isPending}
+        isDirty={isCreateTagDialogDirty}
         isSubmitDisabled={isCreateTagSaveDisabled}
         nameValue={createTagNameValue}
         colorValue={createTagColorValue}

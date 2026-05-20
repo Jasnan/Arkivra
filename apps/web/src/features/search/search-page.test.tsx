@@ -1006,7 +1006,7 @@ describe('documents library search controls', () => {
 
     expect(screen.getByText('2 selected')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /delete selected/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

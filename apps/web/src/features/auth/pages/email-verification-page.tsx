@@ -54,7 +54,7 @@ export function EmailVerificationPage() {
 
       {email ? (
         <AuthPrimaryButton type="button" loading={isSending} loadingText="Sending..." onClick={handleResend}>
-          Resend verification email
+          Resend email
         </AuthPrimaryButton>
       ) : null}
 

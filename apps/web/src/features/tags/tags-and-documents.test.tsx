@@ -147,10 +147,10 @@ describe('tags and documents pages', () => {
     expect(await screen.findByText('Invoices')).toBeInTheDocument();
     expect(screen.getByText(/monthly billing documents/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /create tag/i }));
-    const createDialog = screen.getByRole('dialog', { name: /create tag/i });
+    await user.click(screen.getByRole('button', { name: /new tag/i }));
+    const createDialog = screen.getByRole('dialog', { name: /new tag/i });
     await user.type(within(createDialog).getByLabelText(/^name$/i), 'Receipts');
-    await user.click(within(createDialog).getByRole('button', { name: /^create tag$/i }));
+    await user.click(within(createDialog).getByRole('button', { name: /^create$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/tags',
@@ -186,7 +186,7 @@ describe('tags and documents pages', () => {
     await user.click(actionsTrigger);
     await user.click(await screen.findByText(/^Delete$/i));
     expect(screen.getByText(/currently attached to 2 documents/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^delete tag$/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/tags/tag_1',
@@ -203,8 +203,8 @@ describe('tags and documents pages', () => {
       expect(screen.queryByText('Invoices')).not.toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /create tag/i }));
-    expect(screen.getByRole('dialog', { name: /create tag/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /new tag/i }));
+    expect(screen.getByRole('dialog', { name: /new tag/i })).toBeInTheDocument();
   });
 
   it('filters tags on the management page', async () => {
@@ -275,7 +275,7 @@ describe('tags and documents pages', () => {
     expect(screen.queryByText('Legal')).not.toBeInTheDocument();
   });
 
-  it('returns focus to the create tag button after dismissing the create dialog', async () => {
+  it('returns focus to the new tag button after dismissing the create dialog', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
@@ -311,15 +311,15 @@ describe('tags and documents pages', () => {
       routePath: '/tags',
     });
 
-    const createButton = await screen.findByRole('button', { name: /create tag/i });
+    const createButton = await screen.findByRole('button', { name: /new tag/i });
     await user.click(createButton);
-    const dialog = await screen.findByRole('dialog', { name: /create tag/i });
+    const dialog = await screen.findByRole('dialog', { name: /new tag/i });
     expect(dialog).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /create tag/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: /new tag/i })).not.toBeInTheDocument();
     });
     await waitFor(() => {
       expect(createButton).toHaveFocus();
@@ -627,7 +627,8 @@ describe('tags and documents pages', () => {
     await user.keyboard('{Escape}');
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
-    await user.click(screen.getByRole('menuitem', { name: /move to trash/i }));
+    await user.click(screen.getByRole('menuitem', { name: /^trash$/i }));
+    await user.click(await screen.findByRole('button', { name: /^trash$/i }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -755,7 +756,7 @@ describe('tags and documents pages', () => {
     fireEvent.contextMenu(await screen.findByText(/^Personal$/));
     const menu = screen.getByRole('menu', { name: /actions for vault root/i });
     expect(within(menu).getByRole('menuitem', { name: /new folder/i })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /upload files/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /^upload$/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /upload folder/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: /info/i })).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /rename/i })).not.toBeInTheDocument();
@@ -763,7 +764,7 @@ describe('tags and documents pages', () => {
     await user.click(within(menu).getByRole('menuitem', { name: /new folder/i }));
     const createDialog = await screen.findByRole('dialog', { name: /new folder/i });
     await user.type(within(createDialog).getByLabelText(/^name$/i), 'Root Projects');
-    await user.click(within(createDialog).getByRole('button', { name: /^create folder$/i }));
+    await user.click(within(createDialog).getByRole('button', { name: /^create$/i }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -901,7 +902,7 @@ describe('tags and documents pages', () => {
     await user.click(screen.getAllByRole('button', { name: /new folder/i })[0]);
     const createDialog = await screen.findByRole('dialog', { name: /new folder/i });
     await user.type(within(createDialog).getByLabelText(/^name$/i), 'Projects');
-    await user.click(within(createDialog).getByRole('button', { name: /^create folder$/i }));
+    await user.click(within(createDialog).getByRole('button', { name: /^create$/i }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1078,9 +1079,9 @@ describe('tags and documents pages', () => {
     await user.click(await screen.findByRole('tab', { name: /metadata/i }));
     await user.click(await screen.findByRole('button', { name: /add tag/i }));
     await user.type(screen.getByPlaceholderText(/filter tags/i), 'Testing');
-    await user.click(screen.getByRole('menuitem', { name: /create new tag "testing"/i }));
-    expect(await screen.findByRole('heading', { name: /create tag/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^create tag$/i }));
+    await user.click(screen.getByRole('menuitem', { name: /new tag "testing"/i }));
+    expect(await screen.findByRole('heading', { name: /new tag/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^create$/i }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1385,6 +1386,6 @@ describe('tags and documents pages', () => {
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^ask$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^chat$/i })).toBeInTheDocument();
   });
 });

@@ -584,7 +584,7 @@ export function AdminBackupsPage() {
             disabled={createBackupMutation.isPending}
             onClick={() => createBackupMutation.mutate()}
           >
-            {createBackupMutation.isPending ? 'Queueing...' : 'Create backup'}
+            {createBackupMutation.isPending ? 'Queueing...' : 'Create'}
           </CreateButton>
         }
       >
@@ -688,7 +688,7 @@ export function AdminUsersPage() {
     return [
       {
         key: 'manage-access',
-        label: 'Manage access',
+        label: 'Access',
         description: 'Edit roles, permissions and vault access',
         icon: UserRound,
         tone: 'success',
@@ -740,6 +740,9 @@ export function AdminUsersPage() {
       toast.error(error instanceof Error ? error.message : 'Could not create admin invitation.');
     },
   });
+  const isInviteFormDirty = createdInvitation === null
+    && (adminInviteEmail.trim().length > 0 || inviteSystemRole !== 'member' || inviteCanCreateVaults);
+  const canDismissInviteDialog = !isInviteFormDirty && !createAdminInvitationMutation.isPending;
 
   function openInviteDialog() {
     setCreatedInvitation(null);
@@ -820,7 +823,7 @@ export function AdminUsersPage() {
 
           <Button h="10" px="3.5" colorPalette="teal" onClick={openInviteDialog}>
             <Plus size={16} />
-            Invite user
+            Invite
           </Button>
         </Flex>
       </Flex>
@@ -986,7 +989,12 @@ export function AdminUsersPage() {
         />
       ) : null}
 
-      <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+      <Dialog
+        open={isInviteDialogOpen}
+        closeOnEscape={canDismissInviteDialog}
+        closeOnInteractOutside={canDismissInviteDialog}
+        onOpenChange={setIsInviteDialogOpen}
+      >
         <DialogContent maxW="34rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
           <chakra.form
             css={{
@@ -1139,12 +1147,12 @@ export function AdminUsersPage() {
                       void navigate({ to: ROUTES.adminUserAccess(createdInvitation.acceptedBy ?? createdInvitation.id) });
                     }}
                   >
-                    Manage access
+                    Access
                   </Button>
                 ) : (
                   <Button type="submit" size="sm" colorPalette="teal" disabled={createAdminInvitationMutation.isPending}>
                     <Send size={16} />
-                    {createAdminInvitationMutation.isPending ? 'Sending...' : 'Send invitation'}
+                    {createAdminInvitationMutation.isPending ? 'Sending...' : 'Send invite'}
                   </Button>
                 )}
               </Flex>
@@ -1346,7 +1354,7 @@ export function AdminAiSettingsPage() {
             size="sm"
             disabled={!canSaveAiSettings || aiSettingsMutation.isPending}
           >
-            {aiSettingsMutation.isPending ? 'Saving...' : 'Save changes'}
+            {aiSettingsMutation.isPending ? 'Saving...' : 'Save'}
           </SaveButton>
         }
       >

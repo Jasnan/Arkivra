@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Folder,
   FolderOpen,
+  SearchX,
   Settings2,
   Upload,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ import {
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { AppEmptyState } from '@/components/ui/empty-state';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -611,9 +613,11 @@ export function AllDocumentsPage() {
 
       {!documentsQuery.isLoading && (documentsQuery.data?.results.length ?? 0) === 0 ? (
         <SurfacePanel>
-          <Text fontSize="sm" color="fg.muted">
-            No documents matched the current search and filter combination.
-          </Text>
+          <AppEmptyState
+            title="No documents found"
+            description="No documents matched the current search and filter combination."
+            icon={<SearchX size={28} />}
+          />
         </SurfacePanel>
       ) : null}
 

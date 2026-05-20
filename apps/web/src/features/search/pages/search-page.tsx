@@ -2,12 +2,13 @@ import type { ComponentPropsWithoutRef } from 'react';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import type { VirtuosoGridProps } from 'react-virtuoso';
-import { Box, EmptyState, Flex, Grid, HStack, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
+import { Box, Flex, Grid, HStack, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
 import { Check, FileSearch, FileText, SearchX, Vault, X } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
+import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
@@ -1068,16 +1069,12 @@ export function SearchPage() {
 
       <Flex flex="1" minH="0" direction="column" overflow="hidden" bg="bg.workspace">
         {!hasActiveSearch ? (
-          <EmptyState.Root h="full" minH="0" display="flex" alignItems="center" justifyContent="center" px="6" py="10">
-            <EmptyState.Content>
-              <EmptyState.Indicator color="teal.solid">
-                <FileSearch size={32} />
-              </EmptyState.Indicator>
-              <EmptyState.Title>
-                Search your documents
-              </EmptyState.Title>
-            </EmptyState.Content>
-          </EmptyState.Root>
+          <CenteredEmptyState
+            title="Search your documents"
+            icon={<FileSearch size={32} />}
+            colorPalette="teal"
+            containerProps={{ flex: '1', minH: '0', px: '6', py: '10' }}
+          />
         ) : (
           <Flex flex="1" minH="0" direction="column" overflow="hidden">
             <Flex
@@ -1119,28 +1116,23 @@ export function SearchPage() {
             ) : null}
 
             {!searchQuery.isLoading && !searchQuery.isError && results.length === 0 ? (
-              <Box px={{ base: '4', lg: '6' }} py="8">
-                <EmptyState.Root
-                  rounded="lg"
-                  borderWidth="1px"
-                  borderStyle="dashed"
-                  borderColor="border.surface"
-                  bg="bg.surface"
-                  p="6"
-                >
-                  <EmptyState.Content>
-                    <EmptyState.Indicator>
-                      <SearchX size={24} />
-                    </EmptyState.Indicator>
-                    <EmptyState.Title>
-                    No matches found
-                    </EmptyState.Title>
-                    <EmptyState.Description>
-                    Adjust the query or filters and try again.
-                    </EmptyState.Description>
-                  </EmptyState.Content>
-                </EmptyState.Root>
-              </Box>
+              <CenteredEmptyState
+                title="No matches found"
+                description="Adjust the query or filters and try again."
+                icon={<SearchX size={24} />}
+                rounded="lg"
+                borderWidth="1px"
+                borderStyle="dashed"
+                borderColor="border.surface"
+                bg="bg.surface"
+                p="6"
+                containerProps={{
+                  flex: '1',
+                  minH: '22rem',
+                  px: { base: '4', lg: '6' },
+                  py: '8',
+                }}
+              />
             ) : null}
 
             {results.length > 0 ? (

@@ -8,6 +8,7 @@ import {
   Stack,
   Text,
 } from '@chakra-ui/react';
+import { AppEmptyState } from '@/components/ui/empty-state';
 
 export const vaultInputClassName = 'vault-input';
 
@@ -171,24 +172,19 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <Stack
-      align="center"
-      gap="3"
+    <AppEmptyState
+      title={title}
+      description={description}
+      icon={icon}
+      action={action}
       rounded="lg"
       borderWidth="1px"
       borderStyle="dashed"
       borderColor="border"
       bg="bg.surface"
-      color="fg.muted"
       p="4"
-      textAlign="center"
       className={className}
-    >
-      {icon}
-      {title ? <Text fontWeight="semibold" color="fg">{title}</Text> : null}
-      <Text textStyle="sm" color="fg.muted">{description}</Text>
-      {action}
-    </Stack>
+    />
   );
 }
 

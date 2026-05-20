@@ -18,6 +18,7 @@ import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
+import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
@@ -465,23 +466,12 @@ export function DocumentTrashPage() {
       ) : null}
 
       {emptyState ? (
-        <Flex
-          flex="1"
-          minH="0"
-          direction="column"
-          align="center"
-          justify="center"
-          gap="3"
-          color="fg.muted"
-        >
-          <Trash2 size={28} />
-          <Text fontWeight="medium" color="fg">
-            Trash is empty
-          </Text>
-          <Text fontSize="sm">
-            Deleted documents will appear here until their retention window ends.
-          </Text>
-        </Flex>
+        <CenteredEmptyState
+          title="Trash is empty"
+          description="Deleted documents will appear here until their retention window ends."
+          icon={<Trash2 size={28} />}
+          containerProps={{ flex: '1', minH: '0' }}
+        />
       ) : null}
 
       {!isLoading && !isError && !emptyState ? (

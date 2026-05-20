@@ -6,19 +6,19 @@ import {
   CloseButton,
   Dialog as ChakraDialog,
   Flex,
-  Menu,
   Portal,
   Stack,
   Text,
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ArrowUpDown, Check, ChevronDown, RotateCcw, Trash2 } from 'lucide-react';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
+import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
 import {
@@ -46,14 +46,15 @@ import type {
 } from '@/features/file-browser/components/vault-browser.types';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
-type TrashSort = 'name_asc' | 'name_desc' | 'deleted_desc';
+type TrashSort = 'name_asc' | 'name_desc' | 'deleted_desc' | 'deleted_asc';
 
 const TRASH_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) minmax(9rem, 12rem) 9.5rem 7rem 2.75rem';
 
 const trashSortOptions: Array<{ value: TrashSort; label: string }> = [
+  { value: 'deleted_desc', label: 'Recent' },
+  { value: 'deleted_asc', label: 'Oldest' },
   { value: 'name_asc', label: 'A → Z' },
   { value: 'name_desc', label: 'Z → A' },
-  { value: 'deleted_desc', label: 'Recent' },
 ];
 
 function getResolvedVaultId(
@@ -82,6 +83,11 @@ function compareTrashDocuments(
 
   if (sortBy === 'deleted_desc') {
     return getDeletedTime(right) - getDeletedTime(left)
+      || left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+  }
+
+  if (sortBy === 'deleted_asc') {
+    return getDeletedTime(left) - getDeletedTime(right)
       || left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
   }
 
@@ -179,8 +185,6 @@ export function DocumentTrashPage() {
   const isLoading = deletedDocumentsQuery.isLoading;
   const isError = deletedDocumentsQuery.isError;
   const emptyState = !isLoading && !isError && browserItems.length === 0;
-  const selectedSortLabel = trashSortOptions.find((option) => option.value === browserSort)?.label ?? 'Recently deleted';
-
   const {
     selectedItemKeys,
     selectedItems,
@@ -360,98 +364,13 @@ export function DocumentTrashPage() {
             onClear={() => updateVaultFilter([])}
           />
         </Box>
-        <Menu.Root positioning={{ placement: 'bottom-end', offset: { mainAxis: 6, crossAxis: 0 } }}>
-          <Menu.Trigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Sort trashed documents"
-              h="10"
-              w={{ base: 'full', sm: '10rem' }}
-              minW={{ base: '0', sm: '10rem' }}
-              justifyContent="space-between"
-              gap="2"
-              rounded="md"
-              borderColor="border.surface"
-              bg="bg.surface"
-              px="3"
-              shadow="none"
-              _hover={{ borderColor: 'fg/30', bg: 'bg.surface' }}
-              _focusVisible={{
-                borderColor: 'teal.solid',
-                outline: '2px solid',
-                outlineColor: 'teal.focusRing',
-                outlineOffset: '1px',
-              }}
-            >
-              <Flex minW="0" align="center" gap="2">
-                <Box color="fg.muted" aria-hidden="true">
-                  <ArrowUpDown size={16} />
-                </Box>
-                <Text as="span" truncate fontSize="sm" fontWeight="medium">
-                  {selectedSortLabel}
-                </Text>
-              </Flex>
-              <Box flexShrink={0} color="fg.muted" aria-hidden="true">
-                <ChevronDown size={16} />
-              </Box>
-            </Button>
-          </Menu.Trigger>
-          <Portal>
-            <Menu.Positioner zIndex="dropdown">
-              <Menu.Content
-                minW="12rem"
-                rounded="lg"
-                borderWidth="1px"
-                borderColor="border.surface"
-                bg="bg.surface"
-                p="1.5"
-                shadow="lg"
-              >
-                <Menu.RadioItemGroup
-                  value={browserSort}
-                  onValueChange={(event) => setBrowserSort(event.value as TrashSort)}
-                >
-                  {trashSortOptions.map((option) => (
-                    <Menu.RadioItem
-                      key={option.value}
-                      value={option.value}
-                      position="relative"
-                      minH="10"
-                      rounded="md"
-                      py="2"
-                      ps="3"
-                      pe="10"
-                      fontSize="sm"
-                      fontWeight="medium"
-                      color="fg"
-                      _checked={{ bg: 'teal.subtle', color: 'fg' }}
-                      _highlighted={{ bg: browserSort === option.value ? 'teal.subtle' : 'bg.subtle' }}
-                    >
-                      <Box
-                        position="absolute"
-                        right="2.5"
-                        top="50%"
-                        display="flex"
-                        boxSize="5"
-                        alignItems="center"
-                        justifyContent="center"
-                        rounded="sm"
-                        color="teal.solid"
-                        transform="translateY(-50%)"
-                      >
-                        <Menu.ItemIndicator>
-                          <Check size={16} strokeWidth={2.5} />
-                        </Menu.ItemIndicator>
-                      </Box>
-                      <Menu.ItemText>{option.label}</Menu.ItemText>
-                    </Menu.RadioItem>
-                  ))}
-                </Menu.RadioItemGroup>
-              </Menu.Content>
-            </Menu.Positioner>
-          </Portal>
-        </Menu.Root>
+        <DocumentSortMenu
+          ariaLabel="Sort trashed documents"
+          value={browserSort}
+          onValueChange={setBrowserSort}
+          options={trashSortOptions}
+          variant="toolbar"
+        />
         <DeleteButton
           type="button"
           h="10"
@@ -473,7 +392,6 @@ export function DocumentTrashPage() {
     clearSelection,
     itemMutationPending,
     selectedCount,
-    selectedSortLabel,
     selectedVaultIds,
     selectedVaultsLabel,
     setBrowserView,

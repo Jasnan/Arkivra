@@ -7,7 +7,6 @@ import {
   Drawer,
   Flex,
   IconButton,
-  Menu,
   Popover,
   Portal,
   Stack,
@@ -16,16 +15,15 @@ import {
   createListCollection,
   useBreakpointValue,
 } from '@chakra-ui/react';
-import { ArrowUpDown, Check, ChevronDown, Filter, Search as SearchIcon, X } from 'lucide-react';
+import { Filter, Search as SearchIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
+import type { DocumentSortOption } from '@/features/documents/components/document-sort-menu';
 
-export interface DocumentSearchControlOption<TValue extends string> {
-  value: TValue;
-  label: string;
-}
+export type DocumentSearchControlOption<TValue extends string> = DocumentSortOption<TValue>;
 
 export interface DocumentSearchControlFilter {
   key: string;
@@ -336,8 +334,10 @@ export function DocumentSearchControls<TSortValue extends string>({
   filtersTitle,
   filtersDescription,
   filtersContent,
+  trailingAccessory,
   toolbarAccessory,
   layout = 'panel',
+  title,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -358,12 +358,14 @@ export function DocumentSearchControls<TSortValue extends string>({
   filtersTitle: string;
   filtersDescription?: string;
   filtersContent: ReactNode;
+  trailingAccessory?: ReactNode;
   toolbarAccessory?: ReactNode;
-  layout?: 'panel' | 'workspace';
+  layout?: 'panel' | 'workspace' | 'shell';
+  title?: string;
 }) {
-  const isWorkspaceLayout = layout === 'workspace';
+  const isWorkspaceLayout = layout === 'workspace' || layout === 'shell';
+  const isShellLayout = layout === 'shell';
   const hasToolbarAccessory = Boolean(toolbarAccessory);
-  const selectedSortLabel = sortOptions.find((option) => option.value === sortBy)?.label ?? sortOptions[0]?.label ?? 'Sort';
   const filterSurface = useBreakpointValue<FilterSurface>(
     { base: 'drawer', md: 'popover' },
     { fallback: 'md' },
@@ -436,19 +438,33 @@ export function DocumentSearchControls<TSortValue extends string>({
       <Box
         rounded={isWorkspaceLayout ? '0' : 'lg'}
         borderWidth={isWorkspaceLayout ? '0' : '1px'}
-        borderBottomWidth={isWorkspaceLayout ? '1px' : undefined}
+        borderBottomWidth={layout === 'workspace' ? '1px' : undefined}
         borderColor="border.surface"
         bg={isWorkspaceLayout ? 'bg.workspace' : 'bg.surface'}
         px={isWorkspaceLayout ? { base: '4', lg: '6' } : undefined}
-        py={isWorkspaceLayout ? '3' : undefined}
+        py={isShellLayout ? '2' : isWorkspaceLayout ? '3' : undefined}
         p={isWorkspaceLayout ? undefined : { base: '3', sm: '4' }}
       >
         <Flex direction={{ base: 'column', md: 'row' }} align={{ md: 'center' }} gap="3">
+          {title ? (
+            <Text minW={{ md: '4.5rem' }} flexShrink={0} fontWeight="semibold" color="fg">
+              {title}
+            </Text>
+          ) : null}
+          <Flex
+            minW="0"
+            w={{ base: 'full', md: 'auto' }}
+            flex={{ md: title ? '1 1 auto' : undefined }}
+            direction={{ base: 'column', md: 'row' }}
+            align={{ md: 'center' }}
+            justify={{ md: title ? 'flex-end' : 'flex-start' }}
+            gap="3"
+          >
           <Field
             minW="0"
             w="full"
-            maxW={hasToolbarAccessory ? undefined : { md: 'none', '2xl': '64rem' }}
-            flex={{ md: hasToolbarAccessory ? '2 1 0' : '1 1 auto' }}
+            maxW={isShellLayout ? { md: '28rem' } : hasToolbarAccessory ? undefined : { md: 'none', '2xl': '64rem' }}
+            flex={{ md: isShellLayout ? '0 1 28rem' : hasToolbarAccessory ? '2 1 0' : '1 1 auto' }}
           >
             <FieldLabel htmlFor="document-search-query" srOnly>
               {searchAriaLabel}
@@ -619,115 +635,39 @@ export function DocumentSearchControls<TSortValue extends string>({
             direction={{ base: 'column', sm: 'row' }}
             gap="3"
             minW="0"
-            w="full"
-            flex={{ md: hasToolbarAccessory ? '1 1 0' : '0 0 auto' }}
+            w={isShellLayout ? { base: 'full', md: 'auto' } : 'full'}
+            flex={{ md: isShellLayout ? '0 0 auto' : hasToolbarAccessory ? '1 1 0' : '0 0 auto' }}
             shrink={hasToolbarAccessory ? 1 : 0}
           >
-            <Menu.Root
-              positioning={{ placement: 'bottom-end', offset: { mainAxis: 6, crossAxis: 0 } }}
-            >
-              <Menu.Trigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  aria-label={sortAriaLabel}
-                  aria-labelledby={sortSelectId}
-                  h="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
-                  w="full"
-                  minW={hasToolbarAccessory ? '0' : { md: '11rem' }}
-                  justifyContent="space-between"
-                  gap="2"
-                  borderColor="border.strong"
-                  bg="bg.surface"
-                  px="3"
-                  color="fg"
-                  shadow="none"
-                  _hover={{ borderColor: 'fg/30', bg: 'bg.surface' }}
-                  _focusVisible={{
-                    borderColor: 'teal.solid',
-                    outline: '2px solid',
-                    outlineColor: 'teal.focusRing',
-                    outlineOffset: '1px',
-                  }}
-                >
-                  <Flex minW="0" align="center" gap="2">
-                    <Box color="fg.muted" aria-hidden="true">
-                      <ArrowUpDown size={16} />
-                    </Box>
-                    <Text as="span" id={sortSelectId} srOnly>
-                      Sort
-                    </Text>
-                    <Text as="span" truncate fontSize="sm" fontWeight="medium">
-                      {selectedSortLabel}
-                    </Text>
-                  </Flex>
-                  <Box flexShrink={0} color="fg.muted" aria-hidden="true">
-                    <ChevronDown size={16} />
-                  </Box>
-                </Button>
-              </Menu.Trigger>
-              <Portal>
-                <Menu.Positioner zIndex="dropdown">
-                  <Menu.Content
-                    minW="11rem"
-                    rounded="lg"
-                    borderWidth="1px"
-                    borderColor="border.surface"
-                    bg="bg.surface"
-                    p="1.5"
-                    shadow="lg"
-                  >
-                    <Menu.RadioItemGroup
-                      value={sortBy}
-                      onValueChange={(event) => onSortChange(event.value as TSortValue)}
-                    >
-                      {sortOptions.map((option) => (
-                        <Menu.RadioItem
-                          key={option.value}
-                          value={option.value}
-                          position="relative"
-                          minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
-                          rounded="md"
-                          py="var(--arkivra-menuItemPaddingY, 0.5rem)"
-                          ps="10"
-                          pe="3"
-                          fontSize="sm"
-                          fontWeight="medium"
-                          color="fg"
-                          _checked={{ bg: 'teal.subtle', color: 'fg' }}
-                          _highlighted={{ bg: sortBy === option.value ? 'teal.subtle' : 'bg.subtle' }}
-                        >
-                          <Box
-                            position="absolute"
-                            left="2.5"
-                            top="50%"
-                            display="flex"
-                            boxSize="5"
-                            alignItems="center"
-                            justifyContent="center"
-                            rounded="sm"
-                            color="teal.solid"
-                            transform="translateY(-50%)"
-                          >
-                            <Menu.ItemIndicator>
-                              <Check size={16} strokeWidth={2.5} />
-                            </Menu.ItemIndicator>
-                          </Box>
-                          <Menu.ItemText>{option.label}</Menu.ItemText>
-                        </Menu.RadioItem>
-                      ))}
-                    </Menu.RadioItemGroup>
-                  </Menu.Content>
-                </Menu.Positioner>
-              </Portal>
-            </Menu.Root>
+            <DocumentSortMenu
+              ariaLabel={sortAriaLabel}
+              buttonProps={{
+                h: isShellLayout ? '11' : undefined,
+                minH: isShellLayout ? '11' : undefined,
+                minW: isShellLayout ? { base: '0', sm: '10rem' } : hasToolbarAccessory ? '0' : { md: '11rem' },
+              }}
+              labelId={sortSelectId}
+              value={sortBy}
+              onValueChange={onSortChange}
+              options={sortOptions}
+              variant={isShellLayout ? 'toolbar' : 'default'}
+            />
           </Flex>
 
-          {toolbarAccessory ? (
-            <Flex minW="0" w="full" flex={{ md: '1 1 0' }}>
+          {toolbarAccessory || trailingAccessory ? (
+            <Flex
+              minW="0"
+              w={isShellLayout ? { base: 'full', md: 'auto' } : 'full'}
+              flex={{ md: isShellLayout ? '0 0 auto' : '1 1 0' }}
+              align="center"
+              justify="flex-start"
+              gap="2"
+            >
               {toolbarAccessory}
+              {trailingAccessory}
             </Flex>
           ) : null}
+          </Flex>
         </Flex>
 
         {activeFilters.length > 0 ? (

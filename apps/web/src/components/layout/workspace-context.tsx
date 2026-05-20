@@ -3,6 +3,7 @@ import { createContext, use, useEffect } from 'react';
 
 export interface WorkspaceHeaderConfig {
   hidden?: boolean;
+  content?: ReactNode;
   left?: ReactNode;
   meta?: ReactNode;
   actions?: ReactNode;

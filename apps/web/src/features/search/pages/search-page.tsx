@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Box, Flex, Grid, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
+import type { ComponentPropsWithoutRef } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
+import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
+import type { VirtuosoGridProps } from 'react-virtuoso';
+import { Box, Flex, Grid, HStack, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
 import { Check, FileSearch, FileText, SearchX, Vault, X } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
+import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
@@ -12,6 +16,8 @@ import {
 } from '@/features/documents/components/document-search-controls';
 import type { DocumentSearchControlFilter } from '@/features/documents/components/document-search-controls';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
+import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import type { SearchMode, SearchResultItem, SearchSortBy } from '@/features/search/search.types';
@@ -24,14 +30,51 @@ const SEARCH_QUERY_DEBOUNCE_MS = 280;
 const SEARCH_TERM_SEPARATOR = /\s+/;
 const SNIPPET_WHITESPACE = /\s+/g;
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
-  { value: 'created_desc', label: 'Newest' },
-  { value: 'created_asc', label: 'Oldest upload' },
-  { value: 'name_asc', label: 'Name A-Z' },
-  { value: 'name_desc', label: 'Name Z-A' },
+  { value: 'created_desc', label: 'Recent' },
+  { value: 'created_asc', label: 'Oldest' },
+  { value: 'name_asc', label: 'A → Z' },
+  { value: 'name_desc', label: 'Z → A' },
 ];
 const SEARCH_RESULT_COLUMNS = 'minmax(0, 1fr) minmax(7rem, 9rem) minmax(5.5rem, 7rem) minmax(8rem, 10rem)';
 const SEARCH_RETURN_SOURCE = 'search';
 const SEARCH_LIST_SEPARATOR = ',';
+const SEARCH_LIST_ROW_HEIGHT = 92;
+const SEARCH_GRID_ITEM_WIDTH = '10.75rem';
+const SEARCH_GRID_ITEM_HEIGHT = '8rem';
+const SEARCH_GRID_ITEM_GAP = '0.8rem';
+const SEARCH_GRID_ITEM_PADDING = '0.75rem';
+
+const searchGridComponents: VirtuosoGridProps<SearchResultItem, unknown>['components'] = {
+  // eslint-disable-next-line react/no-forward-ref -- react-virtuoso's documented grid adapter passes its measured list ref this way.
+  List: forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(({ style, children, ...props }, ref) => (
+    <div
+      ref={ref}
+      {...props}
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  )),
+  Item: ({ children, ...props }) => (
+    <div
+      {...props}
+      style={{
+        padding: `calc(var(--arkivra-gridItemGap, ${SEARCH_GRID_ITEM_GAP}) / 2)`,
+        width: `calc(${SEARCH_GRID_ITEM_WIDTH} + var(--arkivra-gridItemGap, ${SEARCH_GRID_ITEM_GAP}))`,
+        display: 'flex',
+        flex: 'none',
+        alignContent: 'stretch',
+        boxSizing: 'border-box',
+      }}
+    >
+      {children}
+    </div>
+  ),
+};
 
 function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
   const extension = name.split('.').pop()?.trim().toUpperCase();
@@ -392,6 +435,141 @@ function SearchResultRow({
   );
 }
 
+function SearchResultList({
+  detailSearch,
+  query,
+  results,
+}: {
+  detailSearch: Record<string, string>;
+  query: string;
+  results: SearchResultItem[];
+}) {
+  return (
+    <Flex flex="1" minH="0" direction="column" overflow="hidden">
+      <Grid
+        display={{ base: 'none', md: 'grid' }}
+        templateColumns={SEARCH_RESULT_COLUMNS}
+        gap="4"
+        borderBottomWidth="1px"
+        borderColor="border.surface"
+        flexShrink="0"
+        bg="bg.workspace"
+        px="6"
+        py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
+        fontSize="sm"
+        color="fg.muted"
+      >
+        <Text as="span">Name</Text>
+        <Text as="span">Vault</Text>
+        <Text as="span">Size</Text>
+        <Text as="span">Modified</Text>
+      </Grid>
+
+      <Box flex="1" minH="0" overflow="hidden">
+        <Virtuoso
+          data={results}
+          defaultItemHeight={SEARCH_LIST_ROW_HEIGHT}
+          computeItemKey={(index, result) => result ? `${result.vaultId}-${result.documentId}` : `result-${index}`}
+          initialItemCount={Math.min(results.length, 24)}
+          style={{ height: '100%' }}
+          itemContent={(index, result) => result ? (
+            <SearchResultRow
+              result={result}
+              detailSearch={detailSearch}
+              isLast={index === results.length - 1}
+              query={query}
+            />
+          ) : null}
+        />
+      </Box>
+    </Flex>
+  );
+}
+
+function SearchResultGridCard({
+  detailSearch,
+  query,
+  result,
+}: {
+  detailSearch: Record<string, string>;
+  query: string;
+  result: SearchResultItem;
+}) {
+  return (
+    <Link
+      to={ROUTES.vaultDocument(result.vaultId, result.documentId)}
+      search={detailSearch as any}
+      style={{ display: 'block', width: '100%', color: 'inherit', textDecoration: 'none' }}
+      aria-label={`Open ${result.name}`}
+    >
+      <Flex
+        h={`var(--arkivra-gridItemHeight, ${SEARCH_GRID_ITEM_HEIGHT})`}
+        align="center"
+        justify="center"
+        p={`var(--arkivra-gridItemPadding, ${SEARCH_GRID_ITEM_PADDING})`}
+        rounded="md"
+        borderWidth="1px"
+        borderColor="border.surface"
+        bg="bg.workspace"
+        px="3"
+        textAlign="center"
+        transition="background-color 0.15s ease, border-color 0.15s ease"
+        _hover={{ bg: 'bg.workspaceMuted', borderColor: 'border.strong' }}
+        _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+      >
+        <Text
+        maxW="full"
+        overflow="hidden"
+        fontSize="sm"
+        fontWeight="semibold"
+        color="fg"
+        textAlign="center"
+        lineClamp="2"
+        wordBreak="break-word"
+        >
+          <HighlightedTitle text={result.name} query={query} />
+        </Text>
+      </Flex>
+    </Link>
+  );
+}
+
+function SearchResultGrid({
+  detailSearch,
+  query,
+  results,
+}: {
+  detailSearch: Record<string, string>;
+  query: string;
+  results: SearchResultItem[];
+}) {
+  return (
+    <Box
+      flex="1"
+      minH="0"
+      overflow="hidden"
+      bg="bg.workspace"
+      px={{ base: '3', lg: '4' }}
+      py="3"
+    >
+      <VirtuosoGrid
+        data={results}
+        components={searchGridComponents}
+        computeItemKey={(index, result) => result ? `${result.vaultId}-${result.documentId}` : `result-${index}`}
+        initialItemCount={Math.min(results.length, 24)}
+        style={{ height: '100%', width: '100%' }}
+        itemContent={(_, result) => result ? (
+          <SearchResultGridCard
+            result={result}
+            detailSearch={detailSearch}
+            query={query}
+          />
+        ) : null}
+      />
+    </Box>
+  );
+}
+
 function SearchModeControl({
   checked,
   disabled,
@@ -404,6 +582,8 @@ function SearchModeControl({
   return (
     <Flex
       w="full"
+      maxW="15rem"
+      minW="15rem"
       minH="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
       align="center"
       justify="space-between"
@@ -417,36 +597,38 @@ function SearchModeControl({
       fontSize="sm"
       color="fg"
     >
-      <Flex minW="0" align="center" justify="flex-end" gap="1.5">
-        <ChakraSwitch.Root
-          size="lg"
-          colorPalette="teal"
-          checked={checked}
-          onCheckedChange={(event) => onCheckedChange(event.checked)}
-          disabled={disabled}
-          display="flex"
-          flex="1"
-          alignItems="center"
-          justifyContent="space-between"
-          gap="3"
-        >
+      <ChakraSwitch.Root
+        size="lg"
+        colorPalette="teal"
+        checked={checked}
+        onCheckedChange={(event) => onCheckedChange(event.checked)}
+        disabled={disabled}
+        display="flex"
+        w="full"
+        minW="0"
+        alignItems="center"
+        justifyContent="space-between"
+        gap="3"
+      >
+        <Flex minW="0" align="center" gap="1.5">
           <ChakraSwitch.HiddenInput />
           <ChakraSwitch.Label flexShrink={0} fontWeight="medium" color="fg.muted">
             Semantic search
           </ChakraSwitch.Label>
-          <ChakraSwitch.Control>
-            <ChakraSwitch.Thumb>
-              <ChakraSwitch.ThumbIndicator fallback={<X size={12} color="black" />}>
-                <Check size={12} />
-              </ChakraSwitch.ThumbIndicator>
-            </ChakraSwitch.Thumb>
-          </ChakraSwitch.Control>
-        </ChakraSwitch.Root>
-        <InfoTooltip
-          label="Semantic search help"
-          content="Requires full AI access on the selected vaults. Root status does not grant AI access."
-        />
-      </Flex>
+          <InfoTooltip
+            label="Semantic search help"
+            content="Semantic search looks for meaning, not just exact words. For example, searching for 'car repair invoice' can find a document that says 'vehicle maintenance receipt', while full-text search mostly matches the words you typed."
+            contentProps={{ maxW: '28rem' }}
+          />
+        </Flex>
+        <ChakraSwitch.Control flexShrink={0}>
+          <ChakraSwitch.Thumb>
+            <ChakraSwitch.ThumbIndicator fallback={<X size={12} color="black" />}>
+              <Check size={12} />
+            </ChakraSwitch.ThumbIndicator>
+          </ChakraSwitch.Thumb>
+        </ChakraSwitch.Control>
+      </ChakraSwitch.Root>
     </Flex>
   );
 }
@@ -533,6 +715,7 @@ export function SearchPage() {
   const [query, setQuery] = useState(search.q ?? '');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [datePreset, setDatePreset] = useState<DatePreset>(search.dateFrom || search.dateTo ? 'custom' : 'any');
+  const [browserView, setBrowserView] = usePreferredFileBrowserView();
   const debouncedQuery = useDebouncedValue(query.trim(), SEARCH_QUERY_DEBOUNCE_MS);
 
   const selectedVaultIds = useMemo(() => {
@@ -574,7 +757,8 @@ export function SearchPage() {
 
   const vaultsQuery = useVaultsQuery();
   const tagsQuery = useAccessibleTagsQuery();
-  const vaults = vaultsQuery.data?.vaults ?? [];
+  const vaults = useMemo(() => vaultsQuery.data?.vaults ?? [], [vaultsQuery.data?.vaults]);
+  const tags = useMemo(() => tagsQuery.data?.tags ?? [], [tagsQuery.data?.tags]);
   const fullAiVaultIds = useMemo(
     () => new Set(vaults.filter((vault) => vault.aiAccessLevel === 'full' || !('aiAccessLevel' in vault)).map((vault) => vault.id)),
     [vaults],
@@ -608,11 +792,11 @@ export function SearchPage() {
     [selectedVaultIds, vaults],
   );
   const selectedTags = useMemo(
-    () => (tagsQuery.data?.tags ?? []).filter((tag) => selectedTagIds.includes(tag.id)),
-    [selectedTagIds, tagsQuery.data?.tags],
+    () => tags.filter((tag) => selectedTagIds.includes(tag.id)),
+    [selectedTagIds, tags],
   );
 
-  function updateFilters(nextValues: Record<string, string>) {
+  const updateFilters = useCallback((nextValues: Record<string, string>) => {
     navigate({
       search: (prev: Record<string, string>) => {
         const next: Record<string, string> = { ...prev }
@@ -625,9 +809,9 @@ export function SearchPage() {
       },
       replace: true,
     } as any)
-  }
+  }, [navigate]);
 
-  function resetFilters() {
+  const resetFilters = useCallback(() => {
     setDatePreset('any');
     updateFilters({
       vaultId: '',
@@ -639,9 +823,9 @@ export function SearchPage() {
       sortBy: 'created_desc',
       searchMode: '',
     });
-  }
+  }, [updateFilters]);
 
-  function setPresetDateFilter(value: DatePreset) {
+  const setPresetDateFilter = useCallback((value: DatePreset) => {
     setDatePreset(value);
 
     if (value === 'custom') {
@@ -650,9 +834,9 @@ export function SearchPage() {
 
     const range = buildPresetRange(value);
     updateFilters(range);
-  }
+  }, [updateFilters]);
 
-  const activeFilters: DocumentSearchControlFilter[] = [
+  const activeFilters: DocumentSearchControlFilter[] = useMemo(() => [
     ...selectedVaults.map((vault) => ({
       key: `vault-${vault.id}`,
       label: vault.name,
@@ -683,7 +867,7 @@ export function SearchPage() {
           },
         }]
       : []),
-  ];
+  ], [dateFrom, datePreset, dateTo, selectedTagIds, selectedTags, selectedVaultIds, selectedVaults, updateFilters]);
   const hasActiveSearch = debouncedQuery.length > 0 || activeFilters.length > 0;
   const results = searchQuery.data?.results ?? [];
   const resultCount = searchQuery.data?.resultsCount ?? 0;
@@ -725,122 +909,164 @@ export function SearchPage() {
     return `${selectedTags[0].name}, ${selectedTags[1].name} +${selectedTags.length - 2}`;
   }, [selectedTags]);
 
-  function setVaultSelection(nextVaultIds: string[]) {
+  const setVaultSelection = useCallback((nextVaultIds: string[]) => {
     updateFilters({
       vaultId: '',
       vaultIds: joinSearchList(nextVaultIds),
     });
-  }
+  }, [updateFilters]);
 
-  function setTagSelection(nextTagIds: string[]) {
+  const setTagSelection = useCallback((nextTagIds: string[]) => {
     updateFilters({
       tagId: '',
       tagIds: joinSearchList(nextTagIds),
     });
-  }
+  }, [updateFilters]);
 
-  function setSemanticSearchEnabled(checked: boolean) {
+  const setSemanticSearchEnabled = useCallback((checked: boolean) => {
     updateFilters({
       searchMode: checked ? '' : 'keyword',
     });
-  }
+  }, [updateFilters]);
+
+  const renderSearchControls = useCallback((layout: 'workspace' | 'shell') => (
+    <DocumentSearchControls
+      layout={layout}
+      title={layout === 'shell' ? 'Search' : undefined}
+      query={query}
+      onQueryChange={setQuery}
+      searchPlaceholder="Search documents..."
+      searchAriaLabel="Search documents"
+      isFiltersOpen={isFiltersOpen}
+      onOpenFilters={() => setIsFiltersOpen(true)}
+      onCloseFilters={() => setIsFiltersOpen(false)}
+      onResetFilters={resetFilters}
+      activeFilterCount={activeFilters.length}
+      activeFilters={activeFilters}
+      onClearFilters={resetFilters}
+      sortBy={sortBy}
+      onSortChange={(value) => updateFilters({ sortBy: value })}
+      sortOptions={sortOptions}
+      sortSelectId="global-search-sort"
+      sortAriaLabel="Sort search results"
+      filtersTitle="Filters"
+      toolbarAccessory={(
+        <SearchModeControl
+          checked={semanticSearchEnabled}
+          disabled={!semanticSearchAvailable}
+          onCheckedChange={setSemanticSearchEnabled}
+        />
+      )}
+      trailingAccessory={(
+        <HStack flexShrink={0}>
+          <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
+        </HStack>
+      )}
+      filtersContent={
+        <>
+          <SearchFilterMultiSelect
+            label="Vaults"
+            triggerLabel={selectedVaultsLabel}
+            triggerAriaLabel="Vault filter"
+            searchLabel="Search vaults"
+            searchPlaceholder="Search vaults"
+            emptyLabel="No vaults found."
+            loadingLabel="Loading vaults..."
+            options={vaults.map((vault) => ({
+              value: vault.id,
+              label: vault.name,
+            }))}
+            selectedValues={selectedVaultIds}
+            isLoading={vaultsQuery.isLoading}
+            onValueChange={setVaultSelection}
+            onClear={() => updateFilters({ vaultId: '', vaultIds: '' })}
+          />
+
+          <SearchFilterMultiSelect
+            label="Tags"
+            triggerLabel={selectedTagsLabel}
+            triggerAriaLabel="Tags filter"
+            searchLabel="Search tags"
+            searchPlaceholder="Search tags"
+            emptyLabel="No tags found."
+            loadingLabel="Loading tags..."
+            options={tags.map((tag) => ({
+              value: tag.id,
+              label: tag.name,
+              color: tag.color,
+              meta: typeof tag.documentsCount === 'number'
+                ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
+                : undefined,
+            }))}
+            selectedValues={selectedTagIds}
+            isLoading={tagsQuery.isLoading}
+            onValueChange={setTagSelection}
+            onClear={() => updateFilters({ tagId: '', tagIds: '' })}
+            showColorSwatch
+          />
+
+          <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="4">
+            <Text fontSize="sm" fontWeight="semibold" color="fg">
+              Uploaded date
+            </Text>
+            <DatePresetSelector
+              idPrefix="global-search-date-filter"
+              value={datePreset}
+              onValueChange={setPresetDateFilter}
+              customDateFrom={dateFrom}
+              customDateTo={dateTo}
+              onCustomDateFromChange={(nextValue) => {
+                setDatePreset('custom');
+                updateFilters({ dateFrom: nextValue });
+              }}
+              onCustomDateToChange={(nextValue) => {
+                setDatePreset('custom');
+                updateFilters({ dateTo: nextValue });
+              }}
+            />
+          </Box>
+        </>
+      }
+    />
+  ), [
+    activeFilters,
+    browserView,
+    dateFrom,
+    datePreset,
+    dateTo,
+    isFiltersOpen,
+    query,
+    resetFilters,
+    semanticSearchAvailable,
+    semanticSearchEnabled,
+    selectedTagIds,
+    selectedTagsLabel,
+    selectedVaultIds,
+    selectedVaultsLabel,
+    setPresetDateFilter,
+    setBrowserView,
+    setSemanticSearchEnabled,
+    setTagSelection,
+    setVaultSelection,
+    sortBy,
+    tagsQuery.isLoading,
+    tags,
+    updateFilters,
+    vaults,
+    vaultsQuery.isLoading,
+  ]);
+  const shellSearchControls = useMemo(() => renderSearchControls('shell'), [renderSearchControls]);
+  const workspaceHeader = useMemo(() => ({
+    content: shellSearchControls,
+  }), [shellSearchControls]);
+  const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
+  const pageSearchControls = useMemo(() => renderSearchControls('workspace'), [renderSearchControls]);
 
   return (
     <Flex as="section" h="full" minH="0" direction="column" overflow="hidden" bg="bg.workspace">
-      <DocumentSearchControls
-        layout="workspace"
-        query={query}
-        onQueryChange={setQuery}
-        searchPlaceholder="Search documents..."
-        searchAriaLabel="Search documents"
-        isFiltersOpen={isFiltersOpen}
-        onOpenFilters={() => setIsFiltersOpen(true)}
-        onCloseFilters={() => setIsFiltersOpen(false)}
-        onResetFilters={resetFilters}
-        activeFilterCount={activeFilters.length}
-        activeFilters={activeFilters}
-        onClearFilters={resetFilters}
-        sortBy={sortBy}
-        onSortChange={(value) => updateFilters({ sortBy: value })}
-        sortOptions={sortOptions}
-        sortSelectId="global-search-sort"
-        sortAriaLabel="Sort search results"
-        filtersTitle="Filters"
-        toolbarAccessory={(
-          <SearchModeControl
-            checked={semanticSearchEnabled}
-            disabled={!semanticSearchAvailable}
-            onCheckedChange={setSemanticSearchEnabled}
-          />
-        )}
-        filtersContent={
-          <>
-            <SearchFilterMultiSelect
-              label="Vaults"
-              triggerLabel={selectedVaultsLabel}
-              triggerAriaLabel="Vault filter"
-              searchLabel="Search vaults"
-              searchPlaceholder="Search vaults"
-              emptyLabel="No vaults found."
-              loadingLabel="Loading vaults..."
-              options={vaults.map((vault) => ({
-                value: vault.id,
-                label: vault.name,
-              }))}
-              selectedValues={selectedVaultIds}
-              isLoading={vaultsQuery.isLoading}
-              onValueChange={setVaultSelection}
-              onClear={() => updateFilters({ vaultId: '', vaultIds: '' })}
-            />
+      {!isInWorkspaceShell ? pageSearchControls : null}
 
-            <SearchFilterMultiSelect
-              label="Tags"
-              triggerLabel={selectedTagsLabel}
-              triggerAriaLabel="Tags filter"
-              searchLabel="Search tags"
-              searchPlaceholder="Search tags"
-              emptyLabel="No tags found."
-              loadingLabel="Loading tags..."
-              options={(tagsQuery.data?.tags ?? []).map((tag) => ({
-                value: tag.id,
-                label: tag.name,
-                color: tag.color,
-                meta: typeof tag.documentsCount === 'number'
-                  ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
-                  : undefined,
-              }))}
-              selectedValues={selectedTagIds}
-              isLoading={tagsQuery.isLoading}
-              onValueChange={setTagSelection}
-              onClear={() => updateFilters({ tagId: '', tagIds: '' })}
-              showColorSwatch
-            />
-
-            <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="4">
-              <Text fontSize="sm" fontWeight="semibold" color="fg">
-                Uploaded date
-              </Text>
-              <DatePresetSelector
-                idPrefix="global-search-date-filter"
-                value={datePreset}
-                onValueChange={setPresetDateFilter}
-                customDateFrom={dateFrom}
-                customDateTo={dateTo}
-                onCustomDateFromChange={(nextValue) => {
-                  setDatePreset('custom');
-                  updateFilters({ dateFrom: nextValue });
-                }}
-                onCustomDateToChange={(nextValue) => {
-                  setDatePreset('custom');
-                  updateFilters({ dateTo: nextValue });
-                }}
-              />
-            </Box>
-          </>
-        }
-      />
-
-      <Box flex="1" minH="0" overflowY="auto" bg="bg.workspace">
+      <Flex flex="1" minH="0" direction="column" overflow="hidden" bg="bg.workspace">
         {!hasActiveSearch ? (
           <Flex h="full" minH="0" align="center" justify="center" px="6" py="10">
             <Stack align="center" gap="3" maxW="md" color="fg.muted" textAlign="center">
@@ -853,7 +1079,7 @@ export function SearchPage() {
             </Stack>
           </Flex>
         ) : (
-          <>
+          <Flex flex="1" minH="0" direction="column" overflow="hidden">
             <Flex
               align={{ base: 'stretch', md: 'center' }}
               direction={{ base: 'column', md: 'row' }}
@@ -919,43 +1145,23 @@ export function SearchPage() {
             ) : null}
 
             {results.length > 0 ? (
-              <>
-                <Grid
-                  display={{ base: 'none', md: 'grid' }}
-                  position="sticky"
-                  top="0"
-                  zIndex="1"
-                  templateColumns={SEARCH_RESULT_COLUMNS}
-                  gap="4"
-                  borderBottomWidth="1px"
-                  borderColor="border.surface"
-                  bg="bg.workspace"
-                  px="6"
-                  py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
-                  fontSize="sm"
-                  color="fg.muted"
-                >
-                  <Text as="span">Name</Text>
-                  <Text as="span">Vault</Text>
-                  <Text as="span">Size</Text>
-                  <Text as="span">Modified</Text>
-                </Grid>
-
-                {results.map((result, index) => (
-                  <SearchResultRow
-                    key={`${result.vaultId}-${result.documentId}`}
-                    result={result}
-                    detailSearch={detailSearch}
-                    isLast={index === results.length - 1}
-                    query={debouncedQuery}
-                  />
-                ))}
-
-              </>
+              browserView === 'list' ? (
+                <SearchResultList
+                  results={results}
+                  detailSearch={detailSearch}
+                  query={debouncedQuery}
+                />
+              ) : (
+                <SearchResultGrid
+                  results={results}
+                  detailSearch={detailSearch}
+                  query={debouncedQuery}
+                />
+              )
             ) : null}
-          </>
+          </Flex>
         )}
-      </Box>
+      </Flex>
     </Flex>
   );
 }

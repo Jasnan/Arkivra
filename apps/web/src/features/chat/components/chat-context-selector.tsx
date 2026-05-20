@@ -377,11 +377,11 @@ export function ChatContextAddMenu({
       <DropdownMenuContent align="start">
         <DropdownMenuItem value="add-vaults" onSelect={onAddVaults}>
           <Vault size={16} />
-          Add Vaults
+          Add vaults
         </DropdownMenuItem>
         <DropdownMenuItem value="add-documents" onSelect={onAddDocuments}>
           <FileText size={16} />
-          Add Documents
+          Add files
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -751,7 +751,7 @@ export function VaultSelectionDialog({
             Cancel
           </Button>
           <Button type="button" onClick={confirm}>
-            Add Selected
+            Add
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -999,7 +999,7 @@ export function DocumentSelectionDialog({
             Cancel
           </Button>
           <Button type="button" onClick={confirm}>
-            Add Selected
+            Add
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1184,7 +1184,7 @@ export function ConversationForkDialog({
             Cancel
           </Button>
           <Button type="button" disabled={isPending} onClick={onConfirm}>
-            Continue in New Conversation
+            New conversation
           </Button>
         </DialogFooter>
       </DialogContent>

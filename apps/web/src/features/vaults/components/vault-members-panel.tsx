@@ -219,6 +219,8 @@ export function VaultMembersPanel({
       toast.error(error instanceof Error ? error.message : 'Could not join vault.');
     },
   });
+  const isJoinVaultFormDirty = joinRole !== 'owner' || joinAiAccessLevel !== 'full';
+  const canDismissJoinVaultDialog = !isJoinVaultFormDirty && !joinVaultMutation.isPending;
 
   const leaveVaultMutation = useMutation({
     mutationFn: leaveVaultAsAdmin,
@@ -354,7 +356,7 @@ export function VaultMembersPanel({
               />
 
               <Button type="submit" disabled={!canManageMembers || inviteMutation.isPending}>
-                {inviteMutation.isPending ? 'Adding...' : 'Add member'}
+                {inviteMutation.isPending ? 'Adding...' : 'Add'}
               </Button>
             </chakra.form>
           </SurfacePanel>
@@ -391,7 +393,7 @@ export function VaultMembersPanel({
                 />
 
                 <Button type="submit" disabled={emailInviteMutation.isPending}>
-                  {emailInviteMutation.isPending ? 'Creating...' : 'Create email invitation'}
+                  {emailInviteMutation.isPending ? 'Sending...' : 'Send invite'}
                 </Button>
               </chakra.form>
             </SurfacePanel>
@@ -474,7 +476,7 @@ export function VaultMembersPanel({
                         type="submit"
                         disabled={!canManageMembers || updateMemberMutation.isPending}
                       >
-                        {updateMemberMutation.isPending ? 'Saving...' : 'Save access'}
+                        {updateMemberMutation.isPending ? 'Saving...' : 'Save'}
                       </SaveButton>
                     </chakra.form>
                   </Box>
@@ -497,7 +499,7 @@ export function VaultMembersPanel({
                 </Text>
               </Box>
               <Button type="button" onClick={() => setIsJoinDialogOpen(true)}>
-                Join vault
+                Join
               </Button>
             </SurfacePanel>
           ) : null}
@@ -575,6 +577,8 @@ export function VaultMembersPanel({
 
       <ChakraDialog.Root
         open={isJoinDialogOpen}
+        closeOnEscape={canDismissJoinVaultDialog}
+        closeOnInteractOutside={canDismissJoinVaultDialog}
         onOpenChange={(event) => {
           if (!event.open && !joinVaultMutation.isPending) {
             setIsJoinDialogOpen(false);
@@ -624,7 +628,7 @@ export function VaultMembersPanel({
                     </Button>
                   </ChakraDialog.ActionTrigger>
                   <Button type="submit" disabled={joinVaultMutation.isPending}>
-                    {joinVaultMutation.isPending ? 'Joining...' : 'Join vault'}
+                    {joinVaultMutation.isPending ? 'Joining...' : 'Join'}
                   </Button>
                 </ChakraDialog.Footer>
               </chakra.form>

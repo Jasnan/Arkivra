@@ -101,7 +101,7 @@ export function RegisterPage() {
         {errorMessage ? <AuthStatus tone="error">{errorMessage}</AuthStatus> : null}
 
         <AuthPrimaryButton loading={isSubmitting} loadingText="Creating account...">
-          Create account
+          Create
         </AuthPrimaryButton>
       </AuthForm>
 

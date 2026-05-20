@@ -615,7 +615,7 @@ function SecondarySidebar({
                   onClick={onCreateVault}
                 >
                   <Plus size={16} />
-                  Create vault
+                  New vault
                 </ChakraButton>
               ) : null}
               {customContent}
@@ -634,7 +634,7 @@ function SecondarySidebar({
                   onClick={onCreateVault}
                 >
                   <Plus size={16} />
-                  Create vault
+                  New vault
                 </ChakraButton>
               ) : null}
               <Box flex="1" minH="0" overflowY="auto" pr="1" mr="-1">
@@ -978,6 +978,8 @@ export function AppShell() {
       toast.error(error instanceof Error ? error.message : 'Could not create vault.');
     },
   });
+  const isCreateVaultFormDirty = newVaultName.trim().length > 0 || newVaultDescription.trim().length > 0;
+  const canDismissCreateVaultDialog = !isCreateVaultFormDirty && !createVaultMutation.isPending;
 
   async function handleSignOut() {
     await uploadManager.clearForLogout();
@@ -1329,6 +1331,8 @@ export function AppShell() {
         />
         <Dialog
           open={isCreateVaultOpen}
+          closeOnEscape={canDismissCreateVaultDialog}
+          closeOnInteractOutside={canDismissCreateVaultDialog}
           onOpenChange={(open) => {
             if (open) {
               setIsCreateVaultOpen(true);
@@ -1422,8 +1426,8 @@ export function AppShell() {
                     {createVaultMutation.isPending
                       ? 'Submitting...'
                       : meQuery.data?.canCreateVault === true
-                        ? 'Create vault'
-                        : 'Request vault'}
+                        ? 'Create'
+                        : 'Request'}
                   </Button>
                 </Flex>
               </Box>

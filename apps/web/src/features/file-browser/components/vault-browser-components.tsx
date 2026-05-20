@@ -1346,9 +1346,12 @@ export function RenameItemDialog({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const targetType = target?.type ?? 'item';
+  const originalName = target ? getItemName(target) : '';
+  const isRenameFormDirty = value !== originalName;
+  const canDismissRenameDialog = !isRenameFormDirty && !isPending;
 
   return (
-    <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
+    <ChakraDialog.Root open={open} closeOnEscape={canDismissRenameDialog} closeOnInteractOutside={canDismissRenameDialog} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -1465,6 +1468,9 @@ function OpenMoveItemDialog({
 
   const currentDestinationId = getCommonDestinationId(targets);
   const selectedDestination = destinations.find(destination => destination.id === value) ?? destinations[0] ?? null;
+  const hasMoveSelectionChanged = currentDestinationId === undefined ? value !== null : value !== currentDestinationId;
+  const isMoveFormDirty = searchQuery.trim().length > 0 || hasMoveSelectionChanged;
+  const canDismissMoveDialog = !isMoveFormDirty && !isPending;
   const canSubmitMove = !isLoading
     && !isPending
     && targets.length > 0
@@ -1473,7 +1479,7 @@ function OpenMoveItemDialog({
     && (currentDestinationId === undefined || value !== currentDestinationId);
 
   return (
-    <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root open={open} closeOnEscape={canDismissMoveDialog} closeOnInteractOutside={canDismissMoveDialog} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>

@@ -514,14 +514,14 @@ describe('settings, admin, and about pages', () => {
     await user.click(screen.getByRole('button', { name: /^set password$/i }));
     await user.type(screen.getByLabelText(/^new password$/i), 'strongpass123');
     await user.type(screen.getByLabelText(/^confirm password$/i), 'different123');
-    await user.click(screen.getByRole('button', { name: /save password/i }));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/set-password', expect.anything());
 
     await user.clear(screen.getByLabelText(/^confirm password$/i));
     await user.type(screen.getByLabelText(/^confirm password$/i), 'strongpass123');
-    await user.click(screen.getByRole('button', { name: /save password/i }));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/auth/set-password', expect.objectContaining({
@@ -563,10 +563,10 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<SecuritySettingsPage />);
 
-    await user.click(await screen.findByRole('button', { name: /change email/i }));
+    await user.click(await screen.findByRole('button', { name: /^change$/i }));
     await user.type(screen.getByLabelText(/new email/i), 'new@example.com');
     await user.type(screen.getByLabelText(/current password/i), 'secret123');
-    await user.click(screen.getByRole('button', { name: /request change/i }));
+    await user.click(screen.getByRole('button', { name: /^request$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/security/email/change', expect.objectContaining({
@@ -1190,7 +1190,7 @@ describe('settings, admin, and about pages', () => {
     expect(screen.getByText(/2fa is enabled/i)).toBeInTheDocument();
     expect(screen.getByText(/authenticator app linked/i)).toBeInTheDocument();
     expect(await screen.findByText(/10 backup codes available/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /regenerate backup codes/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /regenerate codes/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /view backup codes/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /download backup codes/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /authenticator setup qr code/i })).not.toBeInTheDocument();
@@ -1235,7 +1235,7 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<TwoFactorManagementPage />);
 
-    await user.click(await screen.findByRole('button', { name: /regenerate backup codes/i }));
+    await user.click(await screen.findByRole('button', { name: /regenerate codes/i }));
     expect(screen.getByText(/invalidate all existing backup codes/i)).toBeInTheDocument();
     expect(screen.queryByText('NEW11-AAAAA')).not.toBeInTheDocument();
 
@@ -1468,7 +1468,7 @@ describe('settings, admin, and about pages', () => {
 
     view = await renderWithProviders(<AdminBackupsPage />);
     expect(await screen.findByText(/arkivra-backup-1.tar.gz/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /create backup/i }));
+    await user.click(screen.getByRole('button', { name: /^create$/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/backups',
@@ -1494,7 +1494,7 @@ describe('settings, admin, and about pages', () => {
     view = await renderWithProviders(<AdminUsersPage />);
     expect(await screen.findByText(/alex@example.com/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /user actions for alex@example.com/i }));
-    expect(screen.getByRole('menuitem', { name: /manage access/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /access/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /resend invitation/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /view activity/i })).toBeInTheDocument();
     await user.click(screen.getByRole('menuitem', { name: /deactivate user/i }));
@@ -1511,7 +1511,7 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<AdminAiSettingsPage />);
     expect(await screen.findByLabelText(/ollama host/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/ai/settings',
@@ -1587,7 +1587,7 @@ describe('settings, admin, and about pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await renderWithProviders(<AdminUsersPage />);
-    await user.click(await screen.findByRole('button', { name: /invite user/i }));
+    await user.click(await screen.findByRole('button', { name: /^invite$/i }));
 
     expect(await screen.findByLabelText(/email address/i)).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /system role/i })).toBeInTheDocument();

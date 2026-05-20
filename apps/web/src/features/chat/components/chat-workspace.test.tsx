@@ -318,7 +318,7 @@ describe('chat workspace new chat drafts', () => {
     await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
     await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
     await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
-    await user.click(screen.getByRole('button', { name: /add selected/i }));
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     expect(await screen.findByText('1 vault attached')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /view all/i }));
@@ -354,14 +354,14 @@ describe('chat workspace new chat drafts', () => {
     await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
     await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
     await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
-    await user.click(screen.getByRole('button', { name: /add selected/i }));
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     expect(await screen.findByText('Start a new conversation with updated context?')).toBeInTheDocument();
     expect(screen.getByText(/current conversation will remain unchanged/i)).toBeInTheDocument();
     expect(screen.getByRole('list', { name: /current conversation context/i })).toHaveTextContent('Finance');
     expect(screen.getByRole('list', { name: /new conversation context/i })).toHaveTextContent('Finance');
     expect(screen.getByRole('list', { name: /new conversation context/i })).toHaveTextContent('Legal');
-    await user.click(screen.getByRole('button', { name: /continue in new conversation/i }));
+    await user.click(screen.getByRole('button', { name: /new conversation/i }));
 
     await waitFor(() => {
       expect(createConversationMock).toHaveBeenCalledTimes(1);

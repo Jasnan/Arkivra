@@ -196,7 +196,7 @@ export function TransfersDrawer({
                   disabled={!hasClearableRows}
                   onClick={() => uploadManager.clearSettled()}
                 >
-                  Clear status
+                  Clear
                 </Button>
               </Flex>
             </Drawer.Header>

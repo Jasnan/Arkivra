@@ -60,7 +60,7 @@ export function RequestPasswordResetPage() {
           {errorMessage ? <AuthStatus tone="error">{errorMessage}</AuthStatus> : null}
 
           <AuthPrimaryButton loading={isSubmitting} loadingText="Sending reset link...">
-            Send reset link
+            Send link
           </AuthPrimaryButton>
         </AuthForm>
       )}

@@ -30,6 +30,7 @@ export function TagDialog({
   closeLabel: _closeLabel,
   extraFields,
   isPending,
+  isDirty,
   isSubmitDisabled,
   nameValue,
   colorValue,
@@ -47,6 +48,7 @@ export function TagDialog({
   closeLabel: string;
   extraFields?: ReactNode;
   isPending: boolean;
+  isDirty: boolean;
   isSubmitDisabled: boolean;
   nameValue: string;
   colorValue: string;
@@ -59,9 +61,10 @@ export function TagDialog({
 }) {
   const customColorInputRef = useRef<HTMLInputElement | null>(null);
   const normalizedName = nameValue.trim();
+  const canDismissDialog = !isDirty && !isPending;
 
   return (
-    <ChakraDialog.Root open={isOpen} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root open={isOpen} closeOnEscape={canDismissDialog} closeOnInteractOutside={canDismissDialog} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>

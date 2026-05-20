@@ -291,7 +291,7 @@ export function SecuritySettingsPage() {
                     {hasPassword ? 'Enabled' : 'Inactive'}
                   </SettingsStatusBadge>
                   {hasPassword ? (
-                    settingsButtonLink(ROUTES.requestPasswordReset, 'Change password')
+                    settingsButtonLink(ROUTES.requestPasswordReset, 'Change')
                   ) : (
                     <Button
                       type="button"
@@ -396,7 +396,7 @@ export function SecuritySettingsPage() {
                       loading={isSettingPassword}
                       loadingText="Setting password..."
                     >
-                      Save password
+                      Save
                     </Button>
                   </HStack>
                 </Stack>
@@ -438,7 +438,7 @@ export function SecuritySettingsPage() {
                       setIsEmailChangeOpen((open) => !open);
                     }}
                   >
-                    Change email
+                    Change
                   </Button>
                 </HStack>
               }
@@ -509,7 +509,7 @@ export function SecuritySettingsPage() {
                     >
                       {verificationMethod.type === 'oauth'
                         ? `Continue with ${OAUTH_PROVIDERS[verificationMethod.provider].label}`
-                        : 'Request change'}
+                        : 'Request'}
                     </Button>
                   </HStack>
                 </Stack>

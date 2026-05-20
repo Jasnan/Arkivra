@@ -96,7 +96,7 @@ function DeleteTagDialog({
                 </Button>
               </ChakraDialog.ActionTrigger>
               <DeleteButton type="button" onClick={onConfirm} disabled={isPending}>
-                {isPending ? 'Deleting...' : 'Delete tag'}
+                {isPending ? 'Deleting...' : 'Delete'}
               </DeleteButton>
             </ChakraDialog.Footer>
           </ChakraDialog.Content>
@@ -154,7 +154,7 @@ function DeleteTagsDialog({
                 </Button>
               </ChakraDialog.ActionTrigger>
               <DeleteButton type="button" onClick={onConfirm} disabled={isPending}>
-                {isPending ? 'Deleting...' : 'Delete tags'}
+                {isPending ? 'Deleting...' : 'Delete'}
               </DeleteButton>
             </ChakraDialog.Footer>
           </ChakraDialog.Content>
@@ -421,6 +421,14 @@ export function TagsPage() {
     setIsDialogOpen(false);
     restoreFocusTarget();
   }
+  const editingTag = editingTagId ? tags.find((tag) => tag.id === editingTagId) ?? null : null;
+  const isTagDialogDirty = dialogMode === 'create'
+    ? formName.trim().length > 0 || formDescription.trim().length > 0 || formColor !== DEFAULT_TAG_COLOR
+    : editingTag !== null && (
+      formName !== editingTag.name ||
+      formDescription !== (editingTag.description ?? '') ||
+      formColor !== (editingTag.color ?? DEFAULT_TAG_COLOR)
+    );
 
   async function invalidateTagQueries() {
     await queryClient.invalidateQueries({ queryKey: tagQueryKeys.all });
@@ -592,7 +600,7 @@ export function TagsPage() {
       type="button"
       onClick={(event) => openCreateDialog(event.currentTarget)}
     >
-      Create tag
+      New tag
     </CreateButton>
   ), [openCreateDialog]);
   const workspaceHeader = useMemo(() => ({
@@ -740,11 +748,12 @@ export function TagsPage() {
 
       <TagDialog
         isOpen={isDialogOpen}
-        title={dialogMode === 'create' ? 'Create tag' : 'Edit tag'}
-        submitLabel={dialogMode === 'create' ? 'Create tag' : 'Save'}
+        title={dialogMode === 'create' ? 'New tag' : 'Edit tag'}
+        submitLabel={dialogMode === 'create' ? 'Create' : 'Save'}
         pendingLabel={dialogMode === 'create' ? 'Creating...' : 'Saving...'}
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
         isPending={isSubmitting}
+        isDirty={isTagDialogDirty}
         isSubmitDisabled={
           formName.trim().length === 0 ||
           isSubmitting
@@ -811,7 +820,7 @@ export function TagsPage() {
                   setTagsPendingBulkDelete(selectedTags);
                 }}
               >
-                Delete selected
+                Delete
               </Button>
             </ActionBar.Content>
           </ActionBar.Positioner>

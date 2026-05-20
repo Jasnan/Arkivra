@@ -226,6 +226,8 @@ export function VaultsPage() {
       toast.error(error instanceof Error ? error.message : 'Could not create vault.');
     },
   });
+  const isCreateVaultFormDirty = name.trim().length > 0 || description.trim().length > 0;
+  const canDismissCreateVaultDialog = !isCreateVaultFormDirty && !createMutation.isPending;
 
   function queueCreateButtonFocusRestore() {
     shouldRestoreCreateButtonFocusRef.current = true;
@@ -303,7 +305,7 @@ export function VaultsPage() {
   const vaultHeaderActions = useMemo(() => (
     <HStack gap="2">
       <CreateButton ref={createButtonRef} onClick={() => setIsCreateModalOpen(true)}>
-        Create vault
+        New vault
       </CreateButton>
       <FileBrowserViewToggle value={vaultsView} onValueChange={setVaultsView} />
     </HStack>
@@ -559,6 +561,8 @@ export function VaultsPage() {
 
       <Dialog
         open={isCreateModalOpen}
+        closeOnEscape={canDismissCreateVaultDialog}
+        closeOnInteractOutside={canDismissCreateVaultDialog}
         finalFocusEl={() => createButtonRef.current}
         onExitComplete={() => {
           if (!shouldRestoreCreateButtonFocusRef.current) {
@@ -647,7 +651,7 @@ export function VaultsPage() {
                   Cancel
                 </Button>
                 <CreateButton type="button" h="12" px="6" disabled={createMutation.isPending} onClick={() => { (document.getElementById('create-vault-form') as HTMLFormElement)?.requestSubmit(); }}>
-                  {createMutation.isPending ? 'Submitting...' : canCreateVault ? 'Create vault' : 'Request vault'}
+                  {createMutation.isPending ? 'Submitting...' : canCreateVault ? 'Create' : 'Request'}
                 </CreateButton>
               </Flex>
             </Box>

@@ -185,7 +185,7 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
               />
             </Field>
             <SaveButton type="submit" disabled={!canManageVault || renameMutation.isPending}>
-              {renameMutation.isPending ? 'Saving...' : 'Save changes'}
+              {renameMutation.isPending ? 'Saving...' : 'Save'}
             </SaveButton>
           </chakra.form>
         </SurfacePanel>
@@ -206,7 +206,7 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
               deleteMutation.mutate({ vaultId });
             }}
           >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete vault'}
+            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
           </DeleteButton>
         </SurfacePanel>
       </Grid>

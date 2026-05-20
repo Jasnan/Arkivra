@@ -2,7 +2,7 @@ import type { Hono } from 'hono';
 import type { AuthorizationServices } from '../../authorization/authorization.services.js';
 import type { ServerContext } from '../../server/server.types.js';
 import { requireAuthentication } from '../../auth/auth.middleware.js';
-import { requireRoot } from '../../authorization/authorization.middleware.js';
+import { requireAdmin } from '../../authorization/authorization.middleware.js';
 import { isSystemCapability } from '../../authorization/authorization.types.js';
 
 function parseDisabled(value: unknown) {
@@ -16,8 +16,8 @@ export function registerAdminUserRoutes({
   app: Hono<ServerContext>;
   authorizationServices: AuthorizationServices;
 }) {
-  app.use('/api/admin/users', requireAuthentication(), requireRoot());
-  app.use('/api/admin/users/*', requireAuthentication(), requireRoot());
+  app.use('/api/admin/users', requireAuthentication(), requireAdmin());
+  app.use('/api/admin/users/*', requireAuthentication(), requireAdmin());
 
   app.get('/api/admin/users', async (context) => {
     const users = await authorizationServices.listUsers();
@@ -58,12 +58,12 @@ export function registerAdminUserRoutes({
 
       return context.json({ user });
     } catch (error) {
-      if (error instanceof Error && error.message === 'authorization.last_root') {
+      if (error instanceof Error && error.message === 'authorization.last_admin') {
         return context.json(
           {
             error: {
-              code: 'authorization.last_root',
-              message: 'At least one active root is required',
+              code: 'authorization.last_admin',
+              message: 'At least one active admin is required',
             },
           },
           409,
@@ -74,9 +74,9 @@ export function registerAdminUserRoutes({
     }
   });
 
-  app.post('/api/admin/users/:userId/root', async (context) => {
+  app.post('/api/admin/users/:userId/admin', async (context) => {
     const userId = context.req.param('userId');
-    const user = await authorizationServices.grantRoot({ userId });
+    const user = await authorizationServices.grantAdmin({ userId });
 
     if (user === null) {
       return context.json(
@@ -130,11 +130,11 @@ export function registerAdminUserRoutes({
     return context.json({ user });
   });
 
-  app.delete('/api/admin/users/:userId/root', async (context) => {
+  app.delete('/api/admin/users/:userId/admin', async (context) => {
     const userId = context.req.param('userId');
 
     try {
-      const user = await authorizationServices.revokeRoot({ userId });
+      const user = await authorizationServices.revokeAdmin({ userId });
 
       if (user === null) {
         return context.json(
@@ -150,12 +150,12 @@ export function registerAdminUserRoutes({
 
       return context.json({ user });
     } catch (error) {
-      if (error instanceof Error && error.message === 'authorization.last_root') {
+      if (error instanceof Error && error.message === 'authorization.last_admin') {
         return context.json(
           {
             error: {
-              code: 'authorization.last_root',
-              message: 'At least one active root is required',
+              code: 'authorization.last_admin',
+              message: 'At least one active admin is required',
             },
           },
           409,

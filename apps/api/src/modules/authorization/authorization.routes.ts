@@ -2,7 +2,7 @@ import type { Hono } from 'hono';
 import type { AuthorizationServices } from './authorization.services.js';
 import type { ServerContext } from '../server/server.types.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { requireRoot } from './authorization.middleware.js';
+import { requireAdmin } from './authorization.middleware.js';
 import {
   isAiAccessLevel,
   isEmailInvitationType,
@@ -93,9 +93,9 @@ export function registerAuthorizationRoutes({
   app: Hono<ServerContext>;
   authorizationServices: AuthorizationServices;
 }) {
-  app.use('/api/admin/permission-requests', requireAuthentication(), requireRoot());
-  app.use('/api/admin/permission-requests/*', requireAuthentication(), requireRoot());
-  app.use('/api/admin/email-invitations', requireAuthentication(), requireRoot());
+  app.use('/api/admin/permission-requests', requireAuthentication(), requireAdmin());
+  app.use('/api/admin/permission-requests/*', requireAuthentication(), requireAdmin());
+  app.use('/api/admin/email-invitations', requireAuthentication(), requireAdmin());
   app.use('/api/email-invitations/accept', requireAuthentication());
 
   app.post('/api/email-invitations/accept', async (context) => {
@@ -239,7 +239,7 @@ export function registerAuthorizationRoutes({
 
     const role = body?.role;
     const aiAccessLevel = body?.aiAccessLevel ?? 'none';
-    const systemRole = body?.systemRole ?? (type === 'root_account' ? 'root' : 'member');
+    const systemRole = body?.systemRole ?? (type === 'admin_account' ? 'admin' : 'member');
     const systemCapabilities = parseSystemCapabilities(body?.systemCapabilities);
     const vaultMemberships = parseInitialVaultMemberships(body?.vaultMemberships);
     const vaultId = typeof body?.vaultId === 'string' && body.vaultId.trim().length > 0

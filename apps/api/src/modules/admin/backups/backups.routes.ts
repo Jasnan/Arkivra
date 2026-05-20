@@ -5,7 +5,7 @@ import type { BackupServices } from './backups.services.js';
 import type { CreateBackupJobResult, RestoreBackupJobResult } from './backups.types.js';
 import { createBackupServices } from './backups.services.js';
 import { requireAuthentication } from '../../auth/auth.middleware.js';
-import { requireRoot } from '../../authorization/authorization.middleware.js';
+import { requireAdmin } from '../../authorization/authorization.middleware.js';
 
 type BackupQueue = {
   enqueueCreateBackup: () => Promise<CreateBackupJobResult>;
@@ -25,8 +25,8 @@ export function registerBackupRoutes({
 }) {
   const services = backupServices ?? createBackupServices({ config });
 
-  app.use('/api/admin/backups', requireAuthentication(), requireRoot());
-  app.use('/api/admin/backups/*', requireAuthentication(), requireRoot());
+  app.use('/api/admin/backups', requireAuthentication(), requireAdmin());
+  app.use('/api/admin/backups/*', requireAuthentication(), requireAdmin());
 
   app.post('/api/admin/backups', async (context) => {
     if (backupQueue === undefined) {

@@ -155,7 +155,7 @@ function createMockVaultsServices() {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
@@ -181,7 +181,7 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isRoot', false);
+    context.set('isAdmin', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
 
@@ -244,7 +244,7 @@ describe('documents integration', () => {
     expect(response.status).toBe(403);
   });
 
-  test('returns 403 for root without explicit membership when listing documents', async () => {
+  test('returns 403 for admin without explicit membership when listing documents', async () => {
     const docServices = createMockDocumentsServices();
     const vaultServices = createMockVaultsServices();
     (vaultServices as any).getVaultForUser = vi.fn(async () => ({
@@ -255,7 +255,7 @@ describe('documents integration', () => {
       deletedAt: null,
       role: null,
       aiAccessLevel: 'none',
-      isRoot: true,
+      isAdmin: true,
       isMember: false,
       accessMode: 'admin',
     }));
@@ -281,7 +281,7 @@ describe('documents integration', () => {
       deletedAt: null,
       role: 'viewer',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ docServices, vaultServices });
@@ -330,7 +330,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'owner',
         aiAccessLevel: 'none',
-        isRoot: false,
+        isAdmin: false,
       },
       {
         id: 'vlt_2',
@@ -340,7 +340,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'viewer',
         aiAccessLevel: 'none',
-        isRoot: false,
+        isAdmin: false,
       },
     ]);
 
@@ -371,7 +371,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'owner',
         aiAccessLevel: 'none',
-        isRoot: false,
+        isAdmin: false,
       },
       {
         id: 'vlt_2',
@@ -381,7 +381,7 @@ describe('documents integration', () => {
         deletedAt: null,
         role: 'viewer',
         aiAccessLevel: 'none',
-        isRoot: false,
+        isAdmin: false,
       },
     ]);
 
@@ -1006,7 +1006,7 @@ describe('documents integration', () => {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ docServices, vaultServices });
@@ -1034,7 +1034,7 @@ describe('documents integration', () => {
       deletedAt: null,
       role: 'viewer',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ docServices, vaultServices });

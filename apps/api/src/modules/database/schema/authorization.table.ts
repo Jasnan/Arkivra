@@ -54,7 +54,7 @@ export const emailInvitationsTable = pgTable(
     ...createPrimaryKeyField({ prefix: 'invite' }),
     ...createTimestampColumns(),
 
-    type: text('type', { enum: ['root_account', 'vault_member'] }).notNull(),
+    type: text('type', { enum: ['admin_account', 'vault_member'] }).notNull(),
     status: text('status', { enum: ['pending', 'accepted', 'revoked', 'expired'] })
       .notNull()
       .default('pending'),
@@ -69,7 +69,7 @@ export const emailInvitationsTable = pgTable(
     aiAccessLevel: text('ai_access_level', { enum: ['none', 'document_chat', 'full'] })
       .notNull()
       .default('none'),
-    systemRole: text('system_role', { enum: ['root', 'member'] }),
+    systemRole: text('system_role', { enum: ['admin', 'member'] }),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
   },
   (table) => [

@@ -113,7 +113,7 @@ export async function removeVaultMember({ vaultId, memberUserId }: { vaultId: st
   });
 }
 
-export async function joinVaultAsRoot({
+export async function joinVaultAsAdmin({
   vaultId,
   role,
   aiAccessLevel,
@@ -129,7 +129,7 @@ export async function joinVaultAsRoot({
   });
 }
 
-export async function leaveVaultAsRoot({ vaultId }: { vaultId: string }) {
+export async function leaveVaultAsAdmin({ vaultId }: { vaultId: string }) {
   await fetchJson<void>(`/api/vaults/${vaultId}/membership/self`, {
     method: 'DELETE',
   });

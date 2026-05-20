@@ -68,7 +68,7 @@ export function registerAuthRoutes({
 
     if (sessionData) {
       const { user, session } = sessionData;
-      await authorizationServices.ensureBootstrapRoot({ userId: user.id });
+      await authorizationServices.ensureBootstrapAdmin({ userId: user.id });
       const authorizationState = await authorizationServices.getUserAuthorizationState({
         userId: user.id,
       });
@@ -81,7 +81,7 @@ export function registerAuthRoutes({
         context.set('session', session);
         context.set('systemRole', authorizationState?.systemRole ?? 'member');
         context.set('systemCapabilities', authorizationState?.systemCapabilities ?? []);
-        context.set('isRoot', authorizationState?.isRoot ?? false);
+        context.set('isAdmin', authorizationState?.isAdmin ?? false);
         context.set('canCreateVault', authorizationState?.canCreateVault ?? false);
       }
     }

@@ -12,7 +12,7 @@ export const usersTable = pgTable(
     name: text('name'),
     image: text('image'),
     twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
-    systemRole: text('system_role', { enum: ['root', 'member'] }).notNull().default('member'),
+    systemRole: text('system_role', { enum: ['admin', 'member'] }).notNull().default('member'),
     disabledAt: timestamp('disabled_at', { mode: 'date' }),
   },
   (table) => [

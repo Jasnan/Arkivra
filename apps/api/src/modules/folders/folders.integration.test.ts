@@ -116,7 +116,7 @@ function createMockVaultsServices({
       role,
       aiAccessLevel: 'none',
       permissions,
-      isRoot: false,
+      isAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),

@@ -3,7 +3,7 @@ import type { Database } from '../../database/database.js';
 import type { ServerContext } from '../../server/server.types.js';
 import type { VaultsServices } from '../../vaults/vaults.services.js';
 import { requireAuthentication } from '../../auth/auth.middleware.js';
-import { requireRoot } from '../../authorization/authorization.middleware.js';
+import { requireAdmin } from '../../authorization/authorization.middleware.js';
 import { createVaultsServices } from '../../vaults/vaults.services.js';
 
 export function registerAdminVaultRoutes({
@@ -17,8 +17,8 @@ export function registerAdminVaultRoutes({
 }) {
   const vaultsServices = services ?? createVaultsServices({ db });
 
-  app.use('/api/admin/vaults', requireAuthentication(), requireRoot());
-  app.use('/api/admin/vaults/*', requireAuthentication(), requireRoot());
+  app.use('/api/admin/vaults', requireAuthentication(), requireAdmin());
+  app.use('/api/admin/vaults/*', requireAuthentication(), requireAdmin());
 
   app.get('/api/admin/vaults', async (context) => {
     const vaults = await vaultsServices.listAllVaults();

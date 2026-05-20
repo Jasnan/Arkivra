@@ -85,7 +85,7 @@ describe.sequential('authorization e2e', () => {
     await rm(storagePath, { recursive: true, force: true }).catch(() => undefined);
   });
 
-  test('bootstraps first root and enforces canonical vault authorization end-to-end', async () => {
+  test('bootstraps first admin and enforces canonical vault authorization end-to-end', async () => {
     if (app === null) {
       throw new Error('Authorization e2e app not initialized');
     }
@@ -124,7 +124,7 @@ describe.sequential('authorization e2e', () => {
         : await db
             .select({ userId: usersTable.id })
             .from(usersTable)
-            .where(eq(usersTable.systemRole, 'root'));
+            .where(eq(usersTable.systemRole, 'admin'));
     const [oldestUser] =
       db === null
         ? []
@@ -140,21 +140,21 @@ describe.sequential('authorization e2e', () => {
     expect(firstAdminMeResponse.status).toBe(200);
     const firstAdminMeBody = (await firstAdminMeResponse.json()) as {
       userId: string;
-      systemRole: 'root' | 'member';
+      systemRole: 'admin' | 'member';
       systemCapabilities: string[];
-      isRoot: boolean;
+      isAdmin: boolean;
       canCreateVault: boolean;
     };
     expect(firstAdminMeBody.userId).toBe(firstAdmin.userId);
 
     if (rootRowsBeforeMe.length === 0 && oldestUser?.id === firstAdmin.userId) {
-      expect(firstAdminMeBody.systemRole).toBe('root');
-      expect(firstAdminMeBody.isRoot).toBe(true);
+      expect(firstAdminMeBody.systemRole).toBe('admin');
+      expect(firstAdminMeBody.isAdmin).toBe(true);
       expect(firstAdminMeBody.canCreateVault).toBe(true);
     } else if (db !== null) {
       await db
         .update(usersTable)
-        .set({ systemRole: 'root' })
+        .set({ systemRole: 'admin' })
         .where(eq(usersTable.id, firstAdmin.userId));
     }
 
@@ -166,7 +166,7 @@ describe.sequential('authorization e2e', () => {
       userId: owner.userId,
       systemRole: 'member',
       systemCapabilities: [],
-      isRoot: false,
+      isAdmin: false,
       canCreateVault: false,
     });
 
@@ -211,7 +211,7 @@ describe.sequential('authorization e2e', () => {
         id: owner.userId,
         systemRole: 'member',
         systemCapabilities: ['system.create_vaults'],
-        isRoot: false,
+        isAdmin: false,
         canCreateVault: true,
       },
     });
@@ -244,7 +244,7 @@ describe.sequential('authorization e2e', () => {
         id: vaultId,
         role: null,
         aiAccessLevel: 'none',
-        isRoot: true,
+        isAdmin: true,
       },
     });
 
@@ -328,15 +328,15 @@ describe.sequential('authorization e2e', () => {
     });
     expect(allowedUploadResponse.status).toBe(201);
 
-    const activeRootsBeforeRevoke =
+    const activeAdminsBeforeRevoke =
       db === null
         ? []
         : await db
             .select({ userId: usersTable.id })
             .from(usersTable)
-            .where(eq(usersTable.systemRole, 'root'));
+            .where(eq(usersTable.systemRole, 'admin'));
     const revokeLastAdminResponse = await app.request(
-      `/api/admin/users/${firstAdmin.userId}/root`,
+      `/api/admin/users/${firstAdmin.userId}/admin`,
       {
         method: 'DELETE',
         headers: { cookie: firstAdmin.cookie },
@@ -344,7 +344,7 @@ describe.sequential('authorization e2e', () => {
     );
     expect([200, 409]).toContain(revokeLastAdminResponse.status);
     expect(revokeLastAdminResponse.status).toBe(
-      activeRootsBeforeRevoke.length <= 1 ? 409 : 200,
+      activeAdminsBeforeRevoke.length <= 1 ? 409 : 200,
     );
   }, 30_000);
 });

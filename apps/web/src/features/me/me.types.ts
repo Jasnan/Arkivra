@@ -1,9 +1,9 @@
 export interface MeResponse {
   userId: string;
   sessionId: string;
-  systemRole: 'root' | 'member' | null;
+  systemRole: 'admin' | 'member' | null;
   systemCapabilities: SystemCapability[];
-  isRoot: boolean;
+  isAdmin: boolean;
   canCreateVault: boolean;
   authMethods: {
     hasPassword: boolean;

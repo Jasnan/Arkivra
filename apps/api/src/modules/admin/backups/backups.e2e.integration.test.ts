@@ -183,7 +183,7 @@ describe.sequential('backups e2e', () => {
     const sessionCookie = signUpResponse.headers.get('set-cookie')!.split(';', 1)[0];
     const signUpBody = await signUpResponse.json() as { user: { id: string } };
     userId = signUpBody.user.id;
-    await db.update(usersTable).set({ systemRole: 'root' }).where(eq(usersTable.id, userId));
+    await db.update(usersTable).set({ systemRole: 'admin' }).where(eq(usersTable.id, userId));
 
     const createVaultResponse = await app.request('/api/vaults', {
       method: 'POST',

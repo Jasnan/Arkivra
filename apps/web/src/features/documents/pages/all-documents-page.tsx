@@ -132,7 +132,7 @@ function formatVaultRole(role: string | null | undefined) {
     return 'Viewer';
   }
 
-  return 'Root governance';
+  return 'Admin governance';
 }
 
 export function AllDocumentsPage() {

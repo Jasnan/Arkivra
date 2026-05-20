@@ -171,7 +171,7 @@ export function createServer({
     context.set('userDisabled', false);
     context.set('systemRole', null);
     context.set('systemCapabilities', []);
-    context.set('isRoot', false);
+    context.set('isAdmin', false);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
@@ -250,7 +250,7 @@ export function createServer({
     });
   });
 
-  // Root redirect
+  // Root path redirect
   app.get('/', (c) => {
     return c.json({
       name: 'Arkivra',
@@ -285,7 +285,7 @@ export function createServer({
       sessionId: session.id,
       systemRole: c.get('systemRole'),
       systemCapabilities: c.get('systemCapabilities'),
-      isRoot: c.get('isRoot'),
+      isAdmin: c.get('isAdmin'),
       canCreateVault: c.get('canCreateVault'),
       authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),
       twoFactor,

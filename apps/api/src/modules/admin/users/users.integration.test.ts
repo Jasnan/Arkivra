@@ -6,16 +6,16 @@ import { registerAdminUserRoutes } from './users.routes.js';
 function createMockAuthorizationServices() {
   return {
     getUserAuthorizationState: vi.fn(async () => null),
-    grantRoot: vi.fn(async ({ userId }) => ({
+    grantAdmin: vi.fn(async ({ userId }) => ({
       id: userId,
-      systemRole: 'root',
-      isRoot: true,
+      systemRole: 'admin',
+      isAdmin: true,
       canCreateVault: true,
     })),
     grantSystemCapability: vi.fn(async ({ userId, capability }) => ({
       id: userId,
       systemCapabilities: [capability],
-      isRoot: false,
+      isAdmin: false,
       canCreateVault: true,
     })),
     listUsers: vi.fn(async () => [
@@ -31,16 +31,16 @@ function createMockAuthorizationServices() {
         canCreateVault: true,
       },
     ]),
-    revokeRoot: vi.fn(async ({ userId }) => ({
+    revokeAdmin: vi.fn(async ({ userId }) => ({
       id: userId,
       systemRole: 'member',
-      isRoot: false,
+      isAdmin: false,
       canCreateVault: false,
     })),
     revokeSystemCapability: vi.fn(async ({ userId }) => ({
       id: userId,
       systemCapabilities: [],
-      isRoot: false,
+      isAdmin: false,
       canCreateVault: false,
     })),
     setUserDisabled: vi.fn(async ({ userId, disabled }) => ({
@@ -53,11 +53,11 @@ function createMockAuthorizationServices() {
 
 function createTestApp({
   isAuthenticated = true,
-  isRoot = true,
+  isAdmin = true,
   authorizationServices = createMockAuthorizationServices(),
 }: {
   isAuthenticated?: boolean;
-  isRoot?: boolean;
+  isAdmin?: boolean;
   authorizationServices?: ReturnType<typeof createMockAuthorizationServices>;
 }) {
   const app = new Hono<ServerContext>();
@@ -78,9 +78,9 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
-    context.set('systemRole', isRoot ? 'root' : 'member');
+    context.set('systemRole', isAdmin ? 'admin' : 'member');
     context.set('systemCapabilities', []);
-    context.set('isRoot', isRoot);
+    context.set('isAdmin', isAdmin);
     context.set('canCreateVault', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
@@ -103,13 +103,13 @@ describe('admin users routes integration', () => {
     expect(response.status).toBe(401);
   });
 
-  test('returns 403 when authenticated user is not a root', async () => {
-    const { app } = createTestApp({ isRoot: false });
+  test('returns 403 when authenticated user is not an admin', async () => {
+    const { app } = createTestApp({ isAdmin: false });
     const response = await app.request('/api/admin/users');
     expect(response.status).toBe(403);
   });
 
-  test('lists users for root', async () => {
+  test('lists users for admin', async () => {
     const { app } = createTestApp({});
     const response = await app.request('/api/admin/users');
     expect(response.status).toBe(200);
@@ -128,10 +128,10 @@ describe('admin users routes integration', () => {
     expect(response.status).toBe(400);
   });
 
-  test('maps last root guard to 409', async () => {
+  test('maps last admin guard to 409', async () => {
     const authorizationServices = createMockAuthorizationServices();
     authorizationServices.setUserDisabled = vi.fn(async () => {
-      throw new Error('authorization.last_root');
+      throw new Error('authorization.last_admin');
     });
 
     const { app } = createTestApp({ authorizationServices });
@@ -144,20 +144,20 @@ describe('admin users routes integration', () => {
     expect(response.status).toBe(409);
   });
 
-  test('grants and revokes root role', async () => {
+  test('grants and revokes admin role', async () => {
     const { app, authorizationServices } = createTestApp({});
 
-    const grantResponse = await app.request('/api/admin/users/usr_2/root', {
+    const grantResponse = await app.request('/api/admin/users/usr_2/admin', {
       method: 'POST',
     });
     expect(grantResponse.status).toBe(200);
-    expect(authorizationServices.grantRoot).toHaveBeenCalledWith({ userId: 'usr_2' });
+    expect(authorizationServices.grantAdmin).toHaveBeenCalledWith({ userId: 'usr_2' });
 
-    const revokeResponse = await app.request('/api/admin/users/usr_2/root', {
+    const revokeResponse = await app.request('/api/admin/users/usr_2/admin', {
       method: 'DELETE',
     });
     expect(revokeResponse.status).toBe(200);
-    expect(authorizationServices.revokeRoot).toHaveBeenCalledWith({ userId: 'usr_2' });
+    expect(authorizationServices.revokeAdmin).toHaveBeenCalledWith({ userId: 'usr_2' });
   });
 
   test('grants and revokes system create-vault capability', async () => {

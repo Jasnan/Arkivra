@@ -42,7 +42,7 @@ import {
 import {
   approvePermissionRequest,
   createBackup,
-  createRootEmailInvitation,
+  createAdminEmailInvitation,
   getBackupDownloadUrl,
   rejectPermissionRequest,
   restoreBackup,
@@ -69,8 +69,8 @@ import {
 } from '@/features/settings/components/settings-ui';
 
 type AdminUserStatusFilter = 'all' | 'active' | 'disabled';
-type AdminUserAccessFilter = 'all' | 'root' | 'create-vaults' | 'member';
-type InviteSystemRole = 'root' | 'member';
+type AdminUserAccessFilter = 'all' | 'admin' | 'create-vaults' | 'member';
+type InviteSystemRole = 'admin' | 'member';
 
 type AdminUserActionKey = 'manage-access' | 'resend-invitation' | 'deactivate-user' | 'view-activity';
 
@@ -100,14 +100,14 @@ const userStatusFilterOptions = [
 
 const userAccessFilterOptions = [
   { value: 'all', label: 'All roles' },
-  { value: 'root', label: 'Root' },
+  { value: 'admin', label: 'Admin' },
   { value: 'create-vaults', label: 'Can create vaults' },
   { value: 'member', label: 'Member' },
 ];
 
 const inviteSystemRoleOptions: Array<{ value: InviteSystemRole; label: string }> = [
   { value: 'member', label: 'Member' },
-  { value: 'root', label: 'Root' },
+  { value: 'admin', label: 'Admin' },
 ];
 
 function formatCount(value: number | undefined, singular: string, plural = `${singular}s`) {
@@ -116,11 +116,11 @@ function formatCount(value: number | undefined, singular: string, plural = `${si
 }
 
 function getUserRoleLabel(user: AdminUser) {
-  return user.isRoot ? 'Root' : 'Member';
+  return user.isAdmin ? 'Admin' : 'Member';
 }
 
 function getUserAccessSummary(user: AdminUser) {
-  if (user.isRoot) return 'All vaults';
+  if (user.isAdmin) return 'All vaults';
   if (user.canCreateVault) return 'Can create vaults';
   return 'Member access';
 }
@@ -298,7 +298,7 @@ function AdminUserContextMenu({
 }
 
 function getUserAccessFilter(user: AdminUser): AdminUserAccessFilter {
-  if (user.isRoot) return 'root';
+  if (user.isAdmin) return 'admin';
   if (user.systemCapabilities.includes('system.create_vaults')) return 'create-vaults';
   return 'member';
 }
@@ -349,15 +349,15 @@ function AdminAccessBoundary({
   children: ReactNode;
 }) {
   if (isLoading) {
-    return <Text textStyle="sm">Loading root context...</Text>;
+    return <Text textStyle="sm">Loading admin context...</Text>;
   }
 
   if (!isEnabled) {
     return (
-      <SettingsPageFrame title={title ?? accessTitle} description="Root access is required to open this page." density="compact">
+      <SettingsPageFrame title={title ?? accessTitle} description="Admin access is required to open this page." density="compact">
         <Alert variant="destructive">
           <AlertDescription>
-            Root access is required to open this page.
+            Admin access is required to open this page.
           </AlertDescription>
         </Alert>
       </SettingsPageFrame>
@@ -431,7 +431,7 @@ function VaultOwnershipTable({ vaults }: { vaults: AdminVault[] }) {
 export function AdminOverviewPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isRoot === true;
+  const isEnabled = meQuery.data?.isAdmin === true;
   const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
   const backupsQuery = useAdminBackupsQuery({ enabled: isEnabled });
   const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
@@ -543,7 +543,7 @@ export function AdminOverviewPage() {
 export function AdminBackupsPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isRoot === true;
+  const isEnabled = meQuery.data?.isAdmin === true;
   const backupsQuery = useAdminBackupsQuery({ enabled: isEnabled });
   const backups = backupsQuery.data?.backups ?? [];
 
@@ -636,13 +636,13 @@ export function AdminUsersPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isRoot === true;
+  const isEnabled = meQuery.data?.isAdmin === true;
   const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
   const users = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data?.users]);
   const [userSearch, setUserSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdminUserStatusFilter>('all');
   const [accessFilter, setAccessFilter] = useState<AdminUserAccessFilter>('all');
-  const [rootInviteEmail, setRootInviteEmail] = useState('');
+  const [adminInviteEmail, setAdminInviteEmail] = useState('');
   const [inviteSystemRole, setInviteSystemRole] = useState<InviteSystemRole>('member');
   const [inviteCanCreateVaults, setInviteCanCreateVaults] = useState(false);
   const [createdInvitation, setCreatedInvitation] = useState<EmailInvitation | null>(null);
@@ -667,8 +667,8 @@ export function AdminUsersPage() {
   }, [accessFilter, statusFilter, userSearch, users]);
   const userStats = useMemo(() => ({
     total: users.length,
-    root: users.filter((user) => user.isRoot).length,
-    members: users.filter((user) => !user.isRoot).length,
+    admins: users.filter((user) => user.isAdmin).length,
+    members: users.filter((user) => !user.isAdmin).length,
     active: users.filter((user) => user.disabledAt === null).length,
     invited: 0,
   }), [users]);
@@ -729,15 +729,15 @@ export function AdminUsersPage() {
     });
   }
 
-  const createRootInvitationMutation = useMutation({
-    mutationFn: createRootEmailInvitation,
+  const createAdminInvitationMutation = useMutation({
+    mutationFn: createAdminEmailInvitation,
     onSuccess: ({ invitation }) => {
       toast.success(`Invitation created for ${invitation.email}.`);
       setCreatedInvitation(invitation);
-      setRootInviteEmail('');
+      setAdminInviteEmail('');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not create root invitation.');
+      toast.error(error instanceof Error ? error.message : 'Could not create admin invitation.');
     },
   });
 
@@ -752,10 +752,10 @@ export function AdminUsersPage() {
 
   if (!isEnabled) {
     return (
-      <SettingsPageFrame title="Users management" description="Root access is required to open this page.">
+      <SettingsPageFrame title="Users management" description="Admin access is required to open this page.">
         <Alert variant="destructive">
           <AlertDescription>
-            Root access is required to open this page.
+            Admin access is required to open this page.
           </AlertDescription>
         </Alert>
       </SettingsPageFrame>
@@ -828,7 +828,7 @@ export function AdminUsersPage() {
       <SimpleGrid columns={{ base: 1, sm: 2, xl: 5 }} gap="3">
         {[
           { label: 'Total users', value: userStats.total, icon: UsersRound, color: 'fg.success' },
-          { label: 'Root users', value: userStats.root, icon: ShieldCheck, color: 'fg.success' },
+          { label: 'Admins', value: userStats.admins, icon: ShieldCheck, color: 'fg.success' },
           { label: 'Members', value: userStats.members, icon: UserRoundPlus, color: 'fg.success' },
           { label: 'Active', value: userStats.active, icon: CheckCircle2, color: 'fg.success' },
           { label: 'Invited', value: userStats.invited, icon: Clock3, color: 'fg.warning' },
@@ -918,7 +918,7 @@ export function AdminUsersPage() {
                   <Badge
                     display={{ base: 'none', lg: 'inline-flex' }}
                     w="fit-content"
-                    colorPalette={user.isRoot ? 'purple' : 'blue'}
+                    colorPalette={user.isAdmin ? 'purple' : 'blue'}
                     variant="subtle"
                     rounded="sm"
                     px="2"
@@ -997,12 +997,12 @@ export function AdminUsersPage() {
               event.preventDefault();
               if (createdInvitation) return;
 
-              const email = rootInviteEmail.trim();
+              const email = adminInviteEmail.trim();
               if (!email) {
                 toast.error('Email is required.');
                 return;
               }
-              createRootInvitationMutation.mutate({
+              createAdminInvitationMutation.mutate({
                 email,
                 systemRole: inviteSystemRole,
                 systemCapabilities: inviteCanCreateVaults ? ['system.create_vaults'] : [],
@@ -1049,7 +1049,7 @@ export function AdminUsersPage() {
                         density="compact"
                         rows={[
                           { label: 'Email', value: createdInvitation.email },
-                          { label: 'System role', value: createdInvitation.systemRole === 'root' ? 'Root' : 'Member' },
+                          { label: 'System role', value: createdInvitation.systemRole === 'admin' ? 'Admin' : 'Member' },
                           { label: 'Status', value: 'Pending acceptance' },
                         ]}
                       />
@@ -1068,17 +1068,17 @@ export function AdminUsersPage() {
                 <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="3" shadow="xs">
                   <Stack gap="3">
                     <Field>
-                      <FieldLabel htmlFor="admin-root-invite-email">Email address</FieldLabel>
+                      <FieldLabel htmlFor="admin-invite-email">Email address</FieldLabel>
                       <Box position="relative">
                         <Input
-                          id="admin-root-invite-email"
+                          id="admin-invite-email"
                           type="email"
-                          value={rootInviteEmail}
+                          value={adminInviteEmail}
                           placeholder="user@example.com"
                           h="10"
                           pr="11"
                           borderColor="border.strong"
-                          onChange={(event) => setRootInviteEmail(event.target.value)}
+                          onChange={(event) => setAdminInviteEmail(event.target.value)}
                         />
                         <Box position="absolute" right="4" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
                           <Mail size={18} />
@@ -1142,9 +1142,9 @@ export function AdminUsersPage() {
                     Manage access
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" colorPalette="teal" disabled={createRootInvitationMutation.isPending}>
+                  <Button type="submit" size="sm" colorPalette="teal" disabled={createAdminInvitationMutation.isPending}>
                     <Send size={16} />
-                    {createRootInvitationMutation.isPending ? 'Sending...' : 'Send invitation'}
+                    {createAdminInvitationMutation.isPending ? 'Sending...' : 'Send invitation'}
                   </Button>
                 )}
               </Flex>
@@ -1160,7 +1160,7 @@ export function AdminUserAccessPage() {
   const params = useParams({ strict: false }) as { userId?: string };
   const userId = params.userId ?? '';
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isRoot === true;
+  const isEnabled = meQuery.data?.isAdmin === true;
   const usersQuery = useAdminUsersQuery({ enabled: isEnabled });
   const vaultsQuery = useAdminVaultsQuery({ enabled: isEnabled });
   const users = usersQuery.data?.users ?? [];
@@ -1173,10 +1173,10 @@ export function AdminUserAccessPage() {
 
   if (!isEnabled) {
     return (
-      <SettingsPageFrame title="User access" description="Root access is required to open this page.">
+      <SettingsPageFrame title="User access" description="Admin access is required to open this page.">
         <Alert variant="destructive">
           <AlertDescription>
-            Root access is required to manage user access.
+            Admin access is required to manage user access.
           </AlertDescription>
         </Alert>
       </SettingsPageFrame>
@@ -1305,7 +1305,7 @@ export function AdminUserAccessPage() {
 export function AdminAiSettingsPage() {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
-  const isEnabled = meQuery.data?.isRoot === true;
+  const isEnabled = meQuery.data?.isAdmin === true;
   const aiSettingsQuery = useAdminAiSettingsQuery({ enabled: isEnabled });
   const [aiDraftOverride, setAiDraftOverride] = useState<Partial<AdminAiSettings>>({});
   const savedAiSettings = aiSettingsQuery.data?.settings ?? emptyAiSettings;

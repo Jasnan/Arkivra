@@ -29,7 +29,7 @@ export interface PermissionRequest {
   updatedAt: string;
 }
 
-export type EmailInvitationType = 'root_account' | 'vault_member';
+export type EmailInvitationType = 'admin_account' | 'vault_member';
 export type EmailInvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
 
 export interface EmailInvitation {
@@ -45,7 +45,7 @@ export interface EmailInvitation {
   vaultMemberId: string | null;
   vaultRole: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
-  systemRole: 'root' | 'member' | null;
+  systemRole: 'admin' | 'member' | null;
   payload: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -61,7 +61,7 @@ export interface VaultSummary {
   updatedAt?: string;
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
-  isRoot: boolean;
+  isAdmin: boolean;
   isMember: boolean;
   accessMode: 'member' | 'admin';
 }
@@ -75,7 +75,7 @@ export interface VaultDetail {
   createdAt?: string;
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
-  isRoot: boolean;
+  isAdmin: boolean;
   isMember: boolean;
   accessMode: 'member' | 'admin';
 }

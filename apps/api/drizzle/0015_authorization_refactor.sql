@@ -2,10 +2,10 @@ ALTER TABLE public.users
   ADD COLUMN system_role text DEFAULT 'member' NOT NULL;
 
 ALTER TABLE public.users
-  ADD CONSTRAINT users_system_role_check CHECK (system_role IN ('root', 'member'));
+  ADD CONSTRAINT users_system_role_check CHECK (system_role IN ('admin', 'member'));
 
 UPDATE public.users
-SET system_role = 'root'
+SET system_role = 'admin'
 WHERE id IN (
   SELECT user_id
   FROM public.user_global_roles
@@ -155,7 +155,7 @@ ALTER TABLE ONLY public.email_invitations
   ADD CONSTRAINT email_invitations_pkey PRIMARY KEY (id);
 
 ALTER TABLE public.email_invitations
-  ADD CONSTRAINT email_invitations_type_check CHECK (type IN ('root_account', 'vault_member'));
+  ADD CONSTRAINT email_invitations_type_check CHECK (type IN ('admin_account', 'vault_member'));
 
 ALTER TABLE public.email_invitations
   ADD CONSTRAINT email_invitations_status_check CHECK (status IN ('pending', 'accepted', 'revoked', 'expired'));
@@ -167,7 +167,7 @@ ALTER TABLE public.email_invitations
   ADD CONSTRAINT email_invitations_ai_access_level_check CHECK (ai_access_level IN ('none', 'document_chat', 'full'));
 
 ALTER TABLE public.email_invitations
-  ADD CONSTRAINT email_invitations_system_role_check CHECK (system_role IS NULL OR system_role IN ('root', 'member'));
+  ADD CONSTRAINT email_invitations_system_role_check CHECK (system_role IS NULL OR system_role IN ('admin', 'member'));
 
 ALTER TABLE ONLY public.email_invitations
   ADD CONSTRAINT email_invitations_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.users(id) ON DELETE SET NULL;

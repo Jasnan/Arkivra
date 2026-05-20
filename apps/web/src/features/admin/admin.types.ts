@@ -14,9 +14,9 @@ export interface AdminUser {
   disabledAt: string | null;
   createdAt: string;
   updatedAt: string;
-  systemRole: 'root' | 'member';
+  systemRole: 'admin' | 'member';
   systemCapabilities: SystemCapability[];
-  isRoot: boolean;
+  isAdmin: boolean;
   canCreateVault: boolean;
   authMethods?: {
     hasPassword: boolean;
@@ -52,7 +52,7 @@ export interface PermissionRequest {
 
 export interface EmailInvitation {
   id: string;
-  type: 'root_account' | 'vault_member';
+  type: 'admin_account' | 'vault_member';
   status: 'pending' | 'accepted' | 'revoked' | 'expired';
   email: string;
   invitedBy: string | null;
@@ -63,7 +63,7 @@ export interface EmailInvitation {
   vaultMemberId: string | null;
   vaultRole: 'owner' | 'editor' | 'viewer' | null;
   aiAccessLevel: 'none' | 'document_chat' | 'full';
-  systemRole: 'root' | 'member' | null;
+  systemRole: 'admin' | 'member' | null;
   payload: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

@@ -29,11 +29,11 @@ function createMockVaultsServices() {
 
 function createTestApp({
   isAuthenticated = true,
-  isRoot = true,
+  isAdmin = true,
   services = createMockVaultsServices(),
 }: {
   isAuthenticated?: boolean;
-  isRoot?: boolean;
+  isAdmin?: boolean;
   services?: VaultsServices;
 }) {
   const app = new Hono<ServerContext>();
@@ -54,7 +54,7 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
-    context.set('isRoot', isRoot);
+    context.set('isAdmin', isAdmin);
     context.set('vaultId', null);
     context.set('vaultRole', null);
     await next();
@@ -76,13 +76,13 @@ describe('admin vault routes integration', () => {
     expect(response.status).toBe(401);
   });
 
-  test('returns 403 when caller is not a root', async () => {
-    const { app } = createTestApp({ isRoot: false });
+  test('returns 403 when caller is not an admin', async () => {
+    const { app } = createTestApp({ isAdmin: false });
     const response = await app.request('/api/admin/vaults');
     expect(response.status).toBe(403);
   });
 
-  test('lists vaults for root', async () => {
+  test('lists vaults for admin', async () => {
     const { app, services } = createTestApp({});
     const response = await app.request('/api/admin/vaults');
 

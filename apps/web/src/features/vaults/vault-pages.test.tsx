@@ -29,7 +29,7 @@ describe('vault pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: true,
         });
       }
@@ -37,7 +37,7 @@ describe('vault pages', () => {
       expect(url).toContain('/api/vaults');
       return jsonResponse({
         vaults: [
-          { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isRoot: false },
+          { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
         ],
       });
     }));
@@ -83,7 +83,7 @@ describe('vault pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: true,
         });
       }
@@ -91,7 +91,7 @@ describe('vault pages', () => {
       if (url === '/api/vaults') {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isRoot: false },
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
           ],
         });
       }
@@ -121,7 +121,7 @@ describe('vault pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: true,
         });
       }
@@ -129,13 +129,13 @@ describe('vault pages', () => {
       if (url === '/api/vaults' && (!init || init.method === undefined)) {
         return jsonResponse({
           vaults: [
-            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isRoot: false },
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
           ],
         });
       }
 
       return jsonResponse({
-        vault: { id: 'vlt_new', name: 'Home Vault', description: 'Documents for home life', fileCount: 0, totalSize: 0, role: 'owner', aiAccessLevel: 'none', isRoot: false },
+        vault: { id: 'vlt_new', name: 'Home Vault', description: 'Documents for home life', fileCount: 0, totalSize: 0, role: 'owner', aiAccessLevel: 'none', isAdmin: false },
       }, 201);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -172,7 +172,7 @@ describe('vault pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: true,
         });
       }
@@ -213,7 +213,7 @@ describe('vault pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
         });
       }
@@ -249,7 +249,7 @@ describe('vault pages', () => {
 
     await renderWithProviders(<VaultsPage />);
 
-    expect(await screen.findByText(/request a vault and a root can approve it/i)).toBeInTheDocument();
+    expect(await screen.findByText(/request a vault and an admin can approve it/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /create vault/i }));
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
     await user.type(within(dialog).getByLabelText(/vault name/i), 'Shared Vault');
@@ -278,7 +278,7 @@ describe('vault pages', () => {
             description: 'Household records',
             role: 'owner',
             aiAccessLevel: 'full',
-            isRoot: false,
+            isAdmin: false,
           },
         });
       }
@@ -329,7 +329,7 @@ describe('vault pages', () => {
           sessionId: 'ses_owner',
           systemRole: 'member',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: true,
         });
       }
@@ -375,7 +375,7 @@ describe('vault pages', () => {
             description: 'Household records',
             role: 'owner',
             aiAccessLevel: 'full',
-            isRoot: false,
+            isAdmin: false,
             isMember: true,
             accessMode: 'member',
           },

@@ -1,13 +1,13 @@
 import { createMiddleware } from 'hono/factory';
 
-export function requireRoot() {
+export function requireAdmin() {
   return createMiddleware(async (context, next) => {
-    if (!context.get('isRoot')) {
+    if (!context.get('isAdmin')) {
       return context.json(
         {
           error: {
-            code: 'authorization.root_required',
-            message: 'Root access required',
+            code: 'authorization.admin_required',
+            message: 'Admin access required',
           },
         },
         403,

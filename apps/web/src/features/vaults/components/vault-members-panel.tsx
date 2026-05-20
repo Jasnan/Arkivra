@@ -19,8 +19,8 @@ import {
 import {
   addVaultMember,
   createVaultEmailInvitation,
-  joinVaultAsRoot,
-  leaveVaultAsRoot,
+  joinVaultAsAdmin,
+  leaveVaultAsAdmin,
   removeVaultMember,
   transferVaultOwnership,
   updateVaultMember,
@@ -43,11 +43,11 @@ const aiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
   { value: 'full', label: 'Full AI access' },
 ];
 
-export function formatVaultRole(role: VaultRole | null | undefined, isRoot = false) {
+export function formatVaultRole(role: VaultRole | null | undefined, isAdmin = false) {
   if (role === 'owner') return 'Owner';
   if (role === 'editor') return 'Editor';
   if (role === 'viewer') return 'Viewer';
-  return isRoot ? 'Administrative Read-Only Access' : 'No membership';
+  return isAdmin ? 'Administrative Read-Only Access' : 'No membership';
 }
 
 export function formatAiAccess(level: AiAccessLevel | null | undefined) {
@@ -150,9 +150,9 @@ export function VaultMembersPanel({
 
   const canManageMembers = vault.role === 'owner';
   const canManageVault = vault.role === 'owner';
-  const isRoot = vault.isRoot === true;
-  const isRootAdminOnly = isRoot && vault.accessMode === 'admin';
-  const isRootParticipant = isRoot && vault.isMember === true;
+  const isAdmin = vault.isAdmin === true;
+  const isAdminOnly = isAdmin && vault.accessMode === 'admin';
+  const isAdminParticipant = isAdmin && vault.isMember === true;
 
   async function invalidateVaultParticipation() {
     await Promise.all([
@@ -167,7 +167,7 @@ export function VaultMembersPanel({
     onSuccess: async (result) => {
       toast.success(
         isRequestResponse(result)
-          ? 'Member access request queued for root approval.'
+          ? 'Member access request queued for admin approval.'
           : 'Member added to vault.',
       );
       setInviteUserId('');
@@ -185,7 +185,7 @@ export function VaultMembersPanel({
     onSuccess: async (result) => {
       toast.success(
         isRequestResponse(result)
-          ? 'Member access request queued for root approval.'
+          ? 'Member access request queued for admin approval.'
           : 'Member access updated.',
       );
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) });
@@ -207,7 +207,7 @@ export function VaultMembersPanel({
   });
 
   const joinVaultMutation = useMutation({
-    mutationFn: joinVaultAsRoot,
+    mutationFn: joinVaultAsAdmin,
     onSuccess: async () => {
       toast.success('You joined this vault.');
       setIsJoinDialogOpen(false);
@@ -221,7 +221,7 @@ export function VaultMembersPanel({
   });
 
   const leaveVaultMutation = useMutation({
-    mutationFn: leaveVaultAsRoot,
+    mutationFn: leaveVaultAsAdmin,
     onSuccess: async () => {
       toast.success('You left this vault. Administrative read-only access remains available.');
       await invalidateVaultParticipation();
@@ -236,7 +236,7 @@ export function VaultMembersPanel({
     onSuccess: async (result) => {
       toast.success(
         isRequestResponse(result)
-          ? 'Owner promotion request queued for root approval.'
+          ? 'Owner promotion request queued for admin approval.'
           : 'Ownership transferred.',
       );
       setTransferTargetUserId('');
@@ -359,7 +359,7 @@ export function VaultMembersPanel({
             </chakra.form>
           </SurfacePanel>
 
-          {isRoot && canManageMembers ? (
+          {isAdmin && canManageMembers ? (
             <SurfacePanel display="flex" flexDirection="column" gap="5">
               <Box>
                 <Text textStyle="label">Email Invitation</Text>
@@ -485,7 +485,7 @@ export function VaultMembersPanel({
         </Stack>
 
         <Stack gap="6">
-          {isRootAdminOnly ? (
+          {isAdminOnly ? (
             <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
               <Box>
                 <Text textStyle="label">Administrative Access</Text>
@@ -493,7 +493,7 @@ export function VaultMembersPanel({
                   Join this vault
                 </Text>
                 <Text mt="2" fontSize="sm" lineHeight="6" color="fg.muted">
-                  You can inspect this vault as root. Join it to become an explicit participant.
+                  You can inspect this vault as an admin. Join it to become an explicit participant.
                 </Text>
               </Box>
               <Button type="button" onClick={() => setIsJoinDialogOpen(true)}>
@@ -502,7 +502,7 @@ export function VaultMembersPanel({
             </SurfacePanel>
           ) : null}
 
-          {isRootParticipant ? (
+          {isAdminParticipant ? (
             <SurfacePanel variant="soft" display="flex" flexDirection="column" gap="5">
               <Box>
                 <Text textStyle="label">Participating Membership</Text>
@@ -608,7 +608,7 @@ export function VaultMembersPanel({
                       You are about to become an explicit participant of this vault. This enables collaborative actions and AI participation under your account.
                     </Text>
                     <MemberAccessFields
-                      idPrefix="root-join-vault"
+                      idPrefix="admin-join-vault"
                       role={joinRole}
                       aiAccessLevel={joinAiAccessLevel}
                       disabled={joinVaultMutation.isPending}

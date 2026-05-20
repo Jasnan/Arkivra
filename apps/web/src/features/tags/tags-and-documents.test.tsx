@@ -49,7 +49,7 @@ function vaultDetailResponse() {
       createdAt: '2026-04-10T10:00:00.000Z',
       role: 'owner',
       aiAccessLevel: 'full',
-      isRoot: false,
+      isAdmin: false,
     },
   };
 }
@@ -226,7 +226,7 @@ describe('tags and documents pages', () => {
                 createdAt: '2026-04-10T10:00:00.000Z',
                 role: 'owner',
                 aiAccessLevel: 'full',
-                isRoot: false,
+                isAdmin: false,
               },
             ],
           });

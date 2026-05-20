@@ -59,13 +59,13 @@ const mockEncryption = {
 const mockAuthorizationServices = {
   countActiveGlobalAdmins: vi.fn(),
   ensureBootstrapGlobalAdmin: vi.fn(async () => false),
-  ensureBootstrapRoot: vi.fn(async () => false),
+  ensureBootstrapAdmin: vi.fn(async () => false),
   getUserAuthorizationState: vi.fn(async () => ({
     userId: 'usr_test_1',
     disabledAt: null,
     systemRole: 'member',
     systemCapabilities: [],
-    isRoot: false,
+    isAdmin: false,
     canCreateVault: false,
   })),
   getUserWithRoles: vi.fn(),
@@ -215,7 +215,7 @@ describe('auth integration', () => {
       sessionId: 'ses_test_1',
       systemRole: 'member',
       systemCapabilities: [],
-      isRoot: false,
+      isAdmin: false,
       canCreateVault: false,
       authMethods: {
         hasPassword: true,

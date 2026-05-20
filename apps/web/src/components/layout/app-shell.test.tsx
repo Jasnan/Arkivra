@@ -64,7 +64,7 @@ describe('app shell account menu', () => {
             sessionId: 'ses_member',
             systemRole: 'member',
             systemCapabilities: ['system.create_vaults'],
-            isRoot: false,
+            isAdmin: false,
             canCreateVault: true,
           });
         }
@@ -72,8 +72,8 @@ describe('app shell account menu', () => {
         if (url === '/api/vaults') {
           return jsonResponse({
             vaults: [
-              { id: 'vlt_1', name: 'MyDocs', role: 'owner', aiAccessLevel: 'full', isRoot: false },
-              { id: 'vlt_2', name: 'MyFiles', role: 'viewer', aiAccessLevel: 'none', isRoot: false },
+              { id: 'vlt_1', name: 'MyDocs', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+              { id: 'vlt_2', name: 'MyFiles', role: 'viewer', aiAccessLevel: 'none', isAdmin: false },
             ],
           });
         }

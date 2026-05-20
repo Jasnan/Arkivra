@@ -10,21 +10,21 @@ describe('vaults services', () => {
     const rows = [
       {
         id: 'vlt_1',
-        name: 'Shared Root Vault',
+        name: 'Shared Admin Vault',
         createdAt: firstCreatedAt,
         updatedAt,
         ownerUserId: 'usr_root_1',
-        ownerEmail: 'root-one@example.com',
-        ownerName: 'Root One',
+        ownerEmail: 'admin-one@example.com',
+        ownerName: 'Admin One',
       },
       {
         id: 'vlt_1',
-        name: 'Shared Root Vault',
+        name: 'Shared Admin Vault',
         createdAt: firstCreatedAt,
         updatedAt,
         ownerUserId: 'usr_root_2',
-        ownerEmail: 'root-two@example.com',
-        ownerName: 'Root Two',
+        ownerEmail: 'admin-two@example.com',
+        ownerName: 'Admin Two',
       },
       {
         id: 'vlt_2',
@@ -32,8 +32,8 @@ describe('vaults services', () => {
         createdAt: secondCreatedAt,
         updatedAt,
         ownerUserId: 'usr_root_1',
-        ownerEmail: 'root-one@example.com',
-        ownerName: 'Root One',
+        ownerEmail: 'admin-one@example.com',
+        ownerName: 'Admin One',
       },
     ];
     let query: {
@@ -75,7 +75,7 @@ describe('vaults services', () => {
     expect(vaults[0]).toMatchObject({
       id: 'vlt_1',
       ownerUserId: 'usr_root_1',
-      ownerEmail: 'root-one@example.com',
+      ownerEmail: 'admin-one@example.com',
       memberCount: 2,
     });
   });

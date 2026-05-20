@@ -27,11 +27,11 @@ function createMockAiServices() {
 
 function createTestApp({
   isAuthenticated = true,
-  isRoot = true,
+  isAdmin = true,
   aiServices = createMockAiServices(),
 }: {
   isAuthenticated?: boolean;
-  isRoot?: boolean;
+  isAdmin?: boolean;
   aiServices?: ReturnType<typeof createMockAiServices>;
 }) {
   const app = new Hono<ServerContext>();
@@ -52,7 +52,7 @@ function createTestApp({
         : null,
     );
     context.set('userDisabled', false);
-    context.set('isRoot', isRoot);
+    context.set('isAdmin', isAdmin);
     context.set('canCreateVault', true);
     context.set('vaultId', null);
     context.set('vaultRole', null);
@@ -96,7 +96,7 @@ describe('admin ai routes integration', () => {
     expect(settings.embeddingDimensions).toBe(1024);
   });
 
-  test('returns current AI settings for a root', async () => {
+  test('returns current AI settings for an admin', async () => {
     const { app } = createTestApp({});
     const response = await app.request('/api/admin/ai/settings');
     expect(response.status).toBe(200);

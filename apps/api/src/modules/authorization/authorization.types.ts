@@ -1,4 +1,4 @@
-export const SYSTEM_ROLES = ['root', 'member'] as const;
+export const SYSTEM_ROLES = ['admin', 'member'] as const;
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
 export const SYSTEM_CAPABILITIES = ['system.create_vaults'] as const;
@@ -21,7 +21,7 @@ export type PermissionRequestType = (typeof PERMISSION_REQUEST_TYPES)[number];
 export const PERMISSION_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 export type PermissionRequestStatus = (typeof PERMISSION_REQUEST_STATUSES)[number];
 
-export const EMAIL_INVITATION_TYPES = ['root_account', 'vault_member'] as const;
+export const EMAIL_INVITATION_TYPES = ['admin_account', 'vault_member'] as const;
 export type EmailInvitationType = (typeof EMAIL_INVITATION_TYPES)[number];
 
 export const EMAIL_INVITATION_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const;
@@ -30,7 +30,7 @@ export type EmailInvitationStatus = (typeof EMAIL_INVITATION_STATUSES)[number];
 export type VaultAuthorizationState = {
   userId: string;
   vaultId: string;
-  isRoot: boolean;
+  isAdmin: boolean;
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
   isMember: boolean;

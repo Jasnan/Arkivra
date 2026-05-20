@@ -3,7 +3,7 @@ import type { VaultsServices } from './vaults.services.js';
 import { createMiddleware } from 'hono/factory';
 
 type VaultAuthorizationPredicate = (args: {
-  isRoot: boolean;
+  isAdmin: boolean;
   role: VaultRole | null;
   aiAccessLevel: 'none' | 'document_chat' | 'full';
   isMember: boolean;
@@ -24,13 +24,13 @@ function forbidden(context: Parameters<Parameters<typeof createMiddleware>[0]>[0
 
 function requireVaultAuthorization(predicate: VaultAuthorizationPredicate) {
   return createMiddleware(async (context, next) => {
-    const isRoot = context.get('isRoot');
+    const isAdmin = context.get('isAdmin');
     const role = context.get('vaultRole');
     const aiAccessLevel = context.get('vaultAiAccessLevel');
     const isMember = context.get('vaultIsMember');
     const accessMode = context.get('vaultAccessMode');
 
-    if (!predicate({ isRoot, role, aiAccessLevel, isMember, accessMode })) {
+    if (!predicate({ isAdmin, role, aiAccessLevel, isMember, accessMode })) {
       return forbidden(context);
     }
 
@@ -95,7 +95,7 @@ export function requireVaultAccess({ services }: { services: VaultsServices }) {
     context.set('vaultAiAccessLevel', vault.aiAccessLevel);
     context.set('vaultIsMember', vault.isMember);
     context.set('vaultAccessMode', vault.accessMode);
-    context.set('isRoot', vault.isRoot || context.get('isRoot'));
+    context.set('isAdmin', vault.isAdmin || context.get('isAdmin'));
 
     await next();
   });

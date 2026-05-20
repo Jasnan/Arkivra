@@ -68,7 +68,7 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
     mutationFn: deleteVault,
     onSuccess: async (result) => {
       if (result && isRequestResponse(result)) {
-        toast.success('Vault deletion request queued for root approval.');
+        toast.success('Vault deletion request queued for admin approval.');
         await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) });
         return;
       }
@@ -111,7 +111,7 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
       <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }}>
         <StatCard
           label="Your role"
-          value={formatVaultRole(vault.role, vault.isRoot)}
+          value={formatVaultRole(vault.role, vault.isAdmin)}
           meta={vault.accessMode === 'admin' ? 'Administrative read-only access. Membership is required to participate.' : 'Current vault membership role.'}
           icon={<ShieldCheck size={20} />}
         />
@@ -129,7 +129,7 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
               ? 'Semantic search and vault chat are available.'
               : vault.aiAccessLevel === 'document_chat'
                 ? 'Document chat is available.'
-                : 'Root status does not grant AI access.'
+                : 'Admin status does not grant AI access.'
           }
           icon={<Vault size={20} />}
         />

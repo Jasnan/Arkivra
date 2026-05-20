@@ -30,14 +30,14 @@ export async function updateAdminUser({
   });
 }
 
-export async function grantRoot({ userId }: { userId: string }) {
-  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/root`, {
+export async function grantAdmin({ userId }: { userId: string }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/admin`, {
     method: 'POST',
   });
 }
 
-export async function revokeRoot({ userId }: { userId: string }) {
-  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/root`, {
+export async function revokeAdmin({ userId }: { userId: string }) {
+  return fetchJson<{ user: AdminUser }>(`/api/admin/users/${userId}/admin`, {
     method: 'DELETE',
   });
 }
@@ -82,15 +82,15 @@ export async function rejectPermissionRequest({
   });
 }
 
-export async function createRootEmailInvitation({
+export async function createAdminEmailInvitation({
   email,
-  systemRole = 'root',
+  systemRole = 'admin',
   systemCapabilities = [],
   vaultMemberships = [],
   expiresAt,
 }: {
   email: string;
-  systemRole?: 'root' | 'member';
+  systemRole?: 'admin' | 'member';
   systemCapabilities?: SystemCapability[];
   vaultMemberships?: Array<{
     vaultId: string;
@@ -103,7 +103,7 @@ export async function createRootEmailInvitation({
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      type: 'root_account',
+      type: 'admin_account',
       email,
       systemRole,
       systemCapabilities,

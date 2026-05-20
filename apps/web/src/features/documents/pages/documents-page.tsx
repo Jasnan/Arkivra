@@ -58,12 +58,12 @@ import type {
 import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { VaultMembersPanel } from '@/features/vaults/components/vault-members-panel';
 import { VaultSettingsPanel } from '@/features/vaults/components/vault-settings-panel';
-import { joinVaultAsRoot } from '@/features/vaults/vaults.api';
+import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
 type VaultPageTab = 'contents' | 'members' | 'activity' | 'settings';
-type VaultRootPageTab = VaultPageTab;
+type VaultAdminPageTab = VaultPageTab;
 
 function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor');
@@ -73,19 +73,19 @@ function canReadVault(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor' || vault?.role === 'viewer');
 }
 
-const rootJoinRoleOptions: Array<{ value: VaultRole; label: string }> = [
+const adminJoinRoleOptions: Array<{ value: VaultRole; label: string }> = [
   { value: 'viewer', label: 'Viewer' },
   { value: 'editor', label: 'Editor' },
   { value: 'owner', label: 'Owner' },
 ];
 
-const rootJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
+const adminJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
   { value: 'none', label: 'No AI access' },
   { value: 'document_chat', label: 'Document chat' },
   { value: 'full', label: 'Full AI access' },
 ];
 
-const vaultRootTabs = ['contents', 'members', 'activity', 'settings'] satisfies VaultRootPageTab[];
+const vaultAdminTabs = ['contents', 'members', 'activity', 'settings'] satisfies VaultAdminPageTab[];
 
 const vaultPageTabs = [
   { value: 'contents', label: 'Contents', description: 'Documents & folders', icon: FolderOpen, route: 'root' },
@@ -355,8 +355,8 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   const vaultId = params.vaultId ?? '';
   const currentFolderId = search.folderId ?? null;
-  const currentVaultTab = vaultRootTabs.includes(search.tab as VaultRootPageTab)
-    ? search.tab as VaultRootPageTab
+  const currentVaultTab = vaultAdminTabs.includes(search.tab as VaultAdminPageTab)
+    ? search.tab as VaultAdminPageTab
     : 'contents';
   const queryClient = useQueryClient();
   const [browserView, setBrowserView] = usePreferredFileBrowserView();
@@ -379,15 +379,15 @@ export function DocumentsPage() {
   const uploadTargetFolderIdRef = useRef<string | null>(currentFolderId);
 
   const vaultQuery = useVaultQuery({ vaultId });
-  const isRestrictedRootOverview = vaultQuery.data?.vault.accessMode === 'admin';
+  const isRestrictedAdminOverview = vaultQuery.data?.vault.accessMode === 'admin';
   const folderItemsQuery = useFolderItemsQuery({
     vaultId,
     folderId: currentFolderId,
-    enabled: !isRestrictedRootOverview && vaultQuery.isSuccess,
+    enabled: !isRestrictedAdminOverview && vaultQuery.isSuccess,
   });
   const folderTreeQuery = useFolderTreeQuery({
     vaultId,
-    enabled: !isRestrictedRootOverview && vaultQuery.isSuccess,
+    enabled: !isRestrictedAdminOverview && vaultQuery.isSuccess,
   });
 
   const browserItems = useMemo<BrowserItem[]>(
@@ -452,7 +452,7 @@ export function DocumentsPage() {
   });
 
   const joinVaultMutation = useMutation({
-    mutationFn: joinVaultAsRoot,
+    mutationFn: joinVaultAsAdmin,
     onSuccess: async () => {
       toast.success('You joined this vault.');
       setIsJoinDialogOpen(false);
@@ -825,7 +825,7 @@ export function DocumentsPage() {
     );
   }
 
-  if (isRestrictedRootOverview) {
+  if (isRestrictedAdminOverview) {
     const vault = vaultQuery.data.vault;
 
     return (
@@ -859,7 +859,7 @@ export function DocumentsPage() {
               Become a vault member to access documents
             </Text>
             <Text fontSize="sm" lineHeight="6" color="fg.muted">
-              Root accounts can see that this vault exists and inspect basic metadata, but document access requires visible vault membership.
+              Admin accounts can see that this vault exists and inspect basic metadata, but document access requires visible vault membership.
             </Text>
             <Text fontSize="sm" color="fg.muted">
               {vault.description ?? 'No description set.'}
@@ -914,7 +914,7 @@ export function DocumentsPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {rootJoinRoleOptions.map((option) => (
+                              {adminJoinRoleOptions.map((option) => (
                                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                               ))}
                             </SelectContent>
@@ -927,7 +927,7 @@ export function DocumentsPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {rootJoinAiAccessOptions.map((option) => (
+                              {adminJoinAiAccessOptions.map((option) => (
                                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                               ))}
                             </SelectContent>

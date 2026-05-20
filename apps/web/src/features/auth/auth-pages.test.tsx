@@ -200,7 +200,7 @@ describe('auth pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -257,7 +257,7 @@ describe('auth pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: false,
@@ -295,7 +295,7 @@ describe('auth pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -332,7 +332,7 @@ describe('auth pages', () => {
           sessionId: 'ses_1',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,

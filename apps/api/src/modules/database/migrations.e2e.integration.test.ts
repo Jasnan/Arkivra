@@ -680,7 +680,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.date_format?.column_default).toContain("'medium'");
   });
 
-  test('0015 replaces legacy authorization tables with root, capability, vault role, and AI access schema', async () => {
+  test('0015 replaces legacy authorization tables with admin, capability, vault role, and AI access schema', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }

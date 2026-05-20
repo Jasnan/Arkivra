@@ -261,7 +261,7 @@ export function registerVaultRoutes({
       );
     }
 
-    if (!context.get('isRoot')) {
+    if (!context.get('isAdmin')) {
       const request = await vaultsServices.createPermissionRequest({
         type: 'vault.delete',
         requestedBy: userId,
@@ -314,9 +314,9 @@ export function registerVaultRoutes({
   app.post('/api/vaults/:vaultId/membership/self', async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
-    const isRoot = context.get('isRoot');
+    const isAdmin = context.get('isAdmin');
 
-    if (vaultId === null || userId === null || !isRoot) {
+    if (vaultId === null || userId === null || !isAdmin) {
       return context.json(
         {
           error: {
@@ -357,10 +357,10 @@ export function registerVaultRoutes({
   app.delete('/api/vaults/:vaultId/membership/self', async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
-    const isRoot = context.get('isRoot');
+    const isAdmin = context.get('isAdmin');
     const isMember = context.get('vaultIsMember');
 
-    if (vaultId === null || userId === null || !isRoot) {
+    if (vaultId === null || userId === null || !isAdmin) {
       return context.json(
         {
           error: {
@@ -423,7 +423,7 @@ export function registerVaultRoutes({
     async (context) => {
       const vaultId = context.get('vaultId');
       const requestedBy = context.get('userId');
-      const isRoot = context.get('isRoot');
+      const isAdmin = context.get('isAdmin');
 
       if (vaultId === null || requestedBy === null) {
         return context.json(
@@ -454,7 +454,7 @@ export function registerVaultRoutes({
         );
       }
 
-      if (!isRoot && role === 'owner') {
+      if (!isAdmin && role === 'owner') {
         const request = await vaultsServices.createPermissionRequest({
           type: 'vault.owner_promote',
           requestedBy,
@@ -466,7 +466,7 @@ export function registerVaultRoutes({
         return context.json({ request }, 202);
       }
 
-      if (!isRoot && aiAccessLevel !== 'none') {
+      if (!isAdmin && aiAccessLevel !== 'none') {
         const existingMember = await vaultsServices.getMember({ vaultId, userId: memberUserId });
 
         if (existingMember === null) {
@@ -506,7 +506,7 @@ export function registerVaultRoutes({
     async (context) => {
       const vaultId = context.get('vaultId');
       const requestedBy = context.get('userId');
-      const isRoot = context.get('isRoot');
+      const isAdmin = context.get('isAdmin');
 
       if (vaultId === null || requestedBy === null) {
         return context.json(
@@ -554,7 +554,7 @@ export function registerVaultRoutes({
         );
       }
 
-      if (!isRoot && role === 'owner' && targetMember.role !== 'owner') {
+      if (!isAdmin && role === 'owner' && targetMember.role !== 'owner') {
         const request = await vaultsServices.createPermissionRequest({
           type: 'vault.owner_promote',
           requestedBy,
@@ -566,7 +566,7 @@ export function registerVaultRoutes({
         return context.json({ request }, 202);
       }
 
-      if (!isRoot && isAiEscalation(targetMember.aiAccessLevel, aiAccessLevel)) {
+      if (!isAdmin && isAiEscalation(targetMember.aiAccessLevel, aiAccessLevel)) {
         if (role !== targetMember.role) {
           await vaultsServices.upsertMember({
             vaultId,
@@ -699,7 +699,7 @@ export function registerVaultRoutes({
       );
     }
 
-    if (!context.get('isRoot')) {
+    if (!context.get('isAdmin')) {
       const request = await vaultsServices.createPermissionRequest({
         type: 'vault.owner_promote',
         requestedBy,

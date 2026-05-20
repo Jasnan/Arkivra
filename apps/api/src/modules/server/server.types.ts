@@ -19,7 +19,7 @@ export type ServerContext = {
     userDisabled: boolean;
     systemRole: SystemRole | null;
     systemCapabilities: SystemCapability[];
-    isRoot: boolean;
+    isAdmin: boolean;
     canCreateVault: boolean;
     vaultId: string | null;
     vaultRole: VaultRole | null;

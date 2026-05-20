@@ -103,14 +103,14 @@ function getContextAccessMessage(snapshot: ChatContextSnapshot) {
   }
 
   if (snapshot.type === 'vault') {
-    return 'Root accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
+    return 'Admin accounts can administratively access this vault, but vault chat requires explicit vault membership with full AI access.';
   }
 
   if (snapshot.type === 'selection') {
     return 'Selected context includes vaults or documents without the required AI access.';
   }
 
-  return 'Root accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.';
+  return 'Admin accounts can administratively access all vaults, but global chat retrieval requires explicit vault membership with full AI access.';
 }
 
 function canUseContextSnapshot({
@@ -647,7 +647,7 @@ export function ChatWorkspace({
               sm={{ px: '6' }}
             >
               <AlertCircle size={16} />
-              {aiAccessMessage} Root status does not grant AI access.
+              {aiAccessMessage} Admin status does not grant AI access.
             </Flex>
           ) : null}
 

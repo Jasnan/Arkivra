@@ -30,7 +30,7 @@ function createAuthenticatedApp({
       token: 'tok_test',
     });
     context.set('userDisabled', false);
-    context.set('isRoot', true);
+    context.set('isAdmin', true);
     context.set('vaultId', null);
     context.set('vaultRole', null);
     await next();

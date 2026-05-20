@@ -199,9 +199,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          systemRole: 'root',
+          systemRole: 'admin',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: true,
+          isAdmin: true,
           canCreateVault: true,
           authMethods: {
             hasPassword: true,
@@ -261,9 +261,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_1',
           sessionId: 'ses_1',
-          systemRole: 'root',
+          systemRole: 'admin',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: true,
+          isAdmin: true,
           canCreateVault: true,
         });
       }
@@ -292,7 +292,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: false,
@@ -311,7 +311,7 @@ describe('settings, admin, and about pages', () => {
     expect(await screen.findByRole('heading', { name: /^account$/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /view as admin/i })).not.toBeInTheDocument();
     expect(screen.getByText(/^member$/i)).toBeInTheDocument();
-    expect(screen.getByText(/requires root approval/i)).toBeInTheDocument();
+    expect(screen.getByText(/requires admin approval/i)).toBeInTheDocument();
     expect(await screen.findByText(/google oauth/i)).toBeInTheDocument();
   });
 
@@ -347,7 +347,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_current',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -411,7 +411,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_current',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -463,7 +463,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
         });
       }
@@ -489,7 +489,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: false,
@@ -543,7 +543,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -1138,7 +1138,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
         });
       }
@@ -1165,7 +1165,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -1207,7 +1207,7 @@ describe('settings, admin, and about pages', () => {
           sessionId: 'ses_member',
           systemRole: 'member',
           systemCapabilities: [],
-          isRoot: false,
+          isAdmin: false,
           canCreateVault: false,
           authMethods: {
             hasPassword: true,
@@ -1260,9 +1260,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_admin',
           sessionId: 'ses_admin',
-          systemRole: 'root',
+          systemRole: 'admin',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: true,
+          isAdmin: true,
           canCreateVault: true,
         });
       }
@@ -1323,7 +1323,7 @@ describe('settings, admin, and about pages', () => {
               updatedAt: '2026-04-10T00:00:00.000Z',
               systemRole: 'member',
               systemCapabilities: [],
-              isRoot: false,
+              isAdmin: false,
               canCreateVault: false,
               authMethods: {
                 hasPassword: true,
@@ -1348,7 +1348,7 @@ describe('settings, admin, and about pages', () => {
             updatedAt: '2026-04-14T19:00:00.000Z',
             systemRole: 'member',
             systemCapabilities: [],
-            isRoot: false,
+            isAdmin: false,
             canCreateVault: false,
             authMethods: {
               hasPassword: true,
@@ -1359,7 +1359,7 @@ describe('settings, admin, and about pages', () => {
         });
       }
 
-      if (url === '/api/admin/users/usr_1/root' && init?.method === 'POST') {
+      if (url === '/api/admin/users/usr_1/admin' && init?.method === 'POST') {
         return jsonResponse({
           user: {
             id: 'usr_1',
@@ -1370,9 +1370,9 @@ describe('settings, admin, and about pages', () => {
             disabledAt: null,
             createdAt: '2026-04-01T00:00:00.000Z',
             updatedAt: '2026-04-14T19:00:00.000Z',
-            systemRole: 'root',
+            systemRole: 'admin',
             systemCapabilities: ['system.create_vaults'],
-            isRoot: true,
+            isAdmin: true,
             canCreateVault: true,
             authMethods: {
               hasPassword: true,
@@ -1532,9 +1532,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_admin',
           sessionId: 'ses_admin',
-          systemRole: 'root',
+          systemRole: 'admin',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: true,
+          isAdmin: true,
           canCreateVault: true,
         });
       }
@@ -1553,7 +1553,7 @@ describe('settings, admin, and about pages', () => {
               updatedAt: '2026-04-10T00:00:00.000Z',
               systemRole: 'member',
               systemCapabilities: [],
-              isRoot: false,
+              isAdmin: false,
               canCreateVault: false,
               authMethods: {
                 hasPassword: true,
@@ -1612,9 +1612,9 @@ describe('settings, admin, and about pages', () => {
         return jsonResponse({
           userId: 'usr_admin',
           sessionId: 'ses_admin',
-          systemRole: 'root',
+          systemRole: 'admin',
           systemCapabilities: ['system.create_vaults'],
-          isRoot: true,
+          isAdmin: true,
           canCreateVault: true,
         });
       }
@@ -1633,7 +1633,7 @@ describe('settings, admin, and about pages', () => {
               updatedAt: '2026-04-10T00:00:00.000Z',
               systemRole: 'member',
               systemCapabilities: [],
-              isRoot: false,
+              isAdmin: false,
               canCreateVault: false,
               authMethods: {
                 hasPassword: true,

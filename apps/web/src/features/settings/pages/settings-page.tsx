@@ -63,7 +63,7 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: sessionData, isPending: sessionPending } = authClient.useSession();
   const meQuery = useMeQuery();
-  const isRoot = meQuery.data?.isRoot === true;
+  const isAdmin = meQuery.data?.isAdmin === true;
   const isEmailVerified = sessionData?.user.emailVerified === true;
   const accountCreatedAt = (sessionData?.user as SessionUserMetadata | undefined)?.createdAt;
 
@@ -151,8 +151,8 @@ export function SettingsPage() {
           rows={[
             { label: 'Signed in as', value: profileEmail || 'Unknown' },
             { label: 'Account type', value: getAccountTypeLabel(meQuery.data?.authMethods) },
-            { label: 'System role', value: isRoot ? 'Root' : 'Member' },
-            { label: 'Vault creation', value: meQuery.data?.canCreateVault ? 'Allowed' : 'Requires root approval' },
+            { label: 'System role', value: isAdmin ? 'Admin' : 'Member' },
+            { label: 'Vault creation', value: meQuery.data?.canCreateVault ? 'Allowed' : 'Requires admin approval' },
             {
               label: 'Email verification',
               value: (

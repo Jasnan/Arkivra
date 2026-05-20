@@ -21,8 +21,8 @@ import {
 
 const CREATE_VAULTS_CAPABILITY = 'system.create_vaults' satisfies SystemCapability;
 
-function isRootRole(role: SystemRole) {
-  return role === 'root';
+function isAdminRole(role: SystemRole) {
+  return role === 'admin';
 }
 
 function canVaultRoleRead(role: VaultRole | null) {
@@ -102,14 +102,14 @@ function getInvitationVaultMemberships(payload: Record<string, unknown>) {
 }
 
 export function createAuthorizationServices({ db }: { db: Database }) {
-  async function ensureBootstrapRoot({ userId }: { userId: string }) {
-    const [existingRoot] = await db
+  async function ensureBootstrapAdmin({ userId }: { userId: string }) {
+    const [existingAdmin] = await db
       .select({ id: usersTable.id })
       .from(usersTable)
-      .where(and(eq(usersTable.systemRole, 'root'), isNull(usersTable.disabledAt)))
+      .where(and(eq(usersTable.systemRole, 'admin'), isNull(usersTable.disabledAt)))
       .limit(1);
 
-    if (existingRoot !== undefined) {
+    if (existingAdmin !== undefined) {
       return false;
     }
 
@@ -125,7 +125,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
     await db
       .update(usersTable)
-      .set({ systemRole: 'root', updatedAt: new Date() })
+      .set({ systemRole: 'admin', updatedAt: new Date() })
       .where(eq(usersTable.id, userId));
 
     return true;
@@ -164,24 +164,24 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     }
 
     const systemCapabilities = await listSystemCapabilitiesForUser({ userId });
-    const isRoot = isRootRole(user.systemRole as SystemRole);
-    const canCreateVault = isRoot || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
+    const isAdmin = isAdminRole(user.systemRole as SystemRole);
+    const canCreateVault = isAdmin || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
 
     return {
       userId: user.id,
       disabledAt: user.disabledAt,
       systemRole: user.systemRole as SystemRole,
       systemCapabilities,
-      isRoot,
+      isAdmin,
       canCreateVault,
     };
   }
 
-  async function countActiveRoots() {
+  async function countActiveAdmins() {
     const [row] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(usersTable)
-      .where(and(eq(usersTable.systemRole, 'root'), isNull(usersTable.disabledAt)));
+      .where(and(eq(usersTable.systemRole, 'admin'), isNull(usersTable.disabledAt)));
 
     return row?.count ?? 0;
   }
@@ -254,14 +254,14 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return users.map((user) => {
       const systemRole = user.systemRole as SystemRole;
       const systemCapabilities = capabilitiesByUserId.get(user.id) ?? [];
-      const isRoot = isRootRole(systemRole);
-      const canCreateVault = isRoot || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
+      const isAdmin = isAdminRole(systemRole);
+      const canCreateVault = isAdmin || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
 
       return {
         ...user,
         systemRole,
         systemCapabilities,
-        isRoot,
+        isAdmin,
         canCreateVault,
         authMethods: {
           hasPassword: (accountsByUserId.get(user.id) ?? []).some(account => account.providerId === 'credential' && account.password),
@@ -286,11 +286,11 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       return null;
     }
 
-    if (disabled && user.isRoot && user.disabledAt === null) {
-      const activeRootCount = await countActiveRoots();
+    if (disabled && user.isAdmin && user.disabledAt === null) {
+      const activeAdminCount = await countActiveAdmins();
 
-      if (activeRootCount <= 1) {
-        throw new Error('authorization.last_root');
+      if (activeAdminCount <= 1) {
+        throw new Error('authorization.last_admin');
       }
     }
 
@@ -305,7 +305,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return getUserWithAuthorization({ userId });
   }
 
-  async function grantRoot({ userId }: { userId: string }) {
+  async function grantAdmin({ userId }: { userId: string }) {
     const user = await getUserWithAuthorization({ userId });
 
     if (user === null) {
@@ -314,24 +314,24 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
     await db
       .update(usersTable)
-      .set({ systemRole: 'root', updatedAt: new Date() })
+      .set({ systemRole: 'admin', updatedAt: new Date() })
       .where(eq(usersTable.id, userId));
 
     return getUserWithAuthorization({ userId });
   }
 
-  async function revokeRoot({ userId }: { userId: string }) {
+  async function revokeAdmin({ userId }: { userId: string }) {
     const user = await getUserWithAuthorization({ userId });
 
     if (user === null) {
       return null;
     }
 
-    if (user.isRoot && user.disabledAt === null) {
-      const activeRootCount = await countActiveRoots();
+    if (user.isAdmin && user.disabledAt === null) {
+      const activeAdminCount = await countActiveAdmins();
 
-      if (activeRootCount <= 1) {
-        throw new Error('authorization.last_root');
+      if (activeAdminCount <= 1) {
+        throw new Error('authorization.last_admin');
       }
     }
 
@@ -675,11 +675,11 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return db.transaction(async (tx) => {
       let vaultMemberId: string | null = null;
 
-      const invitationSystemRole = invitation.systemRole ?? (invitation.type === 'root_account' ? 'root' : null);
-      if (invitationSystemRole === 'root') {
+      const invitationSystemRole = invitation.systemRole ?? (invitation.type === 'admin_account' ? 'admin' : null);
+      if (invitationSystemRole === 'admin') {
         await tx
           .update(usersTable)
-          .set({ systemRole: 'root', updatedAt: new Date() })
+          .set({ systemRole: 'admin', updatedAt: new Date() })
           .where(eq(usersTable.id, userId));
       }
 
@@ -810,14 +810,14 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     const role = member.role as VaultRole | null;
     const aiAccessLevel = (member.aiAccessLevel ?? 'none') as AiAccessLevel;
 
-    if (!userState.isRoot && role === null) {
+    if (!userState.isAdmin && role === null) {
       return null;
     }
 
     return {
       userId,
       vaultId,
-      isRoot: userState.isRoot,
+      isAdmin: userState.isAdmin,
       role,
       aiAccessLevel,
       isMember: role !== null,
@@ -826,7 +826,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
   }
 
   function canAdministrativelyViewVault(state: VaultAuthorizationState | null) {
-    return state !== null && (state.isRoot || canVaultRoleRead(state.role));
+    return state !== null && (state.isAdmin || canVaultRoleRead(state.role));
   }
 
   function canParticipateInVault(state: VaultAuthorizationState | null) {
@@ -921,13 +921,13 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     canUseDocumentChat,
     canUseGlobalChat,
     canUseSemanticRetrieval,
-    countActiveRoots,
+    countActiveAdmins,
     acceptEmailInvitation,
     acceptEmailInvitationForRegisteredUser,
     approvePermissionRequest,
     createEmailInvitation,
     createPermissionRequest,
-    ensureBootstrapRoot,
+    ensureBootstrapAdmin,
     getAiAuthorizedVaultIdsForUser,
     getAiAccessRank,
     getPendingEmailInvitation,
@@ -936,14 +936,14 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     getUserAuthorizationState,
     getUserWithAuthorization,
     getVaultAuthorizationState,
-    grantRoot,
+    grantAdmin,
     grantSystemCapability,
     hasAnyUsers,
     listPermissionRequests,
     listSystemCapabilitiesForUser,
     listUsers,
     rejectPermissionRequest,
-    revokeRoot,
+    revokeAdmin,
     revokeSystemCapability,
     setUserDisabled,
   };

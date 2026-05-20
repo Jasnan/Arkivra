@@ -16,7 +16,7 @@ export type VaultAccess = {
   deletedAt: Date | null;
   role: VaultRole | null;
   aiAccessLevel: AiAccessLevel;
-  isRoot: boolean;
+  isAdmin: boolean;
   isMember: boolean;
   accessMode: 'member' | 'admin';
 };

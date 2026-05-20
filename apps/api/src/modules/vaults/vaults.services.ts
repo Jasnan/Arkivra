@@ -20,7 +20,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       return [];
     }
 
-    const vaults = userState.isRoot
+    const vaults = userState.isAdmin
       ? await db
           .select({
             id: vaultsTable.id,
@@ -87,7 +87,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       deletedAt: vault.deletedAt,
       role: vault.role as VaultRole | null,
       aiAccessLevel: (vault.aiAccessLevel ?? 'none') as AiAccessLevel,
-      isRoot: userState.isRoot,
+      isAdmin: userState.isAdmin,
       isMember: vault.role !== null,
       accessMode: vault.role !== null ? 'member' as const : 'admin' as const,
     }));
@@ -113,7 +113,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       }
 
       const userState = await authorizationServices.getUserAuthorizationState({ userId });
-      const aiAccessLevel = userState?.isRoot ? 'full' : 'none';
+      const aiAccessLevel = userState?.isAdmin ? 'full' : 'none';
 
       await tx.insert(vaultMembersTable).values({
         vaultId: vault.id,
@@ -129,7 +129,7 @@ export function createVaultsServices({ db }: { db: Database }) {
         totalSize: 0,
         role: 'owner' as const,
         aiAccessLevel,
-        isRoot: userState?.isRoot ?? false,
+        isAdmin: userState?.isAdmin ?? false,
         isMember: true,
         accessMode: 'member' as const,
       };
@@ -169,7 +169,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       totalSize: 0,
       role: authorizationState.role,
       aiAccessLevel: authorizationState.aiAccessLevel,
-      isRoot: authorizationState.isRoot,
+      isAdmin: authorizationState.isAdmin,
       isMember: authorizationState.isMember,
       accessMode: authorizationState.accessMode,
     };

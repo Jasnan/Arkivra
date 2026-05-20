@@ -209,7 +209,7 @@ export function VaultsPage() {
         setName('');
         setDescription('');
         queueCreateButtonFocusRestore();
-        toast.success('Vault creation request queued for root approval.');
+        toast.success('Vault creation request queued for admin approval.');
         return;
       }
 
@@ -357,7 +357,7 @@ export function VaultsPage() {
               <EmptyState.Description>
                 {meQuery.data?.canCreateVault
                   ? 'Create your first vault to start storing documents.'
-                  : 'No vaults available yet. Request a vault and a root can approve it.'}
+                  : 'No vaults available yet. Request a vault and an admin can approve it.'}
               </EmptyState.Description>
             </EmptyState.Content>
           </EmptyState.Root>
@@ -629,7 +629,7 @@ export function VaultsPage() {
 
                   {!canCreateVault ? (
                     <Text fontSize="sm" color="fg.muted">
-                      Vault creation will be queued for root approval.
+                      Vault creation will be queued for admin approval.
                     </Text>
                   ) : null}
                 </Stack>

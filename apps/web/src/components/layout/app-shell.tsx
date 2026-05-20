@@ -376,13 +376,13 @@ function RailLink({
 function PrimarySidebar({
   activeNavId,
   sessionEmail,
-  isRoot,
+  isAdmin,
   onOpenTransfers,
   onSignOut,
 }: {
   activeNavId: PrimaryNavItem['id'] | null;
   sessionEmail?: string | null;
-  isRoot?: boolean;
+  isAdmin?: boolean;
   onOpenTransfers: () => void;
   onSignOut: () => void;
 }) {
@@ -474,7 +474,7 @@ function PrimarySidebar({
                     {sessionEmail ?? 'Signed in'}
                   </Text>
                   <Text fontSize="xs" color="fg.muted">
-                    {isRoot ? 'Root' : 'Member'}
+                    {isAdmin ? 'Admin' : 'Member'}
                   </Text>
                 </Box>
                 <Menu.Separator />
@@ -484,11 +484,11 @@ function PrimarySidebar({
                     Account settings
                   </Link>
                 </Menu.Item>
-                {isRoot ? (
+                {isAdmin ? (
                   <Menu.Item value="admin" asChild {...accountMenuItemProps}>
                     <Link to={ROUTES.admin}>
                       <ShieldCheck size={16} />
-                      Root console
+                      Admin console
                     </Link>
                   </Menu.Item>
                 ) : null}
@@ -961,7 +961,7 @@ export function AppShell() {
         setIsCreateVaultOpen(false);
         setNewVaultName('');
         setNewVaultDescription('');
-        toast.success('Vault creation request queued for root approval.');
+        toast.success('Vault creation request queued for admin approval.');
         return;
       }
 
@@ -1082,7 +1082,7 @@ export function AppShell() {
           <PrimarySidebar
             activeNavId={isTransfersDrawerOpen ? 'transfers' : primaryNavId(location.pathname)}
             sessionEmail={sessionData?.user.email}
-            isRoot={meQuery.data?.isRoot}
+            isAdmin={meQuery.data?.isAdmin}
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
             onSignOut={() => void handleSignOut()}
           />
@@ -1394,7 +1394,7 @@ export function AppShell() {
 
                     {meQuery.data?.canCreateVault === true ? null : (
                       <Text fontSize="sm" color="fg.muted">
-                        This will be queued for root approval.
+                        This will be queued for admin approval.
                       </Text>
                     )}
                   </Stack>

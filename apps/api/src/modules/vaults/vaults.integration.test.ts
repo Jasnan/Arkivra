@@ -18,7 +18,7 @@ function createMockVaultsServices() {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
       userId,
     })),
     getMember: vi.fn(async () => null),
@@ -56,7 +56,7 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
-    context.set('isRoot', false);
+    context.set('isAdmin', false);
     context.set('canCreateVault', canCreateVault);
     context.set('vaultId', null);
     context.set('vaultRole', null);
@@ -291,7 +291,7 @@ describe('vaults integration', () => {
       totalSize: 2048,
       role: 'owner',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -308,7 +308,7 @@ describe('vaults integration', () => {
     expect(body.vault.role).toBe('owner');
   });
 
-  test('allows root administrative read access without membership', async () => {
+  test('allows admin administrative read access without membership', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -321,7 +321,7 @@ describe('vaults integration', () => {
       totalSize: 2048,
       role: null,
       aiAccessLevel: 'none',
-      isRoot: true,
+      isAdmin: true,
       isMember: false,
       accessMode: 'admin',
     }));
@@ -338,7 +338,7 @@ describe('vaults integration', () => {
     expect(body.vault.accessMode).toBe('admin');
   });
 
-  test('blocks root administrative access from mutating vault settings', async () => {
+  test('blocks admin administrative access from mutating vault settings', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -351,7 +351,7 @@ describe('vaults integration', () => {
       totalSize: 2048,
       role: null,
       aiAccessLevel: 'none',
-      isRoot: true,
+      isAdmin: true,
       isMember: false,
       accessMode: 'admin',
     }));
@@ -371,7 +371,7 @@ describe('vaults integration', () => {
     expect(services.updateVaultIdentity).not.toHaveBeenCalled();
   });
 
-  test('allows root administrative user to join vault as explicit member', async () => {
+  test('allows admin administrative user to join vault as explicit member', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -384,7 +384,7 @@ describe('vaults integration', () => {
       totalSize: 2048,
       role: null,
       aiAccessLevel: 'none',
-      isRoot: true,
+      isAdmin: true,
       isMember: false,
       accessMode: 'admin',
     }));
@@ -409,7 +409,7 @@ describe('vaults integration', () => {
     });
   });
 
-  test('allows root explicit member to leave vault membership', async () => {
+  test('allows admin explicit member to leave vault membership', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -422,7 +422,7 @@ describe('vaults integration', () => {
       totalSize: 2048,
       role: 'editor',
       aiAccessLevel: 'full',
-      isRoot: true,
+      isAdmin: true,
       isMember: true,
       accessMode: 'member',
     }));
@@ -451,7 +451,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'editor',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -478,7 +478,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -515,7 +515,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'editor',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ services });
@@ -541,7 +541,7 @@ describe('vaults integration', () => {
       deletedAt: null,
       role: 'owner',
       aiAccessLevel: 'none',
-      isRoot: false,
+      isAdmin: false,
     }));
 
     const app = createTestApp({ services });

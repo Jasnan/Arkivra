@@ -116,7 +116,7 @@ function dedupeVaultRefs(vaults: ChatContextVaultRef[]) {
   return deduped;
 }
 
-function dedupeDocumentRefs(documents: ChatContextDocumentRef[]) {
+function dedupeDocumentRefs(documents: ChatContextDocumentRef[], selectedVaultIds = new Set<string>()) {
   const seen = new Set<string>();
   const deduped: ChatContextDocumentRef[] = [];
 
@@ -124,7 +124,7 @@ function dedupeDocumentRefs(documents: ChatContextDocumentRef[]) {
     const vaultId = document.vaultId.trim();
     const documentId = document.documentId.trim();
     const key = `${vaultId}:${documentId}`;
-    if (vaultId.length === 0 || documentId.length === 0 || seen.has(key)) {
+    if (vaultId.length === 0 || documentId.length === 0 || selectedVaultIds.has(vaultId) || seen.has(key)) {
       continue;
     }
 
@@ -202,13 +202,15 @@ function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapsh
       : body;
   const rawVaultRefs = parseVaultRefs(rawContext.vaults);
   const rawVaultIdRefs = parseStringArray(rawContext.vaultIds).map(vaultId => ({ vaultId }));
+  const vaults = dedupeVaultRefs([...rawVaultRefs, ...rawVaultIdRefs]);
+  const selectedVaultIds = new Set(vaults.map(vault => vault.vaultId));
   const rawDocumentRefs = parseDocumentRefs(rawContext.documents);
 
   if (rawContext.type === 'selection' || rawVaultRefs.length > 0 || rawDocumentRefs.length > 0) {
     return {
       type: 'selection',
-      vaults: dedupeVaultRefs([...rawVaultRefs, ...rawVaultIdRefs]),
-      documents: rawDocumentRefs,
+      vaults,
+      documents: dedupeDocumentRefs(rawDocumentRefs, selectedVaultIds),
     };
   }
 
@@ -316,7 +318,9 @@ async function resolveCreatableContext({
       vaults.push({ vaultId: vault.id, name: vault.name });
     }
 
-    for (const requestedDocument of dedupeDocumentRefs(requestedContext.documents)) {
+    const selectedVaultIds = new Set(vaults.map(vault => vault.vaultId));
+
+    for (const requestedDocument of dedupeDocumentRefs(requestedContext.documents, selectedVaultIds)) {
       const vault = await vaultServices.getVaultForUser({ vaultId: requestedDocument.vaultId, userId });
 
       if (vault === null) {
@@ -464,7 +468,9 @@ async function resolveUsableContext({
       }
     }
 
-    for (const documentRef of dedupeDocumentRefs(snapshot.documents)) {
+    const selectedVaultIds = new Set(dedupeVaultRefs(snapshot.vaults).map(vault => vault.vaultId));
+
+    for (const documentRef of dedupeDocumentRefs(snapshot.documents, selectedVaultIds)) {
       const vault = await vaultServices.getVaultForUser({ vaultId: documentRef.vaultId, userId });
       if (vault === null || !canUseDocumentChat(vault)) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };

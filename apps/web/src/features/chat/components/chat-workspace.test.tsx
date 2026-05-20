@@ -320,7 +320,13 @@ describe('chat workspace new chat drafts', () => {
     await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
     await user.click(screen.getByRole('button', { name: /add selected/i }));
 
+    expect(await screen.findByText('1 vault attached')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /view all/i }));
     expect(await screen.findByText('Legal')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /close context details/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /conversation context/i })).not.toBeInTheDocument();
+    });
 
     await user.type(screen.getByLabelText(/chat message/i), 'Summarize contracts');
     await user.click(screen.getByRole('button', { name: /send message/i }));

@@ -13,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
 import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
@@ -72,7 +71,7 @@ function dedupeVaults(vaults: DraftChatVault[]) {
   return result;
 }
 
-function dedupeDocuments(documents: DraftChatDocument[]) {
+function dedupeDocuments(documents: DraftChatDocument[], selectedVaultIds: Set<string>) {
   const seen = new Set<string>();
   const result: DraftChatDocument[] = [];
 
@@ -80,7 +79,12 @@ function dedupeDocuments(documents: DraftChatDocument[]) {
     const vaultId = document.vaultId.trim();
     const documentId = document.documentId.trim();
     const key = `${vaultId}:${documentId}`;
-    if (vaultId.length === 0 || documentId.length === 0 || seen.has(key)) continue;
+    if (
+      vaultId.length === 0
+      || documentId.length === 0
+      || selectedVaultIds.has(vaultId)
+      || seen.has(key)
+    ) continue;
     seen.add(key);
     result.push({
       vaultId,
@@ -96,10 +100,83 @@ function dedupeDocuments(documents: DraftChatDocument[]) {
 }
 
 export function normalizeDraftContext(context: DraftChatContext): DraftChatContext {
+  const vaults = dedupeVaults(context.vaults);
+  const selectedVaultIds = new Set(vaults.map(vault => vault.vaultId));
+
   return {
-    vaults: dedupeVaults(context.vaults),
-    documents: dedupeDocuments(context.documents),
+    vaults,
+    documents: dedupeDocuments(context.documents, selectedVaultIds),
   };
+}
+
+export function isDocumentCoveredByVault(
+  context: DraftChatContext,
+  document: Pick<DraftChatDocument, 'vaultId'>,
+) {
+  const selectedVaultIds = new Set(normalizeDraftContext(context).vaults.map(vault => vault.vaultId));
+  return selectedVaultIds.has(document.vaultId);
+}
+
+export function getEffectiveDraftDocuments(context: DraftChatContext) {
+  return normalizeDraftContext(context).documents;
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+export function getDraftContextSummary(context: DraftChatContext) {
+  const normalized = normalizeDraftContext(context);
+  const vaultCount = normalized.vaults.length;
+  const individualFileCount = normalized.documents.length;
+  const itemCount = vaultCount + individualFileCount;
+
+  let label = 'All accessible vaults';
+
+  if (vaultCount > 0 && individualFileCount > 0) {
+    label = `${pluralize(vaultCount, 'vault')} and ${pluralize(individualFileCount, 'individual file')} attached`;
+  } else if (vaultCount > 0) {
+    label = `${pluralize(vaultCount, 'vault')} attached`;
+  } else if (individualFileCount > 0) {
+    label = `${pluralize(individualFileCount, 'file')} attached`;
+  }
+
+  return {
+    vaultCount,
+    individualFileCount,
+    itemCount,
+    hasContext: itemCount > 0,
+    label,
+  };
+}
+
+type DocumentSelectionListItem =
+  | { type: 'vault'; vaultId: string; vaultName: string; documentCount: number }
+  | { type: 'document'; document: SearchResultItem };
+
+export function groupDocumentSelectionItems(documents: SearchResultItem[]): DocumentSelectionListItem[] {
+  const groups = new Map<string, { vaultId: string; vaultName: string; documents: SearchResultItem[] }>();
+
+  for (const document of documents) {
+    const group = groups.get(document.vaultId) ?? {
+      vaultId: document.vaultId,
+      vaultName: document.vaultName,
+      documents: [],
+    };
+
+    group.documents.push(document);
+    groups.set(document.vaultId, group);
+  }
+
+  return Array.from(groups.values()).flatMap(group => [
+    {
+      type: 'vault' as const,
+      vaultId: group.vaultId,
+      vaultName: group.vaultName,
+      documentCount: group.documents.length,
+    },
+    ...group.documents.map(document => ({ type: 'document' as const, document })),
+  ]);
 }
 
 export function createEmptyDraftContext(): DraftChatContext {
@@ -322,154 +399,230 @@ export function ContextChipList({
   onRemoveVault: (vault: DraftChatVault) => void;
   onRemoveDocument: (document: DraftChatDocument) => void;
 }) {
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const normalized = normalizeDraftContext(context);
-  const hasContext = !isDraftContextEmpty(normalized);
+  const summary = getDraftContextSummary(normalized);
 
   return (
-    <Flex align="center" gap="2" flexWrap="wrap" pb="2" aria-label="Active conversation context">
-      <Flex align="center" gap="2" flexShrink="0">
-        <Text as="span" fontSize="xs" fontWeight="semibold" color="fg.muted">
+    <>
+      <Flex
+        align="center"
+        gap="2"
+        minW="0"
+        pb="2"
+        color="fg.muted"
+        aria-label="Active conversation context"
+      >
+        <Text as="span" flexShrink="0" fontSize="xs" fontWeight="semibold">
           Context:
         </Text>
-        {locked ? <LockedContextBadge /> : null}
-      </Flex>
-      {hasContext ? (
-        <>
-          {normalized.vaults.map(vault => (
-            <ContextChip
-              key={vaultKey(vault)}
-              icon={<Vault size={14} />}
-              label={vault.name ?? vault.vaultId}
-              locked={locked}
-              removeLabel={`Remove ${vault.name ?? vault.vaultId} from context`}
-              onRemove={() => onRemoveVault(vault)}
-            />
-          ))}
-          {normalized.documents.map(document => (
-            <ContextChip
-              key={documentKey(document)}
-              icon={<FileText size={14} />}
-              label={document.name ?? document.documentId}
-              detail={document.vaultName}
-              locked={locked}
-              removeLabel={`Remove ${document.name ?? document.documentId} from context`}
-              onRemove={() => onRemoveDocument(document)}
-            />
-          ))}
-        </>
-      ) : (
-        <ContextChip
-          icon={<Vault size={14} />}
-          label="All accessible vaults"
-          locked={locked}
-          readOnly
-        />
-      )}
-    </Flex>
-  );
-}
-
-function LockedContextBadge() {
-  return (
-    <Tooltip positioning={{ placement: 'top' }}>
-      <TooltipTrigger asChild>
-        <chakra.button
+        {locked ? <Lock size={13} style={{ flexShrink: 0 }} /> : null}
+        <Text as="span" minW="0" truncate fontSize="xs" fontWeight="medium">
+          {summary.label}
+        </Text>
+        <Button
           type="button"
-          aria-label="Locked Context: this conversation uses a fixed document and vault context"
-          cursor="help"
-          display="inline-flex"
-          alignItems="center"
-          gap="1"
-          rounded="full"
-          borderWidth="1px"
-          borderColor="border.surface"
-          bg="bg.subtle"
+          variant="ghost"
+          size="sm"
+          flexShrink="0"
+          h="7"
+          minH="7"
           px="2"
-          py="1"
           color="fg.muted"
-          fontSize="0.68rem"
-          fontWeight="semibold"
-          lineHeight="1"
-          textTransform="uppercase"
-          _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+          fontSize="xs"
+          onClick={() => setIsDetailsOpen(true)}
         >
-          <Lock size={11} />
-          Locked Context
-        </chakra.button>
-      </TooltipTrigger>
-      <TooltipContent>
-        This conversation uses a fixed document and vault context to preserve consistent references and history.
-      </TooltipContent>
-    </Tooltip>
+          View all
+        </Button>
+      </Flex>
+      <ContextDetailsDialog
+        open={isDetailsOpen}
+        context={normalized}
+        locked={locked}
+        onOpenChange={setIsDetailsOpen}
+        onRemoveVault={onRemoveVault}
+        onRemoveDocument={onRemoveDocument}
+      />
+    </>
   );
 }
 
-function ContextChip({
+function ContextDetailsDialog({
+  open,
+  context,
+  locked,
+  onOpenChange,
+  onRemoveVault,
+  onRemoveDocument,
+}: {
+  open: boolean;
+  context: DraftChatContext;
+  locked: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRemoveVault: (vault: DraftChatVault) => void;
+  onRemoveDocument: (document: DraftChatDocument) => void;
+}) {
+  const normalized = normalizeDraftContext(context);
+  const summary = getDraftContextSummary(normalized);
+
+  function removeVault(vault: DraftChatVault) {
+    onRemoveVault(vault);
+    if (!locked) onOpenChange(false);
+  }
+
+  function removeDocument(document: DraftChatDocument) {
+    onRemoveDocument(document);
+    if (!locked) onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} size="md" onOpenChange={onOpenChange}>
+      <DialogContent hideCloseButton>
+        <DialogClose asChild>
+          <CloseButton
+            size="sm"
+            position="absolute"
+            top="3"
+            right="3"
+            aria-label="Close context details"
+          />
+        </DialogClose>
+        <DialogHeader style={{ padding: '1.25rem 1.25rem 0.75rem' }}>
+          <DialogTitle>Conversation Context</DialogTitle>
+          <DialogDescription>
+            {locked ? `Context locked: ${summary.label}` : summary.label}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody asChild>
+          <Stack gap="4" px="5" pb="5">
+            {summary.hasContext ? (
+              <>
+                <ContextDetailsSection title="Vaults" emptyLabel="No vaults attached.">
+                  {normalized.vaults.map(vault => (
+                    <ContextDetailsRow
+                      key={vaultKey(vault)}
+                      icon={<Vault size={16} />}
+                      label={vault.name ?? vault.vaultId}
+                      removeLabel={`Remove ${vault.name ?? vault.vaultId} from context`}
+                      onRemove={() => removeVault(vault)}
+                    />
+                  ))}
+                </ContextDetailsSection>
+                <ContextDetailsSection title="Individual files" emptyLabel="No individual files attached.">
+                  {normalized.documents.map(document => (
+                    <ContextDetailsRow
+                      key={documentKey(document)}
+                      icon={<FileText size={16} />}
+                      label={document.name ?? document.documentId}
+                      detail={document.vaultName}
+                      removeLabel={`Remove ${document.name ?? document.documentId} from context`}
+                      onRemove={() => removeDocument(document)}
+                    />
+                  ))}
+                </ContextDetailsSection>
+              </>
+            ) : (
+              <Flex
+                align="center"
+                gap="3"
+                rounded="md"
+                borderWidth="1px"
+                borderColor="border.surface"
+                bg="bg.subtle"
+                px="3"
+                py="3"
+              >
+                <Vault size={17} />
+                <Text fontSize="sm" color="fg.muted">All accessible vaults</Text>
+              </Flex>
+            )}
+          </Stack>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ContextDetailsSection({
+  title,
+  emptyLabel,
+  children,
+}: {
+  title: string;
+  emptyLabel: string;
+  children: ReactNode;
+}) {
+  const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
+
+  return (
+    <Box>
+      <Text mb="2" fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase">
+        {title}
+      </Text>
+      <Stack gap="1.5">
+        {hasChildren ? children : (
+          <Text rounded="md" bg="bg.subtle" px="3" py="2.5" fontSize="sm" color="fg.muted">
+            {emptyLabel}
+          </Text>
+        )}
+      </Stack>
+    </Box>
+  );
+}
+
+function ContextDetailsRow({
   icon,
   label,
   detail,
-  locked,
-  readOnly,
   removeLabel,
   onRemove,
 }: {
   icon: ReactNode;
   label: string;
   detail?: string;
-  locked: boolean;
-  readOnly?: boolean;
-  removeLabel?: string;
-  onRemove?: () => void;
+  removeLabel: string;
+  onRemove: () => void;
 }) {
   return (
     <Flex
-      as="span"
       align="center"
-      gap="1.5"
-      maxW="18rem"
-      rounded="full"
+      gap="3"
+      rounded="md"
       borderWidth="1px"
-      borderColor={locked ? 'border.strong' : 'border.surface'}
-      bg={locked ? 'bg.subtle' : 'bg.surface'}
-      px="2.5"
-      py="1.5"
-      color="fg"
-      fontSize="xs"
-      fontWeight="medium"
+      borderColor="border.surface"
+      bg="bg.surface"
+      px="3"
+      py="2.5"
     >
-      <Box as="span" color={locked ? 'fg.muted' : 'teal.fg'} flexShrink="0">
+      <Box color="teal.fg" flexShrink="0">
         {icon}
       </Box>
-      {locked ? (
-        <Box as="span" color="fg.muted" flexShrink="0">
-          <Lock size={12} />
-        </Box>
-      ) : null}
-      <Text as="span" minW="0" truncate>
-        {label}
-      </Text>
-      {detail ? (
-        <Text as="span" display={{ base: 'none', sm: 'inline' }} color="fg.muted" truncate>
-          {detail}
+      <Box minW="0" flex="1">
+        <Text truncate fontSize="sm" fontWeight="medium" color="fg">
+          {label}
         </Text>
-      ) : null}
-      {!readOnly && removeLabel && onRemove ? (
-        <chakra.button
-          type="button"
-          aria-label={removeLabel}
-          display="inline-flex"
-          alignItems="center"
-          justifyContent="center"
-          rounded="full"
-          color="fg.muted"
-          cursor="pointer"
-          _hover={{ bg: 'bg.muted', color: 'fg' }}
-          _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
-          onClick={onRemove}
-        >
-          <X size={13} />
-        </chakra.button>
-      ) : null}
+        {detail ? (
+          <Text truncate fontSize="xs" color="fg.muted">
+            {detail}
+          </Text>
+        ) : null}
+      </Box>
+      <chakra.button
+        type="button"
+        aria-label={removeLabel}
+        display="inline-flex"
+        alignItems="center"
+        justifyContent="center"
+        rounded="full"
+        color="fg.muted"
+        cursor="pointer"
+        p="1.5"
+        _hover={{ bg: 'bg.subtle', color: 'fg' }}
+        _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+        onClick={onRemove}
+      >
+        <X size={15} />
+      </chakra.button>
     </Flex>
   );
 }
@@ -488,7 +641,7 @@ export function VaultSelectionDialog({
   onConfirm: (vaults: DraftChatVault[]) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const availableVaults = useMemo(
     () => vaults.filter(vault => vault.aiAccessLevel === 'full'),
     [vaults],
@@ -661,7 +814,7 @@ export function DocumentSelectionDialog({
 }) {
   const [query, setQuery] = useState('');
   const [selectedFilterVaultIds, setSelectedFilterVaultIds] = useState<string[]>([]);
-  const [selectedDocuments, setSelectedDocuments] = useState<Map<string, DraftChatDocument>>(new Map());
+  const [selectedDocuments, setSelectedDocuments] = useState<Map<string, DraftChatDocument>>(() => new Map());
   const selectableVaults = useMemo(
     () => vaults.filter(vault => vault.aiAccessLevel === 'document_chat' || vault.aiAccessLevel === 'full'),
     [vaults],
@@ -686,7 +839,14 @@ export function DocumentSelectionDialog({
     sortBy: 'name_asc',
     enabled: open && effectiveVaultIds.length > 0,
   });
-  const documents = documentQuery.data?.results ?? [];
+  const documentSelectionItems = useMemo(
+    () => groupDocumentSelectionItems(documentQuery.data?.results ?? []),
+    [documentQuery.data?.results],
+  );
+  const selectedVaultById = useMemo(
+    () => new Map(normalizeDraftContext(context).vaults.map(vault => [vault.vaultId, vault])),
+    [context],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -696,6 +856,8 @@ export function DocumentSelectionDialog({
   }, [context.documents, open]);
 
   function toggleDocument(document: SearchResultItem) {
+    if (isDocumentCoveredByVault(context, document)) return;
+
     const draftDocument: DraftChatDocument = {
       vaultId: document.vaultId,
       documentId: document.documentId,
@@ -784,24 +946,42 @@ export function DocumentSelectionDialog({
                 <Flex h="full" align="center" justify="center" px="6" color="fg.muted">
                   <Text fontSize="sm">Loading documents...</Text>
                 </Flex>
-              ) : documents.length === 0 ? (
+              ) : documentSelectionItems.length === 0 ? (
                 <Flex h="full" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
                   <Text fontSize="sm">No documents found.</Text>
                 </Flex>
               ) : (
                 <Virtuoso
                   style={{ height: '100%' }}
-                  data={documents}
-                  initialItemCount={Math.min(documents.length, 24)}
-                  itemContent={(_, document) => (
-                    <Box px="2" py="1">
-                      <DocumentSelectionRow
-                        document={document}
-                        selected={selectedDocuments.has(`${document.vaultId}:${document.documentId}`)}
-                        onToggle={() => toggleDocument(document)}
-                      />
-                    </Box>
-                  )}
+                  data={documentSelectionItems}
+                  initialItemCount={Math.min(documentSelectionItems.length, 24)}
+                  itemContent={(_, item) => {
+                    if (item.type === 'vault') {
+                      return (
+                        <DocumentSelectionVaultHeader
+                          vaultName={item.vaultName}
+                          documentCount={item.documentCount}
+                        />
+                      );
+                    }
+
+                    const document = item.document;
+
+                    return (
+                      <Box px="2" py="1">
+                        <DocumentSelectionRow
+                          document={document}
+                          selected={selectedDocuments.has(`${document.vaultId}:${document.documentId}`)}
+                          disabledReason={
+                            selectedVaultById.has(document.vaultId)
+                              ? `Already included via ${selectedVaultById.get(document.vaultId)?.name ?? document.vaultName}`
+                              : undefined
+                          }
+                          onToggle={() => toggleDocument(document)}
+                        />
+                      </Box>
+                    );
+                  }}
                 />
               )}
             </Box>
@@ -820,23 +1000,58 @@ export function DocumentSelectionDialog({
   );
 }
 
+function DocumentSelectionVaultHeader({
+  vaultName,
+  documentCount,
+}: {
+  vaultName: string;
+  documentCount: number;
+}) {
+  return (
+    <Flex
+      align="center"
+      justify="space-between"
+      gap="3"
+      bg="bg.surface"
+      px="3"
+      pb="1.5"
+      pt="3"
+      color="fg.muted"
+    >
+      <Flex align="center" gap="1.5" minW="0">
+        <Vault size={14} />
+        <Text truncate fontSize="xs" fontWeight="semibold">
+          {vaultName}
+        </Text>
+      </Flex>
+      <Text flexShrink="0" fontSize="xs">
+        {documentCount} file{documentCount === 1 ? '' : 's'}
+      </Text>
+    </Flex>
+  );
+}
+
 function DocumentSelectionRow({
   document,
   selected,
+  disabledReason,
   onToggle,
 }: {
   document: SearchResultItem;
   selected: boolean;
+  disabledReason?: string;
   onToggle: () => void;
 }) {
   const { badgeBg, badgeColor, color, icon: DocumentIcon, label } = getDocumentFileIconMeta({
     name: document.name,
     mimeType: document.mimeType,
   });
+  const disabled = Boolean(disabledReason);
 
   return (
     <ChakraCheckbox.Root
       checked={selected}
+      disabled={disabled}
       display="flex"
       w="full"
       alignItems="center"
@@ -844,19 +1059,20 @@ function DocumentSelectionRow({
       rounded="md"
       borderWidth="1px"
       borderColor={selected ? 'teal.muted' : 'transparent'}
-      bg={selected ? 'teal.subtle' : 'transparent'}
+      bg={selected ? 'teal.subtle' : disabled ? 'bg.subtle' : 'transparent'}
       px="3"
       py="2.5"
-      cursor="pointer"
+      opacity="1"
+      cursor={disabled ? 'not-allowed' : 'pointer'}
       _hover={{ bg: selected ? 'teal.subtle' : 'bg.subtle' }}
       onCheckedChange={onToggle}
     >
-      <ChakraCheckbox.HiddenInput />
-      <ChakraCheckbox.Control flexShrink="0">
+      <ChakraCheckbox.HiddenInput disabled={disabled} />
+      <ChakraCheckbox.Control flexShrink="0" opacity={disabled ? '0.55' : '1'}>
         <ChakraCheckbox.Indicator />
       </ChakraCheckbox.Control>
       <Flex align="center" gap="3" minW="0" flex="1">
-        <Flex boxSize="10" align="center" justify="center" color={color} flexShrink="0">
+        <Flex boxSize="10" align="center" justify="center" color={disabled ? 'fg.muted' : color} flexShrink="0">
           <Box position="relative" boxSize="9">
             <DocumentIcon size={36} strokeWidth={1.5} />
             <Text
@@ -881,7 +1097,7 @@ function DocumentSelectionRow({
           </Box>
         </Flex>
         <Box minW="0" flex="1">
-          <Text truncate fontSize="sm" fontWeight="semibold" color="fg">
+          <Text truncate fontSize="sm" fontWeight="semibold" color={disabled ? 'fg.muted' : 'fg'}>
             {document.name}
           </Text>
           <Flex align="center" gap="1.5" minW="0" color="fg.muted">
@@ -890,6 +1106,11 @@ function DocumentSelectionRow({
               {document.vaultName}
             </Text>
           </Flex>
+          {disabledReason ? (
+            <Text truncate fontSize="xs" color="fg.muted">
+              {disabledReason}
+            </Text>
+          ) : null}
         </Box>
         {selected ? <Check size={16} color="var(--chakra-colors-teal-fg)" /> : null}
       </Flex>

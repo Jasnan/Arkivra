@@ -241,6 +241,22 @@ const config = defineConfig({
             value: { base: '#f4f6f7', _dark: '#0f131a' },
           },
 
+          modalHeader: {
+            value: { base: '#ffffff', _dark: '#101922' },
+          },
+
+          modalContent: {
+            value: { base: '#f8fbfc', _dark: '#1a2731' },
+          },
+
+          modalFooter: {
+            value: { base: '#ffffff', _dark: '#101922' },
+          },
+
+          modalField: {
+            value: { base: '#ffffff', _dark: '#17232c' },
+          },
+
           inverted: {
             value: { base: '#0b0d12', _dark: '#fafafa' },
           },

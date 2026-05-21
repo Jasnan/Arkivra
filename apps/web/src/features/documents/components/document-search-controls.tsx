@@ -83,6 +83,8 @@ export function SearchFilterMultiSelect({
   showColorSwatch = false,
   hideLabel = false,
   controlSize = 'default',
+  controlBg,
+  contentBg,
 }: {
   label: string;
   triggerLabel: string;
@@ -99,6 +101,8 @@ export function SearchFilterMultiSelect({
   showColorSwatch?: boolean;
   hideLabel?: boolean;
   controlSize?: 'default' | 'toolbar';
+  controlBg?: string;
+  contentBg?: string;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -157,7 +161,7 @@ export function SearchFilterMultiSelect({
             h="var(--arkivra-controlHeight, 2.5rem)"
             rounded={controlSize === 'toolbar' ? 'md' : 'xl'}
             borderColor="border.surface"
-            bg="bg.surface"
+            bg={controlBg ?? 'bg.surface'}
             px="var(--arkivra-controlPaddingX, 0.75rem)"
             pr={selectedValues.length > 0 ? '16' : '10'}
             fontSize="sm"
@@ -196,7 +200,7 @@ export function SearchFilterMultiSelect({
               rounded="lg"
               borderWidth="1px"
               borderColor="border.surface"
-              bg="bg.surface"
+              bg={contentBg ?? 'bg.surface'}
               p={controlSize === 'toolbar' ? '1.5' : '2'}
               shadow="lg"
             >

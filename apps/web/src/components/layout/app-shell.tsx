@@ -1,4 +1,4 @@
-import type { ComponentType, FormEvent, ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -10,7 +10,6 @@ import {
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
-  Plus,
   Search,
   SearchX,
   Settings,
@@ -28,9 +27,7 @@ import {
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Kbd, Menu, Portal, Stack, Text, Textarea, chakra } from '@chakra-ui/react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Kbd, Menu, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { ArkivraLogo } from '@/components/brand/arkivra-logo';
 import {
   Breadcrumb,
@@ -39,17 +36,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { AppEmptyState } from '@/components/ui/empty-state';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldLabel } from '@/components/ui/field';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { SecondaryNavLink } from '@/components/layout/secondary-nav-link';
@@ -74,8 +65,7 @@ import {
   VaultSidebarTree,
   getVaultTreeVaultId,
 } from '@/features/vaults/components/vault-sidebar-tree';
-import { createVault } from '@/features/vaults/vaults.api';
-import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
+import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 function getQuickSearchShortcutLabel() {
   if (typeof navigator === 'undefined') {
@@ -189,10 +179,6 @@ const accountMenuItemProps = {
   color: 'fg.muted',
   _highlighted: { bg: 'bg.muted', color: 'fg' },
 } as const;
-
-function isRequestResponse(value: unknown): value is { request: { id: string } } {
-  return typeof value === 'object' && value !== null && 'request' in value;
-}
 
 function truncateBreadcrumbLabel(label: string, maxLength = 10) {
   if (label.length <= maxLength) {
@@ -545,8 +531,6 @@ function SecondarySidebar({
   currentDocumentId,
   customContent,
   currentPathname,
-  canCreateVault,
-  onCreateVault,
 }: {
   kind: 'vault' | 'chat' | 'settings' | 'admin' | 'standard';
   isOpen: boolean;
@@ -555,8 +539,6 @@ function SecondarySidebar({
   currentDocumentId?: string | null;
   customContent: ReactNode | null;
   currentPathname: string;
-  canCreateVault?: boolean;
-  onCreateVault?: () => void;
 }) {
   const vaultsQuery = useVaultsQuery();
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([VAULT_TREE_ROOT_VALUE]);
@@ -601,42 +583,8 @@ function SecondarySidebar({
         flexDirection={kind === 'vault' && customContent === null ? 'column' : undefined}
       >
         {kind === 'vault' ? (
-          customContent ? (
-            <Stack gap="4">
-              {canCreateVault && !activeVaultId ? (
-                <ChakraButton
-                  type="button"
-                  size="sm"
-                  h="9"
-                  w="full"
-                  justifyContent="flex-start"
-                  rounded="md"
-                  colorPalette="teal"
-                  onClick={onCreateVault}
-                >
-                  <Plus size={16} />
-                  New vault
-                </ChakraButton>
-              ) : null}
-              {customContent}
-            </Stack>
-          ) : (
+          customContent ?? (
             <Flex direction="column" gap="4" minH="0" flex="1">
-              {canCreateVault && !activeVaultId ? (
-                <ChakraButton
-                  type="button"
-                  size="sm"
-                  h="9"
-                  w="full"
-                  justifyContent="flex-start"
-                  rounded="md"
-                  colorPalette="teal"
-                  onClick={onCreateVault}
-                >
-                  <Plus size={16} />
-                  New vault
-                </ChakraButton>
-              ) : null}
               <Box flex="1" minH="0" overflowY="auto" pr="1" mr="-1">
                 <VaultSidebarTree
                   vaults={vaults}
@@ -882,16 +830,12 @@ function shouldHideSecondarySidebar(pathname: string) {
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const meQuery = useMeQuery();
   const vaultsQuery = useVaultsQuery();
   const uploadState = useUploadManagerState();
   const { data: sessionData } = authClient.useSession();
   const [searchValue, setSearchValue] = useState('');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
-  const [isCreateVaultOpen, setIsCreateVaultOpen] = useState(false);
-  const [newVaultName, setNewVaultName] = useState('');
-  const [newVaultDescription, setNewVaultDescription] = useState('');
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
   const [secondaryContent, setSecondaryContent] = useState<ReactNode | null>(null);
   const [isSecondarySidebarOpen, setIsSecondarySidebarOpen] = useState(true);
@@ -955,32 +899,6 @@ export function AppShell() {
     pageSize: 8,
     enabled: isQuickSearchOpen && debouncedSearchValue.length > 0,
   });
-  const createVaultMutation = useMutation({
-    mutationFn: createVault,
-    onSuccess: async (result) => {
-      if (isRequestResponse(result)) {
-        setIsCreateVaultOpen(false);
-        setNewVaultName('');
-        setNewVaultDescription('');
-        toast.success('Vault creation request queued for admin approval.');
-        return;
-      }
-
-      const { vault } = result;
-      await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
-      setIsCreateVaultOpen(false);
-      setNewVaultName('');
-      setNewVaultDescription('');
-      toast.success('Vault created.');
-      navigate({ to: ROUTES.vaultSettings(vault.id) });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not create vault.');
-    },
-  });
-  const isCreateVaultFormDirty = newVaultName.trim().length > 0 || newVaultDescription.trim().length > 0;
-  const canDismissCreateVaultDialog = !isCreateVaultFormDirty && !createVaultMutation.isPending;
-
   async function handleSignOut() {
     await uploadManager.clearForLogout();
     await authClient.signOut();
@@ -993,29 +911,6 @@ export function AppShell() {
 
   function openQuickSearch() {
     setIsQuickSearchOpen(true);
-  }
-
-  function closeCreateVault() {
-    if (createVaultMutation.isPending) return;
-
-    setIsCreateVaultOpen(false);
-    setNewVaultName('');
-    setNewVaultDescription('');
-  }
-
-  function handleCreateVaultSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const normalizedName = newVaultName.trim();
-    if (!normalizedName) {
-      toast.error('Vault name is required.');
-      return;
-    }
-
-    createVaultMutation.mutate({
-      name: normalizedName,
-      description: newVaultDescription.trim() || null,
-    });
   }
 
   useEffect(() => {
@@ -1098,8 +993,6 @@ export function AppShell() {
               currentDocumentId={activeDocumentRoute?.documentId ?? null}
               customContent={secondaryContent}
               currentPathname={location.pathname}
-              canCreateVault
-              onCreateVault={() => setIsCreateVaultOpen(true)}
             />
           ) : null}
 
@@ -1329,111 +1222,6 @@ export function AppShell() {
           open={isTransfersDrawerOpen}
           onOpenChange={setIsTransfersDrawerOpen}
         />
-        <Dialog
-          open={isCreateVaultOpen}
-          closeOnEscape={canDismissCreateVaultDialog}
-          closeOnInteractOutside={canDismissCreateVaultDialog}
-          onOpenChange={(open) => {
-            if (open) {
-              setIsCreateVaultOpen(true);
-              return;
-            }
-
-            closeCreateVault();
-          }}
-        >
-          <DialogContent maxW="40rem" w="calc(100vw - 2rem)" bg="bg.surface" p="0">
-            <chakra.form onSubmit={handleCreateVaultSubmit}>
-              <Box borderBottomWidth="1px" borderColor="border.surface" px="4" py="2" pr={{ base: '13', lg: '14' }}>
-                <DialogHeader>
-                  <HStack gap="2.5" align="center">
-                    <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
-                      <Vault size={18} />
-                    </Flex>
-                    <Stack gap="0.5" minW="0">
-                      <DialogTitle>New vault</DialogTitle>
-                      <DialogDescription>
-                        Create a new vault for organizing documents and access.
-                      </DialogDescription>
-                    </Stack>
-                  </HStack>
-                </DialogHeader>
-              </Box>
-
-              <Stack gap="3" px="4" py="4" bg="bg.subtle">
-                <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="4" shadow="xs">
-                  <Stack gap="4">
-                    <Field>
-                      <FieldLabel htmlFor="shell-create-vault-name">Vault name</FieldLabel>
-                      <Input
-                        id="shell-create-vault-name"
-                        type="text"
-                        required
-                        autoFocus
-                        value={newVaultName}
-                        placeholder="Personal Vault"
-                        h="11"
-                        borderColor="border.strong"
-                        onChange={(event) => setNewVaultName(event.target.value)}
-                      />
-                    </Field>
-
-                    <Field>
-                      <FieldLabel htmlFor="shell-create-vault-description">Description (optional)</FieldLabel>
-                      <Textarea
-                        id="shell-create-vault-description"
-                        value={newVaultDescription}
-                        minH="6rem"
-                        resize="vertical"
-                        placeholder="Optional"
-                        borderColor="border.strong"
-                        onChange={(event) => setNewVaultDescription(event.target.value)}
-                      />
-                    </Field>
-
-                    {meQuery.data?.canCreateVault === true ? null : (
-                      <Text fontSize="sm" color="fg.muted">
-                        This will be queued for admin approval.
-                      </Text>
-                    )}
-                  </Stack>
-                </Card>
-
-                <HStack gap="2" align="start" color="fg.muted">
-                  <Box mt="0.5" flexShrink="0">
-                    <Info size={16} />
-                  </Box>
-                  <Text textStyle="sm">
-                    Vault permissions and member access can be configured after creation.
-                  </Text>
-                </HStack>
-              </Stack>
-
-              <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3.5">
-                <Flex align="center" justify="flex-end" gap="3" w="full">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    h="12"
-                    px="6"
-                    disabled={createVaultMutation.isPending}
-                    onClick={closeCreateVault}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" h="12" px="6" colorPalette="teal" disabled={createVaultMutation.isPending}>
-                    <Plus size={18} />
-                    {createVaultMutation.isPending
-                      ? 'Submitting...'
-                      : meQuery.data?.canCreateVault === true
-                        ? 'Create'
-                        : 'Request'}
-                  </Button>
-                </Flex>
-              </Box>
-            </chakra.form>
-          </DialogContent>
-        </Dialog>
       </WorkspaceLayoutContext>
     </TooltipProvider>
   );

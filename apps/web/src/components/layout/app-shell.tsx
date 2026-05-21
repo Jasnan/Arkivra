@@ -67,9 +67,9 @@ import {
 } from '@/features/vaults/components/vault-sidebar-tree';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
-function getQuickSearchShortcutLabel() {
+function getQuickSearchShortcut() {
   if (typeof navigator === 'undefined') {
-    return 'Super K';
+    return { label: 'Super K', modifier: 'Super' };
   }
 
   const platform = navigator.platform.toLowerCase();
@@ -80,7 +80,15 @@ function getQuickSearchShortcutLabel() {
     platform.includes('ipad') ||
     userAgent.includes('mac os');
 
-  return isAppleDevice ? '⌘ K' : 'Super K';
+  if (isAppleDevice) {
+    return { label: 'Command K', modifier: '⌘' };
+  }
+
+  if (platform.includes('win') || userAgent.includes('windows')) {
+    return { label: 'Windows K', modifier: 'Win' };
+  }
+
+  return { label: 'Super K', modifier: 'Super' };
 }
 
 interface BreadcrumbEntry {
@@ -675,12 +683,57 @@ function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] })
   );
 }
 
+function QuickSearchTrigger({
+  shortcut,
+  onOpen,
+  size = 'md',
+}: {
+  shortcut: ReturnType<typeof getQuickSearchShortcut>;
+  onOpen: () => void;
+  size?: 'sm' | 'md';
+}) {
+  const kbdSize = size === 'sm' ? 'sm' : 'md';
+
+  return (
+    <ChakraButton
+      type="button"
+      aria-label={`Quick search, ${shortcut.label}`}
+      aria-keyshortcuts="Meta+K"
+      onClick={onOpen}
+      variant="plain"
+      justifyContent="center"
+      h="var(--arkivra-controlHeight, 2.5rem)"
+      minH="var(--arkivra-controlHeight, 2.5rem)"
+      minW="var(--arkivra-controlHeight, 2.5rem)"
+      gap="2"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.workspace"
+      px={size === 'sm' ? '2' : '2.5'}
+      color="fg.subtle"
+      _hover={{ borderColor: 'border.strong', bg: 'bg.workspace', color: 'fg.muted' }}
+      _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+    >
+      <HStack gap="1" aria-hidden="true">
+        <Kbd size={kbdSize} flexShrink={0} color="fg.muted">
+          {shortcut.modifier}
+        </Kbd>
+        <Kbd size={kbdSize} flexShrink={0} color="fg.muted">
+          K
+        </Kbd>
+      </HStack>
+    </ChakraButton>
+  );
+}
+
 function WorkspaceHeader({
   breadcrumbs,
   headerConfig,
   hasSecondarySidebar,
   isSecondarySidebarOpen,
-  quickSearchShortcutLabel,
+  quickSearchShortcut,
+  hideQuickSearch = false,
   onToggleSecondarySidebar,
   onOpenQuickSearch,
 }: {
@@ -688,7 +741,8 @@ function WorkspaceHeader({
   headerConfig: WorkspaceHeaderConfig | null;
   hasSecondarySidebar: boolean;
   isSecondarySidebarOpen: boolean;
-  quickSearchShortcutLabel: string;
+  quickSearchShortcut: ReturnType<typeof getQuickSearchShortcut>;
+  hideQuickSearch?: boolean;
   onToggleSecondarySidebar: () => void;
   onOpenQuickSearch: () => void;
 }) {
@@ -704,6 +758,7 @@ function WorkspaceHeader({
         borderBottomWidth="1px"
         borderColor="border.surface"
         bg="bg.workspace"
+        position="relative"
       >
         {hasSecondarySidebar ? (
           <Flex align="center" px={{ base: '4', md: '5', lg: '4' }}>
@@ -724,6 +779,21 @@ function WorkspaceHeader({
         <Box minW="0" flex="1">
           {headerConfig.content}
         </Box>
+        {!hideQuickSearch ? (
+          <Flex
+            display={{ base: 'none', '2xl': 'flex' }}
+            position="absolute"
+            left="50%"
+            top="50%"
+            zIndex="1"
+            transform="translate(-50%, -50%)"
+            pointerEvents="none"
+          >
+            <Box pointerEvents="auto">
+              <QuickSearchTrigger shortcut={quickSearchShortcut} onOpen={onOpenQuickSearch} />
+            </Box>
+          </Flex>
+        ) : null}
         {headerConfig.actions ? (
           <HStack px={{ base: '4', md: '5', lg: '4' }} gap="2" zIndex="1" flexShrink={0}>
             {headerConfig.actions}
@@ -743,6 +813,7 @@ function WorkspaceHeader({
       borderColor="border.surface"
       bg="bg.workspace"
       px={{ base: '4', md: '5', lg: '4' }}
+      position="relative"
     >
       <Flex minW="0" flex="1" align="center" gap="3">
         {hasSecondarySidebar ? (
@@ -769,44 +840,23 @@ function WorkspaceHeader({
         </Box>
       </Flex>
 
-      <HStack ml="4" gap="2" zIndex="1" flexShrink={0}>
-        <ChakraButton
-          display={{ base: 'none', lg: 'inline-flex' }}
-          type="button"
-          aria-label={`Quick search, ${quickSearchShortcutLabel}`}
-          aria-keyshortcuts="Meta+K"
-          onClick={onOpenQuickSearch}
-          variant="plain"
-          justifyContent="center"
-          h="var(--arkivra-controlHeight, 2.5rem)"
-          minH="var(--arkivra-controlHeight, 2.5rem)"
-          w="auto"
-          gap="2"
-          rounded="md"
-          borderWidth="1px"
-          borderColor="border.surface"
-          bg="bg.workspace"
-          px="2.5"
-          color="fg.subtle"
-          _hover={{ borderColor: 'border.strong', bg: 'bg.workspace', color: 'fg.muted' }}
-          _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+      {!hideQuickSearch ? (
+        <Flex
+          display={{ base: 'none', xl: 'flex' }}
+          position="absolute"
+          left="50%"
+          top="50%"
+          zIndex="1"
+          transform="translate(-50%, -50%)"
+          pointerEvents="none"
         >
-          <Search size={18} strokeWidth={2} />
-          <Kbd size="md" flexShrink={0} color="fg.muted" aria-hidden="true">
-            super+k
-          </Kbd>
-        </ChakraButton>
+          <Box pointerEvents="auto">
+            <QuickSearchTrigger shortcut={quickSearchShortcut} onOpen={onOpenQuickSearch} />
+          </Box>
+        </Flex>
+      ) : null}
 
-        <IconButton
-          display={{ base: 'inline-flex', lg: 'none' }}
-          type="button"
-          aria-label={`Quick search, ${quickSearchShortcutLabel}`}
-          variant="ghost"
-          color="fg.muted"
-          onClick={onOpenQuickSearch}
-        >
-          <Search size={18} />
-        </IconButton>
+      <HStack ml="4" gap="2" zIndex="1" flexShrink={0}>
         {headerConfig?.actions}
       </HStack>
     </Flex>
@@ -841,7 +891,7 @@ export function AppShell() {
   const [isSecondarySidebarOpen, setIsSecondarySidebarOpen] = useState(true);
   const [isTransfersDrawerOpen, setIsTransfersDrawerOpen] = useState(false);
   const previousLocationKeyRef = useRef<string | null>(null);
-  const quickSearchShortcutLabel = useMemo(() => getQuickSearchShortcutLabel(), []);
+  const quickSearchShortcut = useMemo(() => getQuickSearchShortcut(), []);
   const debouncedSearchValue = useDebouncedValue(searchValue.trim(), QUICK_SEARCH_QUERY_DEBOUNCE_MS);
   const pathParts = location.pathname.split('/').filter(Boolean);
   const transferVaultId = useMemo(
@@ -1002,7 +1052,8 @@ export function AppShell() {
               headerConfig={isChatRoute ? { hidden: true } : headerConfig}
               hasSecondarySidebar={hasSecondarySidebar}
               isSecondarySidebarOpen={isSecondarySidebarOpen}
-              quickSearchShortcutLabel={quickSearchShortcutLabel}
+              quickSearchShortcut={quickSearchShortcut}
+              hideQuickSearch={location.pathname === ROUTES.search}
               onToggleSecondarySidebar={() => setIsSecondarySidebarOpen((open) => !open)}
               onOpenQuickSearch={openQuickSearch}
             />

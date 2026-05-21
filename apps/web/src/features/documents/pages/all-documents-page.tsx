@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, Collapsible, Flex, Portal, Text, chakra } from '@chakra-ui/react';
+import { ActionBar, Box, Collapsible, Flex, Portal, SimpleGrid, Text, chakra } from '@chakra-ui/react';
 import {
   ChevronDown,
   Folder,
@@ -336,6 +336,16 @@ export function AllDocumentsPage() {
 
   const activeFilterCount =
     selectedVaultIds.length + visibleSelectedTagIds.length + (datePreset !== 'any' ? 1 : 0);
+  const filterStateKey = useMemo(
+    () => JSON.stringify({
+      vaultIds: selectedVaultIds,
+      tagIds: visibleSelectedTagIds,
+      datePreset,
+      customDateFrom,
+      customDateTo,
+    }),
+    [customDateFrom, customDateTo, datePreset, selectedVaultIds, visibleSelectedTagIds],
+  );
 
   const activeFilters = [
     ...selectedVaults.map((vault) => ({
@@ -500,93 +510,92 @@ export function AllDocumentsPage() {
         sortSelectId="documents-sort"
         sortAriaLabel="Sort documents"
         filtersTitle="Filters"
+        filterStateKey={filterStateKey}
         filtersContent={
           <>
-            <SearchFilterMultiSelect
-              label="Vaults"
-              triggerLabel={selectedVaultsLabel}
-              triggerAriaLabel="Vault filter"
-              searchLabel="Search vaults"
-              searchPlaceholder="Search vaults"
-              emptyLabel="No vaults found."
-              loadingLabel="Loading vaults..."
-              options={(vaultsQuery.data?.vaults ?? []).map((vault) => ({
-                value: vault.id,
-                label: vault.name,
-              }))}
-              selectedValues={selectedVaultIds}
-              isLoading={vaultsQuery.isLoading}
-              onValueChange={(values) => {
-                setSelectedVaultIds(values);
-                setVaultPageIndexes({});
-              }}
-              onClear={() => {
-                setSelectedVaultIds([]);
-                setVaultPageIndexes({});
-              }}
-            />
-
-            <SearchFilterMultiSelect
-              label="Tags"
-              triggerLabel={selectedTagsLabel}
-              triggerAriaLabel="Tags filter"
-              searchLabel="Search tags"
-              searchPlaceholder="Search tags"
-              emptyLabel="No tags found."
-              loadingLabel="Loading tags..."
-              options={availableTags.map((tag) => ({
-                value: tag.id,
-                label: tag.name,
-                color: tag.color,
-                meta: typeof tag.documentsCount === 'number'
-                  ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
-                  : undefined,
-              }))}
-              selectedValues={visibleSelectedTagIds}
-              isLoading={tagsQuery.isLoading}
-              onValueChange={(values) => {
-                setSelectedTagIds(values);
-                setVaultPageIndexes({});
-              }}
-              onClear={() => {
-                setSelectedTagIds([]);
-                setVaultPageIndexes({});
-              }}
-              showColorSwatch
-            />
-
-            <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="4">
-              <Text fontSize="sm" fontWeight="semibold" color="fg">Uploaded date</Text>
-
-              <DatePresetSelector
-                idPrefix="documents-date-filter"
-                value={datePreset}
-                onValueChange={(value) => {
-                  setDatePreset(value);
+            <SimpleGrid columns={{ base: 1, md: 2 }} gap="4">
+              <SearchFilterMultiSelect
+                label="Vaults"
+                triggerLabel={selectedVaultsLabel}
+                triggerAriaLabel="Vault filter"
+                searchLabel="Search vaults"
+                searchPlaceholder="Search vaults"
+                emptyLabel="No vaults found."
+                loadingLabel="Loading vaults..."
+                options={(vaultsQuery.data?.vaults ?? []).map((vault) => ({
+                  value: vault.id,
+                  label: vault.name,
+                }))}
+                selectedValues={selectedVaultIds}
+                isLoading={vaultsQuery.isLoading}
+                onValueChange={(values) => {
+                  setSelectedVaultIds(values);
                   setVaultPageIndexes({});
                 }}
-                customDateFrom={customDateFrom}
-                customDateTo={customDateTo}
-                onCustomDateFromChange={(nextValue) => {
-                  setCustomDateFrom(nextValue);
-
-                  if (customDateTo && nextValue && nextValue > customDateTo) {
-                    setCustomDateTo(nextValue);
-                  }
-
-                  setVaultPageIndexes({});
-                }}
-                onCustomDateToChange={(nextValue) => {
-                  setCustomDateTo(nextValue);
-
-                  if (customDateFrom && nextValue && nextValue < customDateFrom) {
-                    setCustomDateFrom(nextValue);
-                  }
-
+                onClear={() => {
+                  setSelectedVaultIds([]);
                   setVaultPageIndexes({});
                 }}
               />
-            </Box>
+
+              <SearchFilterMultiSelect
+                label="Tags"
+                triggerLabel={selectedTagsLabel}
+                triggerAriaLabel="Tags filter"
+                searchLabel="Search tags"
+                searchPlaceholder="Search tags"
+                emptyLabel="No tags found."
+                loadingLabel="Loading tags..."
+                options={availableTags.map((tag) => ({
+                  value: tag.id,
+                  label: tag.name,
+                  color: tag.color,
+                  meta: typeof tag.documentsCount === 'number'
+                    ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
+                    : undefined,
+                }))}
+                selectedValues={visibleSelectedTagIds}
+                isLoading={tagsQuery.isLoading}
+                onValueChange={(values) => {
+                  setSelectedTagIds(values);
+                  setVaultPageIndexes({});
+                }}
+                onClear={() => {
+                  setSelectedTagIds([]);
+                  setVaultPageIndexes({});
+                }}
+                showColorSwatch
+              />
+            </SimpleGrid>
+
+            <DatePresetSelector
+              idPrefix="documents-date-filter"
+              value={datePreset}
+              onValueChange={(value) => {
+                setDatePreset(value);
+                setVaultPageIndexes({});
+              }}
+              customDateFrom={customDateFrom}
+              customDateTo={customDateTo}
+              onCustomDateFromChange={(nextValue) => {
+                setCustomDateFrom(nextValue);
+
+                if (customDateTo && nextValue && nextValue > customDateTo) {
+                  setCustomDateTo(nextValue);
+                }
+
+                setVaultPageIndexes({});
+              }}
+              onCustomDateToChange={(nextValue) => {
+                setCustomDateTo(nextValue);
+
+                if (customDateFrom && nextValue && nextValue < customDateFrom) {
+                  setCustomDateFrom(nextValue);
+                }
+
+                setVaultPageIndexes({});
+              }}
+            />
           </>
         }
       />

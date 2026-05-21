@@ -30,6 +30,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
+import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
@@ -576,9 +577,7 @@ export function TagsPage() {
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
   const tagsHeaderLeft = useMemo(() => (
     <HStack gap="4" minW="0" w="full">
-      <Text as="h1" flexShrink={0} fontSize="lg" fontWeight="semibold" color="fg">
-        Tags
-      </Text>
+      <WorkspacePageTitle>Tags</WorkspacePageTitle>
       <Box w="full" maxW={{ base: '16rem', md: '24rem' }}>
         <Field>
           <FieldLabel htmlFor="tag-filter" srOnly>

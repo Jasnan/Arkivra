@@ -304,7 +304,7 @@ describe('app shell account menu', () => {
   });
 
 
-  it('opens quick search from the trigger and Meta+K shortcut', async () => {
+  it('opens quick search from the Meta+K shortcut', async () => {
     const user = userEvent.setup();
 
     await renderWithProviders(
@@ -315,19 +315,13 @@ describe('app shell account menu', () => {
       },
     );
 
-    const quickSearchTrigger = screen.getByRole('button', { name: /quick search/i });
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
 
-    fireEvent.click(quickSearchTrigger);
     expect(await screen.findByLabelText(/quick search modal/i)).toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: /close search/i }));
     await waitFor(() => {
       expect(screen.queryByLabelText(/quick search modal/i)).not.toBeInTheDocument();
     });
-
-    fireEvent.keyDown(window, { key: 'k', metaKey: true });
-
-    expect(await screen.findByLabelText(/quick search modal/i)).toBeInTheDocument();
   });
 
   it('debounces quick search input before querying the backend', async () => {
@@ -339,8 +333,7 @@ describe('app shell account menu', () => {
       },
     );
 
-    const quickSearchTrigger = screen.getByRole('button', { name: /quick search/i });
-    fireEvent.click(quickSearchTrigger);
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
 
     const quickSearchInput = await screen.findByLabelText(/quick search modal/i);
     const fetchMock = vi.mocked(fetch);

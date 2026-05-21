@@ -6,6 +6,7 @@ import { FolderDot, FolderOpen, Settings2, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
+import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { useWorkspaceHeader, useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { CreateButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
@@ -300,6 +301,7 @@ export function VaultsPage() {
     </HStack>
   ), [vaultsView, setVaultsView]);
   const workspaceHeader = useMemo(() => ({
+    left: <WorkspacePageTitle>Vaults</WorkspacePageTitle>,
     actions: vaultHeaderActions,
   }), [vaultHeaderActions]);
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
@@ -311,7 +313,7 @@ export function VaultsPage() {
         <Flex
           as="header"
           align="center"
-          justify="flex-end"
+          justify="space-between"
           gap="3"
           borderBottomWidth="1px"
           borderColor="border.surface"
@@ -319,6 +321,7 @@ export function VaultsPage() {
           px={{ base: '4', lg: '6' }}
           py="3"
         >
+          <WorkspacePageTitle>Vaults</WorkspacePageTitle>
           {vaultHeaderActions}
         </Flex>
       ) : null}

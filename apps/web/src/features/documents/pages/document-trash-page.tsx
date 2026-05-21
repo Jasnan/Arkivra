@@ -16,6 +16,7 @@ import { RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
+import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
@@ -405,7 +406,7 @@ export function DocumentTrashPage() {
   const workspaceHeader = useMemo(() => ({
     left: (
       <Stack direction={{ base: 'column', sm: 'row' }} align={{ sm: 'center' }} gap={{ base: '0.5', sm: '3' }} minW="0">
-        <Text fontWeight="semibold" color="fg">Trash</Text>
+        <WorkspacePageTitle>Trash</WorkspacePageTitle>
         {trashItemCount}
       </Stack>
     ),

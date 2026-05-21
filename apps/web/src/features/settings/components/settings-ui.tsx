@@ -128,6 +128,84 @@ export function SettingsRows({
   );
 }
 
+export function SettingsFlatRows({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <Stack gap="0" divideY="1px" divideColor="border.muted">
+      {children}
+    </Stack>
+  );
+}
+
+export function SettingsFlatRow({
+  actions,
+  children,
+  description,
+  icon,
+  iconBg = 'bg.muted',
+  iconColor = 'fg.muted',
+  title,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  icon: ReactNode;
+  iconBg?: string;
+  iconColor?: string;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <Grid
+      py={{ base: '5', lg: '6' }}
+      gap={{ base: '3', md: '4', lg: '5' }}
+      templateColumns={{ base: '3rem minmax(0, 1fr)', md: '4rem minmax(0, 1fr) auto' }}
+      alignItems="start"
+    >
+      <Flex
+        boxSize="10"
+        align="center"
+        justify="center"
+        rounded="md"
+        bg={iconBg}
+        color={iconColor}
+        flexShrink={0}
+        aria-hidden="true"
+      >
+        {icon}
+      </Flex>
+      <Stack gap="1" minW="0">
+        <Text fontSize="md" fontWeight="semibold" color="fg" lineHeight="short">
+          {title}
+        </Text>
+        {description ? (
+          <Text textStyle="sm" color="fg.muted" maxW="2xl">
+            {description}
+          </Text>
+        ) : null}
+      </Stack>
+      {actions ? (
+        <Flex
+          gridColumn={{ base: '2', md: 'auto' }}
+          justify={{ base: 'flex-start', md: 'flex-end' }}
+          align="center"
+          minW="0"
+          w={{ base: 'full', md: 'auto' }}
+        >
+          {actions}
+        </Flex>
+      ) : null}
+      {children ? (
+        <Box gridColumn={{ base: '2', md: '2 / -1' }} minW="0" w="full">
+          {children}
+        </Box>
+      ) : null}
+    </Grid>
+  );
+}
+
 export function SettingsRow({
   label,
   description,

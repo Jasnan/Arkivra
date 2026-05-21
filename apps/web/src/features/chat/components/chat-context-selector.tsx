@@ -1,9 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
-import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { Virtuoso } from 'react-virtuoso';
-import { Box, Checkbox as ChakraCheckbox, CloseButton, Flex, Stack, Text, chakra } from '@chakra-ui/react';
-import { Check, FileText, Folder, Lock, Paperclip, Search, Vault, X } from 'lucide-react';
+import type { ComponentProps, ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { VirtualItem } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Box, Checkmark, CloseButton, Flex, Listbox, Stack, Text, chakra, createListCollection, useListboxItemContext, useLiveRef } from '@chakra-ui/react';
+import { FileText, Lock, Paperclip, Plus, Search, Vault, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -14,7 +15,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
-import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem } from '@/features/search/search.types';
 import type { VaultSummary } from '@/features/vaults/vaults.types';
@@ -37,6 +37,27 @@ export interface DraftChatDocument {
 export interface DraftChatContext {
   vaults: DraftChatVault[];
   documents: DraftChatDocument[];
+}
+
+interface VaultListboxOption {
+  label: string;
+  value: string;
+  description: string;
+}
+
+interface DocumentListboxOption {
+  label: string;
+  value: string;
+  description: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  document: SearchResultItem;
+}
+
+interface ScrollToIndexDetails {
+  index: number;
+  getElement: () => HTMLElement | null;
+  immediate?: boolean;
 }
 
 const EMPTY_DRAFT_CONTEXT: DraftChatContext = { vaults: [], documents: [] };
@@ -661,21 +682,28 @@ export function VaultSelectionDialog({
       || vault.description?.toLowerCase().includes(normalizedQuery),
     );
   }, [availableVaults, query]);
+  const vaultOptions = useMemo<VaultListboxOption[]>(
+    () => filteredVaults.map(vault => ({
+      label: vault.name,
+      value: vault.id,
+      description: vault.description?.trim() || 'No description added.',
+    })),
+    [filteredVaults],
+  );
+  const vaultCollection = useMemo(
+    () => createListCollection({ items: vaultOptions }),
+    [vaultOptions],
+  );
+  const vaultListVirtualizer = useListboxVirtualizer({
+    count: vaultCollection.items.length,
+    estimateSize: 60,
+  });
 
   useEffect(() => {
     if (!open) return;
     setSelectedIds(new Set(context.vaults.map(vault => vault.vaultId)));
     setQuery('');
   }, [context.vaults, open]);
-
-  function toggleVault(vaultId: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(vaultId)) next.delete(vaultId);
-      else next.add(vaultId);
-      return next;
-    });
-  }
 
   function confirm() {
     const selectedVaults = availableVaults
@@ -687,123 +715,309 @@ export function VaultSelectionDialog({
 
   return (
     <Dialog open={open} size="md" onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton>
+      <DialogContent hideCloseButton maxW="40rem" w="calc(100vw - 2rem)" bg="bg.modalHeader" p="0" rounded="xl" shadow="lg">
         <DialogClose asChild>
           <CloseButton
             size="sm"
             position="absolute"
-            top="3"
-            right="3"
+            top="5"
+            right="5"
+            rounded="lg"
+            color="fg.muted"
             aria-label="Close add vaults dialog"
+            _hover={{ bg: 'bg.modalField', color: 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
           />
         </DialogClose>
-        <DialogHeader style={{ padding: '1.25rem 1.25rem 0.75rem' }}>
-          <DialogTitle>Add Vaults</DialogTitle>
-          <DialogDescription>Only vaults with full AI access are shown.</DialogDescription>
-        </DialogHeader>
+        <Box
+          borderBottomWidth="1px"
+          borderColor="border.divider"
+          bg="bg.modalHeader"
+          px={{ base: '5', sm: '6' }}
+          py={{ base: '4.5', sm: '5' }}
+          pr={{ base: '14', lg: '16' }}
+        >
+          <DialogHeader p="0">
+            <Flex gap="3" align="center">
+              <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg" flexShrink="0">
+                <Vault size={18} />
+              </Flex>
+              <Stack gap="0.5" minW="0">
+                <DialogTitle fontSize="lg" lineHeight="1.25">Add Vaults</DialogTitle>
+                <DialogDescription>Only vaults with full AI access are shown.</DialogDescription>
+              </Stack>
+            </Flex>
+          </DialogHeader>
+        </Box>
         <DialogBody asChild>
-          <Stack gap="3" px="5" pb="4">
-            <Box position="relative">
-              <Box
-                position="absolute"
-                left="3"
-                top="50%"
-                transform="translateY(-50%)"
-                color="fg.muted"
-                pointerEvents="none"
-              >
-                <Search size={16} />
-              </Box>
-              <Input
-                aria-label="Search vaults"
-                value={query}
-                placeholder="Search vaults"
-                pl="9"
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </Box>
-            <Box h="22rem" rounded="lg" borderWidth="1px" borderColor="border.surface" overflow="hidden">
-              {filteredVaults.length === 0 ? (
-                <Flex h="full" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
-                  <Text fontSize="sm">No vaults found.</Text>
-                </Flex>
-              ) : (
-                <Virtuoso
-                  style={{ height: '100%' }}
-                  data={filteredVaults}
-                  initialItemCount={Math.min(filteredVaults.length, 24)}
-                  itemContent={(_, vault) => (
-                    <Box px="2" py="1">
-                      <VaultSelectionRow
-                        vault={vault}
-                        selected={selectedIds.has(vault.id)}
-                        onToggle={() => toggleVault(vault.id)}
-                      />
-                    </Box>
-                  )}
+          <Stack gap="3" px={{ base: '5', sm: '6' }} py={{ base: '5', sm: '6' }} bg="bg.modalContent">
+            <Listbox.Root
+              collection={vaultCollection}
+              value={Array.from(selectedIds)}
+              selectionMode="multiple"
+              colorPalette="teal"
+              scrollToIndexFn={vaultListVirtualizer.scrollToIndexFn}
+              onValueChange={(details) => setSelectedIds(new Set(details.value))}
+            >
+              <Box position="relative">
+                <Box
+                  position="absolute"
+                  left="3"
+                  top="50%"
+                  transform="translateY(-50%)"
+                  color="fg.muted"
+                  pointerEvents="none"
+                  zIndex="1"
+                >
+                  <Search size={16} />
+                </Box>
+                <Listbox.Input
+                  as={Input}
+                  aria-label="Search vaults"
+                  value={query}
+                  placeholder="Search vaults"
+                  pl="9"
+                  rounded="md"
+                  bg="bg.modalField"
+                  borderColor="border.surface"
+                  fontSize="sm"
+                  fontWeight="medium"
+                  _hover={{ borderColor: 'border.strong' }}
+                  _focusVisible={{ borderColor: 'teal.solid', boxShadow: '0 0 0 3px var(--chakra-colors-teal-focus-ring)' }}
+                  onChange={(event) => setQuery(event.target.value)}
                 />
-              )}
-            </Box>
+              </Box>
+              <Listbox.Content
+                ref={vaultListVirtualizer.scrollRef}
+                h="22rem"
+                maxH="22rem"
+                rounded="lg"
+                borderWidth="1px"
+                borderColor="border.surface"
+                bg="bg.modalField"
+                overflowY="auto"
+                p="2"
+              >
+                {vaultCollection.items.length === 0 ? (
+                  <Listbox.Empty>
+                    <Flex h="full" minH="18rem" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
+                      <Text fontSize="sm">No vaults found.</Text>
+                    </Flex>
+                  </Listbox.Empty>
+                ) : (
+                  <Box {...vaultListVirtualizer.getViewportProps()}>
+                    {vaultListVirtualizer.virtualItems.map((virtualItem) => {
+                      const vault = vaultCollection.items[virtualItem.index];
+                      if (!vault) return null;
+
+                      return (
+                        <Box
+                          key={vault.value}
+                          {...vaultListVirtualizer.getItemProps({ virtualItem })}
+                        >
+                          <Listbox.Item
+                            item={vault}
+                            display="flex"
+                            h="60px"
+                            minH="60px"
+                            alignItems="center"
+                            gap="2.5"
+                            rounded="md"
+                            px="3"
+                            py="1.5"
+                            cursor="pointer"
+                            _hover={{ bg: 'bg.subtle' }}
+                            _highlighted={{ bg: 'bg.subtle' }}
+                            _selected={{ bg: 'teal.subtle' }}
+                            css={{
+                              '&[data-highlighted][data-selected], &[data-selected], &[data-selected]:hover': {
+                                background: 'var(--chakra-colors-teal-subtle)',
+                              },
+                            }}
+                          >
+                            <Box flexShrink="0">
+                              <ListboxItemCheckmark />
+                            </Box>
+                            <Box minW="0" flex="1">
+                              <Listbox.ItemText>
+                                <Text truncate fontSize="sm" fontWeight="semibold" lineHeight="1.35" color="fg">
+                                  {vault.label}
+                                </Text>
+                              </Listbox.ItemText>
+                              <Text mt="0.5" truncate fontSize="xs" lineHeight="1.3" color="fg.muted">
+                                {vault.description}
+                              </Text>
+                            </Box>
+                          </Listbox.Item>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
+              </Listbox.Content>
+            </Listbox.Root>
           </Stack>
         </DialogBody>
-        <DialogFooter style={{ padding: '0 1.25rem 1.25rem' }}>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={confirm}>
-            Add
-          </Button>
-        </DialogFooter>
+        <Box
+          borderTopWidth="1px"
+          borderColor="border.divider"
+          bg="bg.modalFooter"
+          px={{ base: '5', sm: '6' }}
+          py={{ base: '4', sm: '4.5' }}
+        >
+          <Flex align="center" justify="space-between" gap="4" w="full">
+            <Button
+              type="button"
+              variant="outline"
+              h="12"
+              px="6"
+              rounded="lg"
+              borderColor="border.strong"
+              bg="transparent"
+              _hover={{ bg: 'bg.modalField', borderColor: 'fg/30' }}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" h="12" px="6" rounded="lg" colorPalette="teal" onClick={confirm}>
+              <Plus size={18} />
+              Add
+            </Button>
+          </Flex>
+        </Box>
       </DialogContent>
     </Dialog>
   );
 }
 
-function VaultSelectionRow({
-  vault,
-  selected,
-  onToggle,
-}: {
-  vault: VaultSummary;
-  selected: boolean;
-  onToggle: () => void;
-}) {
+function ListboxItemCheckmark() {
+  const itemState = useListboxItemContext();
+
   return (
-    <ChakraCheckbox.Root
-      checked={selected}
-      display="flex"
-      w="full"
-      alignItems="center"
-      gap="3"
-      rounded="md"
-      borderWidth="1px"
-      borderColor={selected ? 'teal.muted' : 'transparent'}
-      bg={selected ? 'teal.subtle' : 'transparent'}
-      px="3"
-      py="2.5"
-      cursor="pointer"
-      _hover={{ bg: selected ? 'teal.subtle' : 'bg.subtle' }}
-      onCheckedChange={onToggle}
-    >
-      <ChakraCheckbox.HiddenInput />
-      <ChakraCheckbox.Control flexShrink="0">
-        <ChakraCheckbox.Indicator />
-      </ChakraCheckbox.Control>
-      <Flex align="center" gap="3" minW="0" flex="1">
-        <Flex boxSize="10" align="center" justify="center" color="teal.fg" flexShrink="0">
-          <Vault size={36} strokeWidth={1.5} />
-        </Flex>
-        <Box minW="0" flex="1">
-          <Text truncate fontSize="sm" fontWeight="semibold" color="fg">
-            {vault.name}
-          </Text>
-          <Text truncate fontSize="xs" color="fg.muted">
-            {vault.fileCount} documents
-          </Text>
-        </Box>
-      </Flex>
-    </ChakraCheckbox.Root>
+    <Checkmark
+      filled
+      colorPalette="teal"
+      size="sm"
+      checked={itemState.selected}
+      disabled={itemState.disabled}
+      flexShrink="0"
+    />
   );
+}
+
+function useListboxVirtualizer({
+  count,
+  estimateSize,
+}: {
+  count: number;
+  estimateSize: number;
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearScrollTimeout() {
+    if (scrollTimeoutRef.current === null) return;
+    clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = null;
+  }
+
+  const virtualizer = useVirtualizer({
+    count,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => estimateSize,
+    overscan: 8,
+    initialRect: {
+      height: 352,
+      width: 576,
+    },
+  });
+  const virtualizerRef = useLiveRef(virtualizer);
+  const totalSize = virtualizer.getTotalSize();
+  const virtualItems = virtualizer.getVirtualItems();
+
+  function scrollToIndexFn(details: ScrollToIndexDetails) {
+    clearScrollTimeout();
+
+    function scrollToIndex() {
+      const currentVirtualizer = virtualizerRef.current;
+      const virtualItem = currentVirtualizer.getVirtualItems().find(item => item.index === details.index);
+
+      if (virtualItem) {
+        details.getElement()?.scrollIntoView({ block: 'nearest' });
+        clearScrollTimeout();
+        return;
+      }
+
+      currentVirtualizer.scrollToIndex(details.index);
+
+      if (!details.immediate) {
+        scrollTimeoutRef.current = setTimeout(scrollToIndex, 16);
+      }
+    }
+
+    scrollToIndex();
+  }
+
+  useEffect(() => clearScrollTimeout, []);
+
+  return {
+    scrollRef,
+    scrollToIndexFn,
+    virtualItems: virtualItems.length > 0
+      ? virtualItems
+      : getFallbackListboxVirtualItems({ count, estimateSize }),
+    getViewportProps(
+      props: ComponentProps<'div'> = {},
+    ): ComponentProps<'div'> {
+      return {
+        ...props,
+        style: {
+          ...props.style,
+          height: `${totalSize}px`,
+          position: 'relative',
+          width: '100%',
+        },
+      };
+    },
+    getItemProps(
+      props: ComponentProps<'div'> & { virtualItem: VirtualItem },
+    ): ComponentProps<'div'> {
+      const { virtualItem, ...rest } = props;
+
+      return {
+        ...rest,
+        'aria-posinset': virtualItem.index + 1,
+        'aria-setsize': count,
+        style: {
+          ...rest.style,
+          height: `${virtualItem.size}px`,
+          left: 0,
+          overflow: 'hidden',
+          position: 'absolute',
+          top: 0,
+          transform: `translateY(${virtualItem.start}px)`,
+          width: '100%',
+        },
+      };
+    },
+  };
+}
+
+function getFallbackListboxVirtualItems({
+  count,
+  estimateSize,
+}: {
+  count: number;
+  estimateSize: number;
+}): VirtualItem[] {
+  return Array.from({ length: Math.min(count, 12) }, (_, index): VirtualItem => ({
+    end: (index + 1) * estimateSize,
+    index,
+    key: index,
+    lane: 0,
+    size: estimateSize,
+    start: index * estimateSize,
+  }));
 }
 
 export function DocumentSelectionDialog({
@@ -846,14 +1060,40 @@ export function DocumentSelectionDialog({
     sortBy: 'name_asc',
     enabled: open && effectiveVaultIds.length > 0,
   });
-  const documentSelectionItems = useMemo(
-    () => groupDocumentSelectionItems(documentQuery.data?.results ?? []),
-    [documentQuery.data?.results],
-  );
   const selectedVaultById = useMemo(
     () => new Map(normalizeDraftContext(context).vaults.map(vault => [vault.vaultId, vault])),
     [context],
   );
+  const documentOptions = useMemo<DocumentListboxOption[]>(
+    () => (documentQuery.data?.results ?? []).map((document) => {
+      const selectedVault = selectedVaultById.get(document.vaultId);
+      const disabledReason = selectedVault
+        ? `Already included via ${selectedVault.name ?? document.vaultName}`
+        : undefined;
+
+      return {
+        label: document.name,
+        value: documentKey(document),
+        description: document.vaultName,
+        disabled: Boolean(disabledReason),
+        disabledReason,
+        document,
+      };
+    }),
+    [documentQuery.data?.results, selectedVaultById],
+  );
+  const documentCollection = useMemo(
+    () => createListCollection({ items: documentOptions }),
+    [documentOptions],
+  );
+  const documentListVirtualizer = useListboxVirtualizer({
+    count: documentCollection.items.length,
+    estimateSize: 60,
+  });
+  const selectedDocumentCount = selectedDocuments.size;
+  const selectedDocumentLabel = selectedDocumentCount === 1
+    ? '1 document selected'
+    : `${selectedDocumentCount} documents selected`;
 
   useEffect(() => {
     if (!open) return;
@@ -862,23 +1102,32 @@ export function DocumentSelectionDialog({
     setSelectedFilterVaultIds([]);
   }, [context.documents, open]);
 
-  function toggleDocument(document: SearchResultItem) {
-    if (isDocumentCoveredByVault(context, document)) return;
-
-    const draftDocument: DraftChatDocument = {
-      vaultId: document.vaultId,
-      documentId: document.documentId,
-      name: document.name,
-      vaultName: document.vaultName,
-      path: document.vaultName,
-      mimeType: document.mimeType,
-    };
-    const key = documentKey(draftDocument);
+  function handleDocumentValueChange(details: { value: string[]; items: DocumentListboxOption[] }) {
+    const visibleKeys = new Set(documentOptions.map(option => option.value));
+    const nextSelectedKeys = new Set(details.value);
 
     setSelectedDocuments((current) => {
       const next = new Map(current);
-      if (next.has(key)) next.delete(key);
-      else next.set(key, draftDocument);
+
+      for (const key of visibleKeys) {
+        if (!nextSelectedKeys.has(key)) {
+          next.delete(key);
+        }
+      }
+
+      for (const item of details.items) {
+        if (item.disabled) continue;
+        const document = item.document;
+        next.set(item.value, {
+          vaultId: document.vaultId,
+          documentId: document.documentId,
+          name: document.name,
+          vaultName: document.vaultName,
+          path: document.vaultName,
+          mimeType: document.mimeType,
+        });
+      }
+
       return next;
     });
   }
@@ -890,238 +1139,235 @@ export function DocumentSelectionDialog({
 
   return (
     <Dialog open={open} size="md" onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton>
+      <DialogContent hideCloseButton maxW="40rem" w="calc(100vw - 2rem)" bg="bg.modalHeader" p="0" rounded="xl" shadow="lg">
         <DialogClose asChild>
           <CloseButton
             size="sm"
             position="absolute"
-            top="3"
-            right="3"
+            top="5"
+            right="5"
+            rounded="lg"
+            color="fg.muted"
             aria-label="Close add documents dialog"
+            _hover={{ bg: 'bg.modalField', color: 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
           />
         </DialogClose>
-        <DialogHeader style={{ padding: '1.25rem 1.25rem 0.75rem' }}>
-          <DialogTitle>Add Documents</DialogTitle>
-          <DialogDescription>Only indexed documents from vaults with AI access are shown.</DialogDescription>
-        </DialogHeader>
-        <DialogBody asChild>
-          <Stack gap="3" px="5" pb="4">
-            <Flex gap="2" direction={{ base: 'column', sm: 'row' }}>
-              <Box position="relative" flex="1">
-                <Box
-                  position="absolute"
-                  left="3"
-                  top="50%"
-                  transform="translateY(-50%)"
-                  color="fg.muted"
-                  pointerEvents="none"
-                >
-                  <Search size={16} />
-                </Box>
-                <Input
-                  aria-label="Search documents"
-                  value={query}
-                  placeholder="Search documents"
-                  pl="9"
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </Box>
-              <Box w={{ base: 'full', sm: '14rem' }}>
-                <SearchFilterMultiSelect
-                  label="Vaults"
-                  triggerLabel={selectedFilterVaultsLabel}
-                  triggerAriaLabel="Vault filter"
-                  searchLabel="Search vaults"
-                  searchPlaceholder="Search vaults"
-                  emptyLabel="No vaults found."
-                  loadingLabel="Loading vaults..."
-                  options={selectableVaults.map(vault => ({
-                    value: vault.id,
-                    label: vault.name,
-                  }))}
-                  selectedValues={selectedFilterVaultIds}
-                  onValueChange={setSelectedFilterVaultIds}
-                  onClear={() => setSelectedFilterVaultIds([])}
-                  hideLabel
-                  controlSize="toolbar"
-                />
-              </Box>
+        <Box
+          borderBottomWidth="1px"
+          borderColor="border.divider"
+          bg="bg.modalHeader"
+          px={{ base: '5', sm: '6' }}
+          py={{ base: '4.5', sm: '5' }}
+          pr={{ base: '14', lg: '16' }}
+        >
+          <DialogHeader p="0">
+            <Flex gap="3" align="center">
+              <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg" flexShrink="0">
+                <FileText size={18} />
+              </Flex>
+              <Stack gap="0.5" minW="0">
+                <DialogTitle fontSize="lg" lineHeight="1.25">Add Documents</DialogTitle>
+                <DialogDescription>Only indexed documents from vaults with AI access are shown.</DialogDescription>
+              </Stack>
             </Flex>
+          </DialogHeader>
+        </Box>
+        <DialogBody asChild>
+          <Stack gap="3" px={{ base: '5', sm: '6' }} py={{ base: '5', sm: '6' }} bg="bg.modalContent">
+            <Listbox.Root
+              collection={documentCollection}
+              value={Array.from(selectedDocuments.keys())}
+              selectionMode="multiple"
+              colorPalette="teal"
+              scrollToIndexFn={documentListVirtualizer.scrollToIndexFn}
+              onValueChange={handleDocumentValueChange}
+            >
+              <Flex gap="2" direction={{ base: 'column', sm: 'row' }}>
+                <Box position="relative" flex="1">
+                  <Box
+                    position="absolute"
+                    left="3"
+                    top="50%"
+                    transform="translateY(-50%)"
+                    color="fg.muted"
+                    pointerEvents="none"
+                    zIndex="1"
+                  >
+                    <Search size={16} />
+                  </Box>
+                  <Listbox.Input
+                    as={Input}
+                    aria-label="Search documents"
+                    value={query}
+                    placeholder="Search documents"
+                    pl="9"
+                    rounded="md"
+                    bg="bg.modalField"
+                    borderColor="border.surface"
+                    fontSize="sm"
+                    fontWeight="medium"
+                    _hover={{ borderColor: 'border.strong' }}
+                    _focusVisible={{ borderColor: 'teal.solid', boxShadow: '0 0 0 3px var(--chakra-colors-teal-focus-ring)' }}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </Box>
+                <Box w={{ base: 'full', sm: '14rem' }}>
+                  <SearchFilterMultiSelect
+                    label="Vaults"
+                    triggerLabel={selectedFilterVaultsLabel}
+                    triggerAriaLabel="Vault filter"
+                    searchLabel="Search vaults"
+                    searchPlaceholder="Search vaults"
+                    emptyLabel="No vaults found."
+                    loadingLabel="Loading vaults..."
+                    options={selectableVaults.map(vault => ({
+                      value: vault.id,
+                      label: vault.name,
+                    }))}
+                    selectedValues={selectedFilterVaultIds}
+                    onValueChange={setSelectedFilterVaultIds}
+                    onClear={() => setSelectedFilterVaultIds([])}
+                    hideLabel
+                    controlSize="toolbar"
+                    controlBg="bg.modalField"
+                    contentBg="bg.modalField"
+                  />
+                </Box>
+              </Flex>
 
-            <Box h="24rem" rounded="lg" borderWidth="1px" borderColor="border.surface" overflow="hidden">
-              {documentQuery.isLoading ? (
-                <Flex h="full" align="center" justify="center" px="6" color="fg.muted">
-                  <Text fontSize="sm">Loading documents...</Text>
-                </Flex>
-              ) : documentSelectionItems.length === 0 ? (
-                <Flex h="full" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
-                  <Text fontSize="sm">No documents found.</Text>
-                </Flex>
-              ) : (
-                <Virtuoso
-                  style={{ height: '100%' }}
-                  data={documentSelectionItems}
-                  initialItemCount={Math.min(documentSelectionItems.length, 24)}
-                  itemContent={(_, item) => {
-                    if (item.type === 'vault') {
+              <Listbox.Content
+                ref={documentListVirtualizer.scrollRef}
+                h="24rem"
+                maxH="24rem"
+                rounded="lg"
+                borderWidth="1px"
+                borderColor="border.surface"
+                bg="bg.modalField"
+                overflowY="auto"
+                p="2"
+              >
+                {documentQuery.isLoading ? (
+                  <Flex h="full" minH="20rem" align="center" justify="center" px="6" color="fg.muted">
+                    <Text fontSize="sm">Loading documents...</Text>
+                  </Flex>
+                ) : documentCollection.items.length === 0 ? (
+                  <Listbox.Empty>
+                    <Flex h="full" minH="20rem" align="center" justify="center" px="6" textAlign="center" color="fg.muted">
+                      <Text fontSize="sm">No documents found.</Text>
+                    </Flex>
+                  </Listbox.Empty>
+                ) : (
+                  <Box {...documentListVirtualizer.getViewportProps()}>
+                    {documentListVirtualizer.virtualItems.map((virtualItem) => {
+                      const item = documentCollection.items[virtualItem.index];
+                      if (!item) return null;
+
                       return (
-                        <DocumentSelectionVaultHeader
-                          vaultName={item.vaultName}
-                          documentCount={item.documentCount}
-                        />
+                        <Box
+                          key={item.value}
+                          {...documentListVirtualizer.getItemProps({ virtualItem })}
+                        >
+                          <Listbox.Item
+                            item={item}
+                            display="flex"
+                            h="60px"
+                            minH="60px"
+                            alignItems="center"
+                            gap="2.5"
+                            rounded="md"
+                            px="3"
+                            py="1.5"
+                            cursor={item.disabled ? 'not-allowed' : 'pointer'}
+                            opacity="1"
+                            _hover={{ bg: item.disabled ? undefined : 'bg.subtle' }}
+                            _highlighted={{ bg: item.disabled ? undefined : 'bg.subtle' }}
+                            _selected={{ bg: 'teal.subtle' }}
+                            _disabled={{ color: 'fg.muted' }}
+                            css={{
+                              '&[data-highlighted][data-selected], &[data-selected], &[data-selected]:hover': {
+                                background: 'var(--chakra-colors-teal-subtle)',
+                              },
+                            }}
+                          >
+                            <Box flexShrink="0">
+                              <ListboxItemCheckmark />
+                            </Box>
+                            <Box minW="0" flex="1">
+                              <Listbox.ItemText>
+                                <Text truncate fontSize="sm" fontWeight="semibold" lineHeight="1.35" color={item.disabled ? 'fg.muted' : 'fg'}>
+                                  {item.label}
+                                </Text>
+                              </Listbox.ItemText>
+                              <Text mt="0.5" truncate fontSize="xs" lineHeight="1.3" color="fg.muted">
+                                {item.description}
+                              </Text>
+                              {item.disabledReason ? (
+                                <Text mt="0.5" truncate fontSize="xs" lineHeight="1.3" color="fg.muted">
+                                  {item.disabledReason}
+                                </Text>
+                              ) : null}
+                            </Box>
+                          </Listbox.Item>
+                        </Box>
                       );
-                    }
-
-                    const document = item.document;
-
-                    return (
-                      <Box px="2" py="1">
-                        <DocumentSelectionRow
-                          document={document}
-                          selected={selectedDocuments.has(`${document.vaultId}:${document.documentId}`)}
-                          disabledReason={
-                            selectedVaultById.has(document.vaultId)
-                              ? `Already included via ${selectedVaultById.get(document.vaultId)?.name ?? document.vaultName}`
-                              : undefined
-                          }
-                          onToggle={() => toggleDocument(document)}
-                        />
-                      </Box>
-                    );
-                  }}
-                />
-              )}
-            </Box>
+                    })}
+                  </Box>
+                )}
+              </Listbox.Content>
+            </Listbox.Root>
           </Stack>
         </DialogBody>
-        <DialogFooter style={{ padding: '0 1.25rem 1.25rem' }}>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={confirm}>
-            Add
-          </Button>
-        </DialogFooter>
+        <Box
+          borderTopWidth="1px"
+          borderColor="border.divider"
+          bg="bg.modalFooter"
+          px={{ base: '5', sm: '6' }}
+          py={{ base: '4', sm: '4.5' }}
+        >
+          <Flex align="center" justify="space-between" gap="4" w="full">
+            <Flex align="center" gap="4" minW="0">
+              <Button
+                type="button"
+                variant="outline"
+                h="12"
+                px="6"
+                rounded="lg"
+                borderColor="border.strong"
+                bg="transparent"
+                _hover={{ bg: 'bg.modalField', borderColor: 'fg/30' }}
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              {selectedDocumentCount > 0 ? (
+                <Flex align="center" gap="2" minW="0">
+                  <Text truncate fontSize="sm" color="fg.muted">
+                    {selectedDocumentLabel}
+                  </Text>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    h="8"
+                    px="2"
+                    rounded="md"
+                    color="fg.muted"
+                    _hover={{ bg: 'bg.modalField', color: 'fg' }}
+                    onClick={() => setSelectedDocuments(new Map())}
+                  >
+                    Clear
+                  </Button>
+                </Flex>
+              ) : null}
+            </Flex>
+            <Button type="button" h="12" px="6" rounded="lg" colorPalette="teal" onClick={confirm}>
+              <Plus size={18} />
+              Add
+            </Button>
+          </Flex>
+        </Box>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function DocumentSelectionVaultHeader({
-  vaultName,
-  documentCount,
-}: {
-  vaultName: string;
-  documentCount: number;
-}) {
-  return (
-    <Flex
-      align="center"
-      justify="space-between"
-      gap="3"
-      bg="bg.surface"
-      px="3"
-      pb="1.5"
-      pt="3"
-      color="fg.muted"
-    >
-      <Flex align="center" gap="1.5" minW="0">
-        <Vault size={14} />
-        <Text truncate fontSize="xs" fontWeight="semibold">
-          {vaultName}
-        </Text>
-      </Flex>
-      <Text flexShrink="0" fontSize="xs">
-        {documentCount} file{documentCount === 1 ? '' : 's'}
-      </Text>
-    </Flex>
-  );
-}
-
-function DocumentSelectionRow({
-  document,
-  selected,
-  disabledReason,
-  onToggle,
-}: {
-  document: SearchResultItem;
-  selected: boolean;
-  disabledReason?: string;
-  onToggle: () => void;
-}) {
-  const { badgeBg, badgeColor, color, icon: DocumentIcon, label } = getDocumentFileIconMeta({
-    name: document.name,
-    mimeType: document.mimeType,
-  });
-  const disabled = Boolean(disabledReason);
-
-  return (
-    <ChakraCheckbox.Root
-      checked={selected}
-      disabled={disabled}
-      display="flex"
-      w="full"
-      alignItems="center"
-      gap="3"
-      rounded="md"
-      borderWidth="1px"
-      borderColor={selected ? 'teal.muted' : 'transparent'}
-      bg={selected ? 'teal.subtle' : disabled ? 'bg.subtle' : 'transparent'}
-      px="3"
-      py="2.5"
-      opacity="1"
-      cursor={disabled ? 'not-allowed' : 'pointer'}
-      _hover={{ bg: selected ? 'teal.subtle' : 'bg.subtle' }}
-      onCheckedChange={onToggle}
-    >
-      <ChakraCheckbox.HiddenInput disabled={disabled} />
-      <ChakraCheckbox.Control flexShrink="0" opacity={disabled ? '0.55' : '1'}>
-        <ChakraCheckbox.Indicator />
-      </ChakraCheckbox.Control>
-      <Flex align="center" gap="3" minW="0" flex="1">
-        <Flex boxSize="10" align="center" justify="center" color={disabled ? 'fg.muted' : color} flexShrink="0">
-          <Box position="relative" boxSize="9">
-            <DocumentIcon size={36} strokeWidth={1.5} />
-            <Text
-              as="span"
-              position="absolute"
-              left="50%"
-              top="64%"
-              transform="translate(-50%, -50%)"
-              maxW="9"
-              truncate
-              rounded="2px"
-              bg={badgeBg}
-              px="1"
-              py="0.5"
-              fontSize="0.46rem"
-              fontWeight="bold"
-              lineHeight="1"
-              color={badgeColor}
-            >
-              {label}
-            </Text>
-          </Box>
-        </Flex>
-        <Box minW="0" flex="1">
-          <Text truncate fontSize="sm" fontWeight="semibold" color={disabled ? 'fg.muted' : 'fg'}>
-            {document.name}
-          </Text>
-          <Flex align="center" gap="1.5" minW="0" color="fg.muted">
-            <Folder size={13} />
-            <Text truncate fontSize="xs">
-              {document.vaultName}
-            </Text>
-          </Flex>
-          {disabledReason ? (
-            <Text truncate fontSize="xs" color="fg.muted">
-              {disabledReason}
-            </Text>
-          ) : null}
-        </Box>
-        {selected ? <Check size={16} color="var(--chakra-colors-teal-fg)" /> : null}
-      </Flex>
-    </ChakraCheckbox.Root>
   );
 }
 

@@ -18,11 +18,9 @@
 
 ## What is Arkivra?
 
-Arkivra is a self-hosted document management system built for people who want to keep their documents private, searchable, and under their control.
+Arkivra is an open-source, self-hosted document management system with semantic search and AI-powered chat.
 
-Organize files into vaults, search through them with full-text and semantic retrieval, and interact with your documents using locally configured Ollama models.
-
-The platform is built for homelabs, small teams, and privacy-conscious users who want modern document retrieval without depending on cloud platforms.
+Organize documents into vaults, search across your files, and chat with your documents using local or connected AI models.
 
 ---
 
@@ -135,3 +133,7 @@ That includes projects like [Paperless-ngx](https://paperless-ngx.com/), [Papra]
 ## License
 
 Arkivra is licensed under the [AGPL-3.0](LICENSE).
+
+---
+
+Arkivra is crafted with ❤️ by [Jasnan Thachaparamban](https://jasnan.xyz).

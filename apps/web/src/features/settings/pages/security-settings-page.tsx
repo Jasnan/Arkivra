@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Box, HStack, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
@@ -20,24 +21,26 @@ import {
 import { authClient } from '@/lib/auth-client';
 import { SettingsSessionsSection } from '../components/settings-sessions-section';
 import {
+  SettingsFlatRow,
+  SettingsFlatRows,
   SettingsPageFrame,
-  SettingsRow,
-  SettingsRows,
-  SettingsSection,
   SettingsStatusBadge,
 } from '../components/settings-ui';
 
-const securityActionButtonMinWidth = '9rem';
+const securityActionButtonMinWidth = '9.5rem';
 
-function settingsButtonLink(to: string, label: string) {
+function settingsButtonLink(to: string, label: string, variant: 'solid' | 'outline' = 'solid') {
+  const isSolid = variant === 'solid';
+
   return (
     <Link
       to={to}
       style={{
         alignItems: 'center',
-        backgroundColor: 'var(--chakra-colors-teal-solid)',
+        backgroundColor: isSolid ? 'var(--chakra-colors-teal-solid)' : 'var(--chakra-colors-bg-surface)',
+        border: isSolid ? '1px solid var(--chakra-colors-teal-solid)' : '1px solid var(--chakra-colors-border)',
         borderRadius: '0.375rem',
-        color: 'var(--chakra-colors-fg-inverted)',
+        color: isSolid ? 'var(--chakra-colors-fg-inverted)' : 'var(--chakra-colors-fg)',
         display: 'inline-flex',
         fontSize: '0.875rem',
         fontWeight: 600,
@@ -257,58 +260,61 @@ export function SecuritySettingsPage() {
   }
 
   return (
-    <SettingsPageFrame title="Security" density="compact">
-      <Stack gap="3" maxW="5xl">
-        <SettingsSection title="Two-factor authentication" density="compact">
-          <SettingsRows density="compact">
-            <SettingsRow
-              density="compact"
-              label="Authenticator app"
-              description={isTwoFactorEnabled
-                ? 'Your account requires an authenticator code at sign-in.'
-                : 'Warning: add a second sign-in step before relying on this instance for sensitive documents.'}
-              control={
-                <HStack gap="2.5">
-                  <SettingsStatusBadge density="compact" tone={isTwoFactorEnabled ? 'enabled' : 'warning'}>
-                    {isTwoFactorEnabled ? 'Enabled' : 'Disabled'}
-                  </SettingsStatusBadge>
-                  {settingsButtonLink(isTwoFactorEnabled ? ROUTES.twoFactorManage : ROUTES.twoFactorSetup, isTwoFactorEnabled ? 'Manage 2FA' : 'Enable 2FA')}
-                </HStack>
-              }
-            />
-          </SettingsRows>
-        </SettingsSection>
+    <SettingsPageFrame
+      title="Security"
+      description="Manage how you sign in and protect your Arkivra account."
+      density="compact"
+    >
+      <Box maxW="6xl">
+        <SettingsFlatRows>
+          <SettingsFlatRow
+            title="Two-factor authentication"
+            description={isTwoFactorEnabled
+              ? 'Your account requires an authenticator code at sign-in.'
+              : 'Add a second sign-in step to keep your account and documents secure.'}
+            icon={<ShieldCheck size={21} strokeWidth={1.8} />}
+            iconBg="teal.subtle"
+            iconColor="teal.fg"
+            actions={(
+              <HStack gap="4" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
+                <SettingsStatusBadge density="compact" tone={isTwoFactorEnabled ? 'enabled' : 'warning'}>
+                  {isTwoFactorEnabled ? 'Enabled' : 'Disabled'}
+                </SettingsStatusBadge>
+                {settingsButtonLink(isTwoFactorEnabled ? ROUTES.twoFactorManage : ROUTES.twoFactorSetup, isTwoFactorEnabled ? 'Manage 2FA' : 'Enable 2FA')}
+              </HStack>
+            )}
+          />
 
-        <SettingsSection title="Password management" density="compact">
-          <SettingsRows density="compact">
-            <SettingsRow
-              density="compact"
-              label="Password"
-              description={hasPassword ? 'Password sign-in is available for this account.' : 'This account currently uses linked OAuth sign-in.'}
-              control={
-                <HStack gap="2.5">
-                  <SettingsStatusBadge density="compact" tone={hasPassword ? 'enabled' : 'inactive'}>
-                    {hasPassword ? 'Enabled' : 'Inactive'}
-                  </SettingsStatusBadge>
-                  {hasPassword ? (
-                    settingsButtonLink(ROUTES.requestPasswordReset, 'Change')
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      minW={securityActionButtonMinWidth}
-                      onClick={() => {
-                        setIsSetPasswordOpen((open) => !open);
-                        setSetPasswordError(null);
-                      }}
-                    >
-                      Set password
-                    </Button>
-                  )}
-                </HStack>
-              }
-            />
-          </SettingsRows>
+          <SettingsFlatRow
+            title="Password"
+            description={hasPassword
+              ? 'Password sign-in is available for this account.'
+              : 'This account currently uses linked OAuth sign-in. You can set a password to sign in directly.'}
+            icon={<LockKeyhole size={21} strokeWidth={1.8} />}
+            actions={(
+              <HStack gap="4" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
+                <SettingsStatusBadge density="compact" tone={hasPassword ? 'enabled' : 'inactive'}>
+                  {hasPassword ? 'Enabled' : 'Inactive'}
+                </SettingsStatusBadge>
+                {hasPassword ? (
+                  settingsButtonLink(ROUTES.requestPasswordReset, 'Change password', 'outline')
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    minW={securityActionButtonMinWidth}
+                    onClick={() => {
+                      setIsSetPasswordOpen((open) => !open);
+                      setSetPasswordError(null);
+                    }}
+                  >
+                    Set password
+                  </Button>
+                )}
+              </HStack>
+            )}
+          >
           {!hasPassword && isSetPasswordOpen ? (
             <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
               <chakra.form onSubmit={handleSetPasswordSubmit}>
@@ -403,47 +409,46 @@ export function SecuritySettingsPage() {
               </chakra.form>
             </Box>
           ) : null}
-        </SettingsSection>
+          </SettingsFlatRow>
 
-        <SettingsSection title="Email verification" density="compact">
-          <SettingsRows density="compact">
-            <SettingsRow
-              density="compact"
-              label="Primary email"
-              description={sessionData?.user.email ?? 'No email address available.'}
-              control={
-                <HStack gap="2.5" flexWrap="wrap" justify="flex-end">
-                  <SettingsStatusBadge density="compact" tone={isEmailVerified ? 'verified' : 'warning'}>
-                    {isEmailVerified ? 'Verified' : 'Unverified'}
-                  </SettingsStatusBadge>
-                  {!isEmailVerified ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={emailMutation.isPending}
-                      onClick={() => {
-                        emailMutation.mutate();
-                      }}
-                    >
-                      {emailMutation.isPending ? 'Sending...' : 'Verify now'}
-                    </Button>
-                  ) : null}
+          <SettingsFlatRow
+            title="Email verification"
+            description={isEmailVerified ? 'Your primary email is verified.' : sessionData?.user.email ?? 'No email address available.'}
+            icon={<Mail size={21} strokeWidth={1.8} />}
+            iconBg="teal.subtle"
+            iconColor="teal.fg"
+            actions={(
+              <HStack gap="4" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
+                <SettingsStatusBadge density="compact" tone={isEmailVerified ? 'verified' : 'warning'}>
+                  {isEmailVerified ? 'Verified' : 'Unverified'}
+                </SettingsStatusBadge>
+                {!isEmailVerified ? (
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
-                    minW={securityActionButtonMinWidth}
+                    disabled={emailMutation.isPending}
                     onClick={() => {
-                      setIsEmailChangeOpen((open) => !open);
+                      emailMutation.mutate();
                     }}
                   >
-                    Change
+                    {emailMutation.isPending ? 'Sending...' : 'Verify now'}
                   </Button>
-                </HStack>
-              }
-            />
-          </SettingsRows>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  minW={securityActionButtonMinWidth}
+                  onClick={() => {
+                    setIsEmailChangeOpen((open) => !open);
+                  }}
+                >
+                  Change email
+                </Button>
+              </HStack>
+            )}
+          >
           {isEmailChangeOpen ? (
             <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
               <chakra.form onSubmit={handleEmailChangeSubmit}>
@@ -516,10 +521,11 @@ export function SecuritySettingsPage() {
               </chakra.form>
             </Box>
           ) : null}
-        </SettingsSection>
+          </SettingsFlatRow>
 
-        <SettingsSessionsSection />
-      </Stack>
+          <SettingsSessionsSection />
+        </SettingsFlatRows>
+      </Box>
     </SettingsPageFrame>
   );
 }

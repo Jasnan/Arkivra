@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useMeQuery } from '@/features/me/me.queries';
 import { authClient } from '@/lib/auth-client';
-import { SettingsSection, SettingsStatusBadge } from './settings-ui';
+import { SettingsFlatRow, SettingsStatusBadge } from './settings-ui';
 
 interface SessionManagementClient {
   listSessions?: () => Promise<{ data?: AuthSessionSummary[] | null; error?: { message?: string } | null }>;
@@ -120,6 +120,7 @@ export function SettingsSessionsSection() {
     },
   });
   const sortedSessions = sortSessions(sessionsQuery.data ?? [], meQuery.data?.sessionId);
+  const visibleSessionCount = sortedSessions.length > 0 ? sortedSessions.length : 1;
 
   const signOutOtherSessionsMutation = useMutation({
     mutationFn: async () => {
@@ -168,10 +169,11 @@ export function SettingsSessionsSection() {
   });
 
   return (
-    <SettingsSection
+    <SettingsFlatRow
       title="Sessions"
-      density="compact"
-      actions={
+      description={`You're currently signed in on ${visibleSessionCount} ${visibleSessionCount === 1 ? 'device' : 'devices'}.`}
+      icon={<Laptop size={21} strokeWidth={1.8} />}
+      actions={(
         <Button
           type="button"
           size="sm"
@@ -184,7 +186,7 @@ export function SettingsSessionsSection() {
           <LogOut size={15} />
           {signOutOtherSessionsMutation.isPending ? 'Signing out...' : 'Sign out others'}
         </Button>
-      }
+      )}
     >
       <Stack gap="2">
         {sortedSessions.length > 0 ? (
@@ -261,6 +263,6 @@ export function SettingsSessionsSection() {
           </Box>
         )}
       </Stack>
-    </SettingsSection>
+    </SettingsFlatRow>
   );
 }

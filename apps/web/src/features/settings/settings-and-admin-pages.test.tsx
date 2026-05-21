@@ -221,6 +221,7 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<SettingsPage />);
 
+    await user.click(await screen.findByRole('button', { name: /^edit name$/i }));
     const nameInput = await screen.findByLabelText(/^name$/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Alex Rivers');
@@ -230,9 +231,8 @@ describe('settings, admin, and about pages', () => {
       name: 'Alex Rivers',
     });
 
-    expect(screen.getByLabelText(/email/i)).toBeDisabled();
     expect(screen.getByText(/email changes are managed from security/i)).toBeInTheDocument();
-    expect(screen.getByText(/account status/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /account details/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /view as admin/i })).not.toBeInTheDocument();
     expect(screen.getByText(/local \+ github/i)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /^sessions$/i })).not.toBeInTheDocument();
@@ -563,7 +563,7 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<SecuritySettingsPage />);
 
-    await user.click(await screen.findByRole('button', { name: /^change$/i }));
+    await user.click(await screen.findByRole('button', { name: /^change email$/i }));
     await user.type(screen.getByLabelText(/new email/i), 'new@example.com');
     await user.type(screen.getByLabelText(/current password/i), 'secret123');
     await user.click(screen.getByRole('button', { name: /^request$/i }));
@@ -1682,11 +1682,11 @@ describe('settings, admin, and about pages', () => {
 
     expect((await screen.findAllByText('0.1.0')).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /website/i })).toHaveAttribute('href', 'https://arkivra.app');
-    expect(screen.getByRole('link', { name: /documentation/i })).toHaveAttribute('href', 'https://docs.arkivra.io');
+    expect(screen.getByRole('link', { name: /documentation/i })).toHaveAttribute('href', 'https://docs.arkivra.app');
     expect(screen.getByRole('link', { name: /github/i })).toHaveAttribute('href', 'https://github.com/Jasnan/Arkivra');
     expect(screen.getByRole('link', { name: /license/i })).toHaveAttribute('href', 'https://github.com/Jasnan/arkivra/blob/main/LICENSE');
     expect(screen.getByRole('link', { name: /jasnan thachaparamban/i })).toHaveAttribute('href', 'https://jasnan.xyz');
-    expect(screen.getByLabelText(/arkivra is developed with ❤️ by/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/arkivra is crafted with ❤️ by/i)).toBeInTheDocument();
     expect(screen.queryByText(/project direction/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/system information/i)).not.toBeInTheDocument();
   });

@@ -921,6 +921,7 @@ export function SearchPage() {
           <SimpleGrid columns={1} gap="4">
             <SearchFilterMultiSelect
               label="Vaults"
+              controlSize="toolbar"
               triggerLabel={selectedVaultsLabel}
               triggerAriaLabel="Vault filter"
               searchLabel="Search vaults"

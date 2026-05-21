@@ -731,12 +731,7 @@ export function SearchPage() {
     dateTo: dateTo || undefined,
     sortBy,
     searchMode,
-    enabled:
-      debouncedQuery.length > 0 ||
-      selectedVaultIds.length > 0 ||
-      selectedTagIds.length > 0 ||
-      dateFrom.length > 0 ||
-      dateTo.length > 0,
+    enabled: !vaultsQuery.isLoading,
   });
 
   const selectedVaults = useMemo(
@@ -820,7 +815,7 @@ export function SearchPage() {
         }]
       : []),
   ], [dateFrom, datePreset, dateTo, selectedTagIds, selectedTags, selectedVaultIds, selectedVaults, updateFilters]);
-  const hasActiveSearch = debouncedQuery.length > 0 || activeFilters.length > 0;
+  const hasActiveSearch = !vaultsQuery.isLoading;
   const results = searchQuery.data?.results ?? [];
   const detailSearch = getSearchReturnParams({
     query: debouncedQuery,
@@ -923,7 +918,7 @@ export function SearchPage() {
       )}
       filtersContent={
         <>
-          <SimpleGrid columns={{ base: 1, md: 2 }} gap="4">
+          <SimpleGrid columns={1} gap="4">
             <SearchFilterMultiSelect
               label="Vaults"
               triggerLabel={selectedVaultsLabel}

@@ -513,7 +513,7 @@ export function AllDocumentsPage() {
         filterStateKey={filterStateKey}
         filtersContent={
           <>
-            <SimpleGrid columns={{ base: 1, md: 2 }} gap="4">
+            <SimpleGrid columns={1} gap="4">
               <SearchFilterMultiSelect
                 label="Vaults"
                 triggerLabel={selectedVaultsLabel}

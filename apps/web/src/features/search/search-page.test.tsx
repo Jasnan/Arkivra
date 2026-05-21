@@ -384,18 +384,18 @@ describe('global search page', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       await renderWithProviders(<SearchPage />, {
-        initialEntries: ['/search'],
+        initialEntries: ['/search?q=paid'],
         routePath: '/search',
       });
 
       fireEvent.change(screen.getByLabelText(/search documents/i), { target: { value: 'invoice' } });
 
-      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?') && String(url).includes('q=invoice'))).toBe(false);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(279);
       });
-      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?') && String(url).includes('q=invoice'))).toBe(false);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1);
@@ -1103,7 +1103,7 @@ describe('documents library search controls', () => {
     });
 
     await user.click(screen.getByRole('button', { name: /filter/i }));
-    await screen.findByRole('dialog', { name: /filters/i });
+    const dialog = await screen.findByRole('dialog', { name: /filters/i });
     await user.click(screen.getByLabelText(/custom range/i));
 
     const fromInput = screen.getByRole('textbox', { name: /^from$/i });
@@ -1111,6 +1111,7 @@ describe('documents library search controls', () => {
     expect(fromInput).toHaveAttribute('readonly');
 
     await user.click(fromInput);
+    expect(dialog).toContainElement(await findCalendarDate(/may 18, 2026/i));
     await selectCalendarDate(user, /may 18, 2026/i);
     await waitFor(() => expect(fromInput).toHaveValue('2026-05-18'));
     await selectCalendarDate(user, /may 19, 2026/i);
@@ -1176,6 +1177,81 @@ describe('documents library search controls', () => {
 
     expect(screen.getByRole('textbox', { name: /^from$/i })).toHaveValue('2026-05-18');
     expect(screen.getByRole('textbox', { name: /^to$/i })).toHaveValue('2026-05-20');
+  });
+
+  it('runs an unbounded global search when Any time clears the date filter', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 25,
+          resultsCount: 1,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Sherlock',
+              documentId: 'doc_1',
+              name: 'All Time.pdf',
+              originalName: 'All Time.pdf',
+              originalSize: 41000,
+              mimeType: 'application/pdf',
+              documentDate: '2026-04-10T00:00:00.000Z',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-11T10:00:00.000Z',
+              matchedChunksCount: 0,
+              bestChunk: null,
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?dateFrom=2026-05-01&dateTo=2026-05-20'],
+      routePath: '/search',
+    });
+
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+    await user.click(screen.getByLabelText(/any time/i));
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url, init]) =>
+          String(url) === '/api/search?pageIndex=0&pageSize=25&sortBy=created_desc'
+          && (init as RequestInit | undefined)?.credentials === 'include'
+        ),
+      ).toBe(true);
+    });
+    await user.click(screen.getByRole('button', { name: /close filters/i }));
+    expect(await screen.findByRole('link', { name: /^open all time\.pdf$/i })).toBeInTheDocument();
   });
 
   it('returns focus to the filter trigger after dismissing the dialog with escape', async () => {

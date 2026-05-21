@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, DatePicker, IconButton, Portal, RadioCard, SimpleGrid, parseDate } from '@chakra-ui/react';
+import { Box, DatePicker, Flex, IconButton, Portal, RadioCard, SimpleGrid, parseDate } from '@chakra-ui/react';
 import type { DateValue } from '@chakra-ui/react';
 import { CalendarDays } from 'lucide-react';
 import { useAccentColor } from '@/components/providers/accent-color-context';
@@ -74,45 +74,57 @@ function DateRangePickerFields({
       }}
     >
       <DatePicker.Label srOnly>Custom uploaded date range</DatePicker.Label>
-      <DatePicker.Control display="none">
-        <DatePicker.Input index={0} />
-        <DatePicker.Input index={1} />
-      </DatePicker.Control>
+      <DatePicker.Control display="block" w="full">
+        <DatePicker.Input index={0} display="none" />
+        <DatePicker.Input index={1} display="none" />
 
-      <SimpleGrid columns={{ base: 1, sm: 2 }} gap="3" maxW="32rem" w="full">
-        <Box minW="0">
-          <FieldLabel htmlFor="custom-date-range-from" fontWeight="semibold">
-            From
-          </FieldLabel>
-          <Input
-            id="custom-date-range-from"
-            mt="2"
-            aria-label="From"
-            value={customDateFrom}
-            placeholder="yyyy-mm-dd"
-            readOnly
-            cursor="pointer"
-            h="11"
-            rounded="lg"
-            bg="bg.surface"
-            borderColor="border.surface"
-            _hover={{ borderColor: 'teal.muted' }}
-            _focusVisible={{
-              borderColor: 'teal.solid',
-              outline: '2px solid',
-              outlineColor: 'teal.focusRing',
-              outlineOffset: '1px',
-            }}
-            onClick={() => setIsOpen(true)}
-            onFocus={() => setIsOpen(true)}
-          />
-        </Box>
+        <Flex
+          maxW="32rem"
+          w="full"
+          minH="11"
+          align="stretch"
+          rounded="lg"
+          borderWidth="1px"
+          borderColor="border.surface"
+          bg="bg.surface"
+          overflow="hidden"
+          transition="border-color 120ms ease, box-shadow 120ms ease"
+          _hover={{ borderColor: 'teal.muted' }}
+          _focusWithin={{
+            borderColor: 'teal.solid',
+            boxShadow: '0 0 0 2px var(--chakra-colors-teal-focus-ring)',
+          }}
+        >
+          <Flex flex="1" minW="0" align="center" gap="2.5" px="3">
+            <FieldLabel htmlFor="custom-date-range-from" flexShrink={0} mb="0" fontSize="sm" fontWeight="semibold">
+              From:
+            </FieldLabel>
+            <Input
+              id="custom-date-range-from"
+              aria-label="From"
+              value={customDateFrom}
+              placeholder="yyyy-mm-dd"
+              readOnly
+              cursor="pointer"
+              h="10"
+              minW="0"
+              px="0"
+              rounded="none"
+              borderWidth="0"
+              bg="transparent"
+              fontVariantNumeric="tabular-nums"
+              _focusVisible={{ outline: 'none' }}
+              onClick={() => setIsOpen(true)}
+              onFocus={() => setIsOpen(true)}
+            />
+          </Flex>
 
-        <Box minW="0">
-          <FieldLabel htmlFor="custom-date-range-to" fontWeight="semibold">
-            To
-          </FieldLabel>
-          <Box mt="2" position="relative">
+          <Box w="1px" my="2" bg="border.surface" />
+
+          <Flex flex="1" minW="0" align="center" gap="2.5" px="3">
+            <FieldLabel htmlFor="custom-date-range-to" flexShrink={0} mb="0" fontSize="sm" fontWeight="semibold">
+              To:
+            </FieldLabel>
             <Input
               id="custom-date-range-to"
               aria-label="To"
@@ -120,42 +132,38 @@ function DateRangePickerFields({
               placeholder="yyyy-mm-dd"
               readOnly
               cursor="pointer"
-              h="11"
-              rounded="lg"
-              pr="10"
-              bg="bg.surface"
-              borderColor="border.surface"
-              _hover={{ borderColor: 'teal.muted' }}
-              _focusVisible={{
-                borderColor: 'teal.solid',
-                outline: '2px solid',
-                outlineColor: 'teal.focusRing',
-                outlineOffset: '1px',
-              }}
+              h="10"
+              minW="0"
+              px="0"
+              rounded="none"
+              borderWidth="0"
+              bg="transparent"
+              fontVariantNumeric="tabular-nums"
+              _focusVisible={{ outline: 'none' }}
               onClick={() => setIsOpen(true)}
               onFocus={() => setIsOpen(true)}
             />
-            <DatePicker.Trigger asChild>
-              <IconButton
-                aria-label="Open custom date range picker"
-                variant="ghost"
-                size="sm"
-                position="absolute"
-                top="50%"
-                right="1.5"
-                transform="translateY(-50%)"
-                color="fg.muted"
-                _hover={{ bg: 'bg.subtle', color: 'teal.fg' }}
-                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '1px' }}
-              >
-                <CalendarDays size={17} />
-              </IconButton>
-            </DatePicker.Trigger>
-          </Box>
-        </Box>
-      </SimpleGrid>
+          </Flex>
 
-      <Portal>
+          <DatePicker.Trigger asChild>
+            <IconButton
+              aria-label="Open custom date range picker"
+              variant="ghost"
+              size="sm"
+              alignSelf="center"
+              flexShrink={0}
+              mr="1.5"
+              color="fg.muted"
+              _hover={{ bg: 'bg.subtle', color: 'teal.fg' }}
+              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '1px' }}
+            >
+              <CalendarDays size={17} />
+            </IconButton>
+          </DatePicker.Trigger>
+        </Flex>
+      </DatePicker.Control>
+
+      <Portal disabled>
         <DatePicker.Positioner>
           <DatePicker.Content>
             <DatePicker.View view="day">

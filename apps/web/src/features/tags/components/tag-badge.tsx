@@ -1,5 +1,5 @@
-import { Badge, Text } from '@chakra-ui/react';
-import { Tag } from 'lucide-react';
+import { Badge, Text, chakra } from '@chakra-ui/react';
+import { Tag, X } from 'lucide-react';
 
 const FALLBACK_TAG_COLOR = '#94a3b8';
 const HEX_PREFIX_PATTERN = /^#/;
@@ -37,7 +37,17 @@ function getReadableTextColor(backgroundColor: string) {
   return luminance > 0.58 ? '#111827' : '#FFFFFF';
 }
 
-export function TagBadge({ color, name }: { color?: string | null; name: string }) {
+export function TagBadge({
+  color,
+  name,
+  onRemove,
+  removeLabel,
+}: {
+  color?: string | null;
+  name: string;
+  onRemove?: () => void;
+  removeLabel?: string;
+}) {
   const backgroundColor = color ?? FALLBACK_TAG_COLOR;
   const textColor = getReadableTextColor(backgroundColor);
 
@@ -46,6 +56,7 @@ export function TagBadge({ color, name }: { color?: string | null; name: string 
       variant="solid"
       colorPalette="gray"
       size="lg"
+      h="8"
       w="fit-content"
       maxW="full"
       rounded="md"
@@ -64,6 +75,26 @@ export function TagBadge({ color, name }: { color?: string | null; name: string 
       <Text as="span" truncate>
         {name}
       </Text>
+      {onRemove ? (
+        <chakra.button
+          type="button"
+          aria-label={removeLabel ?? `Remove ${name}`}
+          display="inline-flex"
+          alignItems="center"
+          justifyContent="center"
+          boxSize="5"
+          mr="-1"
+          rounded="full"
+          cursor="pointer"
+          color="currentcolor"
+          opacity="0.78"
+          _hover={{ opacity: 1, bg: 'blackAlpha.200' }}
+          _focusVisible={{ outline: '2px solid', outlineColor: 'currentcolor', outlineOffset: '2px' }}
+          onClick={onRemove}
+        >
+          <X size={12} />
+        </chakra.button>
+      ) : null}
     </Badge>
   );
 }

@@ -26,6 +26,7 @@ import type { BrowserItem } from '@/features/file-browser/components/vault-brows
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import type { SearchMode, SearchResultItem, SearchSortBy } from '@/features/search/search.types';
+import { TagBadge } from '@/features/tags/components/tag-badge';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
@@ -80,25 +81,6 @@ const searchGridComponents: VirtuosoGridProps<SearchResultItem, unknown>['compon
     </div>
   ),
 };
-
-function ResultTagPill({ name, color }: { name: string; color: string | null }) {
-  return (
-    <Box
-      as="span"
-      display="inline-flex"
-      alignItems="center"
-      rounded="md"
-      px="2"
-      py="0.5"
-      fontSize="xs"
-      fontWeight="medium"
-      bg={color ? `${color}18` : 'bg.subtle'}
-      color={color ?? 'fg.muted'}
-    >
-      {name}
-    </Box>
-  );
-}
 
 function getSearchReturnParams({
   query,
@@ -371,10 +353,10 @@ function SearchResultRow({
           {(result.tags ?? []).length > 0 ? (
             <Flex flexWrap="wrap" gap="1.5">
               {visibleTags.map((tag) => (
-                <ResultTagPill key={tag.id} name={tag.name} color={tag.color} />
+                <TagBadge key={tag.id} name={tag.name} color={tag.color} />
               ))}
               {remainingTagsCount > 0 ? (
-                <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" color="fg.muted">
+                <Box as="span" display="inline-flex" h="8" alignItems="center" rounded="md" bg="bg.subtle" px="2.5" fontSize="sm" fontWeight="semibold" color="fg.muted">
                   +{remainingTagsCount}
                 </Box>
               ) : null}

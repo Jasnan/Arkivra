@@ -6,6 +6,7 @@ import { ROUTES } from '@/app/routes';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getFileDisplayName } from '@/features/file-browser/components/vault-browser.types';
 import type { SearchResultTag } from '@/features/search/search.types';
+import { TagBadge } from '@/features/tags/components/tag-badge';
 import { getDocumentSelectionKey } from './document-library-utils';
 
 export interface DocumentLibraryItem {
@@ -30,26 +31,6 @@ function formatDateOnly(value: string | null) {
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
   }).format(new Date(value));
-}
-
-function TagPill({ name, color }: { name: string; color: string | null }) {
-  return (
-    <Box
-      as="span"
-      display="inline-flex"
-      alignItems="center"
-      rounded="md"
-      px="2.5"
-      py="1"
-      fontSize="xs"
-      fontWeight="medium"
-      letterSpacing="normal"
-      bg={color ? `${color}18` : undefined}
-      color={color ?? undefined}
-    >
-      {name}
-    </Box>
-  );
 }
 
 function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
@@ -143,19 +124,19 @@ function VisibleTags({ tags = [] }: { tags?: SearchResultTag[] }) {
   return (
     <>
       {visibleTags.map((tag) => (
-        <TagPill key={tag.id} name={tag.name} color={tag.color} />
+        <TagBadge key={tag.id} name={tag.name} color={tag.color} />
       ))}
       {remainingCount > 0 ? (
         <Box
           as="span"
           display="inline-flex"
+          h="8"
           alignItems="center"
           rounded="md"
           bg="bg.subtle"
           px="2.5"
-          py="1"
-          fontSize="xs"
-          fontWeight="medium"
+          fontSize="sm"
+          fontWeight="semibold"
           color="fg.muted"
         >
           +{remainingCount}

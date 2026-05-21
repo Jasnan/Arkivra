@@ -33,7 +33,6 @@ import {
   Trash2,
   ZoomIn,
   ZoomOut,
-  X,
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -93,6 +92,7 @@ import {
   isDocumentProcessingActive,
 } from '@/features/documents/documents.utils';
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
+import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
@@ -2512,41 +2512,16 @@ export function DocumentDetailPage() {
                       <Text fontSize="sm" color="fg.muted">No tags assigned.</Text>
                     ) : null}
                     {assignedTags.map((tag) => (
-                      <Flex
+                      <TagBadge
                         key={tag.id}
-                        display="inline-flex"
-                        h="8"
-                        align="center"
-                        gap="2"
-                        rounded="full"
-                        bg="bg.surface"
-                        px="3"
-                        fontSize="sm"
-                        lineHeight="none"
-                        color="fg"
-                      >
-                        <Box aria-hidden="true" boxSize="1.5" rounded="full" bg={tag.color ?? '#64748b'} />
-                        {tag.name}
-                        {!isTrashDocumentRoute ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Remove ${tag.name}`}
-                            rounded="full"
-                            color="fg.muted"
-                            _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                            h="6"
-                            w="6"
-                            mr="-1"
-                            onClick={() => {
+                        color={tag.color}
+                        name={tag.name}
+                        onRemove={!isTrashDocumentRoute
+                          ? () => {
                               removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                            }}
-                          >
-                            <X size={14} />
-                          </Button>
-                        ) : null}
-                      </Flex>
+                            }
+                          : undefined}
+                      />
                     ))}
                     {!isTrashDocumentRoute ? (
                       <DropdownMenu

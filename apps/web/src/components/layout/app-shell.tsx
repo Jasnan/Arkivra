@@ -747,6 +747,7 @@ function WorkspaceHeader({
   onOpenQuickSearch: () => void;
 }) {
   if (headerConfig?.hidden) return null;
+  const shouldShowQuickSearch = !hideQuickSearch;
 
   if (headerConfig?.content) {
     return (
@@ -779,24 +780,14 @@ function WorkspaceHeader({
         <Box minW="0" flex="1">
           {headerConfig.content}
         </Box>
-        {!hideQuickSearch ? (
-          <Flex
-            display={{ base: 'none', '2xl': 'flex' }}
-            position="absolute"
-            left="50%"
-            top="50%"
-            zIndex="1"
-            transform="translate(-50%, -50%)"
-            pointerEvents="none"
-          >
-            <Box pointerEvents="auto">
-              <QuickSearchTrigger shortcut={quickSearchShortcut} onOpen={onOpenQuickSearch} />
-            </Box>
-          </Flex>
-        ) : null}
-        {headerConfig.actions ? (
+        {headerConfig.actions || shouldShowQuickSearch ? (
           <HStack px={{ base: '4', md: '5', lg: '4' }} gap="2" zIndex="1" flexShrink={0}>
             {headerConfig.actions}
+            {shouldShowQuickSearch ? (
+              <Box display={{ base: 'none', '2xl': 'block' }}>
+                <QuickSearchTrigger shortcut={quickSearchShortcut} onOpen={onOpenQuickSearch} />
+              </Box>
+            ) : null}
           </HStack>
         ) : null}
       </Flex>
@@ -840,24 +831,13 @@ function WorkspaceHeader({
         </Box>
       </Flex>
 
-      {!hideQuickSearch ? (
-        <Flex
-          display={{ base: 'none', xl: 'flex' }}
-          position="absolute"
-          left="50%"
-          top="50%"
-          zIndex="1"
-          transform="translate(-50%, -50%)"
-          pointerEvents="none"
-        >
-          <Box pointerEvents="auto">
-            <QuickSearchTrigger shortcut={quickSearchShortcut} onOpen={onOpenQuickSearch} />
-          </Box>
-        </Flex>
-      ) : null}
-
       <HStack ml="4" gap="2" zIndex="1" flexShrink={0}>
         {headerConfig?.actions}
+        {shouldShowQuickSearch ? (
+          <Box display={{ base: 'none', xl: 'block' }}>
+            <QuickSearchTrigger shortcut={quickSearchShortcut} onOpen={onOpenQuickSearch} />
+          </Box>
+        ) : null}
       </HStack>
     </Flex>
   );

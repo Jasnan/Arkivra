@@ -219,6 +219,25 @@ describe('app shell account menu', () => {
     expect(screen.queryByRole('button', { name: /expand sidebar/i })).not.toBeInTheDocument();
   });
 
+  it('keeps quick search as the rightmost workspace header control', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const header = screen.getByRole('banner');
+    await waitFor(() => {
+      expect(header.querySelector('[aria-label^="Quick search"]')).not.toBeNull();
+    });
+
+    const quickSearch = header.querySelector('[aria-label^="Quick search"]');
+    const headerButtons = Array.from(header.querySelectorAll('button'));
+    expect(headerButtons.at(-1)).toBe(quickSearch);
+  });
+
   it('hides the secondary sidebar on the vault index', async () => {
     await renderWithProviders(
       <AppShell />,

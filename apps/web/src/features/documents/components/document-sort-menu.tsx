@@ -25,9 +25,10 @@ export function DocumentSortMenu<TValue extends string>({
   onValueChange: (value: TValue) => void;
   options: Array<DocumentSortOption<TValue>>;
   value: TValue;
-  variant?: 'default' | 'toolbar';
+  variant?: 'default' | 'toolbar' | 'input';
 }) {
   const isToolbar = variant === 'toolbar';
+  const isInput = variant === 'input';
   const selectedSortLabel = options.find((option) => option.value === value)?.label ?? options[0]?.label ?? 'Sort';
 
   return (
@@ -35,21 +36,22 @@ export function DocumentSortMenu<TValue extends string>({
       <Menu.Trigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant={isInput ? 'ghost' : 'outline'}
           aria-label={ariaLabel}
           aria-labelledby={labelId}
-          h={isToolbar ? '10' : 'calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)'}
-          w={isToolbar ? { base: 'full', sm: '10rem' } : 'full'}
-          minW={isToolbar ? { base: '0', sm: '10rem' } : { md: '11rem' }}
-          justifyContent={iconOnlyOnMobile ? { base: 'center', sm: 'space-between' } : 'space-between'}
+          h={isInput ? '8' : isToolbar ? '10' : 'calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)'}
+          minH={isInput ? '8' : undefined}
+          w={isInput ? '8' : isToolbar ? { base: 'full', sm: '10rem' } : 'full'}
+          minW={isInput ? '8' : isToolbar ? { base: '0', sm: '10rem' } : { md: '11rem' }}
+          justifyContent={isInput ? 'center' : iconOnlyOnMobile ? { base: 'center', sm: 'space-between' } : 'space-between'}
           gap="2"
-          rounded={isToolbar ? 'md' : undefined}
-          borderColor={isToolbar ? 'border.surface' : 'border.strong'}
-          bg="bg.surface"
-          px="3"
+          rounded={isInput || isToolbar ? 'md' : undefined}
+          borderColor={isInput ? 'transparent' : isToolbar ? 'border.surface' : 'border.strong'}
+          bg={isInput ? 'transparent' : 'bg.surface'}
+          px={isInput ? '0' : '3'}
           color="fg"
           shadow="none"
-          _hover={{ borderColor: 'fg/30', bg: 'bg.surface' }}
+          _hover={isInput ? { bg: 'bg.subtle', color: 'fg' } : { borderColor: 'fg/30', bg: 'bg.surface' }}
           _focusVisible={{
             borderColor: 'teal.solid',
             outline: '2px solid',
@@ -69,7 +71,7 @@ export function DocumentSortMenu<TValue extends string>({
             ) : null}
             <Text
               as="span"
-              display={iconOnlyOnMobile ? { base: 'none', sm: 'inline' } : undefined}
+              display={isInput ? 'none' : iconOnlyOnMobile ? { base: 'none', sm: 'inline' } : undefined}
               truncate
               fontSize="sm"
               fontWeight="medium"
@@ -78,7 +80,7 @@ export function DocumentSortMenu<TValue extends string>({
             </Text>
           </Flex>
           <Box
-            display={iconOnlyOnMobile ? { base: 'none', sm: 'block' } : undefined}
+            display={isInput ? 'none' : iconOnlyOnMobile ? { base: 'none', sm: 'block' } : undefined}
             flexShrink={0}
             color="fg.muted"
             aria-hidden="true"

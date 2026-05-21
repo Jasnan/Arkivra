@@ -21,12 +21,43 @@ async function selectRadixOption(user: ReturnType<typeof userEvent.setup>, trigg
   await user.click(await screen.findByRole('menuitemradio', { name: optionName }));
 }
 
+async function findCalendarDate(dateLabel: RegExp) {
+  let calendarDay: HTMLElement | undefined;
+
+  await waitFor(() => {
+    calendarDay = [...document.querySelectorAll<HTMLElement>('[role="button"][aria-label]')]
+      .find((element) => {
+        dateLabel.lastIndex = 0;
+        return dateLabel.test(element.getAttribute('aria-label') ?? '');
+      });
+    expect(calendarDay).toBeDefined();
+  });
+
+  return calendarDay!;
+}
+
+async function selectCalendarDate(user: ReturnType<typeof userEvent.setup>, dateLabel: RegExp) {
+  void user;
+  const calendarDate = await findCalendarDate(dateLabel);
+  await act(async () => {
+    fireEvent.pointerDown(calendarDate, { pointerType: 'mouse', button: 0 });
+    fireEvent.mouseDown(calendarDate);
+    fireEvent.pointerUp(calendarDate, { pointerType: 'mouse', button: 0 });
+    fireEvent.mouseUp(calendarDate);
+    fireEvent.click(calendarDate);
+  });
+}
+
 function WorkspaceHeaderHarness({ children }: { children: ReactNode }) {
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
 
   return (
     <WorkspaceLayoutContext value={{ setHeaderConfig, setSecondaryContent: vi.fn() }}>
-      <div data-testid="app-shell-header">{headerConfig?.content}</div>
+      <div data-testid="app-shell-header">
+        {headerConfig?.left}
+        {headerConfig?.content}
+        {headerConfig?.actions}
+      </div>
       {children}
     </WorkspaceLayoutContext>
   );
@@ -37,7 +68,7 @@ describe('global search page', () => {
     vi.restoreAllMocks();
   });
 
-  it('moves the search controls into the workspace shell header', async () => {
+  it('uses the normal workspace shell header with search controls after the title', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
 
@@ -86,9 +117,11 @@ describe('global search page', () => {
 
     const shellHeader = screen.getByTestId('app-shell-header');
     expect(await screen.findAllByLabelText(/search documents/i)).toHaveLength(1);
-    expect(within(shellHeader).getByText('Search')).toBeInTheDocument();
+    expect(within(shellHeader).getByRole('heading', { name: 'Search' })).toBeInTheDocument();
     expect(within(shellHeader).getByLabelText(/search documents/i)).toHaveValue('invoice');
-    expect(within(shellHeader).getByText(/semantic search/i)).toBeInTheDocument();
+    expect(within(shellHeader).getByRole('button', { name: /grid view/i })).toBeInTheDocument();
+    expect(within(shellHeader).getByRole('button', { name: /list view/i })).toBeInTheDocument();
+    expect(within(shellHeader).getByText(/^semantic$/i)).toBeInTheDocument();
   });
 
   it('uses the migrated search and filter controls', async () => {
@@ -355,7 +388,6 @@ describe('global search page', () => {
         routePath: '/search',
       });
 
-      expect(screen.getByText(/semantic search/i)).toBeInTheDocument();
       fireEvent.change(screen.getByLabelText(/search documents/i), { target: { value: 'invoice' } });
 
       expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
@@ -497,7 +529,7 @@ describe('global search page', () => {
       ).toBe(true);
     });
 
-    await user.click(screen.getByText(/semantic search/i));
+    await user.click(screen.getByText(/^semantic$/i));
 
     await waitFor(() => {
       expect(
@@ -720,8 +752,8 @@ describe('documents library search controls', () => {
             vaultId: 'vlt_1',
             tagId: 'tag_1',
             tagIds: ['tag_1'],
-            dateFrom: '2026-04-01T00:00:00.000Z',
-            dateTo: '2026-04-30T23:59:59.999Z',
+            dateFrom: '2026-05-01T00:00:00.000Z',
+            dateTo: '2026-05-20T23:59:59.999Z',
             sortBy: 'name_asc',
           },
           results: [],
@@ -752,13 +784,16 @@ describe('documents library search controls', () => {
     expect(invoicesOption).not.toBeNull();
     await user.click(invoicesOption!);
     await user.click(screen.getByLabelText(/custom range/i));
-    await user.type(screen.getByLabelText(/^from$/i), '2026-04-01');
-    await user.type(screen.getByLabelText(/^to$/i), '2026-04-30');
+    const fromInput = screen.getByRole('textbox', { name: /^from$/i });
+    await user.click(fromInput);
+    await selectCalendarDate(user, /may 1, 2026/i);
+    await waitFor(() => expect(fromInput).toHaveValue('2026-05-01'));
+    await selectCalendarDate(user, /may 20, 2026/i);
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=100&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
+          String(url).includes('/api/search?pageIndex=0&pageSize=100&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-05-01&dateTo=2026-05-20&sortBy=name_asc')
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
@@ -1024,7 +1059,7 @@ describe('documents library search controls', () => {
     });
   });
 
-  it('keeps custom date ranges valid in the global documents filters', async () => {
+  it('uses a read-only calendar range picker for global document date filters', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
@@ -1071,14 +1106,76 @@ describe('documents library search controls', () => {
     await screen.findByRole('dialog', { name: /filters/i });
     await user.click(screen.getByLabelText(/custom range/i));
 
-    const fromInput = screen.getByLabelText(/^from$/i);
-    const toInput = screen.getByLabelText(/^to$/i);
+    const fromInput = screen.getByRole('textbox', { name: /^from$/i });
+    const toInput = screen.getByRole('textbox', { name: /^to$/i });
+    expect(fromInput).toHaveAttribute('readonly');
 
-    await user.type(fromInput, '2026-04-19');
-    await user.type(toInput, '2026-04-18');
+    await user.click(fromInput);
+    await selectCalendarDate(user, /may 18, 2026/i);
+    await waitFor(() => expect(fromInput).toHaveValue('2026-05-18'));
+    await selectCalendarDate(user, /may 19, 2026/i);
 
-    expect(fromInput).toHaveValue('2026-04-18');
-    expect(toInput).toHaveValue('2026-04-18');
+    expect(fromInput).toHaveValue('2026-05-18');
+    expect(toInput).toHaveValue('2026-05-19');
+  });
+
+  it('keeps custom date ranges valid when opened from either date field', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+    await user.click(screen.getByLabelText(/custom range/i));
+
+    await user.click(screen.getByRole('textbox', { name: /^to$/i }));
+    const futureDate = await findCalendarDate(/may 22, 2026/i);
+    expect(futureDate).toHaveAttribute('aria-disabled', 'true');
+
+    await selectCalendarDate(user, /may 18, 2026/i);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /^from$/i })).toHaveValue('2026-05-18'));
+    await selectCalendarDate(user, /may 20, 2026/i);
+
+    expect(screen.getByRole('textbox', { name: /^from$/i })).toHaveValue('2026-05-18');
+    expect(screen.getByRole('textbox', { name: /^to$/i })).toHaveValue('2026-05-20');
   });
 
   it('returns focus to the filter trigger after dismissing the dialog with escape', async () => {
@@ -1135,6 +1232,62 @@ describe('documents library search controls', () => {
     });
     await waitFor(() => {
       expect(filterButton).toHaveFocus();
+    });
+  });
+
+  it('dismisses a dirty filters dialog when escape is pressed', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url.startsWith('/api/tags')) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: '',
+          pageIndex: 0,
+          pageSize: 100,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<AllDocumentsPage />, {
+      initialEntries: ['/documents'],
+      routePath: '/documents',
+    });
+
+    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+    const vaultFilter = screen.getByRole('combobox', { name: /vault filter/i });
+    await user.click(vaultFilter);
+    await user.click((await screen.findByText('Sherlock')).closest('[role="option"]')!);
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /filters/i })).not.toBeInTheDocument();
     });
   });
 });

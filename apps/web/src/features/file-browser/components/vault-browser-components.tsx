@@ -154,13 +154,21 @@ function getItemKindLabel(item: BrowserContextItem) {
   return item.type === 'folder' ? 'Folder' : getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
 }
 
-export function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' }) {
+export function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' | 'search' }) {
   const isList = size === 'list';
+  const isSearch = size === 'search';
+  const containerSize = isSearch ? '8' : isList ? '10' : '12';
+  const documentBoxSize = isSearch ? '8' : '9';
+  const documentIconSize = isSearch ? 30 : 36;
+  const folderIconSize = isSearch ? 24 : isList ? 30 : 34;
+  const badgeMaxW = isSearch ? '6' : '8';
+  const badgePaddingX = isSearch ? '0.5' : '1';
+  const badgeFontSize = isSearch ? '0.34rem' : '0.46rem';
 
   if (item.type === 'folder') {
     return (
-      <Flex boxSize={isList ? '10' : '12'} shrink={0} align="center" justify="center" color="teal.fg">
-        <Folder size={isList ? 30 : 34} strokeWidth={1.5} />
+      <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color="teal.fg">
+        <Folder size={folderIconSize} strokeWidth={1.5} />
       </Flex>
     );
   }
@@ -171,22 +179,27 @@ export function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; si
   });
 
   return (
-    <Flex boxSize={isList ? '10' : '12'} shrink={0} align="center" justify="center" color={color}>
-      <Box position="relative" boxSize={isList ? '9' : '9'} color={color}>
-        <DocumentIcon size={isList ? 36 : 36} strokeWidth={1.5} />
+    <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color={color}>
+      <Box position="relative" boxSize={documentBoxSize} color={color}>
+        <DocumentIcon size={documentIconSize} strokeWidth={1.5} />
         <Text
           as="span"
           position="absolute"
           left="50%"
-          top="64%"
+          top={isSearch ? '66%' : '64%'}
+          display="inline-flex"
+          alignItems="center"
+          justifyContent="center"
           transform="translate(-50%, -50%)"
-          maxW="9"
-          truncate
+          maxW={badgeMaxW}
+          overflow="hidden"
+          textOverflow="ellipsis"
+          whiteSpace="nowrap"
           rounded="2px"
           bg={badgeBg}
-          px="1"
+          px={badgePaddingX}
           py="0.5"
-          fontSize={isList ? '0.46rem' : '0.46rem'}
+          fontSize={badgeFontSize}
           fontWeight="bold"
           letterSpacing="normal"
           lineHeight="1"

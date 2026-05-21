@@ -1,22 +1,21 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Box,
   CloseButton,
   Combobox,
-  Drawer,
+  Dialog,
   Flex,
+  HStack,
   IconButton,
-  Popover,
   Portal,
   Stack,
   Text,
   chakra,
   createListCollection,
-  useBreakpointValue,
 } from '@chakra-ui/react';
 import { Filter, Search as SearchIcon, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -31,7 +30,6 @@ export interface DocumentSearchControlFilter {
   onRemove: () => void;
 }
 
-type FilterSurface = 'drawer' | 'popover';
 const FILTER_ID_SEPARATOR = /\s+/g;
 
 export interface SearchFilterMultiSelectOption {
@@ -335,9 +333,12 @@ export function DocumentSearchControls<TSortValue extends string>({
   sortOptions,
   sortSelectId,
   sortAriaLabel,
+  sortPlacement = 'toolbar',
   filtersTitle,
   filtersDescription,
   filtersContent,
+  filterStateKey,
+  inlineAccessory,
   trailingAccessory,
   toolbarAccessory,
   layout = 'panel',
@@ -359,28 +360,45 @@ export function DocumentSearchControls<TSortValue extends string>({
   sortOptions: Array<DocumentSearchControlOption<TSortValue>>;
   sortSelectId: string;
   sortAriaLabel: string;
+  sortPlacement?: 'toolbar' | 'input';
   filtersTitle: string;
   filtersDescription?: string;
   filtersContent: ReactNode;
+  filterStateKey?: string;
+  inlineAccessory?: ReactNode;
   trailingAccessory?: ReactNode;
   toolbarAccessory?: ReactNode;
-  layout?: 'panel' | 'workspace' | 'shell';
+  layout?: 'panel' | 'workspace' | 'shell' | 'header';
   title?: string;
 }) {
   const isWorkspaceLayout = layout === 'workspace' || layout === 'shell';
   const isShellLayout = layout === 'shell';
+  const isHeaderLayout = layout === 'header';
   const hasToolbarAccessory = Boolean(toolbarAccessory);
-  const filterSurface = useBreakpointValue<FilterSurface>(
-    { base: 'drawer', md: 'popover' },
-    { fallback: 'md' },
-  ) ?? 'popover';
+  const isSortInInput = sortPlacement === 'input';
   const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const wasFiltersOpenRef = useRef(false);
+  const [filterStateKeyOnOpen, setFilterStateKeyOnOpen] = useState<string | undefined>(undefined);
+  const isFilterFormPristine = filterStateKey === undefined || filterStateKey === filterStateKeyOnOpen;
+
+  useEffect(() => {
+    if (isFiltersOpen && !wasFiltersOpenRef.current) {
+      setFilterStateKeyOnOpen(filterStateKey);
+    }
+    wasFiltersOpenRef.current = isFiltersOpen;
+  }, [filterStateKey, isFiltersOpen]);
+
   function handleFiltersOpenChange(open: boolean) {
     if (open) {
       onOpenFilters();
       return;
     }
 
+    onCloseFilters();
+    window.setTimeout(() => filterTriggerRef.current?.focus(), 0);
+  }
+
+  function closeFilters() {
     onCloseFilters();
     window.setTimeout(() => filterTriggerRef.current?.focus(), 0);
   }
@@ -431,7 +449,7 @@ export function DocumentSearchControls<TSortValue extends string>({
 
   function renderFilterContent() {
     return (
-      <Stack gap="4">
+      <Stack gap="5">
         {filtersContent}
       </Stack>
     );
@@ -440,35 +458,37 @@ export function DocumentSearchControls<TSortValue extends string>({
   return (
     <>
       <Box
-        rounded={isWorkspaceLayout ? '0' : 'lg'}
-        borderWidth={isWorkspaceLayout ? '0' : '1px'}
+        minW={isHeaderLayout ? '0' : undefined}
+        flex={isHeaderLayout ? '1' : undefined}
+        rounded={isWorkspaceLayout || isHeaderLayout ? '0' : 'lg'}
+        borderWidth={isWorkspaceLayout || isHeaderLayout ? '0' : '1px'}
         borderBottomWidth={layout === 'workspace' ? '1px' : undefined}
         borderColor="border.surface"
-        bg={isWorkspaceLayout ? 'bg.workspace' : 'bg.surface'}
-        px={isWorkspaceLayout ? { base: '4', lg: '6' } : undefined}
+        bg={isWorkspaceLayout || isHeaderLayout ? 'bg.workspace' : 'bg.surface'}
+        px={isHeaderLayout ? '0' : isWorkspaceLayout ? { base: '4', lg: '6' } : undefined}
         py={isShellLayout ? '2' : isWorkspaceLayout ? '3' : undefined}
-        p={isWorkspaceLayout ? undefined : { base: '3', sm: '4' }}
+        p={isWorkspaceLayout || isHeaderLayout ? undefined : { base: '3', sm: '4' }}
       >
-        <Flex direction={{ base: 'column', md: 'row' }} align={{ md: 'center' }} gap="3">
+        <Flex direction={isHeaderLayout ? 'row' : { base: 'column', md: 'row' }} align={isHeaderLayout ? 'center' : { md: 'center' }} gap="3">
           {title ? (
-            <Text minW={{ md: '4.5rem' }} flexShrink={0} fontWeight="semibold" color="fg">
+            <WorkspacePageTitle minW={{ md: '4.5rem' }}>
               {title}
-            </Text>
+            </WorkspacePageTitle>
           ) : null}
           <Flex
             minW="0"
-            w={{ base: 'full', md: 'auto' }}
-            flex={{ md: title ? '1 1 auto' : undefined }}
-            direction={{ base: 'column', md: 'row' }}
-            align={{ md: 'center' }}
-            justify={{ md: title ? 'flex-end' : 'flex-start' }}
+            w={isHeaderLayout ? 'full' : { base: 'full', md: 'auto' }}
+            flex={isHeaderLayout ? '1' : { md: title ? '1 1 auto' : undefined }}
+            direction={isHeaderLayout ? 'row' : { base: 'column', md: 'row' }}
+            align={isHeaderLayout ? 'center' : { md: 'center' }}
+            justify={isHeaderLayout ? 'flex-start' : { md: title ? 'flex-end' : 'flex-start' }}
             gap="3"
           >
           <Field
             minW="0"
             w="full"
-            maxW={isShellLayout ? { md: '28rem' } : hasToolbarAccessory ? undefined : { md: 'none', '2xl': '64rem' }}
-            flex={{ md: isShellLayout ? '0 1 28rem' : hasToolbarAccessory ? '2 1 0' : '1 1 auto' }}
+            maxW={isHeaderLayout ? { base: '18rem', md: '24rem', xl: '34rem' } : isShellLayout ? { md: '28rem' } : hasToolbarAccessory ? undefined : { md: 'none', '2xl': '64rem' }}
+            flex={isHeaderLayout ? '1' : { md: isShellLayout ? '0 1 28rem' : hasToolbarAccessory ? '2 1 0' : '1 1 auto' }}
           >
             <FieldLabel htmlFor="document-search-query" srOnly>
               {searchAriaLabel}
@@ -490,11 +510,11 @@ export function DocumentSearchControls<TSortValue extends string>({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 placeholder={searchPlaceholder}
-                h="11"
+                h={isHeaderLayout ? '10' : '11'}
                 borderColor="border.strong"
                 bg="bg.surface"
                 pl="11"
-                pr="14"
+                pr={isSortInInput ? '24' : '14'}
                 _hover={{ borderColor: 'fg/30' }}
                 _focusVisible={{
                   borderColor: 'teal.solid',
@@ -503,162 +523,132 @@ export function DocumentSearchControls<TSortValue extends string>({
                   outlineOffset: '1px',
                 }}
               />
-              <Box position="absolute" right="2" top="50%" transform="translateY(-50%)">
-                {filterSurface === 'drawer' ? (
-                  <Drawer.Root
-                    open={isFiltersOpen}
-                    onOpenChange={(event) => handleFiltersOpenChange(event.open)}
-                    modal={false}
-                    placement="bottom"
-                    size="full"
-                  >
-                    <Drawer.Trigger asChild>
-                      {renderFilterButton()}
-                    </Drawer.Trigger>
-                    <Portal>
-                      <Drawer.Backdrop bg="blackAlpha.500" />
-                      <Drawer.Positioner>
-                        <Drawer.Content maxH="86vh" roundedTop="xl" bg="bg.surface">
-                          <Drawer.Header borderBottomWidth="1px" borderColor="border.surface" px="5" py="4">
-                            <Flex w="full" align="center" justify="space-between" gap="4">
-                              <Box minW="0">
-                                <Drawer.Title fontSize="lg" fontWeight="semibold">
-                                  {filtersTitle}
-                                </Drawer.Title>
-                                <Drawer.Description srOnly>
-                                  {filtersDescription ?? 'Adjust filters.'}
-                                </Drawer.Description>
-                              </Box>
-
-                              <Flex shrink={0} align="center" gap="3">
-                                <chakra.button
-                                  type="button"
-                                  fontSize="sm"
-                                  fontWeight="medium"
-                                  color="teal.solid"
-                                  textDecoration="underline"
-                                  textUnderlineOffset="4"
-                                  transition="colors"
-                                  _hover={{ opacity: 0.8 }}
-                                  onClick={onResetFilters}
-                                >
-                                  Reset
-                                </chakra.button>
-                                <Drawer.CloseTrigger asChild>
-                                  <CloseButton size="sm" aria-label="Close filters" />
-                                </Drawer.CloseTrigger>
-                              </Flex>
-                            </Flex>
-                          </Drawer.Header>
-
-                          <Drawer.Body px="5" py="4" overflowY="auto">
-                            {renderFilterContent()}
-                          </Drawer.Body>
-
-                          <Drawer.Footer borderTopWidth="1px" borderColor="border.surface" px="5" py="4">
-                            <Button type="button" w="full" onClick={onCloseFilters}>
-                              Show results
-                            </Button>
-                          </Drawer.Footer>
-                        </Drawer.Content>
-                      </Drawer.Positioner>
-                    </Portal>
-                  </Drawer.Root>
-                ) : (
-                  <Popover.Root
-                    open={isFiltersOpen}
-                    onOpenChange={(event) => handleFiltersOpenChange(event.open)}
-                    modal={false}
-                    size="xs"
-                    positioning={{ placement: 'bottom-end', offset: { mainAxis: 8, crossAxis: 0 } }}
-                  >
-                    <Popover.Trigger asChild>
-                      {renderFilterButton()}
-                    </Popover.Trigger>
-                    <Portal>
-                      <Popover.Positioner zIndex="popover">
-                        <Popover.Content
-                          w="24rem"
-                          maxW="calc(100vw - 2rem)"
-                          maxH="calc(100vh - 6rem)"
-                          overflow="hidden"
-                          rounded="lg"
-                          borderWidth="1px"
+              <HStack position="absolute" right="2" top="50%" transform="translateY(-50%)" gap="1">
+                {isSortInInput ? (
+                  <DocumentSortMenu
+                    ariaLabel={sortAriaLabel}
+                    labelId={sortSelectId}
+                    value={sortBy}
+                    onValueChange={onSortChange}
+                    options={sortOptions}
+                    variant="input"
+                  />
+                ) : null}
+                {isSortInInput ? (
+                  <Separator orientation="vertical" h="6" />
+                ) : null}
+                <Dialog.Root
+                  open={isFiltersOpen}
+                  onOpenChange={(event) => handleFiltersOpenChange(event.open)}
+                  closeOnEscape
+                  closeOnInteractOutside={isFilterFormPristine}
+                  size="md"
+                >
+                  <Dialog.Trigger asChild>
+                    {renderFilterButton()}
+                  </Dialog.Trigger>
+                  <Portal>
+                    <Dialog.Backdrop bg="blackAlpha.500" />
+                    <Dialog.Positioner>
+                      <Dialog.Content
+                        maxH="calc(100vh - 3rem)"
+                        display="flex"
+                        flexDirection="column"
+                        overflow="hidden"
+                        rounded="lg"
+                        borderWidth="1px"
+                        borderColor="border.surface"
+                        bg="bg.surface"
+                        shadow="xl"
+                      >
+                        <Flex
+                          flexShrink={0}
+                          align="center"
+                          justify="space-between"
+                          gap="4"
+                          borderBottomWidth="1px"
                           borderColor="border.surface"
-                          bg="bg.surface"
-                          shadow="xl"
+                          px="6"
+                          py="5"
                         >
-                          <Popover.Arrow>
-                            <Popover.ArrowTip />
-                          </Popover.Arrow>
-                          <Popover.Body maxH="calc(100vh - 8rem)" overflowY="auto" p="5">
-                            <Stack gap="4">
-                              <Flex align="center" justify="space-between" gap="4">
-                                <Box minW="0">
-                                  <Popover.Title fontWeight="medium">
-                                    {filtersTitle}
-                                  </Popover.Title>
-                                  <Popover.Description srOnly>
-                                    {filtersDescription ?? 'Adjust filters.'}
-                                  </Popover.Description>
-                                </Box>
+                          <Box minW="0">
+                            <Dialog.Title fontSize="xl" fontWeight="semibold" color="fg">
+                              {filtersTitle}
+                            </Dialog.Title>
+                            <Dialog.Description srOnly>
+                              {filtersDescription ?? 'Adjust filters.'}
+                            </Dialog.Description>
+                          </Box>
 
-                                <Flex shrink={0} align="center" gap="2">
-                                  <chakra.button
-                                    type="button"
-                                    fontSize="sm"
-                                    fontWeight="medium"
-                                    color="teal.solid"
-                                    textDecoration="underline"
-                                    textUnderlineOffset="4"
-                                    transition="colors"
-                                    _hover={{ opacity: 0.8 }}
-                                    onClick={onResetFilters}
-                                  >
-                                    Reset
-                                  </chakra.button>
-                                  <Popover.CloseTrigger asChild>
-                                    <CloseButton size="sm" aria-label="Close filters" />
-                                  </Popover.CloseTrigger>
-                                </Flex>
-                              </Flex>
+                          <Flex shrink={0} align="center" gap="3">
+                            <chakra.button
+                              type="button"
+                              fontSize="sm"
+                              fontWeight="semibold"
+                              color="teal.solid"
+                              transition="colors"
+                              _hover={{ opacity: 0.8 }}
+                              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+                              onClick={onResetFilters}
+                            >
+                              Reset
+                            </chakra.button>
+                            <CloseButton size="sm" aria-label="Close filters" onClick={closeFilters} />
+                          </Flex>
+                        </Flex>
 
-                              {renderFilterContent()}
-                            </Stack>
-                          </Popover.Body>
-                        </Popover.Content>
-                      </Popover.Positioner>
-                    </Portal>
-                  </Popover.Root>
-                )}
-              </Box>
+                        <Dialog.Body flex="1" maxH="calc(100vh - 8rem)" overflowY="auto" px="6" py="5">
+                          <Box maxW="32rem" w="full">
+                            {renderFilterContent()}
+                          </Box>
+                        </Dialog.Body>
+                      </Dialog.Content>
+                    </Dialog.Positioner>
+                  </Portal>
+                </Dialog.Root>
+              </HStack>
             </Box>
           </Field>
 
-          <Flex
-            direction={{ base: 'column', sm: 'row' }}
-            gap="3"
-            minW="0"
-            w={isShellLayout ? { base: 'full', md: 'auto' } : 'full'}
-            flex={{ md: isShellLayout ? '0 0 auto' : hasToolbarAccessory ? '1 1 0' : '0 0 auto' }}
-            shrink={hasToolbarAccessory ? 1 : 0}
-          >
-            <DocumentSortMenu
-              ariaLabel={sortAriaLabel}
-              buttonProps={{
-                h: isShellLayout ? '11' : undefined,
-                minH: isShellLayout ? '11' : undefined,
-                minW: isShellLayout ? { base: '0', sm: '10rem' } : hasToolbarAccessory ? '0' : { md: '11rem' },
-              }}
-              labelId={sortSelectId}
-              value={sortBy}
-              onValueChange={onSortChange}
-              options={sortOptions}
-              variant={isShellLayout ? 'toolbar' : 'default'}
-            />
-          </Flex>
+          {inlineAccessory ? (
+            <Flex
+              display={isHeaderLayout ? { base: 'none', md: 'flex' } : 'flex'}
+              minW="0"
+              w={isHeaderLayout ? { md: '11.5rem', xl: '12.5rem' } : undefined}
+              maxW={isHeaderLayout ? '18rem' : undefined}
+              shrink={0}
+              align="center"
+            >
+              {inlineAccessory}
+            </Flex>
+          ) : null}
 
-          {toolbarAccessory || trailingAccessory ? (
+          {!isSortInInput ? (
+            <Flex
+              direction={{ base: 'column', sm: 'row' }}
+              gap="3"
+              minW="0"
+              w={isShellLayout ? { base: 'full', md: 'auto' } : 'full'}
+              flex={{ md: isShellLayout ? '0 0 auto' : hasToolbarAccessory ? '1 1 0' : '0 0 auto' }}
+              shrink={hasToolbarAccessory ? 1 : 0}
+            >
+              <DocumentSortMenu
+                ariaLabel={sortAriaLabel}
+                buttonProps={{
+                  h: isShellLayout ? '11' : undefined,
+                  minH: isShellLayout ? '11' : undefined,
+                  minW: isShellLayout ? { base: '0', sm: '10rem' } : hasToolbarAccessory ? '0' : { md: '11rem' },
+                }}
+                labelId={sortSelectId}
+                value={sortBy}
+                onValueChange={onSortChange}
+                options={sortOptions}
+                variant={isShellLayout ? 'toolbar' : 'default'}
+              />
+            </Flex>
+          ) : null}
+
+          {!isHeaderLayout && (toolbarAccessory || trailingAccessory) ? (
             <Flex
               minW="0"
               w={isShellLayout ? { base: 'full', md: 'auto' } : 'full'}
@@ -674,7 +664,7 @@ export function DocumentSearchControls<TSortValue extends string>({
           </Flex>
         </Flex>
 
-        {activeFilters.length > 0 ? (
+        {!isHeaderLayout && activeFilters.length > 0 ? (
           <>
             <Separator mt="4" />
             <Flex

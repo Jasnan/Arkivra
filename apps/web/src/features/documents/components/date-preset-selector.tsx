@@ -1,11 +1,14 @@
-import { Box, Flex, Text } from '@chakra-ui/react';
-import { CalendarRange } from 'lucide-react';
-import { Field, FieldLabel } from '@/components/ui/field';
+import { useState } from 'react';
+import { Box, DatePicker, IconButton, Portal, RadioCard, SimpleGrid, parseDate } from '@chakra-ui/react';
+import type { DateValue } from '@chakra-ui/react';
+import { CalendarDays } from 'lucide-react';
+import { useAccentColor } from '@/components/providers/accent-color-context';
+import { FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export type DatePreset = 'any' | 'last_7_days' | 'last_30_days' | 'custom';
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const presetOptions: Array<{ value: DatePreset; label: string }> = [
   { value: 'any', label: 'Any time' },
@@ -14,6 +17,166 @@ const presetOptions: Array<{ value: DatePreset; label: string }> = [
   { value: 'custom', label: 'Custom range' },
 ];
 
+function toInputDateValue(value: Date) {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, '0');
+  const day = `${value.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toDateValue(value: string) {
+  if (!ISO_DATE_PATTERN.test(value)) {
+    return undefined;
+  }
+
+  try {
+    return parseDate(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function toIsoDate(value: DateValue | undefined) {
+  return value?.toString() ?? '';
+}
+
+function DateRangePickerFields({
+  customDateFrom,
+  customDateTo,
+  onCustomDateFromChange,
+  onCustomDateToChange,
+}: {
+  customDateFrom: string;
+  customDateTo: string;
+  onCustomDateFromChange: (value: string) => void;
+  onCustomDateToChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const today = toDateValue(toInputDateValue(new Date()));
+  const selectedDates = [toDateValue(customDateFrom), toDateValue(customDateTo)].filter((date): date is DateValue => Boolean(date));
+
+  return (
+    <DatePicker.Root
+      mt="4"
+      maxW="32rem"
+      selectionMode="range"
+      open={isOpen}
+      value={selectedDates}
+      max={today}
+      positioning={{ placement: 'top-start' }}
+      placeholder="yyyy-mm-dd"
+      onOpenChange={(details) => setIsOpen(details.open)}
+      onValueChange={(details) => {
+        const [nextFromDate, nextToDate] = details.value;
+
+        onCustomDateFromChange(toIsoDate(nextFromDate));
+        onCustomDateToChange(toIsoDate(nextToDate));
+      }}
+    >
+      <DatePicker.Label srOnly>Custom uploaded date range</DatePicker.Label>
+      <DatePicker.Control display="none">
+        <DatePicker.Input index={0} />
+        <DatePicker.Input index={1} />
+      </DatePicker.Control>
+
+      <SimpleGrid columns={{ base: 1, sm: 2 }} gap="3" maxW="32rem" w="full">
+        <Box minW="0">
+          <FieldLabel htmlFor="custom-date-range-from" fontWeight="semibold">
+            From
+          </FieldLabel>
+          <Input
+            id="custom-date-range-from"
+            mt="2"
+            aria-label="From"
+            value={customDateFrom}
+            placeholder="yyyy-mm-dd"
+            readOnly
+            cursor="pointer"
+            h="11"
+            rounded="lg"
+            bg="bg.surface"
+            borderColor="border.surface"
+            _hover={{ borderColor: 'teal.muted' }}
+            _focusVisible={{
+              borderColor: 'teal.solid',
+              outline: '2px solid',
+              outlineColor: 'teal.focusRing',
+              outlineOffset: '1px',
+            }}
+            onClick={() => setIsOpen(true)}
+            onFocus={() => setIsOpen(true)}
+          />
+        </Box>
+
+        <Box minW="0">
+          <FieldLabel htmlFor="custom-date-range-to" fontWeight="semibold">
+            To
+          </FieldLabel>
+          <Box mt="2" position="relative">
+            <Input
+              id="custom-date-range-to"
+              aria-label="To"
+              value={customDateTo}
+              placeholder="yyyy-mm-dd"
+              readOnly
+              cursor="pointer"
+              h="11"
+              rounded="lg"
+              pr="10"
+              bg="bg.surface"
+              borderColor="border.surface"
+              _hover={{ borderColor: 'teal.muted' }}
+              _focusVisible={{
+                borderColor: 'teal.solid',
+                outline: '2px solid',
+                outlineColor: 'teal.focusRing',
+                outlineOffset: '1px',
+              }}
+              onClick={() => setIsOpen(true)}
+              onFocus={() => setIsOpen(true)}
+            />
+            <DatePicker.Trigger asChild>
+              <IconButton
+                aria-label="Open custom date range picker"
+                variant="ghost"
+                size="sm"
+                position="absolute"
+                top="50%"
+                right="1.5"
+                transform="translateY(-50%)"
+                color="fg.muted"
+                _hover={{ bg: 'bg.subtle', color: 'teal.fg' }}
+                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '1px' }}
+              >
+                <CalendarDays size={17} />
+              </IconButton>
+            </DatePicker.Trigger>
+          </Box>
+        </Box>
+      </SimpleGrid>
+
+      <Portal>
+        <DatePicker.Positioner>
+          <DatePicker.Content>
+            <DatePicker.View view="day">
+              <DatePicker.Header />
+              <DatePicker.DayTable />
+            </DatePicker.View>
+            <DatePicker.View view="month">
+              <DatePicker.Header />
+              <DatePicker.MonthTable />
+            </DatePicker.View>
+            <DatePicker.View view="year">
+              <DatePicker.Header />
+              <DatePicker.YearTable />
+            </DatePicker.View>
+          </DatePicker.Content>
+        </DatePicker.Positioner>
+      </Portal>
+    </DatePicker.Root>
+  );
+}
+
 export function DatePresetSelector({
   value,
   onValueChange,
@@ -21,7 +184,6 @@ export function DatePresetSelector({
   customDateTo,
   onCustomDateFromChange,
   onCustomDateToChange,
-  idPrefix,
   className,
 }: {
   value: DatePreset;
@@ -33,104 +195,69 @@ export function DatePresetSelector({
   idPrefix: string;
   className?: string;
 }) {
+  const { accentColor } = useAccentColor();
+
   return (
-    <>
-      <Box mt="3" className={className}>
-        <RadioGroup value={value} onValueChange={(next) => onValueChange(next as DatePreset)}>
+    <Box className={className}>
+      <RadioCard.Root
+        value={value}
+        onValueChange={(details) => {
+          if (details.value) {
+            onValueChange(details.value as DatePreset);
+          }
+        }}
+        colorPalette={accentColor}
+        variant="surface"
+        orientation="vertical"
+        align="start"
+        gap="2"
+        w="full"
+      >
+        <RadioCard.Label fontSize="sm" fontWeight="semibold" color="fg">
+          Uploaded date
+        </RadioCard.Label>
+
+        <SimpleGrid columns={{ base: 1, sm: 2 }} gap="2" maxW="32rem" w="full">
           {presetOptions.map((option) => (
-            <Label
+            <RadioCard.Item
               key={option.value}
-              htmlFor={`${idPrefix}-${option.value}`}
-              display="flex"
-              cursor="pointer"
-              alignItems="center"
-              gap="3"
-              rounded="lg"
-              px="3.5"
-              py="2.5"
-              fontWeight="semibold"
-              bg={value === option.value ? 'bg.subtle' : 'transparent'}
-              color={value === option.value ? 'fg' : 'fg.muted'}
-              transition="colors"
-              _hover={value === option.value ? undefined : { bg: 'bg.subtle', opacity: 0.6 }}
+              value={option.value}
+              w="full"
             >
-              <RadioGroupItem id={`${idPrefix}-${option.value}`} value={option.value} />
-              <Text as="span" fontSize="sm">
-                {option.label}
-              </Text>
-            </Label>
+              <RadioCard.ItemHiddenInput />
+              <RadioCard.ItemControl
+                display="grid"
+                gridTemplateColumns="auto minmax(0, 1fr)"
+                alignItems="center"
+                justifyContent="flex-start"
+                columnGap="3"
+                minH="12"
+                rounded="lg"
+                px="3.5"
+                py="2.5"
+                borderColor="border.surface"
+                bg="bg.surface"
+                cursor="pointer"
+                _checked={{ bg: 'colorPalette.subtle', borderColor: 'colorPalette.muted' }}
+              >
+                <RadioCard.ItemIndicator />
+                <RadioCard.ItemText fontSize="sm" fontWeight="semibold">
+                  {option.label}
+                </RadioCard.ItemText>
+              </RadioCard.ItemControl>
+            </RadioCard.Item>
           ))}
-        </RadioGroup>
-      </Box>
+        </SimpleGrid>
+      </RadioCard.Root>
 
       {value === 'custom' ? (
-        <Flex
-          mt="4"
-          gap="3"
-          borderLeftWidth="1px"
-          borderColor="border.surface"
-          pl={{ base: '3', sm: '4' }}
-          direction={{ base: 'column', sm: 'row' }}
-        >
-          <Field>
-            <FieldLabel htmlFor={`${idPrefix}-from`}>From</FieldLabel>
-            <Box position="relative">
-              <Box
-                position="absolute"
-                left="4"
-                top="50%"
-                transform="translateY(-50%)"
-                color="fg.muted"
-                pointerEvents="none"
-              >
-                <CalendarRange size={16} />
-              </Box>
-              <Input
-                id={`${idPrefix}-from`}
-                aria-label="From"
-                type="date"
-                value={customDateFrom}
-                max={customDateTo || undefined}
-                onChange={(event) => onCustomDateFromChange(event.target.value)}
-                h="10"
-                rounded="lg"
-                borderColor="border.surface"
-                bg="bg.surface"
-                pl="11"
-              />
-            </Box>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor={`${idPrefix}-to`}>To</FieldLabel>
-            <Box position="relative">
-              <Box
-                position="absolute"
-                left="4"
-                top="50%"
-                transform="translateY(-50%)"
-                color="fg.muted"
-                pointerEvents="none"
-              >
-                <CalendarRange size={16} />
-              </Box>
-              <Input
-                id={`${idPrefix}-to`}
-                aria-label="To"
-                type="date"
-                value={customDateTo}
-                min={customDateFrom || undefined}
-                onChange={(event) => onCustomDateToChange(event.target.value)}
-                h="10"
-                rounded="lg"
-                borderColor="border.surface"
-                bg="bg.surface"
-                pl="11"
-              />
-            </Box>
-          </Field>
-        </Flex>
+        <DateRangePickerFields
+          customDateFrom={customDateFrom}
+          customDateTo={customDateTo}
+          onCustomDateFromChange={onCustomDateFromChange}
+          onCustomDateToChange={onCustomDateToChange}
+        />
       ) : null}
-    </>
+    </Box>
   );
 }

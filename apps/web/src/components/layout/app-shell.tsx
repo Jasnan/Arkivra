@@ -404,10 +404,11 @@ function PrimarySidebar({
             rounded="lg"
             bg="bg.sidebar"
             borderWidth="1px"
-            borderColor="border.surface"
+            borderColor="bg.inverted"
+            p="1"
             overflow="hidden"
           >
-            <ArkivraLogo boxSize="full" color="teal.solid" />
+            <ArkivraLogo boxSize="full" color="bg.inverted" />
           </Flex>
         </Link>
       </RailTooltip>

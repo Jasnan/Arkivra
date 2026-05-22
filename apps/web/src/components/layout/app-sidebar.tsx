@@ -105,10 +105,13 @@ export function AppSidebar({ primaryNavItems, footerNavItems, variant = 'default
               justify="center"
               rounded="xl"
               bg="bg.sidebar"
+              borderWidth="1px"
+              borderColor="bg.inverted"
+              p="1"
               shadow="sm"
               overflow="hidden"
             >
-              <ArkivraLogo boxSize="full" color="teal.solid" />
+              <ArkivraLogo boxSize="full" color="bg.inverted" />
             </Flex>
             <Box minW="0" display={open ? undefined : 'none'}>
               <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">

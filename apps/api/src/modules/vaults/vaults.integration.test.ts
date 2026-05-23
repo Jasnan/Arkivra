@@ -7,6 +7,7 @@ import { registerVaultRoutes } from './vaults.routes.js';
 
 function createMockVaultsServices() {
   const services = {
+    countVaultContents: vi.fn(async () => ({ documentCount: 0, folderCount: 0, totalCount: 0 })),
     createVault: vi.fn(async ({ name, description, userId }) => ({
       id: 'vlt_test_1',
       name,
@@ -369,6 +370,141 @@ describe('vaults integration', () => {
 
     expect(response.status).toBe(403);
     expect(services.updateVaultIdentity).not.toHaveBeenCalled();
+  });
+
+  test('queues vault deletion request for non-admin owner when vault is empty', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_owner' },
+    });
+
+    expect(response.status).toBe(202);
+    expect(services.countVaultContents).toHaveBeenCalledWith({ vaultId: 'vlt_1' });
+    expect(services.createPermissionRequest).toHaveBeenCalledWith({
+      type: 'vault.delete',
+      requestedBy: 'usr_owner',
+      vaultId: 'vlt_1',
+      payload: {},
+    });
+  });
+
+  test('rejects vault deletion request when vault has contents', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    (services as any).countVaultContents = vi.fn(async () => ({
+      documentCount: 1,
+      folderCount: 0,
+      totalCount: 1,
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_owner' },
+    });
+
+    expect(response.status).toBe(409);
+    expect(services.createPermissionRequest).not.toHaveBeenCalled();
+    expect(services.softDeleteVault).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'vault.not_empty',
+        message: 'Empty the vault before deleting it.',
+        details: {
+          documentCount: 1,
+          folderCount: 0,
+          totalCount: 1,
+        },
+      },
+    });
+  });
+
+  test('rejects admin vault deletion when vault has folders', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      aiAccessLevel: 'none',
+      isAdmin: true,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    (services as any).countVaultContents = vi.fn(async () => ({
+      documentCount: 0,
+      folderCount: 1,
+      totalCount: 1,
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_root' },
+    });
+
+    expect(response.status).toBe(409);
+    expect(services.softDeleteVault).not.toHaveBeenCalled();
+  });
+
+  test('allows admin vault deletion when vault is empty', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      aiAccessLevel: 'none',
+      isAdmin: true,
+      isMember: true,
+      accessMode: 'member',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_root' },
+    });
+
+    expect(response.status).toBe(204);
+    expect(services.softDeleteVault).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      deletedBy: 'usr_root',
+    });
   });
 
   test('allows admin administrative user to join vault as explicit member', async () => {

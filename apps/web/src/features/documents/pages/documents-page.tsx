@@ -858,15 +858,15 @@ export function DocumentsPage() {
         </Flex>
 
         <Flex flex="1" minH="0" align="center" justify="center" px="6">
-          <Stack maxW="32rem" gap="4" textAlign="center">
+          <Stack maxW="32rem" gap="4" textAlign="center" align="center">
             <Folder size={32} style={{ alignSelf: 'center' }} />
-            <Text fontSize="2xl" fontWeight="bold" color="fg">
+            <Text fontSize="2xl" fontWeight="bold" lineHeight="1.25" color="fg">
               Become a vault member to access documents
             </Text>
-            <Text fontSize="sm" lineHeight="6" color="fg.muted">
+            <Text fontSize="sm" lineHeight="1.55" color="fg.muted">
               Admin accounts can see that this vault exists and inspect basic metadata, but document access requires visible vault membership.
             </Text>
-            <Text fontSize="sm" color="fg.muted">
+            <Text fontSize="sm" lineHeight="1.55" color="fg.muted">
               {vault.description ?? 'No description set.'}
             </Text>
             <HStack justify="center">

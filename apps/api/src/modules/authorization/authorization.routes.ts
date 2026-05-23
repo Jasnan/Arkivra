@@ -184,6 +184,13 @@ export function registerAuthorizationRoutes({
         );
       }
 
+      if (error instanceof Error && error.message === 'authorization.vault_not_empty') {
+        return context.json(
+          { error: { code: 'vault.not_empty', message: 'Empty the vault before deleting it.' } },
+          409,
+        );
+      }
+
       throw error;
     }
   });

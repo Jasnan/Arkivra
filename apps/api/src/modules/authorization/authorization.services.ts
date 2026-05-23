@@ -11,12 +11,10 @@ import type {
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   authAccountsTable,
-  documentsTable,
   emailInvitationsTable,
   permissionRequestsTable,
   systemCapabilitiesTable,
   usersTable,
-  vaultFoldersTable,
   vaultMembersTable,
   vaultsTable,
 } from '../database/schema/index.js';
@@ -496,39 +494,10 @@ export function createAuthorizationServices({ db }: { db: Database }) {
           throw new Error('authorization.invalid_permission_request_payload');
         }
 
-        const [documentRow] = await tx
-          .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-          .from(documentsTable)
-          .where(and(eq(documentsTable.vaultId, request.vaultId), eq(documentsTable.isDeleted, false)));
-
-        if ((documentRow?.count ?? 0) > 0) {
-          throw new Error('authorization.vault_not_empty');
-        }
-
-        const [folderRow] = await tx
-          .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-          .from(vaultFoldersTable)
-          .where(and(eq(vaultFoldersTable.vaultId, request.vaultId), eq(vaultFoldersTable.isDeleted, false)));
-
-        if ((folderRow?.count ?? 0) > 0) {
-          throw new Error('authorization.vault_not_empty');
-        }
-
-        const [deletedVault] = await tx
+        await tx
           .update(vaultsTable)
           .set({ deletedAt: new Date(), deletedBy: reviewedBy, updatedAt: new Date() })
-          .where(and(
-            eq(vaultsTable.id, request.vaultId),
-            isNull(vaultsTable.deletedAt),
-            sql`not exists (select 1 from ${documentsTable} where ${documentsTable.vaultId} = ${request.vaultId} and ${documentsTable.isDeleted} = false)`,
-            sql`not exists (select 1 from ${vaultFoldersTable} where ${vaultFoldersTable.vaultId} = ${request.vaultId} and ${vaultFoldersTable.isDeleted} = false)`,
-          ))
-          .returning({ id: vaultsTable.id });
-
-        if (deletedVault === undefined) {
-          throw new Error('authorization.vault_not_empty');
-        }
-
+          .where(and(eq(vaultsTable.id, request.vaultId), isNull(vaultsTable.deletedAt)));
         result.vaultId = request.vaultId;
       } else if (request.type === 'vault.owner_promote') {
         if (request.vaultId === null || request.targetUserId === null) {

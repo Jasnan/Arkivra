@@ -261,21 +261,6 @@ export function registerVaultRoutes({
       );
     }
 
-    const contentCounts = await vaultsServices.countVaultContents({ vaultId });
-
-    if (contentCounts.totalCount > 0) {
-      return context.json(
-        {
-          error: {
-            code: 'vault.not_empty',
-            message: 'Empty the vault before deleting it.',
-            details: contentCounts,
-          },
-        },
-        409,
-      );
-    }
-
     if (!context.get('isAdmin')) {
       const request = await vaultsServices.createPermissionRequest({
         type: 'vault.delete',
@@ -293,21 +278,6 @@ export function registerVaultRoutes({
     });
 
     if (deletedVault === null) {
-      const updatedContentCounts = await vaultsServices.countVaultContents({ vaultId });
-
-      if (updatedContentCounts.totalCount > 0) {
-        return context.json(
-          {
-            error: {
-              code: 'vault.not_empty',
-              message: 'Empty the vault before deleting it.',
-              details: updatedContentCounts,
-            },
-          },
-          409,
-        );
-      }
-
       return context.json(
         {
           error: {

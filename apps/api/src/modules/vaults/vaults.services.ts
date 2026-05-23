@@ -5,7 +5,6 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   documentsTable,
   usersTable,
-  vaultFoldersTable,
   vaultMembersTable,
   vaultsTable,
 } from '../database/schema/index.js';
@@ -204,27 +203,6 @@ export function createVaultsServices({ db }: { db: Database }) {
     return vault ?? null;
   }
 
-  async function countVaultContents({ vaultId }: { vaultId: string }) {
-    const [documentRow] = await db
-      .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-      .from(documentsTable)
-      .where(and(eq(documentsTable.vaultId, vaultId), eq(documentsTable.isDeleted, false)));
-
-    const [folderRow] = await db
-      .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-      .from(vaultFoldersTable)
-      .where(and(eq(vaultFoldersTable.vaultId, vaultId), eq(vaultFoldersTable.isDeleted, false)));
-
-    const documentCount = documentRow?.count ?? 0;
-    const folderCount = folderRow?.count ?? 0;
-
-    return {
-      documentCount,
-      folderCount,
-      totalCount: documentCount + folderCount,
-    };
-  }
-
   async function softDeleteVault({ vaultId, deletedBy }: { vaultId: string; deletedBy: string }) {
     const [vault] = await db
       .update(vaultsTable)
@@ -233,12 +211,7 @@ export function createVaultsServices({ db }: { db: Database }) {
         deletedBy,
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(vaultsTable.id, vaultId),
-        isNull(vaultsTable.deletedAt),
-        sql`not exists (select 1 from ${documentsTable} where ${documentsTable.vaultId} = ${vaultId} and ${documentsTable.isDeleted} = false)`,
-        sql`not exists (select 1 from ${vaultFoldersTable} where ${vaultFoldersTable.vaultId} = ${vaultId} and ${vaultFoldersTable.isDeleted} = false)`,
-      ))
+      .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
       .returning({ id: vaultsTable.id });
 
     return vault ?? null;
@@ -447,7 +420,6 @@ export function createVaultsServices({ db }: { db: Database }) {
   }
 
   return {
-    countVaultContents,
     createVault,
     createPermissionRequest,
     getMember,

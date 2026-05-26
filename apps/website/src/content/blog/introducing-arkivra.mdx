@@ -1,0 +1,34 @@
+---
+title: Introducing Arkivra
+description: Arkivra is an open-source document system for vaults, search, and AI-assisted document workflows.
+publishedAt: 2026-05-24
+lang: en
+---
+
+Arkivra is an open-source document system for people who want their files organized, searchable, and understandable inside their own infrastructure.
+
+The project combines practical document workflows with local or cloud AI models: upload files, organize them into vaults, search across extracted content, and ask questions against a document, a vault, or your whole library.
+
+## What Arkivra Focuses On
+
+Arkivra is built around a few core ideas:
+
+- **Vault-based organization** for separating document collections by workspace, project, or access level.
+- **Roles and permissions** so vaults can be shared without exposing every document to every user.
+- **Full-text and semantic search** using PostgreSQL, pgvector, extracted text, chunks, and metadata.
+- **AI chat over documents** with local model support and optional cloud providers.
+- **Docling-based parsing** for turning files into useful searchable structure.
+- **Encrypted file storage at rest** for uploaded files.
+- **Self-hosting support** with Docker Compose and open-source code.
+
+Arkivra is explicit about the tradeoffs behind ingestion, retrieval, and AI integration. Uploaded files are encrypted at rest, while extracted retrieval data is stored separately in PostgreSQL to support search and chat. If you run local AI models, document context stays inside your infrastructure, and Arkivra does not collect telemetry.
+
+## Current Status
+
+Arkivra is under active development. The core platform is already usable, while deployment, documentation, and operational tooling are still being refined before the first stable release.
+
+If you want to follow along, inspect the code, or try a local deployment, start with the GitHub repository.
+
+- [GitHub repository](https://github.com/Jasnan/Arkivra)
+- [Documentation](https://docs.arkivra.app)
+- [Self-hosting](https://docs.arkivra.app/self-hosting)

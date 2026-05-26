@@ -1,0 +1,117 @@
+---
+import { config } from '../app.config';
+import { buildLocalizedPath, useI18n } from '../i18n/i18n';
+import { getSocials } from '../socials';
+import { cn } from '../utils/cn';
+
+const { t } = useI18n({ locale: Astro.currentLocale });
+
+const socials = getSocials({ t }).filter(social => social.inHeader);
+
+const navigation = [
+  {
+    name: t('nav.features'),
+    url: '/#features',
+  },
+  {
+    name: t('nav.self-host'),
+    url: '/self-host',
+  },
+  {
+    name: t('nav.security'),
+    url: '/#security',
+  },
+  {
+    name: t('nav.docs'),
+    url: 'https://docs.arkivra.app',
+  },
+  {
+    name: t('nav.demo'),
+    url: 'https://github.com/Jasnan/Arkivra',
+  },
+];
+
+type Props = {
+  class?: string;
+};
+
+const { class: className } = Astro.props;
+---
+
+<nav
+  class={`z-100 border-0 border-b md:max-w-1200px px-4 py-3.5 mx-auto flex items-center justify-between md:(py-2.5 border-1px mt-4) fixed top-0 left-0 right-0 bg-background/90 backdrop-blur-sm ${className}`}
+>
+  <a href={buildLocalizedPath({ locale: Astro.currentLocale, path: '/' })} class="text-lg font-semibold flex items-center group">
+    <span
+      class="size-7 bg-primary"
+      style="-webkit-mask: url('/arkivra-sidebar-logo.svg') center / contain no-repeat; mask: url('/arkivra-sidebar-logo.svg') center / contain no-repeat;"
+      aria-hidden="true"
+    >
+    </span>
+    <span class="ml-2">Arkivra</span>
+  </a>
+
+  <div class="items-center gap-6 hidden md:flex">
+    {
+      navigation.map(nav => (
+        <a href={nav.url} class="text-sm font-medium text-muted-foreground transition hover:text-foreground" {...(nav.url.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {})}>
+          {nav.name}
+        </a>
+      ))
+    }
+  </div>
+
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      {
+        socials.map(social => (
+          <a href={social.url} target="_blank" rel="noopener noreferrer" class="text-muted-foreground transition hover:text-foreground" aria-label={social.name}>
+            <div class={cn('size-5', social.icon)} />
+          </a>
+        ))
+      }
+    </div>
+
+    <button
+      type="button"
+      class="inline-flex size-9 items-center justify-center border border-border bg-background/70 text-foreground transition hover:border-foreground/30"
+      aria-label="Toggle theme"
+      title="Toggle theme"
+      data-theme-toggle
+    >
+      <span class="i-tabler-sun size-5 dark:hidden" aria-hidden="true"></span>
+      <span class="i-tabler-moon hidden size-5 dark:block" aria-hidden="true"></span>
+    </button>
+
+    <a
+      class="flex gap-1.5 items-center border border-border bg-background/70 font-medium py-1.5 px-3 text-foreground text-sm transition hover:border-foreground/30"
+      href={config.getStartedLink}
+      target="_blank"
+    >
+      {t('nav.sign-in')}
+      <div class="i-tabler-arrow-right size-4"></div>
+    </a>
+  </div>
+</nav>
+
+<script>
+  const storageKey = 'arkivra-theme';
+
+  function setTheme(theme: 'light' | 'dark') {
+    document.documentElement.dataset.kbTheme = theme;
+    document.documentElement.style.colorScheme = theme;
+
+    try {
+      localStorage.setItem(storageKey, theme);
+    } catch {
+      // Ignore storage failures; the visible theme should still switch.
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const currentTheme = document.documentElement.dataset.kbTheme === 'dark' ? 'dark' : 'light';
+      setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    });
+  });
+</script>

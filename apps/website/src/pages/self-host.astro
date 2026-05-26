@@ -1,0 +1,127 @@
+---
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import Layout from '../layouts/Layout.astro';
+
+const requirements = [
+  'Docker Compose for the current first-class deployment path',
+  'PostgreSQL with pgvector for metadata, search, embeddings, and chat state',
+  'Docling for document parsing and ingestion',
+  'Local model support for private AI search and chat workflows',
+  'A protected ARKIVRA_ENCRYPTION_KEYS backup outside the server',
+];
+
+const commands = `git clone https://github.com/Jasnan/Arkivra.git
+cd Arkivra
+
+cp .env.example .env
+openssl rand -hex 32
+
+docker compose up -d
+curl http://localhost:1221/api/health`;
+
+const responsibilities = [
+  {
+    title: 'Keep the database private',
+    description: 'Extracted retrieval data is stored separately from original files in PostgreSQL so ingestion, search, and chat can work.',
+  },
+  {
+    title: 'Protect encryption keys',
+    description: 'Uploaded files are encrypted at rest. Losing the active key means losing access to encrypted stored files.',
+  },
+  {
+    title: 'Choose your AI boundary',
+    description: 'With local models, document context stays inside your infrastructure. With cloud models, only retrieved context needed for the request is sent to the provider you configure.',
+  },
+];
+---
+
+<Layout title="Self-host Arkivra" description="Run Arkivra on your own infrastructure with Docker Compose, PostgreSQL, Docling, and local-first AI workflows.">
+  <div class="min-h-screen bg-background">
+    <Header />
+
+    <section class="border-b border-border bg-card pt-34 pb-16">
+      <div class="mx-auto max-w-1100px px-5 md:px-8">
+        <div class="max-w-760px">
+          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Self-hosting</div>
+          <h1 class="mt-4 font-display text-4xl font-semibold leading-tight md:text-6xl">Run the document stack where your documents already belong.</h1>
+          <p class="mt-5 text-base leading-7 text-muted-foreground md:text-xl md:leading-8">
+            Arkivra is designed to run well in your own infrastructure. The current deployment path is intentionally direct: Docker Compose, PostgreSQL, Docling, the API, the web app, and background workers.
+          </p>
+          <p class="mt-4 text-base leading-7 text-muted-foreground">
+            A managed hosting option may be considered later if demand appears. Self-hosting will remain a supported deployment path.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="border-b border-border py-16 md:py-24">
+      <div class="mx-auto grid max-w-1100px gap-8 px-5 md:grid-cols-[0.85fr_1.15fr] md:px-8">
+        <div>
+          <h2 class="font-display text-2xl font-semibold leading-tight md:text-4xl">Quick start</h2>
+          <p class="mt-5 leading-7 text-muted-foreground">
+            This is the local starting point. Production deployments should review secrets, backups, TLS, database access, and worker operations before handling important archives.
+          </p>
+        </div>
+        <pre class="overflow-auto border border-border bg-card p-5 text-sm leading-7 text-foreground"><code>{commands}</code></pre>
+      </div>
+    </section>
+
+    <section class="border-b border-border bg-card py-16 md:py-24">
+      <div class="mx-auto grid max-w-1100px gap-8 px-5 md:grid-cols-[1fr_1fr] md:px-8">
+        <div>
+          <h2 class="font-display text-2xl font-semibold leading-tight md:text-4xl">What you run</h2>
+          <p class="mt-5 leading-7 text-muted-foreground">
+            Arkivra keeps the moving pieces explicit so operators can understand what the platform needs and why.
+          </p>
+        </div>
+        <ul class="border border-border bg-background">
+          {
+            requirements.map((item, index) => (
+              <li class={`flex gap-3 p-5 leading-7 text-muted-foreground ${index < requirements.length - 1 ? 'border-b border-border' : ''}`}>
+                <span class="i-tabler-check mt-0.5 size-5 flex-shrink-0 text-primary" aria-hidden="true"></span>
+                {item}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="py-16 md:py-24">
+      <div class="mx-auto max-w-1100px px-5 md:px-8">
+        <div class="max-w-680px">
+          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Operator notes</div>
+          <h2 class="mt-4 font-display text-2xl font-semibold leading-tight md:text-4xl">Security is part of the deployment.</h2>
+          <p class="mt-5 max-w-680px leading-7 text-muted-foreground">
+            Arkivra does not include telemetry and does not collect user information. If you run it in your own infrastructure with local models, document context stays in that environment.
+          </p>
+        </div>
+
+        <div class="mt-10 grid gap-4 md:grid-cols-3">
+          {
+            responsibilities.map(item => (
+              <article class="border border-border bg-card p-6">
+                <h3 class="text-lg font-semibold">{item.title}</h3>
+                <p class="mt-4 leading-7 text-muted-foreground">{item.description}</p>
+              </article>
+            ))
+          }
+        </div>
+
+        <div class="mt-10 flex flex-col gap-3 sm:flex-row">
+          <a href="https://docs.arkivra.app/self-hosting" class="inline-flex items-center justify-center gap-2 bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/85" target="_blank" rel="noopener">
+            Read self-hosting docs
+            <span class="i-tabler-arrow-right size-5"></span>
+          </a>
+          <a href="https://github.com/Jasnan/Arkivra" class="inline-flex items-center justify-center gap-2 border border-border px-4 py-2.5 text-sm font-semibold transition hover:border-primary hover:text-primary" target="_blank" rel="noopener">
+            View source
+            <span class="i-tabler-brand-github size-5"></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <Footer />
+  </div>
+</Layout>

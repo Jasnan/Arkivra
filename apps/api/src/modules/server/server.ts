@@ -52,6 +52,10 @@ import {
 import { registerTranslationRoutes } from '../translations/translations.routes.js';
 import { createUserPreferencesServices } from '../user-preferences/user-preferences.services.js';
 import { registerUserPreferencesRoutes } from '../user-preferences/user-preferences.routes.js';
+import { createAuditServices } from '../audit/audit.services.js';
+import { registerAuditRoutes } from '../audit/audit.routes.js';
+import { createActivityServices } from '../activity/activity.services.js';
+import { registerActivityRoutes } from '../activity/activity.routes.js';
 
 const OLLAMA_EMBEDDING_MODEL_PATTERNS = [
   /^bge[-:]/i,
@@ -154,6 +158,8 @@ export function createServer({
   });
   const translationServices = createDocumentTranslationServices({ provider: translationProvider });
   const userPreferencesServices = createUserPreferencesServices({ db });
+  const auditServices = createAuditServices({ db });
+  const activityServices = createActivityServices({ db });
 
   app.use(
     cors({
@@ -206,7 +212,7 @@ export function createServer({
   });
 
   registerAuthRoutes({ app, auth, authorizationServices: authzServices, config });
-  registerVaultRoutes({ app, db });
+  registerVaultRoutes({ app, db, auditServices, activityServices });
   registerFolderRoutes({ app, db });
   registerDocumentRoutes({
     app,
@@ -216,13 +222,19 @@ export function createServer({
     services: documentsServices,
     documentQueue,
     retentionDays: config.backgroundJobs.documentRetentionDays,
+    auditServices,
+    activityServices,
   });
+  registerActivityRoutes({ app, db, services: activityServices });
+  registerAuditRoutes({ app, db, services: auditServices });
   registerUploadRoutes({
     app,
     db,
     config,
     documentsServices,
     documentQueue,
+    auditServices,
+    activityServices,
   });
   registerSearchRoutes({ app, db, services: searchServices });
   registerChatRoutes({ app, db, services: chatServices });
@@ -234,7 +246,12 @@ export function createServer({
   });
   registerTagRoutes({ app, db });
   registerBackupRoutes({ app, config, backupQueue, backupServices });
-  registerAuthorizationRoutes({ app, authorizationServices: authzServices });
+  registerAuthorizationRoutes({
+    app,
+    authorizationServices: authzServices,
+    activityServices,
+    auditServices,
+  });
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
   registerAdminAiRoutes({ app, aiServices });

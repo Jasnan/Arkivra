@@ -117,6 +117,7 @@ describe('documents page', () => {
     expect(await screen.findByRole('tab', { name: /preview/i })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /extracted text/i })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /metadata/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^chat$/i })).toBeInTheDocument();
   });
 

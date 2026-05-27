@@ -58,6 +58,13 @@ import {
   usePermissionRequestsQuery,
 } from '@/features/admin/admin.queries';
 import type { AdminAiSettings, AdminUser, AdminVault, EmailInvitation, PermissionRequest } from '@/features/admin/admin.types';
+import type { AuditLogFilters } from '@/features/audit/audit.types';
+import { useAdminAuditLogQuery } from '@/features/audit/audit.queries';
+import {
+  formatAuditMetadataLabel,
+  formatAuditMetadataValue,
+  formatAuditTimestamp,
+} from '@/features/audit/audit-formatters';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
@@ -1307,6 +1314,145 @@ export function AdminUserAccessPage() {
         </Box>
       </SettingsSection>
     </SettingsPageFrame>
+  );
+}
+
+const auditCategoryOptions = ['auth', 'vault', 'document', 'permission', 'audit', 'system'];
+const auditSeverityOptions = ['info', 'notice', 'warning', 'critical'];
+const auditOutcomeOptions = ['success', 'failure', 'denied'];
+
+export function AdminAuditLogPage() {
+  const meQuery = useMeQuery();
+  const isEnabled = meQuery.data?.isAdmin === true;
+  const [filters, setFilters] = useState<AuditLogFilters>({});
+  const auditQuery = useAdminAuditLogQuery({ filters, enabled: isEnabled });
+  const events = auditQuery.data?.pages.flatMap(page => page.events) ?? [];
+
+  function setFilter(key: keyof AuditLogFilters, value: string) {
+    setFilters(current => ({
+      ...current,
+      [key]: value.length > 0 ? value : undefined,
+    }));
+  }
+
+  return (
+    <AdminAccessBoundary
+      title="Audit log"
+      description="Security, compliance, permission, and administrative events."
+      isEnabled={isEnabled}
+      isLoading={meQuery.isLoading}
+    >
+        <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' }}>
+          <Field>
+            <FieldLabel>Category</FieldLabel>
+            <Select value={filters.eventCategory ?? 'all'} onValueChange={(value) => setFilter('eventCategory', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
+              <SelectTrigger bg="bg.surface"><SelectValue placeholder="All categories" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {auditCategoryOptions.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel>Severity</FieldLabel>
+            <Select value={filters.severity ?? 'all'} onValueChange={(value) => setFilter('severity', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
+              <SelectTrigger bg="bg.surface"><SelectValue placeholder="All severities" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All severities</SelectItem>
+                {auditSeverityOptions.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel>Outcome</FieldLabel>
+            <Select value={filters.outcome ?? 'all'} onValueChange={(value) => setFilter('outcome', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
+              <SelectTrigger bg="bg.surface"><SelectValue placeholder="All outcomes" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All outcomes</SelectItem>
+                {auditOutcomeOptions.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-audit-event-type">Event type</FieldLabel>
+            <Input id="admin-audit-event-type" value={filters.eventType ?? ''} placeholder="document.deleted" bg="bg.surface" onChange={(event) => setFilter('eventType', event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-audit-actor">Actor</FieldLabel>
+            <Input id="admin-audit-actor" value={filters.actorId ?? ''} placeholder="User id" bg="bg.surface" onChange={(event) => setFilter('actorId', event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-audit-vault">Vault</FieldLabel>
+            <Input id="admin-audit-vault" value={filters.vaultId ?? ''} placeholder="Vault id" bg="bg.surface" onChange={(event) => setFilter('vaultId', event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-audit-document">Document</FieldLabel>
+            <Input id="admin-audit-document" value={filters.documentId ?? ''} placeholder="Document id" bg="bg.surface" onChange={(event) => setFilter('documentId', event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-audit-target">Target</FieldLabel>
+            <Input id="admin-audit-target" value={filters.targetId ?? ''} placeholder="Target id" bg="bg.surface" onChange={(event) => setFilter('targetId', event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-audit-from">From</FieldLabel>
+            <Input id="admin-audit-from" type="date" value={filters.dateFrom ?? ''} bg="bg.surface" onChange={(event) => setFilter('dateFrom', event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="admin-audit-to">To</FieldLabel>
+            <Input id="admin-audit-to" type="date" value={filters.dateTo ?? ''} bg="bg.surface" onChange={(event) => setFilter('dateTo', event.target.value)} />
+          </Field>
+        </Grid>
+
+        {auditQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading audit log...</Text> : null}
+        {auditQuery.isError ? <Text textStyle="sm" color="fg.error">Unable to load audit log.</Text> : null}
+        {!auditQuery.isLoading && !auditQuery.isError && events.length === 0 ? (
+          <Text textStyle="sm" color="fg.muted">No audit events match these filters.</Text>
+        ) : null}
+
+        {events.length > 0 ? (
+          <Stack gap="2">
+            {events.map(event => (
+              <Box key={event.id} rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3">
+                <Flex align="start" justify="space-between" gap="3">
+                  <Box minW="0">
+                    <Text textStyle="sm" fontWeight="semibold" color="fg">{event.summary}</Text>
+                    <Text mt="1" textStyle="xs" color="fg.muted">
+                      {formatAuditTimestamp(event.occurredAt)} · {event.eventType} · {event.outcome}
+                    </Text>
+                    <Text mt="1" textStyle="xs" color="fg.muted">
+                      Actor: {event.actorDisplayName}
+                      {event.vaultId ? ` · Vault: ${event.vaultId}` : ''}
+                      {event.documentId ? ` · Document: ${event.documentId}` : ''}
+                    </Text>
+                  </Box>
+                  <HStack gap="1.5" flexShrink={0}>
+                    <Badge variant="secondary">{event.severity}</Badge>
+                    <Badge variant="outline">{event.eventCategory}</Badge>
+                  </HStack>
+                </Flex>
+                {Object.keys(event.metadata).length > 0 ? (
+                  <Flex mt="3" flexWrap="wrap" gap="2">
+                    {Object.entries(event.metadata).map(([key, value]) => {
+                      const formattedValue = formatAuditMetadataValue(key, value);
+                      return formattedValue.length > 0 ? (
+                        <Text key={key} rounded="md" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
+                          {formatAuditMetadataLabel(key)}: {formattedValue}
+                        </Text>
+                      ) : null;
+                    })}
+                  </Flex>
+                ) : null}
+              </Box>
+            ))}
+          </Stack>
+        ) : null}
+
+        {auditQuery.hasNextPage ? (
+          <Button type="button" variant="outline" alignSelf="flex-start" disabled={auditQuery.isFetchingNextPage} onClick={() => { void auditQuery.fetchNextPage(); }}>
+            {auditQuery.isFetchingNextPage ? 'Loading...' : 'Load more'}
+          </Button>
+        ) : null}
+    </AdminAccessBoundary>
   );
 }
 

@@ -53,6 +53,7 @@ export const ROUTES = {
   adminOverview: '/admin/overview',
   adminUsers: '/admin/users',
   adminUserAccess: (userId: string) => `/admin/users/${userId}/access` as const,
+  adminAuditLog: '/admin/audit-log',
   adminBackups: '/admin/backups',
   adminAiSettings: '/admin/ai-settings',
 

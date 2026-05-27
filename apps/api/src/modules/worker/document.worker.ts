@@ -4,6 +4,7 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ParsePipeline } from '../parsing/parse-pipeline.js';
 import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
 import type { ProcessDocumentJobData } from './queue.js';
+import type { createActivityServices } from '../activity/activity.services.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
 import { eq, and } from 'drizzle-orm';
 import { documentsTable, uploadSessionsTable } from '../database/schema/index.js';
@@ -11,6 +12,7 @@ import { persistParsedDocument } from '../parsing/persistence.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 import type { AsyncJob } from './postgres-jobs.js';
 import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
+import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 
 const WORKER_PROGRESS = {
   partitioning: 30,
@@ -29,6 +31,7 @@ export type DocumentWorkerDeps = {
   appInstance?: string;
   startPolling?: boolean;
   concurrency?: number;
+  activityServices?: ReturnType<typeof createActivityServices>;
 };
 
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
@@ -41,6 +44,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     appInstance,
     startPolling = true,
     concurrency = 1,
+    activityServices,
   } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
   const logPrefix = '[document-worker]';
@@ -63,6 +67,17 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       documentId,
       vaultId,
       processingStatus,
+    });
+    await activityServices?.emitActivityEvent({
+      activityType: ACTIVITY_EVENT_TYPES.documentProcessingStatusChanged,
+      entityType: 'document',
+      entityId: documentId,
+      actor: { type: 'system', displayName: 'System' },
+      vaultId,
+      documentId,
+      target: { type: 'document', id: documentId },
+      source: 'background',
+      metadata: { processing_status: processingStatus, progress },
     });
     await job.updateProgress(progress);
   }
@@ -244,6 +259,20 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         documentId,
         vaultId,
         processingStatus: 'failed',
+      });
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.documentProcessingStatusChanged,
+        entityType: 'document',
+        entityId: documentId,
+        actor: { type: 'system', displayName: 'System' },
+        vaultId,
+        documentId,
+        target: { type: 'document', id: documentId },
+        source: 'background',
+        metadata: {
+          processing_status: 'failed',
+          error_message: error instanceof Error ? error.message : 'Document processing failed',
+        },
       });
       await updateRelatedUploadSession({
         documentId,

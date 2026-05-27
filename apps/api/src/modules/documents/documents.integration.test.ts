@@ -4,10 +4,14 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { DocumentsServices } from './documents.services.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
+import type { createAuditServices } from '../audit/audit.services.js';
+import type { createActivityServices } from '../activity/activity.services.js';
 import { Hono } from 'hono';
 import { describe, expect, test, vi } from 'vitest';
 import { registerVaultRoutes } from '../vaults/vaults.routes.js';
 import { registerDocumentRoutes } from './documents.routes.js';
+import { registerAuditRoutes } from '../audit/audit.routes.js';
+import { registerActivityRoutes } from '../activity/activity.routes.js';
 
 function createMockDocumentsServices() {
   const services = {
@@ -166,14 +170,183 @@ function createMockVaultsServices() {
   } as unknown as VaultsServices;
 }
 
+function createMockAuditServices() {
+  const now = new Date('2025-01-02T00:00:00.000Z');
+  return {
+    emitAuditEvent: vi.fn(async (input: any) => ({
+      id: 'aud_1',
+      createdAt: now,
+      occurredAt: now,
+      eventType: input.eventType,
+      eventCategory: input.eventCategory,
+      outcome: input.outcome,
+      actorId: input.actor?.id ?? null,
+      actorType: input.actor?.type ?? 'unknown',
+      actorDisplayName: input.actor?.displayName ?? null,
+      vaultId: input.vaultId ?? null,
+      documentId: input.documentId ?? null,
+      targetType: input.target?.type ?? null,
+      targetId: input.target?.id ?? null,
+      targetDisplayName: input.target?.displayName ?? null,
+      source: input.source ?? 'api',
+      ipAddress: input.requestContext?.ipAddress ?? null,
+      userAgent: input.requestContext?.userAgent ?? null,
+      requestId: input.requestContext?.requestId ?? null,
+      metadata: input.metadata ?? null,
+      before: null,
+      after: null,
+      schemaVersion: 1,
+    })),
+    listDocumentActivity: vi.fn(async () => ({
+      events: [
+        {
+          id: 'aud_upload',
+          createdAt: now,
+          occurredAt: now,
+          eventType: 'document.uploaded',
+          eventCategory: 'document',
+          outcome: 'success',
+          actorId: 'usr_1',
+          actorType: 'user',
+          actorDisplayName: 'Jane',
+          vaultId: 'vlt_1',
+          documentId: 'doc_1',
+          targetType: 'document',
+          targetId: 'doc_1',
+          targetDisplayName: 'report.pdf',
+          source: 'web',
+          ipAddress: null,
+          userAgent: null,
+          requestId: null,
+          metadata: { file_name: 'report.pdf', token: 'nope' },
+          before: null,
+          after: null,
+          schemaVersion: 1,
+        },
+        {
+          id: 'aud_denied',
+          createdAt: now,
+          occurredAt: now,
+          eventType: 'document.access_denied',
+          eventCategory: 'permission',
+          outcome: 'denied',
+          actorId: 'usr_2',
+          actorType: 'user',
+          actorDisplayName: 'John',
+          vaultId: 'vlt_1',
+          documentId: 'doc_1',
+          targetType: 'document',
+          targetId: 'doc_1',
+          targetDisplayName: null,
+          source: 'web',
+          ipAddress: null,
+          userAgent: null,
+          requestId: null,
+          metadata: { action: 'view' },
+          before: null,
+          after: null,
+          schemaVersion: 1,
+        },
+      ],
+      nextCursor: null,
+    })),
+    listVaultAuditEvents: vi.fn(async () => ({
+      events: [
+        {
+          id: 'aud_log',
+          createdAt: now,
+          occurredAt: now,
+          eventType: 'audit_log.viewed',
+          eventCategory: 'audit',
+          outcome: 'success',
+          actorId: 'usr_owner',
+          actorType: 'user',
+          actorDisplayName: 'Owner',
+          vaultId: 'vlt_1',
+          documentId: null,
+          targetType: 'vault',
+          targetId: 'vlt_1',
+          targetDisplayName: null,
+          source: 'web',
+          ipAddress: null,
+          userAgent: null,
+          requestId: null,
+          metadata: { filters_applied: false },
+          before: null,
+          after: null,
+          schemaVersion: 1,
+        },
+      ],
+      nextCursor: null,
+    })),
+  } as unknown as ReturnType<typeof createAuditServices>;
+}
+
+function createMockActivityServices() {
+  return {
+    emitActivityEvent: vi.fn(async input => ({
+      id: 'act_emit',
+      createdAt: new Date(),
+      occurredAt: input.occurredAt ?? new Date(),
+      activityType: input.activityType,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      actorId: input.actor?.id ?? null,
+      actorType: input.actor?.type ?? 'unknown',
+      actorDisplayName: input.actor?.displayName ?? null,
+      vaultId: input.vaultId ?? null,
+      documentId: input.documentId ?? null,
+      targetType: input.target?.type ?? null,
+      targetId: input.target?.id ?? null,
+      targetDisplayName: input.target?.displayName ?? null,
+      source: input.source ?? 'api',
+      visibility: input.visibility ?? 'vault_members',
+      metadata: input.metadata ?? {},
+      auditEventId: input.auditEventId ?? null,
+      schemaVersion: input.schemaVersion ?? 1,
+    })),
+    listDocumentActivity: vi.fn(async () => ({
+      events: [
+        {
+          id: 'act_upload',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          occurredAt: new Date('2026-01-01T00:00:00.000Z'),
+          activityType: 'document.created',
+          entityType: 'document',
+          entityId: 'doc_1',
+          actorId: 'usr_1',
+          actorType: 'user',
+          actorDisplayName: 'User',
+          vaultId: 'vlt_1',
+          documentId: 'doc_1',
+          targetType: 'document',
+          targetId: 'doc_1',
+          targetDisplayName: 'report.pdf',
+          source: 'web',
+          visibility: 'vault_members',
+          metadata: { file_name: 'report.pdf' },
+          auditEventId: null,
+          schemaVersion: 1,
+        },
+      ],
+      nextCursor: null,
+    })),
+    listVaultActivity: vi.fn(async () => ({ events: [], nextCursor: null })),
+  } as unknown as ReturnType<typeof createActivityServices>;
+}
+
 function createTestApp({
   docServices,
   vaultServices,
   documentQueue,
+  auditServices,
+  activityServices,
 }: {
   docServices: DocumentsServices;
   vaultServices?: VaultsServices;
   documentQueue?: { enqueueProcessDocument: (args: any) => Promise<void> };
+  auditServices?: ReturnType<typeof createAuditServices>;
+  activityServices?: ReturnType<typeof createActivityServices>;
 }) {
   const app = new Hono<ServerContext>();
 
@@ -205,7 +378,7 @@ function createTestApp({
   const mockDb = {} as Database;
   const vs = vaultServices ?? createMockVaultsServices();
 
-  registerVaultRoutes({ app, db: mockDb, services: vs });
+  registerVaultRoutes({ app, db: mockDb, services: vs, auditServices, activityServices });
   registerDocumentRoutes({
     app,
     db: mockDb,
@@ -215,7 +388,11 @@ function createTestApp({
     documentQueue,
     retentionDays: 30,
     vaultServices: vs,
+    auditServices,
+    activityServices,
   });
+  registerActivityRoutes({ app, db: mockDb, services: activityServices });
+  registerAuditRoutes({ app, db: mockDb, services: auditServices });
 
   return app;
 }
@@ -453,7 +630,8 @@ describe('documents integration', () => {
 
   test('uploads a document', async () => {
     const docServices = createMockDocumentsServices();
-    const app = createTestApp({ docServices });
+    const auditServices = createMockAuditServices();
+    const app = createTestApp({ docServices, auditServices });
 
     const formData = new FormData();
     formData.append('file', new File(['hello world'], 'test.txt', { type: 'text/plain' }));
@@ -470,6 +648,18 @@ describe('documents integration', () => {
     expect(body.document.name).toBe('test.txt');
     expect(body.document.originalName).toBe('test.txt');
     expect(docServices.uploadDocument).toHaveBeenCalledTimes(1);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'document.uploaded',
+      eventCategory: 'document',
+      outcome: 'success',
+      vaultId: 'vlt_1',
+      documentId: 'doc_test_1',
+      metadata: {
+        file_name: 'test.txt',
+        file_size: 100,
+        mime_type: 'text/plain',
+      },
+    }));
   });
 
   test('returns 409 for duplicate document upload', async () => {
@@ -547,7 +737,8 @@ describe('documents integration', () => {
 
   test('gets document details', async () => {
     const docServices = createMockDocumentsServices();
-    const app = createTestApp({ docServices });
+    const auditServices = createMockAuditServices();
+    const app = createTestApp({ docServices, auditServices });
 
     const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
       headers: { 'x-test-user-id': 'usr_1' },
@@ -557,6 +748,12 @@ describe('documents integration', () => {
     const body = (await response.json()) as any;
     expect(body.document.id).toBe('doc_1');
     expect(docServices.getDocument).toHaveBeenCalledWith({ documentId: 'doc_1', vaultId: 'vlt_1' });
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'document.viewed',
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      metadata: { access_method: 'open' },
+    }));
   });
 
   test('returns 404 for non-existent document', async () => {
@@ -592,7 +789,8 @@ describe('documents integration', () => {
 
   test('serves document file inline for previews', async () => {
     const docServices = createMockDocumentsServices();
-    const app = createTestApp({ docServices });
+    const auditServices = createMockAuditServices();
+    const app = createTestApp({ docServices, auditServices });
 
     const response = await app.request('/api/vaults/vlt_1/documents/doc_1/file', {
       headers: { 'x-test-user-id': 'usr_1' },
@@ -604,6 +802,7 @@ describe('documents integration', () => {
     expect(response.headers.get('content-disposition')).toContain('test.pdf');
     const body = await response.arrayBuffer();
     expect(Buffer.from(body).toString()).toBe('file-content');
+    expect(auditServices.emitAuditEvent).not.toHaveBeenCalled();
   });
 
   test('serves soft-deleted document file inline for trash previews', async () => {
@@ -940,7 +1139,8 @@ describe('documents integration', () => {
 
   test('soft deletes a document', async () => {
     const docServices = createMockDocumentsServices();
-    const app = createTestApp({ docServices });
+    const auditServices = createMockAuditServices();
+    const app = createTestApp({ docServices, auditServices });
 
     const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
       method: 'DELETE',
@@ -953,6 +1153,164 @@ describe('documents integration', () => {
       vaultId: 'vlt_1',
       deletedBy: 'usr_1',
     });
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'document.deleted',
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      metadata: {
+        document_name: 'report.pdf',
+        deletion_type: 'soft',
+      },
+    }));
+  });
+
+  test('audits denied document delete attempts', async () => {
+    const docServices = createMockDocumentsServices();
+    const auditServices = createMockAuditServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'viewer',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    const app = createTestApp({ docServices, vaultServices, auditServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_viewer' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'document.access_denied',
+      outcome: 'denied',
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      metadata: { action: 'delete' },
+    }));
+  });
+
+  test('returns document activity without exposing privileged denied events to regular members', async () => {
+    const docServices = createMockDocumentsServices();
+    const auditServices = createMockAuditServices();
+    const activityServices = createMockActivityServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'viewer',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    const app = createTestApp({ docServices, vaultServices, auditServices, activityServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/activity', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.activity).toHaveLength(1);
+    expect(body.activity[0].activityType).toBe('document.created');
+    expect(body.activity[0].metadata).toEqual({ file_name: 'report.pdf' });
+  });
+
+  test('allows owners to view the audit log without adding a passive viewed event', async () => {
+    const docServices = createMockDocumentsServices();
+    const auditServices = createMockAuditServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    const app = createTestApp({ docServices, vaultServices, auditServices });
+
+    const response = await app.request('/api/vaults/vlt_1/audit-events', {
+      headers: { 'x-test-user-id': 'usr_owner' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.events).toHaveLength(1);
+    expect(auditServices.emitAuditEvent).not.toHaveBeenCalled();
+  });
+
+  test('audits filtered audit-log searches', async () => {
+    const docServices = createMockDocumentsServices();
+    const auditServices = createMockAuditServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    const app = createTestApp({ docServices, vaultServices, auditServices });
+
+    const response = await app.request('/api/vaults/vlt_1/audit-events?eventType=document.deleted', {
+      headers: { 'x-test-user-id': 'usr_owner' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'audit_log.searched',
+      eventCategory: 'audit',
+      outcome: 'success',
+      vaultId: 'vlt_1',
+      metadata: { filters_applied: true },
+    }));
+  });
+
+  test('forbids regular members from the full vault audit log', async () => {
+    const docServices = createMockDocumentsServices();
+    const auditServices = createMockAuditServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'viewer',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    const app = createTestApp({ docServices, vaultServices, auditServices });
+
+    const response = await app.request('/api/vaults/vlt_1/audit-events', {
+      headers: { 'x-test-user-id': 'usr_viewer' },
+    });
+
+    expect(response.status).toBe(403);
+    expect((auditServices as any).listVaultAuditEvents).not.toHaveBeenCalled();
   });
 
   test('restores a soft-deleted document', async () => {

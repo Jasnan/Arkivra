@@ -6,6 +6,8 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import type { DocumentsServices } from './documents.services.js';
+import type { createAuditServices } from '../audit/audit.services.js';
+import type { createActivityServices } from '../activity/activity.services.js';
 import { SEARCH_SORT_VALUES } from '../search/search.types.js';
 import { createDocumentsServices, normalizeDocumentFileName } from './documents.services.js';
 
@@ -20,6 +22,11 @@ import {
 import { createVaultsServices } from '../vaults/vaults.services.js';
 import { createFoldersServices } from '../folders/folders.services.js';
 import { buildUserDocumentLanguageMetadata } from './document-language.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
+import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
+import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
+import { and, eq } from 'drizzle-orm';
+import { vaultFoldersTable } from '../database/schema/index.js';
 
 function getDuplicateDocumentMessage(scope: string | null | undefined) {
   if (scope === 'trash') {
@@ -96,6 +103,41 @@ function matchesEtag(ifNoneMatch: string | null | undefined, etag: string) {
     .includes(etag);
 }
 
+async function getFolderPathLabel({
+  db,
+  vaultId,
+  folderId,
+}: {
+  db: Database;
+  vaultId: string;
+  folderId: string | null;
+}) {
+  if (folderId === null) {
+    return 'Vault root';
+  }
+
+  const folders = await db
+    .select({
+      id: vaultFoldersTable.id,
+      parentId: vaultFoldersTable.parentId,
+      name: vaultFoldersTable.name,
+    })
+    .from(vaultFoldersTable)
+    .where(and(eq(vaultFoldersTable.vaultId, vaultId), eq(vaultFoldersTable.isDeleted, false)));
+  const byId = new Map(folders.map(folder => [folder.id, folder]));
+  const path: string[] = [];
+  const seen = new Set<string>();
+  let current = byId.get(folderId) ?? null;
+
+  while (current !== null && !seen.has(current.id)) {
+    seen.add(current.id);
+    path.unshift(current.name);
+    current = current.parentId === null ? null : byId.get(current.parentId) ?? null;
+  }
+
+  return path.length > 0 ? path.join(' / ') : 'Unknown location';
+}
+
 export function registerDocumentRoutes({
   app,
   db,
@@ -105,6 +147,8 @@ export function registerDocumentRoutes({
   documentQueue,
   retentionDays = 30,
   vaultServices,
+  auditServices,
+  activityServices,
 }: {
   app: Hono<ServerContext>;
   db: Database;
@@ -114,6 +158,8 @@ export function registerDocumentRoutes({
   documentQueue?: DocumentQueue;
   retentionDays?: number;
   vaultServices?: VaultsServices;
+  auditServices?: ReturnType<typeof createAuditServices>;
+  activityServices?: ReturnType<typeof createActivityServices>;
 }) {
   const documentsServices = services ?? createDocumentsServices({ db, storage, encryption });
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
@@ -155,7 +201,7 @@ export function registerDocumentRoutes({
   // List documents in vault
   app.get(
     '/api/vaults/:vaultId/documents',
-    requireCanReadVault(),
+    requireCanReadVault({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -202,7 +248,7 @@ export function registerDocumentRoutes({
   // Upload document
   app.post(
     '/api/vaults/:vaultId/documents',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
       const userId = context.get('userId');
@@ -285,6 +331,43 @@ export function registerDocumentRoutes({
         );
       }
 
+      if (result.document !== null) {
+        const actor = getAuditActorFromContext(context);
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.documentUploaded,
+          eventCategory: 'document',
+          outcome: 'success',
+          actor,
+          vaultId,
+          documentId: result.document.id,
+          target: { type: 'document', id: result.document.id, displayName: result.document.name },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: {
+            file_name: result.document.originalName,
+            file_size: result.document.originalSize,
+            mime_type: result.document.mimeType,
+          },
+        });
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentCreated,
+          entityType: 'document',
+          entityId: result.document.id,
+          actor,
+          vaultId,
+          documentId: result.document.id,
+          target: { type: 'document', id: result.document.id, displayName: result.document.name },
+          source: 'web',
+          metadata: {
+            document_name: result.document.name,
+            file_name: result.document.originalName,
+            file_size: result.document.originalSize,
+            mime_type: result.document.mimeType,
+            folder_id: result.document.folderId,
+          },
+        });
+      }
+
       // Enqueue document processing job
       if (documentQueue !== undefined && result.document !== null) {
         await documentQueue.enqueueProcessDocument({
@@ -296,6 +379,17 @@ export function registerDocumentRoutes({
           vaultId,
           processingStatus: 'queued',
         });
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentProcessingStatusChanged,
+          entityType: 'document',
+          entityId: result.document.id,
+          actor: { type: 'system', displayName: 'System' },
+          vaultId,
+          documentId: result.document.id,
+          target: { type: 'document', id: result.document.id, displayName: result.document.name },
+          source: 'background',
+          metadata: { processing_status: 'queued' },
+        });
       }
 
       return context.json({ document: result.document }, 201);
@@ -305,7 +399,7 @@ export function registerDocumentRoutes({
   // Get document details
   app.get(
     '/api/vaults/:vaultId/documents/:documentId',
-    requireCanReadVault(),
+    requireCanReadVault({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -323,6 +417,20 @@ export function registerDocumentRoutes({
         );
       }
 
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.documentViewed,
+        eventCategory: 'document',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        documentId,
+        target: { type: 'document', id: documentId, displayName: document.name },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: { access_method: 'open' },
+        dedupe: { windowMs: 5 * 60 * 1000 },
+      });
+
       return context.json({ document });
     },
   );
@@ -330,7 +438,7 @@ export function registerDocumentRoutes({
   // Download document file
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/download',
-    requireCanReadVault(),
+    requireCanReadVault({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -353,6 +461,19 @@ export function registerDocumentRoutes({
         );
       }
 
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.documentDownloaded,
+        eventCategory: 'document',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        documentId,
+        target: { type: 'document', id: documentId, displayName: result.fileName },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: { access_method: 'download' },
+      });
+
       return new Response(result.fileData, {
         status: 200,
         headers: {
@@ -366,7 +487,7 @@ export function registerDocumentRoutes({
 
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/file',
-    requireCanReadVault(),
+    requireCanReadVault({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -402,7 +523,7 @@ export function registerDocumentRoutes({
 
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/page/:pageRef',
-    requireCanReadVault(),
+    requireCanReadVault({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -474,7 +595,7 @@ export function registerDocumentRoutes({
 
   app.get(
     '/api/vaults/:vaultId/chunks/:chunkId/assets/:assetId',
-    requireCanReadVault(),
+    requireCanReadVault({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -542,7 +663,7 @@ export function registerDocumentRoutes({
   // Rename document
   app.patch(
     '/api/vaults/:vaultId/documents/:documentId',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -552,6 +673,7 @@ export function registerDocumentRoutes({
 
       const documentId = context.req.param('documentId');
       const body = await context.req.json();
+      const actor = getAuditActorFromContext(context);
 
       if (body.name !== undefined) {
         const name = typeof body.name === 'string' ? body.name.trim() : '';
@@ -563,6 +685,7 @@ export function registerDocumentRoutes({
           );
         }
 
+        const before = await documentsServices.getDocument({ documentId, vaultId });
         const result = await documentsServices.renameDocument({ documentId, vaultId, name });
 
         if (!result.success && result.reason === 'duplicate_name') {
@@ -585,6 +708,22 @@ export function registerDocumentRoutes({
           );
         }
 
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentMetadataUpdated,
+          entityType: 'document',
+          entityId: documentId,
+          actor,
+          vaultId,
+          documentId,
+          target: { type: 'document', id: documentId, displayName: result.document.name },
+          source: 'web',
+          metadata: {
+            changed_fields: ['name'],
+            previous_name: before?.name ?? null,
+            next_name: result.document.name,
+          },
+        });
+
         return context.json({ document: result.document });
       }
 
@@ -598,6 +737,7 @@ export function registerDocumentRoutes({
           );
         }
 
+        const before = await documentsServices.getDocument({ documentId, vaultId });
         const doc = await documentsServices.updateDocumentDate({
           documentId,
           vaultId,
@@ -610,6 +750,22 @@ export function registerDocumentRoutes({
             404,
           );
         }
+
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentMetadataUpdated,
+          entityType: 'document',
+          entityId: documentId,
+          actor,
+          vaultId,
+          documentId,
+          target: { type: 'document', id: documentId, displayName: before?.name ?? documentId },
+          source: 'web',
+          metadata: {
+            changed_fields: ['document date'],
+            previous_document_date: before?.documentDate?.toISOString() ?? null,
+            next_document_date: doc.documentDate?.toISOString() ?? null,
+          },
+        });
 
         return context.json({ document: doc });
       }
@@ -638,6 +794,7 @@ export function registerDocumentRoutes({
           );
         }
 
+        const before = await documentsServices.getDocument({ documentId, vaultId });
         const doc = await documentsServices.updateDocumentLanguage({
           documentId,
           vaultId,
@@ -651,6 +808,22 @@ export function registerDocumentRoutes({
           );
         }
 
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentMetadataUpdated,
+          entityType: 'document',
+          entityId: documentId,
+          actor,
+          vaultId,
+          documentId,
+          target: { type: 'document', id: documentId, displayName: before?.name ?? documentId },
+          source: 'web',
+          metadata: {
+            changed_fields: ['language'],
+            previous_language: before?.language?.name ?? null,
+            next_language: doc.language?.name ?? null,
+          },
+        });
+
         return context.json({ document: doc });
       }
 
@@ -663,7 +836,7 @@ export function registerDocumentRoutes({
 
   app.post(
     '/api/vaults/:vaultId/documents/:documentId/move',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -682,6 +855,7 @@ export function registerDocumentRoutes({
         );
       }
 
+      const before = await documentsServices.getDocument({ documentId, vaultId });
       const result = await documentsServices.moveDocument({
         documentId,
         vaultId,
@@ -715,13 +889,36 @@ export function registerDocumentRoutes({
         );
       }
 
+      const fromPath = activityServices === undefined
+        ? null
+        : await getFolderPathLabel({ db, vaultId, folderId: before?.folderId ?? null });
+      const toPath = activityServices === undefined
+        ? null
+        : await getFolderPathLabel({ db, vaultId, folderId: result.document.folderId });
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.documentMoved,
+        entityType: 'document',
+        entityId: documentId,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        documentId,
+        target: { type: 'document', id: documentId, displayName: before?.name ?? documentId },
+        source: 'web',
+        metadata: {
+          from_folder_id: before?.folderId ?? null,
+          to_folder_id: result.document.folderId,
+          from_path: fromPath ?? 'Unknown location',
+          to_path: toPath ?? 'Unknown location',
+        },
+      });
+
       return context.json({ document: result.document });
     },
   );
 
   app.post(
     '/api/vaults/:vaultId/documents/:documentId/reprocess',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -761,6 +958,17 @@ export function registerDocumentRoutes({
         vaultId,
         processingStatus: 'queued',
       });
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.documentProcessingStatusChanged,
+        entityType: 'document',
+        entityId: documentId,
+        actor: { type: 'system', displayName: 'System' },
+        vaultId,
+        documentId,
+        target: { type: 'document', id: documentId, displayName: document.name },
+        source: 'background',
+        metadata: { processing_status: 'queued', reprocess: true },
+      });
 
       return context.json({
         queued: true,
@@ -773,7 +981,7 @@ export function registerDocumentRoutes({
   // Soft delete document
   app.delete(
     '/api/vaults/:vaultId/documents/:documentId',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
       const userId = context.get('userId');
@@ -783,6 +991,7 @@ export function registerDocumentRoutes({
       }
 
       const documentId = context.req.param('documentId');
+      const document = await documentsServices.getDocument({ documentId, vaultId });
       const doc = await documentsServices.softDeleteDocument({
         documentId,
         vaultId,
@@ -790,11 +999,54 @@ export function registerDocumentRoutes({
       });
 
       if (doc === null) {
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.documentDeleteFailed,
+          eventCategory: 'document',
+          outcome: 'failure',
+          actor: getAuditActorFromContext(context),
+          vaultId,
+          documentId,
+          target: { type: 'document', id: documentId },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: { deletion_type: 'soft', reason: 'not_found' },
+        });
+
         return context.json(
           { error: { code: 'document.not_found', message: 'Document not found' } },
           404,
         );
       }
+
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.documentDeleted,
+        eventCategory: 'document',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        documentId,
+        target: { type: 'document', id: documentId, displayName: document?.name ?? null },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: {
+          document_name: document?.name ?? undefined,
+          deletion_type: 'soft',
+        },
+      });
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.documentDeleted,
+        entityType: 'document',
+        entityId: documentId,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        documentId,
+        target: { type: 'document', id: documentId, displayName: document?.name ?? documentId },
+        source: 'web',
+        metadata: {
+          document_name: document?.name ?? null,
+          deletion_type: 'soft',
+        },
+      });
 
       return context.body(null, 204);
     },
@@ -803,7 +1055,7 @@ export function registerDocumentRoutes({
   // Restore soft-deleted document
   app.post(
     '/api/vaults/:vaultId/documents/:documentId/restore',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 
@@ -834,6 +1086,22 @@ export function registerDocumentRoutes({
         );
       }
 
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.documentRestored,
+        entityType: 'document',
+        entityId: doc.id,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        documentId: doc.id,
+        target: { type: 'document', id: doc.id, displayName: doc.originalName },
+        source: 'web',
+        metadata: {
+          document_name: doc.originalName,
+          folder_id: doc.folderId,
+          hierarchy_recreated: doc.hierarchyRecreated,
+        },
+      });
+
       return context.json({
         document: {
           id: doc.id,
@@ -850,7 +1118,7 @@ export function registerDocumentRoutes({
   // Hard delete (permanently remove soft-deleted document)
   app.delete(
     '/api/vaults/:vaultId/documents/:documentId/permanent',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
 

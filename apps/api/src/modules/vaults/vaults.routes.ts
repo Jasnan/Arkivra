@@ -3,10 +3,15 @@ import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { AiAccessLevel, VaultRole } from './vaults.types.js';
 import type { VaultsServices } from './vaults.services.js';
+import type { createAuditServices } from '../audit/audit.services.js';
+import type { createActivityServices } from '../activity/activity.services.js';
 import {
   isAiAccessLevel,
 } from '../authorization/authorization.types.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
+import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
+import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 import { createVaultsServices } from './vaults.services.js';
 import {
   requireVaultAccess,
@@ -62,10 +67,14 @@ export function registerVaultRoutes({
   app,
   db,
   services,
+  auditServices,
+  activityServices,
 }: {
   app: Hono<ServerContext>;
   db: Database;
   services?: VaultsServices;
+  auditServices?: ReturnType<typeof createAuditServices>;
+  activityServices?: ReturnType<typeof createActivityServices>;
 }) {
   const vaultsServices = services ?? createVaultsServices({ db });
 
@@ -142,15 +151,36 @@ export function registerVaultRoutes({
         payload: { name, description },
       });
 
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.vaultApprovalRequested,
+        entityType: 'permission_request',
+        entityId: request.id,
+        actor: getAuditActorFromContext(context),
+        target: { type: 'permission_request', id: request.id, displayName: name },
+        source: 'web',
+        visibility: 'requester',
+        metadata: { request_type: 'vault.create', vault_name: name },
+      });
+
       return context.json({ request }, 202);
     }
 
     const vault = await vaultsServices.createVault({ userId, name, description });
+    await activityServices?.emitActivityEvent({
+      activityType: ACTIVITY_EVENT_TYPES.vaultCreated,
+      entityType: 'vault',
+      entityId: vault.id,
+      actor: getAuditActorFromContext(context),
+      vaultId: vault.id,
+      target: { type: 'vault', id: vault.id, displayName: vault.name },
+      source: 'web',
+      metadata: { vault_name: vault.name },
+    });
     return context.json({ vault }, 201);
   });
 
-  app.use('/api/vaults/:vaultId', requireVaultAccess({ services: vaultsServices }));
-  app.use('/api/vaults/:vaultId/*', requireVaultAccess({ services: vaultsServices }));
+  app.use('/api/vaults/:vaultId', requireVaultAccess({ services: vaultsServices, auditServices }));
+  app.use('/api/vaults/:vaultId/*', requireVaultAccess({ services: vaultsServices, auditServices }));
 
   app.get('/api/vaults/:vaultId', async (context) => {
     const userId = context.get('userId');
@@ -186,9 +216,10 @@ export function registerVaultRoutes({
   });
 
   app.patch('/api/vaults/:vaultId', requireVaultRole('owner'), async (context) => {
+    const userId = context.get('userId');
     const vaultId = context.get('vaultId');
 
-    if (vaultId === null) {
+    if (userId === null || vaultId === null) {
       return context.json(
         {
           error: {
@@ -228,6 +259,7 @@ export function registerVaultRoutes({
       );
     }
 
+    const previousVault = userId === null ? null : await vaultsServices.getVaultForUser({ vaultId, userId });
     const vault = await vaultsServices.updateVaultIdentity({ vaultId, name, description });
 
     if (vault === null) {
@@ -241,6 +273,26 @@ export function registerVaultRoutes({
         404,
       );
     }
+
+    await activityServices?.emitActivityEvent({
+      activityType: ACTIVITY_EVENT_TYPES.vaultMetadataUpdated,
+      entityType: 'vault',
+      entityId: vaultId,
+      actor: getAuditActorFromContext(context),
+      vaultId,
+      target: { type: 'vault', id: vaultId, displayName: vault.name },
+      source: 'web',
+      metadata: {
+        changed_fields: [
+          ...(previousVault?.name !== vault.name ? ['name'] : []),
+          ...(previousVault?.description !== vault.description ? ['description'] : []),
+        ],
+        previous_name: previousVault?.name ?? null,
+        next_name: vault.name,
+        previous_description: previousVault?.description ?? null,
+        next_description: vault.description,
+      },
+    });
 
     return context.json({ vault });
   });
@@ -284,6 +336,18 @@ export function registerVaultRoutes({
         payload: {},
       });
 
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.vaultApprovalRequested,
+        entityType: 'permission_request',
+        entityId: request.id,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'vault', id: vaultId },
+        source: 'web',
+        visibility: 'owners',
+        metadata: { request_type: 'vault.delete' },
+      });
+
       return context.json({ request }, 202);
     }
 
@@ -318,6 +382,17 @@ export function registerVaultRoutes({
         404,
       );
     }
+
+    await activityServices?.emitActivityEvent({
+      activityType: ACTIVITY_EVENT_TYPES.vaultDeleted,
+      entityType: 'vault',
+      entityId: vaultId,
+      actor: getAuditActorFromContext(context),
+      vaultId,
+      target: { type: 'vault', id: vaultId },
+      source: 'web',
+      metadata: { deletion_type: 'soft' },
+    });
 
     return context.body(null, 204);
   });
@@ -526,6 +601,28 @@ export function registerVaultRoutes({
         aiAccessLevel,
       });
 
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.vaultMemberAdded,
+        eventCategory: 'vault',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'user', id: memberUserId },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: { member_user_id: memberUserId, role, ai_access_level: aiAccessLevel },
+      });
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.vaultMemberAdded,
+        entityType: 'vault',
+        entityId: vaultId,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'user', id: memberUserId },
+        source: 'web',
+        metadata: { member_user_id: memberUserId, role, ai_access_level: aiAccessLevel },
+      });
+
       return context.json({ member }, 201);
     },
   );
@@ -624,6 +721,44 @@ export function registerVaultRoutes({
         aiAccessLevel,
       });
 
+      await auditServices?.emitAuditEvent({
+        eventType: role !== targetMember.role || aiAccessLevel !== targetMember.aiAccessLevel
+          ? AUDIT_EVENT_TYPES.vaultMemberRoleChanged
+          : AUDIT_EVENT_TYPES.vaultMemberAdded,
+        eventCategory: 'vault',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'user', id: memberUserId },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: {
+          member_user_id: memberUserId,
+          previous_role: targetMember.role,
+          next_role: role,
+          previous_ai_access_level: targetMember.aiAccessLevel,
+          next_ai_access_level: aiAccessLevel,
+        },
+      });
+      await activityServices?.emitActivityEvent({
+        activityType: role !== targetMember.role || aiAccessLevel !== targetMember.aiAccessLevel
+          ? ACTIVITY_EVENT_TYPES.vaultMemberRoleChanged
+          : ACTIVITY_EVENT_TYPES.vaultMemberAdded,
+        entityType: 'vault',
+        entityId: vaultId,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'user', id: memberUserId },
+        source: 'web',
+        metadata: {
+          member_user_id: memberUserId,
+          previous_role: targetMember.role,
+          next_role: role,
+          previous_ai_access_level: targetMember.aiAccessLevel,
+          next_ai_access_level: aiAccessLevel,
+        },
+      });
+
       return context.json({ member });
     },
   );
@@ -694,6 +829,28 @@ export function registerVaultRoutes({
         userId: memberUserId,
       });
 
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.vaultMemberRemoved,
+        eventCategory: 'vault',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'user', id: memberUserId },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: { member_user_id: memberUserId, role: targetMember.role },
+      });
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.vaultMemberRemoved,
+        entityType: 'vault',
+        entityId: vaultId,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'user', id: memberUserId },
+        source: 'web',
+        metadata: { member_user_id: memberUserId, role: targetMember.role },
+      });
+
       return context.body(null, 204);
     },
   );
@@ -738,6 +895,18 @@ export function registerVaultRoutes({
         payload: { role: 'owner' },
       });
 
+      await activityServices?.emitActivityEvent({
+        activityType: ACTIVITY_EVENT_TYPES.vaultApprovalRequested,
+        entityType: 'permission_request',
+        entityId: request.id,
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'user', id: memberUserId },
+        source: 'web',
+        visibility: 'owners',
+        metadata: { request_type: 'vault.owner_promote', member_user_id: memberUserId },
+      });
+
       return context.json({ request }, 202);
     }
 
@@ -746,6 +915,17 @@ export function registerVaultRoutes({
       userId: memberUserId,
       role: 'owner',
       aiAccessLevel: 'none',
+    });
+
+    await activityServices?.emitActivityEvent({
+      activityType: ACTIVITY_EVENT_TYPES.vaultMemberRoleChanged,
+      entityType: 'vault',
+      entityId: vaultId,
+      actor: getAuditActorFromContext(context),
+      vaultId,
+      target: { type: 'user', id: memberUserId },
+      source: 'web',
+      metadata: { member_user_id: memberUserId, next_role: 'owner', next_ai_access_level: 'none' },
     });
 
     return context.json({ member });

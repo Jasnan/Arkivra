@@ -25,6 +25,7 @@ import { createBackupQueue } from './modules/worker/backup.queue.js';
 import { createBackupWorker } from './modules/worker/backup.worker.js';
 import { createBackupServices } from './modules/admin/backups/backups.services.js';
 import { createAdminAiServices } from './modules/admin/ai/ai.services.js';
+import { createActivityServices } from './modules/activity/activity.services.js';
 
 export async function startApp() {
   const { config } = parseConfig({ env: process.env });
@@ -48,6 +49,7 @@ export async function startApp() {
   const backupQueue = createBackupQueue({ db, appInstance: config.app.instance });
   const backupServices = createBackupServices({ config });
   const adminAiServices = createAdminAiServices({ db, config });
+  const activityServices = createActivityServices({ db });
 
   if (isWebMode) {
     const { app } = createServer({
@@ -142,6 +144,7 @@ export async function startApp() {
       chunkEmbedder,
       concurrency: config.backgroundJobs.documentProcessingConcurrency,
       appInstance: config.app.instance,
+      activityServices,
     });
     const maintenanceWorker = createMaintenanceWorker({
       db,

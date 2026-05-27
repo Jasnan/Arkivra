@@ -3,11 +3,15 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BrainCircuit,
+  ChevronDown,
+  ChevronRight,
   DatabaseBackup,
   FileSearch,
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Search,
@@ -27,7 +31,8 @@ import {
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { Box, Button as ChakraButton, Flex, HStack, IconButton, Input, Kbd, Menu, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, Button as ChakraButton, Collapsible, Flex, HStack, IconButton, Input, Kbd, Menu, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import packageJson from '../../../package.json';
 import { ArkivraLogo } from '@/components/brand/arkivra-logo';
 import {
   Breadcrumb,
@@ -97,7 +102,7 @@ interface BreadcrumbEntry {
 }
 
 interface PrimaryNavItem {
-  id: 'vaults' | 'chat' | 'search' | 'tags' | 'trash' | 'transfers';
+  id: 'vaults' | 'chat' | 'search' | 'tags' | 'transfers' | 'trash';
   to: string;
   label: string;
   icon: ComponentType<LucideProps>;
@@ -108,11 +113,13 @@ const primaryNavItems: PrimaryNavItem[] = [
   { id: 'chat', to: ROUTES.chat, label: 'Chat', icon: MessageSquare },
   { id: 'search', to: ROUTES.search, label: 'Search', icon: Search },
   { id: 'tags', to: ROUTES.tags, label: 'Tags', icon: Tags },
-  { id: 'trash', to: ROUTES.trash, label: 'Trash', icon: Trash2 },
   { id: 'transfers', to: ROUTES.transfers, label: 'Transfers', icon: Upload },
+  { id: 'trash', to: ROUTES.trash, label: 'Trash', icon: Trash2 },
 ];
 
-const PRIMARY_RAIL_ITEM_SIZE = '3.40rem';
+const UNIFIED_SIDEBAR_WIDTH = '14rem';
+const UNIFIED_SIDEBAR_COLLAPSED_WIDTH = '3.75rem';
+const SIDEBAR_ICON_ITEM_SIZE = '2.5rem';
 
 interface SecondaryRouteNavItem {
   to: string;
@@ -124,7 +131,7 @@ interface SecondaryRouteNavItem {
 const settingsNavItems = [
   {
     to: ROUTES.settingsAccount,
-    label: 'Account',
+    label: 'Profile',
     description: 'Profile & account details',
     icon: UserCircle2,
   },
@@ -157,13 +164,13 @@ const adminNavItems = [
   },
   {
     to: ROUTES.adminUsers,
-    label: 'Users management',
+    label: 'Users',
     description: 'Access & privileges',
     icon: Users,
   },
   {
     to: ROUTES.adminAuditLog,
-    label: 'Audit log',
+    label: 'Audit',
     description: 'Security events',
     icon: ShieldCheck,
   },
@@ -175,7 +182,7 @@ const adminNavItems = [
   },
   {
     to: ROUTES.adminAiSettings,
-    label: 'AI settings',
+    label: 'AI',
     description: 'Ollama defaults',
     icon: BrainCircuit,
   },
@@ -304,7 +311,11 @@ function primaryNavId(pathname: string): PrimaryNavItem['id'] | null {
   return null;
 }
 
-function RailTooltip({ label, children }: { label: string; children: ReactNode }) {
+function SidebarTooltip({ label, children, disabled = false }: { label: string; children: ReactNode; disabled?: boolean }) {
+  if (disabled) {
+    return children;
+  }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -315,148 +326,407 @@ function RailTooltip({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-function RailLink({
+function UnifiedSidebarNavLink({
   item,
   active,
-  onOpenTransfers,
+  expanded,
+  depth = 0,
 }: {
-  item: PrimaryNavItem;
+  item: Pick<PrimaryNavItem, 'to' | 'label' | 'icon'>;
   active: boolean;
-  onOpenTransfers: () => void;
+  expanded: boolean;
+  depth?: number;
 }) {
   const Icon = item.icon;
 
-  if (item.id === 'transfers') {
-    return (
-      <RailTooltip label={item.label}>
-        <chakra.button
-          type="button"
-          aria-label={item.label}
-          display="flex"
-          boxSize={PRIMARY_RAIL_ITEM_SIZE}
-          alignItems="center"
-          justifyContent="center"
-          rounded="lg"
-          color={active ? 'fg' : 'fg.muted'}
-          bg={active ? 'bg.sidebar' : 'transparent'}
-          borderWidth="1px"
-          borderColor={active ? 'border.surface' : 'transparent'}
-          cursor="pointer"
-          transition="background-color 120ms ease, color 120ms ease"
-          _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
-          onClick={onOpenTransfers}
-        >
-          <Icon size={20} strokeWidth={2.1} />
-        </chakra.button>
-      </RailTooltip>
-    );
-  }
-
   return (
-    <RailTooltip label={item.label}>
-      <Link to={item.to} aria-label={item.label} style={{ color: 'inherit', textDecoration: 'none' }}>
+    <SidebarTooltip label={item.label} disabled={expanded}>
+      <Link
+        to={item.to}
+        aria-label={!expanded ? item.label : undefined}
+        aria-current={active ? 'page' : undefined}
+        title={!expanded ? item.label : undefined}
+        style={{ color: 'inherit', textDecoration: 'none' }}
+      >
         <Flex
-          boxSize={PRIMARY_RAIL_ITEM_SIZE}
+          minH={SIDEBAR_ICON_ITEM_SIZE}
+          w="full"
           align="center"
-          justify="center"
-          rounded="lg"
-          color={active ? 'fg' : 'fg.muted'}
+          justify={expanded ? 'flex-start' : 'center'}
+          gap="2.5"
+          rounded="md"
+          px={expanded ? '2.5' : '0'}
+          py="1.5"
+          pl={expanded ? `${0.625 + depth * 0.85}rem` : '0'}
+          color={active ? 'teal.fg' : 'fg.muted'}
           bg={active ? 'bg.sidebar' : 'transparent'}
           borderWidth="1px"
           borderColor={active ? 'border.surface' : 'transparent'}
           transition="background-color 120ms ease, color 120ms ease"
-          _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: 'fg' }}
+          _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
         >
-          <Icon size={20} strokeWidth={2.1} />
+          <Flex boxSize="5" shrink={0} align="center" justify="center">
+            <Icon size={17} strokeWidth={2.1} />
+          </Flex>
+          <Text as="span" truncate display={expanded ? undefined : 'none'} textStyle="sidebar" fontWeight={active ? 'semibold' : 'medium'}>
+            {item.label}
+          </Text>
         </Flex>
       </Link>
-    </RailTooltip>
+    </SidebarTooltip>
   );
 }
 
-function PrimarySidebar({
+function UnifiedSidebarNavButton({
+  item,
+  active,
+  expanded,
+  onClick,
+}: {
+  item: Pick<PrimaryNavItem, 'label' | 'icon'>;
+  active: boolean;
+  expanded: boolean;
+  onClick: () => void;
+}) {
+  const Icon = item.icon;
+
+  return (
+    <SidebarTooltip label={item.label} disabled={expanded}>
+      <chakra.button
+        type="button"
+        aria-label={!expanded ? item.label : undefined}
+        title={!expanded ? item.label : undefined}
+        display="flex"
+        minH={SIDEBAR_ICON_ITEM_SIZE}
+        w="full"
+        alignItems="center"
+        justifyContent={expanded ? 'flex-start' : 'center'}
+        gap="2.5"
+        rounded="md"
+        borderWidth="1px"
+        borderColor={active ? 'border.surface' : 'transparent'}
+        bg={active ? 'bg.sidebar' : 'transparent'}
+        color={active ? 'teal.fg' : 'fg.muted'}
+        px={expanded ? '2.5' : '0'}
+        py="1.5"
+        cursor="pointer"
+        transition="background-color 120ms ease, color 120ms ease"
+        _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
+        _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+        onClick={onClick}
+      >
+        <Flex boxSize="5" shrink={0} align="center" justify="center">
+          <Icon size={17} strokeWidth={2.1} />
+        </Flex>
+        <Text as="span" truncate display={expanded ? undefined : 'none'} textStyle="sidebar" fontWeight={active ? 'semibold' : 'medium'}>
+          {item.label}
+        </Text>
+      </chakra.button>
+    </SidebarTooltip>
+  );
+}
+
+function SidebarNavGroup({
+  label,
+  icon,
+  items,
+  currentPathname,
+  expanded,
+}: {
+  label: string;
+  icon: ComponentType<LucideProps>;
+  items: readonly SecondaryRouteNavItem[];
+  currentPathname: string;
+  expanded: boolean;
+}) {
+  const Icon = icon;
+  const groupActive = items.some((item) => isSecondaryRouteNavItemActive(item.to, currentPathname));
+  const [manuallyOpen, setManuallyOpen] = useState(groupActive);
+  const open = manuallyOpen || groupActive;
+
+  return (
+    <Collapsible.Root open={open} onOpenChange={(event) => setManuallyOpen(event.open)}>
+      <SidebarTooltip label={label} disabled={expanded}>
+        <Collapsible.Trigger asChild>
+          <chakra.button
+            type="button"
+            aria-label={!expanded ? label : undefined}
+            display="flex"
+            minH={SIDEBAR_ICON_ITEM_SIZE}
+            w="full"
+            alignItems="center"
+            justifyContent={expanded ? 'flex-start' : 'center'}
+            gap="2.5"
+            rounded="md"
+            borderWidth="1px"
+            borderColor={groupActive ? 'border.surface' : 'transparent'}
+            bg={groupActive ? 'bg.sidebar' : 'transparent'}
+            color={groupActive ? 'teal.fg' : 'fg.muted'}
+            px={expanded ? '2.5' : '0'}
+            py="1.5"
+            cursor="pointer"
+            transition="background-color 120ms ease, color 120ms ease"
+            _hover={{ bg: groupActive ? 'bg.sidebar' : 'bg.muted', color: groupActive ? 'teal.fg' : 'fg' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+          >
+            <Flex boxSize="5" shrink={0} align="center" justify="center">
+              <Icon size={17} strokeWidth={2.1} />
+            </Flex>
+            <Text as="span" truncate display={expanded ? undefined : 'none'} textStyle="sidebar" fontWeight={groupActive ? 'semibold' : 'medium'}>
+              {label}
+            </Text>
+            <Box ml="auto" display={expanded ? 'flex' : 'none'} color={groupActive ? 'teal.fg' : 'fg.subtle'}>
+              {open ? <ChevronDown size={15} strokeWidth={2.25} /> : <ChevronRight size={15} strokeWidth={2.25} />}
+            </Box>
+          </chakra.button>
+        </Collapsible.Trigger>
+      </SidebarTooltip>
+
+      <Collapsible.Content>
+        <Stack as="ul" listStyleType="none" gap="1" mt="1" pl={expanded ? '2' : '0'}>
+          {items.map((item) => (
+            <Box as="li" key={item.to}>
+              <UnifiedSidebarNavLink
+                item={item}
+                active={isSecondaryRouteNavItemActive(item.to, currentPathname)}
+                expanded={expanded}
+                depth={expanded ? 1 : 0}
+              />
+            </Box>
+          ))}
+        </Stack>
+      </Collapsible.Content>
+    </Collapsible.Root>
+  );
+}
+
+function UnifiedSidebar({
   activeNavId,
+  currentPathname,
   sessionEmail,
   isAdmin,
   onOpenTransfers,
   onSignOut,
 }: {
   activeNavId: PrimaryNavItem['id'] | null;
+  currentPathname: string;
   sessionEmail?: string | null;
   isAdmin?: boolean;
   onOpenTransfers: () => void;
   onSignOut: () => void;
 }) {
+  const [expanded, setExpanded] = useState(true);
+  const roleLabel = isAdmin ? 'Admin' : 'Member';
+
   return (
     <Flex
       as="aside"
-      w="3.75rem"
+      aria-label="Primary sidebar"
+      w={expanded ? UNIFIED_SIDEBAR_WIDTH : UNIFIED_SIDEBAR_COLLAPSED_WIDTH}
       h="100vh"
       shrink={0}
       direction="column"
-      align="center"
       borderRightWidth="1px"
       borderColor="border.surface"
       bg="bg.rail"
-      pt="2.5"
-      pb="4"
+      px="2.5"
+      pt="3"
+      pb="3"
+      transition="width 180ms ease"
+      overflow="hidden"
     >
-      <RailTooltip label="Arkivra">
-        <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit' }}>
-          <Flex
-            boxSize="9"
-            align="center"
-            justify="center"
-            rounded="lg"
-            bg="bg.sidebar"
-            borderWidth="1px"
-            borderColor="bg.inverted"
-            p="1"
-            overflow="hidden"
-          >
-            <ArkivraLogo boxSize="full" color="bg.inverted" />
-          </Flex>
-        </Link>
-      </RailTooltip>
+      <Flex align="center" gap="2" minW="0">
+        <SidebarTooltip label="Arkivra" disabled={expanded}>
+          <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit', textDecoration: 'none', minWidth: 0 }}>
+            <Flex
+              minW="0"
+              flex={expanded ? '1' : undefined}
+              align="center"
+              justify={expanded ? 'flex-start' : 'center'}
+              gap="2.5"
+              rounded="md"
+              px={expanded ? '1.5' : '0'}
+              py="1"
+              color="fg"
+              _hover={{ bg: 'bg.muted' }}
+            >
+              <Flex
+                boxSize="9"
+                shrink={0}
+                align="center"
+                justify="center"
+                rounded="lg"
+                bg="bg.sidebar"
+                borderWidth="1px"
+                borderColor="bg.inverted"
+                p="1"
+                overflow="hidden"
+              >
+                <ArkivraLogo boxSize="full" color="bg.inverted" />
+              </Flex>
+              <Box minW="0" display={expanded ? undefined : 'none'}>
+                <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">
+                  Arkivra
+                </Text>
+                <Text mt="1" textStyle="caption" lineHeight="none" color="fg.muted">
+                  v{packageJson.version}
+                </Text>
+              </Box>
+            </Flex>
+          </Link>
+        </SidebarTooltip>
 
-      <Stack
-        as="nav"
-        aria-label="Primary"
-        gap="1"
-        mt="6"
-        w={PRIMARY_RAIL_ITEM_SIZE}
-        align="center"
+        <IconButton
+          type="button"
+          aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          variant="ghost"
+          size="sm"
+          flexShrink={0}
+          color="fg.muted"
+          display={expanded ? 'inline-flex' : 'none'}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+        </IconButton>
+      </Flex>
+
+      {!expanded ? (
+        <IconButton
+          type="button"
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+          variant="ghost"
+          size="sm"
+          mt="2"
+          alignSelf="center"
+          color="fg.muted"
+          onClick={() => setExpanded(true)}
+        >
+          <PanelLeftOpen size={16} />
+        </IconButton>
+      ) : null}
+
+      <Box
+        flex="1"
+        minH="0"
+        minW="0"
+        overflowY="auto"
+        overflowX="hidden"
+        mt="5"
+        pr="1"
+        mr="-1"
+        scrollbarGutter="stable"
+        css={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'transparent transparent',
+          '&:hover, &:focus-within': {
+            scrollbarColor: 'var(--chakra-colors-border-strong) transparent',
+          },
+          '&::-webkit-scrollbar': {
+            width: '0.5rem',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: 'transparent',
+            borderRadius: '999px',
+            border: '2px solid transparent',
+            backgroundClip: 'content-box',
+          },
+          '&:hover::-webkit-scrollbar-thumb, &:focus-within::-webkit-scrollbar-thumb': {
+            backgroundColor: 'var(--chakra-colors-border-strong)',
+          },
+        }}
       >
-        {primaryNavItems.map((item) => (
-          <RailLink key={item.id} item={item} active={activeNavId === item.id} onOpenTransfers={onOpenTransfers} />
-        ))}
-      </Stack>
+        <Stack
+          as="nav"
+          aria-label="Primary"
+          gap="1"
+          minW="0"
+        >
+          {primaryNavItems.map((item) => (
+            item.id === 'transfers' ? (
+              <UnifiedSidebarNavButton
+                key={item.id}
+                item={item}
+                active={activeNavId === item.id}
+                expanded={expanded}
+                onClick={onOpenTransfers}
+              />
+            ) : (
+              <UnifiedSidebarNavLink
+                key={item.id}
+                item={item}
+                active={activeNavId === item.id}
+                expanded={expanded}
+              />
+            )
+          ))}
+        </Stack>
 
-      <Stack mt="auto" gap="2.5" align="center">
-        <RailTooltip label="Appearance">
-          <Box>
-            <ThemeToggle />
-          </Box>
-        </RailTooltip>
+        <Box my="4" borderTopWidth="1px" borderColor="border.surface" />
 
-        <Menu.Root lazyMount unmountOnExit typeahead={false} positioning={{ placement: 'right-end' }}>
+        <Stack gap="1" minW="0">
+          <SidebarNavGroup
+            label="Settings"
+            icon={Settings}
+            items={settingsNavItems}
+            currentPathname={currentPathname}
+            expanded={expanded}
+          />
+          {isAdmin ? (
+            <SidebarNavGroup
+              label="Admin"
+              icon={ShieldCheck}
+              items={adminNavItems}
+              currentPathname={currentPathname}
+              expanded={expanded}
+            />
+          ) : null}
+        </Stack>
+      </Box>
+
+      <Stack flexShrink={0} gap="2" minW="0" pt="2">
+        <Box borderTopWidth="1px" borderColor="border.surface" />
+        <Flex align="center" justify={expanded ? 'stretch' : 'center'} pt="2">
+          <SidebarTooltip label="Theme" disabled={expanded}>
+            <Box w="full">
+              <ThemeToggle expanded={expanded} />
+            </Box>
+          </SidebarTooltip>
+        </Flex>
+
+        <Menu.Root lazyMount unmountOnExit typeahead={false} positioning={{ placement: expanded ? 'right-end' : 'right-end' }}>
           <Menu.Trigger asChild>
             <chakra.button
               type="button"
               aria-label="Open account menu"
               display="flex"
               alignItems="center"
-              justifyContent="center"
-              boxSize="9"
-              rounded="lg"
+              justifyContent={expanded ? 'flex-start' : 'center'}
+              gap="2.5"
+              minH="2.75rem"
+              w="full"
+              rounded="md"
               color="fg.muted"
               borderWidth="1px"
               borderColor="border.surface"
               bg="bg.sidebar"
+              px={expanded ? '2.5' : '0'}
               cursor="pointer"
               _hover={{ color: 'fg', bg: 'bg.muted' }}
             >
               <UserCircle2 size={20} strokeWidth={2.1} />
+              <Box minW="0" textAlign="left" display={expanded ? undefined : 'none'}>
+                <Text truncate fontSize="sm" fontWeight="medium" color="fg">
+                  {sessionEmail ?? 'Signed in'}
+                </Text>
+                <Text mt="0.5" fontSize="xs" color="fg.muted">
+                  {roleLabel}
+                </Text>
+              </Box>
             </chakra.button>
           </Menu.Trigger>
           <Portal>
@@ -476,7 +746,7 @@ function PrimarySidebar({
                     {sessionEmail ?? 'Signed in'}
                   </Text>
                   <Text fontSize="xs" color="fg.muted">
-                    {isAdmin ? 'Admin' : 'Member'}
+                    {roleLabel}
                   </Text>
                 </Box>
                 <Menu.Separator />
@@ -861,7 +1131,12 @@ function getSecondaryKind(pathname: string): 'vault' | 'chat' | 'settings' | 'ad
 
 function shouldHideSecondarySidebar(pathname: string) {
   const parts = pathname.split('/').filter(Boolean);
-  return pathname === ROUTES.vaults || pathname === ROUTES.search || pathname === ROUTES.tags || parts[0] === 'trash';
+  return pathname === ROUTES.vaults
+    || pathname === ROUTES.search
+    || pathname === ROUTES.tags
+    || pathname === ROUTES.transfers
+    || isChatPath(pathname)
+    || parts[0] === 'trash';
 }
 
 export function AppShell() {
@@ -1007,15 +1282,16 @@ export function AppShell() {
 
   const secondaryKind = getSecondaryKind(location.pathname);
   const hideSecondarySidebar = shouldHideSecondarySidebar(location.pathname);
-  const hasSecondarySidebar = !hideSecondarySidebar;
+  const hasSecondarySidebar = !hideSecondarySidebar && (secondaryKind === 'vault' || secondaryContent !== null);
   const contentPadding = isChatRoute || isFlushContentRoute ? '0' : { base: '4', lg: '6' };
 
   return (
     <TooltipProvider delayDuration={100}>
       <WorkspaceLayoutContext value={layoutContextValue}>
         <Flex minH="100vh" bg="bg.workspace" color="fg" overflow="hidden">
-          <PrimarySidebar
+          <UnifiedSidebar
             activeNavId={isTransfersDrawerOpen ? 'transfers' : primaryNavId(location.pathname)}
+            currentPathname={location.pathname}
             sessionEmail={sessionData?.user.email}
             isAdmin={meQuery.data?.isAdmin}
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}

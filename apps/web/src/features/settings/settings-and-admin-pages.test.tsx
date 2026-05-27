@@ -8,7 +8,6 @@ import {
   AdminUserAccessPage,
   AdminUsersPage,
 } from '@/features/admin/pages/admin-page';
-import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page';
 import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page';
@@ -580,7 +579,7 @@ describe('settings, admin, and about pages', () => {
     });
   });
 
-  it('applies and persists the selected accent color from the theme panel', async () => {
+  it('applies and persists the selected accent color from the preferences page', async () => {
     const user = userEvent.setup();
     let preferences = {
       themeMode: 'system',
@@ -612,9 +611,8 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<ThemeToggle />);
+    await renderWithProviders(<PreferencesSettingsPage />);
 
-    await user.click(screen.getByRole('button', { name: /open appearance panel/i }));
     await user.click(await screen.findByRole('button', { name: /^blue$/i }));
 
     await waitFor(() => {
@@ -629,7 +627,7 @@ describe('settings, admin, and about pages', () => {
     expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').accentColor).toBe('blue');
   });
 
-  it('applies and persists density from the theme panel', async () => {
+  it('applies and persists density from the preferences page', async () => {
     const user = userEvent.setup();
     let preferences = {
       themeMode: 'system',
@@ -661,9 +659,8 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<ThemeToggle />);
+    await renderWithProviders(<PreferencesSettingsPage />);
 
-    await user.click(screen.getByRole('button', { name: /open appearance panel/i }));
     await user.click(await screen.findByRole('button', { name: /^compact$/i }));
 
     await waitFor(() => {

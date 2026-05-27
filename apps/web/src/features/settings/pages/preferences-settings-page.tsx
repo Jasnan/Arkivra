@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Globe2, SlidersHorizontal } from 'lucide-react';
+import { Globe2, Palette, SlidersHorizontal } from 'lucide-react';
+import { AppearancePreferencesControls } from '@/components/navigation/theme-toggle';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Switch } from '@/components/ui/switch';
 import type { ChatResponseMode } from '@/features/chat/chat.api';
@@ -155,6 +156,16 @@ export function PreferencesSettingsPage() {
               }
             />
           </SettingsRows>
+        </SettingsFlatRow>
+
+        <SettingsFlatRow
+          title="Appearance"
+          description="Customize how Arkivra looks and feels."
+          icon={<Palette size={21} strokeWidth={1.8} />}
+          iconBg="teal.subtle"
+          iconColor="teal.fg"
+        >
+          <AppearancePreferencesControls />
         </SettingsFlatRow>
       </SettingsFlatRows>
     </SettingsPageFrame>

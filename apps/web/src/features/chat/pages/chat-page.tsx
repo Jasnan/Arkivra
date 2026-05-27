@@ -28,7 +28,6 @@ export function ChatPage() {
             : 'Ask across your documents...'
       }
       heightClassName="h-full"
-      renderConversationRailInSecondary
       onConversationCreated={(chatId) => {
         void navigate({ to: ROUTES.chatConversation(chatId), replace: true });
       }}

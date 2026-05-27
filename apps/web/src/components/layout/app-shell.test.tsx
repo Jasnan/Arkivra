@@ -55,7 +55,7 @@ describe('app shell account menu', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
 
         if (url === '/api/me') {
@@ -66,6 +66,28 @@ describe('app shell account menu', () => {
             systemCapabilities: ['system.create_vaults'],
             isAdmin: false,
             canCreateVault: true,
+          });
+        }
+
+        if (url === '/api/me/preferences') {
+          return jsonResponse({
+            preferences: {
+              themeMode: init?.method === 'PATCH'
+                ? JSON.parse(String(init.body)).themeMode ?? 'system'
+                : 'system',
+              accentColor: 'teal',
+              density: 'comfortable',
+              fontFamily: 'inter',
+              fontSize: 'md',
+              radius: 'md',
+              language: 'en',
+              timezone: 'auto',
+              dateFormat: 'medium',
+              defaultFileBrowserView: 'grid',
+              showExtractedTextTab: true,
+              createdAt: '2026-05-15T00:00:00.000Z',
+              updatedAt: '2026-05-15T01:00:00.000Z',
+            },
           });
         }
 
@@ -191,8 +213,9 @@ describe('app shell account menu', () => {
     expect(screen.getAllByRole('link', { name: /search/i })[0]).toHaveAttribute('href', '/search');
 
     await user.click(screen.getByRole('button', { name: /open account menu/i }));
-    expect(await screen.findByRole('menu')).toBeInTheDocument();
-    expect(screen.getByText(/account settings/i)).toBeInTheDocument();
+    const accountMenu = await screen.findByRole('menu');
+    expect(accountMenu).toBeInTheDocument();
+    expect(within(accountMenu).getByRole('menuitem', { name: /account settings/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /open account menu/i }));
 
@@ -201,7 +224,9 @@ describe('app shell account menu', () => {
     });
   });
 
-  it('keeps the primary sidebar fixed as icon-only navigation', async () => {
+  it('keeps the unified primary sidebar navigable and collapsible', async () => {
+    const user = userEvent.setup();
+
     await renderWithProviders(
       <AppShell />,
       {
@@ -214,9 +239,43 @@ describe('app shell account menu', () => {
     expect(within(primaryNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
     expect(within(primaryNav).getByRole('link', { name: 'Chat' })).toHaveAttribute('href', '/chat');
     expect(within(primaryNav).getByRole('link', { name: 'Tags' })).toHaveAttribute('href', '/tags');
+    expect(within(primaryNav).getByRole('button', { name: 'Transfers' })).toBeInTheDocument();
     expect(within(primaryNav).getByRole('link', { name: 'Trash' })).toHaveAttribute('href', '/trash');
-    expect(screen.queryByRole('button', { name: /collapse sidebar/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /expand sidebar/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+
+    await user.click(within(primaryNav).getByRole('button', { name: 'Transfers' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Transfers' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Transfers' })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /collapse sidebar/i }));
+
+    expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
+    expect(within(primaryNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
+  });
+
+  it('uses the sidebar utility as a theme switcher', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const themeButton = screen.getByRole('button', { name: /switch theme/i });
+    expect(screen.queryByRole('link', { name: /open appearance preferences/i })).not.toBeInTheDocument();
+
+    await user.click(themeButton);
+
+    await waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+    });
   });
 
   it('keeps quick search as the rightmost workspace header control', async () => {

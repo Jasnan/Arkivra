@@ -242,6 +242,10 @@ describe('app shell account menu', () => {
     expect(within(primaryNav).getByRole('button', { name: 'Transfers' })).toBeInTheDocument();
     expect(within(primaryNav).getByRole('link', { name: 'Trash' })).toHaveAttribute('href', '/trash');
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('complementary', { name: 'Primary sidebar' }))
+        .queryByRole('button', { name: /collapse sidebar/i }),
+    ).not.toBeInTheDocument();
 
     await user.click(within(primaryNav).getByRole('button', { name: 'Transfers' }));
 
@@ -312,7 +316,7 @@ describe('app shell account menu', () => {
     expect(screen.queryByRole('button', { name: 'MyFiles', hidden: true })).not.toBeInTheDocument();
   });
 
-  it('keeps the secondary sidebar available on the vault browser route', async () => {
+  it('renders the vault file tree inside the main content area on the vault browser route', async () => {
     await renderWithProviders(
       <AppShell />,
       {
@@ -321,19 +325,15 @@ describe('app shell account menu', () => {
       },
     );
 
-    const secondarySidebar = screen
-      .getAllByRole('complementary', { hidden: true })
-      .find(element => element.getAttribute('aria-label') === 'Secondary');
-    if (!secondarySidebar) {
-      throw new Error('Secondary sidebar not found');
-    }
-    expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
-    expect(await within(secondarySidebar).findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
-    expect(await within(secondarySidebar).findByRole('button', { name: 'Insurance', hidden: true })).toBeInTheDocument();
-    expect(screen.getByTitle('Hide secondary sidebar')).toBeInTheDocument();
+    const fileTree = await screen.findByRole('complementary', { name: 'Vault file tree' });
+    expect(fileTree.closest('main')).not.toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Secondary', hidden: true })).not.toBeInTheDocument();
+    expect(await within(fileTree).findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
+    expect(await within(fileTree).findByRole('button', { name: 'Insurance', hidden: true })).toBeInTheDocument();
+    expect(screen.queryByTitle('Hide secondary sidebar')).not.toBeInTheDocument();
   });
 
-  it('keeps the secondary sidebar available on document routes', async () => {
+  it('keeps the vault file tree available on document routes without a secondary sidebar toggle', async () => {
     await renderWithProviders(
       <AppShell />,
       {
@@ -342,24 +342,12 @@ describe('app shell account menu', () => {
       },
     );
 
-    const activeVaultButton = await screen.findByRole('button', { name: 'MyDocs', hidden: true });
-    const secondarySidebar = activeVaultButton.closest('aside');
-    expect(secondarySidebar).not.toBeNull();
-    expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
-
-    fireEvent.click(screen.getByTitle('Hide secondary sidebar'));
-
-    await waitFor(() => {
-      expect(secondarySidebar).toHaveAttribute('aria-hidden', 'true');
-    });
-    expect(screen.getByTitle('Show secondary sidebar')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTitle('Show secondary sidebar'));
-
-    await waitFor(() => {
-      expect(secondarySidebar).not.toHaveAttribute('aria-hidden', 'true');
-      expect(screen.getByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
-    });
+    const fileTree = await screen.findByRole('complementary', { name: 'Vault file tree' });
+    expect(fileTree.closest('main')).not.toBeNull();
+    expect(await within(fileTree).findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
+    expect(screen.queryByRole('complementary', { name: 'Secondary', hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Hide secondary sidebar')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Show secondary sidebar')).not.toBeInTheDocument();
   });
 
   it.each([

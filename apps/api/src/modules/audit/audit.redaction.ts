@@ -1,0 +1,74 @@
+import type { AuditJson } from './audit.types.js';
+
+const DANGEROUS_KEY_PATTERN = /password|token|access_token|refresh_token|authorization|cookie|secret|api_key|private_key|file_content|content|raw_text|ocr_text/i;
+const REDACTED = '[redacted]';
+
+const SAFE_METADATA_BY_EVENT: Record<string, Set<string>> = {
+  'document.uploaded': new Set(['file_name', 'file_size', 'mime_type']),
+  'document.deleted': new Set(['document_name', 'deletion_type']),
+  'document.viewed': new Set(['access_method']),
+  'document.downloaded': new Set(['access_method']),
+  'document.access_denied': new Set(['action']),
+  'document.delete_failed': new Set(['document_name', 'deletion_type', 'reason']),
+  'audit_log.viewed': new Set(['filters_applied']),
+  'audit_log.searched': new Set(['filters_applied']),
+  'vault.member_added': new Set(['member_user_id', 'role', 'ai_access_level']),
+  'vault.member_removed': new Set(['member_user_id', 'role']),
+  'vault.member_role_changed': new Set(['member_user_id', 'previous_role', 'next_role', 'previous_ai_access_level', 'next_ai_access_level']),
+  'vault.access_denied': new Set(['action']),
+};
+
+function isPlainObject(value: unknown): value is AuditJson {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function redactValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => redactValue(item));
+  }
+
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  return sanitizeObject(value);
+}
+
+function sanitizeObject(value: AuditJson) {
+  const sanitized: AuditJson = {};
+
+  for (const [key, item] of Object.entries(value)) {
+    sanitized[key] = DANGEROUS_KEY_PATTERN.test(key) ? REDACTED : redactValue(item);
+  }
+
+  return sanitized;
+}
+
+export function sanitizeAuditJson(value: AuditJson | null | undefined): AuditJson | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return sanitizeObject(value);
+}
+
+export function sanitizeAuditMetadata(eventType: string, metadata: AuditJson | null | undefined): AuditJson | null {
+  if (metadata === null || metadata === undefined) {
+    return null;
+  }
+
+  const allowlist = SAFE_METADATA_BY_EVENT[eventType];
+
+  if (allowlist === undefined) {
+    return sanitizeObject(metadata);
+  }
+
+  const filtered: AuditJson = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (allowlist.has(key)) {
+      filtered[key] = value;
+    }
+  }
+
+  return sanitizeObject(filtered);
+}

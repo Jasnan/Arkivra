@@ -162,6 +162,12 @@ const adminNavItems = [
     icon: Users,
   },
   {
+    to: ROUTES.adminAuditLog,
+    label: 'Audit log',
+    description: 'Security events',
+    icon: ShieldCheck,
+  },
+  {
     to: ROUTES.adminBackups,
     label: 'Backups',
     description: 'Archive control',

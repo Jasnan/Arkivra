@@ -22,6 +22,7 @@ import { DocumentTrashPage } from '@/features/documents/pages/document-trash-pag
 import { AdminIndexPage } from '@/features/admin/pages/admin-index-page'
 import {
   AdminAiSettingsPage,
+  AdminAuditLogPage,
   AdminBackupsPage,
   AdminOverviewPage,
   AdminUserAccessPage,
@@ -293,6 +294,12 @@ const adminBackupsRoute = createRoute({
   component: AdminBackupsPage,
 })
 
+const adminAuditLogRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/audit-log',
+  component: AdminAuditLogPage,
+})
+
 const legacyAdminVaultRedirectRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/vaults',
@@ -348,6 +355,7 @@ const routeTree = rootRoute.addChildren([
     adminOverviewRoute,
     adminUsersRoute,
     adminUserAccessRoute,
+    adminAuditLogRoute,
     adminBackupsRoute,
     legacyAdminVaultRedirectRoute,
     adminAiSettingsRoute,

@@ -7,6 +7,8 @@ export {
   systemCapabilitiesTable,
 } from './authorization.table.js';
 export { backgroundJobsTable } from './background-jobs.table.js';
+export { auditEventsTable } from './audit-events.table.js';
+export { activityEventsTable } from './activity-events.table.js';
 export { documentsTable } from './documents.table.js';
 export { uploadSessionsTable } from './upload-sessions.table.js';
 export { documentChunksTable } from './document-chunks.table.js';

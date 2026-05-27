@@ -1,0 +1,40 @@
+import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { createPrimaryKeyField } from './helpers.js';
+
+export const auditEventsTable = pgTable(
+  'audit_events',
+  {
+    ...createPrimaryKeyField({ prefix: 'aud' }),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    occurredAt: timestamp('occurred_at', { mode: 'date' }).notNull().defaultNow(),
+    eventType: text('event_type').notNull(),
+    eventCategory: text('event_category').notNull(),
+    severity: text('severity').notNull().default('info'),
+    outcome: text('outcome').notNull(),
+    actorId: text('actor_id'),
+    actorType: text('actor_type').notNull().default('unknown'),
+    actorDisplayName: text('actor_display_name'),
+    vaultId: text('vault_id'),
+    documentId: text('document_id'),
+    targetType: text('target_type'),
+    targetId: text('target_id'),
+    targetDisplayName: text('target_display_name'),
+    source: text('source').notNull().default('api'),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    requestId: text('request_id'),
+    metadata: jsonb('metadata_json').$type<Record<string, unknown>>(),
+    before: jsonb('before_json').$type<Record<string, unknown>>(),
+    after: jsonb('after_json').$type<Record<string, unknown>>(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+  },
+  (table) => [
+    index('audit_events_vault_occurred_idx').on(table.vaultId, table.occurredAt),
+    index('audit_events_document_occurred_idx').on(table.documentId, table.occurredAt),
+    index('audit_events_actor_occurred_idx').on(table.actorId, table.occurredAt),
+    index('audit_events_type_occurred_idx').on(table.eventType, table.occurredAt),
+    index('audit_events_category_occurred_idx').on(table.eventCategory, table.occurredAt),
+    index('audit_events_severity_occurred_idx').on(table.severity, table.occurredAt),
+    index('audit_events_outcome_occurred_idx').on(table.outcome, table.occurredAt),
+  ],
+);

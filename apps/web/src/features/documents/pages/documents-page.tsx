@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Skeleton, Stack, Text, chakra } from '@chakra-ui/react';
+import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings, Tags, Trash2, Users } from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -59,6 +59,7 @@ import type {
 import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { VaultMembersPanel } from '@/features/vaults/components/vault-members-panel';
 import { VaultSettingsPanel } from '@/features/vaults/components/vault-settings-panel';
+import { VaultActivityPanel } from '@/features/audit/components/vault-activity-panel';
 import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
@@ -91,11 +92,9 @@ const vaultAdminTabs = ['contents', 'members', 'activity', 'settings'] satisfies
 const vaultPageTabs = [
   { value: 'contents', label: 'Contents', description: 'Documents & folders', icon: FolderOpen, route: 'root' },
   { value: 'members', label: 'Members', description: 'Access & permissions', icon: Users, route: 'root' },
-  { value: 'activity', label: 'Activity', description: 'Vault events & history', icon: History, route: 'root' },
+  { value: 'activity', label: 'Activity', description: 'Vault and document history', icon: History, route: 'root' },
   { value: 'settings', label: 'Settings', description: 'Vault configuration', icon: Settings, route: 'settings' },
 ] satisfies Array<{ value: VaultPageTab; label: string; description: string; icon: SecondaryNavIcon; route: 'root' | 'settings' }>;
-const placeholderSkeletonKeys = ['summary', 'primary', 'secondary', 'tertiary', 'quaternary', 'final'];
-
 const vaultTabTriggerStyles = {
   h: '11',
   roundedTop: 'md',
@@ -114,39 +113,6 @@ const vaultTabTriggerStyles = {
     shadow: 'none',
   },
 } as const;
-
-function VaultPlaceholderTab() {
-  return (
-    <Flex
-      aria-label="Loading tab preview"
-      flex="1"
-      minH="0"
-      direction="column"
-      gap="5"
-      px={{ base: '4', lg: '6' }}
-      pt="0"
-      pb="6"
-    >
-      <HStack gap="3">
-        <Skeleton boxSize="10" rounded="lg" />
-        <Stack gap="2" flex="1" maxW="28rem">
-          <Skeleton h="4" w="64%" />
-          <Skeleton h="3" w="42%" />
-        </Stack>
-      </HStack>
-      <Grid gap="4" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }}>
-        {placeholderSkeletonKeys.map((key) => (
-          <Stack key={key} gap="3" rounded="lg" borderWidth="1px" borderColor="border.surface" p="4">
-            <Skeleton h="4" w="45%" />
-            <Skeleton h="3" w="100%" />
-            <Skeleton h="3" w="86%" />
-            <Skeleton h="3" w="58%" />
-          </Stack>
-        ))}
-      </Grid>
-    </Flex>
-  );
-}
 
 function VaultPageTabs({
   activeTab,
@@ -1125,7 +1091,9 @@ export function DocumentsPage() {
           </Box>
         </TabsContent>
         <TabsContent value="activity" display="flex" flex="1" minH="0" flexDirection="column" p="0">
-          <VaultPlaceholderTab />
+          <Box px={{ base: '4', lg: '6' }} py="5" overflowY="auto">
+            <VaultActivityPanel vaultId={vaultId} />
+          </Box>
         </TabsContent>
         <TabsContent value="settings" display="flex" flex="1" minH="0" flexDirection="column" overflowY="auto" p="0">
           <Box px={{ base: '4', lg: '6' }} py="5">

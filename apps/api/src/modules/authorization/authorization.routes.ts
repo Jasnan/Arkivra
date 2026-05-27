@@ -1,8 +1,12 @@
 import type { Hono } from 'hono';
 import type { AuthorizationServices } from './authorization.services.js';
 import type { ServerContext } from '../server/server.types.js';
+import type { createActivityServices } from '../activity/activity.services.js';
+import type { createAuditServices } from '../audit/audit.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireAdmin } from './authorization.middleware.js';
+import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
+import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
 import {
   isAiAccessLevel,
   isEmailInvitationType,
@@ -89,9 +93,13 @@ function parseOptionalDate(value: unknown) {
 export function registerAuthorizationRoutes({
   app,
   authorizationServices,
+  activityServices,
+  auditServices,
 }: {
   app: Hono<ServerContext>;
   authorizationServices: AuthorizationServices;
+  activityServices?: ReturnType<typeof createActivityServices>;
+  auditServices?: ReturnType<typeof createAuditServices>;
 }) {
   app.use('/api/admin/permission-requests', requireAuthentication(), requireAdmin());
   app.use('/api/admin/permission-requests/*', requireAuthentication(), requireAdmin());
@@ -175,6 +183,52 @@ export function registerAuthorizationRoutes({
         );
       }
 
+      await auditServices?.emitAuditEvent({
+        eventType: `permission_request.${request.type}.approved`,
+        eventCategory: 'permission',
+        severity: 'notice',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId: typeof request.result?.vaultId === 'string' ? request.result.vaultId : request.vaultId,
+        target: { type: 'permission_request', id: request.id },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: { request_type: request.type, requested_by: request.requestedBy },
+      });
+      if (request.type === 'vault.create' && typeof request.result?.vaultId === 'string') {
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.vaultApproved,
+          entityType: 'vault',
+          entityId: request.result.vaultId,
+          actor: getAuditActorFromContext(context),
+          vaultId: request.result.vaultId,
+          target: { type: 'vault', id: request.result.vaultId },
+          source: 'web',
+          metadata: { request_id: request.id, request_type: request.type },
+        });
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.vaultCreated,
+          entityType: 'vault',
+          entityId: request.result.vaultId,
+          actor: { id: request.requestedBy, type: 'user' },
+          vaultId: request.result.vaultId,
+          target: { type: 'vault', id: request.result.vaultId },
+          source: 'web',
+          metadata: { request_id: request.id, request_type: request.type },
+        });
+      } else if (request.vaultId !== null) {
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.vaultApproved,
+          entityType: 'vault',
+          entityId: request.vaultId,
+          actor: getAuditActorFromContext(context),
+          vaultId: request.vaultId,
+          target: { type: 'permission_request', id: request.id },
+          source: 'web',
+          metadata: { request_id: request.id, request_type: request.type },
+        });
+      }
+
       return context.json({ request });
     } catch (error) {
       if (error instanceof Error && error.message === 'authorization.permission_request_not_pending') {
@@ -216,6 +270,30 @@ export function registerAuthorizationRoutes({
         404,
       );
     }
+
+    await auditServices?.emitAuditEvent({
+      eventType: `permission_request.${request.type}.rejected`,
+      eventCategory: 'permission',
+      severity: 'notice',
+      outcome: 'success',
+      actor: getAuditActorFromContext(context),
+      vaultId: request.vaultId,
+      target: { type: 'permission_request', id: request.id },
+      source: 'web',
+      requestContext: getAuditRequestContext(context),
+      metadata: { request_type: request.type, requested_by: request.requestedBy },
+    });
+    await activityServices?.emitActivityEvent({
+      activityType: ACTIVITY_EVENT_TYPES.vaultRejected,
+      entityType: request.vaultId === null ? 'permission_request' : 'vault',
+      entityId: request.vaultId ?? request.id,
+      actor: getAuditActorFromContext(context),
+      vaultId: request.vaultId,
+      target: { type: 'permission_request', id: request.id },
+      source: 'web',
+      visibility: request.vaultId === null ? 'requester' : 'owners',
+      metadata: { request_id: request.id, request_type: request.type },
+    });
 
     return context.json({ request });
   });

@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  History,
   Image as ImageIcon,
   Languages,
   MessageSquare,
@@ -95,6 +96,7 @@ import { assignTagToDocument, createTag, removeTagFromDocument } from '@/feature
 import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
+import { DocumentActivityPanel } from '@/features/audit/components/document-activity-panel';
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
 import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
@@ -106,7 +108,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type PreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported';
-type DetailTab = 'preview' | 'content' | 'metadata';
+type DetailTab = 'preview' | 'content' | 'metadata' | 'activity';
 
 const documentTabTriggerStyles = {
   h: '11',
@@ -2077,6 +2079,13 @@ export function DocumentDetailPage() {
                 <Tags size={16} />
                 Metadata
               </TabsTrigger>
+              <TabsTrigger
+                value="activity"
+                {...documentTabTriggerStyles}
+              >
+                <History size={16} />
+                Activity
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </Box>
@@ -2642,6 +2651,10 @@ export function DocumentDetailPage() {
                   </SaveButton>
                 ) : null}
               </chakra.form>
+            ) : null}
+
+            {detailActiveTab === 'activity' ? (
+              <DocumentActivityPanel vaultId={vaultId} documentId={documentId} />
             ) : null}
         </Box>
 

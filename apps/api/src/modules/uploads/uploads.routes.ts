@@ -4,8 +4,13 @@ import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
+import type { createAuditServices } from '../audit/audit.services.js';
+import type { createActivityServices } from '../activity/activity.services.js';
 import { requireCanMutateVaultDocuments } from '../vaults/vaults.middleware.js';
 import { createUploadsServices } from './uploads.services.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
+import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
+import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData & { replaceExisting?: boolean }) => Promise<void>;
@@ -75,12 +80,16 @@ export function registerUploadRoutes({
   config,
   documentsServices,
   documentQueue,
+  auditServices,
+  activityServices,
 }: {
   app: Hono<ServerContext>;
   db: Database;
   config: Config;
   documentsServices: DocumentsServices;
   documentQueue?: DocumentQueue;
+  auditServices?: ReturnType<typeof createAuditServices>;
+  activityServices?: ReturnType<typeof createActivityServices>;
 }) {
   const uploadsServices = createUploadsServices({
     db,
@@ -91,7 +100,7 @@ export function registerUploadRoutes({
     sessionTtlHours: config.uploads.sessionTtlHours,
   });
 
-  app.post('/api/vaults/:vaultId/uploads/init', requireCanMutateVaultDocuments(), async (context) => {
+  app.post('/api/vaults/:vaultId/uploads/init', requireCanMutateVaultDocuments({ auditServices }), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -156,7 +165,7 @@ export function registerUploadRoutes({
     }
   });
 
-  app.get('/api/vaults/:vaultId/uploads', requireCanMutateVaultDocuments(), async (context) => {
+  app.get('/api/vaults/:vaultId/uploads', requireCanMutateVaultDocuments({ auditServices }), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -174,7 +183,7 @@ export function registerUploadRoutes({
     return context.json({ uploads });
   });
 
-  app.get('/api/vaults/:vaultId/uploads/:uploadId', requireCanMutateVaultDocuments(), async (context) => {
+  app.get('/api/vaults/:vaultId/uploads/:uploadId', requireCanMutateVaultDocuments({ auditServices }), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -192,7 +201,7 @@ export function registerUploadRoutes({
     return context.json({ upload });
   });
 
-  app.put('/api/vaults/:vaultId/uploads/:uploadId/parts/:partNumber', requireCanMutateVaultDocuments(), async (context) => {
+  app.put('/api/vaults/:vaultId/uploads/:uploadId/parts/:partNumber', requireCanMutateVaultDocuments({ auditServices }), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -231,7 +240,7 @@ export function registerUploadRoutes({
     }
   });
 
-  app.post('/api/vaults/:vaultId/uploads/:uploadId/complete', requireCanMutateVaultDocuments(), async (context) => {
+  app.post('/api/vaults/:vaultId/uploads/:uploadId/complete', requireCanMutateVaultDocuments({ auditServices }), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 
@@ -263,6 +272,43 @@ export function registerUploadRoutes({
         );
       }
 
+      if (result.document !== null) {
+        const actor = getAuditActorFromContext(context);
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.documentUploaded,
+          eventCategory: 'document',
+          outcome: 'success',
+          actor,
+          vaultId,
+          documentId: result.document.id,
+          target: { type: 'document', id: result.document.id, displayName: result.document.name },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: {
+            file_name: result.document.originalName,
+            file_size: result.document.originalSize,
+            mime_type: result.document.mimeType,
+          },
+        });
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentCreated,
+          entityType: 'document',
+          entityId: result.document.id,
+          actor,
+          vaultId,
+          documentId: result.document.id,
+          target: { type: 'document', id: result.document.id, displayName: result.document.name },
+          source: 'web',
+          metadata: {
+            document_name: result.document.name,
+            file_name: result.document.originalName,
+            file_size: result.document.originalSize,
+            mime_type: result.document.mimeType,
+            folder_id: result.document.folderId,
+          },
+        });
+      }
+
       if (documentQueue !== undefined && result.document !== null) {
         await documentQueue.enqueueProcessDocument({
           documentId: result.document.id,
@@ -272,6 +318,17 @@ export function registerUploadRoutes({
           documentId: result.document.id,
           vaultId,
           processingStatus: 'queued',
+        });
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentProcessingStatusChanged,
+          entityType: 'document',
+          entityId: result.document.id,
+          actor: { type: 'system', displayName: 'System' },
+          vaultId,
+          documentId: result.document.id,
+          target: { type: 'document', id: result.document.id, displayName: result.document.name },
+          source: 'background',
+          metadata: { processing_status: 'queued' },
         });
       }
 
@@ -284,7 +341,7 @@ export function registerUploadRoutes({
     }
   });
 
-  app.post('/api/vaults/:vaultId/uploads/:uploadId/abort', requireCanMutateVaultDocuments(), async (context) => {
+  app.post('/api/vaults/:vaultId/uploads/:uploadId/abort', requireCanMutateVaultDocuments({ auditServices }), async (context) => {
     const vaultId = context.get('vaultId');
     const userId = context.get('userId');
 

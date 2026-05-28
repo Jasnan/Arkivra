@@ -23,7 +23,6 @@ type SearchRow = {
   original_name: string;
   original_size: number;
   mime_type: string;
-  document_date: Date | null;
   created_at: Date;
   updated_at: Date;
   tags_json: string;
@@ -136,10 +135,6 @@ function normalizeTagIds(tagId: string | undefined, tagIds: string[] | undefined
   ].filter(Boolean))];
 }
 
-function getEffectiveDocumentDateSql(alias: string) {
-  return sql.raw(`COALESCE(${alias}.document_date, ${alias}.created_at)`);
-}
-
 function getBrowseOrderSql(sortBy: SearchSortBy) {
   switch (sortBy) {
     case 'created_asc':
@@ -198,7 +193,6 @@ function mapSearchRow(row: SearchRow): SearchResultItem {
     originalName: row.original_name,
     originalSize: row.original_size,
     mimeType: row.mime_type,
-    documentDate: toIsoString(row.document_date),
     createdAt: toIsoString(row.created_at)!,
     updatedAt: toIsoString(row.updated_at)!,
     tags: parseTagsJson(row.tags_json),
@@ -492,7 +486,7 @@ export function createDocumentSearchServices({
               AND dt.tag_id IN (${tagIdListSql})
           )`
         : sql`TRUE`;
-    const effectiveDocumentDateSql = getEffectiveDocumentDateSql('d');
+    const effectiveCreatedAtSql = sql.raw('d.created_at');
 
     if (trimmedQuery.length === 0) {
       const countResult = await db.execute<CountRow>(sql`
@@ -501,8 +495,8 @@ export function createDocumentSearchServices({
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
           AND ${tagFilterSql}
-          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
-          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
+          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
       `);
 
       const resultsCount = countResult.rows[0]?.results_count ?? 0;
@@ -529,7 +523,6 @@ export function createDocumentSearchServices({
           d.original_name,
           d.original_size,
           d.mime_type,
-          d.document_date,
           d.created_at,
           d.updated_at,
           (
@@ -564,8 +557,8 @@ export function createDocumentSearchServices({
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
           AND ${tagFilterSql}
-          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
-          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
+          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
         ORDER BY ${getBrowseOrderSql(sortBy)}
         LIMIT ${pageSize}
         OFFSET ${offset}
@@ -627,8 +620,8 @@ export function createDocumentSearchServices({
             AND d.vault_id IN (${vaultIdListSql})
             AND d.is_deleted = false
             AND ${tagFilterSql}
-            AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
-            AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+            AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
+            AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
             AND (
               dc.tsv @@ search_query.query
               OR dc.content ILIKE ${ilikePattern}
@@ -642,8 +635,8 @@ export function createDocumentSearchServices({
           WHERE d.vault_id IN (${vaultIdListSql})
             AND d.is_deleted = false
             AND ${tagFilterSql}
-            AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
-            AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+            AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
+            AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
             AND (
               d.name ILIKE ${ilikePattern}
               OR d.original_name ILIKE ${ilikePattern}
@@ -798,7 +791,6 @@ export function createDocumentSearchServices({
           d.original_name,
           d.original_size,
           d.mime_type,
-          d.document_date,
           d.created_at,
           d.updated_at,
           (
@@ -838,8 +830,8 @@ export function createDocumentSearchServices({
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
           AND ${tagFilterSql}
-          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
-          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
+          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
       )
       SELECT
         vault_id,
@@ -849,7 +841,6 @@ export function createDocumentSearchServices({
         original_name,
         original_size,
         mime_type,
-        document_date,
         created_at,
         updated_at,
         tags_json,
@@ -946,7 +937,7 @@ export function createDocumentSearchServices({
               AND dt.tag_id IN (${tagIdListSql})
           )`
         : sql`TRUE`;
-    const effectiveDocumentDateSql = getEffectiveDocumentDateSql('d');
+    const effectiveCreatedAtSql = sql.raw('d.created_at');
 
     const searchResult = await db.execute<SearchRow>(sql`
       WITH search_query AS (
@@ -961,7 +952,6 @@ export function createDocumentSearchServices({
           d.original_name,
           d.original_size,
           d.mime_type,
-          d.document_date,
           d.created_at,
           d.updated_at
         FROM documents AS d
@@ -969,8 +959,8 @@ export function createDocumentSearchServices({
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
           AND ${tagFilterSql}
-          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveDocumentDateSql} >= ${normalizedDateFrom})
-          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveDocumentDateSql} <= ${normalizedDateTo})
+          AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
+          AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
       ),
       keyword_candidates AS (
         SELECT
@@ -1175,7 +1165,6 @@ export function createDocumentSearchServices({
           sd.original_name,
           sd.original_size,
           sd.mime_type,
-          sd.document_date,
           sd.created_at,
           sd.updated_at,
           (
@@ -1233,7 +1222,6 @@ export function createDocumentSearchServices({
         original_name,
         original_size,
         mime_type,
-        document_date,
         created_at,
         updated_at,
         tags_json,

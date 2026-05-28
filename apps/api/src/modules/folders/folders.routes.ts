@@ -72,7 +72,6 @@ function buildDocumentTreeEntries(
     originalSize: number;
     mimeType: string;
     processingStatus: string;
-    documentDate: Date | null;
     createdAt: Date;
     updatedAt: Date;
     isDeleted: boolean;

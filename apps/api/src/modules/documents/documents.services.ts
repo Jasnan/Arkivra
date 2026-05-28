@@ -670,7 +670,6 @@ export function createDocumentsServices({
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         processingStatus: documentsTable.processingStatus,
-        documentDate: documentsTable.documentDate,
         language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -694,7 +693,6 @@ export function createDocumentsServices({
         mimeType: documentsTable.mimeType,
         content: documentsTable.content,
         processingStatus: documentsTable.processingStatus,
-        documentDate: documentsTable.documentDate,
         language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -732,7 +730,6 @@ export function createDocumentsServices({
         folderId: documentsTable.folderId,
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
-        documentDate: documentsTable.documentDate,
         language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -881,34 +878,6 @@ export function createDocumentsServices({
     }
 
     return { success: true, document: doc };
-  }
-
-  async function updateDocumentDate({
-    documentId,
-    vaultId,
-    documentDate,
-  }: {
-    documentId: string;
-    vaultId: string;
-    documentDate: Date | null;
-  }) {
-    const [doc] = await db
-      .update(documentsTable)
-      .set({ documentDate, updatedAt: new Date() })
-      .where(
-        and(
-          eq(documentsTable.id, documentId),
-          eq(documentsTable.vaultId, vaultId),
-          eq(documentsTable.isDeleted, false),
-        ),
-      )
-      .returning({
-        id: documentsTable.id,
-        documentDate: documentsTable.documentDate,
-        updatedAt: documentsTable.updatedAt,
-      });
-
-    return doc ?? null;
   }
 
   async function updateDocumentLanguage({
@@ -1274,7 +1243,6 @@ export function createDocumentsServices({
     restoreDocument,
     softDeleteDocument,
     updateDocumentProcessingStatus,
-    updateDocumentDate,
     updateDocumentLanguage,
     uploadDocument,
   };

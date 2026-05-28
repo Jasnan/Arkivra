@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { MouseEvent } from 'react';
 import { useEffect, useMemo } from 'react';
 import { TreeView, createTreeCollection } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';
@@ -212,6 +213,7 @@ export function VaultSidebarTree({
   currentDocumentId,
   folders,
   documents,
+  onOpenVaultContextMenu,
 }: {
   vaults: Array<{ id: string; name: string }>;
   activeVaultId?: string | null;
@@ -222,6 +224,7 @@ export function VaultSidebarTree({
   currentDocumentId?: string | null;
   folders: FolderTreeEntry[];
   documents: FolderTreeDocumentEntry[];
+  onOpenVaultContextMenu?: (event: MouseEvent<HTMLElement>, vaultId: string) => void;
 }) {
   const navigate = useNavigate();
   const collection = useMemo(
@@ -280,6 +283,12 @@ export function VaultSidebarTree({
     handleItemClick(node);
   };
 
+  const getContextMenuHandler = (node: VaultTreeNode) => (
+    node.type === 'vault' && onOpenVaultContextMenu
+      ? (event: MouseEvent<HTMLElement>) => onOpenVaultContextMenu(event, node.vaultId)
+      : undefined
+  );
+
   return (
     <TreeView.Root
       collection={collection}
@@ -295,12 +304,22 @@ export function VaultSidebarTree({
           indentGuide={<TreeView.BranchIndentGuide />}
           render={({ node, nodeState }) =>
             nodeState.isBranch ? (
-              <TreeView.BranchControl onClick={() => handleBranchClick(node)} minH="8" gap="2">
+              <TreeView.BranchControl
+                onClick={() => handleBranchClick(node)}
+                onContextMenu={getContextMenuHandler(node)}
+                minH="8"
+                gap="2"
+              >
                 {getNodeIcon(node, nodeState.expanded)}
                 <TreeView.BranchText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.BranchText>
               </TreeView.BranchControl>
             ) : (
-              <TreeView.Item onClick={() => handleItemClick(node)} minH="8" gap="2">
+              <TreeView.Item
+                onClick={() => handleItemClick(node)}
+                onContextMenu={getContextMenuHandler(node)}
+                minH="8"
+                gap="2"
+              >
                 {getNodeIcon(node)}
                 <TreeView.ItemText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.ItemText>
               </TreeView.Item>

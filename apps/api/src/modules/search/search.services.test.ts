@@ -24,7 +24,7 @@ function flattenSqlChunks(chunks: unknown[]): string {
 }
 
 describe('document search services', () => {
-  it('falls back to created_at when applying date filters', async () => {
+  it('uses created_at when applying date filters', async () => {
     const execute = vi.fn(async () => ({ rows: [{ results_count: 0 }] }));
     const searchServices = createDocumentSearchServices({
       db: { execute } as any,
@@ -42,7 +42,7 @@ describe('document search services', () => {
     const firstQuery = (execute.mock.calls as unknown as any[][])[0]?.[0];
     const queryText = flattenSqlChunks(firstQuery?.queryChunks ?? []);
 
-    expect(queryText).toContain('COALESCE(d.document_date, d.created_at)');
+    expect(queryText).toContain('d.created_at');
   });
 
   it('includes document title fields in search matching', async () => {
@@ -84,7 +84,6 @@ describe('document search services', () => {
           original_name: 'April invoice.pdf',
           original_size: 42000,
           mime_type: 'application/pdf',
-          document_date: null,
           created_at: new Date('2026-04-10T10:00:00.000Z'),
           updated_at: new Date('2026-04-12T10:00:00.000Z'),
           tags_json: '[]',

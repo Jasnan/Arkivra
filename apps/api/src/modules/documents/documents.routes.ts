@@ -727,49 +727,6 @@ export function registerDocumentRoutes({
         return context.json({ document: result.document });
       }
 
-      if (body.documentDate !== undefined) {
-        const documentDate = body.documentDate === null ? null : new Date(body.documentDate);
-
-        if (documentDate !== null && Number.isNaN(documentDate.getTime())) {
-          return context.json(
-            { error: { code: 'document.invalid_date', message: 'Invalid document date' } },
-            400,
-          );
-        }
-
-        const before = await documentsServices.getDocument({ documentId, vaultId });
-        const doc = await documentsServices.updateDocumentDate({
-          documentId,
-          vaultId,
-          documentDate,
-        });
-
-        if (doc === null) {
-          return context.json(
-            { error: { code: 'document.not_found', message: 'Document not found' } },
-            404,
-          );
-        }
-
-        await activityServices?.emitActivityEvent({
-          activityType: ACTIVITY_EVENT_TYPES.documentMetadataUpdated,
-          entityType: 'document',
-          entityId: documentId,
-          actor,
-          vaultId,
-          documentId,
-          target: { type: 'document', id: documentId, displayName: before?.name ?? documentId },
-          source: 'web',
-          metadata: {
-            changed_fields: ['document date'],
-            previous_document_date: before?.documentDate?.toISOString() ?? null,
-            next_document_date: doc.documentDate?.toISOString() ?? null,
-          },
-        });
-
-        return context.json({ document: doc });
-      }
-
       if (body.language !== undefined) {
         const languageCode = body.language === null
           ? null
@@ -828,7 +785,7 @@ export function registerDocumentRoutes({
       }
 
       return context.json(
-        { error: { code: 'document.invalid_payload', message: 'Provide name, documentDate, or language' } },
+        { error: { code: 'document.invalid_payload', message: 'Provide name or language' } },
         400,
       );
     },

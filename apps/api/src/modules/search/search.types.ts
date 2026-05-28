@@ -25,7 +25,6 @@ export type SearchResultItem = {
   originalName: string;
   originalSize: number;
   mimeType: string;
-  documentDate: string | null;
   createdAt: string;
   updatedAt: string;
   tags: SearchResultTag[];

@@ -188,25 +188,6 @@ export async function moveDocument({
   );
 }
 
-export async function updateDocumentDate({
-  vaultId,
-  documentId,
-  documentDate,
-}: {
-  vaultId: string;
-  documentId: string;
-  documentDate: string | null;
-}) {
-  return fetchJson<{ document: { id: string; documentDate: string | null; updatedAt: string } }>(
-    `/api/vaults/${vaultId}/documents/${documentId}`,
-    {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ documentDate }),
-    },
-  );
-}
-
 export async function updateDocumentLanguage({
   vaultId,
   documentId,

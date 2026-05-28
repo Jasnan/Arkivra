@@ -32,7 +32,6 @@ function createMockSearchServices() {
           originalName: 'arkivra-e2e.pdf',
           originalSize: 42000,
           mimeType: 'application/pdf',
-          documentDate: null,
           createdAt: '2025-01-01T00:00:00.000Z',
           updatedAt: '2025-01-01T00:00:00.000Z',
           matchedChunksCount: 1,

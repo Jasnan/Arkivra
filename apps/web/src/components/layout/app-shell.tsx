@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from 'react';
+import type { ComponentType, MouseEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -7,6 +7,8 @@ import {
   ChevronRight,
   DatabaseBackup,
   FileSearch,
+  FolderOpen,
+  History,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -17,6 +19,7 @@ import {
   Search,
   SearchX,
   Settings,
+  Settings2,
   Shield,
   ShieldCheck,
   SlidersHorizontal,
@@ -58,6 +61,8 @@ import { authClient } from '@/lib/auth-client';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useDocumentQuery } from '@/features/documents/documents.queries';
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import { BrowserContextMenu } from '@/features/file-browser/components/vault-browser-components';
+import type { BrowserContextMenuEntry, ContextMenuState } from '@/features/file-browser/components/vault-browser.types';
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -868,12 +873,45 @@ function VaultFileTreePanel({
   currentFolderId: string | null;
   currentDocumentId?: string | null;
 }) {
+  const navigate = useNavigate();
   const vaultsQuery = useVaultsQuery();
+  const vaults = vaultsQuery.data?.vaults ?? [];
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([VAULT_TREE_ROOT_VALUE]);
   const folderTreeQuery = useFolderTreeQuery({
     vaultId: activeVaultId,
     enabled: activeVaultId.length > 0,
   });
+  const contextVaultId = contextMenu?.item.type === 'background' || contextMenu?.item.type === 'root'
+    ? contextMenu.item.vaultId
+    : activeVaultId;
+
+  function getVaultContextMenuActions(vaultId: string): BrowserContextMenuEntry[] {
+    return [
+      { key: 'open', label: 'Open', icon: FolderOpen, onSelect: () => navigate({ to: ROUTES.vaultRoot(vaultId) }) },
+      { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }) },
+      { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
+      { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
+      { key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) },
+    ];
+  }
+
+  function openVaultContextMenu(event: MouseEvent<HTMLElement>, vaultId: string) {
+    const vault = vaults.find(item => item.id === vaultId);
+
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      item: {
+        type: 'background',
+        vaultId,
+        folderId: null,
+        name: vault?.name ?? 'Vault',
+      },
+      x: event.clientX,
+      y: event.clientY,
+    });
+  }
 
   return (
     <Flex
@@ -903,8 +941,16 @@ function VaultFileTreePanel({
           currentDocumentId={currentDocumentId}
           folders={folderTreeQuery.data?.folders ?? []}
           documents={folderTreeQuery.data?.documents ?? []}
+          onOpenVaultContextMenu={openVaultContextMenu}
         />
       </Box>
+      {contextMenu ? (
+        <BrowserContextMenu
+          state={contextMenu}
+          actions={getVaultContextMenuActions(contextVaultId)}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
     </Flex>
   );
 }

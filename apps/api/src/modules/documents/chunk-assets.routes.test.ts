@@ -30,7 +30,6 @@ function createMockDocumentsServices() {
     restoreDocument: vi.fn(),
     softDeleteDocument: vi.fn(),
     updateDocumentProcessingStatus: vi.fn(),
-    updateDocumentDate: vi.fn(),
     uploadDocument: vi.fn(),
   } as unknown as DocumentsServices;
 }

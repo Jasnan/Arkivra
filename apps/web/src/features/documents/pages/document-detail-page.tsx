@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
@@ -15,14 +15,18 @@ import {
   Spinner,
   chakra,
   Heading,
+  IconButton,
 } from '@chakra-ui/react';
 import {
-  ArrowLeft,
+  Check,
   ChevronLeft,
   ChevronRight,
+  ClipboardCopy,
   Download,
+  FileText,
   History,
   Image as ImageIcon,
+  Info,
   Languages,
   MessageSquare,
   Pencil,
@@ -45,14 +49,12 @@ import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/act
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
@@ -63,7 +65,6 @@ import {
   restoreDocument,
   softDeleteDocument,
   translateDocument,
-  updateDocumentDate,
   updateDocumentLanguage,
 } from '@/features/documents/documents.api';
 import type {
@@ -206,6 +207,75 @@ function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null | un
 
 function getDocumentTitle(name: string) {
   return name.replace(documentFileExtensionPattern, '');
+}
+
+function getDocumentFileTypeLabel(mimeType: string) {
+  if (mimeType === 'application/pdf') {
+    return 'PDF document';
+  }
+
+  if (mimeType.startsWith('image/')) {
+    return 'Image file';
+  }
+
+  if (mimeType.startsWith('text/')) {
+    return 'Text document';
+  }
+
+  return 'Document';
+}
+
+function DocumentViewHeader({
+  title,
+  subtitle,
+  mimeType,
+  actions,
+  onClose,
+}: {
+  title: string;
+  subtitle: ReactNode;
+  mimeType: string;
+  actions: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <Flex align="flex-start" gap={{ base: '3', md: '4' }}>
+      <Flex
+        boxSize={{ base: '10', md: '14' }}
+        flexShrink={0}
+        align="center"
+        justify="center"
+        rounded="lg"
+        bg="red.500/15"
+        color="red.300"
+        fontWeight="bold"
+        fontSize="xs"
+      >
+        {mimeType === 'application/pdf' ? 'PDF' : <FileText size={22} />}
+      </Flex>
+      <Box minW="0" flex="1">
+        <Heading as="h1" textStyle={{ base: 'xl', md: '2xl' }} fontWeight="semibold" lineHeight="short" truncate>
+          {title}
+        </Heading>
+        <Box mt="2" minW="0">
+          {subtitle}
+        </Box>
+      </Box>
+      <Flex align="center" gap="2" flexShrink={0}>
+        {actions}
+        <CloseButton
+          aria-label="Close document detail"
+          size="md"
+          borderWidth="1px"
+          borderColor="border.surface"
+          rounded="lg"
+          bg="bg.surface"
+          color="fg.muted"
+          onClick={onClose}
+        />
+      </Flex>
+    </Flex>
+  );
 }
 
 function getTranslationTargetLanguages(sourceLanguage: DocumentLanguageMetadata | null | undefined) {
@@ -1549,10 +1619,8 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   });
 
   const [renameValue, setRenameValue] = useState<string | null>(null);
-  const [documentDateValue, setDocumentDateValue] = useState<string | null>(null);
   const [languageValue, setLanguageValue] = useState<string | null>(null);
   const [isNameEditing, setIsNameEditing] = useState(false);
-  const [isDocumentDateEditing, setIsDocumentDateEditing] = useState(false);
   const [isLanguageEditing, setIsLanguageEditing] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
@@ -1644,12 +1712,13 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   }), [documentBreadcrumbEntries]);
   useWorkspaceHeader(documentWorkspaceHeader);
 
-  function returnToSearchResults() {
-    if (!searchReturnParams) {
+  function closeDocumentDetail() {
+    if (searchReturnParams) {
+      navigate({ to: ROUTES.search, search: searchReturnParams as any });
       return;
     }
 
-    navigate({ to: ROUTES.search, search: searchReturnParams as any });
+    navigate({ to: parentRoute });
   }
 
   useEffect(() => {
@@ -1691,14 +1760,6 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     onSuccess: invalidateDocument,
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not rename document.');
-    },
-  });
-
-  const dateMutation = useMutation({
-    mutationFn: updateDocumentDate,
-    onSuccess: invalidateDocument,
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not update document date.');
     },
   });
 
@@ -1812,14 +1873,12 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const canPreview = (!document.isDeleted || isTrashDocumentRoute) && previewKind !== 'unsupported';
   const canPrint = !document.isDeleted && canPreview && previewKind !== 'markdown';
   const currentName = renameValue ?? document.name;
-  const currentDocumentDate =
-    documentDateValue ?? (document.documentDate ? document.documentDate.slice(0, 10) : '');
   const currentLanguage = languageValue ?? document.language?.code ?? 'unknown';
   const hasNameChanged = currentName.trim() !== document.name;
-  const hasDocumentDateChanged =
-    currentDocumentDate !== (document.documentDate ? document.documentDate.slice(0, 10) : '');
   const hasLanguageChanged = currentLanguage !== (document.language?.code ?? 'unknown');
-  const isMetadataSaving = renameMutation.isPending || dateMutation.isPending || languageMutation.isPending;
+  const isMetadataSaving = renameMutation.isPending || languageMutation.isPending;
+  const documentLanguageLabel = getDocumentLanguageLabel(document.language);
+  const documentFileTypeLabel = getDocumentFileTypeLabel(document.mimeType);
   const normalizedCreateTagName = createTagNameValue.trim();
   const createTagDescription = createTagDescriptionValue.trim();
   const isCreateTagDialogDirty = normalizedCreateTagName.length > 0
@@ -1893,14 +1952,6 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
         await renameMutation.mutateAsync({ vaultId, documentId, name: nextName });
       }
 
-      if (hasDocumentDateChanged) {
-        await dateMutation.mutateAsync({
-          vaultId,
-          documentId,
-          documentDate: currentDocumentDate ? new Date(currentDocumentDate).toISOString() : null,
-        });
-      }
-
       if (hasLanguageChanged) {
         await languageMutation.mutateAsync({
           vaultId,
@@ -1909,16 +1960,23 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
         });
       }
 
-      if (hasNameChanged || hasDocumentDateChanged || hasLanguageChanged) {
+      if (hasNameChanged || hasLanguageChanged) {
         toast.success('Metadata saved.');
         setRenameValue(null);
-        setDocumentDateValue(null);
         setLanguageValue(null);
         setIsNameEditing(false);
-        setIsDocumentDateEditing(false);
         setIsLanguageEditing(false);
       }
     } catch {}
+  }
+
+  async function copyMetadataValue(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied.`);
+    } catch {
+      toast.error(`Could not copy ${label.toLowerCase()}.`);
+    }
   }
 
   function openCreateTagDialog(initialName: string) {
@@ -2028,6 +2086,223 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     }
   }
 
+  const documentActionMenu = (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <ActionMenuTriggerButton
+          label={`Open actions for ${document.name}`}
+          {...documentActionTriggerStyles}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" minW="56">
+        {documentSectionMenuItems.map((item) => (
+          <DropdownMenuItem
+            key={item.key}
+            value={item.key}
+            onSelect={() => navigate({ to: item.route, search: documentSectionSearch as any })}
+          >
+            <ActionMenuItemIcon icon={item.icon} />
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+        {documentSectionMenuItems.length > 0 ? <DropdownMenuSeparator /> : null}
+        {!isTrashDocumentRoute ? (
+          <DropdownMenuItem value="download-original" asChild>
+            <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
+              <ActionMenuItemIcon icon={Download} />
+              Download
+            </a>
+          </DropdownMenuItem>
+        ) : null}
+        {canPrint ? (
+          <DropdownMenuItem value="print" onSelect={handlePrintClick}>
+            <ActionMenuItemIcon icon={Printer} />
+            Print
+          </DropdownMenuItem>
+        ) : null}
+        {!isTrashDocumentRoute || document.isDeleted ? <DropdownMenuSeparator /> : null}
+        {document.isDeleted ? (
+          <DropdownMenuItem
+            value="restore-document"
+            disabled={restoreMutation.isPending}
+            onSelect={() => {
+              restoreMutation.mutate({ vaultId, documentId });
+            }}
+          >
+            <ActionMenuItemIcon icon={RotateCcw} />
+            {restoreMutation.isPending ? 'Restoring...' : 'Restore'}
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            value="move-to-trash"
+            color="fg.error"
+            _hover={{ bg: 'bg.error', color: 'fg.error' }}
+            _focus={{ bg: 'bg.error', color: 'fg.error' }}
+            disabled={deleteMutation.isPending}
+            onSelect={() => setIsDeleteDialogOpen(true)}
+          >
+            <ActionMenuItemIcon icon={Trash2} tone="destructive" />
+            Trash
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const documentTagControls = (
+    <Flex flexWrap="wrap" align="center" gap="2" minW="0">
+      {assignedTags.map((tag) => (
+        <TagBadge
+          key={tag.id}
+          color={tag.color}
+          name={tag.name}
+          onRemove={!isTrashDocumentRoute
+            ? () => {
+                removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+              }
+            : undefined}
+        />
+      ))}
+      {!isTrashDocumentRoute ? (
+        <DropdownMenu
+          modal={false}
+          open={isTagPickerOpen}
+          onOpenChange={(open) => {
+            setIsTagPickerOpen(open);
+            if (!open) {
+              setTagSearchValue('');
+            }
+          }}
+        >
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              variant="ghost"
+              size="xs"
+              aria-label="Add tag"
+              borderStyle="dashed"
+              color="fg.muted"
+              _hover={{ bg: 'bg.surface', color: 'fg' }}
+            >
+              <Plus size={8} />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            minW="80"
+            overflow="hidden"
+            rounded="xl"
+            bg="bg.surface"
+            p="0"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+            }}
+          >
+            <Box borderBottomWidth="1px" borderColor="border.surface" p="2">
+              <Field>
+                <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
+                  Filter tags
+                </FieldLabel>
+                <Input
+                  id="document-detail-tag-filter"
+                  type="text"
+                  value={tagSearchValue}
+                  onChange={(event) => setTagSearchValue(event.target.value)}
+                  placeholder="Filter tags..."
+                  h="10"
+                  borderColor="transparent"
+                  px="3"
+                  focusRing="none"
+                  autoFocus
+                />
+              </Field>
+            </Box>
+            <Box maxH="72" overflowY="auto" overflowX="hidden" py="1">
+              {selectedMatchingTags.map((tag) => (
+                <chakra.button
+                  key={tag.id}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked="true"
+                  display="flex"
+                  w="full"
+                  alignItems="center"
+                  gap="3"
+                  px="4"
+                  py="2.5"
+                  textAlign="left"
+                  color="fg"
+                  _hover={{ bg: 'bg.subtle' }}
+                  _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
+                  onClick={() => {
+                    removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                  }}
+                >
+                  <Flex
+                    aria-hidden="true"
+                    boxSize="6"
+                    flexShrink={0}
+                    align="center"
+                    justify="center"
+                    rounded="md"
+                    bg="#D8FF75"
+                    color="#111827"
+                  >
+                    <Check size={17} strokeWidth={2.4} />
+                  </Flex>
+                  <Box aria-hidden="true" boxSize="2.5" flexShrink={0} rounded="full" bg={tag.color ?? '#64748b'} />
+                  <Text flex="1" minW="0" fontWeight="semibold" color="fg" truncate>{tag.name}</Text>
+                </chakra.button>
+              ))}
+              {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
+                <DropdownMenuSeparator />
+              ) : null}
+              {sortedFilteredAvailableTags.map((tag) => (
+                <chakra.button
+                  key={tag.id}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked="false"
+                  display="flex"
+                  w="full"
+                  alignItems="center"
+                  gap="3"
+                  px="4"
+                  py="2.5"
+                  textAlign="left"
+                  color="fg"
+                  _hover={{ bg: 'bg.subtle' }}
+                  _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
+                  onClick={() => {
+                    assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
+                  }}
+                >
+                  <Box aria-hidden="true" boxSize="6" flexShrink={0} />
+                  <Box aria-hidden="true" boxSize="2.5" flexShrink={0} rounded="full" bg={tag.color ?? '#64748b'} />
+                  <Text flex="1" minW="0" fontWeight="semibold" color="fg" truncate>{tag.name}</Text>
+                </chakra.button>
+              ))}
+              {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
+                <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
+                  <Plus size={16} />
+                  <Text flex="1" minW="0" truncate>{`New tag "${tagSearchValue.trim()}"`}</Text>
+                </DropdownMenuItem>
+              ) : null}
+              {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
+                normalizedTagSearchValue.length === 0 ? (
+                  <Text px="4" py="3" fontSize="sm" color="fg.muted">
+                    All tags are already assigned.
+                  </Text>
+                ) : !hasExactTagMatch ? null : (
+                  <Text px="4" py="3" fontSize="sm" color="fg.muted">No matching tags.</Text>
+                )
+              ) : null}
+            </Box>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </Flex>
+  );
+
   return (
     <Flex
       as="section"
@@ -2039,111 +2314,19 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
       pt={isTrashDocumentRoute ? '4' : { base: '3', md: '4' }}
       pb="0"
     >
-      <Flex
-        as="header"
-        align="stretch"
-        gap={{ base: '2', md: '4' }}
-        minH="12"
-        overflow="hidden"
-        pb="0"
-      >
-        <Heading
-          as="h1"
-          flex="0 1 18rem"
-          minW={{ base: '7rem', md: '10rem' }}
-          maxW={{ base: '11rem', md: '18rem', xl: '26rem' }}
-          alignSelf="center"
-          textStyle="xl"
-          fontWeight="semibold"
-          lineHeight="short"
-          truncate
-        >
-          {getDocumentTitle(document.name)}
-        </Heading>
-
-        <Flex align="center" gap="2" flexShrink={0} ml="auto">
-          {isTrashDocumentRoute ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.trash })}>
-              <ArrowLeft size={16} />
-              Trash
-            </Button>
-          ) : null}
-
-          {searchReturnParams ? (
-            <Button type="button" size="sm" variant="outline" onClick={returnToSearchResults}>
-              <ArrowLeft size={16} />
-              Results
-            </Button>
-          ) : null}
-
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <ActionMenuTriggerButton
-                label={`Open actions for ${document.name}`}
-                {...documentActionTriggerStyles}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" minW="56">
-              {documentSectionMenuItems.map((item) => (
-                <DropdownMenuItem
-                  key={item.key}
-                  value={item.key}
-                  onSelect={() => navigate({ to: item.route, search: documentSectionSearch as any })}
-                >
-                  <ActionMenuItemIcon icon={item.icon} />
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
-              {documentSectionMenuItems.length > 0 ? <DropdownMenuSeparator /> : null}
-              {!isTrashDocumentRoute ? (
-                <DropdownMenuItem value="download-original" asChild>
-                  <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
-                    <ActionMenuItemIcon icon={Download} />
-                    Download
-                  </a>
-                </DropdownMenuItem>
-              ) : null}
-              {canPrint ? (
-                <DropdownMenuItem value="print" onSelect={handlePrintClick}>
-                  <ActionMenuItemIcon icon={Printer} />
-                  Print
-                </DropdownMenuItem>
-              ) : null}
-              {!isTrashDocumentRoute || document.isDeleted ? <DropdownMenuSeparator /> : null}
-              {document.isDeleted ? (
-                <DropdownMenuItem
-                  value="restore-document"
-                  disabled={restoreMutation.isPending}
-                  onSelect={() => {
-                    restoreMutation.mutate({ vaultId, documentId });
-                  }}
-                >
-                  <ActionMenuItemIcon icon={RotateCcw} />
-                  {restoreMutation.isPending ? 'Restoring...' : 'Restore'}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem
-                  value="move-to-trash"
-                  color="fg.error"
-                  _hover={{ bg: 'bg.error', color: 'fg.error' }}
-                  _focus={{ bg: 'bg.error', color: 'fg.error' }}
-                  disabled={deleteMutation.isPending}
-                  onSelect={() => setIsDeleteDialogOpen(true)}
-                >
-                  <ActionMenuItemIcon icon={Trash2} tone="destructive" />
-                  Trash
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </Flex>
-      </Flex>
+      <DocumentViewHeader
+        title={getDocumentTitle(document.name)}
+        subtitle={documentTagControls}
+        mimeType={document.mimeType}
+        actions={documentActionMenu}
+        onClose={closeDocumentDetail}
+      />
 
       <Box
         flex="1"
         h="full"
         minH="0"
-        pt="3"
+        pt="6"
       >
             {detailActiveSection === 'preview' ? (
               <Flex h="full" minH="0" direction="column" gap="4">
@@ -2306,37 +2489,45 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
             ) : null}
 
             {detailActiveSection === 'metadata' ? (
-              <chakra.form minH="820px" onSubmit={handleMetadataSave}>
-                <Flex
-                  direction={{ base: 'column', sm: 'row' }}
-                  flexWrap="wrap"
-                  gap="4"
-                  fontSize="sm"
-                >
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">Display name</Text>
-                    {isNameEditing ? (
-                      <Input
-                        id="document-name"
-                        type="text"
-                        value={currentName}
-                        mt="2"
-                        borderColor="border.surface"
-                        bg="bg.surface"
-                        autoFocus
-                        onChange={(event) => setRenameValue(event.target.value)}
-                      />
-                    ) : (
-                      <Flex align="center" justify="space-between" gap="3" mt="2">
-                        <Text fontWeight="medium" color="fg">
-                          {document.name}
-                        </Text>
+              <chakra.form maxW="6xl" minH="820px" mx="auto" onSubmit={handleMetadataSave}>
+                <Flex direction="column" gap="5">
+                  <Box rounded="xl" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px={{ base: '4', md: '6' }} py={{ base: '3', md: '4' }}>
+                    <Flex direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} gap={{ base: '2', md: '5' }} py="3">
+                      <Text w={{ md: '16rem' }} flexShrink={0} color="fg.muted" fontSize="sm" fontWeight="medium" textTransform="uppercase">
+                        Display name
+                      </Text>
+                      <Flex flex="1" align="center" gap="3" minW="0">
+                        {isNameEditing ? (
+                          <Input
+                            id="document-name"
+                            type="text"
+                            value={currentName}
+                            borderColor="border.surface"
+                            bg="bg.surface"
+                            autoFocus
+                            onChange={(event) => setRenameValue(event.target.value)}
+                          />
+                        ) : (
+                          <Flex
+                            flex="1"
+                            minW="0"
+                            align="center"
+                            minH="12"
+                            rounded="lg"
+                            borderWidth="1px"
+                            borderColor="border.surface"
+                            bg="bg.surface"
+                            px="4"
+                          >
+                            <Text fontWeight="medium" color="fg" truncate>{document.name}</Text>
+                          </Flex>
+                        )}
                         {!isTrashDocumentRoute ? (
                           <chakra.button
                             type="button"
                             aria-label="Edit display name"
                             display="inline-flex"
-                            boxSize="8"
+                            boxSize="9"
                             flexShrink={0}
                             alignItems="center"
                             justifyContent="center"
@@ -2346,106 +2537,55 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                             _hover={{ bg: 'bg.surface', color: 'fg' }}
                             onClick={() => setIsNameEditing(true)}
                           >
-                            <Pencil size={16} />
+                            <Pencil size={18} />
                           </chakra.button>
                         ) : null}
                       </Flex>
-                    )}
-                  </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Flex align="center" gap="2" color="fg.muted">
-                      <Text>Document date</Text>
-                      <InfoTooltip
-                        label="More info about document date"
-                        contentClassName="max-w-72"
-                        content="The date the document was issued for. For example, an invoice dated 21.01.2026 has that document date even if it was uploaded on 24.04.2026."
-                      />
                     </Flex>
-                    {isDocumentDateEditing ? (
-                      <Input
-                        id="document-date"
-                        type="date"
-                        value={currentDocumentDate}
-                        mt="2"
-                        borderColor="border.surface"
-                        bg="bg.surface"
-                        autoFocus
-                        onChange={(event) => setDocumentDateValue(event.target.value)}
-                      />
-                    ) : (
-                      <Flex align="center" justify="space-between" gap="3" mt="2">
-                        <Text fontWeight="medium" color="fg">
-                          {formatDate(document.documentDate)}
-                        </Text>
-                        {!isTrashDocumentRoute ? (
-                          <chakra.button
-                            type="button"
-                            aria-label="Edit document date"
-                            display="inline-flex"
-                            boxSize="8"
-                            flexShrink={0}
-                            alignItems="center"
-                            justifyContent="center"
-                            rounded="lg"
-                            color="fg.muted"
-                            transition="colors"
-                            _hover={{ bg: 'bg.surface', color: 'fg' }}
-                            onClick={() => setIsDocumentDateEditing(true)}
+
+                    <Flex direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} gap={{ base: '2', md: '5' }} py="3" borderTopWidth="1px" borderColor="border.surface">
+                      <Text w={{ md: '16rem' }} flexShrink={0} color="fg.muted" fontSize="sm" fontWeight="medium" textTransform="uppercase">
+                        Source language
+                      </Text>
+                      <Flex flex="1" align="center" gap="3" minW="0">
+                        {isLanguageEditing ? (
+                          <Select
+                            value={currentLanguage}
+                            onValueChange={setLanguageValue}
+                            positioning={{ sameWidth: true }}
                           >
-                            <Pencil size={16} />
-                          </chakra.button>
-                        ) : null}
-                      </Flex>
-                    )}
-                  </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">Original file</Text>
-                    <Text mt="2" fontWeight="medium" color="fg">
-                      {document.originalName}
-                    </Text>
-                  </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">File size</Text>
-                    <Text mt="2" fontWeight="medium" color="fg">
-                      {formatBytes(document.originalSize)}
-                    </Text>
-                  </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">Format</Text>
-                    <Text mt="2" fontWeight="medium" color="fg">
-                      {document.mimeType}
-                    </Text>
-                  </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">Source language</Text>
-                    {isLanguageEditing ? (
-                      <Select
-                        value={currentLanguage}
-                        onValueChange={setLanguageValue}
-                        positioning={{ sameWidth: true }}
-                      >
-                        <SelectTrigger mt="2" borderColor="border.surface" bg="bg.surface">
-                          <SelectValue placeholder="Select source language" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {editableDocumentLanguages.map(language => (
-                            <SelectItem key={language.value} value={language.value}>
-                              {language.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Flex align="center" justify="space-between" gap="3" mt="2">
-                        <Text fontWeight="medium" color="fg">
-                          {getDocumentLanguageLabel(document.language)}
-                        </Text>
+                            <SelectTrigger borderColor="border.surface" bg="bg.surface">
+                              <SelectValue placeholder="Select source language" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {editableDocumentLanguages.map(language => (
+                                <SelectItem key={language.value} value={language.value}>
+                                  {language.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Flex
+                            flex="1"
+                            minW="0"
+                            align="center"
+                            minH="12"
+                            rounded="lg"
+                            borderWidth="1px"
+                            borderColor="border.surface"
+                            bg="bg.surface"
+                            px="4"
+                          >
+                            <Text fontWeight="medium" color="fg" truncate>{documentLanguageLabel}</Text>
+                          </Flex>
+                        )}
                         {!isTrashDocumentRoute ? (
                           <chakra.button
                             type="button"
                             aria-label="Edit source language"
                             display="inline-flex"
-                            boxSize="8"
+                            boxSize="9"
                             flexShrink={0}
                             alignItems="center"
                             justifyContent="center"
@@ -2455,164 +2595,93 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                             _hover={{ bg: 'bg.surface', color: 'fg' }}
                             onClick={() => setIsLanguageEditing(true)}
                           >
-                            <Pencil size={16} />
+                            <Pencil size={18} />
                           </chakra.button>
                         ) : null}
                       </Flex>
-                    )}
+                    </Flex>
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">Uploaded by</Text>
-                    <Text mt="2" fontWeight="medium" color="fg">
-                      {document.createdBy ?? 'Unknown'}
-                    </Text>
+
+                  <Box rounded="xl" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px={{ base: '4', md: '6' }} py={{ base: '4', md: '5' }}>
+                    <Flex align="center" gap="3" color="fg.muted" mb="4">
+                      <FileText size={18} />
+                      <Text fontWeight="semibold" textTransform="uppercase" letterSpacing="wide" fontSize="sm">
+                        File information
+                      </Text>
+                    </Flex>
+                    {[
+                      ['Original filename', document.originalName],
+                      ['File type', documentFileTypeLabel],
+                      ['MIME type', document.mimeType],
+                      ['File size', formatBytes(document.originalSize)],
+                    ].map(([label, value], index) => (
+                      <Flex key={label} align="center" gap="4" py="3" borderTopWidth={index === 0 ? '1px' : undefined} borderBottomWidth={index < 3 ? '1px' : undefined} borderColor="border.surface">
+                        <Text flex="0 0 12rem" color="fg.muted">{label}</Text>
+                        <Text flex="1" minW="0" fontWeight="medium" color="fg" truncate>{value}</Text>
+                        {label === 'Original filename' ? (
+                          <chakra.button
+                            type="button"
+                            aria-label="Copy original filename"
+                            display="inline-flex"
+                            boxSize="8"
+                            flexShrink={0}
+                            alignItems="center"
+                            justifyContent="center"
+                            rounded="md"
+                            color="fg.muted"
+                            _hover={{ bg: 'bg.surface', color: 'fg' }}
+                            onClick={() => copyMetadataValue(document.originalName, 'Original filename')}
+                          >
+                            <ClipboardCopy size={16} />
+                          </chakra.button>
+                        ) : null}
+                      </Flex>
+                    ))}
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">Uploaded at</Text>
-                    <Text mt="2" fontWeight="medium" color="fg">
-                      {formatDate(document.createdAt)}
-                    </Text>
+
+                  <Box rounded="xl" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px={{ base: '4', md: '6' }} py={{ base: '4', md: '5' }}>
+                    <Flex align="center" gap="3" color="fg.muted" mb="4">
+                      <Info size={18} />
+                      <Text fontWeight="semibold" textTransform="uppercase" letterSpacing="wide" fontSize="sm">
+                        System information
+                      </Text>
+                    </Flex>
+                    {[
+                      ['Uploaded by', document.createdBy ?? 'Unknown'],
+                      ['Uploaded at', formatDate(document.createdAt)],
+                      ['Last updated', formatDate(document.updatedAt)],
+                    ].map(([label, value], index) => (
+                      <Flex key={label} align="center" gap="4" py="3" borderTopWidth={index === 0 ? '1px' : undefined} borderBottomWidth={index < 2 ? '1px' : undefined} borderColor="border.surface">
+                        <Text flex="0 0 12rem" color="fg.muted">{label}</Text>
+                        <Text flex="1" minW="0" fontWeight="medium" color="fg" truncate>{value}</Text>
+                      </Flex>
+                    ))}
                   </Box>
-                  <Box flex="1 1 calc(50% - 0.5rem)" rounded="lg" bg="bg.subtle" p="4">
-                    <Text color="fg.muted">Last updated</Text>
-                    <Text mt="2" fontWeight="medium" color="fg">
-                      {formatDate(document.updatedAt)}
-                    </Text>
-                  </Box>
+
+                  <Flex align="center" gap="2" color="fg.muted" fontSize="sm">
+                    <Text minW="0" truncate>Document ID: {document.id}</Text>
+                    <chakra.button
+                      type="button"
+                      aria-label="Copy document ID"
+                      display="inline-flex"
+                      boxSize="8"
+                      flexShrink={0}
+                      alignItems="center"
+                      justifyContent="center"
+                      rounded="md"
+                      _hover={{ bg: 'bg.subtle', color: 'fg' }}
+                      onClick={() => copyMetadataValue(document.id, 'Document ID')}
+                    >
+                      <ClipboardCopy size={16} />
+                    </chakra.button>
+                  </Flex>
                 </Flex>
 
-                <Box rounded="lg" bg="bg.subtle" p="4" mt="4">
-                  <Text color="fg.muted" mb="3">Tags</Text>
-                  <Flex flexWrap="wrap" align="center" gap="2">
-                    {assignedTags.length === 0 ? (
-                      <Text fontSize="sm" color="fg.muted">No tags assigned.</Text>
-                    ) : null}
-                    {assignedTags.map((tag) => (
-                      <TagBadge
-                        key={tag.id}
-                        color={tag.color}
-                        name={tag.name}
-                        onRemove={!isTrashDocumentRoute
-                          ? () => {
-                              removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                            }
-                          : undefined}
-                      />
-                    ))}
-                    {!isTrashDocumentRoute ? (
-                      <DropdownMenu
-                        modal={false}
-                        open={isTagPickerOpen}
-                        onOpenChange={(open) => {
-                          setIsTagPickerOpen(open);
-                          if (!open) {
-                            setTagSearchValue('');
-                          }
-                        }}
-                      >
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Add tag"
-                            h="8"
-                            w="8"
-                            rounded="full"
-                            bg="bg.surface"
-                            color="fg.muted"
-                            _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                          >
-                            <Plus size={16} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="start"
-                          minW="80"
-                          overflow="hidden"
-                          rounded="xl"
-                          bg="bg.surface"
-                          p="0"
-                          onCloseAutoFocus={(event) => {
-                            event.preventDefault();
-                          }}
-                        >
-                        <Box borderBottomWidth="1px" borderColor="border.surface" p="2">
-                          <Field>
-                            <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
-                              Filter tags
-                            </FieldLabel>
-                            <Input
-                              id="document-detail-tag-filter"
-                              type="text"
-                              value={tagSearchValue}
-                              onChange={(event) => setTagSearchValue(event.target.value)}
-                              placeholder="Filter tags..."
-                              h="10"
-                              borderColor="transparent"
-                              px="3"
-                              focusRing="none"
-                              autoFocus
-                            />
-                          </Field>
-                        </Box>
-                        <Box maxH="72" overflow="auto" py="1">
-                          {selectedMatchingTags.map((tag) => (
-                            <DropdownMenuCheckboxItem
-                              key={tag.id}
-                              checked
-                              onSelect={(event) => event.preventDefault()}
-                              onCheckedChange={() => {
-                                removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                              }}
-                            >
-                              <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
-                              <Text flex="1" truncate>{tag.name}</Text>
-                            </DropdownMenuCheckboxItem>
-                          ))}
-                          {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
-                            <DropdownMenuSeparator />
-                          ) : null}
-                          {sortedFilteredAvailableTags.map((tag) => (
-                            <DropdownMenuCheckboxItem
-                              key={tag.id}
-                              checked={false}
-                              onSelect={(event) => event.preventDefault()}
-                              onCheckedChange={() => {
-                                assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                              }}
-                            >
-                              <Box aria-hidden="true" boxSize="2" rounded="full" bg={tag.color ?? '#64748b'} />
-                              <Text flex="1" truncate>{tag.name}</Text>
-                            </DropdownMenuCheckboxItem>
-                          ))}
-                          {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
-                            <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
-                              <Plus size={16} />
-                              <Text flex="1" truncate>{`New tag "${tagSearchValue.trim()}"`}</Text>
-                            </DropdownMenuItem>
-                          ) : null}
-                          {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
-                            normalizedTagSearchValue.length === 0 ? (
-                              <Text px="4" py="3" fontSize="sm" color="fg.muted">
-                                All tags are already assigned.
-                              </Text>
-                            ) : !hasExactTagMatch ? null : (
-                              <Text px="4" py="3" fontSize="sm" color="fg.muted">No matching tags.</Text>
-                            )
-                          ) : null}
-                        </Box>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    ) : null}
-                  </Flex>
-                </Box>
-
-                {!isTrashDocumentRoute && (isNameEditing || isDocumentDateEditing || isLanguageEditing) ? (
+                {!isTrashDocumentRoute && (isNameEditing || isLanguageEditing) ? (
                   <SaveButton
                     type="submit"
                     mt="5"
-                    disabled={isMetadataSaving || (!hasNameChanged && !hasDocumentDateChanged && !hasLanguageChanged)}
+                    disabled={isMetadataSaving || (!hasNameChanged && !hasLanguageChanged)}
                   >
                     {isMetadataSaving ? 'Saving...' : 'Save'}
                   </SaveButton>

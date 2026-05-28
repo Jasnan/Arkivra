@@ -164,7 +164,6 @@ CREATE TABLE public.documents (
     raw_text text DEFAULT ''::text NOT NULL,
     raw_markdown text DEFAULT ''::text NOT NULL,
     parser_structured_output jsonb,
-    document_date timestamp without time zone,
     file_encryption_key_wrapped text,
     file_encryption_kek_version text,
     file_encryption_algorithm text,

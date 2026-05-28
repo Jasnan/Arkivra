@@ -61,7 +61,6 @@ function documentSummary(overrides: Record<string, unknown> = {}) {
     originalName: 'invoice.pdf',
     originalSize: 2048,
     mimeType: 'application/pdf',
-    documentDate: null,
     folderId: null,
     createdAt: '2026-04-10T10:00:00.000Z',
     updatedAt: '2026-04-10T10:00:00.000Z',
@@ -69,6 +68,30 @@ function documentSummary(overrides: Record<string, unknown> = {}) {
     deletedAt: null,
     ...overrides,
   };
+}
+
+function enableExtractedTextPreference() {
+  const preferences = JSON.stringify({
+    themeMode: 'system',
+    accentColor: 'teal',
+    density: 'comfortable',
+    fontFamily: 'inter',
+    fontSize: 'md',
+    radius: 'md',
+    language: 'en',
+    timezone: 'auto',
+    dateFormat: 'medium',
+    showExtractedTextTab: true,
+  });
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => key === 'arkivra.uiPreferences' ? preferences : null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    },
+  });
 }
 
 describe('tags and documents pages', () => {
@@ -410,7 +433,6 @@ describe('tags and documents pages', () => {
                 originalName: 'invoice.pdf',
                 originalSize: 2048,
                 mimeType: 'application/pdf',
-                documentDate: null,
                 createdAt: '2026-04-10T10:00:00.000Z',
                 updatedAt: '2026-04-10T10:00:00.000Z',
                 isDeleted: false,
@@ -428,7 +450,6 @@ describe('tags and documents pages', () => {
               originalName: 'invoice.pdf',
               originalSize: 2048,
               mimeType: 'application/pdf',
-              documentDate: null,
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-10T10:00:00.000Z',
               isDeleted: false,
@@ -440,7 +461,6 @@ describe('tags and documents pages', () => {
               originalName: 'contract.pdf',
               originalSize: 4096,
               mimeType: 'application/pdf',
-              documentDate: null,
               createdAt: '2026-04-12T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               isDeleted: false,
@@ -510,7 +530,6 @@ describe('tags and documents pages', () => {
               originalName: 'invoice.pdf',
               originalSize: 2048,
               mimeType: 'application/pdf',
-              documentDate: null,
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-10T10:00:00.000Z',
               isDeleted: false,
@@ -522,7 +541,6 @@ describe('tags and documents pages', () => {
               originalName: 'contract.pdf',
               originalSize: 4096,
               mimeType: 'application/pdf',
-              documentDate: '2026-02-12T00:00:00.000Z',
               createdAt: '2026-02-12T10:00:00.000Z',
               updatedAt: '2026-02-12T10:00:00.000Z',
               isDeleted: false,
@@ -542,7 +560,6 @@ describe('tags and documents pages', () => {
                 name: 'Contract.pdf',
                 originalName: 'contract.pdf',
                 originalSize: 4096,
-                documentDate: '2026-02-12T00:00:00.000Z',
                 createdAt: '2026-02-12T10:00:00.000Z',
                 updatedAt: '2026-02-12T10:00:00.000Z',
               }),
@@ -588,7 +605,6 @@ describe('tags and documents pages', () => {
               originalName: 'invoice.pdf',
               originalSize: 2048,
               mimeType: 'application/pdf',
-              documentDate: null,
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-10T10:00:00.000Z',
               isDeleted: false,
@@ -659,7 +675,6 @@ describe('tags and documents pages', () => {
               originalName: 'invoice.pdf',
               originalSize: 2048,
               mimeType: 'application/pdf',
-              documentDate: null,
               folderId: null,
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-10T10:00:00.000Z',
@@ -797,7 +812,6 @@ describe('tags and documents pages', () => {
                   originalName: 'invoice.pdf',
                   originalSize: 2048,
                   mimeType: 'application/pdf',
-                  documentDate: null,
                   folderId: null,
                   createdAt: '2026-04-10T10:00:00.000Z',
                   updatedAt: '2026-04-10T10:00:00.000Z',
@@ -933,7 +947,6 @@ describe('tags and documents pages', () => {
             originalSha256Hash: 'abc123',
             mimeType: 'application/pdf',
             content: 'Parsed text',
-            documentDate: '2026-04-10T00:00:00.000Z',
             createdAt: '2026-04-10T10:00:00.000Z',
             updatedAt: '2026-04-10T10:00:00.000Z',
             isDeleted: false,
@@ -976,15 +989,12 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage section="metadata" />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await screen.findByRole('tab', { name: /extracted text/i });
-    await user.click(screen.getByRole('tab', { name: /extracted text/i }));
-    expect(await screen.findByText(/parsed text/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: /metadata/i }));
+    await screen.findByRole('heading', { name: /invoice april/i });
     await user.click(screen.getByRole('button', { name: /add tag/i }));
     await user.click(await screen.findByRole('menuitemcheckbox', { name: /urgent/i }));
 
@@ -1028,7 +1038,6 @@ describe('tags and documents pages', () => {
             originalSha256Hash: 'abc123',
             mimeType: 'application/pdf',
             content: 'Parsed text',
-            documentDate: '2026-04-10T00:00:00.000Z',
             createdAt: '2026-04-10T10:00:00.000Z',
             updatedAt: '2026-04-10T10:00:00.000Z',
             isDeleted: false,
@@ -1071,12 +1080,12 @@ describe('tags and documents pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage section="metadata" />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await user.click(await screen.findByRole('tab', { name: /metadata/i }));
+    await screen.findByRole('heading', { name: /invoice april/i });
     await user.click(await screen.findByRole('button', { name: /add tag/i }));
     await user.type(screen.getByPlaceholderText(/filter tags/i), 'Testing');
     await user.click(screen.getByRole('menuitem', { name: /new tag "testing"/i }));
@@ -1104,7 +1113,6 @@ describe('tags and documents pages', () => {
   });
 
   it('refreshes the document detail when upload extraction completes', async () => {
-    const user = userEvent.setup();
     let documentFetchCount = 0;
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1127,7 +1135,6 @@ describe('tags and documents pages', () => {
               mimeType: 'application/pdf',
               content: '',
               processingStatus: 'pending',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-10T10:00:00.000Z',
               isDeleted: false,
@@ -1147,7 +1154,6 @@ describe('tags and documents pages', () => {
             mimeType: 'application/pdf',
             content: 'Parsed text',
             processingStatus: 'completed',
-            documentDate: '2026-04-10T00:00:00.000Z',
             createdAt: '2026-04-10T10:00:00.000Z',
             updatedAt: '2026-04-10T10:05:00.000Z',
             isDeleted: false,
@@ -1171,14 +1177,13 @@ describe('tags and documents pages', () => {
       throw new Error(`Unhandled request ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
+    enableExtractedTextPreference();
 
-    await renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage section="content" />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    await screen.findByRole('tab', { name: /preview/i });
-    await user.click(screen.getByRole('tab', { name: /extracted text/i }));
     expect(await screen.findByText(/^Pending$/i)).toBeInTheDocument();
     expect(
       await screen.findByText(/the document detail view polls the backend while processing is in progress/i),
@@ -1199,8 +1204,6 @@ describe('tags and documents pages', () => {
   });
 
   it('prefers polished displayContent over raw content on the document detail page', async () => {
-    const user = userEvent.setup();
-
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -1219,7 +1222,6 @@ describe('tags and documents pages', () => {
             content: 'FORM No. IV [SeeRule11(1)] GOVERNMENTOFKERALA',
             displayContent: 'FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA',
             processingStatus: 'completed',
-            documentDate: '2026-04-10T00:00:00.000Z',
             createdAt: '2026-04-10T10:00:00.000Z',
             updatedAt: '2026-04-10T10:05:00.000Z',
             isDeleted: false,
@@ -1243,14 +1245,12 @@ describe('tags and documents pages', () => {
       throw new Error(`Unhandled request ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
+    enableExtractedTextPreference();
 
-    await renderWithProviders(<DocumentDetailPage />, {
+    await renderWithProviders(<DocumentDetailPage section="content" />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
-
-    await screen.findByRole('tab', { name: /preview/i });
-    await user.click(screen.getByRole('tab', { name: /extracted text/i }));
 
     expect(
       await screen.findByText('FORM No. IV [See Rule 11(1)] GOVERNMENT OF KERALA'),
@@ -1297,7 +1297,6 @@ describe('tags and documents pages', () => {
             mimeType: 'text/markdown',
             content: 'Markdown Title\nFirst item\nSecond item',
             processingStatus: 'completed',
-            documentDate: null,
             createdAt: '2026-04-10T10:00:00.000Z',
             updatedAt: '2026-04-10T10:05:00.000Z',
             isDeleted: false,
@@ -1352,7 +1351,6 @@ describe('tags and documents pages', () => {
             originalSha256Hash: 'abc123',
             mimeType: 'application/pdf',
             content: 'Parsed text',
-            documentDate: '2026-04-10T00:00:00.000Z',
             createdAt: '2026-04-10T10:00:00.000Z',
             updatedAt: '2026-04-10T10:00:00.000Z',
             isDeleted: false,
@@ -1382,10 +1380,10 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/:documentId',
     });
 
-    await screen.findByRole('tab', { name: /preview/i });
+    await screen.findByRole('heading', { name: /invoice april/i });
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^chat$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^chat$/i })).toBeInTheDocument();
   });
 });

@@ -27,7 +27,6 @@ function searchResult({
     originalName: name,
     originalSize: 1024,
     mimeType: 'application/pdf',
-    documentDate: null,
     createdAt: '2026-05-20T10:00:00.000Z',
     updatedAt: '2026-05-20T10:00:00.000Z',
     matchedChunksCount: 0,

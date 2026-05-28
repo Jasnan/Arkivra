@@ -34,7 +34,6 @@ const documentTarget: BrowserItem = {
     originalSize: 1024,
     mimeType: 'application/pdf',
     processingStatus: 'completed',
-    documentDate: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     isDeleted: false,

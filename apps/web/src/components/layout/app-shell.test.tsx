@@ -119,7 +119,6 @@ describe('app shell account menu', () => {
                 originalSize: 2048,
                 mimeType: 'application/pdf',
                 processingStatus: 'completed',
-                documentDate: null,
                 createdAt: '2026-04-10T10:00:00.000Z',
                 updatedAt: '2026-04-10T10:05:00.000Z',
                 isDeleted: false,
@@ -135,7 +134,6 @@ describe('app shell account menu', () => {
                 originalSize: 1024,
                 mimeType: 'application/pdf',
                 processingStatus: 'completed',
-                documentDate: null,
                 createdAt: '2026-04-09T10:00:00.000Z',
                 updatedAt: '2026-04-09T10:05:00.000Z',
                 isDeleted: false,
@@ -168,7 +166,6 @@ describe('app shell account menu', () => {
               mimeType: 'application/pdf',
               content: 'Quarterly budget summary',
               processingStatus: 'completed',
-              documentDate: null,
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-10T10:05:00.000Z',
               isDeleted: false,
@@ -358,6 +355,35 @@ describe('app shell account menu', () => {
     expect(await within(fileTree).findByRole('button', { name: 'MyDocs', hidden: true })).toHaveAttribute('data-state', 'open');
     expect(await within(fileTree).findByRole('button', { name: 'Insurance', hidden: true })).toBeInTheDocument();
     expect(screen.queryByTitle('Hide secondary sidebar')).not.toBeInTheDocument();
+  });
+
+  it('opens vault actions from the file tree root context menu', async () => {
+    const user = userEvent.setup();
+    const { router } = await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1'],
+        routePaths: ['/vaults/:vaultId', '/vaults/:vaultId/settings'],
+      },
+    );
+
+    const fileTree = await screen.findByRole('complementary', { name: 'Vault file tree' });
+    const vaultRoot = await within(fileTree).findByRole('button', { name: 'MyDocs', hidden: true });
+
+    fireEvent.contextMenu(vaultRoot, { clientX: 120, clientY: 160 });
+
+    const menu = await screen.findByRole('menu', { name: /actions for mydocs/i });
+    expect(within(menu).getByRole('menuitem', { name: /^open$/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /^members$/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /^activity$/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /^settings$/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /^chat$/i })).toBeInTheDocument();
+
+    await user.click(within(menu).getByRole('menuitem', { name: /^settings$/i }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/vaults/vlt_1/settings');
+    });
   });
 
   it('expands the active folder in the vault file tree on folder browser routes', async () => {

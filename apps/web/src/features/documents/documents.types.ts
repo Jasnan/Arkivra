@@ -22,7 +22,6 @@ export interface DocumentSummary {
     | 'completed'
     | 'failed'
     | 'processing';
-  documentDate: string | null;
   language?: DocumentLanguageMetadata | null;
   createdAt: string;
   updatedAt: string;

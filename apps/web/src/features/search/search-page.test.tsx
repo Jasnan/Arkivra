@@ -230,7 +230,6 @@ describe('global search page', () => {
               originalName: 'Invoice.pdf',
               originalSize: 42000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               matchedChunksCount: 0,
@@ -313,7 +312,6 @@ describe('global search page', () => {
               originalName: 'Invoice.pdf',
               originalSize: 42000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               matchedChunksCount: 0,
@@ -450,7 +448,6 @@ describe('global search page', () => {
               originalName: 'April Invoice.pdf',
               originalSize: 42000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               matchedChunksCount: 1,
@@ -590,7 +587,6 @@ describe('documents library search controls', () => {
               originalName: 'Receipt for Groceries.txt',
               originalSize: 49000,
               mimeType: 'text/plain',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               matchedChunksCount: 2,
@@ -680,7 +676,6 @@ describe('documents library search controls', () => {
               originalName: 'employment-contract.pdf',
               originalSize: 42000,
               mimeType: 'application/pdf',
-              documentDate: null,
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               matchedChunksCount: 1,
@@ -906,7 +901,6 @@ describe('documents library search controls', () => {
               originalName: 'Zulu.pdf',
               originalSize: 42000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-11T00:00:00.000Z',
               createdAt: '2026-04-11T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               matchedChunksCount: 0,
@@ -920,7 +914,6 @@ describe('documents library search controls', () => {
               originalName: 'Alpha.pdf',
               originalSize: 41000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-11T10:00:00.000Z',
               matchedChunksCount: 0,
@@ -1001,7 +994,6 @@ describe('documents library search controls', () => {
               originalName: 'Alpha.pdf',
               originalSize: 41000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-11T10:00:00.000Z',
               matchedChunksCount: 0,
@@ -1015,7 +1007,6 @@ describe('documents library search controls', () => {
               originalName: 'Bravo.pdf',
               originalSize: 42000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-11T00:00:00.000Z',
               createdAt: '2026-04-11T10:00:00.000Z',
               updatedAt: '2026-04-12T10:00:00.000Z',
               matchedChunksCount: 0,
@@ -1059,7 +1050,7 @@ describe('documents library search controls', () => {
     });
   });
 
-  it('uses a read-only calendar range picker for global document date filters', async () => {
+  it('uses a read-only calendar range picker for global uploaded date filters', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
@@ -1168,7 +1159,7 @@ describe('documents library search controls', () => {
     await user.click(screen.getByLabelText(/custom range/i));
 
     await user.click(screen.getByRole('textbox', { name: /^to$/i }));
-    const futureDate = await findCalendarDate(/may 22, 2026/i);
+    const futureDate = await findCalendarDate(/may 29, 2026/i);
     expect(futureDate).toHaveAttribute('aria-disabled', 'true');
 
     await selectCalendarDate(user, /may 18, 2026/i);
@@ -1219,7 +1210,6 @@ describe('documents library search controls', () => {
               originalName: 'All Time.pdf',
               originalSize: 41000,
               mimeType: 'application/pdf',
-              documentDate: '2026-04-10T00:00:00.000Z',
               createdAt: '2026-04-10T10:00:00.000Z',
               updatedAt: '2026-04-11T10:00:00.000Z',
               matchedChunksCount: 0,

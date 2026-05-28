@@ -37,7 +37,6 @@ export type FolderItemsResult =
       originalSize: number;
       mimeType: string;
       processingStatus: string;
-      documentDate: Date | null;
       createdAt: Date;
       updatedAt: Date;
       isDeleted: boolean;
@@ -58,7 +57,6 @@ type FolderItemsResultDocument = {
   originalSize: number;
   mimeType: string;
   processingStatus: string;
-  documentDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
   isDeleted: boolean;
@@ -367,7 +365,6 @@ export function createFoldersServices({ db }: { db: Database }) {
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         processingStatus: documentsTable.processingStatus,
-        documentDate: documentsTable.documentDate,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
         isDeleted: documentsTable.isDeleted,
@@ -478,7 +475,6 @@ export function createFoldersServices({ db }: { db: Database }) {
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         processingStatus: documentsTable.processingStatus,
-        documentDate: documentsTable.documentDate,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
         isDeleted: documentsTable.isDeleted,

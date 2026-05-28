@@ -49,7 +49,6 @@ export const documentsTable = pgTable(
     parserEngineVersion: text('parser_engine_version'),
     parserWarnings: jsonb('parser_warnings').$type<string[]>(),
     processingStatus: text('processing_status').notNull().default('pending'),
-    documentDate: timestamp('document_date', { mode: 'date' }),
 
     fileEncryptionKeyWrapped: text('file_encryption_key_wrapped'),
     fileEncryptionKekVersion: text('file_encryption_kek_version'),

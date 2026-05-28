@@ -51,6 +51,11 @@ export interface BrowserAction {
   onSelect: () => void;
 }
 
+export type BrowserContextMenuEntry =
+  | BrowserAction
+  | { key: string; type: 'header'; label: string }
+  | { key: string; type: 'separator' };
+
 export type ItemDialogTarget = BrowserItem | null;
 export type MoveDialogTarget = BrowserItem | BrowserItem[] | null;
 export type InfoDialogTarget = BrowserContextItem | null;

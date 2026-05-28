@@ -2,9 +2,10 @@ import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, Home, Info, MoveRight, Pencil, Tags, Trash2 } from 'lucide-react';
-import { useParams, useSearch } from '@tanstack/react-router';
+import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings2, Tags, Trash2, Users } from 'lucide-react';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
@@ -45,6 +46,7 @@ import {
 } from '@/features/file-browser/components/vault-browser.types';
 import type {
   BrowserAction,
+  BrowserContextMenuEntry,
   BrowserContextItem,
   BrowserItem,
   ContextMenuState,
@@ -68,6 +70,18 @@ function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
 
 function canReadVault(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor' || vault?.role === 'viewer');
+}
+
+function canManageVaultWorkspace(vault: VaultDetail | null | undefined) {
+  return Boolean(vault?.role === 'owner' || vault?.isAdmin || vault?.accessMode === 'admin');
+}
+
+function canUseVaultChat(vault: VaultDetail | null | undefined) {
+  return Boolean(vault?.aiAccessLevel === 'document_chat' || vault?.aiAccessLevel === 'full');
+}
+
+function isBrowserAction(entry: BrowserContextMenuEntry): entry is BrowserAction {
+  return !('type' in entry);
 }
 
 const adminJoinRoleOptions: Array<{ value: VaultRole; label: string }> = [
@@ -240,6 +254,7 @@ function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: File
 export function DocumentsPage({ section = 'contents' }: { section?: VaultSection }) {
   const params = useParams({ strict: false }) as { vaultId?: string };
   const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const navigate = useNavigate();
   const vaultId = params.vaultId ?? '';
   const currentFolderId = search.folderId ?? null;
   const queryClient = useQueryClient();
@@ -528,7 +543,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   }
 
   function openContextMenu(event: MouseEvent<HTMLElement>, item: BrowserContextItem) {
-    const actions = getItemActions(item).filter(action => !action.disabled);
+    const actions = getContextMenuEntries(item)
+      .filter(isBrowserAction)
+      .filter(action => !action.disabled);
 
     if (actions.length === 0) {
       return;
@@ -538,9 +555,65 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     event.stopPropagation();
     setContextMenu({
       item,
-      x: Math.min(event.clientX, window.innerWidth - 224),
-      y: Math.min(event.clientY, window.innerHeight - 320),
+      x: event.clientX,
+      y: event.clientY,
     });
+  }
+
+  function getBackgroundContextMenuEntries(): BrowserContextMenuEntry[] {
+    const vault = vaultQuery.data?.vault;
+    const entries: BrowserContextMenuEntry[] = [
+      { key: 'vault-name', type: 'header', label: vault?.name ?? 'Vault' },
+      { key: 'after-vault-name', type: 'separator' },
+    ];
+    const uploadEntries: BrowserContextMenuEntry[] = canCreateItems
+      ? [
+          { key: 'new-folder', label: 'New folder', icon: FolderPlus, onSelect: () => openCreateFolderDialog(currentFolderId) },
+          { key: 'after-new-folder', type: 'separator' } satisfies BrowserContextMenuEntry,
+          {
+            key: 'upload-files',
+            label: 'Upload files',
+            icon: FileUp,
+            onSelect: () => openUploadFilesPicker(currentFolderId),
+          },
+          {
+            key: 'upload-directory',
+            label: 'Upload folder',
+            icon: FolderUp,
+            onSelect: () => openUploadDirectoryPicker(currentFolderId),
+          },
+        ]
+      : [];
+    const adminSectionEntries: BrowserAction[] = canManageVaultWorkspace(vault)
+      ? [
+          { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }) },
+          { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
+          { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
+        ]
+      : [];
+    const chatEntry: BrowserAction[] = canUseVaultChat(vault)
+      ? [{ key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) }]
+      : [];
+    const workspaceEntries = [...adminSectionEntries, ...chatEntry];
+
+    entries.push(...uploadEntries);
+
+    if (workspaceEntries.length > 0) {
+      if (uploadEntries.length > 0) {
+        entries.push({ key: 'after-upload', type: 'separator' });
+      }
+      entries.push(...workspaceEntries);
+    }
+
+    return entries;
+  }
+
+  function getContextMenuEntries(item: BrowserContextItem): BrowserContextMenuEntry[] {
+    if (item.type === 'background') {
+      return getBackgroundContextMenuEntries();
+    }
+
+    return getItemActions(item);
   }
 
   function getItemActions(item: BrowserContextItem): BrowserAction[] {
@@ -570,18 +643,18 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       return [
         { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(currentFolderId) },
         {
+          key: 'upload-files',
+          label: 'Upload files',
+          icon: FileUp,
+          disabled: !canCreateItems,
+          onSelect: () => openUploadFilesPicker(currentFolderId),
+        },
+        {
           key: 'upload-directory',
           label: 'Upload folder',
           icon: FolderUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadDirectoryPicker(currentFolderId),
-        },
-        {
-          key: 'upload-files',
-          label: 'Upload',
-          icon: FileUp,
-          disabled: !canCreateItems,
-          onSelect: () => openUploadFilesPicker(currentFolderId),
         },
       ];
     }
@@ -1135,7 +1208,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       {contextMenu !== null ? (
         <BrowserContextMenu
           state={contextMenu}
-          actions={getItemActions(contextMenu.item)}
+          actions={getContextMenuEntries(contextMenu.item)}
           onClose={() => setContextMenu(null)}
         />
       ) : null}

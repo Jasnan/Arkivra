@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-context';
@@ -121,6 +121,59 @@ describe('documents page', () => {
     expect(await within(header).findByRole('button', { name: /sort folder items/i })).toHaveTextContent(/a → z/i);
   });
 
+  it('shows the vault background context menu with workspace actions for owners with chat access', async () => {
+    vi.stubGlobal('fetch', installVaultContentsFetchMock({ items: [] }));
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    fireEvent.contextMenu(await screen.findByText(/this vault is empty/i));
+
+    const menu = await screen.findByRole('menu', { name: /actions for vault root/i });
+    expect(within(menu).getByText('MyDocs')).toBeInTheDocument();
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+      'New folder',
+      'Upload files',
+      'Upload folder',
+      'Members',
+      'Activity',
+      'Settings',
+      'Chat',
+    ]);
+  });
+
+  it('gates vault background workspace actions by admin and chat permissions', async () => {
+    vi.stubGlobal('fetch', installVaultContentsFetchMock({
+      items: [],
+      vault: {
+        role: 'editor',
+        aiAccessLevel: 'none',
+        isAdmin: false,
+        accessMode: 'member',
+      },
+    }));
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    fireEvent.contextMenu(await screen.findByText(/this vault is empty/i));
+
+    const menu = await screen.findByRole('menu', { name: /actions for vault root/i });
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+      'New folder',
+      'Upload files',
+      'Upload folder',
+    ]);
+    expect(within(menu).queryByRole('menuitem', { name: /^members$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^activity$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^settings$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^chat$/i })).not.toBeInTheDocument();
+  });
+
   it('renders document detail sections without tabs and exposes section actions', async () => {
     const user = userEvent.setup();
     installDocumentDetailFetchMock();
@@ -222,7 +275,31 @@ function DocumentsPageWithWorkspaceHeader() {
   );
 }
 
-function installVaultContentsFetchMock() {
+function installVaultContentsFetchMock({
+  vault: vaultOverrides = {},
+  items = [
+    {
+      type: 'document',
+      document: {
+        id: 'doc_1',
+        name: 'Policy.pdf',
+        originalName: 'Policy.pdf',
+        folderId: null,
+        originalSize: 2048,
+        mimeType: 'application/pdf',
+        processingStatus: 'completed',
+        documentDate: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        isDeleted: false,
+        deletedAt: null,
+      },
+    },
+  ],
+}: {
+  vault?: Record<string, unknown>;
+  items?: unknown[];
+} = {}) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
@@ -239,6 +316,7 @@ function installVaultContentsFetchMock() {
           isAdmin: false,
           isMember: true,
           accessMode: 'member',
+          ...vaultOverrides,
         },
       });
     }
@@ -249,25 +327,7 @@ function installVaultContentsFetchMock() {
         breadcrumbs: [],
         folders: [],
         documents: [],
-        items: [
-          {
-            type: 'document',
-            document: {
-              id: 'doc_1',
-              name: 'Policy.pdf',
-              originalName: 'Policy.pdf',
-              folderId: null,
-              originalSize: 2048,
-              mimeType: 'application/pdf',
-              processingStatus: 'completed',
-              documentDate: null,
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z',
-              isDeleted: false,
-              deletedAt: null,
-            },
-          },
-        ],
+        items,
       });
     }
 

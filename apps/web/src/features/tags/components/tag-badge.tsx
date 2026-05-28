@@ -55,23 +55,22 @@ export function TagBadge({
     <Badge
       variant="solid"
       colorPalette="gray"
-      size="lg"
-      h="8"
+      size="sm"
       w="fit-content"
       maxW="full"
       rounded="md"
       borderWidth={backgroundColor.toUpperCase() === '#FFFFFF' ? '1px' : undefined}
       borderColor="border.surface"
-      px="2.5"
-      py="1"
-      fontSize="sm"
+      px="2"
+      py="0.75"
+      fontSize="xs"
       fontWeight="semibold"
       letterSpacing="normal"
       lineHeight="1"
       textTransform="none"
       style={{ backgroundColor, color: textColor }}
     >
-      <Tag size={13} strokeWidth={2} />
+      <Tag size={12} strokeWidth={2} />
       <Text as="span" truncate>
         {name}
       </Text>
@@ -82,8 +81,8 @@ export function TagBadge({
           display="inline-flex"
           alignItems="center"
           justifyContent="center"
-          boxSize="5"
-          mr="-1"
+          boxSize="4.5"
+          mr="-0.75"
           rounded="full"
           cursor="pointer"
           color="currentcolor"
@@ -92,7 +91,7 @@ export function TagBadge({
           _focusVisible={{ outline: '2px solid', outlineColor: 'currentcolor', outlineOffset: '2px' }}
           onClick={onRemove}
         >
-          <X size={12} />
+          <X size={11} />
         </chakra.button>
       ) : null}
     </Badge>

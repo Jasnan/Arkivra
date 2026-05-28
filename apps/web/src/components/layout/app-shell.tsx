@@ -188,6 +188,7 @@ const adminNavItems = [
 ] satisfies readonly SecondaryRouteNavItem[];
 
 const QUICK_SEARCH_QUERY_DEBOUNCE_MS = 280;
+const SIDEBAR_ACCOUNT_LABEL_MAX_LENGTH = 15;
 
 function isChatPath(pathname: string) {
   const parts = pathname.split('/').filter(Boolean);
@@ -206,6 +207,14 @@ function truncateBreadcrumbLabel(label: string, maxLength = 10) {
   }
 
   return `${label.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function truncateSidebarAccountLabel(label: string) {
+  if (label.length <= SIDEBAR_ACCOUNT_LABEL_MAX_LENGTH) {
+    return label;
+  }
+
+  return `${label.slice(0, SIDEBAR_ACCOUNT_LABEL_MAX_LENGTH).trimEnd()}...`;
 }
 
 function getVisibleBreadcrumbs(breadcrumbs: BreadcrumbEntry[]) {
@@ -345,7 +354,7 @@ function UnifiedSidebarNavLink({
         aria-label={!expanded ? item.label : undefined}
         aria-current={active ? 'page' : undefined}
         title={!expanded ? item.label : undefined}
-        style={{ color: 'inherit', textDecoration: 'none' }}
+        style={{ color: 'inherit', textDecoration: 'none', display: 'block' }}
       >
         <Flex
           minH={SIDEBAR_ICON_ITEM_SIZE}
@@ -503,7 +512,7 @@ function UnifiedSidebar({
   expanded,
   activeNavId,
   currentPathname,
-  sessionEmail,
+  sessionAccountLabel,
   isAdmin,
   onOpenTransfers,
   onSignOut,
@@ -511,12 +520,14 @@ function UnifiedSidebar({
   expanded: boolean;
   activeNavId: PrimaryNavItem['id'] | null;
   currentPathname: string;
-  sessionEmail?: string | null;
+  sessionAccountLabel?: string | null;
   isAdmin?: boolean;
   onOpenTransfers: () => void;
   onSignOut: () => void;
 }) {
   const roleLabel = isAdmin ? 'Admin' : 'Member';
+  const accountLabel = sessionAccountLabel ?? 'Signed in';
+  const sidebarAccountLabel = truncateSidebarAccountLabel(accountLabel);
 
   return (
     <Flex
@@ -564,11 +575,11 @@ function UnifiedSidebar({
               >
                 <ArkivraLogo boxSize="full" color="bg.inverted" />
               </Flex>
-              <Box minW="0" display={expanded ? undefined : 'none'}>
+              <Box minW="0" display={expanded ? 'flex' : 'none'} flexDirection="column" gap={0}>
                 <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">
                   Arkivra
                 </Text>
-                <Text mt="1" textStyle="caption" lineHeight="none" color="fg.muted">
+                <Text textStyle="caption" lineHeight="none" color="fg.muted">
                   v{packageJson.version}
                 </Text>
               </Box>
@@ -585,9 +596,6 @@ function UnifiedSidebar({
         overflowY="auto"
         overflowX="hidden"
         mt="5"
-        pr="1"
-        mr="-1"
-        scrollbarGutter="stable"
         css={{
           scrollbarWidth: 'thin',
           scrollbarColor: 'transparent transparent',
@@ -677,24 +685,24 @@ function UnifiedSidebar({
               display="flex"
               alignItems="center"
               justifyContent={expanded ? 'flex-start' : 'center'}
-              gap="2.5"
-              minH="2.75rem"
+              gap="2"
+              minH="2.25rem"
               w="full"
               rounded="md"
               color="fg.muted"
               borderWidth="1px"
               borderColor="border.surface"
               bg="bg.sidebar"
-              px={expanded ? '2.5' : '0'}
+              px={expanded ? '2' : '0'}
               cursor="pointer"
               _hover={{ color: 'fg', bg: 'bg.muted' }}
             >
-              <UserCircle2 size={20} strokeWidth={2.1} />
+              <UserCircle2 size={18} strokeWidth={2.1} />
               <Box minW="0" textAlign="left" display={expanded ? undefined : 'none'}>
-                <Text truncate fontSize="sm" fontWeight="medium" color="fg">
-                  {sessionEmail ?? 'Signed in'}
+                <Text truncate fontSize="xs" fontWeight="medium" color="fg" title={accountLabel}>
+                  {sidebarAccountLabel}
                 </Text>
-                <Text mt="0.5" fontSize="xs" color="fg.muted">
+                <Text mt="0.5" fontSize="2xs" color="fg.muted">
                   {roleLabel}
                 </Text>
               </Box>
@@ -714,7 +722,7 @@ function UnifiedSidebar({
               >
                 <Box px="3" py="2">
                   <Text fontWeight="medium" color="fg">
-                    {sessionEmail ?? 'Signed in'}
+                    {accountLabel}
                   </Text>
                   <Text fontSize="xs" color="fg.muted">
                     {roleLabel}
@@ -1359,7 +1367,7 @@ export function AppShell() {
             expanded={isPrimarySidebarExpanded}
             activeNavId={isTransfersDrawerOpen ? 'transfers' : primaryNavId(location.pathname)}
             currentPathname={location.pathname}
-            sessionEmail={sessionData?.user.email}
+            sessionAccountLabel={sessionData?.user.name?.trim() || sessionData?.user.email}
             isAdmin={meQuery.data?.isAdmin}
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
             onSignOut={() => void handleSignOut()}

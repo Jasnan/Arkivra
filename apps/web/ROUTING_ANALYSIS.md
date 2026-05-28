@@ -207,7 +207,6 @@ Choose ONE canonical URL structure and remove the other:
 apps/web/src/app/router.tsx                         — Route definitions
 apps/web/src/app/routes.ts                          — [NEW] Path constants
 apps/web/src/components/layout/app-shell.tsx        — Breadcrumbs, quick-search, sidebar links
-apps/web/src/components/layout/app-sidebar.tsx      — Sidebar navigation
 apps/web/src/features/auth/auth-guards.tsx           — ProtectedRoute, PublicOnlyRoute
 apps/web/src/features/auth/auth-layout.tsx           — AuthLayout
 apps/web/src/features/auth/pages/login-page.tsx

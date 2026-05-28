@@ -8,6 +8,7 @@ const authClientMock = vi.hoisted(() => ({
   useSession: vi.fn(() => ({
     data: {
       user: {
+        name: '',
         email: 'member@example.com',
       },
     },
@@ -46,6 +47,7 @@ describe('app shell account menu', () => {
     authClientMock.useSession.mockReturnValue({
       data: {
         user: {
+          name: '',
           email: 'member@example.com',
         },
       },
@@ -222,6 +224,31 @@ describe('app shell account menu', () => {
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
+  });
+
+  it('contracts long account labels in the sidebar trigger', async () => {
+    authClientMock.useSession.mockReturnValue({
+      data: {
+        user: {
+          name: 'member-with-a-long-name',
+          email: 'member-with-a-long-name@example.com',
+        },
+      },
+      isPending: false,
+    });
+
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const primarySidebar = screen.getByRole('complementary', { name: 'Primary sidebar' });
+
+    expect(within(primarySidebar).getByText('member-with-a-l...')).toBeInTheDocument();
+    expect(within(primarySidebar).queryByText('member-with-a-long-name@example.com')).not.toBeInTheDocument();
   });
 
   it('keeps the unified primary sidebar navigable and collapsible', async () => {

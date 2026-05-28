@@ -2,7 +2,7 @@ import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderDot, FolderOpen, Settings2, Vault } from 'lucide-react';
+import { FolderDot, FolderOpen, History, MessageSquare, Settings2, Users, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
@@ -41,7 +41,7 @@ function isRequestResponse(value: unknown): value is { request: { id: string } }
 interface VaultAction {
   key: string;
   label: string;
-  icon: typeof FolderOpen;
+  icon: typeof FolderOpen | typeof Users | typeof History | typeof Settings2 | typeof MessageSquare;
   onSelect: () => void;
 }
 
@@ -278,7 +278,10 @@ export function VaultsPage() {
   function getVaultActions(vault: VaultSummary): VaultAction[] {
     return [
       { key: 'open', label: 'Open', icon: FolderOpen, onSelect: () => navigate({ to: ROUTES.vaultRoot(vault.id) }) },
+      { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vault.id) }) },
+      { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vault.id) }) },
       { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vault.id) }) },
+      { key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vault.id) }) },
     ];
   }
 
@@ -288,7 +291,7 @@ export function VaultsPage() {
     setContextMenu({
       vault,
       x: Math.min(event.clientX, window.innerWidth - 192),
-      y: Math.min(event.clientY, window.innerHeight - 160),
+      y: Math.min(event.clientY, window.innerHeight - 256),
     });
   }
 
@@ -396,10 +399,12 @@ export function VaultsPage() {
                       <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" minWidth="9rem">
-                      <DropdownMenuItem onSelect={() => navigate({ to: ROUTES.vaultSettings(vault.id) })}>
-                        <ActionMenuItemIcon icon={Settings2} />
-                        Settings
-                      </DropdownMenuItem>
+                      {getVaultActions(vault).map((action) => (
+                        <DropdownMenuItem key={action.key} onSelect={action.onSelect}>
+                          <ActionMenuItemIcon icon={action.icon} />
+                          {action.label}
+                        </DropdownMenuItem>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Box>
@@ -536,12 +541,12 @@ export function VaultsPage() {
                       <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" minWidth="9rem">
-                      <DropdownMenuItem
-                        onSelect={() => navigate({ to: ROUTES.vaultSettings(vault.id) })}
-                      >
-                        <ActionMenuItemIcon icon={Settings2} />
-                        Settings
-                      </DropdownMenuItem>
+                      {getVaultActions(vault).map((action) => (
+                        <DropdownMenuItem key={action.key} onSelect={action.onSelect}>
+                          <ActionMenuItemIcon icon={action.icon} />
+                          {action.label}
+                        </DropdownMenuItem>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Box>

@@ -189,17 +189,17 @@ function getNodeNavigation(node: VaultTreeNode) {
   }
 }
 
-function getFolderAncestorValues(folderId: string | null, folders: FolderTreeEntry[]) {
+function getFolderRevealValues(folderId: string | null, folders: FolderTreeEntry[]) {
   const foldersById = new Map(folders.map(folder => [folder.id, folder]));
-  const ancestorValues: string[] = [];
+  const revealValues: string[] = [];
   let current = folderId === null ? null : foldersById.get(folderId);
 
-  while (current?.parentId) {
-    ancestorValues.unshift(folderValue(current.parentId));
-    current = foldersById.get(current.parentId);
+  while (current) {
+    revealValues.unshift(folderValue(current.id));
+    current = current.parentId ? foldersById.get(current.parentId) : undefined;
   }
 
-  return ancestorValues;
+  return revealValues;
 }
 
 export function VaultSidebarTree({
@@ -246,7 +246,7 @@ export function VaultSidebarTree({
     const valuesToExpand = [
       ...(activeVaultRootOnly ? [] : [rootValue()]),
       vaultValue(activeVaultId),
-      ...getFolderAncestorValues(folderIdToReveal, folders),
+      ...getFolderRevealValues(folderIdToReveal, folders),
     ];
     const missingValues = valuesToExpand.filter(value => !expandedValue.includes(value));
 

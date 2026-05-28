@@ -1,14 +1,15 @@
 import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
 import { Box, Flex, HStack, Menu, Portal } from '@chakra-ui/react';
-import { ChevronDown, FileUp, FolderPlus, FolderUp, Upload } from 'lucide-react';
+import { ChevronDown, FileUp, FolderUp, Upload } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { Button } from '@/components/ui/button';
+import { FileSortMenu } from '@/features/documents/components/file-sort-menu';
 import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
 import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
-import type { BrowserDropTarget, FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
+import type { BrowserDropTarget, FileBrowserSort, FileBrowserView } from '@/features/file-browser/components/vault-browser.types';
 import type { FolderBreadcrumb } from '@/features/file-browser/file-browser.types';
 
 const uploadMenuItemProps = {
@@ -17,34 +18,21 @@ const uploadMenuItemProps = {
   _highlighted: { bg: 'bg.muted', color: 'fg' },
 } as const;
 
-const toolbarControlStyles = {
-  h: '10',
-  rounded: 'md',
-  borderColor: 'border.surface',
-  bg: 'bg.surface',
-  shadow: 'none',
-  _hover: { borderColor: 'fg/30', bg: 'bg.surface' },
-  _focusVisible: {
-    borderColor: 'teal.solid',
-    outline: '2px solid',
-    outlineColor: 'teal.focusRing',
-    outlineOffset: '1px',
-  },
-} as const;
-
 export function useVaultBrowserHeader({
   vaultId,
   vaultName,
   currentFolderId,
   breadcrumbs,
   selectedCount,
+  showBrowserActions = true,
+  browserSort,
+  onBrowserSortChange,
   browserView,
   setBrowserView,
   dropTarget,
   onClearSelection,
   onNavigateFolder,
   onOpenRootContextMenu,
-  onOpenCreateFolderDialog,
   onOpenUploadFiles,
   onOpenUploadDirectory,
   onDragOverFolder,
@@ -56,13 +44,15 @@ export function useVaultBrowserHeader({
   currentFolderId: string | null;
   breadcrumbs: FolderBreadcrumb[];
   selectedCount: number;
+  showBrowserActions?: boolean;
+  browserSort?: FileBrowserSort;
+  onBrowserSortChange?: (value: FileBrowserSort) => void;
   browserView: FileBrowserView;
   setBrowserView: Dispatch<SetStateAction<FileBrowserView>>;
   dropTarget: BrowserDropTarget | null;
   onClearSelection: () => void;
   onNavigateFolder: (folderId: string | null) => void;
   onOpenRootContextMenu: (event: MouseEvent<HTMLElement>) => void;
-  onOpenCreateFolderDialog: (parentId: string | null) => void;
   onOpenUploadFiles: () => void;
   onOpenUploadDirectory: () => void;
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -99,24 +89,13 @@ export function useVaultBrowserHeader({
     vaultName,
   ]);
 
-  const browserActions = useMemo(() => (
+  const browserActions = useMemo(() => showBrowserActions ? (
     <HStack gap="2" justify="flex-end">
         {selectedCount > 0 ? (
           <Button type="button" size="sm" variant="outline" onClick={onClearSelection}>
             Clear
           </Button>
         ) : null}
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          px="3"
-          {...toolbarControlStyles}
-          onClick={() => onOpenCreateFolderDialog(currentFolderId)}
-        >
-          <FolderPlus size={16} />
-          New
-        </Button>
         <Menu.Root lazyMount unmountOnExit typeahead={false} positioning={{ placement: 'bottom-end' }}>
           <Menu.Trigger asChild>
             <Button
@@ -129,7 +108,6 @@ export function useVaultBrowserHeader({
               shadow="none"
             >
               <Upload size={16} />
-              Upload
               <ChevronDown size={14} />
             </Button>
           </Menu.Trigger>
@@ -157,17 +135,24 @@ export function useVaultBrowserHeader({
             </Menu.Positioner>
           </Portal>
         </Menu.Root>
+        {browserSort && onBrowserSortChange ? (
+          <Box flexShrink={0}>
+            <FileSortMenu hideLabel value={browserSort} onValueChange={onBrowserSortChange} />
+          </Box>
+        ) : null}
         <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
       </HStack>
-  ), [
+  ) : null, [
+    browserSort,
     browserView,
     currentFolderId,
+    onBrowserSortChange,
     onClearSelection,
-    onOpenCreateFolderDialog,
     onOpenUploadDirectory,
     onOpenUploadFiles,
     selectedCount,
     setBrowserView,
+    showBrowserActions,
   ]);
 
   const workspaceHeader = useMemo(() => ({
@@ -192,7 +177,7 @@ export function useVaultBrowserHeader({
 
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
 
-  const contentsToolbar = useMemo(() => isInWorkspaceShell ? null : (
+  const contentsToolbar = useMemo(() => isInWorkspaceShell || browserActions === null ? null : (
     <Flex
       align="center"
       justify="space-between"

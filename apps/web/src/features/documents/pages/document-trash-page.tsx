@@ -293,8 +293,8 @@ export function DocumentTrashPage() {
     event.stopPropagation();
     setContextMenu({
       item,
-      x: Math.min(event.clientX, window.innerWidth - 224),
-      y: Math.min(event.clientY, window.innerHeight - 160),
+      x: event.clientX,
+      y: event.clientY,
     });
   }
 

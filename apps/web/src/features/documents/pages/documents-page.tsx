@@ -2,14 +2,13 @@ import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { Download, Eye, FileUp, Folder, FolderOpen, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings, Tags, Trash2, Users } from 'lucide-react';
+import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings2, Tags, Trash2, Users } from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from 'sonner';
+import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/ui/action-buttons';
-import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
-import { ROUTES } from '@/app/routes';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -20,8 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileSortMenu } from '@/features/documents/components/file-sort-menu';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { useBrowserDragDrop } from '@/features/documents/hooks/use-browser-drag-drop';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
@@ -49,6 +46,7 @@ import {
 } from '@/features/file-browser/components/vault-browser.types';
 import type {
   BrowserAction,
+  BrowserContextMenuEntry,
   BrowserContextItem,
   BrowserItem,
   ContextMenuState,
@@ -64,8 +62,7 @@ import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
-type VaultPageTab = 'contents' | 'members' | 'activity' | 'settings';
-type VaultAdminPageTab = VaultPageTab;
+export type VaultSection = 'contents' | 'members' | 'activity' | 'settings';
 
 function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor');
@@ -73,6 +70,18 @@ function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
 
 function canReadVault(vault: VaultDetail | null | undefined) {
   return Boolean(vault?.role === 'owner' || vault?.role === 'editor' || vault?.role === 'viewer');
+}
+
+function canManageVaultWorkspace(vault: VaultDetail | null | undefined) {
+  return Boolean(vault?.role === 'owner' || vault?.isAdmin || vault?.accessMode === 'admin');
+}
+
+function canUseVaultChat(vault: VaultDetail | null | undefined) {
+  return Boolean(vault?.aiAccessLevel === 'document_chat' || vault?.aiAccessLevel === 'full');
+}
+
+function isBrowserAction(entry: BrowserContextMenuEntry): entry is BrowserAction {
+  return !('type' in entry);
 }
 
 const adminJoinRoleOptions: Array<{ value: VaultRole; label: string }> = [
@@ -86,80 +95,6 @@ const adminJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> =
   { value: 'document_chat', label: 'Document chat' },
   { value: 'full', label: 'Full AI access' },
 ];
-
-const vaultAdminTabs = ['contents', 'members', 'activity', 'settings'] satisfies VaultAdminPageTab[];
-
-const vaultPageTabs = [
-  { value: 'contents', label: 'Contents', description: 'Documents & folders', icon: FolderOpen, route: 'root' },
-  { value: 'members', label: 'Members', description: 'Access & permissions', icon: Users, route: 'root' },
-  { value: 'activity', label: 'Activity', description: 'Vault and document history', icon: History, route: 'root' },
-  { value: 'settings', label: 'Settings', description: 'Vault configuration', icon: Settings, route: 'settings' },
-] satisfies Array<{ value: VaultPageTab; label: string; description: string; icon: SecondaryNavIcon; route: 'root' | 'settings' }>;
-const vaultTabTriggerStyles = {
-  h: '11',
-  roundedTop: 'md',
-  roundedBottom: '0',
-  borderBottomWidth: '2px',
-  borderColor: 'transparent',
-  px: '3',
-  pb: '3',
-  pt: '2',
-  color: 'fg.muted',
-  _hover: { bg: 'teal.subtle', color: 'fg' },
-  _selected: {
-    bg: 'teal.subtle',
-    borderColor: 'teal.solid',
-    color: 'teal.fg',
-    shadow: 'none',
-  },
-} as const;
-
-function VaultPageTabs({
-  activeTab,
-  browserSort,
-  onSortChange,
-}: {
-  activeTab: VaultPageTab;
-  browserSort: FileBrowserSort;
-  onSortChange: (value: FileBrowserSort) => void;
-}) {
-  return (
-    <Box
-      borderColor="border.surface"
-      bg="bg.workspace"
-      px={{ base: '4', lg: '6' }}
-      pt="2.5"
-      overflowX="auto"
-    >
-      <Flex align="center" justify="space-between" gap="3" overflowX="auto">
-        <TabsList gap="2" rounded="0" bg="transparent" p="0">
-          {vaultPageTabs.map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              aria-current={activeTab === tab.value ? 'page' : undefined}
-              {...vaultTabTriggerStyles}
-            >
-              <tab.icon size={16} aria-hidden="true" />
-              {tab.label}
-            </TabsTrigger>
-          ))}
-          <TabsTrigger
-            value="chat"
-            aria-label="Chat"
-            {...vaultTabTriggerStyles}
-          >
-            <MessageSquare size={16} aria-hidden="true" />
-            Chat
-          </TabsTrigger>
-        </TabsList>
-        <Box flexShrink={0} w={{ base: '10', sm: '10rem' }} maxW="10rem" transform="translateY(-3px)">
-          <FileSortMenu value={browserSort} onValueChange={onSortChange} />
-        </Box>
-      </Flex>
-    </Box>
-  );
-}
 
 function getBrowserItemUpdatedTime(item: BrowserItem) {
   const value = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
@@ -316,15 +251,12 @@ function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: File
   return getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
 }
 
-export function DocumentsPage() {
+export function DocumentsPage({ section = 'contents' }: { section?: VaultSection }) {
   const params = useParams({ strict: false }) as { vaultId?: string };
   const search = useSearch({ strict: false }) as Record<string, string | undefined>;
   const navigate = useNavigate();
   const vaultId = params.vaultId ?? '';
   const currentFolderId = search.folderId ?? null;
-  const currentVaultTab = vaultAdminTabs.includes(search.tab as VaultAdminPageTab)
-    ? search.tab as VaultAdminPageTab
-    : 'contents';
   const queryClient = useQueryClient();
   const [browserView, setBrowserView] = usePreferredFileBrowserView();
   const [browserSort, setBrowserSort] = useState<FileBrowserSort>(getInitialBrowserSort);
@@ -611,7 +543,9 @@ export function DocumentsPage() {
   }
 
   function openContextMenu(event: MouseEvent<HTMLElement>, item: BrowserContextItem) {
-    const actions = getItemActions(item).filter(action => !action.disabled);
+    const actions = getContextMenuEntries(item)
+      .filter(isBrowserAction)
+      .filter(action => !action.disabled);
 
     if (actions.length === 0) {
       return;
@@ -621,9 +555,65 @@ export function DocumentsPage() {
     event.stopPropagation();
     setContextMenu({
       item,
-      x: Math.min(event.clientX, window.innerWidth - 224),
-      y: Math.min(event.clientY, window.innerHeight - 320),
+      x: event.clientX,
+      y: event.clientY,
     });
+  }
+
+  function getBackgroundContextMenuEntries(): BrowserContextMenuEntry[] {
+    const vault = vaultQuery.data?.vault;
+    const entries: BrowserContextMenuEntry[] = [
+      { key: 'vault-name', type: 'header', label: vault?.name ?? 'Vault' },
+      { key: 'after-vault-name', type: 'separator' },
+    ];
+    const uploadEntries: BrowserContextMenuEntry[] = canCreateItems
+      ? [
+          { key: 'new-folder', label: 'New folder', icon: FolderPlus, onSelect: () => openCreateFolderDialog(currentFolderId) },
+          { key: 'after-new-folder', type: 'separator' } satisfies BrowserContextMenuEntry,
+          {
+            key: 'upload-files',
+            label: 'Upload files',
+            icon: FileUp,
+            onSelect: () => openUploadFilesPicker(currentFolderId),
+          },
+          {
+            key: 'upload-directory',
+            label: 'Upload folder',
+            icon: FolderUp,
+            onSelect: () => openUploadDirectoryPicker(currentFolderId),
+          },
+        ]
+      : [];
+    const adminSectionEntries: BrowserAction[] = canManageVaultWorkspace(vault)
+      ? [
+          { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }) },
+          { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
+          { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
+        ]
+      : [];
+    const chatEntry: BrowserAction[] = canUseVaultChat(vault)
+      ? [{ key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) }]
+      : [];
+    const workspaceEntries = [...adminSectionEntries, ...chatEntry];
+
+    entries.push(...uploadEntries);
+
+    if (workspaceEntries.length > 0) {
+      if (uploadEntries.length > 0) {
+        entries.push({ key: 'after-upload', type: 'separator' });
+      }
+      entries.push(...workspaceEntries);
+    }
+
+    return entries;
+  }
+
+  function getContextMenuEntries(item: BrowserContextItem): BrowserContextMenuEntry[] {
+    if (item.type === 'background') {
+      return getBackgroundContextMenuEntries();
+    }
+
+    return getItemActions(item);
   }
 
   function getItemActions(item: BrowserContextItem): BrowserAction[] {
@@ -653,18 +643,18 @@ export function DocumentsPage() {
       return [
         { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(currentFolderId) },
         {
+          key: 'upload-files',
+          label: 'Upload files',
+          icon: FileUp,
+          disabled: !canCreateItems,
+          onSelect: () => openUploadFilesPicker(currentFolderId),
+        },
+        {
           key: 'upload-directory',
           label: 'Upload folder',
           icon: FolderUp,
           disabled: !canCreateItems,
           onSelect: () => openUploadDirectoryPicker(currentFolderId),
-        },
-        {
-          key: 'upload-files',
-          label: 'Upload',
-          icon: FileUp,
-          disabled: !canCreateItems,
-          onSelect: () => openUploadFilesPicker(currentFolderId),
         },
       ];
     }
@@ -761,13 +751,15 @@ export function DocumentsPage() {
     currentFolderId,
     breadcrumbs: folderItemsQuery.data?.breadcrumbs ?? [],
     selectedCount,
+    showBrowserActions: section === 'contents',
+    browserSort: section === 'contents' ? browserSort : undefined,
+    onBrowserSortChange: section === 'contents' ? setBrowserSort : undefined,
     browserView,
     setBrowserView,
     dropTarget,
     onClearSelection: clearSelection,
     onNavigateFolder: navigateToFolder,
     onOpenRootContextMenu: event => openContextMenu(event, { type: 'root', vaultId }),
-    onOpenCreateFolderDialog: openCreateFolderDialog,
     onOpenUploadFiles: () => openUploadFilesPicker(currentFolderId),
     onOpenUploadDirectory: () => openUploadDirectoryPicker(currentFolderId),
     onDragOverFolder: handleDragOverFolder,
@@ -950,50 +942,25 @@ export function DocumentsPage() {
           </Box>
         </Flex>
       ) : null}
-      <Tabs
-        defaultValue="contents"
-        value={currentVaultTab}
-        onValueChange={(value) => {
-          if (value === 'chat') {
-            void navigate({ to: ROUTES.chat, search: { vaultId } as any });
-            return;
-          }
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={handleUploadInputChange}
+      />
+      <input
+        ref={directoryInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={handleUploadInputChange}
+      />
 
-          const tab = value as VaultPageTab;
+      {browserHeader.contentsToolbar}
 
-          void navigate({
-            to: ROUTES.vaultRoot(vaultId),
-            search: tab === 'contents' ? undefined : { tab },
-          });
-        }}
-        display="flex"
-        flex="1"
-        minH="0"
-        flexDirection="column"
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={handleUploadInputChange}
-        />
-        <input
-          ref={directoryInputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={handleUploadInputChange}
-        />
-
-        {browserHeader.contentsToolbar}
-        <VaultPageTabs
-          activeTab={currentVaultTab}
-          browserSort={browserSort}
-          onSortChange={setBrowserSort}
-        />
-
-        <TabsContent value="contents" display="flex" flex="1" minH="0" flexDirection="column" p="0">
+      {section === 'contents' ? (
+        <>
           <Flex flex="1" minH="0" overflow="hidden">
             <Flex minW="0" flex="1" direction="column" overflow="hidden">
               {activeIsLoading ? (
@@ -1084,23 +1051,32 @@ export function DocumentsPage() {
               ) : null}
             </Flex>
           </Flex>
-        </TabsContent>
-        <TabsContent value="members" display="flex" flex="1" minH="0" flexDirection="column" overflowY="auto" p="0">
+        </>
+      ) : null}
+
+      {section === 'members' ? (
+        <Flex flex="1" minH="0" direction="column" overflowY="auto">
           <Box px={{ base: '4', lg: '6' }} py="5">
             <VaultMembersPanel vault={vaultQuery.data.vault} vaultId={vaultId} />
           </Box>
-        </TabsContent>
-        <TabsContent value="activity" display="flex" flex="1" minH="0" flexDirection="column" p="0">
+        </Flex>
+      ) : null}
+
+      {section === 'activity' ? (
+        <Flex flex="1" minH="0" direction="column">
           <Box px={{ base: '4', lg: '6' }} py="5" overflowY="auto">
             <VaultActivityPanel vaultId={vaultId} />
           </Box>
-        </TabsContent>
-        <TabsContent value="settings" display="flex" flex="1" minH="0" flexDirection="column" overflowY="auto" p="0">
+        </Flex>
+      ) : null}
+
+      {section === 'settings' ? (
+        <Flex flex="1" minH="0" direction="column" overflowY="auto">
           <Box px={{ base: '4', lg: '6' }} py="5">
             <VaultSettingsPanel vaultId={vaultId} />
           </Box>
-        </TabsContent>
-      </Tabs>
+        </Flex>
+      ) : null}
 
       <ActionBar.Root open={selectedCount > 0}>
         <Portal>
@@ -1232,7 +1208,7 @@ export function DocumentsPage() {
       {contextMenu !== null ? (
         <BrowserContextMenu
           state={contextMenu}
-          actions={getItemActions(contextMenu.item)}
+          actions={getContextMenuEntries(contextMenu.item)}
           onClose={() => setContextMenu(null)}
         />
       ) : null}

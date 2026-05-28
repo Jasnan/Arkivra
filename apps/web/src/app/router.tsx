@@ -36,7 +36,7 @@ import { SettingsPage } from '@/features/settings/pages/settings-page'
 import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-management-page'
 import { TagsPage } from '@/features/tags/pages/tags-page'
 import { TransfersPage } from '@/features/uploads/pages/transfers-page'
-import { VaultSettingsPage } from '@/features/vaults/pages/vault-settings-page'
+import { VaultChatPage } from '@/features/vaults/pages/vault-chat-page'
 import { VaultsPage } from '@/features/vaults/pages/vaults-page'
 import { SearchPage } from '@/features/search/pages/search-page'
 import { AppShell } from '@/components/layout/app-shell'
@@ -54,11 +54,6 @@ function PublicAuthLayout() {
       <Outlet />
     </AuthLayout>
   )
-}
-
-function VaultChatRedirect() {
-  const { vaultId } = useParams({ strict: false }) as { vaultId?: string };
-  return vaultId ? <Navigate to={ROUTES.chat} search={{ vaultId }} replace /> : <Navigate to={ROUTES.chat} replace />;
 }
 
 function DocumentChatRedirect() {
@@ -143,25 +138,61 @@ const vaultsRoute = createRoute({
 const vaultRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId',
-  component: DocumentsPage,
+  component: () => <DocumentsPage section="contents" />,
+})
+
+const vaultMembersRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/vaults/$vaultId/members',
+  component: () => <DocumentsPage section="members" />,
+})
+
+const vaultActivityRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/vaults/$vaultId/activity',
+  component: () => <DocumentsPage section="activity" />,
 })
 
 const vaultSettingsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/settings',
-  component: VaultSettingsPage,
+  component: () => <DocumentsPage section="settings" />,
 })
 
 const vaultChatRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/chat',
-  component: VaultChatRedirect,
+  component: VaultChatPage,
+})
+
+const vaultChatConversationRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/vaults/$vaultId/chat/$conversationId',
+  component: VaultChatPage,
 })
 
 const documentRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/$documentId',
-  component: DocumentDetailPage,
+  component: () => <DocumentDetailPage section="preview" />,
+})
+
+const documentExtractedTextRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/vaults/$vaultId/$documentId/extracted-text',
+  component: () => <DocumentDetailPage section="content" />,
+})
+
+const documentMetadataRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/vaults/$vaultId/$documentId/metadata',
+  component: () => <DocumentDetailPage section="metadata" />,
+})
+
+const documentActivityRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/vaults/$vaultId/$documentId/activity',
+  component: () => <DocumentDetailPage section="activity" />,
 })
 
 const documentChatRoute = createRoute({
@@ -331,9 +362,15 @@ const routeTree = rootRoute.addChildren([
     indexRoute,
     vaultsRoute,
     vaultRoute,
+    vaultMembersRoute,
+    vaultActivityRoute,
     vaultSettingsRoute,
     vaultChatRoute,
+    vaultChatConversationRoute,
     documentRoute,
+    documentExtractedTextRoute,
+    documentMetadataRoute,
+    documentActivityRoute,
     documentChatRoute,
     chatRoute,
     chatConversationRoute,

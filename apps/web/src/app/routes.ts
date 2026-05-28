@@ -10,12 +10,21 @@ export const ROUTES = {
   // Vaults
   vaults: '/vaults',
   vaultRoot: (vaultId: string) => `/vaults/${vaultId}` as const,
-  vaultChat: (vaultId: string) => `/chat?vaultId=${vaultId}` as const,
-  vaultSettings: (vaultId: string) => `/vaults/${vaultId}?tab=settings` as const,
+  vaultMembers: (vaultId: string) => `/vaults/${vaultId}/members` as const,
+  vaultActivity: (vaultId: string) => `/vaults/${vaultId}/activity` as const,
+  vaultSettings: (vaultId: string) => `/vaults/${vaultId}/settings` as const,
+  vaultChat: (vaultId: string) => `/vaults/${vaultId}/chat` as const,
+  vaultChatConversation: (vaultId: string, conversationId: string) => `/vaults/${vaultId}/chat/${conversationId}` as const,
   vaultDocument: (vaultId: string, documentId: string) =>
     `/vaults/${vaultId}/${documentId}` as const,
+  vaultDocumentExtractedText: (vaultId: string, documentId: string) =>
+    `/vaults/${vaultId}/${documentId}/extracted-text` as const,
+  vaultDocumentMetadata: (vaultId: string, documentId: string) =>
+    `/vaults/${vaultId}/${documentId}/metadata` as const,
+  vaultDocumentActivity: (vaultId: string, documentId: string) =>
+    `/vaults/${vaultId}/${documentId}/activity` as const,
   vaultDocumentChat: (vaultId: string, documentId: string) =>
-    `/chat?vaultId=${vaultId}&documentId=${documentId}` as const,
+    `/vaults/${vaultId}/${documentId}/chat` as const,
 
   // Chat
   chat: '/chat',

@@ -333,6 +333,20 @@ describe('app shell account menu', () => {
     expect(screen.queryByTitle('Hide secondary sidebar')).not.toBeInTheDocument();
   });
 
+  it('expands the active folder in the vault file tree on folder browser routes', async () => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults/vlt_1?folderId=fld_1'],
+        routePath: '/vaults/:vaultId',
+      },
+    );
+
+    const fileTree = await screen.findByRole('complementary', { name: 'Vault file tree' });
+    expect(await within(fileTree).findByRole('button', { name: 'Insurance', hidden: true })).toHaveAttribute('data-state', 'open');
+    expect(await within(fileTree).findByRole('button', { name: 'Policies', hidden: true })).toBeInTheDocument();
+  });
+
   it('keeps the vault file tree available on document routes without a secondary sidebar toggle', async () => {
     await renderWithProviders(
       <AppShell />,
@@ -348,6 +362,22 @@ describe('app shell account menu', () => {
     expect(screen.queryByRole('complementary', { name: 'Secondary', hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByTitle('Hide secondary sidebar')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Show secondary sidebar')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['/vaults/vlt_1/members', '/vaults/:vaultId/members'],
+    ['/vaults/vlt_1/activity', '/vaults/:vaultId/activity'],
+    ['/vaults/vlt_1/settings', '/vaults/:vaultId/settings'],
+  ])('hides the vault file tree on %s', async (initialEntry, routePath) => {
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: [initialEntry],
+        routePath,
+      },
+    );
+
+    expect(screen.queryByRole('complementary', { name: 'Vault file tree' })).not.toBeInTheDocument();
   });
 
   it.each([

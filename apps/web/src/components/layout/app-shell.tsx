@@ -1158,6 +1158,10 @@ function shouldHideSecondarySidebar(pathname: string) {
     || parts[0] === 'trash';
 }
 
+function isVaultSectionSegment(value: string | undefined) {
+  return value === 'members' || value === 'activity' || value === 'settings' || value === 'chat';
+}
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -1197,7 +1201,7 @@ export function AppShell() {
       ? pathParts[1]
       : transferVaultId;
   const activeDocumentRoute = useMemo(() => {
-    if (pathParts[0] === 'vaults' && pathParts[2] && !['settings', 'chat'].includes(pathParts[2])) {
+    if (pathParts[0] === 'vaults' && pathParts[2] && !isVaultSectionSegment(pathParts[2])) {
       return { vaultId: pathParts[1] ?? '', documentId: pathParts[2] ?? '' };
     }
 
@@ -1302,7 +1306,7 @@ export function AppShell() {
 
   const secondaryKind = getSecondaryKind(location.pathname);
   const hideSecondarySidebar = shouldHideSecondarySidebar(location.pathname);
-  const shouldShowVaultFileTreePanel = pathParts[0] === 'vaults' && Boolean(activeVaultId) && !isChatRoute;
+  const shouldShowVaultFileTreePanel = Boolean(activeVaultId) && (isVaultBrowserRoute || activeDocumentRoute !== null);
   const hasSecondarySidebar = !hideSecondarySidebar && secondaryContent !== null;
   const contentPadding = isChatRoute || isFlushContentRoute ? '0' : { base: '4', lg: '6' };
   const uploadCount = uploadState.activeCount + uploadState.queuedCount;

@@ -1,6 +1,9 @@
-import { screen } from '@testing-library/react';
+import { useMemo, useState } from 'react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-context';
+import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { renderWithProviders } from '@/test/utils';
@@ -19,7 +22,7 @@ describe('documents page', () => {
     window.localStorage.removeItem('arkivra.uiPreferences');
   });
 
-  it('renders vault sections as tabs above the browser contents', async () => {
+  it('renders vault contents without section tabs', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
@@ -97,31 +100,125 @@ describe('documents page', () => {
       routePath: '/vaults/:vaultId',
     });
 
-    expect(await screen.findByRole('tab', { name: /contents/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /members/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /settings/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /chat/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sort folder items/i })).toHaveTextContent(/a → z/i);
+    expect(screen.queryByRole('tab', { name: /contents/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /members/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /activity/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /settings/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /chat/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /sort folder items/i })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: /vault file tree/i, hidden: true })).not.toBeInTheDocument();
   });
 
-  it('hides the extracted text tab by default in document detail', async () => {
+  it('publishes the contents sort menu into the workspace header actions', async () => {
+    vi.stubGlobal('fetch', installVaultContentsFetchMock());
+
+    await renderWithProviders(<DocumentsPageWithWorkspaceHeader />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    const header = screen.getByRole('banner');
+    expect(await within(header).findByRole('button', { name: /sort folder items/i })).toHaveTextContent(/a → z/i);
+  });
+
+  it('shows the vault background context menu with workspace actions for owners with chat access', async () => {
+    vi.stubGlobal('fetch', installVaultContentsFetchMock({ items: [] }));
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    fireEvent.contextMenu(await screen.findByText(/this vault is empty/i));
+
+    const menu = await screen.findByRole('menu', { name: /actions for vault root/i });
+    expect(within(menu).getByText('MyDocs')).toBeInTheDocument();
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+      'New folder',
+      'Upload files',
+      'Upload folder',
+      'Members',
+      'Activity',
+      'Settings',
+      'Chat',
+    ]);
+  });
+
+  it('gates vault background workspace actions by admin and chat permissions', async () => {
+    vi.stubGlobal('fetch', installVaultContentsFetchMock({
+      items: [],
+      vault: {
+        role: 'editor',
+        aiAccessLevel: 'none',
+        isAdmin: false,
+        accessMode: 'member',
+      },
+    }));
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    fireEvent.contextMenu(await screen.findByText(/this vault is empty/i));
+
+    const menu = await screen.findByRole('menu', { name: /actions for vault root/i });
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+      'New folder',
+      'Upload files',
+      'Upload folder',
+    ]);
+    expect(within(menu).queryByRole('menuitem', { name: /^members$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^activity$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^settings$/i })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^chat$/i })).not.toBeInTheDocument();
+  });
+
+  it('renders document detail sections without tabs and exposes section actions', async () => {
+    const user = userEvent.setup();
     installDocumentDetailFetchMock();
 
-    await renderWithProviders(<DocumentDetailPage />, {
+    const { router } = await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePaths: ['/vaults/:vaultId/:documentId', '/vaults/:vaultId/:documentId/metadata'],
+    });
+
+    expect(await screen.findByTitle(/text preview/i)).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /preview/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /extracted text/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /metadata/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /activity/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^chat$/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /open actions/i }));
+    expect(screen.getByRole('menuitem', { name: /^preview$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /extracted text/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^metadata$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^activity$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^chat$/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('menuitem', { name: /^metadata$/i }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/vaults/vlt_1/doc_1/metadata');
+    });
+  });
+
+  it('shows the full document filename in the workspace breadcrumb when space allows', async () => {
+    const documentName = 'Home Insurance Renewal Documents 2026.pdf';
+    installDocumentDetailFetchMock({ documentName });
+
+    await renderWithProviders(<DocumentDetailPageWithWorkspaceHeader />, {
       initialEntries: ['/vaults/vlt_1/doc_1'],
       routePath: '/vaults/:vaultId/:documentId',
     });
 
-    expect(await screen.findByRole('tab', { name: /preview/i })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /extracted text/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /metadata/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^chat$/i })).toBeInTheDocument();
+    const header = screen.getByRole('banner');
+    expect(await within(header).findByText(documentName)).toBeInTheDocument();
+    expect(within(header).queryByText('Home In...')).not.toBeInTheDocument();
   });
 
-  it('shows the extracted text tab when enabled in preferences', async () => {
+  it('shows the extracted text document action when enabled in preferences', async () => {
+    const user = userEvent.setup();
     window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
       themeMode: 'system',
       accentColor: 'teal',
@@ -141,7 +238,8 @@ describe('documents page', () => {
       routePath: '/vaults/:vaultId/:documentId',
     });
 
-    expect(await screen.findByRole('tab', { name: /extracted text/i })).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /open actions/i }));
+    expect(screen.getByRole('menuitem', { name: /extracted text/i })).toBeInTheDocument();
   });
 
   it('uses the stored default project view while keeping view toggles session-local', async () => {
@@ -175,7 +273,63 @@ describe('documents page', () => {
   });
 });
 
-function installVaultContentsFetchMock() {
+function DocumentsPageWithWorkspaceHeader() {
+  const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
+  const contextValue = useMemo(() => ({
+    setHeaderConfig,
+    setSecondaryContent: () => {},
+  }), []);
+  const page = useMemo(() => <DocumentsPage />, []);
+
+  return (
+    <WorkspaceLayoutContext value={contextValue}>
+      <header>{headerConfig?.actions}</header>
+      {page}
+    </WorkspaceLayoutContext>
+  );
+}
+
+function DocumentDetailPageWithWorkspaceHeader() {
+  const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
+  const contextValue = useMemo(() => ({
+    setHeaderConfig,
+    setSecondaryContent: () => {},
+  }), []);
+  const page = useMemo(() => <DocumentDetailPage />, []);
+
+  return (
+    <WorkspaceLayoutContext value={contextValue}>
+      <header>{headerConfig?.left}</header>
+      {page}
+    </WorkspaceLayoutContext>
+  );
+}
+
+function installVaultContentsFetchMock({
+  vault: vaultOverrides = {},
+  items = [
+    {
+      type: 'document',
+      document: {
+        id: 'doc_1',
+        name: 'Policy.pdf',
+        originalName: 'Policy.pdf',
+        folderId: null,
+        originalSize: 2048,
+        mimeType: 'application/pdf',
+        processingStatus: 'completed',
+        documentDate: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        isDeleted: false,
+        deletedAt: null,
+      },
+    },
+  ],
+}: {
+  vault?: Record<string, unknown>;
+  items?: unknown[];
+} = {}) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
@@ -192,6 +346,7 @@ function installVaultContentsFetchMock() {
           isAdmin: false,
           isMember: true,
           accessMode: 'member',
+          ...vaultOverrides,
         },
       });
     }
@@ -202,25 +357,7 @@ function installVaultContentsFetchMock() {
         breadcrumbs: [],
         folders: [],
         documents: [],
-        items: [
-          {
-            type: 'document',
-            document: {
-              id: 'doc_1',
-              name: 'Policy.pdf',
-              originalName: 'Policy.pdf',
-              folderId: null,
-              originalSize: 2048,
-              mimeType: 'application/pdf',
-              processingStatus: 'completed',
-              documentDate: null,
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z',
-              isDeleted: false,
-              deletedAt: null,
-            },
-          },
-        ],
+        items,
       });
     }
 
@@ -232,7 +369,7 @@ function installVaultContentsFetchMock() {
   });
 }
 
-function installDocumentDetailFetchMock() {
+function installDocumentDetailFetchMock({ documentName = 'Policy.txt' }: { documentName?: string } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
@@ -240,8 +377,8 @@ function installDocumentDetailFetchMock() {
       return jsonResponse({
         document: {
           id: 'doc_1',
-          name: 'Policy.txt',
-          originalName: 'Policy.txt',
+          name: documentName,
+          originalName: documentName,
           folderId: null,
           originalSize: 2048,
           originalSha256Hash: 'abc123',

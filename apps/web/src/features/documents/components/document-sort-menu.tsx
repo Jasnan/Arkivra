@@ -11,6 +11,7 @@ export interface DocumentSortOption<TValue extends string> {
 export function DocumentSortMenu<TValue extends string>({
   ariaLabel,
   buttonProps,
+  hideLabel = false,
   iconOnlyOnMobile = false,
   labelId,
   onValueChange,
@@ -20,6 +21,7 @@ export function DocumentSortMenu<TValue extends string>({
 }: {
   ariaLabel: string;
   buttonProps?: ComponentProps<typeof Button>;
+  hideLabel?: boolean;
   iconOnlyOnMobile?: boolean;
   labelId?: string;
   onValueChange: (value: TValue) => void;
@@ -71,7 +73,7 @@ export function DocumentSortMenu<TValue extends string>({
             ) : null}
             <Text
               as="span"
-              display={isInput ? 'none' : iconOnlyOnMobile ? { base: 'none', sm: 'inline' } : undefined}
+              display={isInput || hideLabel ? 'none' : iconOnlyOnMobile ? { base: 'none', sm: 'inline' } : undefined}
               truncate
               fontSize="sm"
               fontWeight="medium"

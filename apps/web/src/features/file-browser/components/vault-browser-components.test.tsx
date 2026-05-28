@@ -1,8 +1,9 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { BrowserItemGrid, BrowserItemList, MoveItemDialog, RenameItemDialog } from './vault-browser-components';
+import { BrowserContextMenu, BrowserItemGrid, BrowserItemList, MoveItemDialog, RenameItemDialog } from './vault-browser-components';
 import { getMoveDestinations } from './vault-browser.types';
 import type { BrowserItem, MoveDestination } from './vault-browser.types';
 import { renderWithProviders } from '@/test/utils';
@@ -95,6 +96,38 @@ function ControlledMoveDialogHarness({ onClose }: { onClose: () => void }) {
 }
 
 describe('move item dialog', () => {
+  it('positions context menus inside the viewport using the measured menu size', async () => {
+    const getBoundingClientRect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 260,
+      top: 0,
+      right: 200,
+      bottom: 260,
+      left: 0,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 500 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
+
+    await renderWithProviders(
+      <BrowserContextMenu
+        state={{ item: { type: 'root', vaultId: 'vlt_1' }, x: 480, y: 580 }}
+        actions={[{ key: 'open', label: 'Open', icon: FolderOpen, onSelect: vi.fn() }]}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const menu = screen.getByRole('menu', { name: /actions for vault root/i });
+
+    await waitFor(() => {
+      expect(menu).toHaveStyle({ left: '292px', top: '332px' });
+    });
+
+    getBoundingClientRect.mockRestore();
+  });
+
   it('lists common move destinations for multiple selected folders and documents', () => {
     const destinations = getMoveDestinations({
       folders: [

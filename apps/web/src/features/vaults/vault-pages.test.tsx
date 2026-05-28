@@ -42,7 +42,7 @@ describe('vault pages', () => {
       });
     }));
 
-    await renderWithProviders(<VaultsPage />);
+    const { router } = await renderWithProviders(<VaultsPage />);
 
     const createVaultButton = await screen.findByRole('button', { name: /new vault/i });
     const vaultToolbar = createVaultButton.closest('header');
@@ -62,12 +62,27 @@ describe('vault pages', () => {
 
     fireEvent.contextMenu(screen.getByRole('link', { name: /personal/i }));
     const contextMenu = screen.getByRole('menu', { name: /vault actions for personal/i });
-    expect(within(contextMenu).getByRole('menuitem', { name: /^open$/i })).toBeInTheDocument();
-    expect(within(contextMenu).getByRole('menuitem', { name: /^settings$/i })).toBeInTheDocument();
+    expect(within(contextMenu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+      'Open',
+      'Members',
+      'Activity',
+      'Settings',
+      'Chat',
+    ]);
     await user.keyboard('{Escape}');
 
     await user.click(screen.getByRole('button', { name: /vault actions for personal/i }));
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+      'Open',
+      'Members',
+      'Activity',
+      'Settings',
+      'Chat',
+    ]);
     await user.click(screen.getByRole('menuitem', { name: /settings/i }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/vaults/vlt_1/settings');
+    });
   });
 
   it('uses the shared app-shell vault tree instead of overriding secondary content', async () => {
@@ -413,12 +428,12 @@ describe('vault pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<DocumentsPage />, {
-      initialEntries: ['/vaults/vlt_1?tab=settings'],
-      routePath: '/vaults/:vaultId',
+    await renderWithProviders(<DocumentsPage section="settings" />, {
+      initialEntries: ['/vaults/vlt_1/settings'],
+      routePath: '/vaults/:vaultId/settings',
     });
 
-    expect(await screen.findByRole('tab', { name: /settings/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('tab', { name: /settings/i })).not.toBeInTheDocument();
     expect(await screen.findByText(/personal/i)).toBeInTheDocument();
     await user.clear(screen.getByLabelText(/name/i));
     await user.type(screen.getByLabelText(/name/i), 'Personal Vault');
@@ -501,13 +516,13 @@ describe('vault pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<DocumentsPage />, {
-      initialEntries: ['/vaults/vlt_1?tab=members'],
-      routePath: '/vaults/:vaultId',
+    await renderWithProviders(<DocumentsPage section="members" />, {
+      initialEntries: ['/vaults/vlt_1/members'],
+      routePath: '/vaults/:vaultId/members',
     });
 
-    expect(await screen.findByRole('tab', { name: /members/i })).toHaveAttribute('aria-selected', 'true');
-    await user.type(screen.getByPlaceholderText(/usr_/i), 'usr_new');
+    expect(screen.queryByRole('tab', { name: /members/i })).not.toBeInTheDocument();
+    await user.type(await screen.findByPlaceholderText(/usr_/i), 'usr_new');
     await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     await waitFor(() => {

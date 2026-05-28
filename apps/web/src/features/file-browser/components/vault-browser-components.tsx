@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef, CSSProperties, DragEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
-import { Fragment, forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import type { VirtuosoGridProps } from 'react-virtuoso';
 import { Box, Checkbox as ChakraCheckbox, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getBrowserItemKey, getDocumentTypeLabel, getFileDisplayName, getItemDisplayName, getItemName } from './vault-browser.types';
-import type { BrowserAction, BrowserContextItem, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination, MoveDialogTarget } from './vault-browser.types';
+import type { BrowserAction, BrowserContextItem, BrowserContextMenuEntry, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination, MoveDialogTarget } from './vault-browser.types';
 
 const listRowHeights = {
   compact: 56,
@@ -334,12 +334,14 @@ function SelectionCheckbox({
 
 export function VaultRouteBreadcrumbs({
   entries,
+  showFullLastLabel = false,
   dropTarget,
   onDragOverFolder,
   onDragLeaveFolder,
   onDropOnFolder,
 }: {
   entries: VaultBreadcrumbEntry[];
+  showFullLastLabel?: boolean;
   dropTarget?: BrowserDropTarget | null;
   onDragOverFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDragLeaveFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -383,7 +385,7 @@ export function VaultRouteBreadcrumbs({
             );
           }
 
-          const label = truncateBreadcrumbLabel(entry.label);
+          const label = showFullLastLabel && isLast ? entry.label : truncateBreadcrumbLabel(entry.label);
 
           return (
             <Fragment key={entry.key}>
@@ -653,11 +655,34 @@ export function BrowserContextMenu({
   onClose,
 }: {
   state: Exclude<ContextMenuState, null>;
-  actions: BrowserAction[];
+  actions: BrowserContextMenuEntry[];
   onClose: () => void;
 }) {
-  const availableActions = actions.filter(action => !action.disabled);
+  const visibleEntries = actions.filter(entry => 'type' in entry || !entry.disabled);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ x: state.x, y: state.y });
+
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (menu === null) {
+      return;
+    }
+
+    const viewportMargin = 8;
+    const rect = menu.getBoundingClientRect();
+    const maxX = Math.max(viewportMargin, window.innerWidth - rect.width - viewportMargin);
+    const maxY = Math.max(viewportMargin, window.innerHeight - rect.height - viewportMargin);
+    const nextPosition = {
+      x: Math.min(Math.max(state.x, viewportMargin), maxX),
+      y: Math.min(Math.max(state.y, viewportMargin), maxY),
+    };
+
+    setMenuPosition((currentPosition) => (
+      currentPosition.x === nextPosition.x && currentPosition.y === nextPosition.y
+        ? currentPosition
+        : nextPosition
+    ));
+  }, [state.x, state.y, visibleEntries.length]);
 
   useEffect(() => {
     function closeOnEscape(event: globalThis.KeyboardEvent) {
@@ -708,8 +733,8 @@ export function BrowserContextMenu({
         position="fixed"
         zIndex="popover"
         minW="13rem"
-        left={`${state.x}px`}
-        top={`${state.y}px`}
+        left={`${menuPosition.x}px`}
+        top={`${menuPosition.y}px`}
         rounded="lg"
         borderWidth="1px"
         borderColor="border.surface"
@@ -719,33 +744,47 @@ export function BrowserContextMenu({
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.preventDefault()}
       >
-        {availableActions.map((action) => (
-          <chakra.button
-            key={action.key}
-            type="button"
-            role="menuitem"
-            display="flex"
-            w="full"
-            alignItems="center"
-            gap="3"
-            rounded="md"
-            px="3"
-            py="2"
-            textAlign="left"
-            fontSize="sm"
-            fontWeight="medium"
-            color={action.tone === 'destructive' ? 'fg.error' : 'fg.muted'}
-            _hover={{ bg: 'bg.subtle', color: action.tone === 'destructive' ? 'fg.error' : 'fg' }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
-            onClick={() => {
-              onClose();
-              window.setTimeout(action.onSelect, 0);
-            }}
-          >
-            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
-            {action.label}
-          </chakra.button>
-        ))}
+        {visibleEntries.map((entry) => {
+          if ('type' in entry) {
+            if (entry.type === 'separator') {
+              return <Box key={entry.key} my="1.5" borderTopWidth="1px" borderColor="border.surface" />;
+            }
+
+            return (
+              <Box key={entry.key} px="3" py="2" fontSize="sm" fontWeight="semibold" color="fg">
+                {entry.label}
+              </Box>
+            );
+          }
+
+          return (
+            <chakra.button
+              key={entry.key}
+              type="button"
+              role="menuitem"
+              display="flex"
+              w="full"
+              alignItems="center"
+              gap="3"
+              rounded="md"
+              px="3"
+              py="2"
+              textAlign="left"
+              fontSize="sm"
+              fontWeight="medium"
+              color={entry.tone === 'destructive' ? 'fg.error' : 'fg.muted'}
+              _hover={{ bg: 'bg.subtle', color: entry.tone === 'destructive' ? 'fg.error' : 'fg' }}
+              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+              onClick={() => {
+                onClose();
+                window.setTimeout(entry.onSelect, 0);
+              }}
+            >
+              <ActionMenuItemIcon icon={entry.icon} tone={entry.tone === 'destructive' ? 'destructive' : 'default'} />
+              {entry.label}
+            </chakra.button>
+          );
+        })}
       </Box>
     </Portal>
   );

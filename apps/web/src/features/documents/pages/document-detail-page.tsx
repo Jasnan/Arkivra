@@ -55,7 +55,6 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
 import {
   getDocumentDownloadUrl,
@@ -108,26 +107,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type PreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported';
-type DetailTab = 'preview' | 'content' | 'metadata' | 'activity';
-
-const documentTabTriggerStyles = {
-  h: '11',
-  roundedTop: 'md',
-  roundedBottom: '0',
-  borderBottomWidth: '0',
-  borderColor: 'transparent',
-  px: '3',
-  pb: '3',
-  pt: '2',
-  color: 'fg.muted',
-  _hover: { bg: 'teal.subtle', color: 'fg' },
-  _selected: {
-    bg: 'teal.subtle',
-    borderColor: 'transparent',
-    color: 'teal.fg',
-    shadow: 'none',
-  },
-} as const;
+export type DocumentSection = 'preview' | 'content' | 'metadata' | 'activity';
 
 const documentActionTriggerStyles = {
   h: '10',
@@ -1534,7 +1514,7 @@ function getPreviewKind(mimeType: string, name: string, originalName: string): P
   return 'unsupported';
 }
 
-export function DocumentDetailPage() {
+export function DocumentDetailPage({ section = 'preview' }: { section?: DocumentSection }) {
   const params = useParams({ strict: false }) as { vaultId?: string; documentId?: string };
   const documentId = params.documentId ?? '';
   const location = useLocation();
@@ -1574,7 +1554,6 @@ export function DocumentDetailPage() {
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [isDocumentDateEditing, setIsDocumentDateEditing] = useState(false);
   const [isLanguageEditing, setIsLanguageEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<DetailTab>('preview');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState('');
@@ -1661,7 +1640,7 @@ export function DocumentDetailPage() {
   ]);
 
   const documentWorkspaceHeader = useMemo(() => ({
-    left: <VaultRouteBreadcrumbs entries={documentBreadcrumbEntries} />,
+    left: <VaultRouteBreadcrumbs entries={documentBreadcrumbEntries} showFullLastLabel />,
   }), [documentBreadcrumbEntries]);
   useWorkspaceHeader(documentWorkspaceHeader);
 
@@ -1862,10 +1841,47 @@ export function DocumentDetailPage() {
   );
   const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
   const canShowExtractedTextTab = showExtractedTextTab && !isTrashDocumentRoute;
-  const detailActiveTab =
-    activeTab === 'content' && !canShowExtractedTextTab
+  const detailActiveSection =
+    section === 'content' && !canShowExtractedTextTab
       ? 'preview'
-      : activeTab;
+      : section;
+  const documentSectionSearch = location.search as Record<string, string | undefined>;
+  const documentSectionMenuItems = !isTrashDocumentRoute
+    ? [
+        {
+          key: 'preview',
+          label: 'Preview',
+          icon: ImageIcon,
+          route: ROUTES.vaultDocument(vaultId, documentId),
+        },
+        ...(canShowExtractedTextTab
+          ? [{
+              key: 'content',
+              label: 'Extracted text',
+              icon: ScanText,
+              route: ROUTES.vaultDocumentExtractedText(vaultId, documentId),
+            }]
+          : []),
+        {
+          key: 'metadata',
+          label: 'Metadata',
+          icon: Tags,
+          route: ROUTES.vaultDocumentMetadata(vaultId, documentId),
+        },
+        {
+          key: 'activity',
+          label: 'Activity',
+          icon: History,
+          route: ROUTES.vaultDocumentActivity(vaultId, documentId),
+        },
+        {
+          key: 'chat',
+          label: 'Chat',
+          icon: MessageSquare,
+          route: ROUTES.vaultDocumentChat(vaultId, documentId),
+        },
+      ]
+    : [];
 
   async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2045,67 +2061,7 @@ export function DocumentDetailPage() {
           {getDocumentTitle(document.name)}
         </Heading>
 
-        <Box
-          flex="1 1 auto"
-          minW="0"
-          alignSelf="stretch"
-          display="flex"
-          justifyContent="flex-end"
-          overflowX="auto"
-          overflowY="hidden"
-        >
-          <Tabs w="max-content" flexShrink={0} value={detailActiveTab} onValueChange={(value) => setActiveTab(value as DetailTab)}>
-            <TabsList gap="2" minW="max-content" rounded="0" borderBottomWidth="0" bg="transparent" p="0">
-              <TabsTrigger
-                value="preview"
-                {...documentTabTriggerStyles}
-              >
-                <ImageIcon size={16} />
-                Preview
-              </TabsTrigger>
-              {canShowExtractedTextTab ? (
-                <TabsTrigger
-                  value="content"
-                  {...documentTabTriggerStyles}
-                >
-                  <ScanText size={16} />
-                  Extracted text
-                </TabsTrigger>
-              ) : null}
-              <TabsTrigger
-                value="metadata"
-                {...documentTabTriggerStyles}
-              >
-                <Tags size={16} />
-                Metadata
-              </TabsTrigger>
-              <TabsTrigger
-                value="activity"
-                {...documentTabTriggerStyles}
-              >
-                <History size={16} />
-                Activity
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </Box>
-
         <Flex align="center" gap="2" flexShrink={0} ml="auto">
-          {!isTrashDocumentRoute ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => navigate({
-                to: ROUTES.chat,
-                search: { vaultId, documentId, documentName: document.name } as any,
-              })}
-            >
-              <MessageSquare size={16} />
-              Chat
-            </Button>
-          ) : null}
-
           {isTrashDocumentRoute ? (
             <Button type="button" size="sm" variant="outline" onClick={() => navigate({ to: ROUTES.trash })}>
               <ArrowLeft size={16} />
@@ -2128,6 +2084,17 @@ export function DocumentDetailPage() {
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" minW="56">
+              {documentSectionMenuItems.map((item) => (
+                <DropdownMenuItem
+                  key={item.key}
+                  value={item.key}
+                  onSelect={() => navigate({ to: item.route, search: documentSectionSearch as any })}
+                >
+                  <ActionMenuItemIcon icon={item.icon} />
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
+              {documentSectionMenuItems.length > 0 ? <DropdownMenuSeparator /> : null}
               {!isTrashDocumentRoute ? (
                 <DropdownMenuItem value="download-original" asChild>
                   <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
@@ -2178,7 +2145,7 @@ export function DocumentDetailPage() {
         minH="0"
         pt="3"
       >
-            {detailActiveTab === 'preview' ? (
+            {detailActiveSection === 'preview' ? (
               <Flex h="full" minH="0" direction="column" gap="4">
                 {previewKind === 'pdf' && canPreview ? (
                   <PdfPreviewFrame
@@ -2283,7 +2250,7 @@ export function DocumentDetailPage() {
               </Flex>
             ) : null}
 
-            {detailActiveTab === 'content' ? (
+            {detailActiveSection === 'content' ? (
               <Flex direction="column" gap="3">
                 <Flex flexWrap="wrap" align="center" gap="3">
                   <Box
@@ -2338,7 +2305,7 @@ export function DocumentDetailPage() {
               </Flex>
             ) : null}
 
-            {detailActiveTab === 'metadata' ? (
+            {detailActiveSection === 'metadata' ? (
               <chakra.form minH="820px" onSubmit={handleMetadataSave}>
                 <Flex
                   direction={{ base: 'column', sm: 'row' }}
@@ -2653,7 +2620,7 @@ export function DocumentDetailPage() {
               </chakra.form>
             ) : null}
 
-            {detailActiveTab === 'activity' ? (
+            {detailActiveSection === 'activity' ? (
               <DocumentActivityPanel vaultId={vaultId} documentId={documentId} />
             ) : null}
         </Box>

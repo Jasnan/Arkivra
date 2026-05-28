@@ -594,6 +594,37 @@ export function registerDocumentRoutes({
   );
 
   app.get(
+    '/api/vaults/:vaultId/documents/:documentId/chunks',
+    requireCanReadVault({ auditServices }),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const chunks = await documentsServices.listDocumentChunks({
+        vaultId,
+        documentId: context.req.param('documentId'),
+      });
+
+      if (chunks === null) {
+        return context.json(
+          { error: { code: 'document.not_found', message: 'Document not found' } },
+          404,
+        );
+      }
+
+      return context.json({
+        chunks: chunks.map(chunk => ({
+          ...chunk,
+          createdAt: chunk.createdAt.toISOString(),
+        })),
+      });
+    },
+  );
+
+  app.get(
     '/api/vaults/:vaultId/chunks/:chunkId/assets/:assetId',
     requireCanReadVault({ auditServices }),
     async (context) => {

@@ -1,6 +1,7 @@
 import { ApiError, fetchJson } from '@/lib/api';
 import type { SearchSortBy } from '@/features/search/search.types';
 import type {
+  DocumentChunkSummary,
   DeletedDocumentSummary,
   DocumentDetail,
   DocumentLanguageMetadata,
@@ -61,6 +62,10 @@ interface DocumentTagsResponse {
   tags: TagSummary[];
 }
 
+interface DocumentChunksResponse {
+  chunks: DocumentChunkSummary[];
+}
+
 export async function listDocuments({
   vaultId,
   includeDeleted = false,
@@ -100,6 +105,10 @@ export async function listDocuments({
 
 export async function getDocument({ vaultId, documentId }: { vaultId: string; documentId: string }) {
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents/${documentId}`);
+}
+
+export async function listDocumentChunks({ vaultId, documentId }: { vaultId: string; documentId: string }) {
+  return fetchJson<DocumentChunksResponse>(`/api/vaults/${vaultId}/documents/${documentId}/chunks`);
 }
 
 export async function listDeletedDocuments({ vaultId }: { vaultId?: string } = {}) {

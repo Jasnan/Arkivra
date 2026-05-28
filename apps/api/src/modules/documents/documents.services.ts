@@ -53,6 +53,25 @@ export type MoveDocumentResult =
 export type DuplicateDocumentScope = 'active' | 'trash';
 export type DocumentLanguageMetadata = typeof documentsTable.$inferSelect.language;
 
+export type DocumentChunkSummary = {
+  id: string;
+  chunkIndex: number;
+  content: string;
+  originalText: string | null;
+  section: string | null;
+  sectionPath: string[] | null;
+  pageNumber: number | null;
+  pageStart: number | null;
+  pageEnd: number | null;
+  chunkType: string | null;
+  tokenCount: number | null;
+  parserEngine: string | null;
+  citationPrecision: string;
+  sourceElementIds: string[] | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+};
+
 type ActiveDocumentRecord = {
   id: string;
   vaultId: string;
@@ -611,6 +630,58 @@ export function createDocumentsServices({
       byteSize: asset.byteSize ?? fileData.length,
       etag,
     };
+  }
+
+  async function listDocumentChunks({
+    documentId,
+    vaultId,
+  }: {
+    documentId: string;
+    vaultId: string;
+  }): Promise<DocumentChunkSummary[] | null> {
+    const [doc] = await db
+      .select({ id: documentsTable.id })
+      .from(documentsTable)
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (doc === undefined) {
+      return null;
+    }
+
+    return await db
+      .select({
+        id: documentChunksTable.id,
+        chunkIndex: documentChunksTable.chunkIndex,
+        content: documentChunksTable.content,
+        originalText: documentChunksTable.originalText,
+        section: documentChunksTable.section,
+        sectionPath: documentChunksTable.sectionPath,
+        pageNumber: documentChunksTable.pageNumber,
+        pageStart: documentChunksTable.pageStart,
+        pageEnd: documentChunksTable.pageEnd,
+        chunkType: documentChunksTable.chunkType,
+        tokenCount: documentChunksTable.tokenCount,
+        parserEngine: documentChunksTable.parserEngine,
+        citationPrecision: documentChunksTable.citationPrecision,
+        sourceElementIds: documentChunksTable.sourceElementIds,
+        metadata: documentChunksTable.metadata,
+        createdAt: documentChunksTable.createdAt,
+      })
+      .from(documentChunksTable)
+      .where(
+        and(
+          eq(documentChunksTable.documentId, documentId),
+          eq(documentChunksTable.vaultId, vaultId),
+        ),
+      )
+      .orderBy(asc(documentChunksTable.chunkIndex));
   }
 
   async function listDocuments({
@@ -1236,6 +1307,7 @@ export function createDocumentsServices({
     getChunkAsset,
     hardDeleteDocument,
     listDeletedDocuments,
+    listDocumentChunks,
     listDocuments,
     moveDocument,
     renameDocument,

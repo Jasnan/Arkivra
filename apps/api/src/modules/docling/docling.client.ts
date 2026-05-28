@@ -11,59 +11,104 @@ import {
 export type { DoclingChunkResponse, DoclingConvertResponse } from '../parsing/adapters/docling.schema.js';
 
 export type DoclingClient = ReturnType<typeof createDoclingClient>;
+export type DoclingChunker = 'hybrid' | 'hierarchical';
 
 export type DoclingConvertOptions = {
   toFormats: string[];
   doOcr: boolean;
-  ocrEngine: string;
+  ocrPreset: string;
   ocrLang: string[];
 };
 
 export const DEFAULT_DOCLING_CONVERT_OPTIONS: DoclingConvertOptions = {
   toFormats: ['json', 'md'],
   doOcr: true,
-  ocrEngine: 'tesseract',
+  ocrPreset: 'auto',
   ocrLang: ['deu', 'eng'],
 };
 
 export type DoclingChunkOptions = {
   maxTokens: number;
   mergePeers: boolean;
-  repeatTableHeader: boolean;
+  includeRawText: boolean;
 };
 
 export const DEFAULT_DOCLING_CHUNK_OPTIONS: DoclingChunkOptions = {
   maxTokens: 512,
   mergePeers: true,
-  repeatTableHeader: true,
+  includeRawText: true,
 };
 
 export type DoclingRoutes = {
   submitAsync: (baseUrl: string) => string;
   pollStatus: (baseUrl: string, taskId: string) => string;
   fetchResult: (baseUrl: string, taskId: string) => string;
-  chunkSubmitAsync: (baseUrl: string) => string;
+  hybridChunkSubmitAsync: (baseUrl: string) => string;
+  hierarchicalChunkSubmitAsync: (baseUrl: string) => string;
 };
 
 export const DEFAULT_DOCLING_ROUTES: DoclingRoutes = {
   submitAsync: baseUrl => `${baseUrl}/v1/convert/file/async`,
   pollStatus: (baseUrl, taskId) => `${baseUrl}/v1/status/poll/${taskId}`,
   fetchResult: (baseUrl, taskId) => `${baseUrl}/v1/result/${taskId}`,
-  chunkSubmitAsync: baseUrl => `${baseUrl}/v1/chunk/hybrid/file/async`,
+  hybridChunkSubmitAsync: baseUrl => `${baseUrl}/v1/chunk/hybrid/file/async`,
+  hierarchicalChunkSubmitAsync: baseUrl => `${baseUrl}/v1/chunk/hierarchical/file/async`,
 };
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function collectTaskErrors(payload: { errors?: string[]; task_meta?: Record<string, unknown> | null }) {
+type DoclingTaskErrorPayload = {
+  errors?: string[];
+  error_message?: string | null;
+  task_meta?: Record<string, unknown> | null;
+};
+
+function stringifyTaskError(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value.trim().length > 0 ? value : null;
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const message = record.message ?? record.error_message ?? record.detail ?? record.msg ?? record.code;
+
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return String(value);
+}
+
+function collectTaskErrors(payload: DoclingTaskErrorPayload) {
   const directErrors = Array.isArray(payload.errors) ? payload.errors : [];
   const metaErrors = payload.task_meta?.errors;
+  const directErrorMessage = stringifyTaskError(payload.error_message);
+  const metaErrorMessage = stringifyTaskError(payload.task_meta?.error_message);
   const taskMetaErrors = Array.isArray(metaErrors)
-    ? metaErrors.filter((value): value is string => typeof value === 'string')
+    ? metaErrors
+        .map(stringifyTaskError)
+        .filter((value): value is string => value !== null)
     : [];
 
-  return [...directErrors, ...taskMetaErrors];
+  return [
+    directErrorMessage,
+    ...directErrors,
+    metaErrorMessage,
+    ...taskMetaErrors,
+  ].filter((value): value is string => value !== null && value.trim().length > 0);
 }
 
 export function createDoclingClient({
@@ -193,7 +238,7 @@ export function createDoclingClient({
     formData.append('include_images', 'true');
     formData.append('image_export_mode', 'embedded');
     formData.append('do_ocr', String(effectiveConvertOptions.doOcr));
-    formData.append('ocr_engine', effectiveConvertOptions.ocrEngine);
+    formData.append('ocr_preset', effectiveConvertOptions.ocrPreset);
 
     for (const language of effectiveConvertOptions.ocrLang) {
       formData.append('ocr_lang', language);
@@ -224,7 +269,11 @@ export function createDoclingClient({
 
     const taskId = submitParsed.data.task_id;
     let latestRawStatus = submitParsed.data.task_status;
-    let latestStatusPayload: { errors?: string[]; task_meta?: Record<string, unknown> | null } = {};
+    let latestStatusPayload: DoclingTaskErrorPayload = {
+      errors: submitParsed.data.errors,
+      error_message: submitParsed.data.error_message,
+      task_meta: submitParsed.data.task_meta ?? null,
+    };
     let latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
 
     if (latestInternalStatus === 'unknown') {
@@ -272,6 +321,7 @@ export function createDoclingClient({
       latestRawStatus = statusParsed.data.task_status;
       latestStatusPayload = {
         errors: statusParsed.data.errors,
+        error_message: statusParsed.data.error_message,
         task_meta: statusParsed.data.task_meta ?? null,
       };
       latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
@@ -328,12 +378,14 @@ export function createDoclingClient({
     fileName,
     mimeType,
     fileData,
+    chunker = 'hybrid',
     chunkOptions,
     convertOptions,
   }: {
     fileName: string;
     mimeType: string;
     fileData: Buffer;
+    chunker?: DoclingChunker;
     chunkOptions?: Partial<DoclingChunkOptions>;
     convertOptions?: Partial<Pick<DoclingConvertOptions, 'doOcr'>>;
   }): Promise<DoclingChunkResponse> {
@@ -347,30 +399,32 @@ export function createDoclingClient({
 
     async function submitAndAwaitChunkTask() {
       console.info(
-        `${logPrefix} submitting chunk task file="${fileName}" mime=${mimeType} bytes=${fileData.length} doOcr=${effectiveChunkConvertOptions.doOcr} maxTokens=${effectiveChunkOptions.maxTokens}`,
+        `${logPrefix} submitting ${chunker} chunk task file="${fileName}" mime=${mimeType} bytes=${fileData.length} doOcr=${effectiveChunkConvertOptions.doOcr} maxTokens=${chunker === 'hybrid' ? effectiveChunkOptions.maxTokens : 'n/a'}`,
       );
       const formData = new FormData();
       const blob = new Blob([fileData], { type: mimeType });
 
       formData.append('files', blob, fileName);
-      for (const format of effectiveConvertOptions.toFormats) {
-        formData.append('to_formats', format);
-      }
-      formData.append('include_images', 'true');
-      formData.append('image_export_mode', 'embedded');
-      formData.append('do_ocr', String(effectiveChunkConvertOptions.doOcr));
-      formData.append('ocr_engine', effectiveConvertOptions.ocrEngine);
+      formData.append('include_converted_doc', 'true');
+      formData.append('target_type', 'inbody');
+      formData.append('convert_include_images', 'true');
+      formData.append('convert_image_export_mode', 'embedded');
+      formData.append('convert_do_ocr', String(effectiveChunkConvertOptions.doOcr));
+      formData.append('convert_ocr_preset', effectiveConvertOptions.ocrPreset);
 
       for (const language of effectiveConvertOptions.ocrLang) {
-        formData.append('ocr_lang', language);
+        formData.append('convert_ocr_lang', language);
       }
 
-      formData.append('include_converted_doc', 'true');
-      formData.append('max_tokens', String(effectiveChunkOptions.maxTokens));
-      formData.append('merge_peers', String(effectiveChunkOptions.mergePeers));
-      formData.append('repeat_table_header', String(effectiveChunkOptions.repeatTableHeader));
+      formData.append('chunking_include_raw_text', String(effectiveChunkOptions.includeRawText));
+      if (chunker === 'hybrid') {
+        formData.append('chunking_max_tokens', String(effectiveChunkOptions.maxTokens));
+        formData.append('chunking_merge_peers', String(effectiveChunkOptions.mergePeers));
+      }
 
-      const submitUrl = routes.chunkSubmitAsync(baseUrl);
+      const submitUrl = chunker === 'hybrid'
+        ? routes.hybridChunkSubmitAsync(baseUrl)
+        : routes.hierarchicalChunkSubmitAsync(baseUrl);
       const submitResponse = await fetchWithRetry(
         submitUrl,
         {
@@ -395,7 +449,11 @@ export function createDoclingClient({
 
       const taskId = submitParsed.data.task_id;
       let latestRawStatus = submitParsed.data.task_status;
-      let latestStatusPayload: { errors?: string[]; task_meta?: Record<string, unknown> | null } = {};
+      let latestStatusPayload: DoclingTaskErrorPayload = {
+        errors: submitParsed.data.errors,
+        error_message: submitParsed.data.error_message,
+        task_meta: submitParsed.data.task_meta ?? null,
+      };
       let latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
 
       if (latestInternalStatus === 'unknown') {
@@ -403,7 +461,7 @@ export function createDoclingClient({
           `Docling chunk async submit returned unknown task_status "${latestRawStatus}" for task ${taskId}`,
         );
       }
-      console.info(`${logPrefix} chunk task accepted taskId=${taskId} status=${latestRawStatus}`);
+      console.info(`${logPrefix} ${chunker} chunk task accepted taskId=${taskId} status=${latestRawStatus}`);
 
       const startedAt = Date.now();
       let pollCount = 0;
@@ -445,6 +503,7 @@ export function createDoclingClient({
         latestRawStatus = statusParsed.data.task_status;
         latestStatusPayload = {
           errors: statusParsed.data.errors,
+          error_message: statusParsed.data.error_message,
           task_meta: statusParsed.data.task_meta ?? null,
         };
         latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
@@ -458,7 +517,7 @@ export function createDoclingClient({
         pollCount += 1;
         if (pollCount === 1 || pollCount % 10 === 0 || isTerminalInternalStatus(latestInternalStatus)) {
           console.info(
-            `${logPrefix} chunk task poll taskId=${taskId} status=${latestRawStatus} elapsedMs=${Date.now() - startedAt}`,
+            `${logPrefix} ${chunker} chunk task poll taskId=${taskId} status=${latestRawStatus} elapsedMs=${Date.now() - startedAt}`,
           );
         }
       }
@@ -502,7 +561,7 @@ export function createDoclingClient({
       }
 
       console.info(
-        `${logPrefix} chunk task completed taskId=${taskId} chunks=${data.chunks.length} processingTime=${data.processing_time}`,
+        `${logPrefix} ${chunker} chunk task completed taskId=${taskId} chunks=${data.chunks.length} processingTime=${data.processing_time}`,
       );
 
       return data;
@@ -520,7 +579,7 @@ export function createDoclingClient({
 
         recoveryAttempt += 1;
         console.warn(
-          `${logPrefix} chunk task lost; resubmitting file="${fileName}" recoveryAttempt=${recoveryAttempt}/${chunkTaskRecoveryAttempts} reason=${error.message}`,
+          `${logPrefix} ${chunker} chunk task lost; resubmitting file="${fileName}" recoveryAttempt=${recoveryAttempt}/${chunkTaskRecoveryAttempts} reason=${error.message}`,
         );
       }
     }

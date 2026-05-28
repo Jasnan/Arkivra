@@ -42,6 +42,25 @@ export interface DocumentDetail extends DocumentSummary {
   language: DocumentLanguageMetadata | null;
 }
 
+export interface DocumentChunkSummary {
+  id: string;
+  chunkIndex: number;
+  content: string;
+  originalText: string | null;
+  section: string | null;
+  sectionPath: string[] | null;
+  pageNumber: number | null;
+  pageStart: number | null;
+  pageEnd: number | null;
+  chunkType: string | null;
+  tokenCount: number | null;
+  parserEngine: string | null;
+  citationPrecision: string;
+  sourceElementIds: string[] | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export interface TagSummary {
   id: string;
   name: string;

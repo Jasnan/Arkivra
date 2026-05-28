@@ -13,6 +13,7 @@ import {
   Menu as ChakraMenu,
   Portal,
   Spinner,
+  Tabs as ChakraTabs,
   chakra,
   Heading,
   IconButton,
@@ -71,7 +72,7 @@ import type {
   DocumentTranslationLanguage,
   DocumentTranslationSource,
 } from '@/features/documents/documents.api';
-import type { DocumentLanguageMetadata } from '@/features/documents/documents.types';
+import type { DocumentChunkSummary, DocumentLanguageMetadata } from '@/features/documents/documents.types';
 import {
   captureCanvasRegionAsPngBase64,
   createNormalizedRect,
@@ -81,6 +82,7 @@ import type { NormalizedPoint, NormalizedRect } from '@/features/documents/pdf-t
 import {
   documentQueryKeys,
   useDeletedDocumentsQuery,
+  useDocumentChunksQuery,
   useDocumentFileTextQuery,
   useDocumentQuery,
   useDocumentTagsQuery,
@@ -109,6 +111,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 type PreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported';
 export type DocumentSection = 'preview' | 'content' | 'metadata' | 'activity';
+type DocumentContentTab = 'text' | 'chunks';
 
 const documentActionTriggerStyles = {
   h: '10',
@@ -257,7 +260,7 @@ function DocumentViewHeader({
         <Heading as="h1" textStyle={{ base: 'xl', md: '2xl' }} fontWeight="semibold" lineHeight="short" truncate>
           {title}
         </Heading>
-        <Box mt="2" minW="0">
+        <Box mt="0" minW="0">
           {subtitle}
         </Box>
       </Box>
@@ -395,6 +398,119 @@ function TranslationResultText({ text }: { text: string }) {
     >
       {text}
     </Text>
+  );
+}
+
+function formatChunkPageLabel(chunk: DocumentChunkSummary) {
+  const start = chunk.pageStart ?? chunk.pageNumber;
+  const end = chunk.pageEnd ?? chunk.pageNumber;
+
+  if (start === null || start === undefined) {
+    return 'Document';
+  }
+
+  if (end === null || end === undefined || end === start) {
+    return `Page ${start}`;
+  }
+
+  return `Pages ${start}-${end}`;
+}
+
+function getChunkMetaItems(chunk: DocumentChunkSummary) {
+  return [
+    `#${chunk.chunkIndex + 1}`,
+    chunk.chunkType ?? 'chunk',
+    formatChunkPageLabel(chunk),
+    chunk.tokenCount !== null ? `${chunk.tokenCount} tokens` : null,
+    chunk.citationPrecision,
+  ].filter((item): item is string => item !== null && item.length > 0);
+}
+
+function DocumentChunkList({ chunks }: { chunks: DocumentChunkSummary[] }) {
+  if (chunks.length === 0) {
+    return (
+      <Flex
+        h="full"
+        minH="64"
+        align="center"
+        justify="center"
+        rounded="lg"
+        borderWidth="1px"
+        borderStyle="dashed"
+        borderColor="border.surface"
+        bg="bg.surface"
+        px="6"
+        textAlign="center"
+      >
+        <Box>
+          <Text fontSize="sm" fontWeight="semibold" color="fg">No chunks stored</Text>
+          <Text mt="1" fontSize="sm" color="fg.muted">
+            Chunks will appear after document processing completes.
+          </Text>
+        </Box>
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex direction="column" gap="3">
+      {chunks.map((chunk) => (
+        <Box
+          key={chunk.id}
+          rounded="lg"
+          borderWidth="1px"
+          borderColor="border.surface"
+          bg="bg.surface"
+          px={{ base: '4', md: '5' }}
+          py="4"
+        >
+          <Flex align="flex-start" justify="space-between" gap="4">
+            <Box minW="0">
+              <Text fontSize="sm" fontWeight="semibold" color="fg" truncate>
+                {chunk.section ?? `Chunk ${chunk.chunkIndex + 1}`}
+              </Text>
+              {chunk.sectionPath !== null && chunk.sectionPath.length > 1 ? (
+                <Text mt="0.5" fontSize="xs" color="fg.muted" truncate>
+                  {chunk.sectionPath.join(' / ')}
+                </Text>
+              ) : null}
+            </Box>
+            <Text flexShrink={0} fontSize="xs" fontWeight="medium" color="fg.muted">
+              {chunk.parserEngine ?? 'parser'}
+            </Text>
+          </Flex>
+          <Flex mt="3" flexWrap="wrap" gap="1.5">
+            {getChunkMetaItems(chunk).map(item => (
+              <Box
+                key={item}
+                as="span"
+                rounded="md"
+                borderWidth="1px"
+                borderColor="border.surface"
+                bg="bg.subtle"
+                px="2"
+                py="0.5"
+                fontSize="xs"
+                color="fg.muted"
+              >
+                {item}
+              </Box>
+            ))}
+          </Flex>
+          <Text
+            mt="3"
+            fontFamily="document"
+            fontSize="sm"
+            lineHeight="var(--arkivra-line-height-body)"
+            color="fg"
+            whiteSpace="pre-wrap"
+            overflowWrap="anywhere"
+          >
+            {chunk.content}
+          </Text>
+        </Box>
+      ))}
+    </Flex>
   );
 }
 
@@ -1028,9 +1144,10 @@ function PdfPreviewFrame({
 
   return (
     <Flex h="full" minH={{ base: '720px', md: '0' }} gap="3" direction={{ base: 'column', xl: 'row' }} overflow="hidden">
-    <Box flex="1 1 0" minW="0" h="full" overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
       <Box
         ref={viewportRef}
+        flex="1 1 0"
+        minW="0"
         position="relative"
         h="full"
         overflow="hidden"
@@ -1292,7 +1409,6 @@ function PdfPreviewFrame({
           </Flex>
         </Box>
       </Box>
-    </Box>
     {translationPane !== null && !translationsDisabled ? (
       <Box
         flex={{ base: '0 0 auto', xl: '0 0 22rem' }}
@@ -1629,6 +1745,17 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const [createTagNameValue, setCreateTagNameValue] = useState('');
   const [createTagColorValue, setCreateTagColorValue] = useState('#D8FF75');
   const [createTagDescriptionValue, setCreateTagDescriptionValue] = useState('');
+  const [documentContentTab, setDocumentContentTab] = useState<DocumentContentTab>('text');
+  const canShowExtractedTextTab = showExtractedTextTab && !isTrashDocumentRoute;
+  const detailActiveSection =
+    section === 'content' && !canShowExtractedTextTab
+      ? 'preview'
+      : section;
+  const documentChunksQuery = useDocumentChunksQuery({
+    vaultId,
+    documentId,
+    enabled: detailActiveSection === 'content' && documentContentTab === 'chunks' && !isTrashDocumentRoute,
+  });
 
   const documentBreadcrumbFolders = useMemo(() => {
     const folderId = documentQuery.data?.document.folderId;
@@ -1899,11 +2026,6 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     displayContent,
   );
   const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
-  const canShowExtractedTextTab = showExtractedTextTab && !isTrashDocumentRoute;
-  const detailActiveSection =
-    section === 'content' && !canShowExtractedTextTab
-      ? 'preview'
-      : section;
   const documentSectionSearch = location.search as Record<string, string | undefined>;
   const documentSectionMenuItems = !isTrashDocumentRoute
     ? [
@@ -1916,7 +2038,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
         ...(canShowExtractedTextTab
           ? [{
               key: 'content',
-              label: 'Extracted text',
+              label: 'Text & chunks',
               icon: ScanText,
               route: ROUTES.vaultDocumentExtractedText(vaultId, documentId),
             }]
@@ -2329,7 +2451,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
         pt="6"
       >
             {detailActiveSection === 'preview' ? (
-              <Flex h="full" minH="0" direction="column" gap="4">
+              <>
                 {previewKind === 'pdf' && canPreview ? (
                   <PdfPreviewFrame
                     key={inlineFileUrl}
@@ -2378,25 +2500,24 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                 ) : null}
 
                 {previewKind === 'markdown' && canPreview ? (
-                  <Box h="full" minH={{ base: '720px', md: '0' }} overflow="hidden" rounded="lg" bg="bg.subtle" p="2">
-                    <Box
-                      h="full"
-                      overflow="auto"
-                      rounded="lg"
-                      borderWidth="1px"
-                      borderColor="border.surface"
-                      bg="bg.surface"
-                      px={{ base: '4', md: '8' }}
-                      py={{ base: '5', md: '7' }}
-                    >
-                      {markdownSourceQuery.isLoading && markdownSourceQuery.data === undefined ? (
-                        <Text fontSize="sm" color="fg.muted">Loading Markdown preview...</Text>
-                      ) : markdownSourceQuery.isError && fallbackMarkdownContent.length === 0 ? (
-                        <Text fontSize="sm" color="fg.error">Unable to load Markdown preview.</Text>
-                      ) : (
-                        <DocumentMarkdownPreview markdown={markdownSourceQuery.data ?? fallbackMarkdownContent} />
-                      )}
-                    </Box>
+                  <Box
+                    h="full"
+                    minH={{ base: '720px', md: '0' }}
+                    overflow="auto"
+                    rounded="lg"
+                    borderWidth="1px"
+                    borderColor="border.surface"
+                    bg="bg.surface"
+                    px={{ base: '4', md: '8' }}
+                    py={{ base: '5', md: '7' }}
+                  >
+                    {markdownSourceQuery.isLoading && markdownSourceQuery.data === undefined ? (
+                      <Text fontSize="sm" color="fg.muted">Loading Markdown preview...</Text>
+                    ) : markdownSourceQuery.isError && fallbackMarkdownContent.length === 0 ? (
+                      <Text fontSize="sm" color="fg.error">Unable to load Markdown preview.</Text>
+                    ) : (
+                      <DocumentMarkdownPreview markdown={markdownSourceQuery.data ?? fallbackMarkdownContent} />
+                    )}
                   </Box>
                 ) : null}
 
@@ -2430,7 +2551,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                     </Flex>
                   </Box>
                 ) : null}
-              </Flex>
+              </>
             ) : null}
 
             {detailActiveSection === 'content' ? (
@@ -2467,24 +2588,79 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                   <Text fontSize="sm" lineHeight="6" color="fg.muted">
                     {isExtractionActive
                       ? 'The document detail view polls the backend while processing is in progress.'
-                      : 'OCR and extracted text appear here after processing completes.'}
+                      : 'Extracted text and retrieval chunks appear here after processing completes.'}
                   </Text>
                 </Flex>
-                <Box
-                  className="arkivra-document-content"
-                  h={{ base: '82vh', md: '820px' }}
-                  overflow="auto"
-                  rounded="lg"
-                  bg="bg.subtle"
-                  p="5"
-                  fontFamily="document"
-                  fontSize="sm"
-                  whiteSpace="pre-wrap"
-                  wordBreak="break-word"
-                  color="fg"
+                <ChakraTabs.Root
+                  value={documentContentTab}
+                  onValueChange={(event) => {
+                    if (event.value === 'text' || event.value === 'chunks') {
+                      setDocumentContentTab(event.value);
+                    }
+                  }}
+                  display="flex"
+                  flexDirection="column"
+                  gap="3"
                 >
-                  {extractedTextMessage}
-                </Box>
+                  <ChakraTabs.List
+                    alignSelf="flex-start"
+                    rounded="lg"
+                    borderWidth="1px"
+                    borderColor="border.surface"
+                    bg="bg.surface"
+                    p="1"
+                  >
+                    <ChakraTabs.Trigger value="text" px="3" py="2" rounded="md" fontSize="sm">
+                      Extracted text
+                    </ChakraTabs.Trigger>
+                    <ChakraTabs.Trigger value="chunks" px="3" py="2" rounded="md" fontSize="sm">
+                      Chunks
+                    </ChakraTabs.Trigger>
+                  </ChakraTabs.List>
+
+                  <ChakraTabs.Content value="text" m="0">
+                    <Box
+                      className="arkivra-document-content"
+                      h={{ base: '82vh', md: '820px' }}
+                      overflow="auto"
+                      rounded="lg"
+                      bg="bg.subtle"
+                      p="5"
+                      fontFamily="document"
+                      fontSize="sm"
+                      whiteSpace="pre-wrap"
+                      wordBreak="break-word"
+                      color="fg"
+                    >
+                      {extractedTextMessage}
+                    </Box>
+                  </ChakraTabs.Content>
+
+                  <ChakraTabs.Content value="chunks" m="0">
+                    <Box
+                      h={{ base: '82vh', md: '820px' }}
+                      overflow="auto"
+                      rounded="lg"
+                      bg="bg.subtle"
+                      p={{ base: '3', md: '4' }}
+                    >
+                      {documentChunksQuery.isLoading ? (
+                        <Flex h="full" minH="64" align="center" justify="center" gap="3" color="fg.muted">
+                          <Spinner size="sm" color="teal.solid" />
+                          <Text fontSize="sm">Loading chunks...</Text>
+                        </Flex>
+                      ) : documentChunksQuery.isError ? (
+                        <Flex h="full" minH="64" align="center" justify="center" px="6" textAlign="center">
+                          <Text fontSize="sm" fontWeight="semibold" color="fg.error">
+                            Unable to load chunks.
+                          </Text>
+                        </Flex>
+                      ) : (
+                        <DocumentChunkList chunks={documentChunksQuery.data?.chunks ?? []} />
+                      )}
+                    </Box>
+                  </ChakraTabs.Content>
+                </ChakraTabs.Root>
               </Flex>
             ) : null}
 

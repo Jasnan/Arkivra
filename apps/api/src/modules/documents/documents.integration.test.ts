@@ -81,6 +81,26 @@ function createMockDocumentsServices() {
       deletedAt: null,
       createdBy: 'Jane Doe',
     })),
+    listDocumentChunks: vi.fn(async () => [
+      {
+        id: 'chk_1',
+        chunkIndex: 0,
+        content: 'Stored chunk content',
+        originalText: 'Stored chunk content',
+        section: 'Policy scope',
+        sectionPath: ['Policy scope'],
+        pageNumber: null,
+        pageStart: null,
+        pageEnd: null,
+        chunkType: 'paragraph',
+        tokenCount: 12,
+        parserEngine: 'docling',
+        citationPrecision: 'document',
+        sourceElementIds: ['#/texts/1'],
+        metadata: { doclingFilename: 'Policy.txt' },
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ]),
     renameDocument: vi.fn(async ({ name }) => ({
       success: true,
       document: {
@@ -755,6 +775,43 @@ describe('documents integration', () => {
     const app = createTestApp({ docServices });
 
     const response = await app.request('/api/vaults/vlt_1/documents/doc_missing', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(404);
+    const body = (await response.json()) as any;
+    expect(body.error.code).toBe('document.not_found');
+  });
+
+  test('lists stored document chunks', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/chunks', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.chunks).toHaveLength(1);
+    expect(body.chunks[0]).toMatchObject({
+      id: 'chk_1',
+      content: 'Stored chunk content',
+      section: 'Policy scope',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(docServices.listDocumentChunks).toHaveBeenCalledWith({
+      documentId: 'doc_1',
+      vaultId: 'vlt_1',
+    });
+  });
+
+  test('returns 404 when listing chunks for a non-existent document', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).listDocumentChunks = vi.fn(async () => null);
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_missing/chunks', {
       headers: { 'x-test-user-id': 'usr_1' },
     });
 

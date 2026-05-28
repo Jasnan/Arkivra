@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { SearchSortBy } from '@/features/search/search.types';
 import { isDocumentProcessingActive } from './documents.utils';
-import { getDocument, getDocumentFileText, listDeletedDocuments, listDocuments, listDocumentTags } from './documents.api';
+import { getDocument, getDocumentFileText, listDeletedDocuments, listDocumentChunks, listDocuments, listDocumentTags } from './documents.api';
 
 export const documentQueryKeys = {
   all: ['documents'] as const,
@@ -18,6 +18,8 @@ export const documentQueryKeys = {
   deletedList: (vaultId?: string) => [...documentQueryKeys.all, 'deleted-list', vaultId ?? 'all'] as const,
   detail: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'detail', vaultId, documentId] as const,
+  chunks: (vaultId: string, documentId: string) =>
+    [...documentQueryKeys.all, 'chunks', vaultId, documentId] as const,
   fileText: (vaultId: string, documentId: string, includeDeleted = false) =>
     [...documentQueryKeys.all, 'file-text', vaultId, documentId, includeDeleted] as const,
   tags: (vaultId: string, documentId: string) =>
@@ -77,6 +79,22 @@ export function useDocumentTagsQuery({ vaultId, documentId }: { vaultId: string;
     queryKey: documentQueryKeys.tags(vaultId, documentId),
     queryFn: () => listDocumentTags({ vaultId, documentId }),
     enabled: vaultId.length > 0 && documentId.length > 0,
+  });
+}
+
+export function useDocumentChunksQuery({
+  vaultId,
+  documentId,
+  enabled = true,
+}: {
+  vaultId: string;
+  documentId: string;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: documentQueryKeys.chunks(vaultId, documentId),
+    queryFn: () => listDocumentChunks({ vaultId, documentId }),
+    enabled: enabled && vaultId.length > 0 && documentId.length > 0,
   });
 }
 

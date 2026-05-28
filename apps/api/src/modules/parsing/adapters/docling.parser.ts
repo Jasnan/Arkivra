@@ -3,9 +3,11 @@ import type { DocumentParser, ParseInput, ParserCapabilities } from '../parser.t
 import type { ParsedChunk, ParserOutput } from '../parsed-document.schema.js';
 import type { ImageCaptioner } from '../image-captioner.js';
 import type { DoclingChunkResponse } from './docling.schema.js';
+import { DEFAULT_DOCLING_CHUNK_OPTIONS } from '../../docling/docling.client.js';
 import { PDFDocument } from 'pdf-lib';
 import { ParserValidationError } from '../parser.types.js';
 import { parserOutputSchema } from '../parsed-document.schema.js';
+import { decidePdfDoOcr } from '../pdf-ocr-decider.js';
 import {
   deriveDoclingPlainText,
   extractDataUriImages,
@@ -116,6 +118,9 @@ type DoclingParsedPart = {
   warnings: string[];
 };
 
+type DoclingParsedChunker = 'hybrid' | 'hierarchical';
+type DoclingChunkInput = 'original_file' | 'extracted_text';
+
 function isPdfMimeType(mimeType: string) {
   return mimeType.toLowerCase() === 'application/pdf';
 }
@@ -127,6 +132,13 @@ function splitFileName(fileName: string, partIndex: number, partCount: number) {
   return dotIndex >= 0
     ? `${fileName.slice(0, dotIndex)}${suffix}.pdf`
     : `${fileName}${suffix}.pdf`;
+}
+
+function buildExtractedTextChunkFileName(fileName: string) {
+  const dotIndex = fileName.lastIndexOf('.');
+  const baseName = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
+
+  return `${baseName}.extracted.md`;
 }
 
 async function buildDoclingInputParts({
@@ -248,6 +260,20 @@ function offsetChunks({
   });
 }
 
+function normalizeCoverageText(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function hasIncompleteChunkCoverage(chunks: ParsedChunk[], text: string) {
+  const normalizedText = normalizeCoverageText(text);
+  if (normalizedText.length === 0) return false;
+  if (chunks.length === 0) return true;
+  if (chunks.some(chunk => chunk.images.length > 0 || chunk.tablesHtml.length > 0)) return false;
+
+  const normalizedChunkText = normalizeCoverageText(chunks.map(chunk => chunk.originalText || chunk.text).join('\n\n'));
+  return normalizedText.length >= 80 && normalizedChunkText.length < normalizedText.length * 0.5;
+}
+
 export function createDoclingParser({
   doclingClient,
   engineVersion = 'v1',
@@ -263,11 +289,15 @@ export function createDoclingParser({
     input,
     part,
     chunkStartIndex,
+    chunker,
+    chunkInput = 'original_file',
   }: {
     response: DoclingChunkResponse;
     input: ParseInput;
     part: DoclingInputPart;
     chunkStartIndex: number;
+    chunker: DoclingParsedChunker;
+    chunkInput?: DoclingChunkInput;
   }): Promise<DoclingParsedPart> {
     const docContent = response.documents[0]?.content;
     const rawMarkdown = docContent?.md_content ?? '';
@@ -323,7 +353,14 @@ export function createDoclingParser({
         imageCaptioner,
         warnings,
       }),
-    });
+    }).map(chunk => ({
+      ...chunk,
+      metadata: {
+        ...chunk.metadata,
+        doclingChunker: chunker,
+        doclingChunkInput: chunkInput,
+      },
+    }));
 
     return {
       text,
@@ -362,23 +399,81 @@ export function createDoclingParser({
 
     const parsedParts: DoclingParsedPart[] = [];
     let chunkStartIndex = 0;
+    const doOcr = await decidePdfDoOcr(input);
 
     for (const part of parts) {
-      const response = await doclingClient.chunkFile({
+      const hybridResponse = await doclingClient.chunkFile({
         fileName: part.fileName,
         mimeType: input.mimeType,
         fileData: part.fileData,
+        chunker: 'hybrid',
         convertOptions: {
-          doOcr: false,
+          doOcr,
         },
       });
 
-      const parsedPart = await parseDoclingResponse({
-        response,
+      let parsedPart = await parseDoclingResponse({
+        response: hybridResponse,
         input,
         part,
         chunkStartIndex,
+        chunker: 'hybrid',
       });
+
+      if (hasIncompleteChunkCoverage(parsedPart.chunks, parsedPart.text)) {
+        const hierarchicalResponse = await doclingClient.chunkFile({
+          fileName: part.fileName,
+          mimeType: input.mimeType,
+          fileData: part.fileData,
+          chunker: 'hierarchical',
+          convertOptions: {
+            doOcr,
+          },
+        });
+        const hierarchicalPart = await parseDoclingResponse({
+          response: hierarchicalResponse,
+          input,
+          part,
+          chunkStartIndex,
+          chunker: 'hierarchical',
+        });
+        hierarchicalPart.warnings.unshift(
+          `docling.hybrid_chunk_coverage_incomplete:${hybridResponse.chunks.length}->${hierarchicalResponse.chunks.length}`,
+        );
+        if (hasIncompleteChunkCoverage(hierarchicalPart.chunks, hierarchicalPart.text)) {
+          hierarchicalPart.warnings.push(`docling.hierarchical_chunk_coverage_incomplete:${hierarchicalResponse.chunks.length}`);
+          const extractedText = hierarchicalPart.text.trim();
+          if (extractedText.length > 0) {
+            const extractedTextResponse = await doclingClient.chunkFile({
+              fileName: buildExtractedTextChunkFileName(part.fileName),
+              mimeType: 'text/markdown',
+              fileData: Buffer.from(extractedText),
+              chunker: 'hybrid',
+              chunkOptions: DEFAULT_DOCLING_CHUNK_OPTIONS,
+              convertOptions: {
+                doOcr: false,
+              },
+            });
+            const extractedTextPart = await parseDoclingResponse({
+              response: extractedTextResponse,
+              input,
+              part,
+              chunkStartIndex,
+              chunker: 'hybrid',
+              chunkInput: 'extracted_text',
+            });
+            hierarchicalPart.chunks = extractedTextPart.chunks;
+            hierarchicalPart.warnings.push(
+              `docling.extracted_text_hybrid_chunk_fallback:${hierarchicalResponse.chunks.length}->${extractedTextResponse.chunks.length}`,
+            );
+            hierarchicalPart.warnings.push(...extractedTextPart.warnings);
+            if (hasIncompleteChunkCoverage(extractedTextPart.chunks, extractedText)) {
+              hierarchicalPart.warnings.push(`docling.extracted_text_hybrid_chunk_coverage_incomplete:${extractedTextResponse.chunks.length}`);
+            }
+          }
+        }
+        parsedPart = hierarchicalPart;
+      }
 
       parsedParts.push(parsedPart);
       chunkStartIndex += parsedPart.chunks.length;

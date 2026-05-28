@@ -216,7 +216,7 @@ describe('documents page', () => {
     expect(within(header).queryByText('Home In...')).not.toBeInTheDocument();
   });
 
-  it('shows the extracted text document action when enabled in preferences', async () => {
+  it('shows the text and chunks document action when enabled in preferences', async () => {
     const user = userEvent.setup();
     window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
       themeMode: 'system',
@@ -238,7 +238,53 @@ describe('documents page', () => {
     });
 
     await user.click(await screen.findByRole('button', { name: /open actions/i }));
-    expect(screen.getByRole('menuitem', { name: /extracted text/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /text & chunks/i })).toBeInTheDocument();
+  });
+
+  it('shows stored chunks in the document content view', async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      timezone: 'auto',
+      dateFormat: 'medium',
+      showExtractedTextTab: true,
+    }));
+    installDocumentDetailFetchMock({
+      chunks: [{
+        id: 'chk_1',
+        chunkIndex: 0,
+        content: 'Stored chunk content',
+        originalText: 'Stored chunk content',
+        section: 'Policy scope',
+        sectionPath: ['Policy scope'],
+        pageNumber: null,
+        pageStart: null,
+        pageEnd: null,
+        chunkType: 'paragraph',
+        tokenCount: 12,
+        parserEngine: 'docling',
+        citationPrecision: 'document',
+        sourceElementIds: ['#/texts/1'],
+        metadata: { doclingFilename: 'Policy.txt' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+
+    await renderWithProviders(<DocumentDetailPage section="content" />, {
+      initialEntries: ['/vaults/vlt_1/doc_1/extracted-text'],
+      routePath: '/vaults/:vaultId/:documentId/extracted-text',
+    });
+
+    expect(await screen.findByText('Extracted policy text')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /^chunks$/i }));
+    expect(await screen.findByText('Stored chunk content')).toBeInTheDocument();
+    expect(screen.getByText('Policy scope')).toBeInTheDocument();
   });
 
   it('uses the stored default project view while keeping view toggles session-local', async () => {
@@ -367,7 +413,13 @@ function installVaultContentsFetchMock({
   });
 }
 
-function installDocumentDetailFetchMock({ documentName = 'Policy.txt' }: { documentName?: string } = {}) {
+function installDocumentDetailFetchMock({
+  documentName = 'Policy.txt',
+  chunks = [],
+}: {
+  documentName?: string;
+  chunks?: unknown[];
+} = {}) {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
@@ -396,6 +448,10 @@ function installDocumentDetailFetchMock({ documentName = 'Policy.txt' }: { docum
 
     if (url === '/api/vaults/vlt_1/documents/doc_1/tags') {
       return jsonResponse({ tags: [] });
+    }
+
+    if (url === '/api/vaults/vlt_1/documents/doc_1/chunks') {
+      return jsonResponse({ chunks });
     }
 
     if (url === '/api/tags') {

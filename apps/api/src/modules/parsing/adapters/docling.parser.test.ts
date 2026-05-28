@@ -3,6 +3,7 @@ import type { DoclingConvertResponse } from './docling.schema.js';
 import type { ImageCaptioner } from '../image-captioner.js';
 import { PDFDocument } from 'pdf-lib';
 import { describe, expect, test, vi } from 'vitest';
+import { DEFAULT_DOCLING_CHUNK_OPTIONS } from '../../docling/docling.client.js';
 import { createDoclingParser } from './docling.parser.js';
 
 const DOCILING_JSON_FIXTURE = {
@@ -163,6 +164,69 @@ const DOCILING_JSON_FIXTURE = {
   groups: [],
 };
 
+const SCANNED_TEXT_JSON_FIXTURE = {
+  schema_name: 'DoclingDocument',
+  body: {
+    children: [
+      { cref: '#/texts/0' },
+      { cref: '#/texts/1' },
+      { cref: '#/texts/2' },
+      { cref: '#/texts/3' },
+      { cref: '#/texts/4' },
+    ],
+  },
+  pages: {
+    1: {
+      size: { width: 612, height: 792 },
+    },
+  },
+  texts: [
+    {
+      self_ref: '#/texts/0',
+      label: 'text',
+      text: 'P<INDKUMAR<<VINEETH<<<<<<<<<<<<<<<<<<<',
+      parent: { cref: '#/body' },
+      children: [],
+      prov: [{ page_no: 1, bbox: { l: 40, t: 40, r: 500, b: 60, coord_origin: 'TOPLEFT' } }],
+    },
+    {
+      self_ref: '#/texts/1',
+      label: 'text',
+      text: 'HIRG TURIVIREPUBLIC OFINDIA',
+      parent: { cref: '#/body' },
+      children: [],
+      prov: [{ page_no: 1, bbox: { l: 40, t: 80, r: 500, b: 100, coord_origin: 'TOPLEFT' } }],
+    },
+    {
+      self_ref: '#/texts/2',
+      label: 'text',
+      text: 'q/Type P',
+      parent: { cref: '#/body' },
+      children: [],
+      prov: [{ page_no: 1, bbox: { l: 40, t: 120, r: 180, b: 140, coord_origin: 'TOPLEFT' } }],
+    },
+    {
+      self_ref: '#/texts/3',
+      label: 'text',
+      text: 'as/ Code IND',
+      parent: { cref: '#/body' },
+      children: [],
+      prov: [{ page_no: 1, bbox: { l: 40, t: 160, r: 180, b: 180, coord_origin: 'TOPLEFT' } }],
+    },
+    {
+      self_ref: '#/texts/4',
+      label: 'text',
+      text: '/Nationality R/INDIAN\n.Passport No',
+      parent: { cref: '#/body' },
+      children: [],
+      prov: [{ page_no: 1, bbox: { l: 40, t: 200, r: 260, b: 240, coord_origin: 'TOPLEFT' } }],
+    },
+  ],
+  tables: [],
+  pictures: [],
+  groups: [],
+};
+
 function makeChunkResponse(
   overrides: Partial<DoclingChunkResponse> = {},
 ): DoclingChunkResponse {
@@ -243,6 +307,29 @@ describe('docling parser adapter', () => {
     expect(output.chunks).toHaveLength(2);
     expect(output.chunks?.[0]?.section).toBe('Title');
     expect(output).not.toHaveProperty('documentId');
+  });
+
+  test('sends plain text files through Docling chunking', async () => {
+    const doclingClient = makeDoclingClient(makeChunkResponse());
+    const parser = createDoclingParser({ doclingClient });
+
+    const output = await parser.parse({
+      documentId: 'doc_txt',
+      fileName: 'notes.txt',
+      mimeType: 'text/plain',
+      fileData: Buffer.from('First paragraph.\n\nSecond paragraph.'),
+    });
+
+    expect(doclingClient.chunkFile).toHaveBeenCalledWith({
+      fileName: 'notes.txt',
+      mimeType: 'text/plain',
+      fileData: Buffer.from('First paragraph.\n\nSecond paragraph.'),
+      chunker: 'hybrid',
+      convertOptions: {
+        doOcr: true,
+      },
+    });
+    expect(output.chunks).toHaveLength(2);
   });
 
   test('maps Docling json_content into structured elements, tables, and images', async () => {
@@ -378,6 +465,206 @@ describe('docling parser adapter', () => {
 
     expect(output.warnings).toContain('docling.partial_success');
     expect(output.warnings).toContain('ocr warning');
+  });
+
+  test('uses Docling hierarchical chunking when hybrid chunks cover only a small prefix', async () => {
+    const convertedDocument = {
+      kind: 'ExportResult' as const,
+      content: {
+        md_content: '',
+        text_content: [
+          'P<INDKUMAR<<VINEETH<<<<<<<<<<<<<<<<<<<',
+          'HIRG TURIVIREPUBLIC OFINDIA',
+          'q/Type P',
+          'as/ Code IND',
+          '/Nationality R/INDIAN',
+          '.Passport No',
+        ].join('\n\n'),
+        json_content: SCANNED_TEXT_JSON_FIXTURE,
+        html_content: '',
+        doctags_content: '',
+      },
+      status: 'success',
+      errors: [],
+    };
+    const hybridResponse = makeChunkResponse({
+      chunks: [{
+        filename: 'passport.pdf',
+        chunk_index: 0,
+        text: 'P<INDKUMAR<<VINEETH<<<<<<<<<<<<<<<<<<<',
+        doc_items: ['#/texts/0'],
+      }],
+      documents: [convertedDocument],
+    });
+    const hierarchicalResponse = makeChunkResponse({
+      chunks: [
+        {
+          filename: 'passport.pdf',
+          chunk_index: 0,
+          text: [
+            'P<INDKUMAR<<VINEETH<<<<<<<<<<<<<<<<<<<',
+            'HIRG TURIVIREPUBLIC OFINDIA',
+            'q/Type P',
+          ].join('\n\n'),
+          raw_text: [
+            'P<INDKUMAR<<VINEETH<<<<<<<<<<<<<<<<<<<',
+            'HIRG TURIVIREPUBLIC OFINDIA',
+            'q/Type P',
+          ].join('\n\n'),
+          doc_items: ['#/texts/0', '#/texts/1', '#/texts/2'],
+        },
+        {
+          filename: 'passport.pdf',
+          chunk_index: 1,
+          text: [
+            'as/ Code IND',
+            '/Nationality R/INDIAN',
+            '.Passport No',
+          ].join('\n\n'),
+          raw_text: [
+            'as/ Code IND',
+            '/Nationality R/INDIAN',
+            '.Passport No',
+          ].join('\n\n'),
+          doc_items: ['#/texts/3', '#/texts/4'],
+        },
+      ],
+      documents: [convertedDocument],
+    });
+    const chunkFile = vi.fn(async ({ chunker }: { chunker?: 'hybrid' | 'hierarchical' }) =>
+      chunker === 'hierarchical' ? hierarchicalResponse : hybridResponse,
+    );
+    const parser = createDoclingParser({
+      doclingClient: {
+        convertFile: vi.fn(),
+        chunkFile,
+      } as unknown as DoclingClient,
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_passport',
+      fileName: 'passport.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(chunkFile).toHaveBeenNthCalledWith(1, expect.objectContaining({ chunker: 'hybrid' }));
+    expect(chunkFile).toHaveBeenNthCalledWith(2, expect.objectContaining({ chunker: 'hierarchical' }));
+    expect(output.warnings).toContain('docling.hybrid_chunk_coverage_incomplete:1->2');
+    expect(output.chunks).toHaveLength(2);
+    expect(output.chunks?.[1]?.text).toContain('Passport No');
+    expect(output.chunks?.[0]?.sourceElementIds).toEqual([
+      '#/texts/0',
+      '#/texts/1',
+      '#/texts/2',
+    ]);
+    expect(output.chunks?.[0]?.metadata.doclingChunker).toBe('hierarchical');
+    expect(output.chunks?.[0]?.citationPrecision).toBe('box');
+  });
+
+  test('chunks Docling extracted text with hierarchical chunker when original-file chunkers stay incomplete', async () => {
+    const convertedDocument = {
+      kind: 'ExportResult' as const,
+      content: {
+        md_content: '',
+        text_content: [
+          'P<INDKUMAR<<VINEETH<<<<<<<<<<<<<<<<<<<',
+          'HIRG TURIVIREPUBLIC OFINDIA',
+          'q/Type P',
+          'as/ Code IND',
+          '/Nationality R/INDIAN',
+          '.Passport No',
+        ].join('\n\n'),
+        json_content: SCANNED_TEXT_JSON_FIXTURE,
+        html_content: '',
+        doctags_content: '',
+      },
+      status: 'success',
+      errors: [],
+    };
+    const incompleteResponse = makeChunkResponse({
+      chunks: [{
+        filename: 'passport.pdf',
+        chunk_index: 0,
+        text: 'P<INDKUMAR<<VINEETH<<<<<<<<<<<<<<<<<<<',
+        doc_items: ['#/texts/0'],
+      }],
+      documents: [convertedDocument],
+    });
+    const extractedTextChunkResponse = makeChunkResponse({
+      chunks: [{
+        filename: 'passport.extracted.md',
+        chunk_index: 0,
+        text: convertedDocument.content.text_content,
+        raw_text: convertedDocument.content.text_content,
+        doc_items: [],
+      }],
+      documents: [{
+        kind: 'ExportResult' as const,
+        content: {
+          md_content: convertedDocument.content.text_content,
+          text_content: convertedDocument.content.text_content,
+          json_content: null,
+          html_content: '',
+          doctags_content: '',
+        },
+        status: 'success',
+        errors: [],
+      }],
+    });
+    const chunkFile = vi.fn(async ({
+      chunker,
+      fileName,
+    }: {
+      chunker?: 'hybrid' | 'hierarchical';
+      fileName: string;
+    }) => {
+      if (chunker === 'hybrid' && fileName === 'passport.extracted.md') {
+        return extractedTextChunkResponse;
+      }
+
+      return incompleteResponse;
+    });
+    const parser = createDoclingParser({
+      doclingClient: {
+        convertFile: vi.fn(),
+        chunkFile,
+      } as unknown as DoclingClient,
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_passport_text',
+      fileName: 'passport.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(chunkFile).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      chunker: 'hybrid',
+      fileName: 'passport.pdf',
+    }));
+    expect(chunkFile).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      chunker: 'hierarchical',
+      fileName: 'passport.pdf',
+    }));
+    expect(chunkFile).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      chunker: 'hybrid',
+      fileName: 'passport.extracted.md',
+      mimeType: 'text/markdown',
+      fileData: Buffer.from(convertedDocument.content.text_content),
+      chunkOptions: DEFAULT_DOCLING_CHUNK_OPTIONS,
+      convertOptions: {
+        doOcr: false,
+      },
+    }));
+    expect(output.rawStructuredOutput).toEqual(SCANNED_TEXT_JSON_FIXTURE);
+    expect(output.warnings).toContain('docling.hybrid_chunk_coverage_incomplete:1->1');
+    expect(output.warnings).toContain('docling.hierarchical_chunk_coverage_incomplete:1');
+    expect(output.warnings).toContain('docling.extracted_text_hybrid_chunk_fallback:1->1');
+    expect(output.chunks).toHaveLength(1);
+    expect(output.chunks?.[0]?.text).toContain('Passport No');
+    expect(output.chunks?.[0]?.metadata.doclingChunker).toBe('hybrid');
+    expect(output.chunks?.[0]?.metadata.doclingChunkInput).toBe('extracted_text');
   });
 
   test('tolerates Docling returning null for unrequested format fields', async () => {
@@ -580,7 +867,7 @@ describe('docling parser adapter', () => {
     expect(output.structuredElements).toBeDefined();
   });
 
-  test('forces OCR off for Docling chunking', async () => {
+  test('uses OCR for Docling chunking when the PDF needs it', async () => {
     const doclingClient = makeDoclingClient(makeChunkResponse());
     const parser = createDoclingParser({
       doclingClient,
@@ -595,7 +882,7 @@ describe('docling parser adapter', () => {
 
     expect(doclingClient.chunkFile).toHaveBeenCalledWith(expect.objectContaining({
       convertOptions: {
-        doOcr: false,
+        doOcr: true,
       },
     }));
   });

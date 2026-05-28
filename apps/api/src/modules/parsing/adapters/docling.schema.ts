@@ -1,17 +1,53 @@
 import { z } from 'zod';
 
+function stringifyDoclingError(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const message = record.message ?? record.error_message ?? record.detail ?? record.msg ?? record.code;
+
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  return String(value);
+}
+
+const doclingErrorsSchema = z
+  .array(z.unknown())
+  .optional()
+  .default([])
+  .transform(errors => errors.map(stringifyDoclingError));
+
 export const doclingSubmitResponseSchema = z.object({
   task_id: z.string().min(1),
+  task_type: z.string().min(1).optional(),
   task_status: z.string().min(1),
+  task_position: z.number().int().nullable().optional(),
+  task_meta: z.record(z.string(), z.unknown()).nullable().optional(),
+  error_message: z.string().nullable().optional(),
+  errors: doclingErrorsSchema.optional(),
 });
 export type DoclingSubmitResponse = z.infer<typeof doclingSubmitResponseSchema>;
 
 export const doclingStatusResponseSchema = z.object({
   task_id: z.string().min(1),
+  task_type: z.string().min(1).optional(),
   task_status: z.string().min(1),
   task_position: z.number().int().nullable().optional(),
   task_meta: z.record(z.string(), z.unknown()).nullable().optional(),
-  errors: z.array(z.string()).optional(),
+  error_message: z.string().nullable().optional(),
+  errors: doclingErrorsSchema.optional(),
 });
 export type DoclingStatusResponse = z.infer<typeof doclingStatusResponseSchema>;
 
@@ -32,7 +68,7 @@ export const doclingConvertResponseSchema = z.object({
     .passthrough(),
   status: z.string().min(1),
   processing_time: z.number().optional(),
-  errors: z.array(z.string()).optional().default([]),
+  errors: doclingErrorsSchema,
 });
 export type DoclingConvertResponse = z.infer<typeof doclingConvertResponseSchema>;
 
@@ -99,7 +135,7 @@ export const doclingChunkResponseSchema = z.object({
         })
         .passthrough(),
       status: z.string().min(1),
-      errors: z.array(z.string()).optional().default([]),
+      errors: doclingErrorsSchema,
     }),
   ),
   processing_time: z.number().optional(),

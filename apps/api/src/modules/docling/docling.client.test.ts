@@ -49,7 +49,8 @@ describe('docling client', () => {
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
     expect(submitBody.getAll('to_formats')).toEqual(['json', 'md']);
-    expect(submitBody.get('ocr_engine')).toBe('tesseract');
+    expect(submitBody.get('ocr_preset')).toBe('auto');
+    expect(submitBody.has('ocr_engine')).toBe(false);
     expect(submitBody.getAll('ocr_lang')).toEqual(['deu', 'eng']);
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -108,6 +109,45 @@ describe('docling client', () => {
     expect(submitBody.getAll('ocr_lang')).toEqual(['auto']);
   });
 
+  test('allows overriding the OCR preset', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_preset', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        document: {
+          md_content: '# Title',
+          text_content: 'Title',
+          json_content: {},
+          html_content: '',
+          doctags_content: '',
+        },
+        status: 'success',
+        processing_time: 1.2,
+        errors: [],
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      convertOptions: {
+        ocrPreset: 'easyocr',
+      },
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.convertFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    });
+
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.get('ocr_preset')).toBe('easyocr');
+    expect(submitBody.has('ocr_engine')).toBe(false);
+  });
+
   test('throws when async status reaches failure', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_2', task_status: 'queued' }))
@@ -150,6 +190,37 @@ describe('docling client', () => {
       mimeType: 'application/pdf',
       fileData: Buffer.from('pdf-bytes'),
     })).rejects.toThrow(/unknown task_status "warp_drive"/);
+  });
+
+  test('includes documented async task error_message when submit returns a failed task', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        task_id: 'task_failed',
+        task_type: 'convert',
+        task_status: 'failed',
+        task_position: 0,
+        task_meta: {
+          num_docs: 1,
+          num_processed: 1,
+          num_succeeded: 0,
+          num_failed: 1,
+        },
+        error_message: 'File format not allowed: test.txt',
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await expect(client.convertFile({
+      fileName: 'test.txt',
+      mimeType: 'text/plain',
+      fileData: Buffer.from('plain text'),
+    })).rejects.toThrow(/File format not allowed: test\.txt/i);
   });
 
   test('accepts null values in optional format fields', async () => {
@@ -277,7 +348,120 @@ describe('docling client', () => {
 
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
-    expect(submitBody.get('do_ocr')).toBe('false');
+    expect(submitBody.get('include_converted_doc')).toBe('true');
+    expect(submitBody.get('target_type')).toBe('inbody');
+    expect(submitBody.get('convert_do_ocr')).toBe('false');
+    expect(submitBody.get('convert_ocr_preset')).toBe('auto');
+    expect(submitBody.getAll('convert_ocr_lang')).toEqual(['deu', 'eng']);
+    expect(submitBody.get('convert_include_images')).toBe('true');
+    expect(submitBody.get('convert_image_export_mode')).toBe('embedded');
+    expect(submitBody.get('chunking_include_raw_text')).toBe('true');
+    expect(submitBody.get('chunking_max_tokens')).toBe('512');
+    expect(submitBody.get('chunking_merge_peers')).toBe('true');
+    expect(submitBody.has('do_ocr')).toBe(false);
+    expect(submitBody.has('ocr_preset')).toBe(false);
+    expect(submitBody.has('ocr_lang')).toBe(false);
+    expect(submitBody.has('max_tokens')).toBe(false);
+    expect(submitBody.has('merge_peers')).toBe(false);
+  });
+
+  test('submits hierarchical chunk requests to the documented endpoint', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_hierarchical', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        chunks: [],
+        documents: [{
+          kind: 'ExportResult',
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: null,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+        processing_time: 0.1,
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.chunkFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+      chunker: 'hierarchical',
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://docling.local/v1/chunk/hierarchical/file/async',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.get('include_converted_doc')).toBe('true');
+    expect(submitBody.get('target_type')).toBe('inbody');
+    expect(submitBody.get('convert_do_ocr')).toBe('true');
+    expect(submitBody.get('chunking_include_raw_text')).toBe('true');
+    expect(submitBody.has('chunking_max_tokens')).toBe(false);
+    expect(submitBody.has('chunking_merge_peers')).toBe(false);
+  });
+
+  test('normalizes structured Docling chunk document errors', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_text', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        chunks: [{
+          filename: 'test.txt',
+          chunk_index: 0,
+          text: 'Plain text content',
+          raw_text: 'Plain text content',
+          num_tokens: 3,
+          headings: null,
+          captions: null,
+          doc_items: [],
+          page_numbers: null,
+          metadata: null,
+        }],
+        documents: [{
+          kind: 'ExportResult',
+          content: {
+            md_content: 'Plain text content',
+            text_content: 'Plain text content',
+            json_content: null,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [{ message: 'Unsupported image block skipped' }],
+        }],
+        processing_time: 0.1,
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    const result = await client.chunkFile({
+      fileName: 'test.txt',
+      mimeType: 'text/plain',
+      fileData: Buffer.from('Plain text content'),
+    });
+
+    expect(result.documents[0]?.errors).toEqual(['Unsupported image block skipped']);
+    expect(result.chunks).toHaveLength(1);
   });
 
   test('retries transient chunk submit fetch failures before succeeding', async () => {

@@ -68,7 +68,6 @@ import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
 import {
   VAULT_TREE_ROOT_VALUE,
   VaultSidebarTree,
-  getVaultTreeVaultId,
 } from '@/features/vaults/components/vault-sidebar-tree';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
@@ -501,6 +500,7 @@ function SidebarNavGroup({
 }
 
 function UnifiedSidebar({
+  expanded,
   activeNavId,
   currentPathname,
   sessionEmail,
@@ -508,6 +508,7 @@ function UnifiedSidebar({
   onOpenTransfers,
   onSignOut,
 }: {
+  expanded: boolean;
   activeNavId: PrimaryNavItem['id'] | null;
   currentPathname: string;
   sessionEmail?: string | null;
@@ -515,7 +516,6 @@ function UnifiedSidebar({
   onOpenTransfers: () => void;
   onSignOut: () => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
   const roleLabel = isAdmin ? 'Admin' : 'Member';
 
   return (
@@ -576,36 +576,7 @@ function UnifiedSidebar({
           </Link>
         </SidebarTooltip>
 
-        <IconButton
-          type="button"
-          aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          variant="ghost"
-          size="sm"
-          flexShrink={0}
-          color="fg.muted"
-          display={expanded ? 'inline-flex' : 'none'}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-        </IconButton>
       </Flex>
-
-      {!expanded ? (
-        <IconButton
-          type="button"
-          aria-label="Expand sidebar"
-          title="Expand sidebar"
-          variant="ghost"
-          size="sm"
-          mt="2"
-          alignSelf="center"
-          color="fg.muted"
-          onClick={() => setExpanded(true)}
-        >
-          <PanelLeftOpen size={16} />
-        </IconButton>
-      ) : null}
 
       <Box
         flex="1"
@@ -811,32 +782,14 @@ function SecondaryRouteNavList({
 function SecondarySidebar({
   kind,
   isOpen,
-  activeVaultId,
-  currentFolderId,
-  currentDocumentId,
   customContent,
   currentPathname,
 }: {
   kind: 'vault' | 'chat' | 'settings' | 'admin' | 'standard';
   isOpen: boolean;
-  activeVaultId?: string | null;
-  currentFolderId: string | null;
-  currentDocumentId?: string | null;
   customContent: ReactNode | null;
   currentPathname: string;
 }) {
-  const vaultsQuery = useVaultsQuery();
-  const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([VAULT_TREE_ROOT_VALUE]);
-  const expandedTreeVaultId = useMemo(
-    () => vaultTreeExpandedValue.map(getVaultTreeVaultId).find(vaultId => vaultId !== null) ?? null,
-    [vaultTreeExpandedValue],
-  );
-  const treeVaultId = activeVaultId ?? expandedTreeVaultId;
-  const folderTreeQuery = useFolderTreeQuery({
-    vaultId: treeVaultId ?? '',
-    enabled: kind === 'vault' && Boolean(treeVaultId),
-  });
-  const vaults = vaultsQuery.data?.vaults ?? [];
   const usesSecondaryNavSystem = kind === 'settings' || kind === 'admin' || (kind === 'chat' && customContent !== null) || (kind === 'vault' && customContent !== null);
 
   return (
@@ -861,30 +814,12 @@ function SecondarySidebar({
       <Box
         flex="1"
         minH="0"
-        overflowY={kind === 'vault' && customContent === null ? 'hidden' : 'auto'}
+        overflowY="auto"
         px={usesSecondaryNavSystem ? '2' : '3'}
         py={usesSecondaryNavSystem ? '3.5' : '4'}
-        display={kind === 'vault' && customContent === null ? 'flex' : undefined}
-        flexDirection={kind === 'vault' && customContent === null ? 'column' : undefined}
       >
         {kind === 'vault' ? (
-          customContent ?? (
-            <Flex direction="column" gap="4" minH="0" flex="1">
-              <Box flex="1" minH="0" overflowY="auto" pr="1" mr="-1">
-                <VaultSidebarTree
-                  vaults={vaults}
-                  activeVaultId={treeVaultId}
-                  activeVaultRootOnly={Boolean(activeVaultId)}
-                  expandedValue={vaultTreeExpandedValue}
-                  onExpandedValueChange={setVaultTreeExpandedValue}
-                  currentFolderId={currentFolderId}
-                  currentDocumentId={currentDocumentId}
-                  folders={folderTreeQuery.data?.folders ?? []}
-                  documents={folderTreeQuery.data?.documents ?? []}
-                />
-              </Box>
-            </Flex>
-          )
+          customContent
         ) : kind === 'settings' ? (
           customContent ?? (
             <SecondaryRouteNavList
@@ -911,6 +846,56 @@ function SecondarySidebar({
             </Stack>
           )
         )}
+      </Box>
+    </Flex>
+  );
+}
+
+function VaultFileTreePanel({
+  activeVaultId,
+  currentFolderId,
+  currentDocumentId,
+}: {
+  activeVaultId: string;
+  currentFolderId: string | null;
+  currentDocumentId?: string | null;
+}) {
+  const vaultsQuery = useVaultsQuery();
+  const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([VAULT_TREE_ROOT_VALUE]);
+  const folderTreeQuery = useFolderTreeQuery({
+    vaultId: activeVaultId,
+    enabled: activeVaultId.length > 0,
+  });
+
+  return (
+    <Flex
+      as="aside"
+      aria-label="Vault file tree"
+      w={{ base: 'full', md: '15.75rem', xl: '17rem' }}
+      h={{ base: '12rem', md: 'full' }}
+      maxH={{ base: '12rem', md: 'none' }}
+      minW={{ base: '0', md: '15.75rem', xl: '17rem' }}
+      shrink={0}
+      direction="column"
+      borderRightWidth={{ base: '0', md: '1px' }}
+      borderBottomWidth={{ base: '1px', md: '0' }}
+      borderColor="border.surface"
+      boxShadow={{ base: 'none', md: '1px 0 0 var(--chakra-colors-border-subtle)' }}
+      bg="bg.sidebar"
+      overflow="hidden"
+    >
+      <Box flex="1" minH="0" overflowY="auto" px="3" py="4" pr="2">
+        <VaultSidebarTree
+          vaults={vaultsQuery.data?.vaults ?? []}
+          activeVaultId={activeVaultId}
+          activeVaultRootOnly
+          expandedValue={vaultTreeExpandedValue}
+          onExpandedValueChange={setVaultTreeExpandedValue}
+          currentFolderId={currentFolderId}
+          currentDocumentId={currentDocumentId}
+          folders={folderTreeQuery.data?.folders ?? []}
+          documents={folderTreeQuery.data?.documents ?? []}
+        />
       </Box>
     </Flex>
   );
@@ -1004,22 +989,48 @@ function QuickSearchTrigger({
   );
 }
 
+function PrimarySidebarToggle({
+  isExpanded,
+  onToggle,
+}: {
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <IconButton
+      type="button"
+      aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+      title={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+      variant="ghost"
+      color="fg.muted"
+      flexShrink={0}
+      onClick={onToggle}
+    >
+      {isExpanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+    </IconButton>
+  );
+}
+
 function WorkspaceHeader({
   breadcrumbs,
   headerConfig,
+  isPrimarySidebarExpanded,
   hasSecondarySidebar,
   isSecondarySidebarOpen,
   quickSearchShortcut,
   hideQuickSearch = false,
+  onTogglePrimarySidebar,
   onToggleSecondarySidebar,
   onOpenQuickSearch,
 }: {
   breadcrumbs: BreadcrumbEntry[];
   headerConfig: WorkspaceHeaderConfig | null;
+  isPrimarySidebarExpanded: boolean;
   hasSecondarySidebar: boolean;
   isSecondarySidebarOpen: boolean;
   quickSearchShortcut: ReturnType<typeof getQuickSearchShortcut>;
   hideQuickSearch?: boolean;
+  onTogglePrimarySidebar: () => void;
   onToggleSecondarySidebar: () => void;
   onOpenQuickSearch: () => void;
 }) {
@@ -1038,8 +1049,12 @@ function WorkspaceHeader({
         bg="bg.workspace"
         position="relative"
       >
-        {hasSecondarySidebar ? (
-          <Flex align="center" px={{ base: '4', md: '5', lg: '4' }}>
+        <Flex align="center" gap="1" px={{ base: '4', md: '5', lg: '4' }}>
+          <PrimarySidebarToggle
+            isExpanded={isPrimarySidebarExpanded}
+            onToggle={onTogglePrimarySidebar}
+          />
+          {hasSecondarySidebar ? (
             <IconButton
               display={{ base: 'none', md: 'inline-flex' }}
               type="button"
@@ -1052,8 +1067,8 @@ function WorkspaceHeader({
             >
               {isSecondarySidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
             </IconButton>
-          </Flex>
-        ) : null}
+          ) : null}
+        </Flex>
         <Box minW="0" flex="1">
           {headerConfig.content}
         </Box>
@@ -1084,6 +1099,10 @@ function WorkspaceHeader({
       position="relative"
     >
       <Flex minW="0" flex="1" align="center" gap="3">
+        <PrimarySidebarToggle
+          isExpanded={isPrimarySidebarExpanded}
+          onToggle={onTogglePrimarySidebar}
+        />
         {hasSecondarySidebar ? (
           <IconButton
             display={{ base: 'none', md: 'inline-flex' }}
@@ -1150,6 +1169,7 @@ export function AppShell() {
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
   const [secondaryContent, setSecondaryContent] = useState<ReactNode | null>(null);
+  const [isPrimarySidebarExpanded, setIsPrimarySidebarExpanded] = useState(true);
   const [isSecondarySidebarOpen, setIsSecondarySidebarOpen] = useState(true);
   const [isTransfersDrawerOpen, setIsTransfersDrawerOpen] = useState(false);
   const previousLocationKeyRef = useRef<string | null>(null);
@@ -1282,14 +1302,57 @@ export function AppShell() {
 
   const secondaryKind = getSecondaryKind(location.pathname);
   const hideSecondarySidebar = shouldHideSecondarySidebar(location.pathname);
-  const hasSecondarySidebar = !hideSecondarySidebar && (secondaryKind === 'vault' || secondaryContent !== null);
+  const shouldShowVaultFileTreePanel = pathParts[0] === 'vaults' && Boolean(activeVaultId) && !isChatRoute;
+  const hasSecondarySidebar = !hideSecondarySidebar && secondaryContent !== null;
   const contentPadding = isChatRoute || isFlushContentRoute ? '0' : { base: '4', lg: '6' };
+  const uploadCount = uploadState.activeCount + uploadState.queuedCount;
+  const routeContent = (
+    <>
+      {uploadCount > 0 ? (
+        <Box px={shouldShowVaultFileTreePanel ? '0' : contentPadding} pt={isChatRoute || isFlushContentRoute ? '3' : '4'}>
+          <chakra.button
+            type="button"
+            display="flex"
+            w="full"
+            alignItems="center"
+            justifyContent="space-between"
+            borderWidth="1px"
+            borderColor="border.surface"
+            bg="bg.workspace"
+            px="4"
+            py="3"
+            fontSize="sm"
+            color="fg.muted"
+            transition="colors"
+            _hover={{ bg: 'bg.workspaceMuted', color: 'fg' }}
+            onClick={() => setIsTransfersDrawerOpen(true)}
+          >
+            <HStack gap="3">
+              <Flex boxSize="8" align="center" justify="center" color="fg">
+                <Upload size={16} />
+              </Flex>
+              <Text>
+                Uploading {uploadCount} file
+                {uploadCount === 1 ? '' : 's'}
+              </Text>
+            </HStack>
+            <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.12em">
+              View queue
+            </Text>
+          </chakra.button>
+        </Box>
+      ) : null}
+      <RouterDebugProbe />
+      <Outlet />
+    </>
+  );
 
   return (
     <TooltipProvider delayDuration={100}>
       <WorkspaceLayoutContext value={layoutContextValue}>
         <Flex minH="100vh" bg="bg.workspace" color="fg" overflow="hidden">
           <UnifiedSidebar
+            expanded={isPrimarySidebarExpanded}
             activeNavId={isTransfersDrawerOpen ? 'transfers' : primaryNavId(location.pathname)}
             currentPathname={location.pathname}
             sessionEmail={sessionData?.user.email}
@@ -1301,9 +1364,6 @@ export function AppShell() {
             <SecondarySidebar
               kind={secondaryKind}
               isOpen={isSecondarySidebarOpen}
-              activeVaultId={activeVaultId}
-              currentFolderId={currentFolderId}
-              currentDocumentId={activeDocumentRoute?.documentId ?? null}
               customContent={secondaryContent}
               currentPathname={location.pathname}
             />
@@ -1313,10 +1373,12 @@ export function AppShell() {
             <WorkspaceHeader
               breadcrumbs={breadcrumbs}
               headerConfig={isChatRoute ? { hidden: true } : headerConfig}
+              isPrimarySidebarExpanded={isPrimarySidebarExpanded}
               hasSecondarySidebar={hasSecondarySidebar}
               isSecondarySidebarOpen={isSecondarySidebarOpen}
               quickSearchShortcut={quickSearchShortcut}
               hideQuickSearch={location.pathname === ROUTES.search}
+              onTogglePrimarySidebar={() => setIsPrimarySidebarExpanded((expanded) => !expanded)}
               onToggleSecondarySidebar={() => setIsSecondarySidebarOpen((open) => !open)}
               onOpenQuickSearch={openQuickSearch}
             />
@@ -1326,47 +1388,31 @@ export function AppShell() {
               className="@container/main"
               flex="1"
               minH="0"
-              overflow={isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
+              overflow={shouldShowVaultFileTreePanel || isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
               bg="bg.workspace"
-              px={contentPadding}
+              px={shouldShowVaultFileTreePanel ? '0' : contentPadding}
               py="0"
             >
-              {uploadState.activeCount + uploadState.queuedCount > 0 ? (
-                <Box px={contentPadding} pt={isChatRoute || isFlushContentRoute ? '3' : '4'}>
-                  <chakra.button
-                    type="button"
-                    display="flex"
-                    w="full"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    borderWidth="1px"
-                    borderColor="border.surface"
-                    bg="bg.workspace"
-                    px="4"
-                    py="3"
-                    fontSize="sm"
-                    color="fg.muted"
-                    transition="colors"
-                    _hover={{ bg: 'bg.workspaceMuted', color: 'fg' }}
-                    onClick={() => setIsTransfersDrawerOpen(true)}
+              {shouldShowVaultFileTreePanel && activeVaultId ? (
+                <Flex h="full" minH="0" minW="0" direction={{ base: 'column', md: 'row' }} overflow="hidden">
+                  <VaultFileTreePanel
+                    activeVaultId={activeVaultId}
+                    currentFolderId={currentFolderId}
+                    currentDocumentId={activeDocumentRoute?.documentId ?? null}
+                  />
+                  <Flex
+                    minW="0"
+                    flex="1"
+                    direction="column"
+                    overflow={isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
+                    px={contentPadding}
                   >
-                    <HStack gap="3">
-                      <Flex boxSize="8" align="center" justify="center" color="fg">
-                        <Upload size={16} />
-                      </Flex>
-                      <Text>
-                        Uploading {uploadState.activeCount + uploadState.queuedCount} file
-                        {uploadState.activeCount + uploadState.queuedCount === 1 ? '' : 's'}
-                      </Text>
-                    </HStack>
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.12em">
-                      View queue
-                    </Text>
-                  </chakra.button>
-                </Box>
-              ) : null}
-              <RouterDebugProbe />
-              <Outlet />
+                    {routeContent}
+                  </Flex>
+                </Flex>
+              ) : (
+                routeContent
+              )}
             </Box>
           </Flex>
         </Flex>

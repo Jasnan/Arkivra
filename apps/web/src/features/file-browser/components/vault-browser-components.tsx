@@ -334,12 +334,14 @@ function SelectionCheckbox({
 
 export function VaultRouteBreadcrumbs({
   entries,
+  showFullLastLabel = false,
   dropTarget,
   onDragOverFolder,
   onDragLeaveFolder,
   onDropOnFolder,
 }: {
   entries: VaultBreadcrumbEntry[];
+  showFullLastLabel?: boolean;
   dropTarget?: BrowserDropTarget | null;
   onDragOverFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
   onDragLeaveFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -383,7 +385,7 @@ export function VaultRouteBreadcrumbs({
             );
           }
 
-          const label = truncateBreadcrumbLabel(entry.label);
+          const label = showFullLastLabel && isLast ? entry.label : truncateBreadcrumbLabel(entry.label);
 
           return (
             <Fragment key={entry.key}>

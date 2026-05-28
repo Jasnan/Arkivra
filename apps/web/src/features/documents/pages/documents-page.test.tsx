@@ -203,6 +203,20 @@ describe('documents page', () => {
     });
   });
 
+  it('shows the full document filename in the workspace breadcrumb when space allows', async () => {
+    const documentName = 'Home Insurance Renewal Documents 2026.pdf';
+    installDocumentDetailFetchMock({ documentName });
+
+    await renderWithProviders(<DocumentDetailPageWithWorkspaceHeader />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    const header = screen.getByRole('banner');
+    expect(await within(header).findByText(documentName)).toBeInTheDocument();
+    expect(within(header).queryByText('Home In...')).not.toBeInTheDocument();
+  });
+
   it('shows the extracted text document action when enabled in preferences', async () => {
     const user = userEvent.setup();
     window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
@@ -275,6 +289,22 @@ function DocumentsPageWithWorkspaceHeader() {
   );
 }
 
+function DocumentDetailPageWithWorkspaceHeader() {
+  const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
+  const contextValue = useMemo(() => ({
+    setHeaderConfig,
+    setSecondaryContent: () => {},
+  }), []);
+  const page = useMemo(() => <DocumentDetailPage />, []);
+
+  return (
+    <WorkspaceLayoutContext value={contextValue}>
+      <header>{headerConfig?.left}</header>
+      {page}
+    </WorkspaceLayoutContext>
+  );
+}
+
 function installVaultContentsFetchMock({
   vault: vaultOverrides = {},
   items = [
@@ -339,7 +369,7 @@ function installVaultContentsFetchMock({
   });
 }
 
-function installDocumentDetailFetchMock() {
+function installDocumentDetailFetchMock({ documentName = 'Policy.txt' }: { documentName?: string } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
@@ -347,8 +377,8 @@ function installDocumentDetailFetchMock() {
       return jsonResponse({
         document: {
           id: 'doc_1',
-          name: 'Policy.txt',
-          originalName: 'Policy.txt',
+          name: documentName,
+          originalName: documentName,
           folderId: null,
           originalSize: 2048,
           originalSha256Hash: 'abc123',

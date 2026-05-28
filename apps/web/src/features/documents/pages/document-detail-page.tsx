@@ -1640,7 +1640,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   ]);
 
   const documentWorkspaceHeader = useMemo(() => ({
-    left: <VaultRouteBreadcrumbs entries={documentBreadcrumbEntries} />,
+    left: <VaultRouteBreadcrumbs entries={documentBreadcrumbEntries} showFullLastLabel />,
   }), [documentBreadcrumbEntries]);
   useWorkspaceHeader(documentWorkspaceHeader);
 

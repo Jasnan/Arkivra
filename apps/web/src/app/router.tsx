@@ -37,6 +37,7 @@ import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-ma
 import { TagsPage } from '@/features/tags/pages/tags-page'
 import { TransfersPage } from '@/features/uploads/pages/transfers-page'
 import { VaultChatPage } from '@/features/vaults/pages/vault-chat-page'
+import { VaultWorkspaceLayout } from '@/features/vaults/components/vault-workspace-layout'
 import { VaultsPage } from '@/features/vaults/pages/vaults-page'
 import { SearchPage } from '@/features/search/pages/search-page'
 import { AppShell } from '@/components/layout/app-shell'
@@ -135,8 +136,14 @@ const vaultsRoute = createRoute({
   component: VaultsPage,
 })
 
-const vaultRoute = createRoute({
+const vaultWorkspaceRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
+  id: 'vault-workspace',
+  component: VaultWorkspaceLayout,
+})
+
+const vaultRoute = createRoute({
+  getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId',
   component: () => <DocumentsPage section="contents" />,
 })
@@ -172,25 +179,25 @@ const vaultChatConversationRoute = createRoute({
 })
 
 const documentRoute = createRoute({
-  getParentRoute: () => protectedLayoutRoute,
+  getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId',
   component: () => <DocumentDetailPage section="preview" />,
 })
 
 const documentExtractedTextRoute = createRoute({
-  getParentRoute: () => protectedLayoutRoute,
+  getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId/extracted-text',
   component: () => <DocumentDetailPage section="content" />,
 })
 
 const documentMetadataRoute = createRoute({
-  getParentRoute: () => protectedLayoutRoute,
+  getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId/metadata',
   component: () => <DocumentDetailPage section="metadata" />,
 })
 
 const documentActivityRoute = createRoute({
-  getParentRoute: () => protectedLayoutRoute,
+  getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId/activity',
   component: () => <DocumentDetailPage section="activity" />,
 })
@@ -361,16 +368,18 @@ const routeTree = rootRoute.addChildren([
   protectedLayoutRoute.addChildren([
     indexRoute,
     vaultsRoute,
-    vaultRoute,
+    vaultWorkspaceRoute.addChildren([
+      vaultRoute,
+      documentRoute,
+      documentExtractedTextRoute,
+      documentMetadataRoute,
+      documentActivityRoute,
+    ]),
     vaultMembersRoute,
     vaultActivityRoute,
     vaultSettingsRoute,
     vaultChatRoute,
     vaultChatConversationRoute,
-    documentRoute,
-    documentExtractedTextRoute,
-    documentMetadataRoute,
-    documentActivityRoute,
     documentChatRoute,
     chatRoute,
     chatConversationRoute,

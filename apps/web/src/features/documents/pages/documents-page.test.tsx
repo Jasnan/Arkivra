@@ -282,6 +282,10 @@ describe('documents page', () => {
     });
 
     expect(await screen.findByText('Extracted policy text')).toBeInTheDocument();
+    expect(screen.queryByText(/^Processed$/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/extracted text and retrieval chunks appear here after processing completes/i),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: /^chunks$/i }));
     expect(await screen.findByText('Stored chunk content')).toBeInTheDocument();
     expect(screen.getByText('Policy scope')).toBeInTheDocument();

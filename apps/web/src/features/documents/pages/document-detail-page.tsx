@@ -2025,7 +2025,12 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     document.processingStatus,
     displayContent,
   );
+  const extractionStatusDescription = getDocumentProcessingStageDescription(
+    document.processingStatus,
+    '',
+  );
   const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
+  const showExtractionStatus = isExtractionActive || document.processingStatus === 'failed';
   const documentSectionSearch = location.search as Record<string, string | undefined>;
   const documentSectionMenuItems = !isTrashDocumentRoute
     ? [
@@ -2448,7 +2453,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
         flex="1"
         h="full"
         minH="0"
-        pt="6"
+        pt={detailActiveSection === 'content' ? '3' : '6'}
       >
             {detailActiveSection === 'preview' ? (
               <>
@@ -2555,42 +2560,30 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
             ) : null}
 
             {detailActiveSection === 'content' ? (
-              <Flex direction="column" gap="3">
-                <Flex flexWrap="wrap" align="center" gap="3">
-                  <Box
-                    as="span"
-                    display="inline-flex"
-                    alignItems="center"
-                    rounded="full"
-                    px="3"
-                    py="1"
-                    fontSize="xs"
-                    fontWeight="semibold"
-                    textTransform="uppercase"
-                    letterSpacing="wide"
-                    bg={
-                      document.processingStatus === 'failed'
-                        ? 'bg.error'
-                        : isExtractionActive
-                          ? 'bg.warning'
-                          : 'bg.success'
-                    }
-                    color={
-                      document.processingStatus === 'failed'
-                        ? 'fg.error'
-                        : isExtractionActive
-                          ? 'fg.warning'
-                          : 'fg.success'
-                    }
-                  >
-                    {extractionStageLabel}
-                  </Box>
-                  <Text fontSize="sm" lineHeight="6" color="fg.muted">
-                    {isExtractionActive
-                      ? 'The document detail view polls the backend while processing is in progress.'
-                      : 'Extracted text and retrieval chunks appear here after processing completes.'}
-                  </Text>
-                </Flex>
+              <Flex direction="column" h="full" minH="0" gap="3">
+                {showExtractionStatus ? (
+                  <Flex flexWrap="wrap" align="center" flexShrink={0} gap="3">
+                    <Box
+                      as="span"
+                      display="inline-flex"
+                      alignItems="center"
+                      rounded="full"
+                      px="3"
+                      py="1"
+                      fontSize="xs"
+                      fontWeight="semibold"
+                      textTransform="uppercase"
+                      letterSpacing="wide"
+                      bg={document.processingStatus === 'failed' ? 'bg.error' : 'bg.warning'}
+                      color={document.processingStatus === 'failed' ? 'fg.error' : 'fg.warning'}
+                    >
+                      {extractionStageLabel}
+                    </Box>
+                    <Text fontSize="sm" lineHeight="6" color="fg.muted">
+                      {extractionStatusDescription}
+                    </Text>
+                  </Flex>
+                ) : null}
                 <ChakraTabs.Root
                   value={documentContentTab}
                   onValueChange={(event) => {
@@ -2600,10 +2593,13 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                   }}
                   display="flex"
                   flexDirection="column"
-                  gap="3"
+                  flex="1"
+                  minH="0"
+                  gap="0"
                 >
                   <ChakraTabs.List
                     alignSelf="flex-start"
+                    flexShrink={0}
                     rounded="lg"
                     borderWidth="1px"
                     borderColor="border.surface"
@@ -2618,31 +2614,32 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                     </ChakraTabs.Trigger>
                   </ChakraTabs.List>
 
-                  <ChakraTabs.Content value="text" m="0">
+                  <ChakraTabs.Content value="text" mb="5" flex="1" minH="0">
                     <Box
                       className="arkivra-document-content"
-                      h={{ base: '82vh', md: '820px' }}
+                      h="full"
+                      minH="0"
+                      mb="3"
                       overflow="auto"
                       rounded="lg"
                       bg="bg.subtle"
                       p="5"
                       fontFamily="document"
                       fontSize="sm"
-                      whiteSpace="pre-wrap"
-                      wordBreak="break-word"
                       color="fg"
                     >
                       {extractedTextMessage}
                     </Box>
                   </ChakraTabs.Content>
 
-                  <ChakraTabs.Content value="chunks" m="0">
+                  <ChakraTabs.Content value="chunks" mb="5" flex="1" minH="0">
                     <Box
-                      h={{ base: '82vh', md: '820px' }}
+                      h="full"
+                      minH="0"
+                      mb="3"
                       overflow="auto"
                       rounded="lg"
                       bg="bg.subtle"
-                      p={{ base: '3', md: '4' }}
                     >
                       {documentChunksQuery.isLoading ? (
                         <Flex h="full" minH="64" align="center" justify="center" gap="3" color="fg.muted">

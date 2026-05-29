@@ -1186,11 +1186,8 @@ describe('tags and documents pages', () => {
 
     expect(await screen.findByText(/^Pending$/i)).toBeInTheDocument();
     expect(
-      await screen.findByText(/the document detail view polls the backend while processing is in progress/i),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText(/this document is waiting to be handed to the worker/i),
-    ).toBeInTheDocument();
+      await screen.findAllByText(/this document is waiting to be handed to the worker/i),
+    ).toHaveLength(2);
 
     window.dispatchEvent(
       new CustomEvent('arkivra:uploads-completed', {
@@ -1198,8 +1195,10 @@ describe('tags and documents pages', () => {
       }),
     );
 
-    expect(await screen.findByText(/processed/i)).toBeInTheDocument();
     expect(await screen.findByText('Parsed text')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/^Processed$/i)).not.toBeInTheDocument();
+    });
     expect(documentFetchCount).toBeGreaterThanOrEqual(2);
   });
 

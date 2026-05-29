@@ -451,7 +451,8 @@ export function VaultsPage() {
                 px="6"
                 py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
                 fontSize="sm"
-                color="fg.muted"
+                fontWeight="medium"
+                color="fg.subtle"
               >
                 <Text as="span">Name</Text>
                 <Text as="span">Access</Text>
@@ -473,7 +474,7 @@ export function VaultsPage() {
                 h="var(--arkivra-listRowHeight, 4.5rem)"
                 cursor="pointer"
                 borderBottomWidth="1px"
-                borderColor="border.surface"
+                borderColor="border.divider"
                 bg="bg.workspace"
                 px="6"
                 py="var(--arkivra-rowPaddingY, 0.875rem)"

@@ -1,4 +1,4 @@
-import type { ComponentType, MouseEvent, ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -7,8 +7,6 @@ import {
   ChevronRight,
   DatabaseBackup,
   FileSearch,
-  FolderOpen,
-  History,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -19,7 +17,6 @@ import {
   Search,
   SearchX,
   Settings,
-  Settings2,
   Shield,
   ShieldCheck,
   SlidersHorizontal,
@@ -60,9 +57,6 @@ import { RouterDebugProbe } from '@/features/auth/auth-guards';
 import { authClient } from '@/lib/auth-client';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useDocumentQuery } from '@/features/documents/documents.queries';
-import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
-import { BrowserContextMenu } from '@/features/file-browser/components/vault-browser-components';
-import type { BrowserContextMenuEntry, ContextMenuState } from '@/features/file-browser/components/vault-browser.types';
 import { useMeQuery } from '@/features/me/me.queries';
 import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
@@ -70,10 +64,6 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { TransfersDrawer } from '@/features/uploads/components/transfers-drawer';
 import { uploadManager } from '@/features/uploads/upload-manager';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
-import {
-  VAULT_TREE_ROOT_VALUE,
-  VaultSidebarTree,
-} from '@/features/vaults/components/vault-sidebar-tree';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 function getQuickSearchShortcut() {
@@ -864,97 +854,6 @@ function SecondarySidebar({
   );
 }
 
-function VaultFileTreePanel({
-  activeVaultId,
-  currentFolderId,
-  currentDocumentId,
-}: {
-  activeVaultId: string;
-  currentFolderId: string | null;
-  currentDocumentId?: string | null;
-}) {
-  const navigate = useNavigate();
-  const vaultsQuery = useVaultsQuery();
-  const vaults = vaultsQuery.data?.vaults ?? [];
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
-  const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([VAULT_TREE_ROOT_VALUE]);
-  const folderTreeQuery = useFolderTreeQuery({
-    vaultId: activeVaultId,
-    enabled: activeVaultId.length > 0,
-  });
-  const contextVaultId = contextMenu?.item.type === 'background' || contextMenu?.item.type === 'root'
-    ? contextMenu.item.vaultId
-    : activeVaultId;
-
-  function getVaultContextMenuActions(vaultId: string): BrowserContextMenuEntry[] {
-    return [
-      { key: 'open', label: 'Open', icon: FolderOpen, onSelect: () => navigate({ to: ROUTES.vaultRoot(vaultId) }) },
-      { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }) },
-      { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
-      { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
-      { key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) },
-    ];
-  }
-
-  function openVaultContextMenu(event: MouseEvent<HTMLElement>, vaultId: string) {
-    const vault = vaults.find(item => item.id === vaultId);
-
-    event.preventDefault();
-    event.stopPropagation();
-    setContextMenu({
-      item: {
-        type: 'background',
-        vaultId,
-        folderId: null,
-        name: vault?.name ?? 'Vault',
-      },
-      x: event.clientX,
-      y: event.clientY,
-    });
-  }
-
-  return (
-    <Flex
-      as="aside"
-      aria-label="Vault file tree"
-      w={{ base: 'full', md: '15.75rem', xl: '17rem' }}
-      h={{ base: '12rem', md: 'full' }}
-      maxH={{ base: '12rem', md: 'none' }}
-      minW={{ base: '0', md: '15.75rem', xl: '17rem' }}
-      shrink={0}
-      direction="column"
-      borderRightWidth={{ base: '0', md: '1px' }}
-      borderBottomWidth={{ base: '1px', md: '0' }}
-      borderColor="border.strong"
-      boxShadow="none"
-      bg="bg.sidebar"
-      overflow="hidden"
-    >
-      <Box flex="1" minH="0" overflowY="auto" px="3" py="4" pr="2">
-        <VaultSidebarTree
-          vaults={vaultsQuery.data?.vaults ?? []}
-          activeVaultId={activeVaultId}
-          activeVaultRootOnly
-          expandedValue={vaultTreeExpandedValue}
-          onExpandedValueChange={setVaultTreeExpandedValue}
-          currentFolderId={currentFolderId}
-          currentDocumentId={currentDocumentId}
-          folders={folderTreeQuery.data?.folders ?? []}
-          documents={folderTreeQuery.data?.documents ?? []}
-          onOpenVaultContextMenu={openVaultContextMenu}
-        />
-      </Box>
-      {contextMenu ? (
-        <BrowserContextMenu
-          state={contextMenu}
-          actions={getVaultContextMenuActions(contextVaultId)}
-          onClose={() => setContextMenu(null)}
-        />
-      ) : null}
-    </Flex>
-  );
-}
-
 function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] }) {
   const visibleBreadcrumbs = getVisibleBreadcrumbs(breadcrumbs);
 
@@ -1238,18 +1137,10 @@ export function AppShell() {
     () => (location.search as Record<string, string | undefined>).vaultId ?? null,
     [location.search],
   );
-  const currentFolderId = (location.search as Record<string, string | undefined>).folderId ?? null;
   const isChatRoute = isChatPath(location.pathname);
   const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
   const isAdminUsersRoute = location.pathname === ROUTES.adminUsers;
-  const isFlushContentRoute =
-    isVaultIndexRoute ||
-    isVaultBrowserRoute ||
-    isAdminUsersRoute ||
-    location.pathname === ROUTES.tags ||
-    location.pathname === ROUTES.search ||
-    pathParts[0] === 'trash';
   const activeVaultId =
     pathParts[0] === 'vaults'
       ? pathParts[1]
@@ -1261,6 +1152,14 @@ export function AppShell() {
 
     return null;
   }, [pathParts]);
+  const isVaultWorkspaceRoute = isVaultBrowserRoute || activeDocumentRoute !== null;
+  const isFlushContentRoute =
+    isVaultIndexRoute ||
+    isVaultWorkspaceRoute ||
+    isAdminUsersRoute ||
+    location.pathname === ROUTES.tags ||
+    location.pathname === ROUTES.search ||
+    pathParts[0] === 'trash';
   const activeVaultName = useMemo(
     () => (vaultsQuery.data?.vaults ?? []).find((vault) => vault.id === activeVaultId)?.name,
     [activeVaultId, vaultsQuery.data?.vaults],
@@ -1360,14 +1259,13 @@ export function AppShell() {
 
   const secondaryKind = getSecondaryKind(location.pathname);
   const hideSecondarySidebar = shouldHideSecondarySidebar(location.pathname);
-  const shouldShowVaultFileTreePanel = Boolean(activeVaultId) && (isVaultBrowserRoute || activeDocumentRoute !== null);
   const hasSecondarySidebar = !hideSecondarySidebar && secondaryContent !== null;
   const contentPadding = isChatRoute || isFlushContentRoute ? '0' : { base: '4', lg: '6' };
   const uploadCount = uploadState.activeCount + uploadState.queuedCount;
   const routeContent = (
     <>
-      {uploadCount > 0 ? (
-        <Box px={shouldShowVaultFileTreePanel ? '0' : contentPadding} pt={isChatRoute || isFlushContentRoute ? '3' : '4'}>
+      {uploadCount > 0 && !isVaultWorkspaceRoute ? (
+        <Box px={contentPadding} pt={isChatRoute || isFlushContentRoute ? '3' : '4'}>
           <chakra.button
             type="button"
             display="flex"
@@ -1446,31 +1344,12 @@ export function AppShell() {
               className="@container/main"
               flex="1"
               minH="0"
-              overflow={shouldShowVaultFileTreePanel || isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
+              overflow={isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
               bg="bg.workspace"
-              px={shouldShowVaultFileTreePanel ? '0' : contentPadding}
+              px={contentPadding}
               py="0"
             >
-              {shouldShowVaultFileTreePanel && activeVaultId ? (
-                <Flex h="full" minH="0" minW="0" direction={{ base: 'column', md: 'row' }} overflow="hidden">
-                  <VaultFileTreePanel
-                    activeVaultId={activeVaultId}
-                    currentFolderId={currentFolderId}
-                    currentDocumentId={activeDocumentRoute?.documentId ?? null}
-                  />
-                  <Flex
-                    minW="0"
-                    flex="1"
-                    direction="column"
-                    overflow={isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
-                    px={contentPadding}
-                  >
-                    {routeContent}
-                  </Flex>
-                </Flex>
-              ) : (
-                routeContent
-              )}
+              {routeContent}
             </Box>
           </Flex>
         </Flex>

@@ -226,6 +226,26 @@ function getDropTargetStyles(dropTarget: BrowserDropTarget | null, folderId: str
     : { bg: 'red.subtle' };
 }
 
+function getCurrentFolderDropZoneStyles(dropTarget: BrowserDropTarget | null, folderId: string | null) {
+  if (dropTarget === null || dropTarget.folderId !== folderId) {
+    return {};
+  }
+
+  return dropTarget.state === 'valid'
+    ? {
+        bg: 'teal.subtle',
+        outline: '2px solid',
+        outlineColor: 'teal.solid',
+        outlineOffset: '-2px',
+      }
+    : {
+        bg: 'red.subtle',
+        outline: '2px solid',
+        outlineColor: 'red.solid',
+        outlineOffset: '-2px',
+      };
+}
+
 function getBrowserItemSurfaceStyles({
   isSelected,
   isDragSource,
@@ -787,6 +807,41 @@ export function BrowserContextMenu({
         })}
       </Box>
     </Portal>
+  );
+}
+
+export function BrowserCurrentFolderDropZone({
+  folderId,
+  dropTarget,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
+  children,
+}: {
+  folderId: string | null;
+  dropTarget: BrowserDropTarget | null;
+  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Box
+      aria-label="Current folder drop zone"
+      minW="0"
+      flex="1"
+      minH="0"
+      display="flex"
+      flexDirection="column"
+      overflow="hidden"
+      transition="background-color 120ms ease, outline-color 120ms ease"
+      {...getCurrentFolderDropZoneStyles(dropTarget, folderId)}
+      onDragOver={(event) => onDragOverFolder(event, folderId)}
+      onDragLeave={(event) => onDragLeaveFolder(event, folderId)}
+      onDrop={(event) => onDropOnFolder(event, folderId)}
+    >
+      {children}
+    </Box>
   );
 }
 

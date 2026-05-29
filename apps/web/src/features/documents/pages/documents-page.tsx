@@ -30,6 +30,7 @@ import { filterAllowedUploadFiles } from '@/features/uploads/upload-file-rules';
 import { uploadManager } from '@/features/uploads/upload-manager';
 import {
   BrowserContextMenu,
+  BrowserCurrentFolderDropZone,
   BrowserItemGrid,
   BrowserItemList,
   ItemInfoDialog,
@@ -59,26 +60,11 @@ import { VaultMembersPanel } from '@/features/vaults/components/vault-members-pa
 import { VaultSettingsPanel } from '@/features/vaults/components/vault-settings-panel';
 import { VaultActivityPanel } from '@/features/audit/components/vault-activity-panel';
 import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
+import { canManageVaultWorkspace, canMutateVaultDocuments, canReadVault, canUseVaultChat } from '@/features/vaults/vault-permissions';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
-import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
+import type { AiAccessLevel, VaultRole } from '@/features/vaults/vaults.types';
 
 export type VaultSection = 'contents' | 'members' | 'activity' | 'settings';
-
-function canMutateVaultDocuments(vault: VaultDetail | null | undefined) {
-  return Boolean(vault?.role === 'owner' || vault?.role === 'editor');
-}
-
-function canReadVault(vault: VaultDetail | null | undefined) {
-  return Boolean(vault?.role === 'owner' || vault?.role === 'editor' || vault?.role === 'viewer');
-}
-
-function canManageVaultWorkspace(vault: VaultDetail | null | undefined) {
-  return Boolean(vault?.role === 'owner' || vault?.isAdmin || vault?.accessMode === 'admin');
-}
-
-function canUseVaultChat(vault: VaultDetail | null | undefined) {
-  return Boolean(vault?.aiAccessLevel === 'document_chat' || vault?.aiAccessLevel === 'full');
-}
 
 function isBrowserAction(entry: BrowserContextMenuEntry): entry is BrowserAction {
   return !('type' in entry);
@@ -962,7 +948,13 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       {section === 'contents' ? (
         <>
           <Flex flex="1" minH="0" overflow="hidden">
-            <Flex minW="0" flex="1" direction="column" overflow="hidden">
+            <BrowserCurrentFolderDropZone
+              folderId={currentFolderId}
+              dropTarget={dropTarget}
+              onDragOverFolder={handleDragOverFolder}
+              onDragLeaveFolder={handleDragLeaveFolder}
+              onDropOnFolder={handleDropOnFolder}
+            >
               {activeIsLoading ? (
                 <Box borderBottomWidth="1px" borderColor="border.surface" px="6" py="4">
                   <Text fontSize="sm" color="fg.muted">
@@ -1049,7 +1041,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                   />
                 )
               ) : null}
-            </Flex>
+            </BrowserCurrentFolderDropZone>
           </Flex>
         </>
       ) : null}

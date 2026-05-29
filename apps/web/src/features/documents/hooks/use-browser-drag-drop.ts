@@ -8,19 +8,74 @@ import {
   isFolderDescendant,
 } from '@/features/file-browser/components/vault-browser.types';
 import type { BrowserDropTarget, BrowserItem } from '@/features/file-browser/components/vault-browser.types';
+import { useOptionalVaultBrowserDragDrop } from '@/features/file-browser/components/vault-browser-drag-drop-context';
 import type { FolderTreeEntry } from '@/features/file-browser/file-browser.types';
 
-const INTERNAL_BROWSER_DRAG_TYPE = 'application/x-arkivra-browser-items';
+export const INTERNAL_BROWSER_DRAG_TYPE = 'application/x-arkivra-browser-items';
 
-function hasInternalBrowserDrag(event: DragEvent<HTMLElement>) {
+export function hasInternalBrowserDrag(event: DragEvent<HTMLElement>) {
   return Array.from(event.dataTransfer.types).includes(INTERNAL_BROWSER_DRAG_TYPE);
 }
 
-function serializeBrowserDragItems(items: BrowserItem[]) {
+export function serializeBrowserDragItems(items: BrowserItem[]) {
   return JSON.stringify(items.map((item) => ({
     id: item.type === 'folder' ? item.folder.id : item.document.id,
     type: item.type,
   })));
+}
+
+export function getBrowserDropValidation({
+  canUpdateItems,
+  itemMutationPending,
+  destinationId,
+  targets,
+  folders,
+}: {
+  canUpdateItems: boolean;
+  itemMutationPending: boolean;
+  destinationId: string | null;
+  targets: BrowserItem[];
+  folders: FolderTreeEntry[] | undefined;
+}): { valid: true } | { valid: false; message: string } {
+  if (!canUpdateItems) {
+    return { valid: false, message: 'You do not have permission to move items.' };
+  }
+
+  if (itemMutationPending) {
+    return { valid: false, message: 'Wait for the current file operation to finish.' };
+  }
+
+  if (targets.length === 0) {
+    return { valid: false, message: 'No items selected to move.' };
+  }
+
+  if (targets.every(target => getBrowserItemParentId(target) === destinationId)) {
+    return { valid: false, message: 'Items are already in that folder.' };
+  }
+
+  for (const target of targets) {
+    if (target.type !== 'folder') {
+      continue;
+    }
+
+    if (destinationId === target.folder.id) {
+      return { valid: false, message: 'A folder cannot be moved into itself.' };
+    }
+
+    if (
+      destinationId !== null
+      && folders
+      && isFolderDescendant({
+        folders,
+        folderId: target.folder.id,
+        candidateId: destinationId,
+      })
+    ) {
+      return { valid: false, message: 'A folder cannot be moved into one of its descendants.' };
+    }
+  }
+
+  return { valid: true };
 }
 
 export function useBrowserDragDrop({
@@ -40,15 +95,20 @@ export function useBrowserDragDrop({
   folders: FolderTreeEntry[] | undefined;
   onMoveItems: (input: { targets: BrowserItem[]; destinationId: string | null }) => void;
 }) {
-  const [draggedItems, setDraggedItems] = useState<BrowserItem[]>([]);
+  const sharedDragDrop = useOptionalVaultBrowserDragDrop();
+  const [localDraggedItems, setLocalDraggedItems] = useState<BrowserItem[]>([]);
   const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null);
+  const draggedItems = sharedDragDrop?.dragState.source
+    ? sharedDragDrop.dragState.items
+    : localDraggedItems;
   const draggedItemKeys = useMemo(
     () => new Set(draggedItems.map(item => getBrowserItemKey(item))),
     [draggedItems],
   );
 
   function resetDragState() {
-    setDraggedItems([]);
+    setLocalDraggedItems([]);
+    sharedDragDrop?.clearDrag('panel');
     setDropTarget(null);
   }
 
@@ -59,45 +119,13 @@ export function useBrowserDragDrop({
     destinationId: string | null;
     targets: BrowserItem[];
   }): { valid: true } | { valid: false; message: string } {
-    if (!canUpdateItems) {
-      return { valid: false, message: 'You do not have permission to move items.' };
-    }
-
-    if (itemMutationPending) {
-      return { valid: false, message: 'Wait for the current file operation to finish.' };
-    }
-
-    if (targets.length === 0) {
-      return { valid: false, message: 'No items selected to move.' };
-    }
-
-    if (targets.every(target => getBrowserItemParentId(target) === destinationId)) {
-      return { valid: false, message: 'Items are already in that folder.' };
-    }
-
-    for (const target of targets) {
-      if (target.type !== 'folder') {
-        continue;
-      }
-
-      if (destinationId === target.folder.id) {
-        return { valid: false, message: 'A folder cannot be moved into itself.' };
-      }
-
-      if (
-        destinationId !== null
-        && folders
-        && isFolderDescendant({
-          folders,
-          folderId: target.folder.id,
-          candidateId: destinationId,
-        })
-      ) {
-        return { valid: false, message: 'A folder cannot be moved into one of its descendants.' };
-      }
-    }
-
-    return { valid: true };
+    return getBrowserDropValidation({
+      canUpdateItems,
+      itemMutationPending,
+      destinationId,
+      targets,
+      folders,
+    });
   }
 
   function setActiveDropTarget(folderId: string | null, state: BrowserDropTarget['state']) {
@@ -125,7 +153,8 @@ export function useBrowserDragDrop({
       selectSingleItem(item);
     }
 
-    setDraggedItems(dragItems);
+    setLocalDraggedItems(dragItems);
+    sharedDragDrop?.startDrag('panel', dragItems);
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData(INTERNAL_BROWSER_DRAG_TYPE, serializeBrowserDragItems(dragItems));
     event.dataTransfer.setData('text/plain', dragItems.map(target => getItemName(target)).join(', '));
@@ -176,7 +205,8 @@ export function useBrowserDragDrop({
     }
 
     onMoveItems({ targets: draggedItems, destinationId: folderId });
-    setDraggedItems([]);
+    setLocalDraggedItems([]);
+    sharedDragDrop?.clearDrag(sharedDragDrop?.dragState.source ?? 'panel');
   }
 
   return {

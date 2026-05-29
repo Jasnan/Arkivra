@@ -15,6 +15,17 @@ const DOCUMENT_VALUE_PREFIX = 'document:';
 
 export const VAULT_TREE_ROOT_VALUE = ROOT_VALUE;
 
+const vaultTreeItemStyles = {
+  minH: '8',
+  gap: '2',
+  px: '2',
+  rounded: 'md',
+  color: 'fg.muted',
+  transition: 'background-color 120ms ease, color 120ms ease',
+  _hover: { bg: 'bg.muted', color: 'fg' },
+  _selected: { bg: 'teal.subtle', color: 'teal.fg' },
+} as const;
+
 type VaultTreeNode =
   | { id: string; name: string; type: 'root'; children: VaultTreeNode[] }
   | { id: string; name: string; type: 'vault'; vaultId: string; children?: VaultTreeNode[]; childrenCount?: number }
@@ -307,8 +318,7 @@ export function VaultSidebarTree({
               <TreeView.BranchControl
                 onClick={() => handleBranchClick(node)}
                 onContextMenu={getContextMenuHandler(node)}
-                minH="8"
-                gap="2"
+                {...vaultTreeItemStyles}
               >
                 {getNodeIcon(node, nodeState.expanded)}
                 <TreeView.BranchText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.BranchText>
@@ -317,8 +327,7 @@ export function VaultSidebarTree({
               <TreeView.Item
                 onClick={() => handleItemClick(node)}
                 onContextMenu={getContextMenuHandler(node)}
-                minH="8"
-                gap="2"
+                {...vaultTreeItemStyles}
               >
                 {getNodeIcon(node)}
                 <TreeView.ItemText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.ItemText>

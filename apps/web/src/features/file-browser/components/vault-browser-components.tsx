@@ -881,7 +881,8 @@ export function BrowserItemList({
         px="6"
         py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
         fontSize="sm"
-        color="fg.muted"
+        fontWeight="medium"
+        color="fg.subtle"
       >
         {selectable ? (
           <SelectionCheckbox
@@ -937,7 +938,7 @@ export function BrowserItemList({
                 draggable={isDraggable && !isMutating}
                 h={`${listRowHeight}px`}
                 borderBottomWidth={index === items.length - 1 ? '0' : '1px'}
-                borderColor="border.surface"
+                borderColor="border.divider"
                 cursor="pointer"
                 outline="none"
                 {...itemSurfaceStyles}

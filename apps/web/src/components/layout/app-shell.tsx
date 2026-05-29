@@ -372,11 +372,11 @@ function UnifiedSidebarNavLink({
           py="1.5"
           pl={expanded ? `${0.625 + depth * 0.85}rem` : '0'}
           color={active ? 'teal.fg' : 'fg.muted'}
-          bg={active ? 'bg.sidebar' : 'transparent'}
+          bg={active ? 'teal.subtle' : 'transparent'}
           borderWidth="1px"
-          borderColor={active ? 'border.surface' : 'transparent'}
+          borderColor="transparent"
           transition="background-color 120ms ease, color 120ms ease"
-          _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
+          _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
         >
           <Flex boxSize="5" shrink={0} align="center" justify="center">
             <Icon size={17} strokeWidth={2.1} />
@@ -417,14 +417,14 @@ function UnifiedSidebarNavButton({
         gap="2.5"
         rounded="md"
         borderWidth="1px"
-        borderColor={active ? 'border.surface' : 'transparent'}
-        bg={active ? 'bg.sidebar' : 'transparent'}
+        borderColor="transparent"
+        bg={active ? 'teal.subtle' : 'transparent'}
         color={active ? 'teal.fg' : 'fg.muted'}
         px={expanded ? '2.5' : '0'}
         py="1.5"
         cursor="pointer"
         transition="background-color 120ms ease, color 120ms ease"
-        _hover={{ bg: active ? 'bg.sidebar' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
+        _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
         _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
         onClick={onClick}
       >
@@ -472,14 +472,14 @@ function SidebarNavGroup({
             gap="2.5"
             rounded="md"
             borderWidth="1px"
-            borderColor={groupActive ? 'border.surface' : 'transparent'}
-            bg={groupActive ? 'bg.sidebar' : 'transparent'}
+            borderColor="transparent"
+            bg={groupActive ? 'teal.subtle' : 'transparent'}
             color={groupActive ? 'teal.fg' : 'fg.muted'}
             px={expanded ? '2.5' : '0'}
             py="1.5"
             cursor="pointer"
             transition="background-color 120ms ease, color 120ms ease"
-            _hover={{ bg: groupActive ? 'bg.sidebar' : 'bg.muted', color: groupActive ? 'teal.fg' : 'fg' }}
+            _hover={{ bg: groupActive ? 'teal.subtle' : 'bg.muted', color: groupActive ? 'teal.fg' : 'fg' }}
             _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
           >
             <Flex boxSize="5" shrink={0} align="center" justify="center">
@@ -543,7 +543,7 @@ function UnifiedSidebar({
       shrink={0}
       direction="column"
       borderRightWidth="1px"
-      borderColor="border.surface"
+      borderColor="border.strong"
       bg="bg.rail"
       px="2.5"
       pt="3"
@@ -816,8 +816,8 @@ function SecondarySidebar({
       shrink={0}
       direction="column"
       borderRightWidth={isOpen ? '1px' : '0'}
-      borderRightColor="border.surface"
-      boxShadow={isOpen ? '1px 0 0 var(--chakra-colors-border-subtle)' : 'none'}
+      borderRightColor="border.strong"
+      boxShadow="none"
       bg="bg.sidebar"
       overflow="hidden"
       visibility={isOpen ? 'visible' : 'hidden'}
@@ -925,8 +925,8 @@ function VaultFileTreePanel({
       direction="column"
       borderRightWidth={{ base: '0', md: '1px' }}
       borderBottomWidth={{ base: '1px', md: '0' }}
-      borderColor="border.surface"
-      boxShadow={{ base: 'none', md: '1px 0 0 var(--chakra-colors-border-subtle)' }}
+      borderColor="border.strong"
+      boxShadow="none"
       bg="bg.sidebar"
       overflow="hidden"
     >

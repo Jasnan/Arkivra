@@ -202,7 +202,9 @@ export function DocumentLibraryTable({
         css={{
           '& thead th': {
             paddingBlock: 'var(--arkivra-listHeaderPaddingY, 0.75rem)',
-            borderColor: 'var(--chakra-colors-border-divider)',
+            color: 'var(--chakra-colors-fg-subtle)',
+            fontWeight: '500',
+            borderColor: 'var(--chakra-colors-border-surface)',
           },
           '& tbody tr': {
             height: 'var(--arkivra-listRowHeight, 4.5rem)',

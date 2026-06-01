@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { parseOllamaChatStream } from '../ai/providers/ollama-chat.provider.js';
 import type { Citation } from '../search/search.types.js';
 import {
   buildAnswerPrompt,
@@ -8,7 +9,6 @@ import {
   encodeSseEvent,
   formatFollowUpAssistantMessage,
   normalizeChatGenerationError,
-  parseOllamaChatStream,
   rankCitationsForQuestion,
 } from './chat.services.js';
 

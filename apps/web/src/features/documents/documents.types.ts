@@ -18,7 +18,6 @@ export interface DocumentSummary {
     | 'partitioning'
     | 'chunking'
     | 'summarising'
-    | 'vectorising'
     | 'completed'
     | 'failed'
     | 'processing';

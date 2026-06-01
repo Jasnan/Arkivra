@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
+import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { getDocumentDownloadUrl, softDeleteDocument } from '@/features/documents/documents.api';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
@@ -194,6 +195,7 @@ export function AllDocumentsPage() {
   });
   async function invalidateDocumentQueries() {
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
       queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
     ]);

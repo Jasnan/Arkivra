@@ -509,6 +509,7 @@ function UnifiedSidebar({
   currentPathname,
   sessionAccountLabel,
   isAdmin,
+  aiFeaturesEnabled,
   onOpenTransfers,
   onSignOut,
 }: {
@@ -517,19 +518,23 @@ function UnifiedSidebar({
   currentPathname: string;
   sessionAccountLabel?: string | null;
   isAdmin?: boolean;
+  aiFeaturesEnabled: boolean;
   onOpenTransfers: () => void;
   onSignOut: () => void;
 }) {
   const roleLabel = isAdmin ? 'Admin' : 'Member';
   const accountLabel = sessionAccountLabel ?? 'Signed in';
   const sidebarAccountLabel = truncateSidebarAccountLabel(accountLabel);
+  const visiblePrimaryNavItems = aiFeaturesEnabled
+    ? primaryNavItems
+    : primaryNavItems.filter(item => item.id !== 'chat');
 
   return (
     <Flex
       as="aside"
       aria-label="Primary sidebar"
       w={expanded ? UNIFIED_SIDEBAR_WIDTH : UNIFIED_SIDEBAR_COLLAPSED_WIDTH}
-      h="100vh"
+      h="100dvh"
       shrink={0}
       direction="column"
       borderRightWidth="1px"
@@ -620,7 +625,7 @@ function UnifiedSidebar({
           gap="1"
           minW="0"
         >
-          {primaryNavItems.map((item) => (
+          {visiblePrimaryNavItems.map((item) => (
             item.id === 'transfers' ? (
               <UnifiedSidebarNavButton
                 key={item.id}
@@ -802,7 +807,7 @@ function SecondarySidebar({
       aria-hidden={!isOpen}
       display={{ base: 'none', md: 'flex' }}
       w={isOpen ? { md: '15.75rem', xl: '17rem' } : '0'}
-      h="100vh"
+      h="100dvh"
       shrink={0}
       direction="column"
       borderRightWidth={isOpen ? '1px' : '0'}
@@ -1131,6 +1136,7 @@ export function AppShell() {
   const [isTransfersDrawerOpen, setIsTransfersDrawerOpen] = useState(false);
   const previousLocationKeyRef = useRef<string | null>(null);
   const quickSearchShortcut = useMemo(() => getQuickSearchShortcut(), []);
+  const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const debouncedSearchValue = useDebouncedValue(searchValue.trim(), QUICK_SEARCH_QUERY_DEBOUNCE_MS);
   const pathParts = location.pathname.split('/').filter(Boolean);
   const transferVaultId = useMemo(
@@ -1306,13 +1312,14 @@ export function AppShell() {
   return (
     <TooltipProvider delayDuration={100}>
       <WorkspaceLayoutContext value={layoutContextValue}>
-        <Flex minH="100vh" bg="bg.workspace" color="fg" overflow="hidden">
+        <Flex h="100dvh" minH="0" bg="bg.workspace" color="fg" overflow="hidden">
           <UnifiedSidebar
             expanded={isPrimarySidebarExpanded}
             activeNavId={isTransfersDrawerOpen ? 'transfers' : primaryNavId(location.pathname)}
             currentPathname={location.pathname}
             sessionAccountLabel={sessionData?.user.name?.trim() || sessionData?.user.email}
             isAdmin={meQuery.data?.isAdmin}
+            aiFeaturesEnabled={aiFeaturesEnabled}
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
             onSignOut={() => void handleSignOut()}
           />
@@ -1325,7 +1332,7 @@ export function AppShell() {
             />
           ) : null}
 
-          <Flex minW="0" flex="1" h="100vh" direction="column" overflow="hidden">
+          <Flex minW="0" flex="1" h="100dvh" minH="0" direction="column" overflow="hidden">
             <WorkspaceHeader
               breadcrumbs={breadcrumbs}
               headerConfig={isChatRoute ? { hidden: true } : headerConfig}

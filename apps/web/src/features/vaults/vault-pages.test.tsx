@@ -31,6 +31,7 @@ describe('vault pages', () => {
           systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
           canCreateVault: true,
+          aiFeaturesEnabled: true,
         });
       }
 
@@ -100,6 +101,7 @@ describe('vault pages', () => {
           systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
           canCreateVault: true,
+          aiFeaturesEnabled: true,
         });
       }
 
@@ -138,6 +140,7 @@ describe('vault pages', () => {
           systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
           canCreateVault: true,
+          aiFeaturesEnabled: true,
         });
       }
 
@@ -189,6 +192,7 @@ describe('vault pages', () => {
           systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
           canCreateVault: true,
+          aiFeaturesEnabled: true,
         });
       }
 
@@ -230,6 +234,7 @@ describe('vault pages', () => {
           systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
           canCreateVault: true,
+          aiFeaturesEnabled: true,
         });
       }
 
@@ -267,6 +272,7 @@ describe('vault pages', () => {
           systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
           canCreateVault: true,
+          aiFeaturesEnabled: true,
         });
       }
 
@@ -305,6 +311,7 @@ describe('vault pages', () => {
           systemCapabilities: [],
           isAdmin: false,
           canCreateVault: false,
+          aiFeaturesEnabled: true,
         });
       }
 
@@ -421,6 +428,7 @@ describe('vault pages', () => {
           systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
           canCreateVault: true,
+          aiFeaturesEnabled: true,
         });
       }
 

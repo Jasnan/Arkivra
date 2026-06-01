@@ -173,6 +173,25 @@ describe('documents page', () => {
     expect(within(menu).queryByRole('menuitem', { name: /^chat$/i })).not.toBeInTheDocument();
   });
 
+  it('hides vault chat actions when AI features are disabled globally', async () => {
+    const fetchMock = installVaultContentsFetchMock({ aiFeaturesEnabled: false, items: [] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/me')).toBe(true);
+    });
+
+    fireEvent.contextMenu(await screen.findByText(/this vault is empty/i));
+
+    const menu = await screen.findByRole('menu', { name: /actions for vault root/i });
+    expect(within(menu).getByRole('menuitem', { name: /^settings$/i })).toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^chat$/i })).not.toBeInTheDocument();
+  });
+
   it('renders document detail sections without tabs and exposes section actions', async () => {
     const user = userEvent.setup();
     installDocumentDetailFetchMock();
@@ -374,12 +393,26 @@ function installVaultContentsFetchMock({
       },
     },
   ],
+  aiFeaturesEnabled = true,
 }: {
   vault?: Record<string, unknown>;
   items?: unknown[];
+  aiFeaturesEnabled?: boolean;
 } = {}) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+
+    if (url === '/api/me') {
+      return jsonResponse({
+        userId: 'usr_1',
+        sessionId: 'ses_1',
+        systemRole: 'member',
+        systemCapabilities: ['system.create_vaults'],
+        isAdmin: false,
+        canCreateVault: true,
+        aiFeaturesEnabled,
+      });
+    }
 
     if (url === '/api/vaults/vlt_1') {
       return jsonResponse({
@@ -426,6 +459,18 @@ function installDocumentDetailFetchMock({
 } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+
+    if (url === '/api/me') {
+      return jsonResponse({
+        userId: 'usr_1',
+        sessionId: 'ses_1',
+        systemRole: 'member',
+        systemCapabilities: ['system.create_vaults'],
+        isAdmin: false,
+        canCreateVault: true,
+        aiFeaturesEnabled: true,
+      });
+    }
 
     if (url === '/api/vaults/vlt_1/documents/doc_1') {
       return jsonResponse({

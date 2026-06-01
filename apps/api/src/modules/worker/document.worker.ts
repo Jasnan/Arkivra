@@ -2,7 +2,6 @@ import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ParsePipeline } from '../parsing/parse-pipeline.js';
-import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
 import type { ProcessDocumentJobData } from './queue.js';
 import type { createActivityServices } from '../activity/activity.services.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
@@ -18,7 +17,6 @@ const WORKER_PROGRESS = {
   partitioning: 30,
   chunking: 55,
   summarising: 75,
-  vectorising: 95,
   completed: 100,
 } as const;
 
@@ -27,7 +25,6 @@ export type DocumentWorkerDeps = {
   storage: StorageDriver;
   encryption: EncryptionServices;
   parsePipeline: ParsePipeline;
-  chunkEmbedder?: ChunkEmbedder;
   appInstance?: string;
   startPolling?: boolean;
   concurrency?: number;
@@ -40,7 +37,6 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     storage,
     encryption,
     parsePipeline,
-    chunkEmbedder,
     appInstance,
     startPolling = true,
     concurrency = 1,
@@ -58,7 +54,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
   }: {
     documentId: string;
     vaultId: string;
-    processingStatus: 'partitioning' | 'chunking' | 'summarising' | 'vectorising' | 'completed';
+    processingStatus: 'partitioning' | 'chunking' | 'summarising' | 'completed';
     progress: number;
     job: AsyncJob<ProcessDocumentJobData>;
   }) {
@@ -212,20 +208,6 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         db,
         storage,
         encryption,
-        embedder: chunkEmbedder,
-        hooks: {
-          onStageChange: async (stage) => {
-            if (stage === 'vectorising') {
-              await setProcessingStage({
-                documentId,
-                vaultId,
-                processingStatus: 'vectorising',
-                progress: WORKER_PROGRESS.vectorising,
-                job,
-              });
-            }
-          },
-        },
         documentId,
         vaultId,
         parsed,

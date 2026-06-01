@@ -2,6 +2,7 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api';
+import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { getDocumentDownloadUrl, moveDocument, renameDocument, softDeleteDocument } from '@/features/documents/documents.api';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import type { DocumentSummary } from '@/features/documents/documents.types';
@@ -222,6 +223,7 @@ export function useFileBrowserMutations({
 
   async function invalidateBrowserData() {
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
       queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),

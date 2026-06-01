@@ -217,6 +217,7 @@ describe('auth integration', () => {
       systemCapabilities: [],
       isAdmin: false,
       canCreateVault: false,
+      aiFeaturesEnabled: false,
       authMethods: {
         hasPassword: true,
         oauthProviders: ['github'],

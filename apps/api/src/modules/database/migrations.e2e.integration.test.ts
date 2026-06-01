@@ -239,7 +239,7 @@ describe.sequential('migrations smoke', () => {
     expect(byColumn.vault_id?.delete_rule).toBe('CASCADE');
   });
 
-  test('0011 adds summarisation + embedding columns to instance_settings', async () => {
+  test('ingestion AI settings default to disabled', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -270,7 +270,7 @@ describe.sequential('migrations smoke', () => {
 
     expect(byName.ai_summarisation_enabled?.data_type).toBe('boolean');
     expect(byName.ai_summarisation_enabled?.is_nullable).toBe('NO');
-    expect(byName.ai_summarisation_enabled?.column_default).toContain('true');
+    expect(byName.ai_summarisation_enabled?.column_default).toContain('false');
 
     expect(byName.ollama_summarisation_model?.data_type).toBe('text');
     expect(byName.ollama_summarisation_model?.column_default).toContain("'gemma4:e4b'");
@@ -279,7 +279,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ollama_summarisation_max_images_per_chunk?.column_default).toContain('4');
 
     expect(byName.ollama_embedding_enabled?.data_type).toBe('boolean');
-    expect(byName.ollama_embedding_enabled?.column_default).toContain('true');
+    expect(byName.ollama_embedding_enabled?.column_default).toContain('false');
 
     expect(byName.ollama_embedding_model?.data_type).toBe('text');
     expect(byName.ollama_embedding_model?.column_default).toContain("'bge-m3'");
@@ -499,27 +499,81 @@ describe.sequential('migrations smoke', () => {
     expect(rows[0]?.is_nullable).toBe('NO');
   });
 
-  test('document_chunks.embedding remains a 1024-dim pgvector column', async () => {
+  test('0023 moves vectors out of document_chunks and adds embedding index tables', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
 
-    const { rows } = await pool.query<{ format_type: string }>(
+    const { rows: oldEmbeddingColumns } = await pool.query<{ column_name: string }>(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'document_chunks'
+          AND column_name = 'embedding'
+      `,
+    );
+
+    expect(oldEmbeddingColumns).toHaveLength(0);
+
+    const { rows: tableRows } = await pool.query<{ table_name: string }>(
+      `
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name IN (
+            'ai_provider_configs',
+            'embedding_indexes',
+            'document_chunk_embeddings',
+            'document_embedding_index_status'
+          )
+      `,
+    );
+
+    expect(new Set(tableRows.map(row => row.table_name))).toEqual(new Set([
+      'ai_provider_configs',
+      'embedding_indexes',
+      'document_chunk_embeddings',
+      'document_embedding_index_status',
+    ]));
+
+    const { rows: embeddingColumnRows } = await pool.query<{ format_type: string }>(
       `
         SELECT format_type(a.atttypid, a.atttypmod) AS format_type
         FROM pg_attribute a
         JOIN pg_class c ON c.oid = a.attrelid
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public'
-          AND c.relname = 'document_chunks'
+          AND c.relname = 'document_chunk_embeddings'
           AND a.attname = 'embedding'
           AND a.attnum > 0
           AND NOT a.attisdropped
       `,
     );
 
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.format_type).toBe('vector(1024)');
+    expect(embeddingColumnRows).toHaveLength(1);
+    expect(embeddingColumnRows[0]?.format_type).toBe('vector');
+
+    const { rows: indexRows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname IN (
+            'embedding_indexes_single_active_idx',
+            'document_chunk_embeddings_index_doc_idx',
+            'document_chunk_embeddings_index_vault_idx',
+            'document_embedding_index_status_pkey'
+          )
+      `,
+    );
+
+    expect(new Set(indexRows.map(row => row.indexname))).toEqual(new Set([
+      'embedding_indexes_single_active_idx',
+      'document_chunk_embeddings_index_doc_idx',
+      'document_chunk_embeddings_index_vault_idx',
+      'document_embedding_index_status_pkey',
+    ]));
   });
 
   test('0014 creates the background_jobs table used by async workers', async () => {

@@ -28,6 +28,12 @@ export function formatAuditEventSummary(event: AuditEventRecord) {
       return `${actor} viewed the audit log`;
     case 'audit_log.searched':
       return `${actor} searched the audit log`;
+    case 'ai.features_toggled':
+      return `${actor} toggled AI features`;
+    case 'ai.chat_model_changed':
+      return `${actor} changed the chat model`;
+    case 'ai.embedding_model_changed':
+      return `${actor} changed the embedding model`;
     case 'vault.member_added':
       return `${actor} added a vault member`;
     case 'vault.member_removed':

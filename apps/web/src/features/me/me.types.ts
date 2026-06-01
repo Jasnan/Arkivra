@@ -5,6 +5,7 @@ export interface MeResponse {
   systemCapabilities: SystemCapability[];
   isAdmin: boolean;
   canCreateVault: boolean;
+  aiFeaturesEnabled: boolean;
   authMethods: {
     hasPassword: boolean;
     oauthProviders: string[];

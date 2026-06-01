@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/web/src/assets/arkivra-project-logo.png" alt="Arkivra - open-source document management with vaults, search, and local RAG chat" width="760">
+  <img src="apps/web/src/assets/arkivra-project-logo.png" alt="Arkivra - open-source document management with vaults, search, and optional AI chat" width="760">
 </p>
 
 <p align="center">
@@ -18,9 +18,9 @@
 
 ## What is Arkivra?
 
-Arkivra is an open-source, self-hosted document management system with semantic search and AI-powered chat.
+Arkivra is an open-source, self-hosted document management system with vaults, full-text search, optional semantic search, and optional AI-powered chat.
 
-Organize documents into vaults, search across your files, and chat with your documents using local or connected AI models.
+Organize documents into vaults, search across your files, and add chat or semantic retrieval when you configure an AI provider and embedding index.
 
 ---
 
@@ -37,9 +37,9 @@ The core platform is already usable, but deployment, documentation, and operatio
 - Organize documents into vaults
 - Vault members, roles, and permission management
 - Upload, preview, download, restore, and trash workflows
-- Full-text and semantic search
-- Chat with documents, vaults, or your entire library using Ollama
-- Docling-based document parsing and ingestion
+- Full-text search by default, with semantic search when an embedding index is enabled
+- Optional chat with documents, vaults, or your entire library using a configured chat provider
+- Docling-based document parsing and ingestion without an AI dependency
 - Tags, filters, and metadata management
 - Email/password auth, OAuth, and 2FA
 - Encryption at rest for uploaded files
@@ -68,6 +68,8 @@ Arkivra should now be available at:
 - Web: http://localhost:5173
 - API: http://localhost:1221
 
+PostgreSQL and Docling are enough for uploads, parsing, document management, and keyword search. Ollama is optional; configure it from the admin AI settings when you want local chat or semantic indexing.
+
 ---
 
 ## Local Development
@@ -81,7 +83,7 @@ pnpm dev:web
 
 For parallel branch work, use Git worktrees with distinct ports and `APP_INSTANCE` values.
 
-Docker Compose currently starts PostgreSQL with pgvector, Docling, the API process, and the worker.
+Docker Compose currently starts PostgreSQL with pgvector, Docling, the API process, and the worker. It does not require Ollama for ingestion or full-text search.
 
 More detailed setup, deployment, and operational documentation is available at:
 
@@ -93,7 +95,7 @@ More detailed setup, deployment, and operational documentation is available at:
 
 Arkivra encrypts uploaded files and extracted assets at rest.
 
-Search and chat features require derived data to be stored in PostgreSQL, including extracted text, chunks, embeddings, vectors, chat history, and related metadata.
+Search and chat features require derived data to be stored in PostgreSQL, including extracted text, chunks, chat history, and related metadata. Embeddings and vectors are stored only when AI indexing is configured and run.
 
 Arkivra is not designed as a zero-knowledge or end-to-end encrypted vault.
 
@@ -117,7 +119,7 @@ Losing the active encryption key means losing access to encrypted stored files.
 | Database   | PostgreSQL, Drizzle ORM, pgvector                                   |
 | Jobs       | PostgreSQL-backed workers                                           |
 | Parsing    | Docling                                                             |
-| AI         | Ollama                                                              |
+| AI         | Optional provider-neutral chat and embeddings; Ollama adapter included |
 | Deployment | Docker Compose                                                      |
 
 ---

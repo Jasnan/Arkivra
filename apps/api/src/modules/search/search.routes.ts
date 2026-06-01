@@ -1,7 +1,8 @@
 import type { Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
-import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
+import type { EmbeddingProvider } from '../ai/providers/types.js';
+import type { ActiveEmbeddingIndex } from '../ai/indexing/index.js';
 import type { DocumentSearchMode, DocumentSearchServices, HybridSearchMode } from './search.types.js';
 import { SEARCH_SORT_VALUES } from './search.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
@@ -96,17 +97,23 @@ export function registerSearchRoutes({
   app,
   db,
   services,
-  chunkEmbedder,
+  embeddingProvider,
+  resolveActiveEmbeddingIndex,
   vaultServices,
 }: {
   app: Hono<ServerContext>;
   db: Database;
   services?: DocumentSearchServices;
-  chunkEmbedder?: ChunkEmbedder;
+  embeddingProvider?: EmbeddingProvider;
+  resolveActiveEmbeddingIndex?: () => Promise<ActiveEmbeddingIndex | null>;
   vaultServices?: VaultsServices;
 }) {
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
-  const searchServices = services ?? createDocumentSearchServices({ db, chunkEmbedder });
+  const searchServices = services ?? createDocumentSearchServices({
+    db,
+    embeddingProvider,
+    resolveActiveEmbeddingIndex,
+  });
 
   app.use('/api/search', requireAuthentication());
 

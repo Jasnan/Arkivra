@@ -155,6 +155,27 @@
       "when": 1779840000000,
       "tag": "0021_remove_document_date",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779926400000,
+      "tag": "0022_ai_optional_ingestion_defaults",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1780012800000,
+      "tag": "0023_embedding_index_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1780099200000,
+      "tag": "0024_ai_feature_settings",
+      "breakpoints": true
     }
   ]
 }

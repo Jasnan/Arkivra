@@ -1,10 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { ParsedChunk, ParsedDocument } from './parsed-document.schema.js';
-import type { ChunkEmbedder } from './ollama-embedder.js';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
@@ -58,15 +57,6 @@ function tableStorageKey({
 }
 
 type AssetRow = typeof documentChunkAssetsTable.$inferInsert;
-type DatabaseTransaction = Parameters<Parameters<Database['transaction']>[0]>[0];
-export type PersistParsedDocumentStage = 'vectorising';
-export type PersistParsedDocumentHooks = {
-  onStageChange?: (stage: PersistParsedDocumentStage) => void | Promise<void>;
-};
-
-function vectorToSqlLiteral(vector: number[]) {
-  return `[${vector.join(',')}]`;
-}
 
 type AssetProvenance = {
   elementId?: string;
@@ -257,8 +247,6 @@ export async function persistParsedDocument({
   db,
   storage,
   encryption,
-  embedder,
-  hooks,
   documentId,
   vaultId,
   parsed,
@@ -266,8 +254,6 @@ export async function persistParsedDocument({
   db: Database;
   storage: StorageDriver;
   encryption: EncryptionServices;
-  embedder?: ChunkEmbedder;
-  hooks?: PersistParsedDocumentHooks;
   documentId: string;
   vaultId: string;
   parsed: ParsedDocument;
@@ -353,31 +339,6 @@ export async function persistParsedDocument({
       if (assetRows.length > 0) {
         await tx.insert(documentChunkAssetsTable).values(assetRows);
       }
-
-      if (embedder !== undefined) {
-        await hooks?.onStageChange?.('vectorising');
-        const embeddings = await embedder.embed(parsed.chunks.map(chunk => chunk.text));
-        if (embeddings.length > 0) {
-          if (embeddings.length !== parsed.chunks.length) {
-            throw new Error(
-              `Embedder returned ${embeddings.length} vectors for ${parsed.chunks.length} chunks`,
-            );
-          }
-
-          await writeChunkEmbeddings({
-            tx,
-            chunkIds: parsed.chunks.map((chunk) => {
-              const chunkId = chunkIdByKey.get(chunk.id);
-              if (chunkId === undefined) {
-                throw new Error(`Inserted chunk id missing for ${chunk.id}`);
-              }
-
-              return chunkId;
-            }),
-            embeddings,
-          });
-        }
-      }
     }
 
     await tx
@@ -396,25 +357,4 @@ export async function persistParsedDocument({
       })
       .where(eq(documentsTable.id, documentId));
   });
-}
-
-async function writeChunkEmbeddings({
-  tx,
-  chunkIds,
-  embeddings,
-}: {
-  tx: DatabaseTransaction;
-  chunkIds: string[];
-  embeddings: number[][];
-}) {
-  for (let index = 0; index < chunkIds.length; index += 1) {
-    const chunkId = chunkIds[index]!;
-    const embedding = embeddings[index]!;
-
-    await tx.execute(
-      sql`UPDATE document_chunks
-          SET embedding = ${vectorToSqlLiteral(embedding)}::vector
-          WHERE id = ${chunkId}`,
-    );
-  }
 }

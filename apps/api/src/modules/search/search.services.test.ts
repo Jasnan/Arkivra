@@ -102,13 +102,23 @@ describe('document search services', () => {
         },
       ],
     }));
-    const embed = vi.fn(async () => [[0.1, 0.2, 0.3]]);
+    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
     const searchServices = createDocumentSearchServices({
       db: { execute } as any,
-      chunkEmbedder: {
-        name: 'test-embedder',
-        embed,
+      embeddingProvider: {
+        kind: 'ollama',
+        embed: async ({ texts }) => embed(texts),
       },
+      resolveActiveEmbeddingIndex: async () => ({
+        id: 'eix_active',
+        providerConfigId: 'aip_embedding',
+        provider: 'ollama',
+        model: 'test-embedding',
+        dimensions: 3,
+        distanceMetric: 'cosine',
+        name: 'Test embedding',
+        isEnabled: true,
+      }),
     });
 
     const result = await searchServices.searchDocuments({
@@ -122,6 +132,8 @@ describe('document search services', () => {
     const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
     expect(embed).toHaveBeenCalledWith(['bills']);
     expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
+    expect(queryText).toContain('document_chunk_embeddings AS dce');
+    expect(queryText).toContain('dce.embedding_index_id');
     expect(queryText).toContain('AND vec_ranked.similarity >=');
     expect(result.resultsCount).toBe(1);
     expect(result.results[0]?.bestChunk?.matchType).toBe('semantic');
@@ -169,13 +181,23 @@ describe('document search services', () => {
         },
       ],
     }));
-    const embed = vi.fn(async () => [[0.1, 0.2, 0.3]]);
+    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
     const searchServices = createDocumentSearchServices({
       db: { execute } as any,
-      chunkEmbedder: {
-        name: 'test-embedder',
-        embed,
+      embeddingProvider: {
+        kind: 'ollama',
+        embed: async ({ texts }) => embed(texts),
       },
+      resolveActiveEmbeddingIndex: async () => ({
+        id: 'eix_active',
+        providerConfigId: 'aip_embedding',
+        provider: 'ollama',
+        model: 'test-embedding',
+        dimensions: 3,
+        distanceMetric: 'cosine',
+        name: 'Test embedding',
+        isEnabled: true,
+      }),
     });
 
     const result = await searchServices.searchHybrid({
@@ -187,6 +209,7 @@ describe('document search services', () => {
     expect(embed).toHaveBeenCalledWith(['revenue']);
     const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
     expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
+    expect(queryText).toContain('document_chunk_embeddings AS dce');
     expect(result.mode).toBe('hybrid');
     expect(result.citations).toEqual([
       {
@@ -231,13 +254,23 @@ describe('document search services', () => {
 
   it('degrades hybrid search to fts when embeddings are unavailable', async () => {
     const execute = vi.fn(async () => ({ rows: [] }));
-    const embed = vi.fn(async () => []);
+    const embed = vi.fn(async (_texts: string[]) => []);
     const searchServices = createDocumentSearchServices({
       db: { execute } as any,
-      chunkEmbedder: {
-        name: 'test-embedder',
-        embed,
+      embeddingProvider: {
+        kind: 'ollama',
+        embed: async ({ texts }) => embed(texts),
       },
+      resolveActiveEmbeddingIndex: async () => ({
+        id: 'eix_active',
+        providerConfigId: 'aip_embedding',
+        provider: 'ollama',
+        model: 'test-embedding',
+        dimensions: 3,
+        distanceMetric: 'cosine',
+        name: 'Test embedding',
+        isEnabled: true,
+      }),
     });
 
     const result = await searchServices.searchHybrid({
@@ -250,5 +283,34 @@ describe('document search services', () => {
     expect(queryText).not.toContain('FULL OUTER JOIN vec_ranked');
     expect(result.mode).toBe('fts');
     expect(result.citations).toEqual([]);
+  });
+
+  it('falls back to keyword document search when no active embedding index exists', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ results_count: 0 }] });
+    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+      embeddingProvider: {
+        kind: 'ollama',
+        embed: async ({ texts }) => embed(texts),
+      },
+      resolveActiveEmbeddingIndex: async () => null,
+    });
+
+    const result = await searchServices.searchDocuments({
+      vaultId: 'vlt_1',
+      query: 'contract',
+      pageIndex: 0,
+      pageSize: 20,
+      searchMode: 'hybrid',
+    });
+
+    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    expect(embed).not.toHaveBeenCalled();
+    expect(queryText).not.toContain('document_chunk_embeddings');
+    expect(queryText).toContain('websearch_to_tsquery');
+    expect(result.resultsCount).toBe(0);
   });
 });

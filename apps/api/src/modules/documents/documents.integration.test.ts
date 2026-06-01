@@ -159,6 +159,35 @@ function createMockDocumentQueue() {
   };
 }
 
+function createMockEmbeddingIndexQueue() {
+  return {
+    enqueueDocumentIndexing: vi.fn(async () => undefined),
+  };
+}
+
+function createMockAdminAiServices({ aiFeaturesEnabled = true } = {}) {
+  return {
+    getSettings: vi.fn(async () => ({
+      aiFeaturesEnabled,
+      chat: {
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKeySecretRef: null,
+        model: 'gemma4:e4b',
+      },
+      embedding: {
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKeySecretRef: null,
+        model: 'bge-m3',
+        dimensions: 1024,
+      },
+      ollamaHost: 'http://127.0.0.1:11434',
+      model: 'gemma4:e4b',
+    })),
+  };
+}
+
 function createMockVaultsServices() {
   return {
     createVault: vi.fn(),
@@ -353,12 +382,18 @@ function createTestApp({
   documentQueue,
   auditServices,
   activityServices,
+  adminAiServices,
+  embeddingIndexQueue,
+  db,
 }: {
   docServices: DocumentsServices;
   vaultServices?: VaultsServices;
   documentQueue?: { enqueueProcessDocument: (args: any) => Promise<void> };
   auditServices?: ReturnType<typeof createAuditServices>;
   activityServices?: ReturnType<typeof createActivityServices>;
+  adminAiServices?: any;
+  embeddingIndexQueue?: any;
+  db?: Database;
 }) {
   const app = new Hono<ServerContext>();
 
@@ -387,7 +422,7 @@ function createTestApp({
     await next();
   });
 
-  const mockDb = {} as Database;
+  const mockDb = db ?? {} as Database;
   const vs = vaultServices ?? createMockVaultsServices();
 
   registerVaultRoutes({ app, db: mockDb, services: vs, auditServices, activityServices });
@@ -402,6 +437,8 @@ function createTestApp({
     vaultServices: vs,
     auditServices,
     activityServices,
+    adminAiServices,
+    embeddingIndexQueue,
   });
   registerActivityRoutes({ app, db: mockDb, services: activityServices });
   registerAuditRoutes({ app, db: mockDb, services: auditServices });
@@ -1378,6 +1415,46 @@ describe('documents integration', () => {
     expect(docServices.restoreDocument).toHaveBeenCalledWith({
       documentId: 'doc_1',
       vaultId: 'vlt_1',
+    });
+  });
+
+  test('enqueues semantic reindexing after restoring a document when AI is enabled', async () => {
+    const docServices = createMockDocumentsServices();
+    const embeddingIndexQueue = createMockEmbeddingIndexQueue();
+    const adminAiServices = createMockAdminAiServices();
+    const db = {
+      execute: vi.fn(async () => ({
+        rows: [{
+          id: 'eix_active',
+          provider_config_id: 'aip_embedding',
+          provider: 'ollama',
+          model: 'bge-m3',
+          dimensions: 1024,
+          distance_metric: 'cosine',
+          name: 'Local embeddings',
+          base_url: 'http://127.0.0.1:11434',
+          api_key_secret_ref: null,
+          config: {},
+          is_enabled: true,
+        }],
+      })),
+    } as unknown as Database;
+    const app = createTestApp({
+      docServices,
+      adminAiServices,
+      embeddingIndexQueue,
+      db,
+    });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/restore', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(embeddingIndexQueue.enqueueDocumentIndexing).toHaveBeenCalledWith({
+      embeddingIndexId: 'eix_active',
+      documentId: 'doc_1',
     });
   });
 

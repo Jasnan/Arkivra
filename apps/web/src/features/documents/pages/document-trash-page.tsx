@@ -20,6 +20,7 @@ import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
+import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
@@ -226,7 +227,10 @@ export function DocumentTrashPage() {
       );
       clearSelection();
       setContextMenu(null);
-      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+      ]);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not restore documents.');
@@ -252,7 +256,10 @@ export function DocumentTrashPage() {
       clearSelection();
       setContextMenu(null);
       setPendingPermanentDelete([]);
-      await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+      ]);
     },
     onError: (error) => {
       toast.error(

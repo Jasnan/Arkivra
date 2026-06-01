@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
+import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { searchQueryKeys } from '@/features/search/search.queries';
 import { AccentColorProvider } from '@/components/providers/accent-color-provider';
@@ -21,6 +22,7 @@ function UploadCompletionInvalidation() {
   useEffect(() => {
     async function handleUploadCompleted() {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
       ]);

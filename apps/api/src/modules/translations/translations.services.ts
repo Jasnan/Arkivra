@@ -38,6 +38,7 @@ export type DocumentTranslation = {
 };
 
 export type RuntimeTranslationSettings = {
+  enabled?: boolean;
   host: string;
   model: string;
   logRequests?: boolean;
@@ -171,6 +172,9 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
     name: 'ollama',
     async translate({ targetLanguage, source, signal }) {
       const settings = await resolveSettings();
+      if (settings.enabled === false) {
+        throw new Error('AI features are disabled for this Arkivra instance.');
+      }
       const host = settings.host.replace(/\/+$/, '');
       const prompt = buildPrompt({ targetLanguage, source });
       const images = getOllamaImageAttachments(source);

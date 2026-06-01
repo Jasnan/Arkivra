@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import * as schema from '../database/schema/index.js';
@@ -21,7 +21,6 @@ import { createEncryptionServices } from '../encryption/encryption.services.js';
 import { createFilesystemStorage } from '../storage/storage.filesystem.js';
 import type { ParsedDocument } from './parsed-document.schema.js';
 import { persistParsedDocument } from './persistence.js';
-import type { ChunkEmbedder } from './ollama-embedder.js';
 
 // Phase 2 of the multimodal RAG ingestion plan persists chunk-level
 // image / table assets through the StorageDriver, encrypted with the
@@ -334,132 +333,4 @@ describe.sequential('persistParsedDocument integration', () => {
     expect(reAssets).toHaveLength(3);
   });
 
-  test('writes chunk embeddings and can query them back through pgvector cosine distance', async () => {
-    if (db === null) {
-      throw new Error('database not initialised');
-    }
-
-    const storage = createFilesystemStorage({ basePath: storagePath });
-    const encryption = createEncryptionServices({ kekKeysRaw: `1:${generateHexKey()}` });
-
-    const userId = `usr_${Math.random().toString(36).slice(2, 10)}`;
-    const vaultId = `vlt_${Math.random().toString(36).slice(2, 10)}`;
-    const documentId = `doc_${Math.random().toString(36).slice(2, 10)}`;
-
-    await db.insert(usersTable).values({
-      id: userId,
-      email: `${userId}@example.com`,
-      emailVerified: true,
-      name: 'Embedding Tester',
-    });
-
-    await db.insert(vaultsTable).values({
-      id: vaultId,
-      name: 'Embedding Vault',
-    });
-
-    await db.insert(documentsTable).values({
-      id: documentId,
-      vaultId,
-      createdBy: userId,
-      originalName: 'vectors.pdf',
-      originalSize: 0,
-      originalStorageKey: `${vaultId}/${documentId}`,
-      originalSha256Hash: 'sha-vectors',
-      name: 'vectors.pdf',
-      mimeType: 'application/pdf',
-    });
-
-    const parsed: ParsedDocument = {
-      documentId,
-      engine: 'docling',
-      engineVersion: 'v1',
-      text: 'First chunk text. Second chunk text.',
-      markdown: 'First chunk text.\n\nSecond chunk text.',
-      rawText: 'First chunk text. Second chunk text.',
-      rawMarkdown: 'First chunk text.\n\nSecond chunk text.',
-      rawStructuredOutput: {
-        schema_name: 'DoclingDocument',
-        texts: [{ self_ref: '#/texts/0', text: 'First chunk text.' }],
-      },
-      language: null,
-      warnings: [],
-      chunks: [
-        {
-          id: `${documentId}:0`,
-          text: 'First chunk text.',
-          section: null,
-          sectionPath: [],
-          pageNumber: 1,
-          pageStart: 1,
-          pageEnd: 1,
-          boundingBoxes: [],
-          sourceElementIds: ['el-1'],
-          parentElementId: null,
-          originalText: 'First chunk text.',
-          tablesHtml: [],
-          images: [],
-          citationPrecision: 'page',
-          enhancedContent: null,
-          type: 'paragraph',
-          metadata: { index: 0, tokenCount: 4 },
-        },
-        {
-          id: `${documentId}:1`,
-          text: 'Second chunk text.',
-          section: null,
-          sectionPath: [],
-          pageNumber: 2,
-          pageStart: 2,
-          pageEnd: 2,
-          boundingBoxes: [],
-          sourceElementIds: ['el-2'],
-          parentElementId: null,
-          originalText: 'Second chunk text.',
-          tablesHtml: [],
-          images: [],
-          citationPrecision: 'page',
-          enhancedContent: null,
-          type: 'paragraph',
-          metadata: { index: 1, tokenCount: 4 },
-        },
-      ],
-    };
-
-    const firstVector = Array.from({ length: 1024 }, (_, index) => (index === 0 ? 1 : 0));
-    const secondVector = Array.from({ length: 1024 }, (_, index) => (index === 1 ? 1 : 0));
-    const embedder: ChunkEmbedder = {
-      name: 'test-embedder',
-      embed: async () => [firstVector, secondVector],
-    };
-
-    await persistParsedDocument({
-      db,
-      storage,
-      encryption,
-      embedder,
-      documentId,
-      vaultId,
-      parsed,
-    });
-
-    const chunkRows = await db
-      .select()
-      .from(documentChunksTable)
-      .where(eq(documentChunksTable.documentId, documentId));
-
-    expect(chunkRows).toHaveLength(2);
-
-    const firstVectorLiteral = `[${firstVector.join(',')}]`;
-    const distanceResult = await db.execute<{ id: string; distance: number }>(sql`
-      SELECT id, embedding <=> ${firstVectorLiteral}::vector AS distance
-      FROM document_chunks
-      WHERE document_id = ${documentId}
-      ORDER BY distance ASC, chunk_index ASC
-      LIMIT 1
-    `);
-
-    expect(distanceResult.rows[0]?.id).toBe(chunkRows.find(row => row.chunkKey === `${documentId}:0`)?.id);
-    expect(Number(distanceResult.rows[0]?.distance ?? 1)).toBeCloseTo(0, 10);
-  });
 });

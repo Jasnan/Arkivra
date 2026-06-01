@@ -10,7 +10,6 @@ import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
 import { createRuntimeConfiguredOllamaChunkSummariser } from './modules/parsing/ollama-chunk-summariser.js';
-import { createRuntimeConfiguredOllamaEmbedder } from './modules/parsing/ollama-embedder.js';
 import { createRuntimeConfiguredOllamaImageCaptioner } from './modules/parsing/image-captioner.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
@@ -26,6 +25,11 @@ import { createBackupWorker } from './modules/worker/backup.worker.js';
 import { createBackupServices } from './modules/admin/backups/backups.services.js';
 import { createAdminAiServices } from './modules/admin/ai/ai.services.js';
 import { createActivityServices } from './modules/activity/activity.services.js';
+import {
+  createEmbeddingIndexQueue,
+  createEmbeddingIndexWorker,
+} from './modules/ai/indexing/index.js';
+import { createOllamaEmbeddingProvider } from './modules/ai/providers/index.js';
 
 export async function startApp() {
   const { config } = parseConfig({ env: process.env });
@@ -47,8 +51,9 @@ export async function startApp() {
   const documentQueue = createDocumentQueue({ db, appInstance: config.app.instance });
   const maintenanceQueue = createMaintenanceQueue({ db, appInstance: config.app.instance });
   const backupQueue = createBackupQueue({ db, appInstance: config.app.instance });
+  const embeddingIndexQueue = createEmbeddingIndexQueue({ db, appInstance: config.app.instance });
   const backupServices = createBackupServices({ config });
-  const adminAiServices = createAdminAiServices({ db, config });
+  const adminAiServices = createAdminAiServices({ db, config, embeddingIndexQueue });
   const activityServices = createActivityServices({ db });
 
   if (isWebMode) {
@@ -61,6 +66,7 @@ export async function startApp() {
       documentQueue,
       backupQueue,
       adminAiServices,
+      embeddingIndexQueue,
     });
 
     serve(
@@ -123,25 +129,11 @@ export async function startApp() {
       cleaner: textCleaner,
       chunkSummariser,
     });
-    const chunkEmbedder = createRuntimeConfiguredOllamaEmbedder({
-      resolveSettings: async () => {
-        const settings = await adminAiServices.getIngestionSettings();
-        return {
-          enabled: settings.embeddingEnabled,
-          host: settings.embeddingHost,
-          model: settings.embeddingModel,
-          dimensions: settings.embeddingDimensions,
-          logRequests: config.ollama.logRequests,
-        };
-      },
-      batchSize: config.ollama.embeddingBatchSize,
-    });
     const documentWorker = createDocumentWorker({
       db,
       storage,
       encryption,
       parsePipeline,
-      chunkEmbedder,
       concurrency: config.backgroundJobs.documentProcessingConcurrency,
       appInstance: config.app.instance,
       activityServices,
@@ -161,6 +153,15 @@ export async function startApp() {
       version: config.version,
       appInstance: config.app.instance,
     });
+    const embeddingIndexWorker = createEmbeddingIndexWorker({
+      db,
+      appInstance: config.app.instance,
+      embeddingProviders: {
+        ollama: createOllamaEmbeddingProvider({
+          batchSize: config.ollama.embeddingBatchSize,
+        }),
+      },
+    });
 
     await maintenanceQueue.scheduleHardDeleteExpiredDocuments({
       cronPattern: config.backgroundJobs.hardDeleteExpiredDocumentsCron,
@@ -168,6 +169,7 @@ export async function startApp() {
     });
 
     console.info('Document processing worker started');
+    console.info('Embedding indexing worker started');
     console.info(`Document parser: Docling ${config.docling.url}`);
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,
@@ -175,6 +177,7 @@ export async function startApp() {
     cleanups.push(async () => documentWorker.close());
     cleanups.push(async () => maintenanceWorker.close());
     cleanups.push(async () => backupWorker.close());
+    cleanups.push(async () => embeddingIndexWorker.close());
   }
 
   // Graceful shutdown
@@ -186,6 +189,7 @@ export async function startApp() {
     await documentQueue.close();
     await maintenanceQueue.close();
     await backupQueue.close();
+    await embeddingIndexQueue.close();
     await pool.end();
     process.exit(0);
   };

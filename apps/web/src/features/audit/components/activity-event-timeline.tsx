@@ -4,7 +4,6 @@ import {
   Blocks,
   CheckCircle2,
   Clock3,
-  Database,
   FilePenLine,
   FileText,
   FolderInput,
@@ -23,12 +22,12 @@ import {
   formatAuditTimestamp,
 } from '@/features/audit/audit-formatters';
 
-type ActivityTone = {
+interface ActivityTone {
   icon: typeof UploadCloud;
   bg: string;
   color: string;
   borderColor: string;
-};
+}
 
 const processingCopy: Record<string, { title: string; description: string; tone: ActivityTone }> = {
   queued: {
@@ -50,11 +49,6 @@ const processingCopy: Record<string, { title: string; description: string; tone:
     title: 'Document summarising',
     description: 'Generating AI summary from document content.',
     tone: { icon: FileText, bg: 'purple.subtle', color: 'purple.fg', borderColor: 'purple.muted' },
-  },
-  vectorising: {
-    title: 'Document vectorising',
-    description: 'Converting content into vector embeddings.',
-    tone: { icon: Database, bg: 'blue.subtle', color: 'blue.fg', borderColor: 'blue.muted' },
   },
   completed: {
     title: 'Document processing completed',

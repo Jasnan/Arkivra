@@ -434,7 +434,7 @@ export function registerDocumentRoutes({
         target: { type: 'document', id: documentId, displayName: document.name },
         source: 'web',
         requestContext: getAuditRequestContext(context),
-        metadata: { access_method: 'open' },
+        metadata: { file_name: document.originalName, access_method: 'open' },
         dedupe: { windowMs: 5 * 60 * 1000 },
       });
 
@@ -478,7 +478,7 @@ export function registerDocumentRoutes({
         target: { type: 'document', id: documentId, displayName: result.fileName },
         source: 'web',
         requestContext: getAuditRequestContext(context),
-        metadata: { access_method: 'download' },
+        metadata: { file_name: result.fileName, access_method: 'download' },
       });
 
       return new Response(result.fileData, {
@@ -1004,7 +1004,12 @@ export function registerDocumentRoutes({
           target: { type: 'document', id: documentId },
           source: 'web',
           requestContext: getAuditRequestContext(context),
-          metadata: { deletion_type: 'soft', reason: 'not_found' },
+          metadata: {
+            document_name: document?.name ?? undefined,
+            file_name: document?.originalName ?? document?.name ?? undefined,
+            deletion_type: 'soft',
+            reason: 'not_found',
+          },
         });
 
         return context.json(
@@ -1025,6 +1030,7 @@ export function registerDocumentRoutes({
         requestContext: getAuditRequestContext(context),
         metadata: {
           document_name: document?.name ?? undefined,
+          file_name: document?.originalName ?? document?.name ?? undefined,
           deletion_type: 'soft',
         },
       });

@@ -25,7 +25,7 @@ describe('audit event timeline', () => {
             entityType: 'document',
             entityId: 'doc_1',
             actorDisplayName: 'Anna',
-            summary: 'Anna uploaded this document',
+            summary: 'Anna uploaded file',
             metadata: {
               file_name: 'contract.pdf',
               file_size: 2048,
@@ -35,7 +35,7 @@ describe('audit event timeline', () => {
       />,
     );
 
-    expect(screen.getByText('Anna uploaded this document')).toBeInTheDocument();
+    expect(screen.getByText('Anna uploaded file')).toBeInTheDocument();
     expect(screen.getByText(/file name: contract.pdf/i)).toBeInTheDocument();
     expect(screen.getByText(/file size: 2.0 KB/i)).toBeInTheDocument();
   });

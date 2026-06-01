@@ -1,8 +1,9 @@
 import type { RefObject } from 'react';
-import { useEffect, useState } from 'react';
-import { Box, Flex, Popover, Text, chakra } from '@chakra-ui/react';
-import { Brain, Check, ChevronDown, Send } from 'lucide-react';
+import { useEffect } from 'react';
+import { Box, Flex, Text } from '@chakra-ui/react';
+import { Brain, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import type { ChatResponseMode } from '../chat.api';
 import { AnswerModePicker } from './answer-mode-picker';
@@ -51,7 +52,6 @@ export function ChatInputPanel({
   onSubmit: (content: string) => void;
 }) {
   const hasModelPicker = Boolean(onSelectedModelChange);
-  const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -59,10 +59,6 @@ export function ChatInputPanel({
     textarea.style.height = '0px';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 224)}px`;
   }, [textareaRef, value]);
-
-  useEffect(() => {
-    if (disabled) setIsModelPopoverOpen(false);
-  }, [disabled]);
 
   function submit() {
     const content = value.trim();
@@ -72,11 +68,7 @@ export function ChatInputPanel({
   }
 
   const modelLabel = selectedModel || (isLoadingModels ? 'Loading models' : 'No model');
-
-  function selectModel(model: string) {
-    onSelectedModelChange?.(model);
-    setIsModelPopoverOpen(false);
-  }
+  const modelDropdownOptions = modelOptions?.map(model => ({ value: model, label: model })) ?? [];
 
   return (
     <Box alignSelf="end" flexShrink="0" px="4" pb="4" pt="2" sm={{ px: '6', pb: '5' }}>
@@ -149,107 +141,31 @@ export function ChatInputPanel({
             <AnswerModePicker disabled={disabled} value={responseMode} onValueChange={onResponseModeChange} />
 
             {hasModelPicker ? (
-              <Popover.Root
-                open={isModelPopoverOpen}
-                onOpenChange={(event) => setIsModelPopoverOpen(disabled ? false : event.open)}
-              >
-                <Popover.Trigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label="Select model"
-                    title="Select model"
-                    disabled={disabled}
-                    minW="0"
-                    maxW={{ base: '11rem', sm: '18rem' }}
-                    h="9"
-                    gap="1.5"
-                    px="2.5"
-                    rounded="lg"
-                    color="fg.muted"
-                    _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                  >
-                    <Brain size={16} style={{ flexShrink: 0 }} />
-                    <Text as="span" truncate fontSize="xs" fontWeight="medium">
-                      {modelLabel}
-                    </Text>
-                    <ChevronDown size={15} style={{ flexShrink: 0 }} />
-                  </Button>
-                </Popover.Trigger>
-                <Popover.Positioner zIndex="popover">
-                  <Popover.Content
-                    w="18rem"
-                    maxW="calc(100vw - 2rem)"
-                    overflow="hidden"
-                    rounded="lg"
-                    borderWidth="1px"
-                    borderColor="border.surface"
-                    bg="bg.surface"
-                    shadow="lg"
-                  >
-                    <Popover.Arrow>
-                      <Popover.ArrowTip />
-                    </Popover.Arrow>
-                    <Popover.Body p="2">
-                      <Popover.Title px="2" py="1.5" fontSize="xs" fontWeight="semibold" color="fg.muted">
-                        Model
-                      </Popover.Title>
-                      {isLoadingModels ? (
-                        <Text px="2" py="2" fontSize="sm" color="fg.muted">
-                          Loading models...
-                        </Text>
-                      ) : null}
-                      {modelOptions?.length ? (
-                        <Flex direction="column" gap="1">
-                          {modelOptions.map((model) => (
-                            <chakra.button
-                              key={model}
-                              type="button"
-                              display="flex"
-                              alignItems="center"
-                              justifyContent="space-between"
-                              gap="3"
-                              w="full"
-                              rounded="md"
-                              px="2"
-                              py="2"
-                              textAlign="left"
-                              fontSize="sm"
-                              fontWeight="medium"
-                              color={selectedModel === model ? 'fg' : 'fg.muted'}
-                              cursor="pointer"
-                              _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                              onClick={() => selectModel(model)}
-                            >
-                              <Text as="span" truncate>
-                                {model}
-                              </Text>
-                              {selectedModel === model ? <Check size={15} /> : null}
-                            </chakra.button>
-                          ))}
-                        </Flex>
-                      ) : !isLoadingModels ? (
-                        <Text px="2" py="2" fontSize="sm" color="fg.muted">
-                          No models available
-                        </Text>
-                      ) : null}
-                    </Popover.Body>
-                    <Popover.CloseTrigger
-                      position="absolute"
-                      top="1.5"
-                      right="1.5"
-                      rounded="md"
-                      px="2"
-                      py="1"
-                      fontSize="xs"
-                      color="fg.muted"
-                      _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                    >
-                      Close
-                    </Popover.CloseTrigger>
-                  </Popover.Content>
-                </Popover.Positioner>
-              </Popover.Root>
+              <RadioDropdownMenu
+                ariaLabel="Select model"
+                buttonProps={{
+                  title: 'Select model',
+                  disabled,
+                  minW: '0',
+                  w: 'auto',
+                  maxW: { base: '11rem', sm: '18rem' },
+                  h: '9',
+                  gap: '1.5',
+                  px: '2.5',
+                  rounded: 'lg',
+                  color: 'fg.muted',
+                  variant: 'ghost',
+                }}
+                emptyLabel="No models available"
+                icon={<Brain size={16} />}
+                isDisabled={disabled}
+                isLoading={isLoadingModels}
+                loadingLabel="Loading models..."
+                onValueChange={onSelectedModelChange ?? (() => {})}
+                options={modelDropdownOptions}
+                placeholder={modelLabel}
+                value={selectedModel}
+              />
             ) : null}
           </Flex>
 

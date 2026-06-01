@@ -1,8 +1,9 @@
 import type { FormEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, DatePicker, Flex, Grid, HStack, IconButton, Portal, SimpleGrid, Stack, Text, chakra, parseDate } from '@chakra-ui/react';
+import type { DateValue } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Check, CheckCircle2, CircleX, Clock3, Info, Mail, Package, Plus, Search, Send, ShieldCheck, ShieldX, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Check, CheckCircle2, CircleX, Clock3, Info, Mail, Package, Plus, Search, Send, ShieldCheck, ShieldX, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
@@ -30,6 +31,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import {
   Select,
@@ -69,8 +71,7 @@ import type { AdminAiProviderSettings, AdminAiSettings, AdminEmbeddingIndexSumma
 import type { AuditLogFilters } from '@/features/audit/audit.types';
 import { useAdminAuditLogQuery } from '@/features/audit/audit.queries';
 import {
-  formatAuditMetadataLabel,
-  formatAuditMetadataValue,
+  formatAuditMetadataEntries,
   formatAuditTimestamp,
 } from '@/features/audit/audit-formatters';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
@@ -1646,9 +1647,135 @@ export function AdminUserAccessPage() {
   );
 }
 
-const auditCategoryOptions = ['auth', 'vault', 'document', 'permission', 'audit', 'system'];
-const auditSeverityOptions = ['info', 'notice', 'warning', 'critical'];
-const auditOutcomeOptions = ['success', 'failure', 'denied'];
+const auditCategoryOptions = [
+  { value: 'all', label: 'All categories' },
+  { value: 'auth', label: 'auth' },
+  { value: 'vault', label: 'vault' },
+  { value: 'document', label: 'document' },
+  { value: 'permission', label: 'permission' },
+  { value: 'audit', label: 'audit' },
+  { value: 'system', label: 'system' },
+] as const;
+const auditSeverityOptions = [
+  { value: 'all', label: 'All severities' },
+  { value: 'info', label: 'info' },
+  { value: 'notice', label: 'notice' },
+  { value: 'warning', label: 'warning' },
+  { value: 'critical', label: 'critical' },
+] as const;
+const auditOutcomeOptions = [
+  { value: 'all', label: 'All outcomes' },
+  { value: 'success', label: 'success' },
+  { value: 'failure', label: 'failure' },
+  { value: 'denied', label: 'denied' },
+] as const;
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function toDateValue(value: string | undefined) {
+  if (!value || !ISO_DATE_PATTERN.test(value)) {
+    return undefined;
+  }
+
+  try {
+    return parseDate(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function toDatePickerValue(value: string | undefined) {
+  const dateValue = toDateValue(value);
+  return dateValue ? [dateValue] : [];
+}
+
+function toIsoDate(value: DateValue | undefined) {
+  return value?.toString() ?? '';
+}
+
+function AuditDateFilterPicker({
+  id,
+  label,
+  max,
+  min,
+  onValueChange,
+  value,
+}: {
+  id: string;
+  label: string;
+  max?: string;
+  min?: string;
+  onValueChange: (value: string) => void;
+  value?: string;
+}) {
+  return (
+    <DatePicker.Root
+      value={toDatePickerValue(value)}
+      min={toDateValue(min)}
+      max={toDateValue(max)}
+      positioning={{ placement: 'bottom-start', gutter: 6, sameWidth: true }}
+      placeholder="yyyy-mm-dd"
+      onValueChange={(details) => onValueChange(toIsoDate(details.value[0]))}
+    >
+      <DatePicker.Label srOnly>{label}</DatePicker.Label>
+      <DatePicker.Control>
+        <DatePicker.Input
+          id={id}
+          bg="bg.surface"
+          h="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
+          rounded="lg"
+          borderColor="border.strong"
+          fontSize="sm"
+          fontVariantNumeric="tabular-nums"
+          _hover={{ borderColor: 'fg/30' }}
+          _focusVisible={{
+            borderColor: 'teal.solid',
+            outline: '2px solid',
+            outlineColor: 'teal.focusRing',
+            outlineOffset: '1px',
+          }}
+        />
+        <DatePicker.IndicatorGroup>
+          <DatePicker.Trigger asChild>
+            <IconButton
+              aria-label={`Open ${label.toLowerCase()} date picker`}
+              variant="ghost"
+              size="sm"
+              color="fg.muted"
+              _hover={{ bg: 'bg.subtle', color: 'teal.fg' }}
+              _focusVisible={{
+                outline: '2px solid',
+                outlineColor: 'teal.focusRing',
+                outlineOffset: '1px',
+              }}
+            >
+              <CalendarDays size={16} />
+            </IconButton>
+          </DatePicker.Trigger>
+        </DatePicker.IndicatorGroup>
+      </DatePicker.Control>
+
+      <Portal>
+        <DatePicker.Positioner zIndex="dropdown">
+          <DatePicker.Content>
+            <DatePicker.View view="day">
+              <DatePicker.Header />
+              <DatePicker.DayTable />
+            </DatePicker.View>
+            <DatePicker.View view="month">
+              <DatePicker.Header />
+              <DatePicker.MonthTable />
+            </DatePicker.View>
+            <DatePicker.View view="year">
+              <DatePicker.Header />
+              <DatePicker.YearTable />
+            </DatePicker.View>
+          </DatePicker.Content>
+        </DatePicker.Positioner>
+      </Portal>
+    </DatePicker.Root>
+  );
+}
 
 export function AdminAuditLogPage() {
   const meQuery = useMeQuery();
@@ -1664,6 +1791,25 @@ export function AdminAuditLogPage() {
     }));
   }
 
+  function setDateFilter(key: 'dateFrom' | 'dateTo', value: string) {
+    setFilters(current => {
+      const next: AuditLogFilters = {
+        ...current,
+        [key]: value.length > 0 ? value : undefined,
+      };
+
+      if (key === 'dateFrom' && value && current.dateTo && value > current.dateTo) {
+        next.dateTo = value;
+      }
+
+      if (key === 'dateTo' && value && current.dateFrom && value < current.dateFrom) {
+        next.dateFrom = value;
+      }
+
+      return next;
+    });
+  }
+
   return (
     <AdminAccessBoundary
       title="Audit log"
@@ -1674,33 +1820,30 @@ export function AdminAuditLogPage() {
         <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' }}>
           <Field>
             <FieldLabel>Category</FieldLabel>
-            <Select value={filters.eventCategory ?? 'all'} onValueChange={(value) => setFilter('eventCategory', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
-              <SelectTrigger bg="bg.surface"><SelectValue placeholder="All categories" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
-                {auditCategoryOptions.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <RadioDropdownMenu
+              ariaLabel="Filter audit log by category"
+              value={filters.eventCategory ?? 'all'}
+              options={auditCategoryOptions}
+              onValueChange={(value) => setFilter('eventCategory', value === 'all' ? '' : value)}
+            />
           </Field>
           <Field>
             <FieldLabel>Severity</FieldLabel>
-            <Select value={filters.severity ?? 'all'} onValueChange={(value) => setFilter('severity', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
-              <SelectTrigger bg="bg.surface"><SelectValue placeholder="All severities" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All severities</SelectItem>
-                {auditSeverityOptions.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <RadioDropdownMenu
+              ariaLabel="Filter audit log by severity"
+              value={filters.severity ?? 'all'}
+              options={auditSeverityOptions}
+              onValueChange={(value) => setFilter('severity', value === 'all' ? '' : value)}
+            />
           </Field>
           <Field>
             <FieldLabel>Outcome</FieldLabel>
-            <Select value={filters.outcome ?? 'all'} onValueChange={(value) => setFilter('outcome', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
-              <SelectTrigger bg="bg.surface"><SelectValue placeholder="All outcomes" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All outcomes</SelectItem>
-                {auditOutcomeOptions.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <RadioDropdownMenu
+              ariaLabel="Filter audit log by outcome"
+              value={filters.outcome ?? 'all'}
+              options={auditOutcomeOptions}
+              onValueChange={(value) => setFilter('outcome', value === 'all' ? '' : value)}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="admin-audit-event-type">Event type</FieldLabel>
@@ -1724,11 +1867,23 @@ export function AdminAuditLogPage() {
           </Field>
           <Field>
             <FieldLabel htmlFor="admin-audit-from">From</FieldLabel>
-            <Input id="admin-audit-from" type="date" value={filters.dateFrom ?? ''} bg="bg.surface" onChange={(event) => setFilter('dateFrom', event.target.value)} />
+            <AuditDateFilterPicker
+              id="admin-audit-from"
+              label="From"
+              value={filters.dateFrom}
+              max={filters.dateTo}
+              onValueChange={(value) => setDateFilter('dateFrom', value)}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="admin-audit-to">To</FieldLabel>
-            <Input id="admin-audit-to" type="date" value={filters.dateTo ?? ''} bg="bg.surface" onChange={(event) => setFilter('dateTo', event.target.value)} />
+            <AuditDateFilterPicker
+              id="admin-audit-to"
+              label="To"
+              value={filters.dateTo}
+              min={filters.dateFrom}
+              onValueChange={(value) => setDateFilter('dateTo', value)}
+            />
           </Field>
         </Grid>
 
@@ -1759,16 +1914,13 @@ export function AdminAuditLogPage() {
                     <Badge variant="outline">{event.eventCategory}</Badge>
                   </HStack>
                 </Flex>
-                {Object.keys(event.metadata).length > 0 ? (
+                {formatAuditMetadataEntries(event.metadata).length > 0 ? (
                   <Flex mt="3" flexWrap="wrap" gap="2">
-                    {Object.entries(event.metadata).map(([key, value]) => {
-                      const formattedValue = formatAuditMetadataValue(key, value);
-                      return formattedValue.length > 0 ? (
-                        <Text key={key} rounded="md" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
-                          {formatAuditMetadataLabel(key)}: {formattedValue}
-                        </Text>
-                      ) : null;
-                    })}
+                    {formatAuditMetadataEntries(event.metadata).map(entry => (
+                      <Text key={entry.key} rounded="md" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
+                        {entry.label}: {entry.value}
+                      </Text>
+                    ))}
                   </Flex>
                 ) : null}
               </Box>

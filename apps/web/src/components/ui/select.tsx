@@ -189,13 +189,13 @@ export function SelectContent({
         className={className}
         zIndex="dropdown"
         maxH="24rem"
-        minW="8rem"
         overflow="hidden"
         rounded="lg"
         borderWidth="1px"
         borderColor="border.surface"
         bg="bg.surface"
         color="fg"
+        p="1.5"
         shadow="lg"
         {...props}
       >
@@ -245,21 +245,22 @@ export function SelectItem({ className, children, ref, value, ...props }: Select
       userSelect="none"
       alignItems="center"
       rounded="md"
-      py="2"
-      ps="9"
-      pe="3"
+      py="var(--arkivra-menuItemPaddingY, 0.5rem)"
+      ps="3"
+      pe="10"
       fontSize="sm"
       fontWeight="medium"
-      color="fg.muted"
+      color="fg"
       outline="none"
       transition="background-color 120ms ease, color 120ms ease"
+      _checked={{ bg: 'teal.subtle', color: 'fg' }}
       _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       {...props}
     >
-      <span className="absolute left-3 flex size-4 items-center justify-center">
+      <span className="absolute right-2.5 flex size-5 items-center justify-center text-teal-solid">
         <ChakraSelect.ItemIndicator>
-          <Check className="size-4" />
+          <Check className="size-4 stroke-[2.5]" />
         </ChakraSelect.ItemIndicator>
       </span>
       <ChakraSelect.ItemText>{children}</ChakraSelect.ItemText>

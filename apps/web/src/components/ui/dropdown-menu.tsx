@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { AbsoluteCenter, Menu as ChakraMenu, Portal } from '@chakra-ui/react';
-import { Check, ChevronRight, Circle } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function textValue(children: React.ReactNode, fallback = 'item') {
@@ -272,13 +272,14 @@ export function DropdownMenuCheckboxItem({
       gap="3"
       rounded="md"
       py="2"
-      ps="9"
-      pe="3"
+      ps="3"
+      pe="10"
       fontSize="sm"
       fontWeight="medium"
       color="fg.muted"
       outline="none"
       transition="background-color 120ms ease, color 120ms ease"
+      _checked={{ bg: 'teal.subtle', color: 'fg' }}
       _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       checked={checked}
@@ -328,9 +329,9 @@ export function DropdownMenuRadioItem({
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       {...props}
     >
-      <AbsoluteCenter axis="horizontal" insetStart="3">
+      <AbsoluteCenter axis="horizontal" insetEnd="2.5">
         <ChakraMenu.ItemIndicator>
-          <Circle className="size-2.5 fill-current" />
+          <Check className="size-4 stroke-[2.5]" />
         </ChakraMenu.ItemIndicator>
       </AbsoluteCenter>
       {children}

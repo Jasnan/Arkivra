@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import { Box, Flex, Grid, HStack, Heading, Menu, Portal, Stack, Text } from '@chakra-ui/react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Box, Flex, Grid, HStack, Heading, Stack, Text } from '@chakra-ui/react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 
 export type SettingsStatusTone = 'verified' | 'enabled' | 'warning' | 'inactive';
@@ -326,99 +325,20 @@ export function SettingsDropdown({
   value: string;
   onValueChange: (value: string) => void;
 }) {
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? options[0]?.label ?? 'Select';
-
   return (
-    <Menu.Root lazyMount unmountOnExit positioning={{ placement: 'bottom-end', gutter: 6, sameWidth: true }}>
-      <Menu.Trigger asChild>
-        <Button
-          type="button"
-          aria-label={ariaLabel}
-          variant="outline"
-          h="var(--arkivra-controlHeight, 2.5rem)"
-          w="full"
-          minW="0"
-          justifyContent="space-between"
-          gap="2"
-          rounded="md"
-          borderColor="border.surface"
-          bg="bg.surface"
-          px="var(--arkivra-controlPaddingX, 0.75rem)"
-          shadow="none"
-          _hover={{ borderColor: 'fg/30', bg: 'bg.surface' }}
-          _focusVisible={{
-            borderColor: 'teal.solid',
-            outline: '2px solid',
-            outlineColor: 'teal.focusRing',
-            outlineOffset: '1px',
-          }}
-        >
-          <Text as="span" truncate fontSize="sm" fontWeight="medium">
-            {selectedLabel}
-          </Text>
-          <Box flexShrink={0} color="fg.muted" aria-hidden="true">
-            <ChevronDown size={16} />
-          </Box>
-        </Button>
-      </Menu.Trigger>
-      <Portal>
-        <Menu.Positioner zIndex="dropdown">
-          <Menu.Content
-            rounded="lg"
-            borderWidth="1px"
-            borderColor="border.surface"
-            bg="bg.surface"
-            p="1.5"
-            shadow="lg"
-          >
-            <Menu.RadioItemGroup
-              value={value}
-              onValueChange={(event) => {
-                if (event.value) {
-                  onValueChange(event.value);
-                }
-              }}
-            >
-              {options.map((option) => (
-                <Menu.RadioItem
-                  key={option.value}
-                  value={option.value}
-                  position="relative"
-                  minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
-                  rounded="md"
-                  py="var(--arkivra-menuItemPaddingY, 0.5rem)"
-                  ps="10"
-                  pe="3"
-                  fontSize="sm"
-                  fontWeight="medium"
-                  color="fg"
-                  _checked={{ bg: 'teal.subtle', color: 'fg' }}
-                  _highlighted={{ bg: value === option.value ? 'teal.subtle' : 'bg.subtle' }}
-                >
-                  <Box
-                    position="absolute"
-                    left="2.5"
-                    top="50%"
-                    display="flex"
-                    boxSize="5"
-                    alignItems="center"
-                    justifyContent="center"
-                    rounded="sm"
-                    color="teal.solid"
-                    transform="translateY(-50%)"
-                  >
-                    <Menu.ItemIndicator>
-                      <Check size={16} strokeWidth={2.5} />
-                    </Menu.ItemIndicator>
-                  </Box>
-                  <Menu.ItemText>{option.label}</Menu.ItemText>
-                </Menu.RadioItem>
-              ))}
-            </Menu.RadioItemGroup>
-          </Menu.Content>
-        </Menu.Positioner>
-      </Portal>
-    </Menu.Root>
+    <RadioDropdownMenu
+      ariaLabel={ariaLabel}
+      buttonProps={{
+        h: 'var(--arkivra-controlHeight, 2.5rem)',
+        minW: '0',
+        rounded: 'md',
+        borderColor: 'border.surface',
+        px: 'var(--arkivra-controlPaddingX, 0.75rem)',
+      }}
+      options={options}
+      value={value}
+      onValueChange={onValueChange}
+    />
   );
 }
 

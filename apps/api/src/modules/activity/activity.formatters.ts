@@ -18,7 +18,7 @@ export function formatActivitySummary(event: ActivityEventRecord) {
 
   switch (event.activityType) {
     case 'document.created':
-      return `${actor} uploaded this document`;
+      return `${actor} uploaded file`;
     case 'document.metadata_updated': {
       const fields = event.metadata?.changed_fields;
       const label = Array.isArray(fields) && fields.length > 0
@@ -27,13 +27,13 @@ export function formatActivitySummary(event: ActivityEventRecord) {
       return `${actor} updated ${label}`;
     }
     case 'document.deleted':
-      return `${actor} deleted this document`;
+      return `${actor} deleted file`;
     case 'document.restored':
-      return `${actor} restored this document`;
+      return `${actor} restored file`;
     case 'document.moved': {
       const from = getMetadataString(event, 'from_path') ?? 'Unknown location';
       const to = getMetadataString(event, 'to_path') ?? 'Unknown location';
-      return `${actor} moved this document from ${from} to ${to}`;
+      return `${actor} moved file from ${from} to ${to}`;
     }
     case 'document.processing_status_changed': {
       const stage = getMetadataString(event, 'processing_status') ?? 'processing';

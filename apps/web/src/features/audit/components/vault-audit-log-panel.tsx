@@ -4,30 +4,33 @@ import { SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
 import type { AuditLogFilters } from '@/features/audit/audit.types';
 import { useVaultAuditLogQuery } from '@/features/audit/audit.queries';
 import {
-  formatAuditMetadataLabel,
-  formatAuditMetadataValue,
+  formatAuditMetadataEntries,
   formatAuditTimestamp,
 } from '@/features/audit/audit-formatters';
 
 const eventTypeOptions = [
-  'document.uploaded',
-  'document.viewed',
-  'document.downloaded',
-  'document.deleted',
-  'document.delete_failed',
-  'document.access_denied',
-  'vault.member_added',
-  'vault.member_removed',
-  'vault.member_role_changed',
-  'audit_log.viewed',
-  'audit_log.searched',
-];
+  { value: 'all', label: 'All events' },
+  { value: 'document.uploaded', label: 'document.uploaded' },
+  { value: 'document.viewed', label: 'document.viewed' },
+  { value: 'document.downloaded', label: 'document.downloaded' },
+  { value: 'document.deleted', label: 'document.deleted' },
+  { value: 'document.delete_failed', label: 'document.delete_failed' },
+  { value: 'document.access_denied', label: 'document.access_denied' },
+  { value: 'vault.member_added', label: 'vault.member_added' },
+  { value: 'vault.member_removed', label: 'vault.member_removed' },
+  { value: 'vault.member_role_changed', label: 'vault.member_role_changed' },
+] as const;
 
-const outcomeOptions = ['success', 'failure', 'denied'];
+const outcomeOptions = [
+  { value: 'all', label: 'All outcomes' },
+  { value: 'success', label: 'success' },
+  { value: 'failure', label: 'failure' },
+  { value: 'denied', label: 'denied' },
+] as const;
 
 export function VaultAuditLogPanel({ vaultId }: { vaultId: string }) {
   const [filters, setFilters] = useState<AuditLogFilters>({});
@@ -49,31 +52,21 @@ export function VaultAuditLogPanel({ vaultId }: { vaultId: string }) {
       <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' }}>
         <Field>
           <FieldLabel>Event type</FieldLabel>
-          <Select value={filters.eventType ?? 'all'} onValueChange={(value) => setFilter('eventType', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
-            <SelectTrigger bg="bg.surface">
-              <SelectValue placeholder="All events" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All events</SelectItem>
-              {eventTypeOptions.map(value => (
-                <SelectItem key={value} value={value}>{value}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <RadioDropdownMenu
+            ariaLabel="Filter vault audit log by event type"
+            value={filters.eventType ?? 'all'}
+            options={eventTypeOptions}
+            onValueChange={(value) => setFilter('eventType', value === 'all' ? '' : value)}
+          />
         </Field>
         <Field>
           <FieldLabel>Outcome</FieldLabel>
-          <Select value={filters.outcome ?? 'all'} onValueChange={(value) => setFilter('outcome', value === 'all' ? '' : value)} positioning={{ sameWidth: true }}>
-            <SelectTrigger bg="bg.surface">
-              <SelectValue placeholder="All outcomes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All outcomes</SelectItem>
-              {outcomeOptions.map(value => (
-                <SelectItem key={value} value={value}>{value}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <RadioDropdownMenu
+            ariaLabel="Filter vault audit log by outcome"
+            value={filters.outcome ?? 'all'}
+            options={outcomeOptions}
+            onValueChange={(value) => setFilter('outcome', value === 'all' ? '' : value)}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="audit-actor-id">Actor</FieldLabel>
@@ -139,16 +132,13 @@ export function VaultAuditLogPanel({ vaultId }: { vaultId: string }) {
                   {event.eventCategory}
                 </Text>
               </Flex>
-              {Object.keys(event.metadata).length > 0 ? (
+              {formatAuditMetadataEntries(event.metadata).length > 0 ? (
                 <Flex mt="3" flexWrap="wrap" gap="2">
-                  {Object.entries(event.metadata).map(([key, value]) => {
-                    const formattedValue = formatAuditMetadataValue(key, value);
-                    return formattedValue.length > 0 ? (
-                      <Text key={key} rounded="md" bg="bg.subtle" px="2" py="1" fontSize="xs" color="fg.muted">
-                        {formatAuditMetadataLabel(key)}: {formattedValue}
-                      </Text>
-                    ) : null;
-                  })}
+                  {formatAuditMetadataEntries(event.metadata).map(entry => (
+                    <Text key={entry.key} rounded="md" bg="bg.subtle" px="2" py="1" fontSize="xs" color="fg.muted">
+                      {entry.label}: {entry.value}
+                    </Text>
+                  ))}
                 </Flex>
               ) : null}
             </Box>

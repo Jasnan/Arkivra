@@ -27,6 +27,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/scripts/migrate.ts",
+    "db:cleanup:e2e": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/scripts/cleanup-e2e-data.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

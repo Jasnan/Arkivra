@@ -22,6 +22,7 @@
     "test:e2e:backups": "pnpm --filter @arkivra/api test:e2e:backups",
     "test:e2e:background-jobs": "pnpm --filter @arkivra/api test:e2e:background-jobs",
     "test:e2e:processing": "pnpm --filter @arkivra/api test:e2e:processing",
+    "db:cleanup:e2e": "pnpm --filter @arkivra/api db:cleanup:e2e",
     "test:watch": "vitest watch",
     "typecheck": "pnpm --filter './apps/*' typecheck",
     "db:generate": "pnpm --filter @arkivra/api db:generate",

@@ -10,6 +10,7 @@ import type {
 } from '../admin/backups/backups.types.js';
 import type { AuthorizationServices } from '../authorization/authorization.services.js';
 import type { AdminAiServices } from '../admin/ai/ai.services.js';
+import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
@@ -41,7 +42,11 @@ import { registerAdminAiRoutes } from '../admin/ai/ai.routes.js';
 import { createAdminAiServices } from '../admin/ai/ai.services.js';
 import { createSensitiveActionServices } from '../security/sensitive-actions.services.js';
 import { registerSensitiveActionRoutes } from '../security/sensitive-actions.routes.js';
-import { createRuntimeConfiguredOllamaEmbedder } from '../parsing/ollama-embedder.js';
+import {
+  createOllamaChatProvider,
+  createOllamaEmbeddingProvider,
+} from '../ai/providers/index.js';
+import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { createDocumentSearchServices } from '../search/search.services.js';
 import { createChatServices } from '../chat/chat.services.js';
 import { registerChatRoutes } from '../chat/chat.routes.js';
@@ -87,6 +92,7 @@ export function createServer({
   backupQueue,
   authorizationServices,
   adminAiServices,
+  embeddingIndexQueue,
 }: {
   config: Config;
   auth: Auth;
@@ -97,6 +103,7 @@ export function createServer({
   backupQueue?: BackupQueue;
   authorizationServices?: AuthorizationServices;
   adminAiServices?: AdminAiServices;
+  embeddingIndexQueue?: EmbeddingIndexQueue;
 }) {
   const app = new Hono<ServerContext>({ strict: true });
   const backupServices = createBackupServices({ config });
@@ -104,38 +111,56 @@ export function createServer({
   const aiServices = adminAiServices ?? createAdminAiServices({ db, config });
   const sensitiveActionServices = createSensitiveActionServices({ auth, db });
   const documentsServices = createDocumentsServices({ db, storage, encryption });
-  const searchChunkEmbedder = createRuntimeConfiguredOllamaEmbedder({
-    resolveSettings: async () => {
-      const settings = await aiServices.getIngestionSettings();
-      return {
-        enabled: settings.embeddingEnabled,
-        host: settings.embeddingHost,
-        model: settings.embeddingModel,
-        dimensions: settings.embeddingDimensions,
-        logRequests: config.ollama.logRequests,
-      };
+  const embeddingProvider = createOllamaEmbeddingProvider({
+    batchSize: config.ollama.embeddingBatchSize,
+  });
+  const embeddingIndexServices = createEmbeddingIndexServices({ db });
+  const chatProvider = createOllamaChatProvider();
+  const searchServices = createDocumentSearchServices({
+    db,
+    embeddingProvider,
+    resolveActiveEmbeddingIndex: async () => {
+      const settings = await aiServices.getSettings();
+      if (!settings.aiFeaturesEnabled) {
+        return null;
+      }
+
+      const activeIndex = await embeddingIndexServices.getActiveEmbeddingIndex();
+
+      return activeIndex === null
+        ? null
+        : {
+          ...activeIndex,
+          options: {
+            ...activeIndex.options,
+            logRequests: config.ollama.logRequests,
+          },
+        };
     },
   });
-  const searchServices = createDocumentSearchServices({ db, chunkEmbedder: searchChunkEmbedder });
   const chatServices = createChatServices({
     db,
     searchServices,
     documentsServices,
+    chatProvider,
     resolveAiSettings: async () => {
       const [settings, ingestionSettings] = await Promise.all([
         aiServices.getSettings(),
         aiServices.getIngestionSettings(),
       ]);
+      if (!settings.aiFeaturesEnabled) {
+        throw new Error('AI features are disabled for this Arkivra instance.');
+      }
 
       return {
-        host: settings.ollamaHost,
-        model: settings.model,
+        baseUrl: settings.chat.baseUrl,
+        model: settings.chat.model,
         maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
       };
     },
-    listAvailableModels: async ({ host }) => {
+    listAvailableModels: async ({ baseUrl }) => {
       const [models, ingestionSettings] = await Promise.all([
-        aiServices.listModels({ host }),
+        aiServices.listModels({ host: baseUrl }),
         aiServices.getIngestionSettings(),
       ]);
       return models
@@ -148,8 +173,12 @@ export function createServer({
   });
   const translationProvider = createRuntimeConfiguredOllamaTranslationProvider({
     resolveSettings: async () => {
-      const settings = await aiServices.getIngestionSettings();
+      const [settings, aiSettings] = await Promise.all([
+        aiServices.getIngestionSettings(),
+        aiServices.getSettings(),
+      ]);
       return {
+        enabled: aiSettings.aiFeaturesEnabled && settings.summarisationEnabled,
         host: settings.summarisationHost,
         model: settings.summarisationModel,
         logRequests: config.ollama.logRequests,
@@ -224,6 +253,8 @@ export function createServer({
     retentionDays: config.backgroundJobs.documentRetentionDays,
     auditServices,
     activityServices,
+    adminAiServices: aiServices,
+    embeddingIndexQueue,
   });
   registerActivityRoutes({ app, db, services: activityServices });
   registerAuditRoutes({ app, db, services: auditServices });
@@ -254,7 +285,7 @@ export function createServer({
   });
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
-  registerAdminAiRoutes({ app, aiServices });
+  registerAdminAiRoutes({ app, aiServices, auditServices });
   registerSensitiveActionRoutes({ app, services: sensitiveActionServices });
   registerUserPreferencesRoutes({ app, services: userPreferencesServices });
 
@@ -292,9 +323,10 @@ export function createServer({
     }
 
     const userId = c.get('userId') ?? '';
-    const [accounts, twoFactor] = await Promise.all([
+    const [accounts, twoFactor, aiSettings] = await Promise.all([
       sensitiveActionServices.listAuthAccounts({ userId }),
       sensitiveActionServices.getTwoFactorSummary({ userId }),
+      aiServices.getSettings().catch(() => null),
     ]);
 
     return c.json({
@@ -304,6 +336,7 @@ export function createServer({
       systemCapabilities: c.get('systemCapabilities'),
       isAdmin: c.get('isAdmin'),
       canCreateVault: c.get('canCreateVault'),
+      aiFeaturesEnabled: aiSettings?.aiFeaturesEnabled ?? false,
       authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),
       twoFactor,
     });

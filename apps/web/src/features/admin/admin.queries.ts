@@ -2,13 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import {
   checkOllamaModelAvailability,
   getAdminAiSettings,
+  getAdminAiStatus,
   listPermissionRequests,
   listAdminUsers,
   listAdminVaults,
   listBackups,
   listOllamaModels,
 } from './admin.api';
-import type { PermissionRequestStatus } from './admin.types';
+import type { AdminAiStatus, PermissionRequestStatus } from './admin.types';
+
+const AI_STATUS_POLL_INTERVAL_MS = 2000;
 
 export const adminQueryKeys = {
   all: ['admin'] as const,
@@ -19,6 +22,7 @@ export const adminQueryKeys = {
   backups: () => [...adminQueryKeys.all, 'backups'] as const,
   ai: () => [...adminQueryKeys.all, 'ai'] as const,
   aiSettings: () => [...adminQueryKeys.ai(), 'settings'] as const,
+  aiStatus: () => [...adminQueryKeys.ai(), 'status'] as const,
   aiModels: (host: string) => [...adminQueryKeys.ai(), 'models', host] as const,
   aiAvailability: (host: string, model: string) =>
     [...adminQueryKeys.ai(), 'availability', host, model] as const,
@@ -67,6 +71,28 @@ export function useAdminAiSettingsQuery({ enabled = true }: { enabled?: boolean 
     queryKey: adminQueryKeys.aiSettings(),
     queryFn: getAdminAiSettings,
     enabled,
+  });
+}
+
+function shouldPollAiStatus(status: AdminAiStatus | undefined) {
+  if (status?.aiFeaturesEnabled !== true) {
+    return false;
+  }
+
+  const hasWritableIndex = status.embedding.activeIndex !== null
+    || status.embedding.candidateIndexes.some(index => index.status === 'building' || index.status === 'ready');
+
+  return hasWritableIndex
+    && status.embedding.chunkCoverage.indexedChunkCount < status.embedding.chunkCoverage.totalChunkCount;
+}
+
+export function useAdminAiStatusQuery({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: adminQueryKeys.aiStatus(),
+    queryFn: getAdminAiStatus,
+    enabled,
+    refetchInterval: query =>
+      shouldPollAiStatus(query.state.data?.status) ? AI_STATUS_POLL_INTERVAL_MS : false,
   });
 }
 

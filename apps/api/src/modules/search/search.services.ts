@@ -1,5 +1,6 @@
 import type { Database } from '../database/database.js';
-import type { ChunkEmbedder } from '../parsing/ollama-embedder.js';
+import type { EmbeddingProvider } from '../ai/providers/types.js';
+import type { ActiveEmbeddingIndex } from '../ai/indexing/index.js';
 import type {
   Citation,
   CitationAssetType,
@@ -422,11 +423,38 @@ function mergeImageAssetsWithProvenance({
 
 export function createDocumentSearchServices({
   db,
-  chunkEmbedder,
+  embeddingProvider,
+  resolveActiveEmbeddingIndex,
 }: {
   db: Database;
-  chunkEmbedder?: ChunkEmbedder;
+  embeddingProvider?: EmbeddingProvider;
+  resolveActiveEmbeddingIndex?: () => Promise<ActiveEmbeddingIndex | null>;
 }): DocumentSearchServices {
+  async function embedQuery(trimmedQuery: string) {
+    if (embeddingProvider === undefined) {
+      return null;
+    }
+
+    try {
+      const config = resolveActiveEmbeddingIndex !== undefined
+        ? await resolveActiveEmbeddingIndex()
+        : null;
+      if (config === null) {
+        return null;
+      }
+
+      const vectors = await embeddingProvider.embed({
+        texts: [trimmedQuery],
+        config,
+      });
+      const vector = vectors[0] ?? null;
+
+      return vector === null ? null : { vector, index: config };
+    } catch {
+      return null;
+    }
+  }
+
   async function searchDocuments({
     vaultId,
     vaultIds,
@@ -902,18 +930,7 @@ export function createDocumentSearchServices({
     normalizedDateTo: Date | null;
     sortBy: SearchSortBy;
   }) {
-    if (chunkEmbedder === undefined) {
-      return null;
-    }
-
-    let queryEmbedding: number[] | null = null;
-
-    try {
-      const vectors = await chunkEmbedder.embed([trimmedQuery]);
-      queryEmbedding = vectors[0] ?? null;
-    } catch {
-      queryEmbedding = null;
-    }
+    const queryEmbedding = await embedQuery(trimmedQuery);
 
     if (queryEmbedding === null) {
       return null;
@@ -996,13 +1013,14 @@ export function createDocumentSearchServices({
       vec_candidates AS (
         SELECT
           dc.id,
-          1 - (dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector) AS similarity,
+          1 - (dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector) AS similarity,
           dc.chunk_index
-        FROM document_chunks AS dc
+        FROM document_chunk_embeddings AS dce
+        INNER JOIN document_chunks AS dc ON dc.id = dce.chunk_id
         INNER JOIN scoped_documents AS sd ON sd.document_id = dc.document_id
-        WHERE dc.vault_id IN (${vaultIdListSql})
-          AND dc.embedding IS NOT NULL
-        ORDER BY dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector ASC, dc.chunk_index ASC, dc.id ASC
+        WHERE dce.embedding_index_id = ${queryEmbedding.index.id}
+          AND dce.vault_id IN (${vaultIdListSql})
+        ORDER BY dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector ASC, dc.chunk_index ASC, dc.id ASC
         LIMIT ${HYBRID_DOCUMENT_CANDIDATE_LIMIT}
       ),
       vec_ranked AS (
@@ -1309,16 +1327,11 @@ export function createDocumentSearchServices({
       };
     }
 
-    let queryEmbedding: number[] | null = null;
+    let queryEmbedding: Awaited<ReturnType<typeof embedQuery>> = null;
     let effectiveMode: HybridSearchMode = mode;
 
-    if (mode !== 'fts' && chunkEmbedder !== undefined) {
-      try {
-        const vectors = await chunkEmbedder.embed([trimmedQuery]);
-        queryEmbedding = vectors[0] ?? null;
-      } catch {
-        queryEmbedding = null;
-      }
+    if (mode !== 'fts') {
+      queryEmbedding = await embedQuery(trimmedQuery);
     }
 
     if (queryEmbedding === null) {
@@ -1422,15 +1435,16 @@ export function createDocumentSearchServices({
             vec_candidates AS (
               SELECT
                 dc.id,
-                1 - (dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector) AS similarity
-              FROM document_chunks AS dc
+                1 - (dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector) AS similarity
+              FROM document_chunk_embeddings AS dce
+              INNER JOIN document_chunks AS dc ON dc.id = dce.chunk_id
               INNER JOIN documents AS d ON d.id = dc.document_id
-              WHERE dc.vault_id IN (${scopedVaultIdList})
+              WHERE dce.embedding_index_id = ${queryEmbedding.index.id}
+                AND dce.vault_id IN (${scopedVaultIdList})
                 AND d.vault_id IN (${scopedVaultIdList})
                 AND d.is_deleted = false
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
-                AND dc.embedding IS NOT NULL
-              ORDER BY dc.embedding <=> ${buildVectorLiteral(queryEmbedding)}::vector ASC, dc.chunk_index ASC, dc.id ASC
+              ORDER BY dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector ASC, dc.chunk_index ASC, dc.id ASC
               LIMIT 50
             ),
             vec_ranked AS (

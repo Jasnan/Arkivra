@@ -10,7 +10,8 @@ import type { BrowserContextMenuEntry, ContextMenuState } from '@/features/file-
 import { VaultBrowserDragDropProvider } from '@/features/file-browser/components/vault-browser-drag-drop-context';
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { useUploadManagerState } from '@/features/uploads/use-upload-manager';
-import { canMutateVaultDocuments } from '@/features/vaults/vault-permissions';
+import { useMeQuery } from '@/features/me/me.queries';
+import { canMutateVaultDocuments, canUseVaultChat } from '@/features/vaults/vault-permissions';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
 import {
   VAULT_TREE_ROOT_VALUE,
@@ -75,6 +76,7 @@ function VaultFileTreePanel({
   currentDocumentId?: string | null;
 }) {
   const navigate = useNavigate();
+  const meQuery = useMeQuery();
   const vaultsQuery = useVaultsQuery();
   const vaultQuery = useVaultQuery({ vaultId: activeVaultId });
   const vaults = vaultsQuery.data?.vaults ?? [];
@@ -88,6 +90,7 @@ function VaultFileTreePanel({
     ? contextMenu.item.vaultId
     : activeVaultId;
   const canMoveItems = canMutateVaultDocuments(vaultQuery.data?.vault);
+  const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const {
     moveItemsMutation,
     itemMutationPending,
@@ -102,12 +105,15 @@ function VaultFileTreePanel({
   });
 
   function getVaultContextMenuActions(vaultId: string): BrowserContextMenuEntry[] {
+    const vault = vaults.find(item => item.id === vaultId) ?? vaultQuery.data?.vault;
     return [
       { key: 'open', label: 'Open', icon: FolderOpen, onSelect: () => navigate({ to: ROUTES.vaultRoot(vaultId) }) },
       { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }) },
       { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
       { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
-      { key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) },
+      ...(aiFeaturesEnabled && canUseVaultChat(vault)
+        ? [{ key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) }]
+        : []),
     ];
   }
 

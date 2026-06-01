@@ -80,8 +80,28 @@ export interface AdminVault {
   memberCount: number;
 }
 
+export type AdminAiProviderKind = 'ollama';
+
+export interface AdminAiProviderSettings {
+  provider: AdminAiProviderKind;
+  baseUrl: string;
+  apiKeySecretRef: string | null;
+  model: string;
+}
+
 export interface AdminAiSettings {
+  aiFeaturesEnabled: boolean;
+  chat: AdminAiProviderSettings;
+  embedding: AdminAiProviderSettings & {
+    dimensions: number;
+  };
   ollamaHost: string;
+  model: string;
+}
+
+export interface AdminAiChatSettings {
+  provider: 'ollama' | 'openrouter' | 'gemini' | 'custom';
+  baseUrl: string | null;
   model: string;
 }
 
@@ -97,5 +117,49 @@ export interface AdminAiAvailability {
   reachable: boolean;
   modelAvailable: boolean;
   models: AdminAiModel[];
+  responseTimeMs: number | null;
   error: string | null;
+}
+
+export interface AdminEmbeddingIndexSummary {
+  id: string;
+  providerConfigId: string;
+  provider: 'ollama' | 'openrouter' | 'gemini' | 'voyage' | 'custom';
+  model: string;
+  dimensions: number;
+  distanceMetric: string;
+  status: 'building' | 'ready' | 'active' | 'failed' | 'retiring' | 'retired';
+  isActive: boolean;
+  expectedChunkCount: number;
+  embeddedChunkCount: number;
+  failedChunkCount: number;
+  failureMessage: string | null;
+  buildStartedAt: string | null;
+  buildCompletedAt: string | null;
+  activatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  documentStatuses: {
+    pending: number;
+    indexing: number;
+    ready: number;
+    failed: number;
+    stale: number;
+    skipped: number;
+  };
+}
+
+export interface AdminAiStatus {
+  aiFeaturesEnabled: boolean;
+  chat: AdminAiChatSettings;
+  embedding: {
+    activeIndex: AdminEmbeddingIndexSummary | null;
+    candidateIndexes: AdminEmbeddingIndexSummary[];
+    recentIndexes: AdminEmbeddingIndexSummary[];
+    chunkCoverage: {
+      indexedChunkCount: number;
+      totalChunkCount: number;
+    };
+    semanticSearchAvailable: boolean;
+  };
 }

@@ -1383,12 +1383,71 @@ describe('settings, admin, and about pages', () => {
       if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
         return jsonResponse({
           settings: {
-            enabled: true,
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+            },
+            embedding: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'bge-m3',
+              dimensions: 1024,
+            },
             ollamaHost: 'http://127.0.0.1:11434',
             model: 'gemma4:e4b',
-            minTokenLength: 8,
-            maxCandidates: 100,
-            batchSize: 10,
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/status') {
+        return jsonResponse({
+          status: {
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              model: 'gemma4:e4b',
+            },
+            embedding: {
+              semanticSearchAvailable: true,
+              activeIndex: {
+                id: 'eix_active',
+                providerConfigId: 'aip_embedding',
+                provider: 'ollama',
+                model: 'bge-m3',
+                dimensions: 1024,
+                distanceMetric: 'cosine',
+                status: 'active',
+                isActive: true,
+                expectedChunkCount: 10,
+                embeddedChunkCount: 10,
+                failedChunkCount: 0,
+                failureMessage: null,
+                buildStartedAt: '2026-04-14T18:00:00.000Z',
+                buildCompletedAt: '2026-04-14T18:05:00.000Z',
+                activatedAt: '2026-04-14T18:06:00.000Z',
+                createdAt: '2026-04-14T18:00:00.000Z',
+                updatedAt: '2026-04-14T18:06:00.000Z',
+                documentStatuses: {
+                  pending: 0,
+                  indexing: 0,
+                  ready: 2,
+                  failed: 0,
+                  stale: 0,
+                  skipped: 0,
+                },
+              },
+              candidateIndexes: [],
+              recentIndexes: [],
+              chunkCoverage: {
+                indexedChunkCount: 10,
+                totalChunkCount: 10,
+              },
+            },
           },
         });
       }
@@ -1430,6 +1489,7 @@ describe('settings, admin, and about pages', () => {
                 modifiedAt: '2026-04-14T19:00:00.000Z',
               },
             ],
+            responseTimeMs: 42,
             error: null,
           },
         });
@@ -1507,8 +1567,8 @@ describe('settings, admin, and about pages', () => {
     view.unmount();
 
     await renderWithProviders(<AdminAiSettingsPage />);
-    expect(await screen.findByLabelText(/ollama host/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(await screen.findByText('Semantic Search Index')).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/enable ai features/i));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/ai/settings',
@@ -1599,6 +1659,122 @@ describe('settings, admin, and about pages', () => {
     expect(screen.queryByText(/ai features/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/the invited user will receive an email with instructions/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/no ai access/i)).not.toBeInTheDocument();
+  });
+
+  it('allows saving chat provider settings while AI features are disabled', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_admin',
+          sessionId: 'ses_admin',
+          systemRole: 'admin',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: true,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          settings: {
+            aiFeaturesEnabled: false,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: '',
+            },
+            embedding: {
+              provider: 'ollama',
+              baseUrl: '',
+              apiKeySecretRef: null,
+              model: '',
+              dimensions: 1024,
+            },
+            ollamaHost: 'http://127.0.0.1:11434',
+            model: '',
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/status') {
+        return jsonResponse({
+          status: {
+            aiFeaturesEnabled: false,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              model: '',
+            },
+            embedding: {
+              semanticSearchAvailable: false,
+              activeIndex: null,
+              candidateIndexes: [],
+              recentIndexes: [],
+              chunkCoverage: {
+                indexedChunkCount: 0,
+                totalChunkCount: 0,
+              },
+            },
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/models' && init?.method === 'POST') {
+        return jsonResponse({
+          models: [
+            {
+              name: 'gemma4:e4b',
+              size: 1024,
+              modifiedAt: '2026-04-14T19:00:00.000Z',
+            },
+          ],
+        });
+      }
+
+      if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        return jsonResponse({
+          availability: {
+            host: 'http://127.0.0.1:11434',
+            model: 'gemma4:e4b',
+            reachable: true,
+            modelAvailable: true,
+            models: [{ name: 'gemma4:e4b', size: 1024, modifiedAt: '2026-04-14T19:00:00.000Z' }],
+            responseTimeMs: 42,
+            error: null,
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && init?.method === 'PUT') {
+        return jsonResponse({ settings: JSON.parse(String(init.body)) });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    expect((await screen.findAllByText('gemma4:e4b')).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: /view details/i }));
+    const [chatBaseUrlInput] = await screen.findAllByLabelText(/base url/i);
+    await user.clear(chatBaseUrlInput);
+    await user.type(chatBaseUrlInput, 'http://127.0.0.1:11435');
+    await user.tab();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/ai/settings',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'PUT',
+        }),
+      );
+    });
   });
 
   it('renders detailed user access management outside the invite modal', async () => {

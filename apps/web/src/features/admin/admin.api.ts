@@ -3,6 +3,7 @@ import type {
   AdminAiAvailability,
   AdminAiModel,
   AdminAiSettings,
+  AdminAiStatus,
   AdminUser,
   AdminVault,
   BackupListItem,
@@ -141,6 +142,10 @@ export function getBackupDownloadUrl({ backupId }: { backupId: string }) {
 
 export async function getAdminAiSettings() {
   return fetchJson<{ settings: AdminAiSettings }>('/api/admin/ai/settings');
+}
+
+export async function getAdminAiStatus() {
+  return fetchJson<{ status: AdminAiStatus }>('/api/admin/ai/status');
 }
 
 export async function updateAdminAiSettings(settings: AdminAiSettings) {

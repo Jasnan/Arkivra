@@ -28,6 +28,9 @@ export const AUDIT_EVENT_TYPES = {
   vaultAccessDenied: 'vault.access_denied',
   auditLogViewed: 'audit_log.viewed',
   auditLogSearched: 'audit_log.searched',
+  aiFeaturesToggled: 'ai.features_toggled',
+  aiChatModelChanged: 'ai.chat_model_changed',
+  aiEmbeddingModelChanged: 'ai.embedding_model_changed',
 } as const;
 
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[keyof typeof AUDIT_EVENT_TYPES] | (string & {});

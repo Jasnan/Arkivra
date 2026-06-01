@@ -8,8 +8,11 @@ import type { VaultsServices } from '../vaults/vaults.services.js';
 import type { DocumentsServices } from './documents.services.js';
 import type { createAuditServices } from '../audit/audit.services.js';
 import type { createActivityServices } from '../activity/activity.services.js';
+import type { AdminAiServices } from '../admin/ai/ai.services.js';
+import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
 import { SEARCH_SORT_VALUES } from '../search/search.types.js';
 import { createDocumentsServices, normalizeDocumentFileName } from './documents.services.js';
+import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
@@ -149,6 +152,8 @@ export function registerDocumentRoutes({
   vaultServices,
   auditServices,
   activityServices,
+  adminAiServices,
+  embeddingIndexQueue,
 }: {
   app: Hono<ServerContext>;
   db: Database;
@@ -160,6 +165,8 @@ export function registerDocumentRoutes({
   vaultServices?: VaultsServices;
   auditServices?: ReturnType<typeof createAuditServices>;
   activityServices?: ReturnType<typeof createActivityServices>;
+  adminAiServices?: AdminAiServices;
+  embeddingIndexQueue?: EmbeddingIndexQueue;
 }) {
   const documentsServices = services ?? createDocumentsServices({ db, storage, encryption });
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
@@ -1072,6 +1079,26 @@ export function registerDocumentRoutes({
           { error: { code: 'document.not_found', message: 'Document not found or not deleted' } },
           404,
         );
+      }
+
+      if (adminAiServices !== undefined && embeddingIndexQueue !== undefined) {
+        try {
+          const settings = await adminAiServices.getSettings();
+          if (settings.aiFeaturesEnabled) {
+            const activeIndex = await createEmbeddingIndexServices({ db }).getActiveEmbeddingIndex();
+            if (activeIndex !== null) {
+              await embeddingIndexQueue.enqueueDocumentIndexing({
+                embeddingIndexId: activeIndex.id,
+                documentId: doc.id,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(
+            `Could not enqueue semantic reindex after restoring document ${doc.id}:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
       }
 
       await activityServices?.emitActivityEvent({

@@ -13,6 +13,12 @@ export { documentsTable } from './documents.table.js';
 export { uploadSessionsTable } from './upload-sessions.table.js';
 export { documentChunksTable } from './document-chunks.table.js';
 export { documentChunkAssetsTable } from './document-chunk-assets.table.js';
+export { aiProviderConfigsTable } from './ai-provider-configs.table.js';
+export {
+  documentChunkEmbeddingsTable,
+  documentEmbeddingIndexStatusTable,
+  embeddingIndexesTable,
+} from './embedding-indexes.table.js';
 export { chatConversationsTable, chatMessagesTable } from './chat.table.js';
 export { tagsTable, documentTagsTable } from './tags.table.js';
 export { instanceSettingsTable } from './instance-settings.table.js';

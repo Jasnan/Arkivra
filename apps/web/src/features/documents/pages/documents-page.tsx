@@ -12,6 +12,7 @@ import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { adminQueryKeys } from '@/features/admin/admin.queries';
 import {
   Select,
   SelectContent,
@@ -59,6 +60,7 @@ import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@
 import { VaultMembersPanel } from '@/features/vaults/components/vault-members-panel';
 import { VaultSettingsPanel } from '@/features/vaults/components/vault-settings-panel';
 import { VaultActivityPanel } from '@/features/audit/components/vault-activity-panel';
+import { useMeQuery } from '@/features/me/me.queries';
 import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
 import { canManageVaultWorkspace, canMutateVaultDocuments, canReadVault, canUseVaultChat } from '@/features/vaults/vault-permissions';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
@@ -241,7 +243,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   const params = useParams({ strict: false }) as { vaultId?: string };
   const search = useSearch({ strict: false }) as Record<string, string | undefined>;
   const navigate = useNavigate();
+  const meQuery = useMeQuery();
   const vaultId = params.vaultId ?? '';
+  const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const currentFolderId = search.folderId ?? null;
   const queryClient = useQueryClient();
   const [browserView, setBrowserView] = usePreferredFileBrowserView();
@@ -429,6 +433,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       }
 
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
       ]);
@@ -577,7 +582,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
           { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
         ]
       : [];
-    const chatEntry: BrowserAction[] = canUseVaultChat(vault)
+    const chatEntry: BrowserAction[] = aiFeaturesEnabled && canUseVaultChat(vault)
       ? [{ key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) }]
       : [];
     const workspaceEntries = [...adminSectionEntries, ...chatEntry];

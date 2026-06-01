@@ -189,6 +189,7 @@ export function VaultsPage() {
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState>(null);
   const [vaultsView, setVaultsView] = usePreferredFileBrowserView();
   const canCreateVault = meQuery.data?.canCreateVault === true;
+  const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const shouldRestoreCreateButtonFocusRef = useRef(false);
 
@@ -281,7 +282,9 @@ export function VaultsPage() {
       { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vault.id) }) },
       { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vault.id) }) },
       { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vault.id) }) },
-      { key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vault.id) }) },
+      ...(aiFeaturesEnabled
+        ? [{ key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vault.id) }) }]
+        : []),
     ];
   }
 

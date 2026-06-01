@@ -72,6 +72,18 @@ describe('global search page', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
 
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
           vaults: [
@@ -121,12 +133,24 @@ describe('global search page', () => {
     expect(within(shellHeader).getByLabelText(/search documents/i)).toHaveValue('invoice');
     expect(within(shellHeader).getByRole('button', { name: /grid view/i })).toBeInTheDocument();
     expect(within(shellHeader).getByRole('button', { name: /list view/i })).toBeInTheDocument();
-    expect(within(shellHeader).getByText(/^semantic$/i)).toBeInTheDocument();
+    expect(await within(shellHeader).findByText(/^semantic$/i)).toBeInTheDocument();
   });
 
   it('uses the migrated search and filter controls', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
 
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({
@@ -180,7 +204,8 @@ describe('global search page', () => {
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc&searchMode=hybrid')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
+          && !String(url).includes('searchMode=hybrid')
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
@@ -401,7 +426,8 @@ describe('global search page', () => {
 
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc&searchMode=hybrid')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc')
+          && !String(url).includes('searchMode=hybrid')
         ),
       ).toBe(true);
     } finally {
@@ -478,10 +504,22 @@ describe('global search page', () => {
     expect(document.querySelector('mark')).toBeNull();
   });
 
-  it('can turn hybrid search off for keyword-only searching', async () => {
+  it('can turn semantic search on for hybrid searching', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
 
       if (url.endsWith('/api/vaults')) {
         return jsonResponse({ vaults: [] });
@@ -521,17 +559,17 @@ describe('global search page', () => {
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc&searchMode=hybrid'
+          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc'
         ),
       ).toBe(true);
     });
 
-    await user.click(screen.getByText(/^semantic$/i));
+    await user.click(await screen.findByText(/^semantic$/i));
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc'
+          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc&searchMode=hybrid'
         ),
       ).toBe(true);
     });
@@ -1159,7 +1197,7 @@ describe('documents library search controls', () => {
     await user.click(screen.getByLabelText(/custom range/i));
 
     await user.click(screen.getByRole('textbox', { name: /^to$/i }));
-    const futureDate = await findCalendarDate(/may 29, 2026/i);
+    const futureDate = await findCalendarDate(/may 31, 2026/i);
     expect(futureDate).toHaveAttribute('aria-disabled', 'true');
 
     await selectCalendarDate(user, /may 18, 2026/i);

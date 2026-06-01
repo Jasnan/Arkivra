@@ -17,6 +17,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useMeQuery } from '@/features/me/me.queries';
 import {
   deleteVault,
   renameVault,
@@ -36,6 +37,7 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const vaultQuery = useVaultQuery({ vaultId });
+  const meQuery = useMeQuery();
   const membersQuery = useVaultMembersQuery({ vaultId });
   const members = useMemo(() => membersQuery.data?.members ?? [], [membersQuery.data?.members]);
 
@@ -94,6 +96,7 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
   }
 
   const vault = vaultQuery.data.vault;
+  const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
 
   function handleRename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,9 +126,11 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
         />
         <StatCard
           label="AI access"
-          value={formatAiAccess(vault.aiAccessLevel)}
+          value={aiFeaturesEnabled ? formatAiAccess(vault.aiAccessLevel) : 'Disabled'}
           meta={
-            vault.aiAccessLevel === 'full'
+            !aiFeaturesEnabled
+              ? 'AI features are disabled for this Arkivra instance.'
+              : vault.aiAccessLevel === 'full'
               ? 'Semantic search and vault chat are available.'
               : vault.aiAccessLevel === 'document_chat'
                 ? 'Document chat is available.'

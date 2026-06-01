@@ -147,7 +147,6 @@ function createDeps({
         }),
     ),
   };
-  const chunkEmbedder = { name: 'test-embedder', embed: vi.fn(async () => [[0.1, 0.2, 0.3]]) };
   const job = {
     data: { documentId: 'doc_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
     updateProgress: vi.fn(async () => undefined),
@@ -158,7 +157,6 @@ function createDeps({
     storage,
     encryption,
     parsePipeline,
-    chunkEmbedder,
     job,
   };
 }
@@ -167,12 +165,10 @@ describe('document worker', () => {
   beforeEach(() => {
     persistParsedDocument.mockReset();
     updateDocumentProcessingStatus.mockReset();
-    persistParsedDocument.mockImplementation(async ({ hooks }) => {
-      await hooks?.onStageChange?.('vectorising');
-    });
+    persistParsedDocument.mockResolvedValue(undefined);
   });
 
-  test('updates processing status through the phase 5 happy-path sequence', async () => {
+  test('updates processing status through the ingestion happy-path sequence', async () => {
     const deps = createDeps();
     const { createDocumentWorker } = await import('./document.worker.js');
 
@@ -181,7 +177,6 @@ describe('document worker', () => {
       storage: deps.storage as never,
       encryption: deps.encryption,
       parsePipeline: deps.parsePipeline as never,
-      chunkEmbedder: deps.chunkEmbedder as never,
       startPolling: false,
     });
 
@@ -191,13 +186,12 @@ describe('document worker', () => {
       'partitioning',
       'chunking',
       'summarising',
-      'vectorising',
       'completed',
     ]);
     const progressValues = deps.job.updateProgress.mock.calls
       .map(call => call.at(0));
 
-    expect(progressValues).toEqual([30, 55, 75, 95, 100]);
+    expect(progressValues).toEqual([30, 55, 75, 100]);
   });
 
   test('decrypts file when encryption metadata is present', async () => {
@@ -214,7 +208,6 @@ describe('document worker', () => {
       storage: deps.storage as never,
       encryption: deps.encryption,
       parsePipeline: deps.parsePipeline as never,
-      chunkEmbedder: deps.chunkEmbedder as never,
       startPolling: false,
     });
 
@@ -244,7 +237,6 @@ describe('document worker', () => {
       storage: deps.storage as never,
       encryption: deps.encryption,
       parsePipeline: deps.parsePipeline as never,
-      chunkEmbedder: deps.chunkEmbedder as never,
       startPolling: false,
     });
 

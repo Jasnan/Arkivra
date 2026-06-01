@@ -47,7 +47,6 @@ export function isDocumentProcessingActive(status: DocumentSummary['processingSt
     || status === 'partitioning'
     || status === 'chunking'
     || status === 'summarising'
-    || status === 'vectorising'
     || status === 'processing';
 }
 
@@ -66,8 +65,6 @@ export function getDocumentProcessingStageLabel(
       return 'Chunking';
     case 'summarising':
       return 'Summarising';
-    case 'vectorising':
-      return 'Embedding';
     case 'failed':
       return 'Processing failed';
     case 'completed':
@@ -99,8 +96,6 @@ export function getDocumentProcessingStageDescription(
       return 'Arkivra is grouping extracted content into retrieval chunks.';
     case 'summarising':
       return 'Arkivra is generating searchable summaries for multimodal chunks.';
-    case 'vectorising':
-      return 'Arkivra is generating embeddings for semantic retrieval.';
     case 'failed':
       return 'Document processing failed for this file.';
     case 'completed':

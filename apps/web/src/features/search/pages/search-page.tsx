@@ -28,6 +28,7 @@ import { tokenizeSnippet } from '@/features/search/search.utils';
 import type { SearchMode, SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { TagBadge } from '@/features/tags/components/tag-badge';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
+import { useMeQuery } from '@/features/me/me.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 
@@ -110,7 +111,7 @@ function getSearchReturnParams({
   if (tagIds.length > 0) params.tagIds = joinSearchList(tagIds);
   if (dateFrom.length > 0) params.dateFrom = dateFrom;
   if (dateTo.length > 0) params.dateTo = dateTo;
-  if (searchMode === 'keyword') params.searchMode = searchMode;
+  if (searchMode === 'hybrid') params.searchMode = searchMode;
 
   return params;
 }
@@ -651,6 +652,8 @@ export function SearchPage() {
   const [datePreset, setDatePreset] = useState<DatePreset>(search.dateFrom || search.dateTo ? 'custom' : 'any');
   const [browserView, setBrowserView] = usePreferredFileBrowserView();
   const debouncedQuery = useDebouncedValue(query.trim(), SEARCH_QUERY_DEBOUNCE_MS);
+  const meQuery = useMeQuery();
+  const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled === true;
 
   const selectedVaultIds = useMemo(() => {
     const vaultIds = parseSearchList(search.vaultIds);
@@ -667,7 +670,7 @@ export function SearchPage() {
   const dateFrom = search.dateFrom ?? '';
   const dateTo = search.dateTo ?? '';
   const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
-  const requestedSemanticSearch = isSearchMode(search.searchMode) ? search.searchMode !== 'keyword' : true;
+  const requestedSemanticSearch = isSearchMode(search.searchMode) ? search.searchMode === 'hybrid' : false;
 
   useEffect(() => {
     if ((search.q ?? '') === debouncedQuery) {
@@ -697,9 +700,9 @@ export function SearchPage() {
     () => new Set(vaults.filter((vault) => vault.aiAccessLevel === 'full' || !('aiAccessLevel' in vault)).map((vault) => vault.id)),
     [vaults],
   );
-  const semanticSearchAvailable = selectedVaultIds.length > 0
+  const semanticSearchAvailable = aiFeaturesEnabled && (selectedVaultIds.length > 0
     ? selectedVaultIds.every((vaultId) => fullAiVaultIds.has(vaultId))
-    : fullAiVaultIds.size > 0 || vaults.length === 0;
+    : fullAiVaultIds.size > 0 || vaults.length === 0);
   const semanticSearchEnabled = requestedSemanticSearch && semanticSearchAvailable;
   const selectedSearchMode: SearchMode = semanticSearchEnabled ? 'hybrid' : 'keyword';
   const searchMode: SearchMode = selectedSearchMode === 'hybrid' && debouncedQuery.length > 0 ? 'hybrid' : 'keyword';
@@ -849,7 +852,7 @@ export function SearchPage() {
 
   const setSemanticSearchEnabled = useCallback((checked: boolean) => {
     updateFilters({
-      searchMode: checked ? '' : 'keyword',
+      searchMode: checked ? 'hybrid' : '',
     });
   }, [updateFilters]);
   const filterStateKey = useMemo(
@@ -886,13 +889,13 @@ export function SearchPage() {
       sortPlacement="input"
       filtersTitle="Filters"
       filterStateKey={filterStateKey}
-      inlineAccessory={(
+      inlineAccessory={aiFeaturesEnabled ? (
         <SearchModeControl
           checked={semanticSearchEnabled}
           disabled={!semanticSearchAvailable}
           onCheckedChange={setSemanticSearchEnabled}
         />
-      )}
+      ) : undefined}
       trailingAccessory={layout === 'header' ? undefined : (
         <HStack flexShrink={0}>
           <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
@@ -964,6 +967,7 @@ export function SearchPage() {
     />
   ), [
     activeFilters,
+    aiFeaturesEnabled,
     browserView,
     dateFrom,
     datePreset,

@@ -231,6 +231,8 @@ export class AsyncJob<TData extends Record<string, unknown>> {
   id: string;
   name: string;
   data: TData;
+  attempts: number;
+  maxAttempts: number;
 
   constructor({
     db,
@@ -238,18 +240,24 @@ export class AsyncJob<TData extends Record<string, unknown>> {
     id,
     name,
     data,
+    attempts = 0,
+    maxAttempts = 1,
   }: {
     db: Database;
     queueName: string;
     id: string;
     name: string;
     data: TData;
+    attempts?: number;
+    maxAttempts?: number;
   }) {
     this.#db = db;
     this.#queueName = queueName;
     this.id = id;
     this.name = name;
     this.data = data;
+    this.attempts = attempts;
+    this.maxAttempts = maxAttempts;
   }
 
   async updateProgress(progress: number) {
@@ -734,6 +742,8 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
         id: claimed.id,
         name: claimed.name,
         data: claimed.data,
+        attempts: claimed.attempts,
+        maxAttempts: claimed.maxAttempts,
       });
 
       const heartbeat = setInterval(() => {

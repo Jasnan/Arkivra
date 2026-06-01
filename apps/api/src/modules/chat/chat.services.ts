@@ -1,5 +1,6 @@
 import type { Database } from '../database/database.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
+import type { ChatModelConfig, ChatProvider, ChatProviderMetrics } from '../ai/providers/types.js';
 import { serializeTableHtmlForRetrieval } from '../parsing/table-formatting.js';
 import type { Citation, CitationImageAsset, DocumentSearchServices } from '../search/search.types.js';
 import type {
@@ -110,7 +111,7 @@ const DEFAULT_INTENT_EXAMPLES: Record<ChatIntent, string[]> = {
 };
 
 type AiRuntimeSettings = {
-  host: string;
+  baseUrl: string;
   model: string;
   maxImagesPerRequest: number;
 };
@@ -123,38 +124,6 @@ type ChatModelOptions = {
 type ChatConversationRow = typeof chatConversationsTable.$inferSelect;
 type ChatMessageRow = typeof chatMessagesTable.$inferSelect;
 export type ChatScopeInput = ChatContextSnapshot;
-
-const ollamaChatChunkSchema = z.object({
-  message: z.object({
-    content: z.string().optional(),
-  }).optional(),
-  response: z.string().optional(),
-  done: z.boolean().optional(),
-  error: z.string().optional(),
-  prompt_eval_count: z.number().optional(),
-  prompt_eval_duration: z.number().optional(),
-  eval_count: z.number().optional(),
-  eval_duration: z.number().optional(),
-  total_duration: z.number().optional(),
-  load_duration: z.number().optional(),
-});
-
-type OllamaChatMetrics = {
-  promptEvalCount: number | null;
-  promptEvalDurationNs: number | null;
-  evalCount: number | null;
-  evalDurationNs: number | null;
-  totalDurationNs: number | null;
-  loadDurationNs: number | null;
-};
-
-const ollamaTextResponseSchema = z.object({
-  message: z.object({
-    content: z.string().optional(),
-  }).optional(),
-  response: z.string().optional(),
-  error: z.string().optional(),
-});
 
 const intentResolutionSchema = z.object({
   action: z.enum(['proceed', 'follow_up']),
@@ -169,30 +138,31 @@ function nsToMs(value: number | null) {
 }
 
 function buildChatGenerationMetrics({
-  ollama,
+  provider,
   timeToFirstTokenMs,
 }: {
-  ollama: OllamaChatMetrics | null;
+  provider: ChatProviderMetrics | null;
   timeToFirstTokenMs: number | null;
 }): ChatGenerationMetrics | null {
-  if (ollama === null && timeToFirstTokenMs === null) {
+  if (provider === null && timeToFirstTokenMs === null) {
     return null;
   }
 
-  const tokensPerSecond = ollama?.evalCount !== null
-    && ollama?.evalCount !== undefined
-    && ollama.evalDurationNs !== null
-    && ollama.evalDurationNs > 0
-    ? Math.round(((ollama.evalCount / (ollama.evalDurationNs / 1_000_000_000)) * 10)) / 10
+  const tokensPerSecond = provider?.evalCount !== null
+    && provider?.evalCount !== undefined
+    && provider.evalDurationNs !== null
+    && provider.evalDurationNs !== undefined
+    && provider.evalDurationNs > 0
+    ? Math.round(((provider.evalCount / (provider.evalDurationNs / 1_000_000_000)) * 10)) / 10
     : null;
 
   return {
-    promptEvalCount: ollama?.promptEvalCount ?? null,
-    promptEvalDurationMs: nsToMs(ollama?.promptEvalDurationNs ?? null),
-    evalCount: ollama?.evalCount ?? null,
-    evalDurationMs: nsToMs(ollama?.evalDurationNs ?? null),
-    totalDurationMs: nsToMs(ollama?.totalDurationNs ?? null),
-    loadDurationMs: nsToMs(ollama?.loadDurationNs ?? null),
+    promptEvalCount: provider?.promptEvalCount ?? null,
+    promptEvalDurationMs: nsToMs(provider?.promptEvalDurationNs ?? null),
+    evalCount: provider?.evalCount ?? null,
+    evalDurationMs: nsToMs(provider?.evalDurationNs ?? null),
+    totalDurationMs: nsToMs(provider?.totalDurationNs ?? null),
+    loadDurationMs: nsToMs(provider?.loadDurationNs ?? null),
     tokensPerSecond,
     timeToFirstTokenMs,
   };
@@ -406,24 +376,6 @@ export function formatFollowUpAssistantMessage({
   const resolvedExamples = sanitizeFollowUpExamples(intent, examples);
 
   return `${resolvedQuestion}\nExamples: ${resolvedExamples.join(' or ')}`;
-}
-
-async function readOllamaTextResponse(response: Response) {
-  if (!response.ok) {
-    throw new Error(`Ollama returned status ${response.status}`);
-  }
-
-  const payload = ollamaTextResponseSchema.parse(await response.json());
-  if (payload.error) {
-    throw new Error(payload.error);
-  }
-
-  const content = payload.message?.content ?? payload.response ?? '';
-  if (content.trim().length === 0) {
-    throw new Error('Ollama returned an empty response.');
-  }
-
-  return content;
 }
 
 function compactWhitespace(value: string) {
@@ -1065,106 +1017,6 @@ export function encodeSseEvent(event: ChatStreamEvent) {
   return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function* parseOllamaChatStream(
-  response: Response,
-): AsyncGenerator<{ token?: string; metrics?: OllamaChatMetrics }> {
-  if (!response.ok) {
-    throw new Error(`Ollama returned status ${response.status}`);
-  }
-
-  if (response.body === null) {
-    const body = ollamaChatChunkSchema.parse(await response.json());
-    const token = body.message?.content ?? body.response ?? '';
-    if (token.length > 0) {
-      yield { token };
-    }
-    if (body.done) {
-      yield {
-        metrics: {
-          promptEvalCount: body.prompt_eval_count ?? null,
-          promptEvalDurationNs: body.prompt_eval_duration ?? null,
-          evalCount: body.eval_count ?? null,
-          evalDurationNs: body.eval_duration ?? null,
-          totalDurationNs: body.total_duration ?? null,
-          loadDurationNs: body.load_duration ?? null,
-        },
-      };
-    }
-    return;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.length === 0) {
-        continue;
-      }
-
-      const parsed = ollamaChatChunkSchema.parse(JSON.parse(trimmed));
-      if (parsed.error) {
-        throw new Error(parsed.error);
-      }
-
-      const token = parsed.message?.content ?? parsed.response ?? '';
-      if (token.length > 0) {
-        yield { token };
-      }
-
-      if (parsed.done) {
-        yield {
-          metrics: {
-            promptEvalCount: parsed.prompt_eval_count ?? null,
-            promptEvalDurationNs: parsed.prompt_eval_duration ?? null,
-            evalCount: parsed.eval_count ?? null,
-            evalDurationNs: parsed.eval_duration ?? null,
-            totalDurationNs: parsed.total_duration ?? null,
-            loadDurationNs: parsed.load_duration ?? null,
-          },
-        };
-      }
-    }
-
-    if (done) {
-      break;
-    }
-  }
-
-  const tail = buffer.trim();
-  if (tail.length > 0) {
-    const parsed = ollamaChatChunkSchema.parse(JSON.parse(tail));
-    if (parsed.error) {
-      throw new Error(parsed.error);
-    }
-
-    const token = parsed.message?.content ?? parsed.response ?? '';
-    if (token.length > 0) {
-      yield { token };
-    }
-
-    if (parsed.done) {
-      yield {
-        metrics: {
-          promptEvalCount: parsed.prompt_eval_count ?? null,
-          promptEvalDurationNs: parsed.prompt_eval_duration ?? null,
-          evalCount: parsed.eval_count ?? null,
-          evalDurationNs: parsed.eval_duration ?? null,
-          totalDurationNs: parsed.total_duration ?? null,
-          loadDurationNs: parsed.load_duration ?? null,
-        },
-      };
-    }
-  }
-}
-
 async function collectCitationImages({
   citations,
   documentsServices,
@@ -1207,66 +1059,78 @@ async function collectCitationImages({
 }
 
 async function resolveIntentFollowUp({
-  host,
-  model,
+  chatProvider,
+  config,
   intent,
   previousMessages,
   content,
-  fetchImpl,
 }: {
-  host: string;
-  model: string;
+  chatProvider: ChatProvider;
+  config: ChatModelConfig;
   intent: ChatIntent;
   previousMessages: ChatMessage[];
   content: string;
-  fetchImpl: typeof fetch;
 }): Promise<IntentResolution> {
-  const response = await fetchImpl(`${host.replace(/\/+$/, '')}/api/chat`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      think: false,
-      format: 'json',
-      messages: [
-        {
-          role: 'system',
-          content: buildGlobalIntentSystemPrompt(intent),
-        },
-        {
-          role: 'user',
-          content: buildGuidedFollowUpUserPrompt({
-            previousMessages,
-            content,
-          }),
-        },
-      ],
-      options: {
-        temperature: 0.1,
+  if (chatProvider.completeJson === undefined) {
+    return { action: 'proceed' };
+  }
+
+  const raw = await chatProvider.completeJson<unknown>({
+    config,
+    schema: intentResolutionSchema,
+    messages: [
+      {
+        role: 'system',
+        content: buildGlobalIntentSystemPrompt(intent),
       },
-    }),
+      {
+        role: 'user',
+        content: buildGuidedFollowUpUserPrompt({
+          previousMessages,
+          content,
+        }),
+      },
+    ],
   });
 
-  const rawContent = await readOllamaTextResponse(response);
-  return intentResolutionSchema.parse(JSON.parse(rawContent));
+  return intentResolutionSchema.parse(raw);
 }
 
 export function createChatServices({
   db,
   searchServices,
   documentsServices,
+  chatProvider,
   resolveAiSettings,
   listAvailableModels,
-  fetchImpl = fetch,
 }: {
   db: Database;
   searchServices: DocumentSearchServices;
   documentsServices?: DocumentsServices;
+  chatProvider: ChatProvider;
   resolveAiSettings: () => Promise<AiRuntimeSettings>;
-  listAvailableModels: (args: { host: string }) => Promise<string[]>;
-  fetchImpl?: typeof fetch;
+  listAvailableModels: (args: { baseUrl: string }) => Promise<string[]>;
 }) {
+  function buildChatConfig({
+    settings,
+    model,
+    supportsImages,
+  }: {
+    settings: AiRuntimeSettings;
+    model: string;
+    supportsImages: boolean;
+  }): ChatModelConfig {
+    return {
+      provider: chatProvider.kind,
+      model,
+      baseUrl: settings.baseUrl,
+      supportsImages,
+      options: {
+        temperature: 0.1,
+      },
+    };
+  }
+
   async function listConversations({ userId }: { userId: string }) {
     const rows = await db
       .select()
@@ -1354,7 +1218,7 @@ export function createChatServices({
 
   async function getModelOptions(): Promise<ChatModelOptions> {
     const settings = await resolveAiSettings();
-    const models = await listAvailableModels({ host: settings.host });
+    const models = await listAvailableModels({ baseUrl: settings.baseUrl });
     const uniqueModels = models.includes(settings.model)
       ? models
       : [settings.model, ...models];
@@ -1470,22 +1334,26 @@ export function createChatServices({
               ? requestedModel
               : settings.model;
             if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
-              const availableModels = await listAvailableModels({ host: settings.host });
+              const availableModels = await listAvailableModels({ baseUrl: settings.baseUrl });
               if (!availableModels.includes(requestedModel)) {
-                throw new Error(`Model "${requestedModel}" is not available from Ollama.`);
+                throw new Error(`Model "${requestedModel}" is not available from the configured chat provider.`);
               }
             }
+            const chatConfig = buildChatConfig({
+              settings,
+              model: effectiveModel,
+              supportsImages: responseMode === 'multimodal',
+            });
 
             if (isGlobalScope(scope) && intent) {
               send({ type: 'status', label: 'generation' });
               generationStarted = true;
               const resolution = await resolveIntentFollowUp({
-                host: settings.host,
-                model: effectiveModel,
+                chatProvider,
+                config: chatConfig,
                 intent,
                 previousMessages,
                 content,
-                fetchImpl,
               });
 
               if (resolution.action === 'follow_up') {
@@ -1564,47 +1432,37 @@ export function createChatServices({
                   })
                 : [];
               generationStarted = true;
-              const response = await fetchImpl(`${settings.host.replace(/\/+$/, '')}/api/chat`, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                  model: effectiveModel,
-                  stream: true,
-                  think: false,
-                  messages: [
-                    {
-                      role: 'system',
-                      content: isGlobalScope(scope)
-                        ? buildGlobalAnswerSystemPrompt({
-                            intent,
-                            includeInlineCitations,
-                          })
-                        : includeInlineCitations
-                            ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
-                            : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
-                    },
-                    ...previousMessages.map(message => ({
-                      role: message.role,
-                      content: message.content,
-                    })),
-                    {
-                      role: 'user',
-                      content: buildAnswerPrompt({
-                        question: content,
-                        citations,
-                        includeInlineCitations,
-                      }),
-                      ...(images.length > 0 ? { images } : {}),
-                    },
-                  ],
-                  options: {
-                    temperature: 0.1,
-                  },
-                }),
-              });
               generationStartMs = Date.now();
 
-              for await (const chunk of parseOllamaChatStream(response)) {
+              for await (const chunk of chatProvider.streamChat({
+                config: chatConfig,
+                messages: [
+                  {
+                    role: 'system',
+                    content: isGlobalScope(scope)
+                      ? buildGlobalAnswerSystemPrompt({
+                          intent,
+                          includeInlineCitations,
+                        })
+                      : includeInlineCitations
+                          ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
+                          : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
+                  },
+                  ...previousMessages.map(message => ({
+                    role: message.role,
+                    content: message.content,
+                  })),
+                  {
+                    role: 'user',
+                    content: buildAnswerPrompt({
+                      question: content,
+                      citations,
+                      includeInlineCitations,
+                    }),
+                    ...(images.length > 0 ? { images } : {}),
+                  },
+                ],
+              })) {
                 if (chunk.token) {
                   if (firstTokenAtMs === null && generationStartMs !== null) {
                     firstTokenAtMs = Date.now();
@@ -1615,7 +1473,7 @@ export function createChatServices({
 
                 if (chunk.metrics) {
                   generationMetrics = buildChatGenerationMetrics({
-                    ollama: chunk.metrics,
+                    provider: chunk.metrics,
                     timeToFirstTokenMs: generationStartMs !== null && firstTokenAtMs !== null
                       ? firstTokenAtMs - generationStartMs
                       : null,

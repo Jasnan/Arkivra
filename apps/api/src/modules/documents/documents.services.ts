@@ -15,6 +15,7 @@ import {
 import { generateId } from '../database/schema/helpers.js';
 import type { SearchSortBy } from '../search/search.types.js';
 import { renderPdfPageToImage } from '../parsing/pdf-page-renderer.js';
+import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
 export type DocumentProcessingStatus =
@@ -23,7 +24,6 @@ export type DocumentProcessingStatus =
   | 'partitioning'
   | 'chunking'
   | 'summarising'
-  | 'vectorising'
   | 'completed'
   | 'failed';
 
@@ -1004,6 +1004,10 @@ export function createDocumentsServices({
         ),
       )
       .returning({ id: documentsTable.id });
+
+    if (doc !== undefined) {
+      await createEmbeddingIndexServices({ db }).removeDocumentFromEmbeddingIndexes({ documentId });
+    }
 
     return doc ?? null;
   }

@@ -68,6 +68,7 @@ describe('app shell account menu', () => {
             systemCapabilities: ['system.create_vaults'],
             isAdmin: false,
             canCreateVault: true,
+            aiFeaturesEnabled: true,
           });
         }
 
@@ -283,6 +284,44 @@ describe('app shell account menu', () => {
 
     expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
     expect(within(primaryNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
+  });
+
+  it('hides chat navigation when AI features are disabled', async () => {
+    const defaultFetch = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url === '/api/me') {
+          return jsonResponse({
+            userId: 'usr_member',
+            sessionId: 'ses_member',
+            systemRole: 'member',
+            systemCapabilities: ['system.create_vaults'],
+            isAdmin: false,
+            canCreateVault: true,
+            aiFeaturesEnabled: false,
+          });
+        }
+
+        return defaultFetch(input, init);
+      }),
+    );
+
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const primaryNav = screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(primaryNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
+    await waitFor(() => {
+      expect(within(primaryNav).queryByRole('link', { name: 'Chat' })).not.toBeInTheDocument();
+    });
   });
 
   it('uses the sidebar utility as a theme switcher', async () => {

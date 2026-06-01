@@ -3,14 +3,9 @@ import { createPrimaryKeyField } from './helpers.js';
 import { documentsTable } from './documents.table.js';
 import { vaultsTable } from './vaults.table.js';
 
-// Note: pgvector column and tsvector column are created in raw SQL migration
-// because drizzle-orm/pg-core doesn't have native pgvector/tsvector support.
-// The Drizzle schema here defines all non-vector/tsvector columns.
-// The migration SQL will add:
-//   - embedding vector(1024) (nullable, for V2 AI)
-//   - tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
-//   - GIN index on tsv
-//   - HNSW index on embedding
+// Note: the tsvector column is created in raw SQL migration because
+// drizzle-orm/pg-core doesn't have native tsvector support. Embeddings live
+// in document_chunk_embeddings so provider changes do not alter this table.
 
 export const documentChunksTable = pgTable(
   'document_chunks',

@@ -48,6 +48,7 @@ import { useAccentColor } from '@/components/providers/accent-color-context';
 import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
+import { adminQueryKeys } from '@/features/admin/admin.queries';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,6 +103,8 @@ import { DocumentActivityPanel } from '@/features/audit/components/document-acti
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
 import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import { useMeQuery } from '@/features/me/me.queries';
+import { canUseVaultChat } from '@/features/vaults/vault-permissions';
 import { useVaultQuery } from '@/features/vaults/vaults.queries';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -1706,6 +1709,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const meQuery = useMeQuery();
   const { showExtractedTextTab } = useAccentColor();
   const pathParts = location.pathname.split('/').filter(Boolean);
   const isTrashDocumentRoute = pathParts[0] === 'trash';
@@ -1721,6 +1725,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const documentTagsQuery = useDocumentTagsQuery({ vaultId, documentId });
   const tagsQuery = useTagsQuery();
   const vaultQuery = useVaultQuery({ vaultId });
+  const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const folderTreeQuery = useFolderTreeQuery({ vaultId, enabled: vaultId.length > 0 });
   const previewKind = getPreviewKind(
     documentQuery.data?.document.mimeType ?? '',
@@ -1868,8 +1873,11 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   }, [documentId, queryClient, vaultId]);
 
   const invalidateDocument = async () => {
-    await queryClient.invalidateQueries({ queryKey: documentQueryKeys.all });
-    await queryClient.invalidateQueries({ queryKey: tagQueryKeys.list() });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+      queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: tagQueryKeys.list() }),
+    ]);
   };
 
   const invalidateDocumentTags = async () => {
@@ -2060,12 +2068,14 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
           icon: History,
           route: ROUTES.vaultDocumentActivity(vaultId, documentId),
         },
-        {
-          key: 'chat',
-          label: 'Chat',
-          icon: MessageSquare,
-          route: ROUTES.vaultDocumentChat(vaultId, documentId),
-        },
+        ...(aiFeaturesEnabled && canUseVaultChat(vaultQuery.data?.vault)
+          ? [{
+              key: 'chat',
+              label: 'Chat',
+              icon: MessageSquare,
+              route: ROUTES.vaultDocumentChat(vaultId, documentId),
+            }]
+          : []),
       ]
     : [];
 
@@ -2464,7 +2474,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                     vaultId={vaultId}
                     documentId={documentId}
                     onPrint={handlePrintClick}
-                    translationsDisabled={isTrashDocumentRoute}
+                    translationsDisabled={isTrashDocumentRoute || !aiFeaturesEnabled}
                     sourceLanguage={document.language}
                   />
                 ) : null}

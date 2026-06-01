@@ -43,7 +43,7 @@ export interface PaginatedAuditLogResponse {
 }
 
 export interface AuditLogFilters {
-  eventType?: string;
+  eventType?: string | string[];
   eventCategory?: string;
   severity?: string;
   actorId?: string;

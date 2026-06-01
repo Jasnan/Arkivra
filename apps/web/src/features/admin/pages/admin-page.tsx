@@ -32,6 +32,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
+import { SearchCombobox } from '@/components/ui/search-combobox';
 import { Switch } from '@/components/ui/switch';
 import {
   Select,
@@ -1669,6 +1670,21 @@ const auditOutcomeOptions = [
   { value: 'failure', label: 'failure' },
   { value: 'denied', label: 'denied' },
 ] as const;
+const auditEventTypeOptions = [
+  { value: 'document.uploaded', label: 'Document Uploaded' },
+  { value: 'document.viewed', label: 'Document Viewed' },
+  { value: 'document.downloaded', label: 'Document Downloaded' },
+  { value: 'document.deleted', label: 'Document Deleted' },
+  { value: 'document.delete_failed', label: 'Document Delete Failed' },
+  { value: 'document.access_denied', label: 'Document Access Denied' },
+  { value: 'vault.member_added', label: 'Vault Member Added' },
+  { value: 'vault.member_removed', label: 'Vault Member Removed' },
+  { value: 'vault.member_role_changed', label: 'Vault Member Role Changed' },
+  { value: 'vault.access_denied', label: 'Vault Access Denied' },
+  { value: 'ai.features_toggled', label: 'AI toggled' },
+  { value: 'ai.chat_model_changed', label: 'AI chat model changed' },
+  { value: 'ai.embedding_model_changed', label: 'AI embedding model changed' },
+] as const;
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -1783,6 +1799,11 @@ export function AdminAuditLogPage() {
   const [filters, setFilters] = useState<AuditLogFilters>({});
   const auditQuery = useAdminAuditLogQuery({ filters, enabled: isEnabled });
   const events = auditQuery.data?.pages.flatMap(page => page.events) ?? [];
+  const selectedEventTypes = Array.isArray(filters.eventType)
+    ? filters.eventType
+    : filters.eventType
+      ? [filters.eventType]
+      : [];
 
   function setFilter(key: keyof AuditLogFilters, value: string) {
     setFilters(current => ({
@@ -1810,6 +1831,13 @@ export function AdminAuditLogPage() {
     });
   }
 
+  function setEventTypeFilter(values: string[]) {
+    setFilters(current => ({
+      ...current,
+      eventType: values.length > 0 ? values : undefined,
+    }));
+  }
+
   return (
     <AdminAccessBoundary
       title="Audit log"
@@ -1817,7 +1845,7 @@ export function AdminAuditLogPage() {
       isEnabled={isEnabled}
       isLoading={meQuery.isLoading}
     >
-        <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' }}>
+        <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' }}>
           <Field>
             <FieldLabel>Category</FieldLabel>
             <RadioDropdownMenu
@@ -1847,23 +1875,24 @@ export function AdminAuditLogPage() {
           </Field>
           <Field>
             <FieldLabel htmlFor="admin-audit-event-type">Event type</FieldLabel>
-            <Input id="admin-audit-event-type" value={filters.eventType ?? ''} placeholder="document.deleted" bg="bg.surface" onChange={(event) => setFilter('eventType', event.target.value)} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="admin-audit-actor">Actor</FieldLabel>
-            <Input id="admin-audit-actor" value={filters.actorId ?? ''} placeholder="User id" bg="bg.surface" onChange={(event) => setFilter('actorId', event.target.value)} />
+            <SearchCombobox
+              label="Event type"
+              inputId="admin-audit-event-type"
+              ariaLabel="Filter audit log by event type"
+              placeholder="All event types"
+              searchPlaceholder="Search event types"
+              emptyLabel="No event types found."
+              options={auditEventTypeOptions.map((option) => ({ ...option, meta: option.value }))}
+              value={selectedEventTypes}
+              multiple
+              onValueChange={setEventTypeFilter}
+              hideLabel
+              controlSize="toolbar"
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="admin-audit-vault">Vault</FieldLabel>
             <Input id="admin-audit-vault" value={filters.vaultId ?? ''} placeholder="Vault id" bg="bg.surface" onChange={(event) => setFilter('vaultId', event.target.value)} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="admin-audit-document">Document</FieldLabel>
-            <Input id="admin-audit-document" value={filters.documentId ?? ''} placeholder="Document id" bg="bg.surface" onChange={(event) => setFilter('documentId', event.target.value)} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="admin-audit-target">Target</FieldLabel>
-            <Input id="admin-audit-target" value={filters.targetId ?? ''} placeholder="Target id" bg="bg.surface" onChange={(event) => setFilter('targetId', event.target.value)} />
           </Field>
           <Field>
             <FieldLabel htmlFor="admin-audit-from">From</FieldLabel>

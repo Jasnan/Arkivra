@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDocumentActivity, getVaultAuditEvents } from './audit.api';
+import { getAdminAuditEvents, getDocumentActivity, getVaultAuditEvents } from './audit.api';
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -47,6 +47,22 @@ describe('audit api helpers', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/vaults/vlt_1/audit-events?limit=50&eventType=document.deleted&outcome=success&actorId=usr_1&documentId=doc_1&dateFrom=2026-01-01',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('serializes multiple admin audit event type filters', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ events: [], nextCursor: null }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getAdminAuditEvents({
+      filters: {
+        eventType: ['document.viewed', 'ai.features_toggled'],
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/admin/audit-events?limit=50&eventType=document.viewed&eventType=ai.features_toggled',
       expect.objectContaining({ credentials: 'include' }),
     );
   });

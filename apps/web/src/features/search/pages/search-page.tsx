@@ -671,6 +671,11 @@ export function SearchPage() {
   const dateTo = search.dateTo ?? '';
   const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
   const requestedSemanticSearch = isSearchMode(search.searchMode) ? search.searchMode === 'hybrid' : false;
+  const hasSearchCriteria = debouncedQuery.length > 0
+    || selectedVaultIds.length > 0
+    || selectedTagIds.length > 0
+    || dateFrom.length > 0
+    || dateTo.length > 0;
 
   useEffect(() => {
     if ((search.q ?? '') === debouncedQuery) {
@@ -716,7 +721,7 @@ export function SearchPage() {
     dateTo: dateTo || undefined,
     sortBy,
     searchMode,
-    enabled: !vaultsQuery.isLoading,
+    enabled: !vaultsQuery.isLoading && hasSearchCriteria,
   });
 
   const selectedVaults = useMemo(
@@ -800,8 +805,8 @@ export function SearchPage() {
         }]
       : []),
   ], [dateFrom, datePreset, dateTo, selectedTagIds, selectedTags, selectedVaultIds, selectedVaults, updateFilters]);
-  const hasActiveSearch = !vaultsQuery.isLoading;
-  const results = searchQuery.data?.results ?? [];
+  const hasActiveSearch = !vaultsQuery.isLoading && hasSearchCriteria;
+  const results = hasActiveSearch ? searchQuery.data?.results ?? [] : [];
   const detailSearch = getSearchReturnParams({
     query: debouncedQuery,
     vaultIds: selectedVaultIds,

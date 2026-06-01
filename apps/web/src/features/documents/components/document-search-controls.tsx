@@ -14,7 +14,7 @@ import {
   chakra,
   createListCollection,
 } from '@chakra-ui/react';
-import { Filter, Search as SearchIcon, X } from 'lucide-react';
+import { Check, Filter, Search as SearchIcon, X } from 'lucide-react';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -199,7 +199,7 @@ export function SearchFilterMultiSelect({
               borderWidth="1px"
               borderColor="border.surface"
               bg={contentBg ?? 'bg.surface'}
-              p={controlSize === 'toolbar' ? '1.5' : '2'}
+              p="1.5"
               shadow="lg"
             >
             {isLoading ? (
@@ -215,14 +215,14 @@ export function SearchFilterMultiSelect({
                     w="full"
                     alignItems="center"
                     gap="2"
-                    minH={controlSize === 'toolbar' ? 'var(--arkivra-menuItemMinHeight, 2.5rem)' : undefined}
+                    minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
                     rounded="md"
-                    px={controlSize === 'toolbar' ? '3' : '3'}
-                    pr={controlSize === 'toolbar' ? '10' : '3'}
+                    px="3"
+                    pr="10"
                     py="var(--arkivra-menuItemPaddingY, 0.5rem)"
                     fontSize="sm"
                     fontWeight="medium"
-                    color={controlSize === 'toolbar' ? 'fg' : 'fg.muted'}
+                    color="fg"
                     textAlign="left"
                     position="relative"
                     transition="background-color 120ms ease, color 120ms ease"
@@ -247,36 +247,36 @@ export function SearchFilterMultiSelect({
                       display="flex"
                       alignItems="center"
                       gap="3"
-                      minH={controlSize === 'toolbar' ? 'var(--arkivra-menuItemMinHeight, 2.5rem)' : undefined}
+                      minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
                       rounded="md"
-                      bg={controlSize === 'toolbar' && isSelected ? 'teal.subtle' : undefined}
-                      px={controlSize === 'toolbar' ? '3' : '3'}
-                      pr={controlSize === 'toolbar' ? '10' : '3'}
+                      bg={isSelected ? 'teal.subtle' : undefined}
+                      px="3"
+                      pr="10"
                       py="var(--arkivra-menuItemPaddingY, 0.5rem)"
                       position="relative"
                       fontSize="sm"
                       fontWeight="medium"
-                      color={controlSize === 'toolbar' ? 'fg' : 'fg.muted'}
+                      color="fg"
                       _highlighted={{
-                        bg: controlSize === 'toolbar' && isSelected ? 'teal.subtle' : 'bg.subtle',
+                        bg: isSelected ? 'teal.subtle' : 'bg.subtle',
                         color: 'fg',
                       }}
                     >
-                      {controlSize === 'toolbar' ? (
-                        <Box
-                          position="absolute"
-                          right="2.5"
-                          top="50%"
-                          display="flex"
-                          boxSize="5"
-                          alignItems="center"
-                          justifyContent="center"
-                          color="teal.solid"
-                          transform="translateY(-50%)"
-                        >
-                          <Combobox.ItemIndicator />
-                        </Box>
-                      ) : null}
+                      <Box
+                        position="absolute"
+                        right="2.5"
+                        top="50%"
+                        display="flex"
+                        boxSize="5"
+                        alignItems="center"
+                        justifyContent="center"
+                        color="teal.solid"
+                        transform="translateY(-50%)"
+                      >
+                        <Combobox.ItemIndicator>
+                          <Check size={16} strokeWidth={2.5} />
+                        </Combobox.ItemIndicator>
+                      </Box>
                       <Flex minW="0" flex="1" align="center" gap="3">
                         {showColorSwatch ? (
                           <Box
@@ -291,12 +291,9 @@ export function SearchFilterMultiSelect({
                         </Combobox.ItemText>
                       </Flex>
                       {option.meta ? (
-                        <Text ml="auto" fontSize="xs" color="fg.muted">
+                        <Text ml="auto" mr="6" fontSize="xs" color="fg.muted">
                           {option.meta}
                         </Text>
-                      ) : null}
-                      {controlSize !== 'toolbar' ? (
-                        <Combobox.ItemIndicator color="teal.solid" />
                       ) : null}
                     </Combobox.Item>
                   );

@@ -7,8 +7,6 @@ import { requireAuthentication } from '../auth/auth.middleware.js';
 import { requireAdmin } from '../authorization/authorization.middleware.js';
 import { createAuditServices } from './audit.services.js';
 import { toAuditLogItem, canViewVaultAuditLog } from './audit.serializers.js';
-import { AUDIT_EVENT_TYPES } from './audit.types.js';
-import { getAuditActorFromContext, getAuditRequestContext } from './audit.http.js';
 
 function parseLimit(value: string | undefined, fallback: number, max: number) {
   if (value === undefined) {
@@ -93,23 +91,6 @@ export function registerAuditRoutes({
       );
     }
 
-    const hasFilters = ['eventType', 'eventCategory', 'severity', 'actorId', 'documentId', 'outcome', 'dateFrom', 'dateTo']
-      .some(key => search.has(key));
-
-    if (hasFilters) {
-      await auditServices.emitAuditEvent({
-        eventType: AUDIT_EVENT_TYPES.auditLogSearched,
-        eventCategory: 'audit',
-        outcome: 'success',
-        actor: getAuditActorFromContext(context),
-        vaultId,
-        target: { type: 'vault', id: vaultId },
-        source: 'web',
-        requestContext: getAuditRequestContext(context),
-        metadata: { filters_applied: true },
-      });
-    }
-
     const { events, nextCursor } = await auditServices.listVaultAuditEvents({ vaultId, filters });
 
     return context.json({
@@ -128,32 +109,6 @@ export function registerAuditRoutes({
         400,
       );
     }
-
-    const hasFilters = [
-      'eventType',
-      'eventCategory',
-      'severity',
-      'actorId',
-      'vaultId',
-      'documentId',
-      'targetType',
-      'targetId',
-      'outcome',
-      'dateFrom',
-      'dateTo',
-    ].some(key => search.has(key));
-
-    await auditServices.emitAuditEvent({
-      eventType: hasFilters ? AUDIT_EVENT_TYPES.auditLogSearched : AUDIT_EVENT_TYPES.auditLogViewed,
-      eventCategory: 'audit',
-      severity: 'notice',
-      outcome: 'success',
-      actor: getAuditActorFromContext(context),
-      target: { type: 'audit_log', id: 'admin' },
-      source: 'web',
-      requestContext: getAuditRequestContext(context),
-      metadata: { filters_applied: hasFilters },
-    });
 
     const { events, nextCursor } = await auditServices.listAuditEvents({ filters });
     const viewer = getViewer(context);

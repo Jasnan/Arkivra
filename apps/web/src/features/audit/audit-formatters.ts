@@ -20,7 +20,26 @@ export function formatAuditMetadataValue(key: string, value: unknown) {
   return '';
 }
 
+export function formatAuditMetadataEntries(metadata: Record<string, unknown>) {
+  const hasFileName = Object.prototype.hasOwnProperty.call(metadata, 'file_name');
+
+  return Object.entries(metadata).flatMap(([key, value]) => {
+    if (key === 'document_name' && hasFileName) {
+      return [];
+    }
+
+    const formattedValue = formatAuditMetadataValue(key, value);
+    return formattedValue.length > 0
+      ? [{ key, label: formatAuditMetadataLabel(key), value: formattedValue }]
+      : [];
+  });
+}
+
 export function formatAuditMetadataLabel(key: string) {
+  if (key === 'file_name' || key === 'document_name') {
+    return 'File Name';
+  }
+
   return key
     .split('_')
     .filter(Boolean)

@@ -26,8 +26,6 @@ export const AUDIT_EVENT_TYPES = {
   vaultMemberRemoved: 'vault.member_removed',
   vaultMemberRoleChanged: 'vault.member_role_changed',
   vaultAccessDenied: 'vault.access_denied',
-  auditLogViewed: 'audit_log.viewed',
-  auditLogSearched: 'audit_log.searched',
   aiFeaturesToggled: 'ai.features_toggled',
   aiChatModelChanged: 'ai.chat_model_changed',
   aiEmbeddingModelChanged: 'ai.embedding_model_changed',

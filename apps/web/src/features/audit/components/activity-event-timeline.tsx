@@ -17,8 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import type { ActivityFeedItem } from '@/features/audit/audit.types';
 import {
-  formatAuditMetadataLabel,
-  formatAuditMetadataValue,
+  formatAuditMetadataEntries,
   formatAuditTimestamp,
 } from '@/features/audit/audit-formatters';
 
@@ -57,7 +56,7 @@ const processingCopy: Record<string, { title: string; description: string; tone:
   },
   failed: {
     title: 'Document processing failed',
-    description: 'Processing could not finish for this document.',
+    description: 'Processing could not finish for this file.',
     tone: { icon: AlertCircle, bg: 'red.subtle', color: 'red.fg', borderColor: 'red.muted' },
   },
 };
@@ -206,16 +205,13 @@ export function ActivityEventTimeline({
                         {description}
                       </Text>
                     ) : null}
-                    {Object.keys(event.metadata).length > 0 ? (
+                    {formatAuditMetadataEntries(event.metadata).length > 0 ? (
                       <Flex mt="1" flexWrap="wrap" gap="1">
-                        {Object.entries(event.metadata).map(([key, value]) => {
-                          const formattedValue = formatAuditMetadataValue(key, value);
-                          return formattedValue.length > 0 ? (
-                            <Text key={key} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
-                              {formatAuditMetadataLabel(key)}: {formattedValue}
-                            </Text>
-                          ) : null;
-                        })}
+                        {formatAuditMetadataEntries(event.metadata).map(entry => (
+                          <Text key={entry.key} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
+                            {entry.label}: {entry.value}
+                          </Text>
+                        ))}
                       </Flex>
                     ) : null}
                     </Stack>

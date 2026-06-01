@@ -294,25 +294,25 @@ function createMockAuditServices() {
     listVaultAuditEvents: vi.fn(async () => ({
       events: [
         {
-          id: 'aud_log',
+          id: 'aud_delete',
           createdAt: now,
           occurredAt: now,
-          eventType: 'audit_log.viewed',
-          eventCategory: 'audit',
+          eventType: 'document.deleted',
+          eventCategory: 'document',
           outcome: 'success',
           actorId: 'usr_owner',
           actorType: 'user',
           actorDisplayName: 'Owner',
           vaultId: 'vlt_1',
-          documentId: null,
-          targetType: 'vault',
-          targetId: 'vlt_1',
-          targetDisplayName: null,
+          documentId: 'doc_1',
+          targetType: 'document',
+          targetId: 'doc_1',
+          targetDisplayName: 'report.pdf',
           source: 'web',
           ipAddress: null,
           userAgent: null,
           requestId: null,
-          metadata: { filters_applied: false },
+          metadata: { document_name: 'report.pdf', deletion_type: 'soft' },
           before: null,
           after: null,
           schemaVersion: 1,
@@ -801,7 +801,7 @@ describe('documents integration', () => {
       eventType: 'document.viewed',
       vaultId: 'vlt_1',
       documentId: 'doc_1',
-      metadata: { access_method: 'open' },
+      metadata: { file_name: 'report.pdf', access_method: 'open' },
     }));
   });
 
@@ -1245,6 +1245,7 @@ describe('documents integration', () => {
       documentId: 'doc_1',
       metadata: {
         document_name: 'report.pdf',
+        file_name: 'report.pdf',
         deletion_type: 'soft',
       },
     }));
@@ -1341,7 +1342,7 @@ describe('documents integration', () => {
     expect(auditServices.emitAuditEvent).not.toHaveBeenCalled();
   });
 
-  test('audits filtered audit-log searches', async () => {
+  test('allows owners to filter the audit log without adding a passive searched event', async () => {
     const docServices = createMockDocumentsServices();
     const auditServices = createMockAuditServices();
     const vaultServices = createMockVaultsServices();
@@ -1364,13 +1365,7 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'audit_log.searched',
-      eventCategory: 'audit',
-      outcome: 'success',
-      vaultId: 'vlt_1',
-      metadata: { filters_applied: true },
-    }));
+    expect(auditServices.emitAuditEvent).not.toHaveBeenCalled();
   });
 
   test('forbids regular members from the full vault audit log', async () => {

@@ -13,21 +13,17 @@ export function formatAuditEventSummary(event: AuditEventRecord) {
 
   switch (event.eventType) {
     case 'document.uploaded':
-      return `${actor} uploaded this document`;
+      return `${actor} uploaded file`;
     case 'document.viewed':
-      return `${actor} viewed this document`;
+      return `${actor} viewed file`;
     case 'document.downloaded':
-      return `${actor} downloaded this document`;
+      return `${actor} downloaded file`;
     case 'document.deleted':
-      return `${actor} deleted this document`;
+      return `${actor} deleted file`;
     case 'document.delete_failed':
-      return `${actor} could not delete this document`;
+      return `${actor} could not delete file`;
     case 'document.access_denied':
       return `Access was denied for ${actor}`;
-    case 'audit_log.viewed':
-      return `${actor} viewed the audit log`;
-    case 'audit_log.searched':
-      return `${actor} searched the audit log`;
     case 'ai.features_toggled':
       return `${actor} toggled AI features`;
     case 'ai.chat_model_changed':

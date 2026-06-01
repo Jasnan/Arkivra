@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Box,
   CloseButton,
-  Combobox,
   Dialog,
   Flex,
   HStack,
@@ -12,12 +11,12 @@ import {
   Stack,
   Text,
   chakra,
-  createListCollection,
 } from '@chakra-ui/react';
-import { Check, Filter, Search as SearchIcon, X } from 'lucide-react';
+import { Filter, Search as SearchIcon, X } from 'lucide-react';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { SearchCombobox } from '@/components/ui/search-combobox';
 import { Separator } from '@/components/ui/separator';
 import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import type { DocumentSortOption } from '@/features/documents/components/document-sort-menu';
@@ -29,8 +28,6 @@ export interface DocumentSearchControlFilter {
   label: string;
   onRemove: () => void;
 }
-
-const FILTER_ID_SEPARATOR = /\s+/g;
 
 export interface SearchFilterMultiSelectOption {
   value: string;
@@ -68,8 +65,6 @@ export function ActiveFilterChip({ label, onRemove }: { label: string; onRemove:
 export function SearchFilterMultiSelect({
   label,
   triggerLabel,
-  triggerAriaLabel,
-  searchLabel,
   searchPlaceholder,
   emptyLabel,
   loadingLabel,
@@ -102,214 +97,31 @@ export function SearchFilterMultiSelect({
   controlBg?: string;
   contentBg?: string;
 }) {
-  const [inputValue, setInputValue] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const searchInputId = `${triggerAriaLabel.toLowerCase().replace(FILTER_ID_SEPARATOR, '-')}-search`;
-  const normalizedInputValue = inputValue.trim().toLowerCase();
-  const filteredOptions = useMemo(
-    () => normalizedInputValue.length === 0
-      ? options
-      : options.filter((option) => option.label.toLowerCase().includes(normalizedInputValue)),
-    [normalizedInputValue, options],
-  );
-  const collection = useMemo(
-    () => createListCollection({
-      items: filteredOptions,
-      itemToString: (item) => item.label,
-      itemToValue: (item) => item.value,
-    }),
-    [filteredOptions],
-  );
-
-  function clearSelection() {
-    setInputValue('');
-    setIsOpen(false);
-    onClear();
-  }
-
   return (
-    <Box>
-      <Combobox.Root
-        multiple
-        openOnClick
-        closeOnSelect
-        collection={collection}
-        inputValue={inputValue}
-        open={isOpen}
-        value={selectedValues}
-        onInputValueChange={(details) => setInputValue(details.inputValue)}
-        onOpenChange={(details) => setIsOpen(details.open)}
-        onValueChange={(details) => {
-          onValueChange(details.value);
-          setInputValue('');
-          setIsOpen(false);
-        }}
-        positioning={{ sameWidth: true, strategy: 'fixed', hideWhenDetached: true }}
-      >
-        <Combobox.Label srOnly={hideLabel} fontSize="sm" fontWeight="semibold" color="fg">
-          {label}
-        </Combobox.Label>
+    <SearchCombobox
+      label={label}
+      placeholder={triggerLabel}
+      searchPlaceholder={searchPlaceholder}
+      emptyLabel={emptyLabel}
+      loadingLabel={loadingLabel}
+      options={options}
+      value={selectedValues}
+      multiple
+      isLoading={isLoading}
+      onValueChange={(values) => {
+        if (values.length === 0) {
+          onClear();
+          return;
+        }
 
-        <Combobox.Control mt={hideLabel ? '0' : '3'}>
-          <Combobox.Input
-            id={searchInputId}
-            aria-label={triggerAriaLabel}
-            aria-describedby={`${searchInputId}-hint`}
-            placeholder={triggerLabel}
-            h="var(--arkivra-controlHeight, 2.5rem)"
-            rounded={controlSize === 'toolbar' ? 'md' : 'xl'}
-            borderColor="border.surface"
-            bg={controlBg ?? 'bg.surface'}
-            px="var(--arkivra-controlPaddingX, 0.75rem)"
-            pr={selectedValues.length > 0 ? '16' : '10'}
-            fontSize="sm"
-            fontWeight={controlSize === 'toolbar' ? 'medium' : undefined}
-            shadow="none"
-            _hover={{ borderColor: controlSize === 'toolbar' ? 'fg/30' : undefined }}
-            _focusVisible={{
-              borderColor: controlSize === 'toolbar' ? 'teal.solid' : undefined,
-              outline: controlSize === 'toolbar' ? '2px solid' : undefined,
-              outlineColor: controlSize === 'toolbar' ? 'teal.focusRing' : undefined,
-              outlineOffset: controlSize === 'toolbar' ? '1px' : undefined,
-            }}
-          />
-          <Combobox.IndicatorGroup>
-            {selectedValues.length > 0 ? (
-              <CloseButton
-                size="xs"
-                variant="plain"
-                aria-label={`Clear ${label.toLowerCase()} filter`}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  clearSelection();
-                }}
-              />
-            ) : null}
-            <Combobox.Trigger />
-          </Combobox.IndicatorGroup>
-        </Combobox.Control>
-
-        <Combobox.Positioner zIndex="dropdown" pointerEvents="auto">
-            <Combobox.Content
-              maxH="72"
-              overflowY="auto"
-              pointerEvents="auto"
-              rounded="lg"
-              borderWidth="1px"
-              borderColor="border.surface"
-              bg={contentBg ?? 'bg.surface'}
-              p="1.5"
-              shadow="lg"
-            >
-            {isLoading ? (
-              <Text px="3" py="var(--arkivra-rowPaddingY, 0.875rem)" fontSize="sm" color="fg.muted">
-                {loadingLabel}
-              </Text>
-            ) : (
-              <>
-                {selectedValues.length > 0 ? (
-                  <chakra.button
-                    type="button"
-                    display="flex"
-                    w="full"
-                    alignItems="center"
-                    gap="2"
-                    minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
-                    rounded="md"
-                    px="3"
-                    pr="10"
-                    py="var(--arkivra-menuItemPaddingY, 0.5rem)"
-                    fontSize="sm"
-                    fontWeight="medium"
-                    color="fg"
-                    textAlign="left"
-                    position="relative"
-                    transition="background-color 120ms ease, color 120ms ease"
-                    _hover={{ bg: 'bg.subtle', color: 'fg' }}
-                    onClick={clearSelection}
-                  >
-                    All {label.toLowerCase()}
-                  </chakra.button>
-                ) : null}
-
-                <Combobox.Empty px="3" py="var(--arkivra-rowPaddingY, 0.875rem)" fontSize="sm" color="fg.muted">
-                  {emptyLabel}
-                </Combobox.Empty>
-
-                {collection.items.map((option) => {
-                  const isSelected = selectedValues.includes(option.value);
-
-                  return (
-                    <Combobox.Item
-                      key={option.value}
-                      item={option}
-                      display="flex"
-                      alignItems="center"
-                      gap="3"
-                      minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
-                      rounded="md"
-                      bg={isSelected ? 'teal.subtle' : undefined}
-                      px="3"
-                      pr="10"
-                      py="var(--arkivra-menuItemPaddingY, 0.5rem)"
-                      position="relative"
-                      fontSize="sm"
-                      fontWeight="medium"
-                      color="fg"
-                      _highlighted={{
-                        bg: isSelected ? 'teal.subtle' : 'bg.subtle',
-                        color: 'fg',
-                      }}
-                    >
-                      <Box
-                        position="absolute"
-                        right="2.5"
-                        top="50%"
-                        display="flex"
-                        boxSize="5"
-                        alignItems="center"
-                        justifyContent="center"
-                        color="teal.solid"
-                        transform="translateY(-50%)"
-                      >
-                        <Combobox.ItemIndicator>
-                          <Check size={16} strokeWidth={2.5} />
-                        </Combobox.ItemIndicator>
-                      </Box>
-                      <Flex minW="0" flex="1" align="center" gap="3">
-                        {showColorSwatch ? (
-                          <Box
-                            boxSize="2.5"
-                            rounded="full"
-                            bg={option.color ?? 'fg.muted'}
-                            aria-hidden="true"
-                          />
-                        ) : null}
-                        <Combobox.ItemText asChild>
-                          <Text truncate>{option.label}</Text>
-                        </Combobox.ItemText>
-                      </Flex>
-                      {option.meta ? (
-                        <Text ml="auto" mr="6" fontSize="xs" color="fg.muted">
-                          {option.meta}
-                        </Text>
-                      ) : null}
-                    </Combobox.Item>
-                  );
-                })}
-              </>
-            )}
-          </Combobox.Content>
-        </Combobox.Positioner>
-      </Combobox.Root>
-      <Text srOnly>
-        {searchLabel}
-      </Text>
-      <Text id={`${searchInputId}-hint`} srOnly>
-        {searchPlaceholder}
-      </Text>
-    </Box>
+        onValueChange(values);
+      }}
+      hideLabel={hideLabel}
+      controlSize={controlSize}
+      controlBg={controlBg}
+      contentBg={contentBg}
+      showColorSwatch={showColorSwatch}
+    />
   );
 }
 

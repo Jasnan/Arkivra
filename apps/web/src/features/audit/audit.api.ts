@@ -46,7 +46,13 @@ export function getVaultAuditEvents({
   appendPagination(params, cursor, limit);
 
   for (const [key, value] of Object.entries(filters ?? {})) {
-    if (value !== undefined && value.trim().length > 0) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item.trim().length > 0) {
+          params.append(key, item.trim());
+        }
+      }
+    } else if (value !== undefined && value.trim().length > 0) {
       params.set(key, value.trim());
     }
   }
@@ -84,7 +90,13 @@ export function getAdminAuditEvents({
   appendPagination(params, cursor, limit);
 
   for (const [key, value] of Object.entries(filters ?? {})) {
-    if (value !== undefined && value.trim().length > 0) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item.trim().length > 0) {
+          params.append(key, item.trim());
+        }
+      }
+    } else if (value !== undefined && value.trim().length > 0) {
       params.set(key, value.trim());
     }
   }

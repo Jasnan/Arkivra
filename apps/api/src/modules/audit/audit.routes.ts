@@ -29,13 +29,14 @@ function parseDate(value: string | undefined) {
 function getFilters(search: URLSearchParams): AuditEventFilters | null {
   const dateFrom = parseDate(search.get('dateFrom') ?? undefined);
   const dateTo = parseDate(search.get('dateTo') ?? undefined);
+  const eventTypes = search.getAll('eventType').map(value => value.trim()).filter(Boolean);
 
   if (dateFrom === null || dateTo === null) {
     return null;
   }
 
   return {
-    eventType: search.get('eventType')?.trim() || undefined,
+    eventType: eventTypes.length > 1 ? eventTypes : eventTypes[0],
     eventCategory: search.get('eventCategory')?.trim() || undefined,
     severity: search.get('severity')?.trim() || undefined,
     actorId: search.get('actorId')?.trim() || undefined,

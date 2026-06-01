@@ -1,13 +1,13 @@
 import type { Database } from '../database/database.js';
 import type { AuditEventRecord, EmitAuditEventInput } from './audit.types.js';
-import { and, desc, eq, lt, notInArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import { auditEventsTable } from '../database/schema/index.js';
 import { sanitizeAuditJson, sanitizeAuditMetadata } from './audit.redaction.js';
 
 const PASSIVE_AUDIT_LOG_EVENT_TYPES = ['audit_log.viewed', 'audit_log.searched'];
 
 export type AuditEventFilters = {
-  eventType?: string;
+  eventType?: string | string[];
   eventCategory?: string;
   severity?: string;
   actorId?: string;
@@ -130,7 +130,11 @@ export function createAuditServices({ db }: { db: Database }) {
       notInArray(auditEventsTable.eventType, PASSIVE_AUDIT_LOG_EVENT_TYPES),
     ];
 
-    if (filters.eventType !== undefined) {
+    if (Array.isArray(filters.eventType)) {
+      if (filters.eventType.length > 0) {
+        conditions.push(inArray(auditEventsTable.eventType, filters.eventType));
+      }
+    } else if (filters.eventType !== undefined) {
       conditions.push(eq(auditEventsTable.eventType, filters.eventType));
     }
 
@@ -182,7 +186,11 @@ export function createAuditServices({ db }: { db: Database }) {
       notInArray(auditEventsTable.eventType, PASSIVE_AUDIT_LOG_EVENT_TYPES),
     ];
 
-    if (filters.eventType !== undefined) {
+    if (Array.isArray(filters.eventType)) {
+      if (filters.eventType.length > 0) {
+        conditions.push(inArray(auditEventsTable.eventType, filters.eventType));
+      }
+    } else if (filters.eventType !== undefined) {
       conditions.push(eq(auditEventsTable.eventType, filters.eventType));
     }
 

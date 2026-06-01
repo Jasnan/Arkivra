@@ -54,7 +54,7 @@ export function VaultAuditLogPanel({ vaultId }: { vaultId: string }) {
           <FieldLabel>Event type</FieldLabel>
           <RadioDropdownMenu
             ariaLabel="Filter vault audit log by event type"
-            value={filters.eventType ?? 'all'}
+            value={Array.isArray(filters.eventType) ? filters.eventType[0] ?? 'all' : filters.eventType ?? 'all'}
             options={eventTypeOptions}
             onValueChange={(value) => setFilter('eventType', value === 'all' ? '' : value)}
           />

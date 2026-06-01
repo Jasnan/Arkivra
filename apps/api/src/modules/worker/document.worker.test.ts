@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const persistParsedDocument = vi.fn();
 const updateDocumentProcessingStatus = vi.fn();
+const getActiveEmbeddingIndex = vi.fn();
 
 vi.mock('../documents/documents.services.js', () => ({
   createDocumentsServices: () => ({
@@ -15,6 +16,12 @@ vi.mock('../documents/documents.services.js', () => ({
 
 vi.mock('../parsing/persistence.js', () => ({
   persistParsedDocument,
+}));
+
+vi.mock('../ai/indexing/index.js', () => ({
+  createEmbeddingIndexServices: () => ({
+    getActiveEmbeddingIndex,
+  }),
 }));
 
 function makeParsedDocument(): ParsedDocument {
@@ -151,9 +158,17 @@ function createDeps({
     data: { documentId: 'doc_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
     updateProgress: vi.fn(async () => undefined),
   };
+  const adminAiServices = {
+    getSettings: vi.fn(async () => ({ aiFeaturesEnabled: true })),
+  };
+  const embeddingIndexQueue = {
+    enqueueDocumentIndexing: vi.fn(async () => undefined),
+  };
 
   return {
+    adminAiServices,
     db,
+    embeddingIndexQueue,
     storage,
     encryption,
     parsePipeline,
@@ -165,7 +180,9 @@ describe('document worker', () => {
   beforeEach(() => {
     persistParsedDocument.mockReset();
     updateDocumentProcessingStatus.mockReset();
+    getActiveEmbeddingIndex.mockReset();
     persistParsedDocument.mockResolvedValue(undefined);
+    getActiveEmbeddingIndex.mockResolvedValue({ id: 'eix_active' });
   });
 
   test('updates processing status through the ingestion happy-path sequence', async () => {
@@ -242,6 +259,68 @@ describe('document worker', () => {
 
     await expect(worker.processDocument(deps.job as never)).rejects.toThrow('parse failed');
     expect(updateDocumentProcessingStatus.mock.calls.at(-1)?.[0]?.processingStatus).toBe('failed');
+  });
+
+  test('enqueues semantic indexing for completed documents when AI is enabled', async () => {
+    const deps = createDeps();
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+      adminAiServices: deps.adminAiServices,
+      embeddingIndexQueue: deps.embeddingIndexQueue as never,
+    });
+
+    await worker.processDocument(deps.job as never);
+
+    expect(deps.embeddingIndexQueue.enqueueDocumentIndexing).toHaveBeenCalledWith({
+      embeddingIndexId: 'eix_active',
+      documentId: 'doc_1',
+    });
+  });
+
+  test('does not enqueue semantic indexing when AI is disabled', async () => {
+    const deps = createDeps();
+    deps.adminAiServices.getSettings.mockResolvedValue({ aiFeaturesEnabled: false });
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+      adminAiServices: deps.adminAiServices,
+      embeddingIndexQueue: deps.embeddingIndexQueue as never,
+    });
+
+    await worker.processDocument(deps.job as never);
+
+    expect(deps.embeddingIndexQueue.enqueueDocumentIndexing).not.toHaveBeenCalled();
+  });
+
+  test('does not enqueue semantic indexing when there is no active embedding index', async () => {
+    const deps = createDeps();
+    getActiveEmbeddingIndex.mockResolvedValue(null);
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+      adminAiServices: deps.adminAiServices,
+      embeddingIndexQueue: deps.embeddingIndexQueue as never,
+    });
+
+    await worker.processDocument(deps.job as never);
+
+    expect(deps.embeddingIndexQueue.enqueueDocumentIndexing).not.toHaveBeenCalled();
   });
 
 });

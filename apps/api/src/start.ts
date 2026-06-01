@@ -26,6 +26,7 @@ import { createBackupServices } from './modules/admin/backups/backups.services.j
 import { createAdminAiServices } from './modules/admin/ai/ai.services.js';
 import { createActivityServices } from './modules/activity/activity.services.js';
 import {
+  createEmbeddingIndexServices,
   createEmbeddingIndexQueue,
   createEmbeddingIndexWorker,
 } from './modules/ai/indexing/index.js';
@@ -137,6 +138,8 @@ export async function startApp() {
       concurrency: config.backgroundJobs.documentProcessingConcurrency,
       appInstance: config.app.instance,
       activityServices,
+      adminAiServices,
+      embeddingIndexQueue,
     });
     const maintenanceWorker = createMaintenanceWorker({
       db,
@@ -162,6 +165,20 @@ export async function startApp() {
         }),
       },
     });
+    try {
+      const settings = await adminAiServices.getSettings();
+      if (settings.aiFeaturesEnabled) {
+        const activeIndex = await createEmbeddingIndexServices({ db }).getActiveEmbeddingIndex();
+        if (activeIndex !== null) {
+          await embeddingIndexQueue.enqueueOrchestrateIndex({ embeddingIndexId: activeIndex.id });
+        }
+      }
+    } catch (error) {
+      console.error(
+        'Could not enqueue startup semantic index reconciliation:',
+        error instanceof Error ? error.message : error,
+      );
+    }
 
     await maintenanceQueue.scheduleHardDeleteExpiredDocuments({
       cronPattern: config.backgroundJobs.hardDeleteExpiredDocumentsCron,

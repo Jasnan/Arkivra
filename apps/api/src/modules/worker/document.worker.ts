@@ -4,9 +4,11 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ParsePipeline } from '../parsing/parse-pipeline.js';
 import type { ProcessDocumentJobData } from './queue.js';
 import type { createActivityServices } from '../activity/activity.services.js';
+import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
 import { eq, and } from 'drizzle-orm';
 import { documentsTable, uploadSessionsTable } from '../database/schema/index.js';
+import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { persistParsedDocument } from '../parsing/persistence.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 import type { AsyncJob } from './postgres-jobs.js';
@@ -29,6 +31,10 @@ export type DocumentWorkerDeps = {
   startPolling?: boolean;
   concurrency?: number;
   activityServices?: ReturnType<typeof createActivityServices>;
+  adminAiServices?: {
+    getSettings: () => Promise<{ aiFeaturesEnabled: boolean }>;
+  };
+  embeddingIndexQueue?: EmbeddingIndexQueue;
 };
 
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
@@ -41,6 +47,8 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     startPolling = true,
     concurrency = 1,
     activityServices,
+    adminAiServices,
+    embeddingIndexQueue,
   } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
   const logPrefix = '[document-worker]';
@@ -99,6 +107,38 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         updatedAt: new Date(),
       })
       .where(eq(uploadSessionsTable.documentId, documentId));
+  }
+
+  async function enqueueEmbeddingIndexingForCompletedDocument({
+    documentId,
+  }: {
+    documentId: string;
+  }) {
+    if (adminAiServices === undefined || embeddingIndexQueue === undefined) {
+      return;
+    }
+
+    try {
+      const settings = await adminAiServices.getSettings();
+      if (!settings.aiFeaturesEnabled) {
+        return;
+      }
+
+      const activeIndex = await createEmbeddingIndexServices({ db }).getActiveEmbeddingIndex();
+      if (activeIndex === null) {
+        return;
+      }
+
+      await embeddingIndexQueue.enqueueDocumentIndexing({
+        embeddingIndexId: activeIndex.id,
+        documentId,
+      });
+    } catch (error) {
+      console.error(
+        `${logPrefix} could not enqueue semantic indexing for ${documentId}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   async function processDocument(job: AsyncJob<ProcessDocumentJobData>) {
@@ -226,6 +266,8 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         progress: WORKER_PROGRESS.completed,
         job,
       });
+
+      await enqueueEmbeddingIndexingForCompletedDocument({ documentId });
 
       console.info(
         `Processed document ${documentId} via ${parsed.engine}@${parsed.engineVersion}: ${parsed.chunks.length} chunks, ${parsed.text.length} chars of text content`,

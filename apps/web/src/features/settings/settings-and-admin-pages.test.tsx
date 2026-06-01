@@ -1567,7 +1567,7 @@ describe('settings, admin, and about pages', () => {
     view.unmount();
 
     await renderWithProviders(<AdminAiSettingsPage />);
-    expect(await screen.findByText('Semantic Search Index')).toBeInTheDocument();
+    expect(await screen.findByText('The index enables semantic search across your documents.')).toBeInTheDocument();
     await user.click(screen.getByLabelText(/enable ai features/i));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

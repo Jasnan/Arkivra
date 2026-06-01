@@ -269,8 +269,33 @@ table {
   }
 }
 
+@keyframes arkivra-index-progress {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 2rem 0;
+  }
+}
+
+@keyframes arkivra-index-paused {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .arkivra-auth-spin {
     animation: none;
+  }
+
+  .arkivra-index-progress-bar {
+    animation: none !important;
   }
 }

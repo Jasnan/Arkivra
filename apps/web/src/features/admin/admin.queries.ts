@@ -12,6 +12,7 @@ import {
 import type { AdminAiStatus, PermissionRequestStatus } from './admin.types';
 
 const AI_STATUS_POLL_INTERVAL_MS = 2000;
+const AI_STATUS_IDLE_POLL_INTERVAL_MS = 10000;
 
 export const adminQueryKeys = {
   all: ['admin'] as const,
@@ -76,14 +77,21 @@ export function useAdminAiSettingsQuery({ enabled = true }: { enabled?: boolean 
 
 function shouldPollAiStatus(status: AdminAiStatus | undefined) {
   if (status?.aiFeaturesEnabled !== true) {
-    return false;
+    return false as const;
   }
 
   const hasWritableIndex = status.embedding.activeIndex !== null
     || status.embedding.candidateIndexes.some(index => index.status === 'building' || index.status === 'ready');
 
-  return hasWritableIndex
-    && status.embedding.chunkCoverage.indexedChunkCount < status.embedding.chunkCoverage.totalChunkCount;
+  if (!hasWritableIndex) {
+    return false as const;
+  }
+
+  if (status.embedding.chunkCoverage.indexedChunkCount < status.embedding.chunkCoverage.totalChunkCount) {
+    return AI_STATUS_POLL_INTERVAL_MS;
+  }
+
+  return AI_STATUS_IDLE_POLL_INTERVAL_MS;
 }
 
 export function useAdminAiStatusQuery({ enabled = true }: { enabled?: boolean } = {}) {
@@ -92,7 +100,7 @@ export function useAdminAiStatusQuery({ enabled = true }: { enabled?: boolean } 
     queryFn: getAdminAiStatus,
     enabled,
     refetchInterval: query =>
-      shouldPollAiStatus(query.state.data?.status) ? AI_STATUS_POLL_INTERVAL_MS : false,
+      shouldPollAiStatus(query.state.data?.status),
   });
 }
 

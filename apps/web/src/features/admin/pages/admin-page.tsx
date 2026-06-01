@@ -6,6 +6,7 @@ import { AlertTriangle, Check, CheckCircle2, CircleX, Clock3, Info, Mail, Packag
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -83,6 +84,7 @@ import {
   SettingsRows,
   SettingsSection,
 } from '@/features/settings/components/settings-ui';
+import type { SettingsStatusTone } from '@/features/settings/components/settings-ui';
 
 type AdminUserStatusFilter = 'all' | 'active' | 'disabled';
 type AdminUserAccessFilter = 'all' | 'admin' | 'create-vaults' | 'member';
@@ -510,12 +512,14 @@ function AiSettingsSection({
   actions,
   children,
   description,
+  minH,
   titleMeta,
   tone = 'default',
   title,
 }: {
   title: ReactNode;
   description?: ReactNode;
+  minH?: string;
   titleMeta?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
@@ -528,7 +532,7 @@ function AiSettingsSection({
       : { borderColor: 'border.surface', bg: 'bg.surface' };
 
   return (
-    <Card p="var(--arkivra-sectionPadding, 1rem)" shadow="xs" borderColor={toneStyles.borderColor} bg={toneStyles.bg}>
+    <Card p="var(--arkivra-sectionPadding, 1rem)" shadow="xs" borderColor={toneStyles.borderColor} bg={toneStyles.bg} minH={minH}>
       <Stack gap="3">
         <Flex
           direction={{ base: 'column', md: 'row' }}
@@ -581,12 +585,35 @@ function CapabilityStatus({
   );
 }
 
-function ChunkProgressBar({ progress, status, size = 'sm' }: { progress: number; status?: AdminEmbeddingIndexSummary['status']; size?: 'sm' | 'lg' }) {
+type ChunkProgressVisualStatus = AdminEmbeddingIndexSummary['status'] | 'paused' | 'idle';
+
+function ChunkProgressBar({ progress, status, size = 'sm' }: { progress: number; status?: ChunkProgressVisualStatus; size?: 'sm' | 'lg' }) {
+  const isBuilding = status === 'building';
+  const isPaused = status === 'paused';
+  const fillBg = status === 'failed'
+    ? 'fg.error'
+    : isPaused
+      ? 'gray.400'
+      : status === 'idle'
+        ? 'fg.muted'
+        : 'teal.solid';
+  const stripedBg = status === 'failed'
+    ? 'repeating-linear-gradient(45deg, var(--chakra-colors-red-solid), var(--chakra-colors-red-solid) 0.5rem, var(--chakra-colors-red-emphasized) 0.5rem, var(--chakra-colors-red-emphasized) 1rem)'
+    : 'repeating-linear-gradient(45deg, var(--chakra-colors-teal-solid), var(--chakra-colors-teal-solid) 0.5rem, var(--chakra-colors-teal-emphasized) 0.5rem, var(--chakra-colors-teal-emphasized) 1rem)';
+
   return (
     <Box h={size === 'lg' ? '3' : '2'} rounded="full" bg="bg.subtle" overflow="hidden">
       <Box
+        className="arkivra-index-progress-bar"
         h="full"
-        bg={status === 'failed' ? 'fg.error' : 'teal.solid'}
+        bg={isBuilding || status === 'failed' ? stripedBg : fillBg}
+        bgSize={isBuilding || status === 'failed' ? '2rem 2rem' : undefined}
+        opacity={isPaused ? 0.72 : 1}
+        animation={isBuilding
+          ? 'arkivra-index-progress 1s linear infinite'
+          : isPaused
+            ? 'arkivra-index-paused 1.8s ease-in-out infinite'
+            : undefined}
         transition="width 160ms ease"
         style={{ width: `${progress}%` }}
       />
@@ -612,10 +639,10 @@ function SemanticIndexProgressSummary({
   indexedChunks: number;
   expectedChunks: number;
   progress: number;
-  status?: AdminEmbeddingIndexSummary['status'];
+  status?: ChunkProgressVisualStatus;
 }) {
   return (
-    <Stack gap="2.5" maxW="26rem">
+    <Stack gap="2.5">
       <Grid templateColumns="minmax(0, 1fr) auto minmax(5rem, 0.45fr)" alignItems="start" gap="3">
         <Stack gap="0.5" minW="0">
           <Text fontSize="md" fontWeight="semibold" color="fg" lineHeight="short">
@@ -627,12 +654,12 @@ function SemanticIndexProgressSummary({
               {expectedChunks.toLocaleString()}
             </Box>
           </Text>
-          <Text textStyle="xs" color="fg.muted">chunks indexed</Text>
+          <Text textStyle="xs" color="fg.muted">Chunks indexed</Text>
         </Stack>
         <Box w="1px" h="9" bg="border.surface" />
         <Stack gap="0.5" minW="0">
           <Text fontSize="md" fontWeight="semibold" color="fg" lineHeight="short">{progress}%</Text>
-          <Text textStyle="xs" color="fg.muted">complete</Text>
+          <Text textStyle="xs" color="fg.muted">Complete</Text>
         </Stack>
       </Grid>
       <ChunkProgressBar progress={progress} status={status} />
@@ -1760,6 +1787,7 @@ export function AdminAuditLogPage() {
 
 export function AdminAiSettingsPage() {
   const queryClient = useQueryClient();
+  const { accentColor } = useAccentColor();
   const meQuery = useMeQuery();
   const isEnabled = meQuery.data?.isAdmin === true;
   const aiSettingsQuery = useAdminAiSettingsQuery({ enabled: isEnabled });
@@ -1771,6 +1799,7 @@ export function AdminAiSettingsPage() {
   const [draftDefaultChatModel, setDraftDefaultChatModel] = useState('');
   const [isEmbeddingModelDialogOpen, setIsEmbeddingModelDialogOpen] = useState(false);
   const [selectedEmbeddingModelKey, setSelectedEmbeddingModelKey] = useState('');
+  const [showSemanticIndexDetails, setShowSemanticIndexDetails] = useState(false);
   const [allowedChatModels, setAllowedChatModels] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
 
@@ -1883,14 +1912,28 @@ export function AdminAiSettingsPage() {
       : 0;
   const platformStatus = !aiDraft.aiFeaturesEnabled ? 'Disabled' : isAiReady ? 'Active' : 'Needs configuration';
   const platformTone = !aiDraft.aiFeaturesEnabled ? 'inactive' : isAiReady ? 'enabled' : 'warning';
+  const isSemanticIndexIncomplete = aiDraft.aiFeaturesEnabled
+    && indexProgress < 100
+    && (currentIndex !== null || chunkCoverage.totalChunkCount > 0);
   const semanticStatus = !aiDraft.aiFeaturesEnabled
     ? 'Paused'
+    : isSemanticIndexIncomplete ? 'Building'
     : currentIndex
       ? formatIndexStatus(currentIndex.status)
       : isEmbeddingConfigValid ? 'Ready to index' : 'Needs configuration';
   const semanticStatusMessage = aiDraft.aiFeaturesEnabled
     ? 'Indexing continues in the background. Search switches to a new index only after it is ready.'
     : 'Indexing is paused, but your progress is saved. When you enable AI again, indexing will automatically continue from where it left off.';
+  const semanticProgressStatus: ChunkProgressVisualStatus = !aiDraft.aiFeaturesEnabled
+    ? 'paused'
+    : currentIndex?.status === 'failed'
+      ? 'failed'
+      : isSemanticIndexIncomplete ? 'building' : currentIndex?.status ?? 'idle';
+  const semanticIndexTone: SettingsStatusTone = currentIndex?.status === 'failed'
+    ? 'warning'
+    : !aiDraft.aiFeaturesEnabled
+      ? 'inactive'
+      : isSemanticIndexIncomplete ? 'warning' : currentIndex ? 'enabled' : 'inactive';
   const chatStatus = chatConnectionStatus === 'Healthy'
     ? 'Ready'
     : isChatConfigValid ? chatConnectionStatus : 'Needs configuration';
@@ -2185,24 +2228,19 @@ export function AdminAiSettingsPage() {
         </AiSettingsSection>
 
         <AiSettingsSection
-          title="AI Platform"
-          titleMeta={<Badge variant="outline" colorPalette="gray" rounded="full">Optional</Badge>}
+          title="AI features"
           description="Enable or disable AI capabilities across Arkivra."
           actions={<SettingsStatusBadge tone={platformTone}>{platformStatus}</SettingsStatusBadge>}
         >
           <Grid templateColumns={{ base: '1fr', lg: 'minmax(18rem, 1fr) minmax(16rem, 0.95fr)' }} gap="4">
             <Stack gap="4" minW="0">
-              <Text textStyle="sm" color="fg.muted">
-                {aiDraft.aiFeaturesEnabled
-                  ? 'When enabled, semantic search indexing and AI chat capabilities will be available.'
-                  : 'When disabled, semantic search indexing and AI chat capabilities will be unavailable.'}
-              </Text>
               <Stack gap="2.5">
-                <Text textStyle="sm" fontWeight="semibold" color="fg">Enable AI features</Text>
+                <Text textStyle="sm" fontWeight="semibold" color="fg">AI features</Text>
                 <HStack gap="3">
                   <Switch
                     aria-label="Enable AI features"
                     checked={aiDraft.aiFeaturesEnabled}
+                    colorPalette={accentColor}
                     disabled={(!aiDraft.aiFeaturesEnabled && !isAiReady) || aiSettingsMutation.isPending}
                     onCheckedChange={(checked) => {
                       if (checked && !isAiReady) {
@@ -2213,13 +2251,16 @@ export function AdminAiSettingsPage() {
                       persistAiDraft({ aiFeaturesEnabled: checked });
                     }}
                   />
-                  <Text textStyle="sm" fontWeight="semibold" color="fg">{aiDraft.aiFeaturesEnabled ? 'ON' : 'OFF'}</Text>
+                  <Text textStyle="sm" fontWeight="semibold" color="fg">{aiDraft.aiFeaturesEnabled ? 'Enabled' : 'Disabled'}</Text>
                 </HStack>
               </Stack>
+              <Text textStyle="sm" color="fg.muted">
+                When enabled, semantic search indexing and AI chat capabilities will be available.
+              </Text>
             </Stack>
 
             <Stack gap="3" minW="0" borderLeftWidth={{ base: '0', lg: '1px' }} borderColor="border.surface" pl={{ base: '0', lg: '5' }}>
-              <Text textStyle="sm" fontWeight="semibold" color="fg">AI features status</Text>
+              <Text textStyle="sm" fontWeight="semibold" color="fg">Feature status</Text>
               <Stack gap="1">
                 <CapabilityStatus label="Semantic Search" status={semanticStatus} tone={aiDraft.aiFeaturesEnabled && isEmbeddingConfigValid ? 'ready' : aiDraft.aiFeaturesEnabled ? 'warning' : 'disabled'} />
                 <CapabilityStatus label="AI Chat" status={aiDraft.aiFeaturesEnabled ? chatStatus : 'Paused'} tone={aiDraft.aiFeaturesEnabled && isChatConfigValid ? 'ready' : aiDraft.aiFeaturesEnabled ? 'warning' : 'disabled'} />
@@ -2230,40 +2271,56 @@ export function AdminAiSettingsPage() {
         </AiSettingsSection>
 
         <AiSettingsSection
-          title="Semantic Search Index"
-          description="The index enables semantic search across your documents"
+          title="Semantic Search"
+          description="The index enables semantic search across your documents."
           actions={
-            <SettingsStatusBadge tone={currentIndex ? (currentIndex.status === 'failed' ? 'warning' : aiDraft.aiFeaturesEnabled ? 'enabled' : 'inactive') : 'inactive'}>
-              {semanticStatus}
-            </SettingsStatusBadge>
+            <>
+              <SettingsStatusBadge tone={semanticIndexTone}>
+                {semanticStatus}
+              </SettingsStatusBadge>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={showSemanticIndexDetails ? 'Hide semantic search details' : 'View semantic search details'}
+                onClick={() => setShowSemanticIndexDetails(current => !current)}
+              >
+                {showSemanticIndexDetails ? 'Hide details' : 'View details'}
+              </Button>
+            </>
           }
         >
           <Stack gap="4">
-            <Grid templateColumns={{ base: '1fr', lg: 'minmax(0, 1.4fr) minmax(18rem, 0.6fr)' }} gap="4">
+            <Grid templateColumns={{ base: '1fr', lg: 'minmax(0, 1.35fr) minmax(18rem, 0.9fr)' }} gap="4" alignItems="stretch">
               <Stack gap="3">
                 <SemanticIndexProgressSummary
                   indexedChunks={indexedChunks}
                   expectedChunks={chunkCoverage.totalChunkCount}
                   progress={indexProgress}
-                  status={currentIndex?.status}
+                  status={semanticProgressStatus}
                 />
-                <SimpleGrid columns={{ base: 1, md: 2 }} gap="3">
+                <SimpleGrid columns={{ base: 1, md: 3 }} gap="3">
                   <CompactMetric label="Live index model" value={currentIndex?.model ?? (aiDraft.embedding.model || 'Not selected')} />
                   <CompactMetric label="Index version" value={currentIndex?.id ?? 'No index'} />
-                  <CompactMetric label="Started time" value={formatShortDateTime(currentIndex?.buildStartedAt ?? currentIndex?.createdAt)} />
-                  <CompactMetric label="Last updated time" value={formatShortDateTime(currentIndex?.updatedAt)} />
+                  <CompactMetric label="Last updated" value={formatShortDateTime(currentIndex?.updatedAt)} />
                 </SimpleGrid>
+                {showSemanticIndexDetails ? (
+                  <SimpleGrid columns={{ base: 1, md: 2 }} gap="3">
+                    <CompactMetric label="Started time" value={formatShortDateTime(currentIndex?.buildStartedAt ?? currentIndex?.createdAt)} />
+                    <CompactMetric label="Expected chunks" value={chunkCoverage.totalChunkCount.toLocaleString()} />
+                  </SimpleGrid>
+                ) : null}
               </Stack>
 
-              <Box rounded="md" borderWidth="1px" borderColor="blue.muted" bg="blue.subtle" px="3" py="3">
+              <Box rounded="md" borderWidth="1px" borderColor="blue.muted" bg="blue.subtle" px="4" py="4">
                 <Stack gap="2">
                   <HStack gap="2" align="flex-start">
                     <Box color="fg.info" mt="0.5" flexShrink={0}>
                       <Info size={15} />
                     </Box>
-                    <Text textStyle="sm" fontWeight="semibold" color="fg">Current status: {semanticStatus}</Text>
+                    <Text textStyle="sm" fontWeight="semibold" color="blue.solid">Current status: {semanticStatus}</Text>
                   </HStack>
-                  <Text textStyle="xs" color="fg.muted">
+                  <Text textStyle="sm" color="fg.muted">
                     {semanticStatusMessage}
                   </Text>
                 </Stack>
@@ -2272,13 +2329,15 @@ export function AdminAiSettingsPage() {
           </Stack>
         </AiSettingsSection>
 
-        <SimpleGrid columns={{ base: 1, xl: 2 }} gap="3" alignItems="start">
+        <SimpleGrid columns={{ base: 1, xl: 2 }} gap="3" alignItems="stretch">
           <AiSettingsSection
-            title="Embedding Configuration"
+            title="Embedding"
+            description="Configure the model used to create vector embeddings for semantic search."
+            minH="19rem"
           >
             <Stack gap="4">
-              <Stack gap="1.5">
-                <Text textStyle="xs" color="fg.muted">Selected embedding model</Text>
+              <Stack gap="2">
+                <Text textStyle="xs" fontWeight="semibold" color="fg.muted">Selected model</Text>
                 <Flex
                   align="center"
                   justify="space-between"
@@ -2288,11 +2347,11 @@ export function AdminAiSettingsPage() {
                   borderColor="border.surface"
                   bg="bg.surface"
                   px="3"
-                  py="2.5"
+                  py="2"
                 >
                   <HStack gap="2.5" minW="0">
                     <Flex
-                      boxSize="8"
+                      boxSize="7"
                       align="center"
                       justify="center"
                       rounded="md"
@@ -2321,26 +2380,22 @@ export function AdminAiSettingsPage() {
                   </SettingsStatusBadge>
                 </Flex>
               </Stack>
-              <Stack gap="1.5">
-                <Text textStyle="xs" color="fg.muted">Index status</Text>
-                <SettingsStatusBadge tone={currentIndex ? (currentIndex.status === 'failed' ? 'warning' : 'enabled') : 'inactive'} density="compact">
-                  {currentIndex ? formatIndexStatus(currentIndex.status) : 'No index'}
+              <HStack gap="2" align="center">
+                <Text textStyle="xs" fontWeight="semibold" color="fg.muted">Status</Text>
+                <SettingsStatusBadge tone={semanticIndexTone} density="compact">
+                  {semanticStatus}
                 </SettingsStatusBadge>
-              </Stack>
+              </HStack>
               <Alert status="warning" colorPalette="orange" borderColor="orange.muted" bg="orange.subtle" alignItems="flex-start">
                 <AlertTriangle size={16} />
                 <AlertDescription>
-                  <Stack gap="2">
+                  <Stack gap="1">
                     <Text fontWeight="semibold">Changing the embedding model requires rebuilding the semantic search index.</Text>
-                    <Stack as="ul" gap="1" ps="4">
-                      <Text as="li">The current index will remain available until the new index is ready.</Text>
-                      <Text as="li">
-                        {aiDraft.aiFeaturesEnabled
-                          ? 'A full reindexing job will run in the background.'
-                          : 'When AI features are enabled, a full reindexing job will run in the background.'}
-                      </Text>
-                      <Text as="li">This may take several hours depending on your data size.</Text>
-                    </Stack>
+                    <Text>
+                      {aiDraft.aiFeaturesEnabled
+                        ? 'A full reindexing job will run in the background and may take several hours depending on your data size.'
+                        : 'When AI features are enabled, a full reindexing job will run in the background and may take several hours depending on your data size.'}
+                    </Text>
                   </Stack>
                 </AlertDescription>
               </Alert>
@@ -2361,17 +2416,19 @@ export function AdminAiSettingsPage() {
                   setIsEmbeddingModelDialogOpen(true);
                 }}
               >
-                Change embedding model
+                Change model
               </Button>
             </Stack>
           </AiSettingsSection>
 
           <AiSettingsSection
-            title="Chat Configuration"
+            title="Chat"
+            description="Configure the model used for AI chat responses."
+            minH="19rem"
           >
             <Stack gap="4">
-              <Stack gap="1.5">
-                <Text textStyle="xs" color="fg.muted">Selected chat model</Text>
+              <Stack gap="2">
+                <Text textStyle="xs" fontWeight="semibold" color="fg.muted">Selected model</Text>
                 <Flex
                   align="center"
                   justify="space-between"
@@ -2381,11 +2438,11 @@ export function AdminAiSettingsPage() {
                   borderColor="border.surface"
                   bg="bg.surface"
                   px="3"
-                  py="2.5"
+                  py="2"
                 >
                   <HStack gap="2.5" minW="0">
                     <Flex
-                      boxSize="8"
+                      boxSize="7"
                       align="center"
                       justify="center"
                       rounded="md"

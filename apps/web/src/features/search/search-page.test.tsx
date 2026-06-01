@@ -68,6 +68,50 @@ describe('global search page', () => {
     vi.restoreAllMocks();
   });
 
+  it('does not load every document before a query or filter is applied', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search'],
+      routePath: '/search',
+    });
+
+    expect(await screen.findByText('Search your documents')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/search?'))).toBe(false);
+    });
+  });
+
   it('uses the normal workspace shell header with search controls after the title', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
@@ -1208,7 +1252,7 @@ describe('documents library search controls', () => {
     expect(screen.getByRole('textbox', { name: /^to$/i })).toHaveValue('2026-05-20');
   });
 
-  it('runs an unbounded global search when Any time clears the date filter', async () => {
+  it('does not run an unbounded global search when Any time clears the date filter', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
@@ -1273,13 +1317,23 @@ describe('documents library search controls', () => {
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url) === '/api/search?pageIndex=0&pageSize=25&sortBy=created_desc'
+          String(url) === '/api/search?pageIndex=0&pageSize=25&dateFrom=2026-05-01&dateTo=2026-05-20&sortBy=created_desc'
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
     });
+
     await user.click(screen.getByRole('button', { name: /close filters/i }));
-    expect(await screen.findByRole('link', { name: /^open all time\.pdf$/i })).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url) === '/api/search?pageIndex=0&pageSize=25&sortBy=created_desc'
+        ),
+      ).toBe(false);
+    });
+    expect(await screen.findByText('Search your documents')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^open all time\.pdf$/i })).not.toBeInTheDocument();
   });
 
   it('returns focus to the filter trigger after dismissing the dialog with escape', async () => {

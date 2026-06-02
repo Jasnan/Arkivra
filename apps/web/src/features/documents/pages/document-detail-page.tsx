@@ -49,6 +49,7 @@ import { DeleteButton, SaveButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { adminQueryKeys } from '@/features/admin/admin.queries';
+import { chatQueryKeys } from '@/features/chat/chat.queries';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1875,6 +1876,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const invalidateDocument = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+      queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: tagQueryKeys.list() }),
     ]);

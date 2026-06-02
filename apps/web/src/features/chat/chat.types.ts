@@ -67,10 +67,15 @@ export interface ChatContextDocumentRef {
   path?: string;
 }
 
+export type ChatContextAvailability =
+  | { status: 'available'; readOnly: false }
+  | { status: 'source_document_deleted'; readOnly: true; message: string };
+
 export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
 
 export interface ChatMessageMetadata {
   intent?: ChatIntent;
+  model?: string;
   quickReplies?: string[];
   followUpQuestion?: boolean;
 }
@@ -94,6 +99,7 @@ export interface ChatMessage {
 }
 
 export interface ChatConversationDetail extends ChatConversation {
+  contextAvailability?: ChatContextAvailability;
   messages: ChatMessage[];
 }
 

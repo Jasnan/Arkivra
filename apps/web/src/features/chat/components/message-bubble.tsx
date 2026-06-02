@@ -29,25 +29,31 @@ export function MessageBubble({
   const pendingStatusLabel = statusLabel(activeStatus, scope);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const displayContent = normalizeChatDisplayContent(message.content);
+  const metricsSummary = renderMetricsSummary(metrics);
+  const responseFooter = [
+    !isUser && message.metadata?.model ? message.metadata.model : null,
+    metricsSummary,
+  ].filter(Boolean).join(' • ');
 
   return (
-    <Flex gap="3" minW="0" w="full" maxW="100%" overflow="hidden" justify={isUser ? 'flex-end' : 'flex-start'}>
+    <Flex gap="4" minW="0" w="full" maxW="100%" overflow="hidden" justify={isUser ? 'flex-end' : 'flex-start'}>
       {!isUser ? (
         <Flex
-          mt="1"
-          boxSize="9"
+          mt="0"
+          boxSize="11"
           shrink="0"
           align="center"
           justify="center"
-          rounded="lg"
-          bg="teal.subtle"
-          color="teal.fg"
+          rounded="full"
+          bg="teal.solid"
+          color="fg.inverted"
+          shadow="sm"
         >
-          <Bot size={16} />
+          <Bot size={18} />
         </Flex>
       ) : null}
 
-      <Box minW="0" maxW={isUser ? 'min(38rem, calc(100% - 3rem))' : 'min(44rem, calc(100% - 3rem))'} w={isUser ? undefined : '100%'}>
+      <Box minW="0" maxW={isUser ? 'min(38rem, calc(100% - 3rem))' : 'min(56rem, calc(100% - 3.75rem))'} w={isUser ? undefined : '100%'}>
         {isUser ? (
           <>
             <Flex direction="column" align="flex-end" w="100%">
@@ -57,19 +63,16 @@ export function MessageBubble({
             </Flex>
           </>
         ) : (
-          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="lg" bg="bg.surface" px={{ base: '4', md: '5' }} py={{ base: '3', md: '4' }} textStyle="chat" color="fg" borderWidth="1px" borderColor="border.surface" shadow="xs">
-            <MarkdownMessage
-              content={displayContent}
-              citations={message.citations}
-              onCitationClick={(citation) => setSelectedCitation(citation)}
-            />
-            {renderMetricsSummary(metrics) ? (
-              <Text mt="3" fontSize="xs" color="fg.muted">
-                {renderMetricsSummary(metrics)}
-              </Text>
-            ) : null}
+          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="xl" bg="bg.surface" color="fg" borderWidth="1px" borderColor="border.surface" shadow="sm">
+            <Box px={{ base: '5', md: '7' }} py={{ base: '4', md: '5' }} textStyle="chat">
+              <MarkdownMessage
+                content={displayContent}
+                citations={message.citations}
+                onCitationClick={(citation) => setSelectedCitation(citation)}
+              />
+            </Box>
             {message.metadata?.quickReplies?.length && onQuickReplySelect ? (
-              <Flex mt="3" gap="2" flexWrap="wrap">
+              <Flex px={{ base: '5', md: '7' }} pb="4" gap="2" flexWrap="wrap">
                 {message.metadata.quickReplies.map((reply) => (
                   <Button
                     key={reply}
@@ -84,7 +87,16 @@ export function MessageBubble({
                 ))}
               </Flex>
             ) : null}
-            <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} />
+            {responseFooter || message.citations.length > 0 ? (
+              <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.subtle" px={{ base: '5', md: '7' }} py="3">
+                {responseFooter ? (
+                  <Text fontSize="xs" color="fg.muted">
+                    {responseFooter}
+                  </Text>
+                ) : null}
+                <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} />
+              </Box>
+            ) : null}
           </Box>
         )}
 

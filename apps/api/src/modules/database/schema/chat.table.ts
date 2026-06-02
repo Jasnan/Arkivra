@@ -19,6 +19,7 @@ export type ChatMessageGenerationMetrics = {
 
 export type ChatMessageMetadata = {
   intent?: ChatIntent;
+  model?: string;
   quickReplies?: string[];
   followUpQuestion?: boolean;
 };

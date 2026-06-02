@@ -233,30 +233,32 @@ function TimelineRow({
 }) {
   if (item.type === 'streaming') {
     return (
-      <Flex gap="3">
+      <Flex gap="4">
         <Flex
-          mt="1"
-          boxSize="9"
+          mt="0"
+          boxSize="11"
           shrink="0"
           align="center"
           justify="center"
-          rounded="lg"
-          bg="teal.subtle"
-          color="teal.fg"
+          rounded="full"
+          bg="teal.solid"
+          color="fg.inverted"
+          shadow="sm"
         >
-          <Sparkles size={16} />
+          <Sparkles size={18} />
         </Flex>
-        <Box w="100%" maxW="min(44rem, calc(100% - 3rem))">
+        <Box w="100%" maxW="min(56rem, calc(100% - 3.75rem))">
           <Box
-            rounded="lg"
+            rounded="xl"
             bg="bg.surface"
-            px="5"
-            py="4"
+            px={{ base: '5', md: '7' }}
+            py={{ base: '4', md: '5' }}
             fontSize="sm"
             lineHeight="1.75"
             color="fg"
             borderWidth="1px"
             borderColor="border.surface"
+            shadow="sm"
           >
             {streamingText.length > 0 ? (
               <MarkdownMessage content={streamingText} citations={[]} />

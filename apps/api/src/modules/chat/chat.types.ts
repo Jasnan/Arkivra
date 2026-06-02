@@ -19,6 +19,10 @@ export type ChatContextDocumentRef = {
   path?: string;
 };
 
+export type ChatContextAvailability =
+  | { status: 'available'; readOnly: false }
+  | { status: 'source_document_deleted'; readOnly: true; message: string };
+
 export type ChatConversation = {
   id: string;
   vaultId: string | null;
@@ -34,6 +38,7 @@ export type ChatConversation = {
 export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
 export type ChatMessageMetadata = {
   intent?: ChatIntent;
+  model?: string;
   quickReplies?: string[];
   followUpQuestion?: boolean;
 };
@@ -60,6 +65,7 @@ export type ChatMessage = {
 };
 
 export type ChatConversationDetail = ChatConversation & {
+  contextAvailability: ChatContextAvailability;
   messages: ChatMessage[];
 };
 

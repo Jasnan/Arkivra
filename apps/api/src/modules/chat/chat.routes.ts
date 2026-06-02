@@ -3,7 +3,13 @@ import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { VaultAccess } from '../vaults/vaults.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
-import type { ChatContextDocumentRef, ChatContextSnapshot, ChatContextVaultRef, ChatIntent } from './chat.types.js';
+import type {
+  ChatContextAvailability,
+  ChatContextDocumentRef,
+  ChatContextSnapshot,
+  ChatContextVaultRef,
+  ChatIntent,
+} from './chat.types.js';
 import type { ChatScopeInput, ChatServices } from './chat.services.js';
 import { and, eq } from 'drizzle-orm';
 import { requireAuthentication } from '../auth/auth.middleware.js';
@@ -27,11 +33,24 @@ type ChatContextResolution =
   | { ok: true; scope: ChatScopeInput }
   | { ok: false; status: 400 | 401 | 403 | 404; code: ChatRouteErrorCode; message: string };
 
+const SOURCE_DOCUMENT_DELETED_CONTEXT: ChatContextAvailability = {
+  status: 'source_document_deleted',
+  readOnly: true,
+  message: 'One or more source documents were deleted. This conversation is available as read-only history.',
+};
+
 function routeError(
   context: Context<ServerContext>,
   { code, message, status }: { code: ChatRouteErrorCode; message: string; status: 400 | 401 | 403 | 404 | 502 },
 ) {
   return context.json({ error: { code, message } }, status);
+}
+
+function isDeletedSourceResolution(resolved: ChatContextResolution) {
+  return !resolved.ok
+    && resolved.status === 404
+    && resolved.code === 'chat.not_found'
+    && resolved.message === 'Document not found';
 }
 
 function parseTitle(value: unknown) {
@@ -604,6 +623,15 @@ export function registerChatRoutes({
     });
 
     if (!resolved.ok) {
+      if (isDeletedSourceResolution(resolved)) {
+        return context.json({
+          conversation: {
+            ...conversation,
+            contextAvailability: SOURCE_DOCUMENT_DELETED_CONTEXT,
+          },
+        });
+      }
+
       return routeError(context, resolved);
     }
 
@@ -623,17 +651,6 @@ export function registerChatRoutes({
 
     if (conversation === null) {
       return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
-    }
-
-    const resolved = await resolveUsableContext({
-      context,
-      snapshot: conversation.contextSnapshot,
-      db,
-      vaultServices: vaultsServices,
-    });
-
-    if (!resolved.ok) {
-      return routeError(context, resolved);
     }
 
     const deleted = await services.deleteConversation({

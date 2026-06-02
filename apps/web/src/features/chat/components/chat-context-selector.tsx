@@ -622,7 +622,7 @@ function ContextDetailsRow({
       px="3"
       py="2.5"
     >
-      <Box color="teal.fg" flexShrink="0">
+      <Box color="fg.muted" flexShrink="0">
         {icon}
       </Box>
       <Box minW="0" flex="1">
@@ -739,7 +739,7 @@ export function VaultSelectionDialog({
         >
           <DialogHeader p="0">
             <Flex gap="3" align="center">
-              <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg" flexShrink="0">
+              <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="bg.subtle" color="fg.muted" flexShrink="0">
                 <Vault size={18} />
               </Flex>
               <Stack gap="0.5" minW="0">
@@ -1163,7 +1163,7 @@ export function DocumentSelectionDialog({
         >
           <DialogHeader p="0">
             <Flex gap="3" align="center">
-              <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="teal.subtle" color="teal.fg" flexShrink="0">
+              <Flex boxSize="10" align="center" justify="center" rounded="lg" bg="bg.subtle" color="fg.muted" flexShrink="0">
                 <FileText size={18} />
               </Flex>
               <Stack gap="0.5" minW="0">

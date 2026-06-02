@@ -1,14 +1,20 @@
-import { File, FileImage, FileSpreadsheet, FileText, FileType } from 'lucide-react';
+import { File, FileImage, FileJson, FileSpreadsheet, FileText } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import csvFileIconSvg from '@/assets/file-type-csv.svg?raw';
+import pdfFileIconSvg from '@/assets/file-type-pdf.svg?raw';
+import wordFileIconSvg from '@/assets/file-word.svg?raw';
 
-export interface DocumentFileIconMeta {
+interface BaseDocumentFileIconMeta {
   badgeBg: string;
   badgeColor: string;
   color: string;
-  icon: LucideIcon;
   label: string;
-  type: 'file' | 'image' | 'pdf' | 'spreadsheet' | 'text' | 'word';
+  type: 'csv' | 'file' | 'image' | 'json' | 'pdf' | 'spreadsheet' | 'text' | 'word';
 }
+
+export type DocumentFileIconMeta =
+  | (BaseDocumentFileIconMeta & { icon: LucideIcon; iconKind: 'lucide' })
+  | (BaseDocumentFileIconMeta & { iconSvg: string; iconKind: 'svg' });
 
 function getDocumentExtension(name: string) {
   const extension = name.split('.').pop()?.trim().toLowerCase();
@@ -38,6 +44,10 @@ export function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeTyp
     return 'DOC';
   }
 
+  if (mimeType.includes('json')) {
+    return 'JSON';
+  }
+
   if (mimeType.startsWith('text/')) {
     return 'TXT';
   }
@@ -53,8 +63,9 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
     return {
       badgeBg: 'bg.error',
       badgeColor: 'red.fg',
-      color: 'red.fg',
-      icon: FileText,
+      color: 'red.500',
+      iconKind: 'svg',
+      iconSvg: pdfFileIconSvg,
       label: 'PDF',
       type: 'pdf',
     };
@@ -67,29 +78,53 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
     || normalizedMimeType.includes('officedocument.wordprocessingml')
   ) {
     return {
-      badgeBg: 'teal.subtle',
-      badgeColor: 'purple.fg',
-      color: 'purple.fg',
-      icon: FileType,
+      badgeBg: 'bg.info',
+      badgeColor: 'blue.fg',
+      color: 'blue.500',
+      iconKind: 'svg',
+      iconSvg: wordFileIconSvg,
       label: extension === 'doc' ? 'DOC' : 'DOCX',
       type: 'word',
+    };
+  }
+
+  if (extension === 'json' || normalizedMimeType.includes('json')) {
+    return {
+      badgeBg: 'bg.info',
+      badgeColor: 'blue.fg',
+      color: 'fg.muted',
+      icon: FileJson,
+      iconKind: 'lucide',
+      label: 'JSON',
+      type: 'json',
+    };
+  }
+
+  if (extension === 'csv' || normalizedMimeType.includes('csv')) {
+    return {
+      badgeBg: 'bg.warning',
+      badgeColor: 'yellow.fg',
+      color: 'green.500',
+      iconKind: 'svg',
+      iconSvg: csvFileIconSvg,
+      label: 'CSV',
+      type: 'csv',
     };
   }
 
   if (
     extension === 'xls'
     || extension === 'xlsx'
-    || extension === 'csv'
     || normalizedMimeType.includes('spreadsheet')
     || normalizedMimeType.includes('excel')
-    || normalizedMimeType.includes('csv')
   ) {
     return {
       badgeBg: 'bg.warning',
       badgeColor: 'yellow.fg',
-      color: 'yellow.fg',
+      color: 'green.500',
       icon: FileSpreadsheet,
-      label: extension === 'csv' ? 'CSV' : extension === 'xls' ? 'XLS' : 'XLSX',
+      iconKind: 'lucide',
+      label: extension === 'xls' ? 'XLS' : 'XLSX',
       type: 'spreadsheet',
     };
   }
@@ -101,20 +136,34 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
     return {
       badgeBg: 'bg.success',
       badgeColor: 'green.fg',
-      color: 'green.fg',
+      color: 'purple.500',
       icon: FileImage,
+      iconKind: 'lucide',
       label: extension ? extension.toUpperCase() : 'IMG',
       type: 'image',
     };
   }
 
-  if (extension === 'md' || extension === 'txt' || normalizedMimeType.startsWith('text/')) {
+  if (extension === 'md' || normalizedMimeType === 'text/markdown') {
+    return {
+      badgeBg: 'bg.subtle',
+      badgeColor: 'fg.muted',
+      color: 'fg.muted',
+      icon: File,
+      iconKind: 'lucide',
+      label: 'MD',
+      type: 'file',
+    };
+  }
+
+  if (extension === 'txt' || normalizedMimeType.startsWith('text/')) {
     return {
       badgeBg: 'bg.info',
       badgeColor: 'blue.fg',
-      color: 'blue.fg',
+      color: 'fg.muted',
       icon: FileText,
-      label: extension === 'md' ? 'MD' : 'TXT',
+      iconKind: 'lucide',
+      label: 'TXT',
       type: 'text',
     };
   }
@@ -124,6 +173,7 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
     badgeColor: 'fg.muted',
     color: 'fg.muted',
     icon: File,
+    iconKind: 'lucide',
     label: getDocumentTypeLabel({ name, mimeType }),
     type: 'file',
   };

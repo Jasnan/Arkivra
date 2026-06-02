@@ -50,7 +50,7 @@ export function ActionMenuItemIcon({
       as={MenuIcon}
       boxSize="4"
       flexShrink="0"
-      color={tone === 'destructive' ? 'fg.error' : 'teal.solid'}
+      color={tone === 'destructive' ? 'fg.error' : 'currentColor'}
       className={className}
     />
   );

@@ -45,8 +45,8 @@ export function MessageBubble({
           align="center"
           justify="center"
           rounded="full"
-          bg="teal.solid"
-          color="fg.inverted"
+          bg="bg.subtle"
+          color="fg.muted"
           shadow="sm"
         >
           <Bot size={18} />
@@ -128,8 +128,8 @@ export function MessageBubble({
           align="center"
           justify="center"
           rounded="lg"
-          bg="teal.subtle"
-          color="teal.fg"
+          bg="bg.subtle"
+          color="fg.muted"
         >
           <User size={16} />
         </Flex>

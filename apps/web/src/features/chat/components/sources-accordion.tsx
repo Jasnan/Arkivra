@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Flex, Text, chakra } from '@chakra-ui/react';
+import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import { FileText } from 'lucide-react';
 import {
   Accordion,
@@ -30,25 +30,22 @@ export function SourcesAccordion({
         collapsible
         value={isOpen ? 'sources' : undefined}
         onValueChange={(value) => setIsOpen(value === 'sources')}
-        mt="4"
-        borderTopWidth="1px"
-        borderTopColor="border"
-        pt="2"
         minW="0"
         maxW="full"
         overflowX="hidden"
       >
         <AccordionItem value="sources" style={{ borderBottom: '0' }}>
           <AccordionTrigger
-            style={{ borderRadius: '0.375rem', padding: '0.75rem 0.25rem' }}
+            style={{ borderRadius: '0.5rem', padding: '0.35rem 0' }}
           >
-            <Flex align="center" gap="2" minW="0">
-              <FileText size={16} color="var(--chakra-colors-fg-muted)" />
-              <Text>{`Sources (${citations.length})`}</Text>
+            <Flex align="center" gap="2" minW="0" fontSize="xs" color="fg.muted">
+              <FileText size={14} color="currentColor" />
+              <Text fontWeight="medium">{`Sources (${citations.length})`}</Text>
             </Flex>
           </AccordionTrigger>
           <AccordionContent>
-            <Flex direction="column" gap="3" minW="0" maxW="full">
+            <Box h="1" />
+            <Flex direction="column" gap="2" minW="0" maxW="full">
               {citations.map((citation, index) => {
                 const figurePreview = citationFigureEvidence(citation)[0] ?? null;
                 return (
@@ -62,23 +59,25 @@ export function SourcesAccordion({
                     maxW="full"
                     overflow="hidden"
                     alignItems="flex-start"
-                    gap="3"
-                    rounded="2xl"
+                    gap="2.5"
+                    rounded="lg"
                     bg="bg.surface"
-                    px="4"
+                    borderWidth="1px"
+                    borderColor="border.surface"
+                    px="3"
                     py="2.5"
                     textAlign="left"
                     cursor="pointer"
-                    _hover={{ bg: 'teal.subtle' }}
+                    _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted' }}
                   >
                     <Flex
-                      boxSize="8"
+                      boxSize="6"
                       shrink="0"
                       align="center"
                       justify="center"
                       rounded="full"
                       bg="teal.subtle"
-                      fontSize="sm"
+                      fontSize="xs"
                       fontWeight="semibold"
                       color="fg"
                     >
@@ -96,7 +95,7 @@ export function SourcesAccordion({
                           {citationSectionLabel(citation)}
                         </Text>
                       ) : null}
-                      <Text minW="0" lineClamp="2" fontSize="sm" lineHeight="1.6" color="fg.muted" overflowWrap="anywhere">
+                      <Text minW="0" lineClamp="2" fontSize="xs" lineHeight="1.5" color="fg.muted" overflowWrap="anywhere">
                         {citation.snippet}
                       </Text>
                       {figurePreview ? (

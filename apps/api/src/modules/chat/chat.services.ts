@@ -7,6 +7,7 @@ import type {
   ChatConversation,
   ChatConversationDetail,
   ChatContextDocumentRef,
+  ChatContextAvailability,
   ChatContextSnapshot,
   ChatContextVaultRef,
   ChatGenerationMetrics,
@@ -23,6 +24,7 @@ import {
 } from '../database/schema/index.js';
 
 const DEFAULT_CHAT_TITLE = 'New chat';
+const AVAILABLE_CHAT_CONTEXT: ChatContextAvailability = { status: 'available', readOnly: false };
 const MAX_CONTEXT_CITATIONS = 8;
 const TEXT_ONLY_CONTEXT_CITATIONS = 4;
 const CHAT_CONTEXT_PAGE_RADIUS = 1;
@@ -1193,6 +1195,7 @@ export function createChatServices({
 
     return {
       ...toConversation(conversation),
+      contextAvailability: AVAILABLE_CHAT_CONTEXT,
       messages: messages.map(toMessage),
     };
   }
@@ -1344,6 +1347,7 @@ export function createChatServices({
               model: effectiveModel,
               supportsImages: responseMode === 'multimodal',
             });
+            assistantMetadata = { model: effectiveModel };
 
             if (isGlobalScope(scope) && intent) {
               send({ type: 'status', label: 'generation' });
@@ -1364,6 +1368,7 @@ export function createChatServices({
                   examples: quickReplies,
                 });
                 assistantMetadata = {
+                  ...assistantMetadata,
                   quickReplies,
                   followUpQuestion: true,
                 };

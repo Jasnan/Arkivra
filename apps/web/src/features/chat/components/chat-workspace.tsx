@@ -14,6 +14,7 @@ import {
 import {
   AlertCircle,
   MessageSquare,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -113,6 +114,10 @@ function getContextAccessMessage(snapshot: ChatContextSnapshot) {
   return 'To start using chat, join at least one vault as a member with full AI access. Admin access alone is not enough.';
 }
 
+function getContextUnavailableMessage(message?: string) {
+  return message ?? 'One or more source documents were deleted. This conversation is available as read-only history.';
+}
+
 function canUseContextSnapshot({
   snapshot,
   aiAccessByVaultId,
@@ -188,6 +193,7 @@ export function ChatWorkspace({
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false);
   const [pendingForkContext, setPendingForkContext] = useState<DraftChatContext | null>(null);
   const [isForkDialogOpen, setIsForkDialogOpen] = useState(false);
+  const [isContextWarningDismissed, setIsContextWarningDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousSelectedConversationIdRef = useRef(selectedConversationId);
   const isStreaming = isAssistantResponsePending || streamStatus !== null;
@@ -206,6 +212,8 @@ export function ChatWorkspace({
     [hydratedDraftContext],
   );
   const lockedContextSnapshot = selectedChatQuery.data?.conversation.contextSnapshot ?? null;
+  const contextAvailability = selectedChatQuery.data?.conversation.contextAvailability;
+  const isContextReadOnly = contextAvailability?.readOnly === true;
   const activeContextSnapshot = lockedContextSnapshot ?? draftContextSnapshot;
   const activeScope = scopeFromContextSnapshot(activeContextSnapshot);
   const displayedContext = useMemo(
@@ -239,12 +247,17 @@ export function ChatWorkspace({
   }, [activeVaultId, vaultAiAccessLevel, vaultsQuery.data?.vaults]);
   const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some((vault) => vault.aiAccessLevel === 'full');
   const isContextAccessLoading = vaultsQuery.isLoading || (activeVaultId ? vaultQuery.isLoading : false);
-  const canUseChat = isContextAccessLoading || canUseContextSnapshot({
-    snapshot: activeContextSnapshot,
-    aiAccessByVaultId,
-    hasFullAiVault,
-  });
+  const canUseChat = !isContextReadOnly
+    && (isContextAccessLoading || canUseContextSnapshot({
+      snapshot: activeContextSnapshot,
+      aiAccessByVaultId,
+      hasFullAiVault,
+    }));
   const aiAccessMessage = getContextAccessMessage(activeContextSnapshot);
+  const contextUnavailableMessage = getContextUnavailableMessage(
+    contextAvailability?.readOnly === true ? contextAvailability.message : undefined,
+  );
+  const showContextReadOnlyBanner = isContextReadOnly && !isContextWarningDismissed;
 
   const availableModels = modelOptionsQuery.data?.options.models ?? [];
   const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
@@ -323,6 +336,10 @@ export function ChatWorkspace({
     setSelectedChatId(selectedConversationId ?? '');
     resetComposerState();
   }, [resetComposerState, selectedConversationId]);
+
+  useEffect(() => {
+    setIsContextWarningDismissed(false);
+  }, [contextAvailability?.status, effectiveSelectedChatId]);
 
   useEffect(() => {
     if (selectedConversationId === undefined && selectedChatId.length === 0) {
@@ -579,7 +596,7 @@ export function ChatWorkspace({
       p="0"
       gridTemplateColumns={{
         base: '1fr',
-        lg: renderConversationRailInSecondary ? 'minmax(0, 1fr)' : '15rem minmax(0, 1fr)',
+        lg: renderConversationRailInSecondary ? 'minmax(0, 1fr)' : '20.5rem minmax(0, 1fr)',
       }}
     >
       {!renderConversationRailInSecondary ? (
@@ -593,6 +610,7 @@ export function ChatWorkspace({
           borderRightWidth="1px"
           borderColor="border.surface"
           bg="bg.sidebar"
+          px="6"
           pb="3"
         >
           <ChatConversationRail {...conversationRailProps} />
@@ -633,7 +651,49 @@ export function ChatWorkspace({
               {streamError}
             </Flex>
           ) : null}
-          {!canUseChat ? (
+          {showContextReadOnlyBanner ? (
+            <Box px="4" pt={{ base: '4', md: '5' }} sm={{ px: '6' }}>
+              <Flex
+                align="flex-start"
+                gap="4"
+                mx="auto"
+                maxW="72rem"
+                rounded="xl"
+                borderWidth="1px"
+                borderColor="orange.muted"
+                bg="orange.subtle"
+                px={{ base: '4', md: '5' }}
+                py="4"
+                color="fg"
+                shadow="xs"
+              >
+                <Flex mt="0.5" boxSize="7" align="center" justify="center" rounded="full" color="orange.fg" flexShrink="0">
+                  <AlertCircle size={22} />
+                </Flex>
+                <Box minW="0" flex="1">
+                  <Text fontSize="sm" fontWeight="semibold" color="orange.fg">
+                    One or more source documents were deleted.
+                  </Text>
+                  <Text mt="1.5" fontSize="sm" color="fg">
+                    {contextUnavailableMessage.replace('One or more source documents were deleted. ', '')}
+                  </Text>
+                </Box>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Dismiss source document warning"
+                  color="fg.muted"
+                  flexShrink="0"
+                  style={{ height: '2rem', width: '2rem', borderRadius: '0.5rem' }}
+                  onClick={() => setIsContextWarningDismissed(true)}
+                >
+                  <X size={18} />
+                </Button>
+              </Flex>
+            </Box>
+          ) : null}
+          {!canUseChat && !isContextReadOnly ? (
             <Flex
               align="center"
               gap="2"

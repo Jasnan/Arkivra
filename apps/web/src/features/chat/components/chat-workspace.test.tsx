@@ -40,9 +40,10 @@ vi.mock('../chat.queries', () => ({
     conversations: () => ['chat', 'conversations'],
     conversation: (chatId: string) => ['chat', 'conversation', chatId],
   },
-  useChatConversationQuery: ({ chatId }: { chatId: string }) => ({
-    data: chatId === 'chat_existing'
-      ? {
+  useChatConversationQuery: ({ chatId }: { chatId: string }) => {
+    if (chatId === 'chat_existing') {
+      return {
+        data: {
           conversation: {
             id: 'chat_existing',
             title: 'Existing chat',
@@ -81,7 +82,7 @@ vi.mock('../chat.queries', () => ({
                 userId: null,
                 role: 'assistant',
                 content: 'Revenue increased.[1]',
-                metadata: null,
+                metadata: { model: 'llama3.2' },
                 citations: [
                   {
                     chunkId: 'chk_1',
@@ -118,10 +119,66 @@ vi.mock('../chat.queries', () => ({
               },
             ],
           },
-        }
-      : undefined,
-    isLoading: false,
-  }),
+        },
+        isLoading: false,
+      };
+    }
+
+    if (chatId === 'chat_deleted_source') {
+      return {
+        data: {
+          conversation: {
+            id: 'chat_deleted_source',
+            title: 'Deleted source chat',
+            scope: 'document',
+            vaultId: 'vlt_1',
+            documentId: 'doc_deleted',
+            contextSnapshot: {
+              type: 'document',
+              vaultId: 'vlt_1',
+              documentId: 'doc_deleted',
+              vaultName: 'Finance',
+              documentName: 'Deleted source.pdf',
+            },
+            contextAvailability: {
+              status: 'source_document_deleted',
+              readOnly: true,
+              message: 'One or more source documents were deleted. This conversation is available as read-only history.',
+            },
+            userId: 'usr_1',
+            createdAt: '2026-05-05T09:00:00.000Z',
+            updatedAt: '2026-05-05T09:05:00.000Z',
+            deletedAt: null,
+            messages: [
+              {
+                id: 'msg_deleted_1',
+                conversationId: 'chat_deleted_source',
+                vaultId: 'vlt_1',
+                documentId: 'doc_deleted',
+                scope: 'document',
+                userId: 'usr_1',
+                role: 'user',
+                content: 'Summarize the deleted source.',
+                metadata: null,
+                citations: [],
+                generationMetrics: null,
+                generationStatus: null,
+                generationError: null,
+                createdAt: '2026-05-05T09:00:00.000Z',
+                updatedAt: '2026-05-05T09:00:00.000Z',
+              },
+            ],
+          },
+        },
+        isLoading: false,
+      };
+    }
+
+    return {
+      data: undefined,
+      isLoading: false,
+    };
+  },
   useChatConversationsQuery: () => ({
     data: {
       conversations: [
@@ -135,6 +192,24 @@ vi.mock('../chat.queries', () => ({
           userId: 'usr_1',
           createdAt: '2026-05-05T10:00:00.000Z',
           updatedAt: '2026-05-05T10:05:00.000Z',
+          deletedAt: null,
+        },
+        {
+          id: 'chat_document',
+          title: 'Passport check',
+          scope: 'document',
+          vaultId: 'vlt_1',
+          documentId: 'doc_passport',
+          contextSnapshot: {
+            type: 'document',
+            vaultId: 'vlt_1',
+            documentId: 'doc_passport',
+            vaultName: 'Finance',
+            documentName: 'Passport.pdf',
+          },
+          userId: 'usr_1',
+          createdAt: '2026-05-05T08:00:00.000Z',
+          updatedAt: '2026-05-05T08:05:00.000Z',
           deletedAt: null,
         },
       ],
@@ -273,6 +348,29 @@ describe('chat workspace new chat drafts', () => {
     expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
   });
 
+  it('filters conversation history by context type', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(await screen.findByText('Existing chat')).toBeInTheDocument();
+    expect(screen.getByText('Passport check')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Filter conversations'));
+    await user.click(await screen.findByText('Document chats'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Existing chat')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Passport check')).toBeInTheDocument();
+    expect(screen.getByLabelText('Filter conversations, 1 active')).toBeInTheDocument();
+  });
+
   it('opens a blank draft from a route-selected conversation', async () => {
     const user = userEvent.setup();
 
@@ -297,6 +395,26 @@ describe('chat workspace new chat drafts', () => {
     expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
     expect(screen.getByText(/start typing your question below/i)).toBeInTheDocument();
     expect(screen.getByText('New chat')).toBeInTheDocument();
+  });
+
+  it('shows deleted-source conversations as read-only history', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+        selectedConversationId="chat_deleted_source"
+      />,
+    );
+
+    expect(await screen.findByText('Summarize the deleted source.')).toBeInTheDocument();
+    expect(screen.getByText(/source documents were deleted/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/chat message/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/chat message/i), 'Can we continue?');
+    expect(streamChatMessageMock).not.toHaveBeenCalled();
   });
 
   it('adds vault chips to a draft before creating the conversation snapshot', async () => {
@@ -412,6 +530,17 @@ describe('chat workspace new chat drafts', () => {
     await waitFor(() => {
       expect(screen.queryByText('Sending your question')).not.toBeInTheDocument();
     });
+  });
+
+  it('shows the model name on assistant responses', async () => {
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(await screen.findByText('llama3.2')).toBeInTheDocument();
   });
 
   it('shows figure captions in the source flow for cited image evidence', async () => {

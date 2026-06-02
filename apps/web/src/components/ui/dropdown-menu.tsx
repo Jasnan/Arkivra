@@ -318,23 +318,32 @@ export function DropdownMenuRadioItem({
       gap="3"
       rounded="md"
       py="2"
-      ps="9"
-      pe="3"
+      px="3"
+      minW="0"
       fontSize="sm"
       fontWeight="medium"
       color="fg.muted"
       outline="none"
       transition="background-color 120ms ease, color 120ms ease"
+      _checked={{ bg: 'teal.subtle', color: 'fg' }}
       _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       {...props}
     >
-      <AbsoluteCenter axis="horizontal" insetEnd="2.5">
-        <ChakraMenu.ItemIndicator>
-          <Check className="size-4 stroke-[2.5]" />
-        </ChakraMenu.ItemIndicator>
-      </AbsoluteCenter>
-      {children}
+      <span style={{ minWidth: 0, flex: '1 1 auto', paddingRight: '1rem' }}>
+        {children}
+      </span>
+      <ChakraMenu.ItemIndicator
+        display="inline-flex"
+        alignItems="center"
+        justifyContent="center"
+        width="1rem"
+        marginStart="auto"
+        flexShrink="0"
+        color="teal.fg"
+      >
+        <Check className="size-4 stroke-[2.5]" />
+      </ChakraMenu.ItemIndicator>
     </ChakraMenu.RadioItem>
   );
 }

@@ -21,6 +21,7 @@ import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { adminQueryKeys } from '@/features/admin/admin.queries';
+import { chatQueryKeys } from '@/features/chat/chat.queries';
 import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
 import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
@@ -229,6 +230,7 @@ export function DocumentTrashPage() {
       setContextMenu(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+        queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
       ]);
     },
@@ -258,6 +260,7 @@ export function DocumentTrashPage() {
       setPendingPermanentDelete([]);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+        queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
         queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
       ]);
     },

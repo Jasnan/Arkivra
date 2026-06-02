@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { DocumentFileIconGlyph } from '@/features/documents/components/document-file-icon';
 import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getBrowserItemKey, getDocumentTypeLabel, getFileDisplayName, getItemDisplayName, getItemName } from './vault-browser.types';
@@ -157,56 +158,28 @@ function getItemKindLabel(item: BrowserContextItem) {
 export function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' | 'search' }) {
   const isList = size === 'list';
   const isSearch = size === 'search';
-  const containerSize = isSearch ? '8' : isList ? '10' : '12';
-  const documentBoxSize = isSearch ? '8' : '9';
-  const documentIconSize = isSearch ? 30 : 36;
-  const folderIconSize = isSearch ? 24 : isList ? 30 : 34;
-  const badgeMaxW = isSearch ? '6' : '8';
-  const badgePaddingX = isSearch ? '0.5' : '1';
-  const badgeFontSize = isSearch ? '0.34rem' : '0.46rem';
+  const containerSize = isSearch ? '8' : isList ? '8' : '12';
+  const documentBoxSize = isSearch ? '8' : isList ? '6' : '9';
+  const documentIconSize = isSearch ? 30 : isList ? 22 : 36;
+  const folderIconSize = isSearch ? 24 : isList ? 20 : 34;
 
   if (item.type === 'folder') {
     return (
-      <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color="teal.fg">
+      <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color="fg.muted">
         <Folder size={folderIconSize} strokeWidth={1.5} />
       </Flex>
     );
   }
 
-  const { badgeBg, badgeColor, color, icon: DocumentIcon, label } = getDocumentFileIconMeta({
+  const meta = getDocumentFileIconMeta({
     name: item.document.name,
     mimeType: item.document.mimeType,
   });
 
   return (
-    <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color={color}>
-      <Box position="relative" boxSize={documentBoxSize} color={color}>
-        <DocumentIcon size={documentIconSize} strokeWidth={1.5} />
-        <Text
-          as="span"
-          position="absolute"
-          left="50%"
-          top={isSearch ? '66%' : '64%'}
-          display="inline-flex"
-          alignItems="center"
-          justifyContent="center"
-          transform="translate(-50%, -50%)"
-          maxW={badgeMaxW}
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          rounded="2px"
-          bg={badgeBg}
-          px={badgePaddingX}
-          py="0.5"
-          fontSize={badgeFontSize}
-          fontWeight="bold"
-          letterSpacing="normal"
-          lineHeight="1"
-          color={badgeColor}
-        >
-          {label}
-        </Text>
+    <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color={meta.color}>
+      <Box boxSize={documentBoxSize} color={meta.color} display="flex" alignItems="center" justifyContent="center">
+        <DocumentFileIconGlyph meta={meta} iconSize={documentIconSize} strokeWidth={1.5} />
       </Box>
     </Flex>
   );
@@ -1042,7 +1015,7 @@ export function BrowserItemList({
                       <Flex minW="0" align="center" gap="3">
                         <FileBrowserIcon item={item} size="list" />
                         <Box minW="0">
-                          <Text truncate fontWeight="semibold" color="fg">{displayName}</Text>
+                          <Text truncate fontWeight="normal" color="fg">{displayName}</Text>
                           <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
                             Folder - Updated {formatDateOnly(updatedAt)}
                           </Text>
@@ -1078,7 +1051,7 @@ export function BrowserItemList({
                       <Flex minW="0" align="center" gap="3">
                         <FileBrowserIcon item={item} size="list" />
                         <Box minW="0">
-                          <Text truncate fontWeight="semibold" color="fg">{displayName}</Text>
+                          <Text truncate fontWeight="normal" color="fg">{displayName}</Text>
                           {item.document.originalName !== item.document.name ? (
                             <Text mt="1" truncate textStyle="xs" color="fg.muted">
                               {getFileDisplayName(item.document.originalName)}

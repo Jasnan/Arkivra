@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Checkbox as ChakraCheckbox, Table, Box, Flex, Text } from '@chakra-ui/react';
-import { File } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { formatBytes } from '@/features/documents/documents.utils';
 import { getFileDisplayName } from '@/features/file-browser/components/vault-browser.types';
 import type { SearchResultTag } from '@/features/search/search.types';
 import { TagBadge } from '@/features/tags/components/tag-badge';
+import { DocumentFileIcon } from './document-file-icon';
 import { getDocumentSelectionKey } from './document-library-utils';
 
 export interface DocumentLibraryItem {
@@ -31,79 +31,6 @@ function formatDateOnly(value: string | null) {
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
   }).format(new Date(value));
-}
-
-function getDocumentTypeLabel({ name, mimeType }: { name: string; mimeType: string }) {
-  const extension = name.split('.').pop()?.trim().toUpperCase();
-
-  if (extension && extension.length <= 5) {
-    return extension;
-  }
-
-  if (mimeType === 'application/pdf') {
-    return 'PDF';
-  }
-
-  if (mimeType.startsWith('image/')) {
-    return 'IMG';
-  }
-
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) {
-    return 'XLS';
-  }
-
-  if (mimeType.includes('word') || mimeType.includes('document')) {
-    return 'DOC';
-  }
-
-  if (mimeType.startsWith('text/')) {
-    return 'TXT';
-  }
-
-  return 'FILE';
-}
-
-const typeTokens: Record<string, { bg: string; color: string }> = {
-  PDF: { bg: 'bg.error', color: 'red.fg' },
-  TXT: { bg: 'bg.info', color: 'blue.fg' },
-  IMG: { bg: 'bg.success', color: 'green.fg' },
-  DOC: { bg: 'teal.subtle', color: 'purple.fg' },
-  XLS: { bg: 'bg.warning', color: 'yellow.fg' },
-};
-
-function getDocumentTypeTokens(label: string) {
-  const mappedKey =
-    ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(label) ? 'IMG'
-    : ['CSV', 'XLS', 'XLSX'].includes(label) ? 'XLS'
-    : ['DOC', 'DOCX'].includes(label) ? 'DOC'
-    : label;
-  return typeTokens[mappedKey] ?? { bg: 'bg.subtle', color: 'fg.muted' };
-}
-
-function FileTypeIcon({ name, mimeType }: { name: string; mimeType: string }) {
-  const label = getDocumentTypeLabel({ name, mimeType });
-  const tokens = getDocumentTypeTokens(label);
-
-  return (
-    <Flex
-      boxSize="9"
-      shrink={0}
-      align="center"
-      justify="center"
-      rounded="lg"
-      bg={tokens.bg}
-      color={tokens.color}
-      aria-hidden="true"
-      {...{ outline: '1px solid', outlineColor: 'border.surface' } as any}
-    >
-      <Flex direction="column" align="center" lineHeight="none">
-        <File size={14} style={{ marginBottom: '2px' }} />
-        <Text as="span" fontSize="0.6rem" fontWeight="bold" letterSpacing="normal">
-          {label}
-        </Text>
-      </Flex>
-    </Flex>
-  );
 }
 
 const tableCellLinkStyle = {
@@ -269,7 +196,7 @@ export function DocumentLibraryTable({
                     }}
                   >
                     <Flex align="flex-start" gap="3" minW="0">
-                      <FileTypeIcon name={document.name} mimeType={document.mimeType} />
+                      <DocumentFileIcon name={document.name} mimeType={document.mimeType} boxSize="9" iconSize={24} />
                       <Box minW="0">
                         <Text
                           truncate

@@ -8,10 +8,12 @@ describe('getDocumentFileIconMeta', () => {
     ['Legacy Contract.doc', 'application/msword', 'word', 'DOC'],
     ['Budget.xlsx', 'application/octet-stream', 'spreadsheet', 'XLSX'],
     ['Export.xls', 'application/vnd.ms-excel', 'spreadsheet', 'XLS'],
+    ['Records.csv', 'text/csv', 'csv', 'CSV'],
+    ['Manifest.json', 'application/json', 'json', 'JSON'],
     ['Photo.jpeg', 'application/octet-stream', 'image', 'JPEG'],
     ['Scan.webp', 'image/webp', 'image', 'WEBP'],
     ['Notes.txt', 'application/octet-stream', 'text', 'TXT'],
-    ['Readme.md', 'text/markdown', 'text', 'MD'],
+    ['Readme.md', 'text/markdown', 'file', 'MD'],
     ['Archive.bin', 'application/octet-stream', 'file', 'BIN'],
   ])('maps %s to a %s icon', (name, mimeType, type, label) => {
     expect(getDocumentFileIconMeta({ name, mimeType })).toMatchObject({ type, label });

@@ -71,8 +71,8 @@ export function ChatEmptyState({
                       alignItems="center"
                       justify="center"
                       rounded="lg"
-                      bg="teal.subtle"
-                      color="teal.fg"
+                      bg="bg.subtle"
+                      color="fg.muted"
                     >
                       <Icon size={18} />
                     </Flex>
@@ -118,7 +118,7 @@ export function ChatEmptyState({
                 _hover={disabled ? undefined : { borderColor: 'teal.muted', bg: 'bg.subtle' }}
                 onClick={() => onPromptSelect(label)}
               >
-                <Flex boxSize="7" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
+                <Flex boxSize="7" align="center" justify="center" rounded="full" bg="bg.subtle" color="fg.muted">
                   <Icon size={15} />
                 </Flex>
                 <Text>{label}</Text>

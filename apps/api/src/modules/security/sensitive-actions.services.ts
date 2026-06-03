@@ -354,12 +354,75 @@ export function createSensitiveActionServices({
     });
   }
 
+  async function setAccountPassword({
+    newPassword,
+    session,
+    userId,
+  }: {
+    newPassword: string;
+    session: Session;
+    userId: string;
+  }) {
+    const accounts = await listAuthAccounts({ userId });
+
+    if (accounts.some(account => account.providerId === 'credential' && account.password)) {
+      return 'already-set' as const;
+    }
+
+    const verified = await verifySensitiveAction({
+      accounts,
+      session,
+      userId,
+    });
+
+    if (!verified) {
+      return 'verification-failed' as const;
+    }
+
+    const authContext = await auth.$context;
+    const minPasswordLength = authContext.password.config.minPasswordLength;
+    const maxPasswordLength = authContext.password.config.maxPasswordLength;
+
+    if (newPassword.length < minPasswordLength) {
+      return 'password-too-short' as const;
+    }
+
+    if (newPassword.length > maxPasswordLength) {
+      return 'password-too-long' as const;
+    }
+
+    const passwordHash = await authContext.password.hash(newPassword);
+    const credentialAccount = accounts.find(account => account.providerId === 'credential');
+
+    if (credentialAccount) {
+      await db
+        .update(authAccountsTable)
+        .set({
+          password: passwordHash,
+          updatedAt: new Date(),
+        })
+        .where(eq(authAccountsTable.id, credentialAccount.id));
+    }
+    else {
+      await db.insert(authAccountsTable).values({
+        id: generateRandomString(32),
+        accountId: userId,
+        providerId: 'credential',
+        password: passwordHash,
+        userId,
+      });
+    }
+
+    return 'success' as const;
+  }
+
   return {
     disableTwoFactor,
     getTwoFactorSummary,
     listAuthAccounts,
     regenerateBackupCodes,
     requestEmailChange,
+    setAccountPassword,
     startTwoFactorSetup,
     summarizeAuthMethods,
   };

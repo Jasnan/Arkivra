@@ -18,6 +18,10 @@ const requestEmailChangeSchema = z.object({
   password: z.string().optional(),
 });
 
+const setAccountPasswordSchema = z.object({
+  newPassword: z.string().min(8),
+});
+
 export function registerSensitiveActionRoutes({
   app,
   services,
@@ -185,5 +189,80 @@ export function registerSensitiveActionRoutes({
     }
 
     return context.json(result);
+  });
+
+  app.post('/api/security/password/set', requireAuthentication(), async (context) => {
+    const body = await context.req.json().catch(() => null);
+    const parsed = setAccountPasswordSchema.safeParse(body);
+    const session = context.get('session');
+    const user = context.get('user');
+
+    if (!parsed.success || session === null || user === null) {
+      return context.json(
+        {
+          error: {
+            code: 'security.invalid_request',
+            message: 'Could not set password.',
+          },
+        },
+        400,
+      );
+    }
+
+    const result = await services.setAccountPassword({
+      newPassword: parsed.data.newPassword,
+      session,
+      userId: user.id,
+    });
+
+    if (result === 'verification-failed') {
+      return context.json(
+        {
+          error: {
+            code: 'security.identity_verification_failed',
+            message: 'Confirm your linked sign-in provider before setting a password.',
+          },
+        },
+        403,
+      );
+    }
+
+    if (result === 'already-set') {
+      return context.json(
+        {
+          error: {
+            code: 'security.password_already_set',
+            message: 'Password sign-in is already enabled.',
+          },
+        },
+        409,
+      );
+    }
+
+    if (result === 'password-too-short') {
+      return context.json(
+        {
+          error: {
+            code: 'security.password_too_short',
+            message: 'Password must be at least 8 characters.',
+          },
+        },
+        400,
+      );
+    }
+
+    if (result === 'password-too-long') {
+      return context.json(
+        {
+          error: {
+            code: 'security.password_too_long',
+            message: 'Password is too long.',
+          },
+        },
+        400,
+      );
+    }
+
+    return context.json({ status: true });
   });
 }

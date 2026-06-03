@@ -156,6 +156,10 @@ export function SettingsFlatRow({
   actions?: ReactNode;
   children?: ReactNode;
 }) {
+  const hasChildren = Array.isArray(children)
+    ? children.some(Boolean)
+    : Boolean(children);
+
   return (
     <Grid
       py={{ base: '5', lg: '6' }}
@@ -196,7 +200,7 @@ export function SettingsFlatRow({
           {actions}
         </Flex>
       ) : null}
-      {children ? (
+      {hasChildren ? (
         <Box gridColumn={{ base: '2', md: '2 / -1' }} minW="0" w="full">
           {children}
         </Box>

@@ -7,6 +7,7 @@ import { parseConfig } from '../config/config.js';
 import { createServer } from '../server/server.js';
 
 function createMockAuth() {
+  const hash = vi.fn(async (password: string) => `hashed:${password}`);
   const handler = vi.fn(
     async () =>
       new Response(JSON.stringify({ ok: true }), {
@@ -18,13 +19,24 @@ function createMockAuth() {
   const getSession = vi.fn(async () => null as unknown);
 
   const auth = {
+    $context: Promise.resolve({
+      appName: 'Arkivra',
+      password: {
+        config: {
+          maxPasswordLength: 128,
+          minPasswordLength: 8,
+        },
+        hash,
+      },
+      secretConfig: 'test-secret',
+    }),
     handler,
     api: {
       getSession,
     },
   } as unknown as Auth;
 
-  return { auth, handler, getSession };
+  return { auth, handler, getSession, hash };
 }
 
 const mockDb = {} as Database;
@@ -44,6 +56,39 @@ function createMockDbWithAccounts(accounts: Array<{ password: string | null; pro
       }),
     }),
   } as unknown as Database;
+}
+
+function createMockSensitiveActionDb(accounts: Array<{ id: string; password: string | null; providerId: string; userId: string }>) {
+  const insertValues = vi.fn(async () => undefined);
+  const updateWhere = vi.fn(async () => undefined);
+  const updateSet = vi.fn(() => ({ where: updateWhere }));
+
+  return {
+    db: {
+      insert: vi.fn(() => ({
+        values: insertValues,
+      })),
+      select: (selection?: unknown) => ({
+        from: () => ({
+          where: vi.fn(() => {
+            if (selection === undefined) {
+              return Promise.resolve(accounts);
+            }
+
+            return {
+              limit: vi.fn(async () => []),
+            };
+          }),
+        }),
+      }),
+      update: vi.fn(() => ({
+        set: updateSet,
+      })),
+    } as unknown as Database,
+    insertValues,
+    updateSet,
+    updateWhere,
+  };
 }
 const mockStorage = {
   write: vi.fn(),
@@ -229,5 +274,105 @@ describe('auth integration', () => {
         backupCodesUpdatedAt: null,
       },
     });
+  });
+
+  test('sets a password for a recently verified OAuth-only account', async () => {
+    const { config } = parseConfig({ env: {} });
+    const { auth, getSession, hash } = createMockAuth();
+    const { db, insertValues } = createMockSensitiveActionDb([
+      {
+        id: 'acc_google_1',
+        password: null,
+        providerId: 'google',
+        userId: 'usr_test_1',
+      },
+    ]);
+
+    getSession.mockResolvedValue({
+      user: {
+        email: 'alex@example.com',
+        id: 'usr_test_1',
+      },
+      session: {
+        id: 'ses_test_1',
+        updatedAt: new Date(),
+        userId: 'usr_test_1',
+      },
+    });
+
+    const { app } = createServer({
+      config,
+      auth,
+      db,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
+
+    const response = await app.request('/api/security/password/set', {
+      method: 'POST',
+      body: JSON.stringify({ newPassword: 'strongpass123' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: true });
+    expect(hash).toHaveBeenCalledWith('strongpass123');
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
+      accountId: 'usr_test_1',
+      password: 'hashed:strongpass123',
+      providerId: 'credential',
+      userId: 'usr_test_1',
+    }));
+  });
+
+  test('rejects setting a password when OAuth verification is stale', async () => {
+    const { config } = parseConfig({ env: {} });
+    const { auth, getSession, hash } = createMockAuth();
+    const { db, insertValues } = createMockSensitiveActionDb([
+      {
+        id: 'acc_google_1',
+        password: null,
+        providerId: 'google',
+        userId: 'usr_test_1',
+      },
+    ]);
+
+    getSession.mockResolvedValue({
+      user: {
+        email: 'alex@example.com',
+        id: 'usr_test_1',
+      },
+      session: {
+        id: 'ses_test_1',
+        updatedAt: new Date(Date.now() - 20 * 60 * 1000),
+        userId: 'usr_test_1',
+      },
+    });
+
+    const { app } = createServer({
+      config,
+      auth,
+      db,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
+
+    const response = await app.request('/api/security/password/set', {
+      method: 'POST',
+      body: JSON.stringify({ newPassword: 'strongpass123' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'security.identity_verification_failed',
+        message: 'Confirm your linked sign-in provider before setting a password.',
+      },
+    });
+    expect(hash).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
   });
 });

@@ -15,9 +15,12 @@ import {
   OAUTH_PROVIDERS,
   PENDING_EMAIL_CHANGE_KEY,
   PENDING_SENSITIVE_ACTION_KEY,
+  SET_PASSWORD_ACTION,
   getSensitiveActionVerificationMethod,
   requestEmailChange,
+  setAccountPassword,
 } from '@/features/security/sensitive-action-verification.types';
+import { ApiError } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { SettingsSessionsSection } from '../components/settings-sessions-section';
 import {
@@ -71,28 +74,12 @@ function getPendingEmailChange() {
   return sessionStorage.getItem(PENDING_EMAIL_CHANGE_KEY) ?? '';
 }
 
-async function setAccountPassword({ newPassword }: { newPassword: string }) {
-  const response = await fetch('/api/auth/set-password', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ newPassword }),
-  });
-
-  if (!response.ok) {
-    let message = `Could not set password.`;
-
-    try {
-      const json = await response.json() as { error?: { message?: string }; message?: string };
-      message = json.error?.message ?? json.message ?? message;
-    }
-    catch {
-    }
-
-    throw new Error(message);
+function hasPendingSetPassword() {
+  if (typeof sessionStorage === 'undefined') {
+    return false;
   }
+
+  return sessionStorage.getItem(PENDING_SENSITIVE_ACTION_KEY) === SET_PASSWORD_ACTION;
 }
 
 export function SecuritySettingsPage() {
@@ -106,12 +93,19 @@ export function SecuritySettingsPage() {
   const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(Boolean(pendingEmailChange));
   const [newEmail, setNewEmail] = useState(pendingEmailChange);
   const [password, setPassword] = useState('');
-  const [isSetPasswordOpen, setIsSetPasswordOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [changedPassword, setChangedPassword] = useState('');
+  const [confirmChangedPassword, setConfirmChangedPassword] = useState('');
+  const [isSetPasswordOpen, setIsSetPasswordOpen] = useState(hasPendingSetPassword);
   const [isSettingPassword, setIsSettingPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
   const [setPasswordError, setSetPasswordError] = useState<string | null>(null);
+  const [needsSetPasswordOAuthVerification, setNeedsSetPasswordOAuthVerification] = useState(false);
   const currentEmail = sessionData?.user.email ?? '';
 
   const emailChangeDescription = useMemo(() => {
@@ -184,6 +178,10 @@ export function SecuritySettingsPage() {
     setIsSetPasswordOpen(false);
     setNewPassword('');
     setConfirmPassword('');
+    setNeedsSetPasswordOAuthVerification(false);
+    if (sessionStorage.getItem(PENDING_SENSITIVE_ACTION_KEY) === SET_PASSWORD_ACTION) {
+      sessionStorage.removeItem(PENDING_SENSITIVE_ACTION_KEY);
+    }
     void meQuery.refetch();
   }
 
@@ -233,6 +231,7 @@ export function SecuritySettingsPage() {
   async function handleSetPasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSetPasswordError(null);
+    setNeedsSetPasswordOAuthVerification(false);
 
     try {
       if (newPassword.length < 8) {
@@ -248,10 +247,64 @@ export function SecuritySettingsPage() {
       handleSetPasswordSuccess();
     }
     catch (error) {
+      if (error instanceof ApiError && error.status === 403 && verificationMethod.type === 'oauth') {
+        setNeedsSetPasswordOAuthVerification(true);
+      }
+
       setSetPasswordError(error instanceof Error ? error.message : 'Could not set password.');
     }
     finally {
       setIsSettingPassword(false);
+    }
+  }
+
+  async function handleSetPasswordOAuthVerification() {
+    if (verificationMethod.type !== 'oauth') {
+      return;
+    }
+
+    sessionStorage.setItem(PENDING_SENSITIVE_ACTION_KEY, SET_PASSWORD_ACTION);
+    await authClient.signIn.social({
+      provider: verificationMethod.provider,
+      callbackURL: getSecurityCallbackURL(),
+    });
+  }
+
+  async function handleChangePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setChangePasswordError(null);
+
+    try {
+      if (changedPassword.length < 8) {
+        throw new Error('Password must be at least 8 characters.');
+      }
+
+      if (changedPassword !== confirmChangedPassword) {
+        throw new Error('Passwords do not match.');
+      }
+
+      setIsChangingPassword(true);
+      const { error } = await authClient.changePassword({
+        currentPassword,
+        newPassword: changedPassword,
+        revokeOtherSessions: false,
+      });
+
+      if (error) {
+        throw new Error(error.message ?? 'Could not change password.');
+      }
+
+      toast.success('Password updated.');
+      setIsChangePasswordOpen(false);
+      setCurrentPassword('');
+      setChangedPassword('');
+      setConfirmChangedPassword('');
+    }
+    catch (error) {
+      setChangePasswordError(error instanceof Error ? error.message : 'Could not change password.');
+    }
+    finally {
+      setIsChangingPassword(false);
     }
   }
 
@@ -273,8 +326,6 @@ export function SecuritySettingsPage() {
               ? 'Your account requires an authenticator code at sign-in.'
               : 'Add a second sign-in step to keep your account and documents secure.'}
             icon={<ShieldCheck size={21} strokeWidth={1.8} />}
-            iconBg="teal.subtle"
-            iconColor="teal.fg"
             actions={(
               <HStack gap="4" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
                 <SettingsStatusBadge density="compact" tone={isTwoFactorEnabled ? 'enabled' : 'warning'}>
@@ -297,7 +348,18 @@ export function SecuritySettingsPage() {
                   {hasPassword ? 'Enabled' : 'Inactive'}
                 </SettingsStatusBadge>
                 {hasPassword ? (
-                  settingsButtonLink(ROUTES.requestPasswordReset, 'Change password', 'outline')
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    minW={securityActionButtonMinWidth}
+                    onClick={() => {
+                      setIsChangePasswordOpen((open) => !open);
+                      setChangePasswordError(null);
+                    }}
+                  >
+                    Change password
+                  </Button>
                 ) : (
                   <Button
                     type="button"
@@ -307,6 +369,7 @@ export function SecuritySettingsPage() {
                     onClick={() => {
                       setIsSetPasswordOpen((open) => !open);
                       setSetPasswordError(null);
+                      setNeedsSetPasswordOAuthVerification(false);
                     }}
                   >
                     Set password
@@ -315,6 +378,126 @@ export function SecuritySettingsPage() {
               </HStack>
             )}
           >
+          {hasPassword && isChangePasswordOpen ? (
+            <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
+              <chakra.form onSubmit={handleChangePasswordSubmit}>
+                <Stack gap="3">
+                  <Stack gap="0.5">
+                    <Text fontSize="sm" fontWeight="medium" color="fg">
+                      Change password
+                    </Text>
+                    <Text textStyle="sm" color="fg.muted">
+                      Enter your current password and choose a new password for direct sign-in.
+                    </Text>
+                  </Stack>
+
+                  <Field maxW="md">
+                    <FieldLabel htmlFor="security-current-password">Current password</FieldLabel>
+                    <Input
+                      id="security-current-password"
+                      type="password"
+                      autoComplete="current-password"
+                      bg="bg.surface"
+                      borderColor="border"
+                      color="fg"
+                      required
+                      value={currentPassword}
+                      placeholder="Current password"
+                      _focusVisible={{
+                        borderColor: 'teal.solid',
+                        boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid)',
+                        outline: '2px solid',
+                        outlineColor: 'teal.focusRing',
+                        outlineOffset: '1px',
+                      }}
+                      _hover={{ borderColor: 'border.strong' }}
+                      _placeholder={{ color: 'fg.subtle' }}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </Field>
+
+                  <Field maxW="md">
+                    <FieldLabel htmlFor="security-change-new-password">New password</FieldLabel>
+                    <Input
+                      id="security-change-new-password"
+                      type="password"
+                      autoComplete="new-password"
+                      bg="bg.surface"
+                      borderColor="border"
+                      color="fg"
+                      required
+                      minLength={8}
+                      value={changedPassword}
+                      placeholder="Create a strong password"
+                      _focusVisible={{
+                        borderColor: 'teal.solid',
+                        boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid)',
+                        outline: '2px solid',
+                        outlineColor: 'teal.focusRing',
+                        outlineOffset: '1px',
+                      }}
+                      _hover={{ borderColor: 'border.strong' }}
+                      _placeholder={{ color: 'fg.subtle' }}
+                      onChange={(event) => setChangedPassword(event.target.value)}
+                    />
+                  </Field>
+
+                  <Field maxW="md">
+                    <FieldLabel htmlFor="security-change-confirm-password">Confirm password</FieldLabel>
+                    <Input
+                      id="security-change-confirm-password"
+                      type="password"
+                      autoComplete="new-password"
+                      bg="bg.surface"
+                      borderColor="border"
+                      color="fg"
+                      required
+                      minLength={8}
+                      value={confirmChangedPassword}
+                      placeholder="Repeat the new password"
+                      _focusVisible={{
+                        borderColor: 'teal.solid',
+                        boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid)',
+                        outline: '2px solid',
+                        outlineColor: 'teal.focusRing',
+                        outlineOffset: '1px',
+                      }}
+                      _hover={{ borderColor: 'border.strong' }}
+                      _placeholder={{ color: 'fg.subtle' }}
+                      onChange={(event) => setConfirmChangedPassword(event.target.value)}
+                    />
+                  </Field>
+
+                  {changePasswordError ? <FieldError>{changePasswordError}</FieldError> : null}
+
+                  <HStack justify="flex-end" gap="2.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setIsChangePasswordOpen(false);
+                        setChangePasswordError(null);
+                        setCurrentPassword('');
+                        setChangedPassword('');
+                        setConfirmChangedPassword('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      loading={isChangingPassword}
+                      loadingText="Updating password..."
+                    >
+                      Save
+                    </Button>
+                  </HStack>
+                </Stack>
+              </chakra.form>
+            </Box>
+          ) : null}
           {!hasPassword && isSetPasswordOpen ? (
             <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
               <chakra.form onSubmit={handleSetPasswordSubmit}>
@@ -390,12 +573,26 @@ export function SecuritySettingsPage() {
                       onClick={() => {
                         setIsSetPasswordOpen(false);
                         setSetPasswordError(null);
+                        setNeedsSetPasswordOAuthVerification(false);
                         setNewPassword('');
                         setConfirmPassword('');
+                        if (sessionStorage.getItem(PENDING_SENSITIVE_ACTION_KEY) === SET_PASSWORD_ACTION) {
+                          sessionStorage.removeItem(PENDING_SENSITIVE_ACTION_KEY);
+                        }
                       }}
                     >
                       Cancel
                     </Button>
+                    {needsSetPasswordOAuthVerification && verificationMethod.type === 'oauth' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSetPasswordOAuthVerification}
+                      >
+                        Continue with {OAUTH_PROVIDERS[verificationMethod.provider].label}
+                      </Button>
+                    ) : null}
                     <Button
                       type="submit"
                       size="sm"
@@ -415,8 +612,6 @@ export function SecuritySettingsPage() {
             title="Email verification"
             description={isEmailVerified ? 'Your primary email is verified.' : sessionData?.user.email ?? 'No email address available.'}
             icon={<Mail size={21} strokeWidth={1.8} />}
-            iconBg="teal.subtle"
-            iconColor="teal.fg"
             actions={(
               <HStack gap="4" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
                 <SettingsStatusBadge density="compact" tone={isEmailVerified ? 'verified' : 'warning'}>

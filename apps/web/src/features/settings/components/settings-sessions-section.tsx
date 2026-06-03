@@ -98,7 +98,7 @@ function sortSessions(sessions: AuthSessionSummary[], currentSessionId: string |
   });
 }
 
-export function SettingsSessionsSection() {
+export function SettingsSessionsSection({ rowVariant = 'divided' }: { rowVariant?: 'divided' | 'card' } = {}) {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
   const sessionClient = authClient as SessionManagementClient;
@@ -173,6 +173,7 @@ export function SettingsSessionsSection() {
       title="Sessions"
       description={`You're currently signed in on ${visibleSessionCount} ${visibleSessionCount === 1 ? 'device' : 'devices'}.`}
       icon={<Laptop size={21} strokeWidth={1.8} />}
+      variant={rowVariant}
       actions={(
         <Button
           type="button"

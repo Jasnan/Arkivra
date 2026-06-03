@@ -35,6 +35,9 @@ const authClientMock = vi.hoisted(() => ({
   signIn: {
     social: vi.fn(),
   },
+  twoFactor: {
+    verifyTotp: vi.fn(),
+  },
   signOut: vi.fn(),
   listSessions: vi.fn(),
   revokeSession: vi.fn(),
@@ -176,6 +179,7 @@ describe('settings, admin, and about pages', () => {
     authClientMock.sendVerificationEmail.mockResolvedValue({ error: null });
     authClientMock.changePassword.mockResolvedValue({ error: null });
     authClientMock.signIn.social.mockResolvedValue({ error: null });
+    authClientMock.twoFactor.verifyTotp.mockResolvedValue({ error: null });
     authClientMock.signOut.mockResolvedValue({ error: null });
     authClientMock.listSessions.mockResolvedValue({
       data: [
@@ -688,7 +692,7 @@ describe('settings, admin, and about pages', () => {
     await user.click(await screen.findByRole('button', { name: /^change email$/i }));
     await user.type(screen.getByLabelText(/new email/i), 'new@example.com');
     await user.type(screen.getByLabelText(/current password/i), 'secret123');
-    await user.click(screen.getByRole('button', { name: /^request$/i }));
+    await user.click(screen.getByRole('button', { name: /^send confirmation email$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/security/email/change', expect.objectContaining({
@@ -735,7 +739,7 @@ describe('settings, admin, and about pages', () => {
     expect(screen.getByText(/set a password before changing your arkivra email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/new email/i)).toBeDisabled();
     expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^request$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^send confirmation email$/i })).toBeDisabled();
     expect(authClientMock.signIn.social).not.toHaveBeenCalled();
   });
 
@@ -1333,8 +1337,20 @@ describe('settings, admin, and about pages', () => {
     expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').showExtractedTextTab).toBe(true);
   });
 
-  it('links to the dedicated 2FA management page from settings', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  it('starts 2FA setup inline from security settings', async () => {
+    const user = userEvent.setup();
+    authClientMock.useSession.mockReturnValue({
+      data: {
+        user: {
+          name: 'Alex',
+          email: 'alex@example.com',
+          emailVerified: true,
+          twoFactorEnabled: false,
+        },
+      },
+      isPending: false,
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
@@ -1345,6 +1361,18 @@ describe('settings, admin, and about pages', () => {
           systemCapabilities: [],
           isAdmin: false,
           canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: [],
+            primaryOAuthProvider: null,
+          },
+        });
+      }
+
+      if (url === '/api/security/two-factor/setup' && init?.method === 'POST') {
+        return jsonResponse({
+          totpURI: 'otpauth://totp/Arkivra?secret=ABC123&issuer=Arkivra',
+          backupCodes: ['backup-1', 'backup-2'],
         });
       }
 
@@ -1352,12 +1380,41 @@ describe('settings, admin, and about pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<SecuritySettingsPage />);
+    await renderWithProviders(<SecuritySettingsPage />, {
+      initialEntries: ['/settings/security'],
+      routePath: '/settings/security',
+    });
 
-    expect(await screen.findByRole('link', { name: /manage 2fa/i })).toHaveAttribute(
-      'href',
-      '/settings/security/two-factor/manage',
+    await user.click(await screen.findByRole('button', { name: /enable 2fa/i }));
+    expect(screen.queryByRole('link', { name: /enable 2fa/i })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/^current password$/i), 'secret123');
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    expect(await screen.findByLabelText(/authenticator setup qr code/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/manual setup key/i)).toHaveValue('ABC123');
+    expect(screen.getByLabelText(/enter 6-digit code/i)).toBeInTheDocument();
+    expect(screen.queryByText('backup-1')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/security/two-factor/setup', expect.objectContaining({
+      body: JSON.stringify({ password: 'secret123' }),
+      method: 'POST',
+    }));
+
+    const codeInputs = screen.getAllByRole('textbox').filter(input =>
+      input.getAttribute('aria-label') !== 'Manual setup key',
     );
+    await user.type(codeInputs[0], '123456');
+    await user.click(screen.getByRole('button', { name: /verify and continue/i }));
+
+    expect(authClientMock.twoFactor.verifyTotp).toHaveBeenCalledWith({ code: '123456' });
+    expect(await screen.findByText(/save your backup codes/i)).toBeInTheDocument();
+    expect(screen.getByText('backup-1')).toBeInTheDocument();
+    expect(screen.getByText('backup-2')).toBeInTheDocument();
+    expect(screen.getAllByText(/backup codes/i).length).toBeGreaterThan(1);
+
+    await user.click(screen.getByRole('button', { name: /^done$/i }));
+
+    expect(await screen.findByText(/two-factor authentication enabled/i)).toBeInTheDocument();
   });
 
   it('renders 2FA management without exposing existing backup codes', async () => {

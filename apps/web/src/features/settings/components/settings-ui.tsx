@@ -129,11 +129,17 @@ export function SettingsRows({
 
 export function SettingsFlatRows({
   children,
+  variant = 'divided',
 }: {
   children: ReactNode;
+  variant?: 'divided' | 'cards';
 }) {
   return (
-    <Stack gap="0" divideY="1px" divideColor="border.muted">
+    <Stack
+      gap={variant === 'cards' ? '3' : '0'}
+      divideY={variant === 'cards' ? undefined : '1px'}
+      divideColor="border.muted"
+    >
       {children}
     </Stack>
   );
@@ -147,6 +153,7 @@ export function SettingsFlatRow({
   iconBg = 'bg.muted',
   iconColor = 'fg.muted',
   title,
+  variant = 'divided',
 }: {
   title: ReactNode;
   description?: ReactNode;
@@ -155,17 +162,25 @@ export function SettingsFlatRow({
   iconColor?: string;
   actions?: ReactNode;
   children?: ReactNode;
+  variant?: 'divided' | 'card';
 }) {
   const hasChildren = Array.isArray(children)
     ? children.some(Boolean)
     : Boolean(children);
+  const isCard = variant === 'card';
 
   return (
     <Grid
-      py={{ base: '5', lg: '6' }}
+      py={isCard ? { base: '4', lg: '4' } : { base: '5', lg: '6' }}
+      px={isCard ? { base: '4', lg: '5' } : undefined}
       gap={{ base: '3', md: '4', lg: '5' }}
       templateColumns={{ base: '3rem minmax(0, 1fr)', md: '4rem minmax(0, 1fr) auto' }}
       alignItems="start"
+      rounded={isCard ? 'md' : undefined}
+      borderWidth={isCard ? '1px' : undefined}
+      borderColor={isCard ? 'border.surface' : undefined}
+      bg={isCard ? 'bg.surface' : undefined}
+      shadow={isCard ? 'xs' : undefined}
     >
       <Flex
         boxSize="10"
@@ -184,9 +199,15 @@ export function SettingsFlatRow({
           {title}
         </Text>
         {description ? (
-          <Text textStyle="sm" color="fg.muted" maxW="2xl">
-            {description}
-          </Text>
+          typeof description === 'string' ? (
+            <Text textStyle="sm" color="fg.muted" maxW="2xl">
+              {description}
+            </Text>
+          ) : (
+            <Box textStyle="sm" color="fg.muted" maxW="2xl">
+              {description}
+            </Box>
+          )
         ) : null}
       </Stack>
       {actions ? (
@@ -201,7 +222,7 @@ export function SettingsFlatRow({
         </Flex>
       ) : null}
       {hasChildren ? (
-        <Box gridColumn={{ base: '2', md: '2 / -1' }} minW="0" w="full">
+        <Box gridColumn={{ base: '1 / -1', md: '2 / -1' }} minW="0" w="full">
           {children}
         </Box>
       ) : null}

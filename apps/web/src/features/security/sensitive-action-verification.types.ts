@@ -104,6 +104,14 @@ export async function linkOAuthAccount({
   });
 }
 
+export async function unlinkOAuthAccount({ provider }: { provider: OAuthProviderId }) {
+  return fetchJson<{ status: boolean }>('/api/security/oauth/unlink', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ provider }),
+  });
+}
+
 export async function changeAccountPassword({
   currentPassword,
   newPassword,

@@ -1,13 +1,11 @@
 import type React from 'react';
 import type { ComponentType, FormEventHandler, PropsWithChildren, ReactNode } from 'react';
-import { useState } from 'react';
 import {
   Box,
   Flex,
   Grid,
   Heading,
   Icon,
-  IconButton,
   Separator,
   Stack,
   Text,
@@ -21,6 +19,7 @@ import googleBrandSvg from '@/assets/brand-google.svg?raw';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 
 type AuthIcon = ComponentType<LucideProps>;
 
@@ -232,31 +231,43 @@ export function AuthField({
 
 type AuthPasswordFieldProps = Omit<AuthFieldProps, 'type' | 'icon' | 'rightElement'>;
 
-export function AuthPasswordField(props: AuthPasswordFieldProps) {
-  const [isVisible, setIsVisible] = useState(false);
-
+export function AuthPasswordField({
+  id,
+  label,
+  error,
+  pe,
+  className,
+  ...props
+}: AuthPasswordFieldProps) {
   return (
-    <AuthField
-      type={isVisible ? 'text' : 'password'}
-      pe="3.75rem"
-      rightElement={(
-        <IconButton
-          aria-label={isVisible ? 'Hide password' : 'Show password'}
-          variant="ghost"
-          size="sm"
-          color="fg.subtle"
-          rounded="full"
-          onClick={() => setIsVisible((value) => !value)}
-          _hover={{ bg: 'auth.fieldHover', color: 'fg' }}
-          _focusVisible={{
-            boxShadow: '0 0 0 3px var(--chakra-colors-teal-focus-ring)',
-          }}
-        >
-          {isVisible ? <EyeOff size={20} /> : <Eye size={20} />}
-        </IconButton>
-      )}
-      {...props}
-    />
+    <Field display="grid" gap="2">
+      <FieldLabel htmlFor={id} fontSize="sm" fontWeight="750">
+        {label}
+      </FieldLabel>
+      <PasswordInput
+        id={id}
+        className={['arkivra-auth-input', className].filter(Boolean).join(' ')}
+        h="11"
+        minH="11"
+        rounded="authControl"
+        borderColor={error ? 'fg.error' : 'auth.fieldBorder'}
+        bg="auth.field"
+        px={{ base: '5', md: '6' }}
+        pe={pe ?? '3.75rem'}
+        color="fg"
+        fontSize="sm"
+        visibilityIcon={{ on: <Eye size={20} />, off: <EyeOff size={20} /> }}
+        _placeholder={{ color: 'fg.subtle' }}
+        _hover={{ bg: 'auth.fieldHover', borderColor: error ? 'fg.error' : 'border.strong' }}
+        _focusVisible={{
+          borderColor: 'teal.hover',
+          boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid), 0 0 0 4px var(--chakra-colors-teal-focus-ring)',
+          outline: 'none',
+        }}
+        {...props}
+      />
+      {error ? <FieldError>{error}</FieldError> : null}
+    </Field>
   );
 }
 

@@ -32,6 +32,9 @@ const authClientMock = vi.hoisted(() => ({
   changeEmail: vi.fn(),
   sendVerificationEmail: vi.fn(),
   changePassword: vi.fn(),
+  signIn: {
+    social: vi.fn(),
+  },
   signOut: vi.fn(),
   listSessions: vi.fn(),
   revokeSession: vi.fn(),
@@ -155,6 +158,7 @@ function StaleServerPreferenceControls({ resolveServerPreferences }: { resolveSe
 describe('settings, admin, and about pages', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    sessionStorage.clear();
     installLocalStorageMock();
     authClientMock.useSession.mockReturnValue({
       data: {
@@ -171,6 +175,7 @@ describe('settings, admin, and about pages', () => {
     authClientMock.changeEmail.mockResolvedValue({ error: null });
     authClientMock.sendVerificationEmail.mockResolvedValue({ error: null });
     authClientMock.changePassword.mockResolvedValue({ error: null });
+    authClientMock.signIn.social.mockResolvedValue({ error: null });
     authClientMock.signOut.mockResolvedValue({ error: null });
     authClientMock.listSessions.mockResolvedValue({
       data: [
@@ -210,7 +215,7 @@ describe('settings, admin, and about pages', () => {
         });
       }
 
-      if (url === '/api/auth/set-password' && init?.method === 'POST') {
+      if (url === '/api/security/password/set' && init?.method === 'POST') {
         return jsonResponse({ status: true });
       }
 
@@ -479,7 +484,7 @@ describe('settings, admin, and about pages', () => {
 
   it('sets a password inline for OAuth-only accounts', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
@@ -496,6 +501,10 @@ describe('settings, admin, and about pages', () => {
             primaryOAuthProvider: 'github',
           },
         });
+      }
+
+      if (url === '/api/security/password/set' && init?.method === 'POST') {
+        return jsonResponse({ status: true });
       }
 
       throw new Error(`Unhandled request ${url}`);
@@ -516,18 +525,126 @@ describe('settings, admin, and about pages', () => {
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/set-password', expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/security/password/set', expect.anything());
 
     await user.clear(screen.getByLabelText(/^confirm password$/i));
     await user.type(screen.getByLabelText(/^confirm password$/i), 'strongpass123');
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/auth/set-password', expect.objectContaining({
+      expect(fetchMock).toHaveBeenCalledWith('/api/security/password/set', expect.objectContaining({
         body: JSON.stringify({ newPassword: 'strongpass123' }),
         credentials: 'include',
         method: 'POST',
       }));
+    });
+  });
+
+  it('prompts OAuth-only users to re-confirm their provider before setting a password', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: false,
+            oauthProviders: ['google'],
+            primaryOAuthProvider: 'google',
+          },
+        });
+      }
+
+      if (url === '/api/security/password/set' && init?.method === 'POST') {
+        return jsonResponse({
+          error: {
+            code: 'security.identity_verification_failed',
+            message: 'Confirm your linked sign-in provider before setting a password.',
+          },
+        }, 403);
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />, {
+      initialEntries: ['/settings/security'],
+      routePath: '/settings/security',
+    });
+
+    await user.click(await screen.findByRole('button', { name: /^set password$/i }));
+    await user.type(screen.getByLabelText(/^new password$/i), 'strongpass123');
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'strongpass123');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await user.click(await screen.findByRole('button', { name: /continue with google/i }));
+
+    expect(authClientMock.signIn.social).toHaveBeenCalledWith({
+      provider: 'google',
+      callbackURL: 'http://localhost:3000/settings/security',
+    });
+    expect(sessionStorage.getItem('arkivra.pendingSensitiveAction')).toBe('set-password');
+  });
+
+  it('changes an existing password inline from security settings', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: ['google'],
+            primaryOAuthProvider: 'google',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />, {
+      initialEntries: ['/settings/security'],
+      routePath: '/settings/security',
+    });
+
+    expect(await screen.findByRole('button', { name: /^change password$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^change password$/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^change password$/i }));
+    await user.type(screen.getByLabelText(/^current password$/i), 'oldpass123');
+    await user.type(screen.getByLabelText(/^new password$/i), 'newpass123');
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'different123');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
+    expect(authClientMock.changePassword).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText(/^confirm password$/i));
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'newpass123');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(authClientMock.changePassword).toHaveBeenCalledWith({
+        currentPassword: 'oldpass123',
+        newPassword: 'newpass123',
+        revokeOtherSessions: false,
+      });
     });
   });
 

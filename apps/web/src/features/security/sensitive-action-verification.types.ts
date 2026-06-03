@@ -24,6 +24,7 @@ export const TWO_FACTOR_REPLACE_AUTHENTICATOR_ACTION = 'two-factor-replace-authe
 export const TWO_FACTOR_REGENERATE_CODES_ACTION = 'two-factor-regenerate-codes';
 export const TWO_FACTOR_DISABLE_ACTION = 'two-factor-disable';
 export const EMAIL_CHANGE_ACTION = 'email-change';
+export const SET_PASSWORD_ACTION = 'set-password';
 export const PENDING_EMAIL_CHANGE_KEY = 'arkivra.pendingEmailChange';
 
 function isKnownOAuthProvider(provider: string | null | undefined): provider is OAuthProviderId {
@@ -84,5 +85,13 @@ export async function requestEmailChange({
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ callbackURL, newEmail, password }),
+  });
+}
+
+export async function setAccountPassword({ newPassword }: { newPassword: string }) {
+  return fetchJson<{ status: boolean }>('/api/security/password/set', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ newPassword }),
   });
 }

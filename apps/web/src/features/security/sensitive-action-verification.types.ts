@@ -88,6 +88,36 @@ export async function requestEmailChange({
   });
 }
 
+export async function linkOAuthAccount({
+  callbackURL,
+  password,
+  provider,
+}: {
+  callbackURL?: string;
+  password: string;
+  provider: OAuthProviderId;
+}) {
+  return fetchJson<{ redirect: boolean; status?: boolean; url?: string }>('/api/security/oauth/link', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ callbackURL, password, provider }),
+  });
+}
+
+export async function changeAccountPassword({
+  currentPassword,
+  newPassword,
+}: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  return fetchJson<{ status: boolean }>('/api/security/password/change', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
 export async function setAccountPassword({ newPassword }: { newPassword: string }) {
   return fetchJson<{ status: boolean }>('/api/security/password/set', {
     method: 'POST',

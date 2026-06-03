@@ -287,7 +287,7 @@ describe('settings, admin, and about pages', () => {
   });
 
   it('allows a regular user to access account settings without admin access', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url === '/api/me') {
@@ -304,6 +304,10 @@ describe('settings, admin, and about pages', () => {
             primaryOAuthProvider: 'google',
           },
         });
+      }
+
+      if (url === '/api/security/password/change' && init?.method === 'POST') {
+        return jsonResponse({ status: true });
       }
 
       throw new Error(`Unhandled request ${url}`);
@@ -633,18 +637,20 @@ describe('settings, admin, and about pages', () => {
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
-    expect(authClientMock.changePassword).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/security/password/change', expect.anything());
 
     await user.clear(screen.getByLabelText(/^confirm password$/i));
     await user.type(screen.getByLabelText(/^confirm password$/i), 'newpass123');
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(authClientMock.changePassword).toHaveBeenCalledWith({
-        currentPassword: 'oldpass123',
-        newPassword: 'newpass123',
-        revokeOtherSessions: false,
-      });
+      expect(fetchMock).toHaveBeenCalledWith('/api/security/password/change', expect.objectContaining({
+        body: JSON.stringify({
+          currentPassword: 'oldpass123',
+          newPassword: 'newpass123',
+        }),
+        method: 'POST',
+      }));
     });
   });
 
@@ -690,6 +696,91 @@ describe('settings, admin, and about pages', () => {
           callbackURL: 'http://localhost:3000/settings/security',
           newEmail: 'new@example.com',
           password: 'secret123',
+        }),
+        method: 'POST',
+      }));
+    });
+  });
+
+  it('requires OAuth-only users to set a password before changing email', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: false,
+            oauthProviders: ['google'],
+            primaryOAuthProvider: 'google',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    authClientMock.signIn.social.mockClear();
+
+    await renderWithProviders(<SecuritySettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /^change email$/i }));
+
+    expect(screen.getByText(/set a password before changing your arkivra email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/new email/i)).toBeDisabled();
+    expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^request$/i })).toBeDisabled();
+    expect(authClientMock.signIn.social).not.toHaveBeenCalled();
+  });
+
+  it('connects an OAuth provider from security settings after password confirmation', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: ['google'],
+            primaryOAuthProvider: 'google',
+          },
+        });
+      }
+
+      if (url === '/api/security/oauth/link' && init?.method === 'POST') {
+        return jsonResponse({ redirect: false, status: true });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />);
+
+    const connectButton = await screen.findByRole('button', { name: /^connect$/i });
+    await user.click(connectButton);
+    await user.type(screen.getByLabelText(/current password/i), 'secret123');
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/security/oauth/link', expect.objectContaining({
+        body: JSON.stringify({
+          callbackURL: 'http://localhost:3000/settings/security',
+          password: 'secret123',
+          provider: 'github',
         }),
         method: 'POST',
       }));

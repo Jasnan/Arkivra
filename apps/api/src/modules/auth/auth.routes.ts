@@ -3,20 +3,74 @@ import type { AuthorizationServices } from '../authorization/authorization.servi
 import type { Config } from '../config/config.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { Auth } from './auth.services.js';
+import type { createAuditServices } from '../audit/audit.services.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
+
+function getAuditRequestContext(request: Request) {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+
+  return {
+    ipAddress: request.headers.get('cf-connecting-ip')
+      ?? request.headers.get('x-real-ip')
+      ?? forwardedFor?.split(',')[0]?.trim()
+      ?? null,
+    userAgent: request.headers.get('user-agent') ?? null,
+    requestId: request.headers.get('x-request-id') ?? request.headers.get('x-correlation-id') ?? null,
+  };
+}
 
 export function registerAuthRoutes({
   app,
   auth,
+  auditServices,
   authorizationServices,
   config,
 }: {
   app: Hono<ServerContext>;
   auth: Auth;
+  auditServices?: ReturnType<typeof createAuditServices>;
   authorizationServices: AuthorizationServices;
   config: Config;
 }) {
   // Better Auth handles all /api/auth/* routes (signup, login, logout, session, 2FA, etc.)
   const handleAuthRequest = async (context: Parameters<typeof app.on>[2] extends (...args: infer A) => any ? A[0] : never) => {
+    if (context.req.path === '/api/auth/link-social') {
+      const sessionData = await auth.api.getSession({ headers: context.req.raw.headers }).catch(() => null);
+
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.authSensitiveActionDenied,
+        eventCategory: 'auth',
+        severity: 'warning',
+        outcome: 'denied',
+        actor: {
+          id: sessionData?.user.id ?? null,
+          type: sessionData?.user.id ? 'user' : 'unknown',
+          displayName: sessionData?.user.name?.trim() || sessionData?.user.email?.trim() || null,
+        },
+        target: {
+          type: 'user',
+          id: sessionData?.user.id ?? null,
+          displayName: sessionData?.user.name?.trim() || sessionData?.user.email?.trim() || null,
+        },
+        source: 'api',
+        requestContext: getAuditRequestContext(context.req.raw),
+        metadata: {
+          action: 'oauth.link',
+          reason: 'direct_auth_endpoint_blocked',
+        },
+      }).catch(error => console.error('Failed to write blocked OAuth link audit event', error));
+
+      return context.json(
+        {
+          error: {
+            code: 'security.use_sensitive_action_route',
+            message: 'Connect sign-in providers from Security settings.',
+          },
+        },
+        403,
+      );
+    }
+
     if (context.req.path === '/api/auth/sign-up/email' && context.req.method === 'POST') {
       const body = await context.req.raw.clone().json().catch(() => ({})) as {
         email?: unknown;

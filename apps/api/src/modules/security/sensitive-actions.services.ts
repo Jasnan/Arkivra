@@ -7,8 +7,10 @@ import { authAccountsTable, authTwoFactorTable, usersTable } from '../database/s
 
 const RECENT_OAUTH_REAUTH_MS = 10 * 60 * 1000;
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const LINKABLE_OAUTH_PROVIDERS = ['github', 'google'] as const;
 
 type AuthAccount = typeof authAccountsTable.$inferSelect;
+export type LinkableOAuthProvider = typeof LINKABLE_OAUTH_PROVIDERS[number];
 
 function getSessionAgeMs(session: Session) {
   const sessionWithTimestamps = session as Session & {
@@ -323,35 +325,147 @@ export function createSensitiveActionServices({
     headers,
     newEmail,
     password,
-    session,
     userId,
   }: {
     callbackURL?: string;
     headers: Headers;
     newEmail: string;
     password?: string;
-    session: Session;
     userId: string;
   }) {
     const accounts = await listAuthAccounts({ userId });
-    const verified = await verifySensitiveAction({
-      accounts,
+    const credentialAccount = accounts.find(account => account.providerId === 'credential' && account.password);
+
+    if (!credentialAccount?.password) {
+      return 'password-unavailable' as const;
+    }
+
+    if (!password) {
+      return 'verification-failed' as const;
+    }
+
+    const authContext = await auth.$context;
+    const verified = await authContext.password.verify({
+      hash: credentialAccount.password,
       password,
-      session,
-      userId,
     });
 
     if (!verified) {
-      return null;
+      return 'verification-failed' as const;
+    }
+
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    const [existingUser] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, normalizedEmail))
+      .limit(1);
+
+    if (existingUser && existingUser.id !== userId) {
+      return 'email-in-use' as const;
     }
 
     return auth.api.changeEmail({
       body: {
         callbackURL,
-        newEmail,
+        newEmail: normalizedEmail,
       },
       headers,
     });
+  }
+
+  async function linkOAuthAccount({
+    callbackURL,
+    headers,
+    password,
+    provider,
+    userId,
+  }: {
+    callbackURL?: string;
+    headers: Headers;
+    password: string;
+    provider: LinkableOAuthProvider;
+    userId: string;
+  }) {
+    const accounts = await listAuthAccounts({ userId });
+
+    if (accounts.some(account => account.providerId === provider)) {
+      return 'already-linked' as const;
+    }
+
+    const credentialAccount = accounts.find(account => account.providerId === 'credential' && account.password);
+
+    if (!credentialAccount?.password) {
+      return 'password-unavailable' as const;
+    }
+
+    const authContext = await auth.$context;
+    const verified = await authContext.password.verify({
+      hash: credentialAccount.password,
+      password,
+    });
+
+    if (!verified) {
+      return 'verification-failed' as const;
+    }
+
+    return auth.api.linkSocialAccount({
+      body: {
+        callbackURL,
+        provider,
+      },
+      headers,
+    });
+  }
+
+  async function changeAccountPassword({
+    currentPassword,
+    newPassword,
+    userId,
+  }: {
+    currentPassword: string;
+    newPassword: string;
+    userId: string;
+  }) {
+    const accounts = await listAuthAccounts({ userId });
+    const credentialAccount = accounts.find(account => account.providerId === 'credential' && account.password);
+
+    if (!credentialAccount?.password) {
+      return 'password-unavailable' as const;
+    }
+
+    const authContext = await auth.$context;
+    const minPasswordLength = authContext.password.config.minPasswordLength;
+    const maxPasswordLength = authContext.password.config.maxPasswordLength;
+
+    if (newPassword.length < minPasswordLength) {
+      return 'password-too-short' as const;
+    }
+
+    if (newPassword.length > maxPasswordLength) {
+      return 'password-too-long' as const;
+    }
+
+    const verified = await authContext.password.verify({
+      hash: credentialAccount.password,
+      password: currentPassword,
+    });
+
+    if (!verified) {
+      return 'verification-failed' as const;
+    }
+
+    const passwordHash = await authContext.password.hash(newPassword);
+
+    await db
+      .update(authAccountsTable)
+      .set({
+        password: passwordHash,
+        updatedAt: new Date(),
+      })
+      .where(eq(authAccountsTable.id, credentialAccount.id));
+
+    return 'success' as const;
   }
 
   async function setAccountPassword({
@@ -417,8 +531,10 @@ export function createSensitiveActionServices({
   }
 
   return {
+    changeAccountPassword,
     disableTwoFactor,
     getTwoFactorSummary,
+    linkOAuthAccount,
     listAuthAccounts,
     regenerateBackupCodes,
     requestEmailChange,

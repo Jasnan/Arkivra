@@ -1,4 +1,4 @@
-import type { ComponentProps, FormEvent } from 'react';
+import type { FormEvent } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -9,7 +9,6 @@ import {
   QrCode,
   Separator,
   Stack,
-  Steps,
   Text,
   VStack,
   chakra,
@@ -33,13 +32,7 @@ import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { OtpCodeInput } from '@/features/auth/components/otp-code-input';
@@ -51,18 +44,22 @@ import {
   getSensitiveActionVerificationMethod,
   startTwoFactorSensitiveSetup,
 } from '@/features/security/sensitive-action-verification.types';
-import {
-  SensitiveActionVerificationStep,
-} from '@/features/security/sensitive-action-verification';
+import { SensitiveActionVerificationStep } from '@/features/security/sensitive-action-verification';
 import { authClient } from '@/lib/auth-client';
 
 const TOTP_SECRET_REGEX = /secret=([^&]+)/;
-const STEPS = ['Verify identity', 'Scan QR code', 'Confirm code'] as const;
+const STEPS = [
+  { number: 1, title: 'Verify identity' },
+  { number: 2, title: 'Scan QR code' },
+  { number: 3, title: 'Confirm code' },
+] as const;
 type SetupStep = 'identity' | 'scan' | 'confirm' | 'success';
 type SetupMode = 'setup' | 'replace';
 
 function getSetupMode(): SetupMode {
-  return new URLSearchParams(window.location.search).get('mode') === 'replace' ? 'replace' : 'setup';
+  return new URLSearchParams(window.location.search).get('mode') === 'replace'
+    ? 'replace'
+    : 'setup';
 }
 
 function getSetupModeFromSearch(search: Record<string, unknown>): SetupMode {
@@ -91,8 +88,7 @@ async function copyText(value: string, successMessage: string) {
   try {
     await navigator.clipboard.writeText(value);
     toast.success(successMessage);
-  }
-  catch {
+  } catch {
     toast.error('Could not copy to clipboard.');
   }
 }
@@ -109,98 +105,85 @@ function downloadBackupCodes(codes: string[]) {
     link.click();
     URL.revokeObjectURL(url);
     toast.success('Backup codes downloaded.');
-  }
-  catch {
+  } catch {
     toast.error('Could not download backup codes.');
   }
 }
 
-function WizardStepper({ step }: { step: SetupStep }) {
-  const currentIndex = getStepIndex(step);
+function WorkflowStepper({ step }: { step: SetupStep }) {
+  const currentIndex = Math.min(getStepIndex(step), STEPS.length - 1);
 
   return (
-    <Steps.Root
-      aria-label="Two-factor setup progress"
-      colorPalette="teal"
-      count={STEPS.length}
-      size="sm"
-      step={currentIndex}
-      variant="solid"
-    >
-      <Steps.List gap={{ base: '3', md: '5' }}>
-        {STEPS.map((title, index) => (
-          <Steps.Item key={title} index={index} title={title}>
-            <Steps.Indicator>
-              <Steps.Status complete={<Check size={15} />} incomplete={<Steps.Number />} />
-            </Steps.Indicator>
-            <Box display={{ base: index === currentIndex ? 'block' : 'none', sm: 'block' }}>
-              <Steps.Title>{`${index + 1}. ${title}`}</Steps.Title>
-              <Steps.Description>{getStepStatus(index, step)}</Steps.Description>
-            </Box>
-            <Steps.Separator />
-          </Steps.Item>
-        ))}
-      </Steps.List>
-    </Steps.Root>
-  );
-}
+    <Box aria-label="Two-factor setup progress" role="list" w="100%" overflowX="auto" pb="1">
+      <HStack minW={{ base: '640px', md: '0' }} align="flex-start" gap="0">
+        {STEPS.map(({ number, title }, index) => {
+          const isCompleted = step === 'success' || index < currentIndex;
+          const isCurrent = step !== 'success' && index === currentIndex;
+          const circleBg = isCompleted ? 'teal.solid' : isCurrent ? 'teal.subtle' : 'bg.surface';
+          const circleBorder = isCompleted || isCurrent ? 'teal.solid' : 'border.surface';
+          const circleColor = isCompleted ? 'fg.inverted' : isCurrent ? 'teal.fg' : 'fg.muted';
+          const lineColor = isCompleted ? 'teal.solid' : 'border.surface';
+          const status = getStepStatus(index, step);
 
-function WizardSidebarSteps({
-  isReplaceMode,
-  step,
-}: {
-  isReplaceMode: boolean;
-  step: SetupStep;
-}) {
-  const currentIndex = getStepIndex(step);
-
-  return (
-    <Stack gap="5">
-      <Stack gap="1">
-        <Text fontSize="sm" fontWeight="semibold" color="fg">
-          {isReplaceMode ? 'Reconnect authenticator' : 'Set up 2FA'}
-        </Text>
-        <Text fontSize="xs" color="fg.muted">
-          Complete each step to secure this account.
-        </Text>
-      </Stack>
-
-      <Steps.Root
-        aria-label="Two-factor setup steps"
-        colorPalette="teal"
-        count={STEPS.length}
-        height="400px"
-        orientation="vertical"
-        size="sm"
-        step={currentIndex}
-        variant="solid"
-      >
-        <Steps.List gap="0">
-          {STEPS.map((title, index) => (
-            <Steps.Item key={title} index={index} title={title}>
-              <Steps.Indicator>
-                <Steps.Status complete={<Check size={15} />} incomplete={<Steps.Number />} />
-              </Steps.Indicator>
-              <Box minW="0">
-                <Steps.Title>{title}</Steps.Title>
-                <Steps.Description>{getStepStatus(index, step)}</Steps.Description>
+          return (
+            <HStack
+              key={title}
+              role="listitem"
+              flex={index === STEPS.length - 1 ? '0 0 auto' : '1 1 0'}
+              align="flex-start"
+              gap="3"
+              minW="0"
+            >
+              <Flex
+                boxSize={{ base: '8', md: '9' }}
+                align="center"
+                justify="center"
+                rounded="full"
+                borderWidth="2px"
+                borderColor={circleBorder}
+                bg={circleBg}
+                color={circleColor}
+                flexShrink="0"
+                fontSize="sm"
+                fontWeight="semibold"
+              >
+                {number}
+              </Flex>
+              <Box minW="0" pt="0.5">
+                <Text
+                  fontSize={{ base: 'sm', md: 'md' }}
+                  fontWeight="semibold"
+                  color={isCurrent || isCompleted ? 'fg' : 'fg.muted'}
+                  lineHeight="1.2"
+                >
+                  {title}
+                </Text>
+                <Text
+                  fontSize="sm"
+                  color={isCompleted ? 'teal.fg' : isCurrent ? 'fg.muted' : 'fg.subtle'}
+                >
+                  {status}
+                </Text>
               </Box>
-              <Steps.Separator />
-            </Steps.Item>
-          ))}
-        </Steps.List>
-      </Steps.Root>
-    </Stack>
+              {index < STEPS.length - 1 ? (
+                <Box
+                  h="1px"
+                  flex="1"
+                  minW="8"
+                  bg={lineColor}
+                  mt={{ base: '4', md: '4.5' }}
+                  mx={{ base: '2', md: '4' }}
+                />
+              ) : null}
+            </HStack>
+          );
+        })}
+      </HStack>
+    </Box>
   );
 }
 
-function SectionHeading({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
     <Stack gap="1">
       <Text fontSize="lg" fontWeight="semibold" color="fg">
@@ -210,19 +193,6 @@ function SectionHeading({
         {description}
       </Text>
     </Stack>
-  );
-}
-
-function Panel(props: ComponentProps<typeof Box>) {
-  return (
-    <Box
-      borderWidth="1px"
-      borderColor="border.surface"
-      bg="bg.surface"
-      rounded="md"
-      p={{ base: '4', md: '5' }}
-      {...props}
-    />
   );
 }
 
@@ -243,13 +213,10 @@ export function TwoFactorSetupPage() {
   const [totpUri, setTotpUri] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const verificationMethod = getSensitiveActionVerificationMethod(meQuery.data?.authMethods);
-  const displayedErrorMessage = errorMessage ?? (meQuery.isError ? 'Could not load your sign-in methods.' : null);
-  const setupSidebarSteps = useMemo(
-    () => <WizardSidebarSteps isReplaceMode={isReplaceMode} step={currentStep} />,
-    [currentStep, isReplaceMode],
-  );
+  const displayedErrorMessage =
+    errorMessage ?? (meQuery.isError ? 'Could not load your sign-in methods.' : null);
 
-  useWorkspaceSecondary(setupSidebarSteps);
+  useWorkspaceSecondary(null);
 
   const secret = useMemo(() => {
     if (!totpUri) return null;
@@ -274,11 +241,9 @@ export function TwoFactorSetupPage() {
       setBackupCodes(data?.backupCodes ?? []);
       setCurrentStep('scan');
       sessionStorage.removeItem(PENDING_SENSITIVE_ACTION_KEY);
-    }
-    catch (error) {
+    } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not prepare 2FA.');
-    }
-    finally {
+    } finally {
       setIsEnabling(false);
     }
   }, []);
@@ -320,7 +285,7 @@ export function TwoFactorSetupPage() {
   }
 
   return (
-    <Box w="100%" maxW="860px" mx="auto" pt={{ base: '3', md: '6' }} pb={{ base: '4', md: '8' }}>
+    <Box w="100%" maxW="6xl" mx="auto" pt={{ base: '3', md: '6' }} pb={{ base: '4', md: '8' }}>
       <Card rounded="md" shadow="sm" p={{ base: '5', md: '7' }}>
         <CardHeader px="0" pb="5">
           <Flex align={{ base: 'flex-start', sm: 'center' }} gap="4">
@@ -352,6 +317,9 @@ export function TwoFactorSetupPage() {
 
         <CardContent px="0" pb="0">
           <Stack gap={{ base: '5', md: '6' }}>
+            <WorkflowStepper step={currentStep} />
+            <Separator />
+
             {isReplaceMode ? (
               <Alert
                 display="flex"
@@ -365,15 +333,12 @@ export function TwoFactorSetupPage() {
                 <Stack gap="1">
                   <AlertTitle>Replacing your current authenticator</AlertTitle>
                   <AlertDescription color="orange.800">
-                    Your previous authenticator app will stop working after the new setup key is created.
+                    Your previous authenticator app will stop working after the new setup key is
+                    created.
                   </AlertDescription>
                 </Stack>
               </Alert>
             ) : null}
-            <Box display={{ base: 'block', md: 'none' }}>
-              <WizardStepper step={currentStep} />
-            </Box>
-            <Separator />
 
             {currentStep === 'identity' ? (
               <SensitiveActionVerificationStep
@@ -451,145 +416,152 @@ function ScanStep({
 
   return (
     <Stack gap="4">
-      <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap="4" alignItems="stretch">
-        <Panel h="full" minH={{ md: '430px' }}>
-          <VStack align="stretch" gap="5" h="full">
-            <SectionHeading
-              title="Scan this QR code"
-              description={isReplaceMode
+      <Grid
+        templateColumns={{ base: '1fr', md: 'minmax(0, 1fr) minmax(280px, 0.9fr)' }}
+        gap={{ base: '6', md: '9' }}
+        alignItems="start"
+      >
+        <VStack align="stretch" gap="5" h="full">
+          <SectionHeading
+            title="Scan this QR code"
+            description={
+              isReplaceMode
                 ? 'Open your new authenticator app and scan the QR code below.'
-                : 'Open your authenticator app and scan the QR code below.'}
-            />
+                : 'Open your authenticator app and scan the QR code below.'
+            }
+          />
 
-            <Flex justify="center" align="center" flex="1" minH={{ md: '220px' }}>
-              <Box
-                aria-label="Authenticator setup QR code"
-                bg="white"
-                borderWidth="1px"
-                borderColor="border.surface"
-                rounded="md"
-                p={{ base: '3', sm: '4' }}
-                role="img"
-                shadow="xs"
-              >
-                <QrCode.Root value={totpUri} size="2xl" encoding={{ ecc: 'M' }}>
-                  <QrCode.Frame style={{ fill: '#000000' }}>
-                    <QrCode.Pattern />
-                  </QrCode.Frame>
-                </QrCode.Root>
-              </Box>
-            </Flex>
-
-            <Collapsible.Root
-              lazyMount
-              open={isManualKeyOpen}
-              unmountOnExit
-              onOpenChange={(event) => setIsManualKeyOpen(event.open)}
+          <Flex justify="center" align="center" flex="1" minH={{ md: '220px' }}>
+            <Box
+              aria-label="Authenticator setup QR code"
+              bg="white"
+              borderWidth="1px"
+              borderColor="border.surface"
+              rounded="md"
+              p={{ base: '3', sm: '4' }}
+              role="img"
+              shadow="xs"
             >
-              <HStack gap="3" color="fg.subtle">
-                <Separator flex="1" />
-                <Collapsible.Trigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    colorPalette="teal"
-                    size="sm"
-                    onClick={() => setIsManualKeyOpen(!isManualKeyOpen)}
-                  >
-                    Can't scan?
-                    <Box
-                      as={ChevronDown}
-                      boxSize="4"
-                      transition="transform 0.18s ease"
-                      transform={isManualKeyOpen ? 'rotate(180deg)' : undefined}
-                    />
-                  </Button>
-                </Collapsible.Trigger>
-                <Separator flex="1" />
-              </HStack>
+              <QrCode.Root value={totpUri} size="2xl" encoding={{ ecc: 'M' }}>
+                <QrCode.Frame style={{ fill: '#000000' }}>
+                  <QrCode.Pattern />
+                </QrCode.Frame>
+              </QrCode.Root>
+            </Box>
+          </Flex>
 
-              <Collapsible.Content>
-                <Box
-                  borderWidth="1px"
-                  borderColor="border.surface"
-                  bg="bg.subtle"
-                  rounded="md"
-                  p="4"
-                  mt="1"
+          <Collapsible.Root
+            lazyMount
+            open={isManualKeyOpen}
+            unmountOnExit
+            onOpenChange={(event) => setIsManualKeyOpen(event.open)}
+          >
+            <HStack gap="3" color="fg.subtle">
+              <Separator flex="1" />
+              <Collapsible.Trigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  colorPalette="teal"
+                  size="sm"
+                  onClick={() => setIsManualKeyOpen(!isManualKeyOpen)}
                 >
-                  <VStack align="stretch" gap="4">
-                    <SectionHeading
-                      title="Setup key (for manual entry)"
-                      description="Use this key if you can't scan the QR code."
+                  Can't scan?
+                  <Box
+                    as={ChevronDown}
+                    boxSize="4"
+                    transition="transform 0.18s ease"
+                    transform={isManualKeyOpen ? 'rotate(180deg)' : undefined}
+                  />
+                </Button>
+              </Collapsible.Trigger>
+              <Separator flex="1" />
+            </HStack>
+
+            <Collapsible.Content>
+              <Box bg="bg.subtle" rounded="md" p="4" mt="1">
+                <VStack align="stretch" gap="4">
+                  <SectionHeading
+                    title="Setup key (for manual entry)"
+                    description="Use this key if you can't scan the QR code."
+                  />
+
+                  <HStack align="stretch" gap="2">
+                    <Input
+                      value={setupKey}
+                      readOnly
+                      aria-label="Setup key"
+                      fontFamily="mono"
+                      fontSize="sm"
+                      minW="0"
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      flexShrink="0"
+                      onClick={() => copyText(setupKey, 'Setup key copied.')}
+                    >
+                      <ClipboardCopy size={16} />
+                      Copy
+                    </Button>
+                  </HStack>
 
-                    <HStack align="stretch" gap="2">
-                      <Input
-                        value={setupKey}
-                        readOnly
-                        aria-label="Setup key"
-                        fontFamily="mono"
-                        fontSize="sm"
-                        minW="0"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        flexShrink="0"
-                        onClick={() => copyText(setupKey, 'Setup key copied.')}
-                      >
-                        <ClipboardCopy size={16} />
-                        Copy
-                      </Button>
-                    </HStack>
+                  <Text fontSize="xs" color="fg.subtle">
+                    Keep this key secret. Anyone with this key can access your account.
+                  </Text>
+                </VStack>
+              </Box>
+            </Collapsible.Content>
+          </Collapsible.Root>
+        </VStack>
 
-                    <Text fontSize="xs" color="fg.subtle">
-                      Keep this key secret. Anyone with this key can access your account.
-                    </Text>
-                  </VStack>
-                </Box>
-              </Collapsible.Content>
-            </Collapsible.Root>
-          </VStack>
-        </Panel>
+        <VStack align="stretch" gap="5" h="full">
+          <SectionHeading
+            title={isReplaceMode ? 'New backup codes' : 'Backup codes'}
+            description="Save these codes now. You will not be able to view them again after leaving this screen, and each code can only be used once."
+          />
 
-        <Panel h="full" minH={{ md: '430px' }}>
-          <VStack align="stretch" gap="5" h="full">
-            <SectionHeading
-              title={isReplaceMode ? 'New backup codes' : 'Backup codes'}
-              description="Save these codes now. You will not be able to view them again after leaving this screen, and each code can only be used once."
-            />
+          <Grid
+            templateColumns={{ base: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }}
+            gap="2"
+            alignContent="start"
+          >
+            {backupCodes.map((item) => (
+              <Badge
+                key={item}
+                variant="secondary"
+                colorPalette="gray"
+                justifyContent="center"
+                px="3"
+                py="2"
+                rounded="md"
+                fontFamily="mono"
+                fontSize="sm"
+              >
+                {item}
+              </Badge>
+            ))}
+          </Grid>
 
-            <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }} gap="2" alignContent="start">
-              {backupCodes.map((item) => (
-                <Badge
-                  key={item}
-                  variant="secondary"
-                  colorPalette="gray"
-                  justifyContent="center"
-                  px="3"
-                  py="2"
-                  rounded="md"
-                  fontFamily="mono"
-                  fontSize="sm"
-                >
-                  {item}
-                </Badge>
-              ))}
-            </Grid>
-
-            <Grid templateColumns="1fr" gap="2" mt={{ md: 'auto' }}>
-              <Button type="button" variant="outline" onClick={() => downloadBackupCodes(backupCodes)}>
-                <Download size={16} />
-                Download TXT
-              </Button>
-              <Button type="button" variant="outline" onClick={() => copyText(backupText, 'Backup codes copied.')}>
-                <ClipboardCopy size={16} />
-                Copy all codes
-              </Button>
-            </Grid>
-          </VStack>
-        </Panel>
+          <Grid templateColumns="1fr" gap="2" mt={{ md: 'auto' }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => downloadBackupCodes(backupCodes)}
+            >
+              <Download size={16} />
+              Download TXT
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => copyText(backupText, 'Backup codes copied.')}
+            >
+              <ClipboardCopy size={16} />
+              Copy all codes
+            </Button>
+          </Grid>
+        </VStack>
       </Grid>
 
       <Separator />
@@ -662,7 +634,11 @@ function ConfirmStep({
               Cancel
             </Button>
           </HStack>
-          <Button type="submit" loading={isVerifying} loadingText={isReplaceMode ? 'Reconnecting...' : 'Enabling...'}>
+          <Button
+            type="submit"
+            loading={isVerifying}
+            loadingText={isReplaceMode ? 'Reconnecting...' : 'Enabling...'}
+          >
             {isReplaceMode ? 'Reconnect' : 'Enable 2FA'}
           </Button>
         </HStack>
@@ -698,19 +674,17 @@ function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
         </Stack>
       </VStack>
 
-      <VStack
-        align="stretch"
-        gap="5"
-        maxW="2xl"
-        mx="auto"
-        w="100%"
-        borderWidth="1px"
-        borderColor="border.surface"
-        rounded="md"
-        p={{ base: '4', md: '5' }}
-      >
+      <VStack align="stretch" gap="5" maxW="2xl" mx="auto" w="100%">
         <HStack align="flex-start" gap="4">
-          <Flex boxSize="12" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg" flexShrink="0">
+          <Flex
+            boxSize="12"
+            align="center"
+            justify="center"
+            rounded="full"
+            bg="teal.subtle"
+            color="teal.fg"
+            flexShrink="0"
+          >
             <Smartphone size={22} />
           </Flex>
           <Stack gap="1">
@@ -728,7 +702,15 @@ function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
         <Separator />
 
         <HStack align="flex-start" gap="4">
-          <Flex boxSize="12" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg" flexShrink="0">
+          <Flex
+            boxSize="12"
+            align="center"
+            justify="center"
+            rounded="full"
+            bg="teal.subtle"
+            color="teal.fg"
+            flexShrink="0"
+          >
             <KeyRound size={22} />
           </Flex>
           <Stack gap="1">
@@ -741,16 +723,7 @@ function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
           </Stack>
         </HStack>
 
-        <HStack
-          align="flex-start"
-          gap="3"
-          borderWidth="1px"
-          borderColor="teal.muted"
-          bg="teal.subtle"
-          color="fg"
-          rounded="md"
-          p="4"
-        >
+        <HStack align="flex-start" gap="3" bg="teal.subtle" color="fg" rounded="md" p="4">
           <ShieldCheck size={22} color="var(--chakra-colors-teal-fg)" />
           <Stack gap="1">
             <Text fontSize="sm" fontWeight="medium">

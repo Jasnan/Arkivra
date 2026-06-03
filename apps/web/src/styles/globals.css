@@ -249,6 +249,16 @@ table {
   transition: background-color 9999s ease-in-out 0s;
 }
 
+.arkivra-password-input:not(.arkivra-auth-input):-webkit-autofill,
+.arkivra-password-input:not(.arkivra-auth-input):-webkit-autofill:hover,
+.arkivra-password-input:not(.arkivra-auth-input):-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--chakra-colors-fg);
+  caret-color: var(--chakra-colors-fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--chakra-colors-bg-surface) inset;
+  box-shadow: 0 0 0 1000px var(--chakra-colors-bg-surface) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 .arkivra-auth-link {
   outline: none;
   transition: color 160ms ease, opacity 160ms ease;

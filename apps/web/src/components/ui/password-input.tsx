@@ -47,6 +47,7 @@ function VisibilityTrigger({ ref, ...props }: VisibilityTriggerProps) {
 }
 
 export function PasswordInput({
+  className,
   defaultVisible,
   ref,
   rootProps,
@@ -80,6 +81,7 @@ export function PasswordInput({
       {...rootProps}
     >
       <Input
+        className={['arkivra-password-input', className].filter(Boolean).join(' ')}
         ref={mergeRefs(ref, inputRef)}
         type={visible ? 'text' : 'password'}
         {...props}

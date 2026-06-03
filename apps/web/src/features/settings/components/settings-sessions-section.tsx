@@ -199,7 +199,7 @@ export function SettingsSessionsSection({ rowVariant = 'divided' }: { rowVariant
               <Box key={session.id} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
                 <Flex align="center" justify="space-between" gap="3">
                   <HStack gap="2.5" minW="0">
-                    <Flex boxSize="8" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
+                    <Flex boxSize="8" align="center" justify="center" rounded="md" bg="bg.muted" color="fg.muted" flexShrink={0}>
                       <Laptop size={16} />
                     </Flex>
                     <Stack gap="0.5" minW="0">
@@ -242,7 +242,7 @@ export function SettingsSessionsSection({ rowVariant = 'divided' }: { rowVariant
           <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
             <Flex align="center" justify="space-between" gap="3">
               <HStack gap="2.5" minW="0">
-                <Flex boxSize="8" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
+                <Flex boxSize="8" align="center" justify="center" rounded="md" bg="bg.muted" color="fg.muted" flexShrink={0}>
                   <Laptop size={16} />
                 </Flex>
                 <Stack gap="0.5" minW="0">

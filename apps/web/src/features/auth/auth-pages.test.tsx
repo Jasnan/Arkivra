@@ -320,7 +320,7 @@ describe('auth pages', () => {
     expect(screen.queryByRole('img', { name: /authenticator setup qr code/i })).not.toBeInTheDocument();
   });
 
-  it('publishes vertical setup steps for the settings secondary sidebar', async () => {
+  it('renders integrated setup progress and clears the settings secondary sidebar', async () => {
     const setHeaderConfig = vi.fn();
     const setSecondaryContent = vi.fn();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -357,21 +357,17 @@ describe('auth pages', () => {
     );
 
     await waitFor(() => {
-      expect(setSecondaryContent).toHaveBeenCalledWith(expect.anything());
+      expect(setSecondaryContent).toHaveBeenCalledWith(null);
     });
 
-    const sidebarContent = setSecondaryContent.mock.calls.find(([content]) => content !== null)?.[0];
-    expect(sidebarContent).toBeTruthy();
+    const setupSteps = screen.getByRole('list', { name: /two-factor setup progress/i });
 
-    const sidebarRender = await renderWithProviders(sidebarContent);
-    const setupSteps = sidebarRender.container.querySelector('[aria-label="Two-factor setup steps"]');
-
-    expect(setupSteps).toHaveAttribute('data-orientation', 'vertical');
+    expect(setupSteps.querySelectorAll('[role="listitem"]')).toHaveLength(3);
     expect(screen.getAllByText('Verify identity').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Scan QR code').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Confirm code').length).toBeGreaterThan(0);
-
-    sidebarRender.unmount();
+    expect(screen.getByText('In progress')).toBeInTheDocument();
+    expect(screen.getAllByText('Pending')).toHaveLength(2);
   });
 
   it('accepts backup codes on the verification page', async () => {

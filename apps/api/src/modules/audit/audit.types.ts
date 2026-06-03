@@ -34,6 +34,7 @@ export const AUDIT_EVENT_TYPES = {
   authEmailChanged: 'auth.email_changed',
   authOAuthLinkRequested: 'auth.oauth_link_requested',
   authOAuthLinked: 'auth.oauth_linked',
+  authOAuthUnlinked: 'auth.oauth_unlinked',
   authSensitiveActionDenied: 'auth.sensitive_action_denied',
   aiFeaturesToggled: 'ai.features_toggled',
   aiChatModelChanged: 'ai.chat_model_changed',

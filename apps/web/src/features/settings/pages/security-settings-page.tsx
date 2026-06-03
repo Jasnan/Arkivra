@@ -1,6 +1,6 @@
-import type { ChangeEvent, FormEvent, ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import type { OAuthProviderId, SensitiveActionVerificationMethod } from '@/features/security/sensitive-action-verification.types';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Clipboard,
@@ -23,8 +23,6 @@ import {
   ChevronRight,
   ChevronUp,
   ClipboardCopy,
-  Eye,
-  EyeOff,
   Info,
   KeyRound,
   Link2,
@@ -34,10 +32,13 @@ import {
   ShieldOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import githubBrandSvg from '@/assets/brand-github.svg?raw';
+import googleBrandSvg from '@/assets/brand-google.svg?raw';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { PasswordInput, PasswordStrengthMeter } from '@/components/ui/password-input';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import { SensitiveActionVerificationStep } from '@/features/security/sensitive-action-verification';
 import {
@@ -56,6 +57,7 @@ import {
   requestEmailChange,
   setAccountPassword,
   startTwoFactorSensitiveSetup,
+  unlinkOAuthAccount,
 } from '@/features/security/sensitive-action-verification.types';
 import { ApiError } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
@@ -80,18 +82,15 @@ const TWO_FACTOR_SETUP_STEPS = [
   { number: 3, title: 'Confirm code' },
   { number: 4, title: 'Backup codes' },
 ] as const;
+const OAUTH_PROVIDER_MARKS: Record<OAuthProviderId, string> = {
+  github: githubBrandSvg,
+  google: googleBrandSvg,
+};
 type TwoFactorSetupStep = 'identity' | 'scan' | 'confirm' | 'codes' | 'success';
-const passwordInputStyleProps = {
+const securityInputStyleProps = {
   bg: 'bg.surface',
   borderColor: 'border',
   color: 'fg',
-  _focusVisible: {
-    borderColor: 'teal.solid',
-    boxShadow: '0 0 0 1px var(--chakra-colors-teal-solid)',
-    outline: '2px solid',
-    outlineColor: 'teal.focusRing',
-    outlineOffset: '1px',
-  },
   _hover: { borderColor: 'border.strong' },
   _placeholder: { color: 'fg.subtle' },
 } as const;
@@ -119,58 +118,6 @@ async function copyText(value: string, successMessage: string) {
   catch {
     toast.error('Could not copy to clipboard.');
   }
-}
-
-function PasswordRevealInput({
-  autoComplete,
-  id,
-  minLength,
-  onChange,
-  placeholder,
-  required = false,
-  value,
-}: {
-  id: string;
-  autoComplete: string;
-  minLength?: number;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  placeholder: string;
-  required?: boolean;
-  value: string;
-}) {
-  const [isVisible, setIsVisible] = useState(false);
-
-  return (
-    <InputGroup
-      endElement={(
-        <IconButton
-          type="button"
-          aria-label={isVisible ? 'Hide password' : 'Show password'}
-          variant="ghost"
-          size="xs"
-          me="-2"
-          onClick={() => setIsVisible(visible => !visible)}
-        >
-          {isVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-        </IconButton>
-      )}
-    >
-      <ChakraInput
-        id={id}
-        type={isVisible ? 'text' : 'password'}
-        autoComplete={autoComplete}
-        required={required}
-        minLength={minLength}
-        value={value}
-        placeholder={placeholder}
-        onChange={onChange}
-        h="var(--arkivra-controlHeight, 2.5rem)"
-        minH="var(--arkivra-controlHeight, 2.5rem)"
-        px="var(--arkivra-controlPaddingX, 0.75rem)"
-        {...passwordInputStyleProps}
-      />
-    </InputGroup>
-  );
 }
 
 function hasPendingSetPassword() {
@@ -663,7 +610,7 @@ function TwoFactorSetupPanel({
                       h="var(--arkivra-controlHeight, 2.5rem)"
                       minH="var(--arkivra-controlHeight, 2.5rem)"
                       px="var(--arkivra-controlPaddingX, 0.75rem)"
-                      {...passwordInputStyleProps}
+                      {...securityInputStyleProps}
                     />
                   </Clipboard.Input>
                 </InputGroup>
@@ -700,7 +647,7 @@ function TwoFactorSetupPanel({
                       borderColor="border"
                       color="fg"
                       fontWeight="semibold"
-                      _hover={{ borderColor: 'border.strong' }}
+                      _hover={securityInputStyleProps._hover}
                     />
                   ))}
                 </PinInput.Control>
@@ -1063,59 +1010,214 @@ function ConnectedSignInSettingsRow({
   hasPassword: boolean;
   oauthProviders: string[];
 }) {
+  const queryClient = useQueryClient();
+  const [isManageConnectionsOpen, setIsManageConnectionsOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<OAuthProviderId | null>(null);
   const connectedProviders = new Set(oauthProviders);
   const linkableProviders = Object.keys(OAUTH_PROVIDERS) as OAuthProviderId[];
-  const hasMissingProvider = linkableProviders.some(provider => !connectedProviders.has(provider));
+  const connectedOAuthProviders = linkableProviders.filter(provider => connectedProviders.has(provider));
+  const isConnectionsOpen = isManageConnectionsOpen || selectedProvider !== null;
+  const disconnectMutation = useMutation({
+    mutationFn: unlinkOAuthAccount,
+    onSuccess: async (_result, { provider }) => {
+      setSelectedProvider(null);
+      toast.success(`${OAUTH_PROVIDERS[provider].label} is disconnected.`);
+      await queryClient.invalidateQueries({ queryKey: meQueryKeys.all });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not disconnect sign-in provider.');
+    },
+  });
+
+  function handleManageConnectionsToggle() {
+    setIsManageConnectionsOpen((open) => {
+      if (open) {
+        setSelectedProvider(null);
+      }
+
+      return !open;
+    });
+  }
 
   return (
     <SettingsFlatRow
       title="Connected sign-in"
-      description={hasPassword
-        ? 'Connect Google or GitHub from this signed-in account.'
-        : 'Set a password before connecting another sign-in provider.'}
+      description="Add trusted sign-in providers to your account. You can continue using your password at any time."
       icon={<Link2 size={21} strokeWidth={1.8} />}
       variant="card"
       actions={(
-        <HStack gap="3" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
-          {linkableProviders.map((provider) => {
-            const isConnected = connectedProviders.has(provider);
-
-            return (
-              <HStack key={provider} gap="2">
-                <SettingsStatusBadge density="compact" tone={isConnected ? 'enabled' : 'inactive'}>
-                  {OAUTH_PROVIDERS[provider].label}
-                </SettingsStatusBadge>
-                {!isConnected ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={!hasPassword}
-                    onClick={() => setSelectedProvider(provider)}
-                  >
-                    Connect
-                  </Button>
-                ) : null}
-              </HStack>
-            );
-          })}
-        </HStack>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          minW={securityActionButtonMinWidth}
+          onClick={handleManageConnectionsToggle}
+        >
+          Manage connections
+          {isConnectionsOpen ? <ChevronUp size={16} /> : <ChevronRight size={16} />}
+        </Button>
       )}
     >
-      {selectedProvider && hasPassword ? (
+      {isConnectionsOpen ? (
         <InlineSecurityPanel>
-          <LinkOAuthProviderForm
-            provider={selectedProvider}
-            onCancel={() => setSelectedProvider(null)}
-          />
+          <Stack gap="4">
+            <Box rounded="md" borderWidth="1px" borderColor="border" bg="bg.surface" overflow="hidden">
+              <Stack gap="0" divideY="1px" divideColor="border.surface">
+                {linkableProviders.map((provider) => {
+                  const isConnected = connectedProviders.has(provider);
+                  const canDisconnect = isConnected && (hasPassword || connectedOAuthProviders.some(other => other !== provider));
+                  const isSelected = selectedProvider === provider;
+
+                  return (
+                    <Fragment key={provider}>
+                      <ConnectedSignInProviderRow
+                        provider={provider}
+                        isConnected={isConnected}
+                        isSelected={isSelected}
+                        canConnect={hasPassword}
+                        canDisconnect={canDisconnect}
+                        isDisconnecting={disconnectMutation.isPending && disconnectMutation.variables?.provider === provider}
+                        onConnect={() => setSelectedProvider(isSelected ? null : provider)}
+                        onDisconnect={() => disconnectMutation.mutate({ provider })}
+                      />
+                      {isSelected && hasPassword ? (
+                        <LinkOAuthProviderForm
+                          provider={provider}
+                          onCancel={() => setSelectedProvider(null)}
+                        />
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </Stack>
+            </Box>
+
+            {!hasPassword ? (
+              <Text textStyle="sm" color="fg.muted">
+                Set a password before connecting another sign-in provider.
+              </Text>
+            ) : null}
+          </Stack>
         </InlineSecurityPanel>
-      ) : !hasMissingProvider ? (
-        <Text textStyle="sm" color="fg.muted">
-          All configured sign-in providers are connected.
-        </Text>
       ) : null}
     </SettingsFlatRow>
+  );
+}
+
+function ConnectedSignInProviderRow({
+  canDisconnect,
+  canConnect,
+  isDisconnecting,
+  isConnected,
+  isSelected,
+  onConnect,
+  onDisconnect,
+  provider,
+}: {
+  canDisconnect: boolean;
+  canConnect: boolean;
+  isDisconnecting: boolean;
+  isConnected: boolean;
+  isSelected: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  provider: OAuthProviderId;
+}) {
+  const providerLabel = OAUTH_PROVIDERS[provider].label;
+
+  return (
+    <Flex
+      align={{ base: 'flex-start', md: 'center' }}
+      gap={{ base: '3', md: '4' }}
+      px={{ base: '4', md: '5' }}
+      py="4"
+      direction={{ base: 'column', sm: 'row' }}
+    >
+      <HStack gap="4" flex="1" minW="0" align="center">
+        <Flex
+          boxSize="12"
+          rounded="md"
+          borderWidth="1px"
+          borderColor="border"
+          align="center"
+          justify="center"
+          color="fg"
+          bg="bg.surface"
+          flexShrink={0}
+        >
+          <OAuthProviderMark svg={OAUTH_PROVIDER_MARKS[provider]} label={providerLabel} />
+        </Flex>
+        <Stack gap="0.5" minW="0">
+          <Text fontWeight="750" color="fg">
+            {providerLabel}
+          </Text>
+          <Text textStyle="sm" color="fg.muted">
+            {isConnected ? 'Connected to your Arkivra account.' : 'Not connected'}
+          </Text>
+        </Stack>
+      </HStack>
+
+      <HStack
+        gap="3"
+        w={{ base: '100%', sm: 'auto' }}
+        justify={{ base: 'space-between', sm: 'flex-end' }}
+        flexShrink={0}
+      >
+        {isConnected ? (
+          <HStack color="teal.fg" gap="2" fontWeight="650">
+            <Check size={16} strokeWidth={2} />
+            <Text textStyle="sm">Connected</Text>
+          </HStack>
+        ) : null}
+        {isConnected && canDisconnect ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            minW="8rem"
+            loading={isDisconnecting}
+            loadingText="Disconnecting..."
+            onClick={onDisconnect}
+          >
+            Disconnect
+          </Button>
+        ) : null}
+        {!isConnected ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            minW="7.5rem"
+            disabled={!canConnect}
+            onClick={onConnect}
+          >
+            Connect
+            {isSelected ? <ChevronUp size={16} /> : <ChevronRight size={16} />}
+          </Button>
+        ) : null}
+      </HStack>
+    </Flex>
+  );
+}
+
+function OAuthProviderMark({ label, svg }: { label: string; svg: string }) {
+  return (
+    <chakra.span
+      aria-label={`${label} mark`}
+      role="img"
+      display="inline-block"
+      boxSize="7"
+      lineHeight="0"
+      css={{
+        '& svg': {
+          display: 'block',
+          height: '100%',
+          width: '100%',
+        },
+      }}
+      // eslint-disable-next-line react-dom/no-dangerously-set-innerhtml -- Local provider mark SVG assets are rendered inline.
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   );
 }
 
@@ -1161,27 +1263,43 @@ function LinkOAuthProviderForm({
   }
 
   return (
-    <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
+    <Box bg="bg.subtle" px={{ base: '4', md: '5' }} py={{ base: '4', md: '5' }}>
       <chakra.form onSubmit={handleSubmit}>
-        <Stack gap="3">
-          <Stack gap="0.5">
-            <Text fontSize="sm" fontWeight="medium" color="fg">
-              Connect {providerLabel}
-            </Text>
-            <Text textStyle="sm" color="fg.muted">
-              Enter your current password before connecting this provider.
-            </Text>
-          </Stack>
+        <Stack gap="4">
+          <Flex align="flex-start" justify="space-between" gap="3">
+            <Stack gap="1">
+              <Text fontSize="md" fontWeight="750" color="fg">
+                Connect {providerLabel}
+              </Text>
+              <Text textStyle="sm" color="fg.muted">
+                Enter your current password before connecting this provider.
+              </Text>
+            </Stack>
+            <IconButton
+              type="button"
+              size="xs"
+              variant="ghost"
+              aria-label={`Collapse ${providerLabel} connection form`}
+              onClick={() => {
+                onCancel();
+                setErrorMessage(null);
+                setPassword('');
+              }}
+            >
+              <ChevronUp size={16} />
+            </IconButton>
+          </Flex>
 
           <Field maxW="md">
             <FieldLabel htmlFor={`security-link-${provider}-password`}>Current password</FieldLabel>
-            <PasswordRevealInput
+            <PasswordInput
               id={`security-link-${provider}-password`}
               autoComplete="current-password"
               required
               value={password}
               placeholder="Current password"
               onChange={(event) => setPassword(event.target.value)}
+              {...securityInputStyleProps}
             />
           </Field>
 
@@ -1228,7 +1346,6 @@ function getPasswordRequirements(value: string) {
 function PasswordRequirements({ value }: { value: string }) {
   const requirements = getPasswordRequirements(value);
   const metCount = requirements.filter(item => item.met).length;
-  const strengthLabel = metCount >= 5 ? 'Strong' : metCount >= 3 ? 'Good' : metCount >= 1 ? 'Weak' : 'Not started';
 
   return (
     <Stack gap="5">
@@ -1254,20 +1371,7 @@ function PasswordRequirements({ value }: { value: string }) {
         <Text fontSize="sm" fontWeight="semibold" color="fg">
           Password strength
         </Text>
-        <HStack gap="1">
-          {[0, 1, 2, 3].map(index => (
-            <Box
-              key={index}
-              h="1.5"
-              flex="1"
-              rounded="full"
-              bg={index < Math.min(4, metCount) ? 'teal.solid' : 'bg.muted'}
-            />
-          ))}
-        </HStack>
-        <Text textStyle="sm" color={metCount >= 3 ? 'teal.fg' : 'fg.muted'}>
-          {strengthLabel}
-        </Text>
+        <PasswordStrengthMeter align="flex-start" value={Math.min(4, metCount)} />
       </Stack>
     </Stack>
   );
@@ -1333,19 +1437,20 @@ function ChangePasswordForm({ onCancel }: { onCancel: () => void }) {
 
           <Field>
             <FieldLabel htmlFor="security-current-password">Current password</FieldLabel>
-            <PasswordRevealInput
+            <PasswordInput
               id="security-current-password"
               autoComplete="current-password"
               required
               value={currentPassword}
               placeholder="Current password"
               onChange={(event) => setCurrentPassword(event.target.value)}
+              {...securityInputStyleProps}
             />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="security-change-new-password">New password</FieldLabel>
-            <PasswordRevealInput
+            <PasswordInput
               id="security-change-new-password"
               autoComplete="new-password"
               required
@@ -1353,12 +1458,13 @@ function ChangePasswordForm({ onCancel }: { onCancel: () => void }) {
               value={changedPassword}
               placeholder="Create a strong password"
               onChange={(event) => setChangedPassword(event.target.value)}
+              {...securityInputStyleProps}
             />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="security-change-confirm-password">Confirm password</FieldLabel>
-            <PasswordRevealInput
+            <PasswordInput
               id="security-change-confirm-password"
               autoComplete="new-password"
               required
@@ -1366,6 +1472,7 @@ function ChangePasswordForm({ onCancel }: { onCancel: () => void }) {
               value={confirmChangedPassword}
               placeholder="Repeat the new password"
               onChange={(event) => setConfirmChangedPassword(event.target.value)}
+              {...securityInputStyleProps}
             />
           </Field>
 
@@ -1487,7 +1594,7 @@ function SetPasswordForm({
 
           <Field>
             <FieldLabel htmlFor="security-new-password">New password</FieldLabel>
-            <PasswordRevealInput
+            <PasswordInput
               id="security-new-password"
               autoComplete="new-password"
               required
@@ -1495,12 +1602,13 @@ function SetPasswordForm({
               value={newPassword}
               placeholder="Create a strong password"
               onChange={(event) => setNewPassword(event.target.value)}
+              {...securityInputStyleProps}
             />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="security-confirm-password">Confirm password</FieldLabel>
-            <PasswordRevealInput
+            <PasswordInput
               id="security-confirm-password"
               autoComplete="new-password"
               required
@@ -1508,6 +1616,7 @@ function SetPasswordForm({
               value={confirmPassword}
               placeholder="Repeat the new password"
               onChange={(event) => setConfirmPassword(event.target.value)}
+              {...securityInputStyleProps}
             />
           </Field>
 
@@ -1730,7 +1839,7 @@ export function SecuritySettingsPage() {
                         id="security-current-email"
                         value={currentEmail}
                         disabled
-                        {...passwordInputStyleProps}
+                        {...securityInputStyleProps}
                       />
                     </Field>
 
@@ -1745,20 +1854,21 @@ export function SecuritySettingsPage() {
                         value={newEmail}
                         placeholder="Enter new email address"
                         onChange={(event) => setNewEmail(event.target.value)}
-                        {...passwordInputStyleProps}
+                        {...securityInputStyleProps}
                       />
                     </Field>
 
                     {canChangeEmail ? (
                       <Field>
                         <FieldLabel htmlFor="security-email-change-password">Current password</FieldLabel>
-                        <PasswordRevealInput
+                        <PasswordInput
                           id="security-email-change-password"
                           autoComplete="current-password"
                           required
                           value={password}
                           placeholder="Enter your current password"
                           onChange={(event) => setPassword(event.target.value)}
+                          {...securityInputStyleProps}
                         />
                       </Field>
                     ) : null}
@@ -1791,8 +1901,10 @@ export function SecuritySettingsPage() {
                   </Stack>
 
                   <Box borderLeftWidth={{ base: '0', lg: '1px' }} borderColor="border.muted" pl={{ base: '0', lg: '6' }}>
-                    <HStack align="flex-start" gap="3" rounded="md" borderWidth="1px" borderColor="blue.200" bg="blue.50" p="4">
-                      <Info size={18} color="var(--chakra-colors-blue-600)" style={{ flexShrink: 0, marginTop: '0.125rem' }} />
+                    <HStack align="flex-start" gap="3" rounded="md" borderWidth="1px" borderColor="blue.muted" bg="blue.subtle" p="4">
+                      <Box color="blue.fg" flexShrink={0} mt="0.5">
+                        <Info size={18} />
+                      </Box>
                       <Stack gap="1">
                         <Text fontSize="sm" fontWeight="semibold" color="fg">
                           What happens next?

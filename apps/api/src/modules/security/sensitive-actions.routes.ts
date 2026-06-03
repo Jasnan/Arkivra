@@ -1,5 +1,4 @@
-import type { Hono } from 'hono';
-import type { Context } from 'hono';
+import type { Context, Hono } from 'hono';
 import type { ServerContext } from '../server/server.types.js';
 import type { createAuditServices } from '../audit/audit.services.js';
 import type { SensitiveActionServices } from './sensitive-actions.services.js';
@@ -25,6 +24,10 @@ const requestEmailChangeSchema = z.object({
 const linkOAuthAccountSchema = z.object({
   callbackURL: z.string().optional(),
   password: z.string(),
+  provider: z.enum(['github', 'google']),
+});
+
+const unlinkOAuthAccountSchema = z.object({
   provider: z.enum(['github', 'google']),
 });
 
@@ -418,7 +421,89 @@ export function registerSensitiveActionRoutes({
       },
     });
 
+    if (result instanceof Response) {
+      return result;
+    }
+
     return context.json(result);
+  });
+
+  app.post('/api/security/oauth/unlink', requireAuthentication(), async (context) => {
+    const body = await context.req.json().catch(() => null);
+    const parsed = unlinkOAuthAccountSchema.safeParse(body);
+    const user = context.get('user');
+
+    if (!parsed.success || user === null) {
+      return context.json(
+        {
+          error: {
+            code: 'security.invalid_request',
+            message: 'Could not disconnect sign-in provider.',
+          },
+        },
+        400,
+      );
+    }
+
+    const result = await services.unlinkOAuthAccount({
+      provider: parsed.data.provider,
+      userId: user.id,
+    });
+
+    if (result === 'not-linked') {
+      await emitAccountAuditEvent(context, {
+        eventType: AUDIT_EVENT_TYPES.authSensitiveActionDenied,
+        severity: 'notice',
+        outcome: 'denied',
+        metadata: {
+          action: 'oauth.unlink',
+          provider: parsed.data.provider,
+          reason: 'provider_not_linked',
+        },
+      });
+      return context.json(
+        {
+          error: {
+            code: 'security.provider_not_linked',
+            message: 'That sign-in provider is not connected.',
+          },
+        },
+        409,
+      );
+    }
+
+    if (result === 'last-login-method') {
+      await emitAccountAuditEvent(context, {
+        eventType: AUDIT_EVENT_TYPES.authSensitiveActionDenied,
+        severity: 'warning',
+        outcome: 'denied',
+        metadata: {
+          action: 'oauth.unlink',
+          provider: parsed.data.provider,
+          reason: 'last_login_method',
+        },
+      });
+      return context.json(
+        {
+          error: {
+            code: 'security.last_login_method',
+            message: 'Add another sign-in method before disconnecting this provider.',
+          },
+        },
+        409,
+      );
+    }
+
+    await emitAccountAuditEvent(context, {
+      eventType: AUDIT_EVENT_TYPES.authOAuthUnlinked,
+      severity: 'notice',
+      outcome: 'success',
+      metadata: { provider: parsed.data.provider },
+      before: { provider: parsed.data.provider, connected: true },
+      after: { provider: parsed.data.provider, connected: false },
+    });
+
+    return context.json({ status: true });
   });
 
   app.post('/api/security/password/change', requireAuthentication(), async (context) => {

@@ -1,16 +1,15 @@
 import type { Auth } from '../auth/auth.services.js';
 import type { Database } from '../database/database.js';
 import type { Session } from 'better-auth';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { generateRandomString, symmetricDecrypt, symmetricEncrypt } from 'better-auth/crypto';
 import { authAccountsTable, authTwoFactorTable, usersTable } from '../database/schema/index.js';
 
 const RECENT_OAUTH_REAUTH_MS = 10 * 60 * 1000;
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-const LINKABLE_OAUTH_PROVIDERS = ['github', 'google'] as const;
 
 type AuthAccount = typeof authAccountsTable.$inferSelect;
-export type LinkableOAuthProvider = typeof LINKABLE_OAUTH_PROVIDERS[number];
+export type LinkableOAuthProvider = 'github' | 'google';
 
 function getSessionAgeMs(session: Session) {
   const sessionWithTimestamps = session as Session & {
@@ -410,12 +409,46 @@ export function createSensitiveActionServices({
     }
 
     return auth.api.linkSocialAccount({
+      asResponse: true,
       body: {
         callbackURL,
         provider,
       },
       headers,
     });
+  }
+
+  async function unlinkOAuthAccount({
+    provider,
+    userId,
+  }: {
+    provider: LinkableOAuthProvider;
+    userId: string;
+  }) {
+    const accounts = await listAuthAccounts({ userId });
+    const providerAccount = accounts.find(account => account.providerId === provider);
+
+    if (!providerAccount) {
+      return 'not-linked' as const;
+    }
+
+    const hasPassword = accounts.some(account => account.providerId === 'credential' && account.password);
+    const hasOtherOAuthProvider = accounts.some(account =>
+      account.providerId !== 'credential' && account.providerId !== provider,
+    );
+
+    if (!hasPassword && !hasOtherOAuthProvider) {
+      return 'last-login-method' as const;
+    }
+
+    await db
+      .delete(authAccountsTable)
+      .where(and(
+        eq(authAccountsTable.userId, userId),
+        eq(authAccountsTable.providerId, provider),
+      ));
+
+    return 'success' as const;
   }
 
   async function changeAccountPassword({
@@ -541,6 +574,7 @@ export function createSensitiveActionServices({
     setAccountPassword,
     startTwoFactorSetup,
     summarizeAuthMethods,
+    unlinkOAuthAccount,
   };
 }
 

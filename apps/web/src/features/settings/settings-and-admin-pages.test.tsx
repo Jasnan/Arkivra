@@ -774,6 +774,7 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<SecuritySettingsPage />);
 
+    await user.click(await screen.findByRole('button', { name: /^manage connections$/i }));
     const connectButton = await screen.findByRole('button', { name: /^connect$/i });
     await user.click(connectButton);
     await user.type(screen.getByLabelText(/current password/i), 'secret123');
@@ -786,6 +787,48 @@ describe('settings, admin, and about pages', () => {
           password: 'secret123',
           provider: 'github',
         }),
+        method: 'POST',
+      }));
+    });
+  });
+
+  it('disconnects a connected OAuth provider when password sign-in remains available', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_member',
+          sessionId: 'ses_member',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: false,
+          authMethods: {
+            hasPassword: true,
+            oauthProviders: ['google'],
+            primaryOAuthProvider: 'google',
+          },
+        });
+      }
+
+      if (url === '/api/security/oauth/unlink' && init?.method === 'POST') {
+        return jsonResponse({ status: true });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SecuritySettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /^manage connections$/i }));
+    await user.click(await screen.findByRole('button', { name: /^disconnect$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/security/oauth/unlink', expect.objectContaining({
+        body: JSON.stringify({ provider: 'google' }),
         method: 'POST',
       }));
     });

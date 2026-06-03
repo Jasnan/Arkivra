@@ -10,10 +10,23 @@ function createMockAuth() {
   const hash = vi.fn(async (password: string) => `hashed:${password}`);
   const verify = vi.fn(async ({ password }: { password: string }) => password === 'secret123');
   const changeEmail = vi.fn(async () => ({ status: true, message: 'Confirmation email sent.' }));
-  const linkSocialAccount = vi.fn(async () => ({
-    redirect: true,
-    url: 'https://accounts.google.com/oauth',
-  }));
+  const linkSocialAccount = vi.fn(async (input?: { asResponse?: boolean }) => {
+    const body = {
+      redirect: true,
+      url: 'https://accounts.google.com/oauth',
+    };
+
+    if (input?.asResponse) {
+      return new Response(JSON.stringify(body), {
+        headers: {
+          'content-type': 'application/json',
+          'set-cookie': 'better-auth.state=signed-state; Path=/; HttpOnly; SameSite=Lax',
+        },
+      });
+    }
+
+    return body;
+  });
   const handler = vi.fn(
     async () =>
       new Response(JSON.stringify({ ok: true }), {
@@ -99,9 +112,13 @@ function createMockSensitiveActionDb(
   const insertValues = vi.fn(() => ({ returning: insertReturning }));
   const updateWhere = vi.fn(async () => undefined);
   const updateSet = vi.fn(() => ({ where: updateWhere }));
+  const deleteWhere = vi.fn(async () => undefined);
 
   return {
     db: {
+      delete: vi.fn(() => ({
+        where: deleteWhere,
+      })),
       insert: vi.fn(() => ({
         values: insertValues,
       })),
@@ -124,6 +141,7 @@ function createMockSensitiveActionDb(
         set: updateSet,
       })),
     } as unknown as Database,
+    deleteWhere,
     insertReturning,
     insertValues,
     updateSet,
@@ -421,7 +439,7 @@ describe('auth integration', () => {
   test('requests an email change only after password verification', async () => {
     const { config } = parseConfig({ env: {} });
     const { auth, changeEmail, getSession, verify } = createMockAuth();
-    const { db, insertValues } = createMockSensitiveActionDb([
+    const { db } = createMockSensitiveActionDb([
       {
         id: 'acc_credential_1',
         password: 'hashed_password',
@@ -478,7 +496,7 @@ describe('auth integration', () => {
   test('rejects email change for OAuth-only accounts', async () => {
     const { config } = parseConfig({ env: {} });
     const { auth, changeEmail, getSession } = createMockAuth();
-    const { db, insertValues } = createMockSensitiveActionDb([
+    const { db } = createMockSensitiveActionDb([
       {
         id: 'acc_google_1',
         password: null,
@@ -530,7 +548,7 @@ describe('auth integration', () => {
   test('rejects email change when another account already uses the requested email', async () => {
     const { config } = parseConfig({ env: {} });
     const { auth, changeEmail, getSession } = createMockAuth();
-    const { db, insertValues } = createMockSensitiveActionDb([
+    const { db } = createMockSensitiveActionDb([
       {
         id: 'acc_credential_1',
         password: 'hashed_password',
@@ -628,11 +646,13 @@ describe('auth integration', () => {
       redirect: true,
       url: 'https://accounts.google.com/oauth',
     });
+    expect(response.headers.get('set-cookie')).toContain('better-auth.state=signed-state');
     expect(verify).toHaveBeenCalledWith({
       hash: 'hashed_password',
       password: 'secret123',
     });
     expect(linkSocialAccount).toHaveBeenCalledWith(expect.objectContaining({
+      asResponse: true,
       body: {
         callbackURL: 'http://localhost:3000/settings/security',
         provider: 'google',
@@ -758,6 +778,105 @@ describe('auth integration', () => {
       },
     });
     expect(linkSocialAccount).not.toHaveBeenCalled();
+  });
+
+  test('disconnects an OAuth provider when another sign-in method remains', async () => {
+    const { config } = parseConfig({ env: {} });
+    const { auth, getSession } = createMockAuth();
+    const { db, deleteWhere } = createMockSensitiveActionDb([
+      {
+        id: 'acc_credential_1',
+        password: 'hashed_password',
+        providerId: 'credential',
+        userId: 'usr_test_1',
+      },
+      {
+        id: 'acc_google_1',
+        password: null,
+        providerId: 'google',
+        userId: 'usr_test_1',
+      },
+    ]);
+
+    getSession.mockResolvedValue({
+      user: {
+        email: 'alex@example.com',
+        id: 'usr_test_1',
+      },
+      session: {
+        id: 'ses_test_1',
+        updatedAt: new Date(),
+        userId: 'usr_test_1',
+      },
+    });
+
+    const { app } = createServer({
+      config,
+      auth,
+      db,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
+
+    const response = await app.request('/api/security/oauth/unlink', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'google' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: true });
+    expect(deleteWhere).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects OAuth disconnect when it would remove the last sign-in method', async () => {
+    const { config } = parseConfig({ env: {} });
+    const { auth, getSession } = createMockAuth();
+    const { db, deleteWhere } = createMockSensitiveActionDb([
+      {
+        id: 'acc_google_1',
+        password: null,
+        providerId: 'google',
+        userId: 'usr_test_1',
+      },
+    ]);
+
+    getSession.mockResolvedValue({
+      user: {
+        email: 'alex@example.com',
+        id: 'usr_test_1',
+      },
+      session: {
+        id: 'ses_test_1',
+        updatedAt: new Date(),
+        userId: 'usr_test_1',
+      },
+    });
+
+    const { app } = createServer({
+      config,
+      auth,
+      db,
+      storage: mockStorage,
+      encryption: mockEncryption,
+      authorizationServices: mockAuthorizationServices as any,
+    });
+
+    const response = await app.request('/api/security/oauth/unlink', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'google' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'security.last_login_method',
+        message: 'Add another sign-in method before disconnecting this provider.',
+      },
+    });
+    expect(deleteWhere).not.toHaveBeenCalled();
   });
 
   test('blocks and audits direct Better Auth social-link endpoint access', async () => {

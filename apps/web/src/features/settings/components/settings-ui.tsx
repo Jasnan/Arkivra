@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator';
 export type SettingsStatusTone = 'verified' | 'enabled' | 'warning' | 'inactive';
 
 const statusToneStyles: Record<SettingsStatusTone, { bg: string; color: string; label: string }> = {
-  verified: { bg: 'bg.success', color: 'fg.success', label: 'Verified' },
+  verified: { bg: 'teal.subtle', color: 'teal.fg', label: 'Verified' },
   enabled: { bg: 'teal.subtle', color: 'teal.fg', label: 'Enabled' },
   warning: { bg: 'bg.warning', color: 'fg.warning', label: 'Warning' },
   inactive: { bg: 'bg.muted', color: 'fg.subtle', label: 'Inactive' },

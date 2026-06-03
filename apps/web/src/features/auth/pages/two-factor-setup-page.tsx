@@ -26,7 +26,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSearch } from '@tanstack/react-router';
+import { useRouter, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -78,10 +78,6 @@ function getStepStatus(index: number, currentStep: SetupStep) {
   if (currentStep === 'success' || index < currentIndex) return 'Completed';
   if (index === currentIndex) return 'In progress';
   return 'Pending';
-}
-
-function cancelSetup() {
-  window.location.assign(ROUTES.settingsSecurity);
 }
 
 async function copyText(value: string, successMessage: string) {
@@ -197,6 +193,7 @@ function SectionHeading({ title, description }: { title: string; description: st
 }
 
 export function TwoFactorSetupPage() {
+  const router = useRouter();
   const meQuery = useMeQuery();
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const mode = getSetupModeFromSearch(search);
@@ -252,6 +249,10 @@ export function TwoFactorSetupPage() {
     event.preventDefault();
     await startSetup(password);
   }
+
+  const navigateToSecuritySettings = useCallback(() => {
+    void router.navigate({ to: ROUTES.settingsSecurity });
+  }, [router]);
 
   useEffect(() => {
     if (currentStep !== 'identity' || verificationMethod.type !== 'oauth' || isEnabling) {
@@ -349,7 +350,7 @@ export function TwoFactorSetupPage() {
                 oauthPendingAction={pendingSetupAction}
                 password={password}
                 setPassword={setPassword}
-                onCancel={cancelSetup}
+                onCancel={navigateToSecuritySettings}
                 onPasswordSubmit={handleEnable}
               />
             ) : null}
@@ -361,7 +362,7 @@ export function TwoFactorSetupPage() {
                 secret={secret}
                 totpUri={totpUri}
                 onBack={() => setCurrentStep('identity')}
-                onCancel={cancelSetup}
+                onCancel={navigateToSecuritySettings}
                 onContinue={() => {
                   setErrorMessage(null);
                   setCurrentStep('confirm');
@@ -376,7 +377,7 @@ export function TwoFactorSetupPage() {
                 isVerifying={isVerifying}
                 isReplaceMode={isReplaceMode}
                 setCodeDigits={setCodeDigits}
-                onCancel={cancelSetup}
+                onCancel={navigateToSecuritySettings}
                 onBack={() => {
                   setErrorMessage(null);
                   setCurrentStep('scan');
@@ -385,7 +386,12 @@ export function TwoFactorSetupPage() {
               />
             ) : null}
 
-            {currentStep === 'success' ? <SuccessStep isReplaceMode={isReplaceMode} /> : null}
+            {currentStep === 'success' ? (
+              <SuccessStep
+                isReplaceMode={isReplaceMode}
+                onDone={navigateToSecuritySettings}
+              />
+            ) : null}
           </Stack>
         </CardContent>
       </Card>
@@ -647,7 +653,13 @@ function ConfirmStep({
   );
 }
 
-function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
+function SuccessStep({
+  isReplaceMode,
+  onDone,
+}: {
+  isReplaceMode: boolean;
+  onDone: () => void;
+}) {
   return (
     <VStack align="stretch" gap="7">
       <VStack gap="4" textAlign="center" py={{ base: '2', md: '3' }}>
@@ -739,7 +751,7 @@ function SuccessStep({ isReplaceMode }: { isReplaceMode: boolean }) {
       <Separator />
 
       <HStack justify="flex-end">
-        <Button type="button" onClick={() => window.location.assign(ROUTES.settingsSecurity)}>
+        <Button type="button" onClick={onDone}>
           Done
         </Button>
       </HStack>

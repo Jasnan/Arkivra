@@ -1,10 +1,10 @@
 import type { FormEvent } from 'react';
-import type { SensitiveActionVerificationMethod } from '@/features/security/sensitive-action-verification.types';
+import type { OAuthProviderId, SensitiveActionVerificationMethod } from '@/features/security/sensitive-action-verification.types';
 import { useEffect, useMemo, useState } from 'react';
 import { Box, HStack, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
+import { Link2, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
@@ -12,12 +12,12 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
-  EMAIL_CHANGE_ACTION,
   OAUTH_PROVIDERS,
-  PENDING_EMAIL_CHANGE_KEY,
   PENDING_SENSITIVE_ACTION_KEY,
   SET_PASSWORD_ACTION,
+  changeAccountPassword,
   getSensitiveActionVerificationMethod,
+  linkOAuthAccount,
   requestEmailChange,
   setAccountPassword,
 } from '@/features/security/sensitive-action-verification.types';
@@ -75,18 +75,6 @@ function settingsButtonLink(to: string, label: string, variant: 'solid' | 'outli
 
 function getSecurityCallbackURL() {
   return new URL(ROUTES.settingsSecurity, window.location.origin).toString();
-}
-
-function getPendingEmailChange() {
-  if (typeof sessionStorage === 'undefined') {
-    return '';
-  }
-
-  if (sessionStorage.getItem(PENDING_SENSITIVE_ACTION_KEY) !== EMAIL_CHANGE_ACTION) {
-    return '';
-  }
-
-  return sessionStorage.getItem(PENDING_EMAIL_CHANGE_KEY) ?? '';
 }
 
 function hasPendingSetPassword() {
@@ -198,6 +186,164 @@ function PasswordSettingsRow({
   );
 }
 
+function ConnectedSignInSettingsRow({
+  hasPassword,
+  oauthProviders,
+}: {
+  hasPassword: boolean;
+  oauthProviders: string[];
+}) {
+  const [selectedProvider, setSelectedProvider] = useState<OAuthProviderId | null>(null);
+  const connectedProviders = new Set(oauthProviders);
+  const linkableProviders = Object.keys(OAUTH_PROVIDERS) as OAuthProviderId[];
+  const hasMissingProvider = linkableProviders.some(provider => !connectedProviders.has(provider));
+
+  return (
+    <SettingsFlatRow
+      title="Connected sign-in"
+      description={hasPassword
+        ? 'Connect Google or GitHub from this signed-in account.'
+        : 'Set a password before connecting another sign-in provider.'}
+      icon={<Link2 size={21} strokeWidth={1.8} />}
+      actions={(
+        <HStack gap="3" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
+          {linkableProviders.map((provider) => {
+            const isConnected = connectedProviders.has(provider);
+
+            return (
+              <HStack key={provider} gap="2">
+                <SettingsStatusBadge density="compact" tone={isConnected ? 'enabled' : 'inactive'}>
+                  {OAUTH_PROVIDERS[provider].label}
+                </SettingsStatusBadge>
+                {!isConnected ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!hasPassword}
+                    onClick={() => setSelectedProvider(provider)}
+                  >
+                    Connect
+                  </Button>
+                ) : null}
+              </HStack>
+            );
+          })}
+        </HStack>
+      )}
+    >
+      {selectedProvider && hasPassword ? (
+        <LinkOAuthProviderForm
+          provider={selectedProvider}
+          onCancel={() => setSelectedProvider(null)}
+        />
+      ) : !hasMissingProvider ? (
+        <Text textStyle="sm" color="fg.muted">
+          All configured sign-in providers are connected.
+        </Text>
+      ) : null}
+    </SettingsFlatRow>
+  );
+}
+
+function LinkOAuthProviderForm({
+  onCancel,
+  provider,
+}: {
+  onCancel: () => void;
+  provider: OAuthProviderId;
+}) {
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLinking, setIsLinking] = useState(false);
+  const providerLabel = OAUTH_PROVIDERS[provider].label;
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMessage(null);
+    setIsLinking(true);
+
+    try {
+      const result = await linkOAuthAccount({
+        callbackURL: getSecurityCallbackURL(),
+        password,
+        provider,
+      });
+
+      if (result.redirect && result.url) {
+        window.location.assign(result.url);
+        return;
+      }
+
+      toast.success(`${providerLabel} is connected.`);
+      onCancel();
+      setPassword('');
+    }
+    catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : `Could not connect ${providerLabel}.`);
+    }
+    finally {
+      setIsLinking(false);
+    }
+  }
+
+  return (
+    <Box rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" p="3">
+      <chakra.form onSubmit={handleSubmit}>
+        <Stack gap="3">
+          <Stack gap="0.5">
+            <Text fontSize="sm" fontWeight="medium" color="fg">
+              Connect {providerLabel}
+            </Text>
+            <Text textStyle="sm" color="fg.muted">
+              Enter your current password before connecting this provider.
+            </Text>
+          </Stack>
+
+          <Field maxW="md">
+            <FieldLabel htmlFor={`security-link-${provider}-password`}>Current password</FieldLabel>
+            <Input
+              id={`security-link-${provider}-password`}
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              placeholder="Current password"
+              onChange={(event) => setPassword(event.target.value)}
+              {...passwordInputStyleProps}
+            />
+          </Field>
+
+          {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+
+          <HStack justify="flex-end" gap="2.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                onCancel();
+                setErrorMessage(null);
+                setPassword('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              loading={isLinking}
+              loadingText="Connecting..."
+            >
+              Continue
+            </Button>
+          </HStack>
+        </Stack>
+      </chakra.form>
+    </Box>
+  );
+}
+
 function ChangePasswordForm({ onCancel }: { onCancel: () => void }) {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -226,15 +372,10 @@ function ChangePasswordForm({ onCancel }: { onCancel: () => void }) {
       }
 
       setIsChangingPassword(true);
-      const { error } = await authClient.changePassword({
+      await changeAccountPassword({
         currentPassword,
         newPassword: changedPassword,
-        revokeOtherSessions: false,
       });
-
-      if (error) {
-        throw new Error(error.message ?? 'Could not change password.');
-      }
 
       toast.success('Password updated.');
       onCancel();
@@ -494,25 +635,26 @@ export function SecuritySettingsPage() {
   const isEmailVerified = sessionData?.user.emailVerified === true;
   const isTwoFactorEnabled = sessionData?.user.twoFactorEnabled === true;
   const hasPassword = meQuery.data?.authMethods?.hasPassword !== false;
+  const oauthProviders = meQuery.data?.authMethods?.oauthProviders ?? [];
   const verificationMethod = getSensitiveActionVerificationMethod(meQuery.data?.authMethods);
-  const [pendingEmailChange] = useState(getPendingEmailChange);
-  const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(Boolean(pendingEmailChange));
-  const [newEmail, setNewEmail] = useState(pendingEmailChange);
+  const canChangeEmail = verificationMethod.type === 'password';
+  const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
   const currentEmail = sessionData?.user.email ?? '';
 
   const emailChangeDescription = useMemo(() => {
-    if (verificationMethod.type === 'password') {
+    if (canChangeEmail) {
       return 'Enter your current password. If your current email is verified, Arkivra will send a confirmation link there before applying the change.';
     }
 
     if (verificationMethod.type === 'oauth') {
-      return `Confirm your ${OAUTH_PROVIDERS[verificationMethod.provider].label} account. If your current email is verified, Arkivra will send a confirmation link there before applying the change.`;
+      return `Set a password before changing your Arkivra email. You can keep using ${OAUTH_PROVIDERS[verificationMethod.provider].label} after adding password sign-in.`;
     }
 
     return 'This account does not have a supported sign-in method for changing email yet.';
-  }, [verificationMethod]);
+  }, [canChangeEmail, verificationMethod]);
 
   const emailMutation = useMutation({
     mutationFn: async () => {
@@ -554,8 +696,6 @@ export function SecuritySettingsPage() {
     },
     onSuccess: (result) => {
       toast.success(result.message ?? 'Email change requested. Check your email to confirm the change.');
-      sessionStorage.removeItem(PENDING_EMAIL_CHANGE_KEY);
-      sessionStorage.removeItem(PENDING_SENSITIVE_ACTION_KEY);
       setEmailChangeError(null);
       setIsEmailChangeOpen(false);
       setNewEmail('');
@@ -566,47 +706,16 @@ export function SecuritySettingsPage() {
     },
   });
 
-  useEffect(() => {
-    if (verificationMethod.type !== 'oauth' || emailChangeMutation.isPending) {
-      return;
-    }
-
-    if (!pendingEmailChange) {
-      return;
-    }
-
-    emailChangeMutation.mutate({});
-  }, [emailChangeMutation, pendingEmailChange, verificationMethod.type]);
-
   async function handleEmailChangeSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setEmailChangeError(null);
 
-    if (verificationMethod.type === 'password') {
+    if (canChangeEmail) {
       emailChangeMutation.mutate({ password });
       return;
     }
 
-    if (verificationMethod.type === 'oauth') {
-      const normalizedEmail = newEmail.trim().toLowerCase();
-
-      if (!normalizedEmail) {
-        setEmailChangeError('Enter a new email address.');
-        return;
-      }
-
-      if (normalizedEmail === currentEmail.toLowerCase()) {
-        setEmailChangeError('Enter a different email address.');
-        return;
-      }
-
-      sessionStorage.setItem(PENDING_EMAIL_CHANGE_KEY, normalizedEmail);
-      sessionStorage.setItem(PENDING_SENSITIVE_ACTION_KEY, EMAIL_CHANGE_ACTION);
-      await authClient.signIn.social({
-        provider: verificationMethod.provider,
-        callbackURL: getSecurityCallbackURL(),
-      });
-    }
+    setEmailChangeError('Set a password before changing your email address.');
   }
 
   if (sessionPending) {
@@ -629,6 +738,11 @@ export function SecuritySettingsPage() {
               void meQuery.refetch();
             }}
             verificationMethod={verificationMethod}
+          />
+
+          <ConnectedSignInSettingsRow
+            hasPassword={hasPassword}
+            oauthProviders={oauthProviders}
           />
 
           <SettingsFlatRow
@@ -686,14 +800,15 @@ export function SecuritySettingsPage() {
                       id="security-new-email"
                       type="email"
                       autoComplete="email"
-                      required
+                      required={canChangeEmail}
+                      disabled={!canChangeEmail}
                       value={newEmail}
                       placeholder="new@example.com"
                       onChange={(event) => setNewEmail(event.target.value)}
                     />
                   </Field>
 
-                  {verificationMethod.type === 'password' ? (
+                  {canChangeEmail ? (
                     <Field maxW="md">
                       <FieldLabel htmlFor="security-email-change-password">Current password</FieldLabel>
                       <Input
@@ -726,13 +841,11 @@ export function SecuritySettingsPage() {
                     <Button
                       type="submit"
                       size="sm"
-                      disabled={verificationMethod.type === 'unavailable'}
+                      disabled={!canChangeEmail}
                       loading={emailChangeMutation.isPending}
                       loadingText="Requesting..."
                     >
-                      {verificationMethod.type === 'oauth'
-                        ? `Continue with ${OAUTH_PROVIDERS[verificationMethod.provider].label}`
-                        : 'Request'}
+                      Request
                     </Button>
                   </HStack>
                 </Stack>

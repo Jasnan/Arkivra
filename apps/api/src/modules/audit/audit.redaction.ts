@@ -14,6 +14,15 @@ const SAFE_METADATA_BY_EVENT: Record<string, Set<string>> = {
   'vault.member_removed': new Set(['member_user_id', 'role']),
   'vault.member_role_changed': new Set(['member_user_id', 'previous_role', 'next_role', 'previous_ai_access_level', 'next_ai_access_level']),
   'vault.access_denied': new Set(['action']),
+  'auth.two_factor_enabled': new Set(['method']),
+  'auth.two_factor_disabled': new Set(['method']),
+  'auth.password_changed': new Set(['revoke_other_sessions']),
+  'auth.password_set': new Set(['method']),
+  'auth.email_change_requested': new Set(['verification_method']),
+  'auth.email_changed': new Set(['verification_method']),
+  'auth.oauth_link_requested': new Set(['provider', 'verification_method']),
+  'auth.oauth_linked': new Set(['provider', 'verification_method']),
+  'auth.sensitive_action_denied': new Set(['action', 'provider', 'reason']),
 };
 
 function isPlainObject(value: unknown): value is AuditJson {

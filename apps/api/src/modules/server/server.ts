@@ -240,7 +240,7 @@ export function createServer({
     await next();
   });
 
-  registerAuthRoutes({ app, auth, authorizationServices: authzServices, config });
+  registerAuthRoutes({ app, auth, auditServices, authorizationServices: authzServices, config });
   registerVaultRoutes({ app, db, auditServices, activityServices });
   registerFolderRoutes({ app, db });
   registerDocumentRoutes({
@@ -286,7 +286,7 @@ export function createServer({
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
   registerAdminAiRoutes({ app, aiServices, auditServices });
-  registerSensitiveActionRoutes({ app, services: sensitiveActionServices });
+  registerSensitiveActionRoutes({ app, auditServices, services: sensitiveActionServices });
   registerUserPreferencesRoutes({ app, services: userPreferencesServices });
 
   // Health check endpoint

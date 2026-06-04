@@ -36,6 +36,7 @@ import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 import type { Tag } from '@/features/tags/tags.types';
+import { formatShortDate } from '@/lib/localization';
 
 type DialogMode = 'create' | 'edit';
 
@@ -309,7 +310,7 @@ function TagContextMenu({
 
 function formatTagCreatedDate(value?: string) {
   if (!value) return 'Unknown date';
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(value));
+  return formatShortDate(value, { fallback: 'Unknown date' });
 }
 
 function getTagDescription(tag: Tag) {

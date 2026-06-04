@@ -25,6 +25,7 @@ import { CreateVaultDialog } from '@/features/vaults/components/create-vault-dia
 import { createVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { VaultSummary } from '@/features/vaults/vaults.types';
+import { formatShortDate } from '@/lib/localization';
 
 const VAULTS_LIST_GRID_COLUMNS = 'minmax(0, 1fr) 7rem 4rem 5.75rem 7.5rem 2.5rem';
 
@@ -46,13 +47,7 @@ interface VaultAction {
 }
 
 function formatVaultDate(value: string | null | undefined) {
-  if (!value) {
-    return 'Not set';
-  }
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-  }).format(new Date(value));
+  return formatShortDate(value);
 }
 
 function getVaultDescription(value: string | null) {

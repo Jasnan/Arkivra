@@ -1,9 +1,8 @@
 import type { FormEvent, MouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, DatePicker, Flex, Grid, HStack, IconButton, Portal, SimpleGrid, Stack, Text, chakra, parseDate } from '@chakra-ui/react';
-import type { DateValue } from '@chakra-ui/react';
+import { Box, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarDays, Check, CheckCircle2, CircleX, Clock3, Info, Mail, Package, Plus, Search, Send, ShieldCheck, ShieldX, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, CircleX, Clock3, Info, Mail, Package, Plus, Search, Send, ShieldCheck, ShieldX, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ROUTES } from '@/app/routes';
@@ -70,12 +69,14 @@ import {
 } from '@/features/admin/admin.queries';
 import type { AdminAiProviderSettings, AdminAiSettings, AdminEmbeddingIndexSummary, AdminUser, AdminVault, EmailInvitation, PermissionRequest } from '@/features/admin/admin.types';
 import type { AuditLogFilters } from '@/features/audit/audit.types';
+import { AuditDateFilterPicker } from '@/features/audit/components/audit-date-filter-picker';
 import { useAdminAuditLogQuery } from '@/features/audit/audit.queries';
 import {
   formatAuditMetadataEntries,
   formatAuditTimestamp,
 } from '@/features/audit/audit-formatters';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
+import { formatShortDate as formatLocalizedShortDate, formatTime } from '@/lib/localization';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import type { MeResponse } from '@/features/me/me.types';
 import {
@@ -151,11 +152,9 @@ function getUserInitial(user: AdminUser) {
 }
 
 function formatJoinedDate(value: string) {
-  const date = new Date(value);
-
   return {
-    date: new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(date),
-    time: new Intl.DateTimeFormat('en', { timeStyle: 'short' }).format(date),
+    date: formatLocalizedShortDate(value),
+    time: formatTime(value),
   };
 }
 
@@ -1685,113 +1684,6 @@ const auditEventTypeOptions = [
   { value: 'ai.chat_model_changed', label: 'AI chat model changed' },
   { value: 'ai.embedding_model_changed', label: 'AI embedding model changed' },
 ] as const;
-
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function toDateValue(value: string | undefined) {
-  if (!value || !ISO_DATE_PATTERN.test(value)) {
-    return undefined;
-  }
-
-  try {
-    return parseDate(value);
-  } catch {
-    return undefined;
-  }
-}
-
-function toDatePickerValue(value: string | undefined) {
-  const dateValue = toDateValue(value);
-  return dateValue ? [dateValue] : [];
-}
-
-function toIsoDate(value: DateValue | undefined) {
-  return value?.toString() ?? '';
-}
-
-function AuditDateFilterPicker({
-  id,
-  label,
-  max,
-  min,
-  onValueChange,
-  value,
-}: {
-  id: string;
-  label: string;
-  max?: string;
-  min?: string;
-  onValueChange: (value: string) => void;
-  value?: string;
-}) {
-  return (
-    <DatePicker.Root
-      value={toDatePickerValue(value)}
-      min={toDateValue(min)}
-      max={toDateValue(max)}
-      positioning={{ placement: 'bottom-start', gutter: 6, sameWidth: true }}
-      placeholder="yyyy-mm-dd"
-      onValueChange={(details) => onValueChange(toIsoDate(details.value[0]))}
-    >
-      <DatePicker.Label srOnly>{label}</DatePicker.Label>
-      <DatePicker.Control>
-        <DatePicker.Input
-          id={id}
-          bg="bg.surface"
-          h="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
-          rounded="lg"
-          borderColor="border.strong"
-          fontSize="sm"
-          fontVariantNumeric="tabular-nums"
-          _hover={{ borderColor: 'fg/30' }}
-          _focusVisible={{
-            borderColor: 'teal.solid',
-            outline: '2px solid',
-            outlineColor: 'teal.focusRing',
-            outlineOffset: '1px',
-          }}
-        />
-        <DatePicker.IndicatorGroup>
-          <DatePicker.Trigger asChild>
-            <IconButton
-              aria-label={`Open ${label.toLowerCase()} date picker`}
-              variant="ghost"
-              size="sm"
-              color="fg.muted"
-              _hover={{ bg: 'bg.subtle', color: 'teal.fg' }}
-              _focusVisible={{
-                outline: '2px solid',
-                outlineColor: 'teal.focusRing',
-                outlineOffset: '1px',
-              }}
-            >
-              <CalendarDays size={16} />
-            </IconButton>
-          </DatePicker.Trigger>
-        </DatePicker.IndicatorGroup>
-      </DatePicker.Control>
-
-      <Portal>
-        <DatePicker.Positioner zIndex="dropdown">
-          <DatePicker.Content>
-            <DatePicker.View view="day">
-              <DatePicker.Header />
-              <DatePicker.DayTable />
-            </DatePicker.View>
-            <DatePicker.View view="month">
-              <DatePicker.Header />
-              <DatePicker.MonthTable />
-            </DatePicker.View>
-            <DatePicker.View view="year">
-              <DatePicker.Header />
-              <DatePicker.YearTable />
-            </DatePicker.View>
-          </DatePicker.Content>
-        </DatePicker.Positioner>
-      </Portal>
-    </DatePicker.Root>
-  );
-}
 
 export function AdminAuditLogPage() {
   const meQuery = useMeQuery();

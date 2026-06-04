@@ -17,8 +17,14 @@ const userUiPreferencesUpdateSchema = z
     fontSize: z.enum(['sm', 'md', 'lg', 'xl', '2xl']).optional(),
     radius: z.enum(['none', 'sm', 'md', 'lg', 'xl']).optional(),
     language: z.enum(['en', 'de', 'fr']).optional(),
-    timezone: z.enum(['auto', 'utc', 'europe-berlin', 'america-new-york']).optional(),
-    dateFormat: z.enum(['medium', 'numeric', 'short']).optional(),
+    dateFormat: z.enum([
+      'DD.MM.YYYY',
+      'DD/MM/YYYY',
+      'DD-MM-YYYY',
+      'MM/DD/YYYY',
+      'YYYY-MM-DD',
+      'YYYY/MM/DD',
+    ]).nullable().optional(),
     showExtractedTextTab: z.boolean().optional(),
     defaultFileBrowserView: z.enum(['list', 'grid']).optional(),
   })

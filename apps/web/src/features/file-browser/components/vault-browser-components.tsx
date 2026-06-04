@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { DocumentFileIconGlyph } from '@/features/documents/components/document-file-icon';
 import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
 import { formatBytes } from '@/features/documents/documents.utils';
+import { formatShortDate } from '@/lib/localization';
 import { getBrowserItemKey, getDocumentTypeLabel, getFileDisplayName, getItemDisplayName, getItemName } from './vault-browser.types';
 import type { BrowserAction, BrowserContextItem, BrowserContextMenuEntry, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination, MoveDialogTarget } from './vault-browser.types';
 
@@ -122,13 +123,7 @@ const virtuosoGridComponents: VirtuosoGridProps<BrowserItem, unknown>['component
 };
 
 function formatDateOnly(value: string | null) {
-  if (!value) {
-    return 'Not set';
-  }
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-  }).format(new Date(value));
+  return formatShortDate(value);
 }
 
 function getItemId(item: BrowserContextItem) {

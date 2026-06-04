@@ -5,8 +5,7 @@ export type UiFontFamily = 'inter' | 'sora' | 'space-grotesk';
 export type UiFontSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 export type UiRadius = 'none' | 'sm' | 'md' | 'lg' | 'xl';
 export type UiLanguage = 'en' | 'de' | 'fr';
-export type UiTimezone = 'auto' | 'utc' | 'europe-berlin' | 'america-new-york';
-export type UiDateFormat = 'medium' | 'numeric' | 'short';
+export type UiDateFormat = 'DD.MM.YYYY' | 'DD/MM/YYYY' | 'DD-MM-YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'YYYY/MM/DD';
 export type UiFileBrowserView = 'list' | 'grid';
 
 export interface UserUiPreferences {
@@ -17,8 +16,7 @@ export interface UserUiPreferences {
   fontSize: UiFontSize;
   radius: UiRadius;
   language: UiLanguage;
-  timezone: UiTimezone;
-  dateFormat: UiDateFormat;
+  dateFormat: UiDateFormat | null;
   showExtractedTextTab: boolean;
   defaultFileBrowserView: UiFileBrowserView;
   createdAt: string;
@@ -29,15 +27,14 @@ export type UserUiPreferencesUpdate = Partial<
   Pick<
     UserUiPreferences,
     'accentColor'
-    | 'dateFormat'
     | 'defaultFileBrowserView'
     | 'density'
     | 'fontFamily'
     | 'fontSize'
     | 'language'
+    | 'dateFormat'
     | 'radius'
     | 'showExtractedTextTab'
     | 'themeMode'
-    | 'timezone'
   >
 >;

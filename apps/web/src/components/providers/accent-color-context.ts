@@ -18,33 +18,36 @@ export type AppearanceDensity = 'compact' | 'comfortable' | 'relaxed';
 export type AppearanceFontSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type PreferenceLanguage = 'en' | 'de' | 'fr';
-export type PreferenceTimezone = 'auto' | 'utc' | 'europe-berlin' | 'america-new-york';
-export type PreferenceDateFormat = 'medium' | 'numeric' | 'short';
+export type PreferenceDateFormat =
+  | 'DD.MM.YYYY'
+  | 'DD/MM/YYYY'
+  | 'DD-MM-YYYY'
+  | 'MM/DD/YYYY'
+  | 'YYYY-MM-DD'
+  | 'YYYY/MM/DD';
 export type PreferenceFileBrowserView = 'list' | 'grid';
 
 export interface AccentColorContextValue {
   accentColor: AccentColor;
-  dateFormat: PreferenceDateFormat;
   defaultFileBrowserView: PreferenceFileBrowserView;
   density: AppearanceDensity;
   fontFamily: AppearanceFont;
   fontSize: AppearanceFontSize;
   language: PreferenceLanguage;
+  dateFormat: PreferenceDateFormat | null;
   radius: AppearanceRadius;
   showExtractedTextTab: boolean;
   themeMode: ThemeMode;
-  timezone: PreferenceTimezone;
   setAccentColor: (accentColor: AccentColor) => void;
-  setDateFormat: (dateFormat: PreferenceDateFormat) => void;
   setDefaultFileBrowserView: (defaultFileBrowserView: PreferenceFileBrowserView) => void;
   setDensity: (density: AppearanceDensity) => void;
   setFontFamily: (fontFamily: AppearanceFont) => void;
   setFontSize: (fontSize: AppearanceFontSize) => void;
   setLanguage: (language: PreferenceLanguage) => void;
+  setDateFormat: (dateFormat: PreferenceDateFormat | null) => void;
   setRadius: (radius: AppearanceRadius) => void;
   setShowExtractedTextTab: (showExtractedTextTab: boolean) => void;
   setThemeMode: (themeMode: ThemeMode) => void;
-  setTimezone: (timezone: PreferenceTimezone) => void;
 }
 
 export const AccentColorContext = createContext<AccentColorContextValue | null>(null);

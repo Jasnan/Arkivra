@@ -1,4 +1,5 @@
 import type { DocumentDetail, DocumentSummary } from './documents.types';
+import { formatDateTime } from '@/lib/localization';
 
 export type DocumentSortValue = 'newest' | 'oldest' | 'name-asc' | 'name-desc' | 'size-desc';
 export type DocumentProcessingStage =
@@ -21,14 +22,7 @@ export function formatBytes(value: number) {
 }
 
 export function formatDate(value: string | null) {
-  if (!value) {
-    return 'Not set';
-  }
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  return formatDateTime(value);
 }
 
 export function deriveExtractionStatus(

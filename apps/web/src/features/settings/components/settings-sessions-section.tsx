@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useMeQuery } from '@/features/me/me.queries';
 import { authClient } from '@/lib/auth-client';
+import { formatShortDateTime } from '@/lib/localization';
 import { SettingsFlatRow, SettingsStatusBadge } from './settings-ui';
 
 interface SessionManagementClient {
@@ -21,15 +22,6 @@ interface AuthSessionSummary {
   expiresAt?: string | Date | null;
   ipAddress?: string | null;
   userAgent?: string | null;
-}
-
-function formatDateTime(value: string | Date | null | undefined) {
-  if (!value) return 'Not available';
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
 }
 
 function getCurrentBrowserLabel() {
@@ -59,7 +51,7 @@ function getSessionDisplay(session: AuthSessionSummary) {
   return {
     device: session.userAgent || 'Unknown browser or device',
     location: session.ipAddress || 'Unknown address',
-    lastActive: formatDateTime(session.updatedAt ?? session.createdAt),
+    lastActive: formatShortDateTime(session.updatedAt ?? session.createdAt, { fallback: 'Not available' }),
   };
 }
 

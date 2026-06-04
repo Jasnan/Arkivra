@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
+import { AuditDateFilterPicker } from '@/features/audit/components/audit-date-filter-picker';
 import type { AuditLogFilters } from '@/features/audit/audit.types';
 import { useVaultAuditLogQuery } from '@/features/audit/audit.queries';
 import {
@@ -78,11 +79,23 @@ export function VaultAuditLogPanel({ vaultId }: { vaultId: string }) {
         </Field>
         <Field>
           <FieldLabel htmlFor="audit-date-from">From</FieldLabel>
-          <Input id="audit-date-from" type="date" value={filters.dateFrom ?? ''} bg="bg.surface" onChange={(event) => setFilter('dateFrom', event.target.value)} />
+          <AuditDateFilterPicker
+            id="audit-date-from"
+            label="From"
+            value={filters.dateFrom}
+            max={filters.dateTo}
+            onValueChange={(value) => setFilter('dateFrom', value)}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="audit-date-to">To</FieldLabel>
-          <Input id="audit-date-to" type="date" value={filters.dateTo ?? ''} bg="bg.surface" onChange={(event) => setFilter('dateTo', event.target.value)} />
+          <AuditDateFilterPicker
+            id="audit-date-to"
+            label="To"
+            value={filters.dateTo}
+            min={filters.dateFrom}
+            onValueChange={(value) => setFilter('dateTo', value)}
+          />
         </Field>
       </Grid>
 

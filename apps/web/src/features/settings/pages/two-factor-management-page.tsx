@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { authClient } from '@/lib/auth-client';
+import { formatShortDate, formatShortDateTime } from '@/lib/localization';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import { SensitiveActionVerificationStep } from '@/features/security/sensitive-action-verification';
 import {
@@ -38,19 +39,12 @@ type ManagementAction = 'overview' | 'regenerate' | 'disable' | 'codes';
 
 function formatDate(value: string | null | undefined) {
   if (!value) return null;
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-  }).format(new Date(value));
+  return formatShortDate(value);
 }
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return null;
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  return formatShortDateTime(value);
 }
 
 async function copyText(value: string, successMessage: string) {

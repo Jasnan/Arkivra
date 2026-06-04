@@ -943,8 +943,7 @@ describe('settings, admin, and about pages', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
+      dateFormat: null,
       createdAt: '2026-05-15T00:00:00.000Z',
       updatedAt: '2026-05-15T00:00:00.000Z',
     };
@@ -996,8 +995,6 @@ describe('settings, admin, and about pages', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
     }));
     const fetchMock = vi.fn(async () => jsonResponse({
       preferences: {
@@ -1008,8 +1005,6 @@ describe('settings, admin, and about pages', () => {
         fontSize: 'md',
         radius: 'md',
         language: 'en',
-        timezone: 'auto',
-        dateFormat: 'medium',
         createdAt: '2026-05-15T00:00:00.000Z',
         updatedAt: '2026-05-15T00:00:00.000Z',
       },
@@ -1034,8 +1029,6 @@ describe('settings, admin, and about pages', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
     }));
     const fetchMock = vi.fn(async () => jsonResponse({
       preferences: {
@@ -1046,8 +1039,6 @@ describe('settings, admin, and about pages', () => {
         fontSize: 'md',
         radius: 'md',
         language: 'en',
-        timezone: 'auto',
-        dateFormat: 'medium',
         createdAt: '2026-05-15T00:00:00.000Z',
         updatedAt: '2026-05-15T00:00:00.000Z',
       },
@@ -1082,8 +1073,6 @@ describe('settings, admin, and about pages', () => {
             fontSize: 'md',
             radius: 'md',
             language: 'en',
-            timezone: 'auto',
-            dateFormat: 'medium',
             createdAt: '2026-05-15T00:00:00.000Z',
             updatedAt: '2026-05-15T00:00:00.000Z',
           },
@@ -1122,8 +1111,6 @@ describe('settings, admin, and about pages', () => {
             fontSize: 'md',
             radius: 'md',
             language: 'en',
-            timezone: 'auto',
-            dateFormat: 'medium',
             createdAt: '2026-05-15T00:00:00.000Z',
             updatedAt: '2026-05-15T00:00:00.000Z',
           },
@@ -1171,8 +1158,6 @@ describe('settings, admin, and about pages', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
       createdAt: '2026-05-15T00:00:00.000Z',
       updatedAt: '2026-05-15T00:00:00.000Z',
     };
@@ -1241,8 +1226,6 @@ describe('settings, admin, and about pages', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
       createdAt: '2026-05-15T00:00:00.000Z',
       updatedAt: '2026-05-15T00:00:00.000Z',
     };
@@ -1278,6 +1261,28 @@ describe('settings, admin, and about pages', () => {
       }));
     });
     expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').language).toBe('de');
+
+    await user.click(screen.getByRole('button', { name: /date format/i }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /DD\.MM\.YYYY/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ dateFormat: 'DD.MM.YYYY' }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').dateFormat).toBe('DD.MM.YYYY');
+
+    await user.click(screen.getByRole('button', { name: /date format/i }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /automatic/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ dateFormat: null }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').dateFormat).toBeNull();
   });
 
   it('applies and persists the default project view preference', async () => {
@@ -1290,8 +1295,6 @@ describe('settings, admin, and about pages', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
       showExtractedTextTab: false,
       defaultFileBrowserView: 'list',
       createdAt: '2026-05-15T00:00:00.000Z',
@@ -1341,8 +1344,6 @@ describe('settings, admin, and about pages', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
       showExtractedTextTab: false,
       createdAt: '2026-05-15T00:00:00.000Z',
       updatedAt: '2026-05-15T00:00:00.000Z',

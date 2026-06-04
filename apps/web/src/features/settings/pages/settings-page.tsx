@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import type { MeResponse } from '@/features/me/me.types';
 import { authClient } from '@/lib/auth-client';
+import { formatShortDateTime } from '@/lib/localization';
 import {
   SettingsPageFrame,
   SettingsStatusBadge,
@@ -26,15 +27,6 @@ import {
 
 interface SessionUserMetadata {
   createdAt?: string | Date | null;
-}
-
-function formatDateTime(value: string | Date | null | undefined) {
-  if (!value) return 'Not available';
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
 }
 
 function getProviderLabel(provider: string) {
@@ -219,7 +211,7 @@ export function SettingsPage() {
               </SettingsStatusBadge>
             )}
           />
-          <AccountDetailRow label="Account created" value={formatDateTime(accountCreatedAt)} />
+          <AccountDetailRow label="Account created" value={formatShortDateTime(accountCreatedAt, { fallback: 'Not available' })} />
         </AccountDetailRows>
       </Stack>
 

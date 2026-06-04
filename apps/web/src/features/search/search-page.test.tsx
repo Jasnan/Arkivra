@@ -173,11 +173,11 @@ describe('global search page', () => {
 
     const shellHeader = screen.getByTestId('app-shell-header');
     expect(await screen.findAllByLabelText(/search documents/i)).toHaveLength(1);
-    expect(within(shellHeader).getByRole('heading', { name: 'Search' })).toBeInTheDocument();
+    expect(within(shellHeader).queryByRole('heading', { name: 'Search' })).not.toBeInTheDocument();
     expect(within(shellHeader).getByLabelText(/search documents/i)).toHaveValue('invoice');
     expect(within(shellHeader).getByRole('button', { name: /grid view/i })).toBeInTheDocument();
     expect(within(shellHeader).getByRole('button', { name: /list view/i })).toBeInTheDocument();
-    expect(await within(shellHeader).findByText(/^semantic$/i)).toBeInTheDocument();
+    expect(await within(shellHeader).findByText(/^ai enhanced$/i)).toBeInTheDocument();
   });
 
   it('uses the migrated search and filter controls', async () => {
@@ -243,14 +243,81 @@ describe('global search page', () => {
     expect(await screen.findByText('Sherlock')).toBeInTheDocument();
     expect(await screen.findByText('Invoices')).toBeInTheDocument();
     expect(screen.getByText(/Apr 1, 2026 - Apr 30, 2026/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sort/i })).toHaveTextContent(/a → z/i);
+    expect(screen.getByRole('button', { name: /sort/i })).toHaveTextContent(/sort/i);
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01T00%3A00%3A00.000Z&dateTo=2026-04-30T23%3A59%3A59.999Z&sortBy=name_asc')
-          && !String(url).includes('searchMode=hybrid')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01T00%3A00%3A00.000Z&dateTo=2026-04-30T23%3A59%3A59.999Z&sortBy=name_asc&searchMode=hybrid')
           && (init as RequestInit | undefined)?.credentials === 'include'
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it('hides AI mode when AI features are disabled and searches by keyword', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: [],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: false,
+        });
+      }
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 0,
+          pageSize: 25,
+          resultsCount: 0,
+          filters: {
+            vaultId: null,
+            tagId: null,
+            tagIds: [],
+            dateFrom: null,
+            dateTo: null,
+            sortBy: 'created_desc',
+          },
+          results: [],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?q=invoice'],
+      routePath: '/search',
+    });
+
+    await screen.findByLabelText(/search documents/i);
+    expect(screen.queryByText(/^ai enhanced$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^keyword only$/i)).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc'
         ),
       ).toBe(true);
     });
@@ -543,12 +610,12 @@ describe('global search page', () => {
       routePath: '/search',
     });
 
-    expect(await screen.findByText('Semantic match')).toBeInTheDocument();
+    expect(await screen.findByText('Meaning match')).toBeInTheDocument();
     expect(screen.getByText('Invoice total due on receipt')).toBeInTheDocument();
     expect(document.querySelector('mark')).toBeNull();
   });
 
-  it('can turn semantic search on for hybrid searching', async () => {
+  it('can switch between AI enhanced and keyword-only searching', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
@@ -603,17 +670,18 @@ describe('global search page', () => {
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc'
+          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc&searchMode=hybrid'
         ),
       ).toBe(true);
     });
 
-    await user.click(await screen.findByText(/^semantic$/i));
+    await user.click(await screen.findByRole('button', { name: /search mode: ai enhanced/i }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /keyword only exact word matching/i }));
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc&searchMode=hybrid'
+          String(url) === '/api/search?pageIndex=0&pageSize=25&q=invoice&sortBy=created_desc'
         ),
       ).toBe(true);
     });

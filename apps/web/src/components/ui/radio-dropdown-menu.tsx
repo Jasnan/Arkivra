@@ -20,6 +20,7 @@ export function RadioDropdownMenu<TValue extends string>({
   loadingLabel = 'Loading...',
   onValueChange,
   options,
+  triggerLabel,
   emptyLabel,
   placeholder = 'Select',
   value,
@@ -36,6 +37,7 @@ export function RadioDropdownMenu<TValue extends string>({
   loadingLabel?: string;
   onValueChange: (value: TValue) => void;
   options: ReadonlyArray<RadioDropdownMenuOption<TValue>>;
+  triggerLabel?: string;
   emptyLabel?: string;
   placeholder?: string;
   value: TValue;
@@ -43,7 +45,7 @@ export function RadioDropdownMenu<TValue extends string>({
 }) {
   const isToolbar = variant === 'toolbar';
   const isInput = variant === 'input';
-  const selectedLabel = options.find(option => option.value === value)?.label ?? placeholder;
+  const selectedLabel = triggerLabel ?? options.find(option => option.value === value)?.label ?? placeholder;
 
   return (
     <Menu.Root positioning={{ placement: 'bottom-end', gutter: 6, sameWidth: !isInput }}>
@@ -56,14 +58,14 @@ export function RadioDropdownMenu<TValue extends string>({
           disabled={isDisabled}
           h={isInput ? '8' : isToolbar ? '10' : 'calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)'}
           minH={isInput ? '8' : undefined}
-          w={isInput ? '8' : isToolbar ? { base: 'full', sm: '10rem' } : 'full'}
+          w={isInput ? 'auto' : isToolbar ? { base: 'full', sm: '10rem' } : 'full'}
           minW={isInput ? '8' : isToolbar ? { base: '0', sm: '10rem' } : { md: '11rem' }}
           justifyContent={isInput ? 'center' : iconOnlyOnMobile ? { base: 'center', sm: 'space-between' } : 'space-between'}
           gap="2"
           rounded={isInput || isToolbar ? 'md' : undefined}
           borderColor={isInput ? 'transparent' : isToolbar ? 'border.surface' : 'border.strong'}
           bg={isInput ? 'transparent' : 'bg.surface'}
-          px={isInput ? '0' : '3'}
+          px={isInput ? { base: '0', md: '2' } : '3'}
           color="fg"
           shadow="none"
           _hover={isInput ? { bg: 'bg.subtle', color: 'fg' } : { borderColor: 'fg/30', bg: 'bg.surface' }}
@@ -88,7 +90,7 @@ export function RadioDropdownMenu<TValue extends string>({
             ) : null}
             <Text
               as="span"
-              display={isInput || hideLabel ? 'none' : iconOnlyOnMobile ? { base: 'none', sm: 'inline' } : undefined}
+              display={hideLabel ? 'none' : isInput ? { base: 'none', md: 'inline' } : iconOnlyOnMobile ? { base: 'none', sm: 'inline' } : undefined}
               truncate
               fontSize="sm"
               fontWeight="medium"

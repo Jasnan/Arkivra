@@ -1,5 +1,4 @@
 /* eslint-disable react-refresh/only-export-components */
-import { Fragment } from 'react';
 import {
   CalendarDays,
   FileText,
@@ -27,13 +26,6 @@ export interface LocalMessage extends ChatMessage {
 
 export type ChatMetricsByMessageId = Record<string, ChatGenerationMetrics | undefined>;
 
-export type InlineToken =
-  | { type: 'text'; content: string }
-  | { type: 'strong'; content: string }
-  | { type: 'em'; content: string }
-  | { type: 'code'; content: string }
-  | { type: 'citation'; index: number };
-
 export interface ChatExperienceConfig {
   contextLabel: string;
   contextBadge: string;
@@ -46,9 +38,7 @@ export interface ChatExperienceConfig {
   }[];
 }
 
-export const INLINE_MARKDOWN_PATTERN = /(\[\d+\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
 export const WINDOWS_NEWLINE_PATTERN = /\r\n/g;
-export const ORDERED_LIST_PREFIX_PATTERN = /^\d+$/;
 
 export const DOCUMENT_PROMPT_SUGGESTIONS = [
   { label: 'What is this document about?', icon: Search },
@@ -224,125 +214,4 @@ export function getLatestIntent(messages: ChatMessage[]) {
     }
   }
   return null;
-}
-
-export function parseInlineMarkdown(text: string): InlineToken[] {
-  const tokens: InlineToken[] = [];
-  let lastIndex = 0;
-
-  for (const match of text.matchAll(INLINE_MARKDOWN_PATTERN)) {
-    const matchedText = match[0];
-    const start = match.index ?? 0;
-
-    if (start > lastIndex) {
-      tokens.push({ type: 'text', content: text.slice(lastIndex, start) });
-    }
-
-    if (matchedText.startsWith('[') && matchedText.endsWith(']')) {
-      const index = Number(matchedText.slice(1, -1));
-      if (Number.isInteger(index) && index >= 1) {
-        tokens.push({ type: 'citation', index });
-      } else {
-        tokens.push({ type: 'text', content: matchedText });
-      }
-    } else if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
-      tokens.push({ type: 'strong', content: matchedText.slice(2, -2) });
-    } else if (matchedText.startsWith('*') && matchedText.endsWith('*')) {
-      tokens.push({ type: 'em', content: matchedText.slice(1, -1) });
-    } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
-      tokens.push({ type: 'code', content: matchedText.slice(1, -1) });
-    }
-
-    lastIndex = start + matchedText.length;
-  }
-
-  if (lastIndex < text.length) {
-    tokens.push({ type: 'text', content: text.slice(lastIndex) });
-  }
-
-  return tokens;
-}
-
-export function renderInlineMarkdown({
-  text,
-  citations,
-  onCitationClick,
-}: {
-  text: string;
-  citations: Citation[];
-  onCitationClick?: (citation: Citation) => void;
-}) {
-  return parseInlineMarkdown(text).map((token, index) => {
-    const key =
-      token.type === 'citation'
-        ? `${token.type}-${index}-${token.index}`
-        : `${token.type}-${index}-${token.content}`;
-
-    if (token.type === 'strong') {
-      return (
-        <strong key={key} style={{ fontWeight: 600 }}>
-          {token.content}
-        </strong>
-      );
-    }
-
-    if (token.type === 'em') {
-      return (
-        <em key={key} style={{ fontStyle: 'italic' }}>
-          {token.content}
-        </em>
-      );
-    }
-
-    if (token.type === 'code') {
-      return (
-        <code
-          key={key}
-          style={{
-            borderRadius: '0.25rem',
-            backgroundColor: 'var(--chakra-colors-bg-subtle)',
-            padding: '0.1rem 0.375rem',
-            fontFamily: 'var(--arkivra-font-mono)',
-            fontSize: '0.95em',
-          }}
-        >
-          {token.content}
-        </code>
-      );
-    }
-
-    if (token.type === 'citation') {
-      const citation = citations[token.index - 1] ?? null;
-
-      if (citation && onCitationClick) {
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onCitationClick(citation)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              borderRadius: '9999px',
-              border: '1px solid var(--chakra-colors-border-subtle)',
-              backgroundColor: 'color-mix(in srgb, var(--chakra-colors-bg-subtle), transparent 35%)',
-              padding: '0.1rem 0.5rem',
-              verticalAlign: 'baseline',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              color: 'var(--chakra-colors-fg)',
-              margin: '0 0.125rem',
-              cursor: 'pointer',
-            }}
-          >
-            {`[${token.index}]`}
-          </button>
-        );
-      }
-
-      return <Fragment key={key}>{`[${token.index}]`}</Fragment>;
-    }
-
-    return <Fragment key={key}>{token.content}</Fragment>;
-  });
 }

@@ -1,20 +1,105 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ReactNode } from 'react';
+import { Children } from 'react';
 import { Box, Flex, Text } from '@chakra-ui/react';
+import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
+import remarkGfm from 'remark-gfm';
+import type { Components } from 'react-markdown';
 import type { Citation } from '../chat.types';
-import { WINDOWS_NEWLINE_PATTERN, ORDERED_LIST_PREFIX_PATTERN, renderInlineMarkdown } from './chat-utils';
+import { WINDOWS_NEWLINE_PATTERN } from './chat-utils';
 
 const TRAILING_LINE_WHITESPACE_PATTERN = /[ \t]+\n/g;
 const LEADING_LINE_WHITESPACE_PATTERN = /\n[ \t]+/g;
-const REPEATED_NEWLINE_PATTERN = /\n{2,}/g;
+const REPEATED_NEWLINE_PATTERN = /\n{3,}/g;
+const CITATION_MARKER_PATTERN = /\[(\d+)\]/g;
 
 export function normalizeChatDisplayContent(content: string) {
   return content
     .replace(WINDOWS_NEWLINE_PATTERN, '\n')
     .replace(TRAILING_LINE_WHITESPACE_PATTERN, '\n')
     .replace(LEADING_LINE_WHITESPACE_PATTERN, '\n')
-    .replace(REPEATED_NEWLINE_PATTERN, '\n')
+    .replace(REPEATED_NEWLINE_PATTERN, '\n\n')
     .trim();
+}
+
+function renderTextWithCitations({
+  value,
+  citations,
+  onCitationClick,
+}: {
+  value: string;
+  citations: Citation[];
+  onCitationClick?: (citation: Citation) => void;
+}) {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(CITATION_MARKER_PATTERN)) {
+    const index = match.index ?? 0;
+    const citationNumber = Number(match[1]);
+    if (index > lastIndex) {
+      nodes.push(value.slice(lastIndex, index));
+    }
+
+    const citation = Number.isInteger(citationNumber) ? citations[citationNumber - 1] : undefined;
+    if (citation && onCitationClick) {
+      nodes.push(
+        <button
+          key={`citation-${index}-${citationNumber}`}
+          type="button"
+          onClick={() => onCitationClick(citation)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            borderRadius: '9999px',
+            border: '1px solid var(--chakra-colors-border-subtle)',
+            backgroundColor: 'color-mix(in srgb, var(--chakra-colors-bg-subtle), transparent 35%)',
+            padding: '0.1rem 0.5rem',
+            verticalAlign: 'baseline',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            color: 'var(--chakra-colors-fg)',
+            margin: '0 0.125rem',
+            cursor: 'pointer',
+          }}
+        >
+          {`[${citationNumber}]`}
+        </button>,
+      );
+    } else {
+      nodes.push(`[${citationNumber}]`);
+    }
+
+    lastIndex = index + match[0].length;
+  }
+
+  if (lastIndex < value.length) {
+    nodes.push(value.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : value;
+}
+
+function renderChildrenWithCitations({
+  children,
+  citations,
+  onCitationClick,
+}: {
+  children: ReactNode;
+  citations: Citation[];
+  onCitationClick?: (citation: Citation) => void;
+}): ReactNode {
+  if (typeof children === 'string') {
+    return renderTextWithCitations({ value: children, citations, onCitationClick });
+  }
+
+  if (Array.isArray(children)) {
+    return Children.toArray(children).map(child =>
+      renderChildrenWithCitations({ children: child, citations, onCitationClick }));
+  }
+
+  return children;
 }
 
 export function MarkdownMessage({
@@ -26,153 +111,111 @@ export function MarkdownMessage({
   citations: Citation[];
   onCitationClick?: (citation: Citation) => void;
 }) {
-  const lines = normalizeChatDisplayContent(content).split('\n');
-  const blocks: ReactNode[] = [];
-  let paragraphLines: string[] = [];
-  let listItems: { type: 'ul' | 'ol'; content: string }[] = [];
-  let codeFenceLines: string[] = [];
-  let inCodeFence = false;
-
-  function flushParagraph() {
-    if (paragraphLines.length === 0) return;
-    blocks.push(
-      <Text key={`p-${blocks.length}`} minW="0" whiteSpace="pre-wrap" overflowWrap="anywhere">
-        {renderInlineMarkdown({ text: paragraphLines.join(' '), citations, onCitationClick })}
-      </Text>,
-    );
-    paragraphLines = [];
-  }
-
-  function flushList() {
-    if (listItems.length === 0) return;
-    const isOrdered = listItems[0]?.type === 'ol';
-    blocks.push(
-      <Flex
-        key={`list-${blocks.length}`}
-        as={isOrdered ? 'ol' : 'ul'}
-        direction="column"
-        gap="1"
-        minW="0"
-        pl="5"
-        listStyleType={isOrdered ? 'decimal' : 'disc'}
-      >
-        {listItems.map((item) => (
-          <Box as="li" key={`${item.type}-${item.content}`} minW="0" overflowWrap="anywhere">
-            {renderInlineMarkdown({ text: item.content, citations, onCitationClick })}
+  const components: Components = {
+    p({ children }) {
+      return (
+        <Text minW="0" whiteSpace="pre-wrap" overflowWrap="anywhere">
+          {renderChildrenWithCitations({ children, citations, onCitationClick })}
+        </Text>
+      );
+    },
+    ul({ children }) {
+      return (
+        <Flex as="ul" direction="column" gap="1" minW="0" pl="5" listStyleType="disc">
+          {children}
+        </Flex>
+      );
+    },
+    ol({ children }) {
+      return (
+        <Flex as="ol" direction="column" gap="1" minW="0" pl="5" listStyleType="decimal">
+          {children}
+        </Flex>
+      );
+    },
+    li({ children }) {
+      return (
+        <Box as="li" minW="0" overflowWrap="anywhere">
+          {renderChildrenWithCitations({ children, citations, onCitationClick })}
+        </Box>
+      );
+    },
+    h1({ children }) {
+      return (
+        <Text minW="0" fontSize="xl" fontWeight="semibold" overflowWrap="anywhere">
+          {renderChildrenWithCitations({ children, citations, onCitationClick })}
+        </Text>
+      );
+    },
+    h2({ children }) {
+      return (
+        <Text minW="0" fontSize="lg" fontWeight="semibold" overflowWrap="anywhere">
+          {renderChildrenWithCitations({ children, citations, onCitationClick })}
+        </Text>
+      );
+    },
+    h3({ children }) {
+      return (
+        <Text minW="0" fontSize="base" fontWeight="semibold" overflowWrap="anywhere">
+          {renderChildrenWithCitations({ children, citations, onCitationClick })}
+        </Text>
+      );
+    },
+    blockquote({ children }) {
+      return (
+        <Box as="blockquote" borderLeftWidth="2px" borderColor="border" pl="4" minW="0" fontStyle="italic" color="fg.muted">
+          {renderChildrenWithCitations({ children, citations, onCitationClick })}
+        </Box>
+      );
+    },
+    code({ children, className }) {
+      const isInline = !className;
+      if (isInline) {
+        return (
+          <Box
+            as="code"
+            rounded="sm"
+            bg="bg.subtle"
+            px="1.5"
+            py="0.5"
+            fontFamily="mono"
+            fontSize="0.95em"
+          >
+            {children}
           </Box>
-        ))}
-      </Flex>,
-    );
-    listItems = [];
-  }
+        );
+      }
 
-  function flushCodeFence() {
-    if (codeFenceLines.length === 0) return;
-    blocks.push(
-      <Box
-        key={`code-${blocks.length}`}
-        as="pre"
-        maxW="full"
-        overflowX="auto"
-        rounded="lg"
-        bg="bg.subtle"
-        p="3"
-        fontFamily="mono"
-        fontSize="sm"
-      >
-        <code>{codeFenceLines.join('\n')}</code>
-      </Box>,
-    );
-    codeFenceLines = [];
-  }
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-
-    if (trimmedLine.startsWith('```')) {
-      flushParagraph();
-      flushList();
-      if (inCodeFence) flushCodeFence();
-      inCodeFence = !inCodeFence;
-      continue;
-    }
-
-    if (inCodeFence) {
-      codeFenceLines.push(line);
-      continue;
-    }
-
-    if (trimmedLine.length === 0) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-
-    const headingText = line.startsWith('### ')
-      ? line.slice(4)
-      : line.startsWith('## ')
-        ? line.slice(3)
-        : line.startsWith('# ')
-          ? line.slice(2)
-          : null;
-    if (headingText !== null) {
-      flushParagraph();
-      flushList();
-      const level = line.startsWith('### ') ? 3 : line.startsWith('## ') ? 2 : 1;
-      const fontSize = level === 1 ? 'xl' : level === 2 ? 'lg' : 'base';
-      blocks.push(
-        <Text key={`heading-${blocks.length}`} minW="0" fontSize={fontSize} fontWeight="semibold" overflowWrap="anywhere">
-          {renderInlineMarkdown({ text: headingText, citations, onCitationClick })}
-        </Text>,
-      );
-      continue;
-    }
-
-    const orderedMarkerIndex = line.indexOf('. ');
-    const orderedPrefix = orderedMarkerIndex > 0 ? line.slice(0, orderedMarkerIndex) : '';
-    const orderedContent = orderedMarkerIndex > 0 ? line.slice(orderedMarkerIndex + 2) : '';
-    if (ORDERED_LIST_PREFIX_PATTERN.test(orderedPrefix) && orderedContent.length > 0) {
-      flushParagraph();
-      listItems.push({ type: 'ol', content: orderedContent });
-      continue;
-    }
-
-    if ((line.startsWith('- ') || line.startsWith('* ')) && line.slice(2).trim().length > 0) {
-      flushParagraph();
-      listItems.push({ type: 'ul', content: line.slice(2) });
-      continue;
-    }
-
-    if (line.startsWith('> ')) {
-      flushParagraph();
-      flushList();
-      blocks.push(
+      return (
         <Box
-          key={`quote-${blocks.length}`}
-          as="blockquote"
-          borderLeftWidth="2px"
-          borderColor="border"
-          pl="4"
-          minW="0"
-          fontStyle="italic"
-          color="fg.muted"
+          as="code"
+          display="block"
+          minW="max-content"
+          fontFamily="mono"
+          fontSize="sm"
         >
-          {renderInlineMarkdown({ text: line.slice(2), citations, onCitationClick })}
-        </Box>,
+          {children}
+        </Box>
       );
-      continue;
-    }
-
-    paragraphLines.push(line.trim());
-  }
-
-  flushParagraph();
-  flushList();
-  flushCodeFence();
+    },
+    pre({ children }) {
+      return (
+        <Box as="pre" maxW="full" overflowX="auto" rounded="lg" bg="bg.subtle" p="3">
+          {children}
+        </Box>
+      );
+    },
+  };
 
   return (
     <Flex direction="column" gap="2" minW="0" maxW="full" overflowWrap="anywhere">
-      {blocks}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSanitize]}
+        components={components}
+      >
+        {normalizeChatDisplayContent(content)}
+      </ReactMarkdown>
     </Flex>
   );
 }

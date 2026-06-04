@@ -58,8 +58,13 @@ import {
   removeVaultFromDraftContext,
 } from './chat-context-selector';
 import { ChatEmptyState } from './chat-empty-state';
-import { ChatInputPanel } from './chat-input-panel';
-import { VirtualChatTimeline } from './virtual-chat-timeline';
+import {
+  AssistantChatRuntimeProvider,
+} from './assistant-chat-runtime';
+import { getAppendMessageText } from './assistant-chat-runtime.utils';
+import type { AssistantChatMessage } from './assistant-chat-runtime.utils';
+import { AssistantChatThread } from './assistant-chat-thread';
+import { AssistantChatComposer } from './assistant-chat-composer';
 
 function scopeFromContextSnapshot(snapshot: ChatContextSnapshot): ChatApiScope {
   if (snapshot.type === 'document') {
@@ -282,6 +287,54 @@ export function ChatWorkspace({
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
   const effectiveIntent = activeConversationIntent;
   const shouldShowEmptyState = messages.length === 0 && !isStreaming;
+  const shouldRenderStreamingMessage = streamingText.length > 0 || isStreaming;
+  const assistantMessages = useMemo<AssistantChatMessage[]>(() => {
+    const runtimeMessages = messages.map((message) => ({
+      message,
+      activeStatus: streamStatus,
+    }));
+
+    if (!shouldRenderStreamingMessage) {
+      return runtimeMessages;
+    }
+
+    return [
+      ...runtimeMessages,
+      {
+        activeStatus: streamStatus,
+        isStreamingPlaceholder: true,
+        message: {
+          id: '__streaming_response__',
+          conversationId: effectiveSelectedChatId || NEW_CHAT_DRAFT_ID,
+          vaultId: activeVaultId ?? null,
+          documentId: activeDocumentId ?? null,
+          scope: isActiveDocumentChat ? 'document' : isActiveGlobalChat ? 'global' : 'vault',
+          userId: null,
+          role: 'assistant',
+          content: streamingText,
+          metadata: null,
+          citations: [],
+          generationMetrics: null,
+          generationStatus: null,
+          generationError: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          localOnly: true,
+        },
+      },
+    ];
+  }, [
+    activeDocumentId,
+    activeVaultId,
+    effectiveSelectedChatId,
+    isActiveDocumentChat,
+    isActiveGlobalChat,
+    messages,
+    shouldRenderStreamingMessage,
+    streamStatus,
+    streamingText,
+  ]);
+  const isComposerDisabled = !canUseChat || isStreaming || createConversation.isPending;
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
     if (!isDraftConversation) return conversations;
@@ -580,6 +633,13 @@ export function ChatWorkspace({
     }
   }
 
+  async function handleAssistantNewMessage(message: Parameters<typeof getAppendMessageText>[0]) {
+    const content = getAppendMessageText(message);
+    if (content.length === 0) return;
+    setComposerValue('');
+    await handleSend(content);
+  }
+
   const conversationRailProps = useMemo(() => ({
     conversationsQuery,
     conversationSections,
@@ -816,81 +876,81 @@ export function ChatWorkspace({
           </Box>
         </Box>
 
-        {shouldShowEmptyState ? (
-          <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
-            <ScrollArea.Viewport h="full">
-              <ScrollArea.Content minH="full">
-                <ChatEmptyState
-                  title={experience.emptyTitle}
-                  description={experience.emptyDescription}
-                  promptSuggestions={experience.promptSuggestions}
-                  disabled={!canUseChat}
-                  onPromptSelect={(prompt) => {
-                    void handleSend(prompt);
-                  }}
-                />
-              </ScrollArea.Content>
-            </ScrollArea.Viewport>
-            <ScrollArea.Scrollbar bg="transparent">
-              <ScrollArea.Thumb />
-            </ScrollArea.Scrollbar>
-          </ScrollArea.Root>
-        ) : selectedChatQuery.isLoading && messages.length === 0 ? (
-          <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
-            <ScrollArea.Viewport h="full">
-              <ScrollArea.Content minH="full">
-                <ChatConversationSkeleton />
-              </ScrollArea.Content>
-            </ScrollArea.Viewport>
-            <ScrollArea.Scrollbar bg="transparent">
-              <ScrollArea.Thumb />
-            </ScrollArea.Scrollbar>
-          </ScrollArea.Root>
-        ) : (
-          <VirtualChatTimeline
-            conversationId={effectiveSelectedChatId}
-            messages={messages}
-            currentVaultId={activeVaultId}
-            scope={activeScope}
-            activeStatus={streamStatus}
-            metricsByMessageId={metricsByMessageId}
-            streamingText={streamingText}
-            isStreaming={isStreaming}
-            onQuickReplySelect={
-              isActiveGlobalChat
-                ? (reply) => {
-                    void handleSend(reply, effectiveIntent);
-                  }
-                : undefined
-            }
-          />
-        )}
+        <AssistantChatRuntimeProvider
+          messages={assistantMessages}
+          disabled={isComposerDisabled}
+          isRunning={isStreaming}
+          onNew={handleAssistantNewMessage}
+        >
+          {shouldShowEmptyState ? (
+            <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
+              <ScrollArea.Viewport h="full">
+                <ScrollArea.Content minH="full">
+                  <ChatEmptyState
+                    title={experience.emptyTitle}
+                    description={experience.emptyDescription}
+                    promptSuggestions={experience.promptSuggestions}
+                    disabled={!canUseChat}
+                    onPromptSelect={(prompt) => {
+                      void handleSend(prompt);
+                    }}
+                  />
+                </ScrollArea.Content>
+              </ScrollArea.Viewport>
+              <ScrollArea.Scrollbar bg="transparent">
+                <ScrollArea.Thumb />
+              </ScrollArea.Scrollbar>
+            </ScrollArea.Root>
+          ) : selectedChatQuery.isLoading && messages.length === 0 ? (
+            <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
+              <ScrollArea.Viewport h="full">
+                <ScrollArea.Content minH="full">
+                  <ChatConversationSkeleton />
+                </ScrollArea.Content>
+              </ScrollArea.Viewport>
+              <ScrollArea.Scrollbar bg="transparent">
+                <ScrollArea.Thumb />
+              </ScrollArea.Scrollbar>
+            </ScrollArea.Root>
+          ) : (
+            <AssistantChatThread
+              currentVaultId={activeVaultId}
+              scope={activeScope}
+              metricsByMessageId={metricsByMessageId}
+              onQuickReplySelect={
+                isActiveGlobalChat
+                  ? (reply) => {
+                      void handleSend(reply, effectiveIntent);
+                    }
+                  : undefined
+              }
+            />
+          )}
 
-        <ChatInputPanel
-          disabled={!canUseChat || isStreaming || createConversation.isPending}
-          placeholder={inputPlaceholder}
-          responseMode={responseMode}
-          modelOptions={modelOptionsQuery.data?.options.models}
-          selectedModel={resolvedSelectedModel}
-          isLoadingModels={modelOptionsQuery.isLoading}
-          modelOptionsError={
-            modelOptionsQuery.isError
-              ? 'Could not load available Ollama models for this chat.'
-              : null
-          }
-          onSelectedModelChange={setSelectedModel}
-          onResponseModeChange={setResponseMode}
-          context={displayedContext}
-          contextLocked={isContextLocked}
-          onAddVaults={() => setIsVaultDialogOpen(true)}
-          onAddDocuments={() => setIsDocumentDialogOpen(true)}
-          onRemoveVault={handleRemoveVault}
-          onRemoveDocument={handleRemoveDocument}
-          value={composerValue}
-          onValueChange={setComposerValue}
-          textareaRef={textareaRef}
-          onSubmit={handleSend}
-        />
+          <AssistantChatComposer
+            disabled={isComposerDisabled}
+            placeholder={inputPlaceholder}
+            responseMode={responseMode}
+            modelOptions={modelOptionsQuery.data?.options.models}
+            selectedModel={resolvedSelectedModel}
+            isLoadingModels={modelOptionsQuery.isLoading}
+            modelOptionsError={
+              modelOptionsQuery.isError
+                ? 'Could not load available Ollama models for this chat.'
+                : null
+            }
+            onSelectedModelChange={setSelectedModel}
+            onResponseModeChange={setResponseMode}
+            context={displayedContext}
+            contextLocked={isContextLocked}
+            onAddVaults={() => setIsVaultDialogOpen(true)}
+            onAddDocuments={() => setIsDocumentDialogOpen(true)}
+            onRemoveVault={handleRemoveVault}
+            onRemoveDocument={handleRemoveDocument}
+            textareaRef={textareaRef}
+            onDraftValueChange={setComposerValue}
+          />
+        </AssistantChatRuntimeProvider>
       </Box>
 
       <VaultSelectionDialog

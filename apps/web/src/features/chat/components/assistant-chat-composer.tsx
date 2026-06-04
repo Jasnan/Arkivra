@@ -1,16 +1,18 @@
-import type { RefObject } from 'react';
-import { useEffect } from 'react';
-import { Box, Flex, Text } from '@chakra-ui/react';
+import type { ChangeEvent, RefObject } from 'react';
+import { Box, Flex, Text, chakra } from '@chakra-ui/react';
+import { ComposerPrimitive } from '@assistant-ui/react';
 import { Brain, Send } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
-import { Textarea } from '@/components/ui/textarea';
 import type { ChatResponseMode } from '../chat.api';
 import { AnswerModePicker } from './answer-mode-picker';
 import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
 import { ChatContextAddMenu, ContextChipList } from './chat-context-selector';
 
-export function ChatInputPanel({
+const ComposerRoot = chakra(ComposerPrimitive.Root);
+const ComposerInput = chakra(ComposerPrimitive.Input);
+const ComposerSend = chakra(ComposerPrimitive.Send);
+
+export function AssistantChatComposer({
   disabled,
   placeholder,
   responseMode,
@@ -26,10 +28,8 @@ export function ChatInputPanel({
   onAddDocuments,
   onRemoveVault,
   onRemoveDocument,
-  value,
-  onValueChange,
   textareaRef,
-  onSubmit,
+  onDraftValueChange,
 }: {
   disabled: boolean;
   placeholder: string;
@@ -46,33 +46,20 @@ export function ChatInputPanel({
   onAddDocuments?: () => void;
   onRemoveVault?: (vault: DraftChatVault) => void;
   onRemoveDocument?: (document: DraftChatDocument) => void;
-  value: string;
-  onValueChange: (nextValue: string) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
-  onSubmit: (content: string) => void;
+  onDraftValueChange: (nextValue: string) => void;
 }) {
   const hasModelPicker = Boolean(onSelectedModelChange);
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = '0px';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 224)}px`;
-  }, [textareaRef, value]);
-
-  function submit() {
-    const content = value.trim();
-    if (content.length === 0 || disabled) return;
-    onValueChange('');
-    onSubmit(content);
-  }
-
   const modelLabel = selectedModel || (isLoadingModels ? 'Loading models' : 'No model');
   const modelDropdownOptions = modelOptions?.map(model => ({ value: model, label: model })) ?? [];
 
+  function handleComposerChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    onDraftValueChange(event.currentTarget.value);
+  }
+
   return (
     <Box alignSelf="end" flexShrink="0" px="4" pb="4" pt="2" sm={{ px: '6', pb: '5' }}>
-      <Box
+      <ComposerRoot
         mx="auto"
         w="100%"
         maxW="54rem"
@@ -93,40 +80,33 @@ export function ChatInputPanel({
           />
         ) : null}
 
-        <Textarea
+        <ComposerInput
           ref={textareaRef}
           aria-label="Chat message"
-          value={value}
-          onChange={(event) => onValueChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              submit();
-            }
-          }}
           placeholder={placeholder}
           disabled={disabled}
+          submitMode="enter"
+          minRows={1}
+          maxRows={8}
           fontFamily="chat"
           fontSize="var(--arkivra-font-size-chat)"
           lineHeight="1.6"
-          style={{
-            minHeight: '2.75rem',
-            maxHeight: '14rem',
-            width: '100%',
-            resize: 'none',
-            borderWidth: '0',
-            background: 'transparent',
-            padding: '0.75rem 0.75rem',
-            boxShadow: 'none',
-          }}
+          minH="2.75rem"
+          maxH="14rem"
+          w="100%"
+          resize="none"
           borderWidth="0"
-          borderColor="transparent"
+          bg="transparent"
+          px="3"
+          py="3"
+          boxShadow="none"
           _hover={{ borderColor: 'transparent' }}
           _focusVisible={{
             borderColor: 'transparent',
             outline: 'none',
             ring: 'none',
           }}
+          onChange={handleComposerChange}
         />
 
         <Flex align="center" justify="space-between" gap="3" pt="3">
@@ -169,23 +149,29 @@ export function ChatInputPanel({
             ) : null}
           </Flex>
 
-          <Button
-            type="button"
-            size="icon"
+          <ComposerSend
+            type="submit"
             aria-label="Send message"
-            disabled={disabled || value.trim().length === 0}
+            display="inline-flex"
+            alignItems="center"
+            justifyContent="center"
             flexShrink="0"
-            style={{ width: '2.25rem', height: '2.25rem', borderRadius: '0.5rem' }}
-            onClick={submit}
+            w="2.25rem"
+            h="2.25rem"
+            rounded="lg"
+            bg="teal.solid"
+            color="fg.inverted"
+            _hover={{ bg: 'teal.emphasized' }}
+            _disabled={{ opacity: 0.45, cursor: 'not-allowed' }}
           >
             <Send size={16} />
-          </Button>
+          </ComposerSend>
         </Flex>
 
         {modelOptionsError ? (
           <Text mt="3" px="1" fontSize="xs" color="fg.error">{modelOptionsError}</Text>
         ) : null}
-      </Box>
+      </ComposerRoot>
     </Box>
   );
 }

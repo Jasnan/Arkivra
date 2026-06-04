@@ -2,13 +2,13 @@ import type { ComponentPropsWithoutRef } from 'react';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import type { VirtuosoGridProps } from 'react-virtuoso';
-import { Box, Flex, Grid, HStack, SimpleGrid, Stack, Switch as ChakraSwitch, Text } from '@chakra-ui/react';
-import { FileSearch, SearchX, Sparkles, Vault } from 'lucide-react';
+import { Box, Flex, Grid, HStack, Menu, Portal, SimpleGrid, Stack, Text } from '@chakra-ui/react';
+import { Check, ChevronDown, FileSearch, SearchX, Sparkles, Vault } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
-import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { useAccentColor } from '@/components/providers/accent-color-context';
+import { Button } from '@/components/ui/button';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
@@ -112,7 +112,7 @@ function getSearchReturnParams({
   if (tagIds.length > 0) params.tagIds = joinSearchList(tagIds);
   if (dateFrom.length > 0) params.dateFrom = dateFrom;
   if (dateTo.length > 0) params.dateTo = dateTo;
-  if (searchMode === 'hybrid') params.searchMode = searchMode;
+  if (searchMode === 'hybrid' || searchMode === 'keyword') params.searchMode = searchMode;
 
   return params;
 }
@@ -259,7 +259,7 @@ function SearchResultSnippet({ result }: { result: SearchResultItem }) {
       <Flex mt="1" flexWrap="wrap" gap="1">
         {isSemanticMatch ? (
           <Box as="span" rounded="md" bg="bg.subtle" px="2" py="0.5" fontSize="xs" lineHeight="1.2" color="fg.muted">
-            Semantic match
+            Meaning match
           </Box>
         ) : null}
         {result.bestChunk.pageNumber !== null ? (
@@ -514,58 +514,129 @@ function SearchResultGrid({
 }
 
 function SearchModeControl({
-  checked,
-  disabled,
-  onCheckedChange,
+  value,
+  onValueChange,
 }: {
-  checked: boolean;
-  disabled?: boolean;
-  onCheckedChange: (checked: boolean) => void;
+  value: SearchMode;
+  onValueChange: (value: SearchMode) => void;
 }) {
+  const selectedLabel = value === 'hybrid' ? 'AI Enhanced' : 'Keyword Only';
+
   return (
-    <Flex
-      w="full"
-      minW="0"
-      h="10"
-      align="center"
-      justify="space-between"
-      gap="3"
-      rounded="lg"
-      borderWidth="1px"
-      borderColor="border.surface"
-      bg={checked ? 'teal.subtle' : 'bg.surface'}
-      px="3"
-      fontSize="sm"
-      color="fg"
-      transition="background-color 120ms ease, border-color 120ms ease"
-    >
-      <ChakraSwitch.Root
-        size="lg"
-        colorPalette="teal"
-        checked={checked}
-        onCheckedChange={(event) => onCheckedChange(event.checked)}
-        disabled={disabled}
-        display="flex"
-        w="full"
-        minW="0"
-        alignItems="center"
-        justifyContent="space-between"
-        gap="3"
-      >
-        <Flex minW="0" align="center" gap="2">
-          <ChakraSwitch.HiddenInput />
+    <Menu.Root positioning={{ placement: 'bottom-end', gutter: 6 }}>
+      <Menu.Trigger asChild>
+        <Button
+          type="button"
+          aria-label={`Search mode: ${selectedLabel}`}
+          variant="ghost"
+          size="sm"
+          display="inline-flex"
+          h="8"
+          minH="8"
+          minW="0"
+          rounded="md"
+          px="2"
+          gap="2"
+          color="fg"
+          _hover={{ bg: 'bg.subtle', color: 'fg' }}
+          _focusVisible={{
+            outline: '2px solid',
+            outlineColor: 'teal.focusRing',
+            outlineOffset: '1px',
+          }}
+        >
           <Box color="teal.solid" aria-hidden="true">
             <Sparkles size={17} />
           </Box>
-          <ChakraSwitch.Label flexShrink={0} fontWeight="medium" color="fg">
-            Semantic
-          </ChakraSwitch.Label>
-        </Flex>
-        <ChakraSwitch.Control flexShrink={0}>
-          <ChakraSwitch.Thumb />
-        </ChakraSwitch.Control>
-      </ChakraSwitch.Root>
-    </Flex>
+          <Text as="span" display={{ base: 'none', md: 'inline' }} fontSize="sm" fontWeight="medium" whiteSpace="nowrap">
+            {selectedLabel}
+          </Text>
+          <Box display={{ base: 'none', md: 'block' }} color="fg.muted" aria-hidden="true">
+            <ChevronDown size={15} />
+          </Box>
+        </Button>
+      </Menu.Trigger>
+      <Portal>
+        <Menu.Positioner zIndex="dropdown">
+          <Menu.Content
+            minW="15rem"
+            rounded="lg"
+            borderWidth="1px"
+            borderColor="border.surface"
+            bg="bg.surface"
+            p="1.5"
+            shadow="lg"
+          >
+            <Menu.RadioItemGroup
+              value={value}
+              onValueChange={(event) => {
+                if (event.value === 'hybrid' || event.value === 'keyword') {
+                  onValueChange(event.value);
+                }
+              }}
+            >
+              <Menu.RadioItem
+                value="hybrid"
+                position="relative"
+                minH="3.5rem"
+                rounded="md"
+                ps="9"
+                pe="3"
+                py="2"
+                color="fg"
+                _checked={{ bg: 'teal.subtle' }}
+                _highlighted={{ bg: value === 'hybrid' ? 'teal.subtle' : 'bg.subtle' }}
+              >
+                <Box position="absolute" left="3" top="3" color="teal.solid">
+                  <Menu.ItemIndicator>
+                    <Check size={16} strokeWidth={2.5} />
+                  </Menu.ItemIndicator>
+                </Box>
+                <Menu.ItemText>
+                  <Stack gap="0.5">
+                    <Text as="span" fontSize="sm" fontWeight="semibold">
+                      AI Enhanced
+                    </Text>
+                    <Text as="span" fontSize="xs" color="fg.muted">
+                      Meaning + keyword matching
+                    </Text>
+                  </Stack>
+                </Menu.ItemText>
+              </Menu.RadioItem>
+
+              <Menu.RadioItem
+                value="keyword"
+                position="relative"
+                minH="3.5rem"
+                rounded="md"
+                ps="9"
+                pe="3"
+                py="2"
+                color="fg"
+                _checked={{ bg: 'teal.subtle' }}
+                _highlighted={{ bg: value === 'keyword' ? 'teal.subtle' : 'bg.subtle' }}
+              >
+                <Box position="absolute" left="3" top="3" color="teal.solid">
+                  <Menu.ItemIndicator>
+                    <Check size={16} strokeWidth={2.5} />
+                  </Menu.ItemIndicator>
+                </Box>
+                <Menu.ItemText>
+                  <Stack gap="0.5">
+                    <Text as="span" fontSize="sm" fontWeight="semibold">
+                      Keyword Only
+                    </Text>
+                    <Text as="span" fontSize="xs" color="fg.muted">
+                      Exact word matching
+                    </Text>
+                  </Stack>
+                </Menu.ItemText>
+              </Menu.RadioItem>
+            </Menu.RadioItemGroup>
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
   );
 }
 
@@ -658,7 +729,7 @@ export function SearchPage() {
   const dateFrom = search.dateFrom ?? '';
   const dateTo = search.dateTo ?? '';
   const sortBy = isSearchSortBy(search.sortBy) ? search.sortBy : 'created_desc';
-  const requestedSemanticSearch = isSearchMode(search.searchMode) ? search.searchMode === 'hybrid' : false;
+  const requestedSearchMode = isSearchMode(search.searchMode) ? search.searchMode : undefined;
   const hasSearchCriteria = debouncedQuery.length > 0
     || selectedVaultIds.length > 0
     || selectedTagIds.length > 0
@@ -696,8 +767,7 @@ export function SearchPage() {
   const semanticSearchAvailable = aiFeaturesEnabled && (selectedVaultIds.length > 0
     ? selectedVaultIds.every((vaultId) => fullAiVaultIds.has(vaultId))
     : fullAiVaultIds.size > 0 || vaults.length === 0);
-  const semanticSearchEnabled = requestedSemanticSearch && semanticSearchAvailable;
-  const selectedSearchMode: SearchMode = semanticSearchEnabled ? 'hybrid' : 'keyword';
+  const selectedSearchMode: SearchMode = semanticSearchAvailable ? requestedSearchMode ?? 'hybrid' : 'keyword';
   const searchMode: SearchMode = selectedSearchMode === 'hybrid' && debouncedQuery.length > 0 ? 'hybrid' : 'keyword';
   const searchQuery = useGlobalSearchDocumentsQuery({
     query: debouncedQuery,
@@ -843,9 +913,9 @@ export function SearchPage() {
     });
   }, [updateFilters]);
 
-  const setSemanticSearchEnabled = useCallback((checked: boolean) => {
+  const setSearchMode = useCallback((value: SearchMode) => {
     updateFilters({
-      searchMode: checked ? 'hybrid' : '',
+      searchMode: value,
     });
   }, [updateFilters]);
   const filterStateKey = useMemo(
@@ -862,7 +932,6 @@ export function SearchPage() {
   const renderSearchControls = useCallback((layout: 'workspace' | 'shell' | 'header') => (
     <DocumentSearchControls
       layout={layout}
-      title={layout === 'shell' ? 'Search' : undefined}
       query={query}
       onQueryChange={setQuery}
       searchPlaceholder="Search documents..."
@@ -882,11 +951,10 @@ export function SearchPage() {
       sortPlacement="input"
       filtersTitle="Filters"
       filterStateKey={filterStateKey}
-      inlineAccessory={aiFeaturesEnabled ? (
+      inlineAccessory={semanticSearchAvailable ? (
         <SearchModeControl
-          checked={semanticSearchEnabled}
-          disabled={!semanticSearchAvailable}
-          onCheckedChange={setSemanticSearchEnabled}
+          value={selectedSearchMode}
+          onValueChange={setSearchMode}
         />
       ) : undefined}
       trailingAccessory={layout === 'header' ? undefined : (
@@ -960,7 +1028,6 @@ export function SearchPage() {
     />
   ), [
     activeFilters,
-    aiFeaturesEnabled,
     browserView,
     dateFrom,
     datePreset,
@@ -970,14 +1037,14 @@ export function SearchPage() {
     query,
     resetFilters,
     semanticSearchAvailable,
-    semanticSearchEnabled,
+    selectedSearchMode,
     selectedTagIds,
     selectedTagsLabel,
     selectedVaultIds,
     selectedVaultsLabel,
     setPresetDateFilter,
     setBrowserView,
-    setSemanticSearchEnabled,
+    setSearchMode,
     setTagSelection,
     setVaultSelection,
     sortBy,
@@ -992,12 +1059,7 @@ export function SearchPage() {
     <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
   ), [browserView, setBrowserView]);
   const workspaceHeader = useMemo(() => ({
-    left: (
-      <HStack gap="4" minW="0" w="full">
-        <WorkspacePageTitle>Search</WorkspacePageTitle>
-        {searchHeaderControls}
-      </HStack>
-    ),
+    left: searchHeaderControls,
     actions: searchHeaderActions,
   }), [searchHeaderActions, searchHeaderControls]);
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);

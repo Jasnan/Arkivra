@@ -1,6 +1,5 @@
-import type { ComponentProps } from 'react';
 import { ArrowUpDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import type { ButtonProps } from '@/components/ui/button';
 import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
 import type { RadioDropdownMenuOption } from '@/components/ui/radio-dropdown-menu';
 
@@ -18,7 +17,7 @@ export function DocumentSortMenu<TValue extends string>({
   variant = 'default',
 }: {
   ariaLabel: string;
-  buttonProps?: ComponentProps<typeof Button>;
+  buttonProps?: ButtonProps;
   hideLabel?: boolean;
   iconOnlyOnMobile?: boolean;
   labelId?: string;
@@ -38,6 +37,7 @@ export function DocumentSortMenu<TValue extends string>({
       onValueChange={onValueChange}
       options={options}
       placeholder="Sort"
+      triggerLabel={variant === 'input' ? 'Sort' : undefined}
       value={value}
       variant={variant}
     />

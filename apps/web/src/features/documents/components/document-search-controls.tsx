@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { Filter, Search as SearchIcon, X } from 'lucide-react';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
+import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { SearchCombobox } from '@/components/ui/search-combobox';
@@ -185,6 +186,11 @@ export function DocumentSearchControls<TSortValue extends string>({
   const isHeaderLayout = layout === 'header';
   const hasToolbarAccessory = Boolean(toolbarAccessory);
   const isSortInInput = sortPlacement === 'input';
+  const inputEndPadding = isSortInInput
+    ? inlineAccessory
+      ? { base: '6.5rem', md: '24rem' }
+      : { base: '6.5rem', md: '13rem' }
+    : '3.5rem';
   const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
   const wasFiltersOpenRef = useRef(false);
   const [filterStateKeyOnOpen, setFilterStateKeyOnOpen] = useState<string | undefined>(undefined);
@@ -213,6 +219,56 @@ export function DocumentSearchControls<TSortValue extends string>({
   }
 
   function renderFilterButton() {
+    if (isSortInInput) {
+      return (
+        <Button
+          type="button"
+          ref={filterTriggerRef}
+          aria-label={activeFilterCount > 0 ? `Open filters, ${activeFilterCount} active` : 'Open filters'}
+          variant="ghost"
+          size="sm"
+          position="relative"
+          h="8"
+          minH="8"
+          minW="8"
+          rounded="md"
+          color={activeFilterCount > 0 ? 'teal.solid' : 'fg'}
+          px={{ base: '0', md: '2' }}
+          gap="2"
+          transition="background-color 120ms ease, color 120ms ease"
+          _hover={{ bg: 'bg.subtle', color: 'fg' }}
+          _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+        >
+          <Filter size={17} />
+          <Text as="span" display={{ base: 'none', md: 'inline' }} fontSize="sm" fontWeight="medium">
+            Filter
+          </Text>
+          {activeFilterCount > 0 ? (
+            <Text
+              as="span"
+              position="absolute"
+              top="-1"
+              right="-1.5"
+              display="inline-flex"
+              minW="4.5"
+              h="4.5"
+              alignItems="center"
+              justifyContent="center"
+              rounded="full"
+              bg="teal.solid"
+              px="1"
+              fontSize="0.625rem"
+              fontWeight="bold"
+              lineHeight="1"
+              color="fg.inverted"
+            >
+              {activeFilterCount}
+            </Text>
+          ) : null}
+        </Button>
+      );
+    }
+
     return (
       <IconButton
         type="button"
@@ -264,6 +320,80 @@ export function DocumentSearchControls<TSortValue extends string>({
     );
   }
 
+  function renderFilterDialog() {
+    return (
+      <Dialog.Root
+        open={isFiltersOpen}
+        onOpenChange={(event) => handleFiltersOpenChange(event.open)}
+        closeOnEscape
+        closeOnInteractOutside={isFilterFormPristine}
+        size="md"
+      >
+        <Dialog.Trigger asChild>
+          {renderFilterButton()}
+        </Dialog.Trigger>
+        <Portal>
+          <Dialog.Backdrop bg="blackAlpha.500" />
+          <Dialog.Positioner>
+            <Dialog.Content
+              maxH="calc(100vh - 3rem)"
+              display="flex"
+              flexDirection="column"
+              overflow="hidden"
+              rounded="lg"
+              borderWidth="1px"
+              borderColor="border.surface"
+              bg="bg.surface"
+              shadow="xl"
+            >
+              <Flex
+                flexShrink={0}
+                align="center"
+                justify="space-between"
+                gap="4"
+                borderBottomWidth="1px"
+                borderColor="border.surface"
+                px="6"
+                py="5"
+              >
+                <Box minW="0">
+                  <Dialog.Title fontSize="xl" fontWeight="semibold" color="fg">
+                    {filtersTitle}
+                  </Dialog.Title>
+                  <Dialog.Description srOnly>
+                    {filtersDescription ?? 'Adjust filters.'}
+                  </Dialog.Description>
+                </Box>
+
+                <Flex shrink={0} align="center" gap="3">
+                  <chakra.button
+                    type="button"
+                    fontSize="sm"
+                    fontWeight="semibold"
+                    color="teal.solid"
+                    transition="colors"
+                    _hover={{ opacity: 0.8 }}
+                    _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+                    onClick={onResetFilters}
+                  >
+                    Reset
+                  </chakra.button>
+                  <CloseButton size="sm" aria-label="Close filters" onClick={closeFilters} />
+                </Flex>
+              </Flex>
+
+              <Dialog.Body flex="1" maxH="calc(100vh - 8rem)" overflowY="auto" px="6" py="5">
+                <Box maxW="32rem" w="full">
+                  {renderFilterContent()}
+                </Box>
+              </Dialog.Body>
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Portal>
+      </Dialog.Root>
+    );
+  }
+
   return (
     <>
       <Box
@@ -296,7 +426,7 @@ export function DocumentSearchControls<TSortValue extends string>({
           <Field
             minW="0"
             w="full"
-            maxW={isHeaderLayout ? { base: '18rem', md: '24rem', xl: '34rem' } : isShellLayout ? { md: '28rem' } : hasToolbarAccessory ? undefined : { md: 'none', '2xl': '64rem' }}
+            maxW={isHeaderLayout ? 'none' : isShellLayout ? { md: '28rem' } : hasToolbarAccessory ? undefined : { md: 'none', '2xl': '64rem' }}
             flex={isHeaderLayout ? '1' : { md: isShellLayout ? '0 1 28rem' : hasToolbarAccessory ? '2 1 0' : '1 1 auto' }}
           >
             <FieldLabel htmlFor="document-search-query" srOnly>
@@ -323,7 +453,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                 borderColor="border.strong"
                 bg="bg.surface"
                 pl="11"
-                pr={isSortInInput ? '24' : '14'}
+                pr={inputEndPadding}
                 _hover={{ borderColor: 'fg/30' }}
                 _focusVisible={{
                   borderColor: 'teal.solid',
@@ -333,6 +463,14 @@ export function DocumentSearchControls<TSortValue extends string>({
                 }}
               />
               <HStack position="absolute" right="2" top="50%" transform="translateY(-50%)" gap="1">
+                {isSortInInput && inlineAccessory ? inlineAccessory : null}
+                {isSortInInput && inlineAccessory ? (
+                  <Separator display={{ base: 'none', md: 'block' }} orientation="vertical" h="6" />
+                ) : null}
+                {isSortInInput ? renderFilterDialog() : null}
+                {isSortInInput ? (
+                  <Separator orientation="vertical" h="6" />
+                ) : null}
                 {isSortInInput ? (
                   <DocumentSortMenu
                     ariaLabel={sortAriaLabel}
@@ -343,83 +481,12 @@ export function DocumentSearchControls<TSortValue extends string>({
                     variant="input"
                   />
                 ) : null}
-                {isSortInInput ? (
-                  <Separator orientation="vertical" h="6" />
-                ) : null}
-                <Dialog.Root
-                  open={isFiltersOpen}
-                  onOpenChange={(event) => handleFiltersOpenChange(event.open)}
-                  closeOnEscape
-                  closeOnInteractOutside={isFilterFormPristine}
-                  size="md"
-                >
-                  <Dialog.Trigger asChild>
-                    {renderFilterButton()}
-                  </Dialog.Trigger>
-                  <Portal>
-                    <Dialog.Backdrop bg="blackAlpha.500" />
-                    <Dialog.Positioner>
-                      <Dialog.Content
-                        maxH="calc(100vh - 3rem)"
-                        display="flex"
-                        flexDirection="column"
-                        overflow="hidden"
-                        rounded="lg"
-                        borderWidth="1px"
-                        borderColor="border.surface"
-                        bg="bg.surface"
-                        shadow="xl"
-                      >
-                        <Flex
-                          flexShrink={0}
-                          align="center"
-                          justify="space-between"
-                          gap="4"
-                          borderBottomWidth="1px"
-                          borderColor="border.surface"
-                          px="6"
-                          py="5"
-                        >
-                          <Box minW="0">
-                            <Dialog.Title fontSize="xl" fontWeight="semibold" color="fg">
-                              {filtersTitle}
-                            </Dialog.Title>
-                            <Dialog.Description srOnly>
-                              {filtersDescription ?? 'Adjust filters.'}
-                            </Dialog.Description>
-                          </Box>
-
-                          <Flex shrink={0} align="center" gap="3">
-                            <chakra.button
-                              type="button"
-                              fontSize="sm"
-                              fontWeight="semibold"
-                              color="teal.solid"
-                              transition="colors"
-                              _hover={{ opacity: 0.8 }}
-                              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
-                              onClick={onResetFilters}
-                            >
-                              Reset
-                            </chakra.button>
-                            <CloseButton size="sm" aria-label="Close filters" onClick={closeFilters} />
-                          </Flex>
-                        </Flex>
-
-                        <Dialog.Body flex="1" maxH="calc(100vh - 8rem)" overflowY="auto" px="6" py="5">
-                          <Box maxW="32rem" w="full">
-                            {renderFilterContent()}
-                          </Box>
-                        </Dialog.Body>
-                      </Dialog.Content>
-                    </Dialog.Positioner>
-                  </Portal>
-                </Dialog.Root>
+                {!isSortInInput ? renderFilterDialog() : null}
               </HStack>
             </Box>
           </Field>
 
-          {inlineAccessory ? (
+          {inlineAccessory && !isSortInInput ? (
             <Flex
               display={isHeaderLayout ? { base: 'none', md: 'flex' } : 'flex'}
               minW="0"

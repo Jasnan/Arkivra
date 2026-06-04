@@ -10,8 +10,6 @@ import {
   LayoutDashboard,
   LogOut,
   MessageSquare,
-  PanelLeftClose,
-  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Search,
@@ -114,6 +112,8 @@ const primaryNavItems: PrimaryNavItem[] = [
 const UNIFIED_SIDEBAR_WIDTH = '14rem';
 const UNIFIED_SIDEBAR_COLLAPSED_WIDTH = '3.75rem';
 const SIDEBAR_ICON_ITEM_SIZE = '2.5rem';
+const SIDEBAR_BRAND_COLLAPSED_LOGO_SIZE = '2rem';
+const SIDEBAR_BRAND_EXPANDED_LOGO_SIZE = '2.25rem';
 
 interface SecondaryRouteNavItem {
   to: string;
@@ -184,10 +184,63 @@ const adminNavItems = [
 
 const QUICK_SEARCH_QUERY_DEBOUNCE_MS = 280;
 const SIDEBAR_ACCOUNT_LABEL_MAX_LENGTH = 15;
+const PRIMARY_SIDEBAR_STORAGE_KEY = 'arkivra:primary-sidebar-state';
 
 function isChatPath(pathname: string) {
   const parts = pathname.split('/').filter(Boolean);
   return parts[0] === 'chat' || (parts[0] === 'vaults' && (parts[2] === 'chat' || parts[3] === 'chat'));
+}
+
+function readPrimarySidebarExpandedPreference() {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  try {
+    if (typeof window.localStorage?.getItem !== 'function') {
+      return true;
+    }
+
+    const storedState = window.localStorage.getItem(PRIMARY_SIDEBAR_STORAGE_KEY);
+    return storedState !== 'collapsed';
+  } catch {
+    return true;
+  }
+}
+
+function isTextEntryTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
+    return true;
+  }
+
+  if (target.closest('[role="textbox"], [role="searchbox"]')) {
+    return true;
+  }
+
+  if (target instanceof HTMLTextAreaElement) {
+    return true;
+  }
+
+  if (!(target instanceof HTMLInputElement)) {
+    return false;
+  }
+
+  const textInputTypes = new Set([
+    '',
+    'email',
+    'number',
+    'password',
+    'search',
+    'tel',
+    'text',
+    'url',
+  ]);
+
+  return textInputTypes.has(target.type);
 }
 
 const accountMenuItemProps = {
@@ -329,6 +382,32 @@ function SidebarTooltip({ label, children, disabled = false }: { label: string; 
   );
 }
 
+function SidebarLabel({
+  expanded,
+  fontWeight,
+  children,
+}: {
+  expanded: boolean;
+  fontWeight: 'medium' | 'semibold';
+  children: ReactNode;
+}) {
+  return (
+    <Text
+      as="span"
+      truncate
+      aria-hidden={!expanded}
+      maxW={expanded ? '10rem' : '0'}
+      opacity={expanded ? 1 : 0}
+      overflow="hidden"
+      textStyle="sidebar"
+      fontWeight={fontWeight}
+      transition="opacity 150ms ease, max-width 180ms ease"
+    >
+      {children}
+    </Text>
+  );
+}
+
 function UnifiedSidebarNavLink({
   item,
   active,
@@ -356,7 +435,7 @@ function UnifiedSidebarNavLink({
           w="full"
           align="center"
           justify={expanded ? 'flex-start' : 'center'}
-          gap="2.5"
+          gap={expanded ? '2.5' : '0'}
           rounded="md"
           px={expanded ? '2.5' : '0'}
           py="1.5"
@@ -371,9 +450,9 @@ function UnifiedSidebarNavLink({
           <Flex boxSize="5" shrink={0} align="center" justify="center">
             <Icon size={17} strokeWidth={2.1} />
           </Flex>
-          <Text as="span" truncate display={expanded ? undefined : 'none'} textStyle="sidebar" fontWeight={active ? 'semibold' : 'medium'}>
+          <SidebarLabel expanded={expanded} fontWeight={active ? 'semibold' : 'medium'}>
             {item.label}
-          </Text>
+          </SidebarLabel>
         </Flex>
       </Link>
     </SidebarTooltip>
@@ -404,7 +483,7 @@ function UnifiedSidebarNavButton({
         w="full"
         alignItems="center"
         justifyContent={expanded ? 'flex-start' : 'center'}
-        gap="2.5"
+        gap={expanded ? '2.5' : '0'}
         rounded="md"
         borderWidth="1px"
         borderColor="transparent"
@@ -421,9 +500,9 @@ function UnifiedSidebarNavButton({
         <Flex boxSize="5" shrink={0} align="center" justify="center">
           <Icon size={17} strokeWidth={2.1} />
         </Flex>
-        <Text as="span" truncate display={expanded ? undefined : 'none'} textStyle="sidebar" fontWeight={active ? 'semibold' : 'medium'}>
+        <SidebarLabel expanded={expanded} fontWeight={active ? 'semibold' : 'medium'}>
           {item.label}
-        </Text>
+        </SidebarLabel>
       </chakra.button>
     </SidebarTooltip>
   );
@@ -459,7 +538,7 @@ function SidebarNavGroup({
             w="full"
             alignItems="center"
             justifyContent={expanded ? 'flex-start' : 'center'}
-            gap="2.5"
+            gap={expanded ? '2.5' : '0'}
             rounded="md"
             borderWidth="1px"
             borderColor="transparent"
@@ -475,9 +554,9 @@ function SidebarNavGroup({
             <Flex boxSize="5" shrink={0} align="center" justify="center">
               <Icon size={17} strokeWidth={2.1} />
             </Flex>
-            <Text as="span" truncate display={expanded ? undefined : 'none'} textStyle="sidebar" fontWeight={groupActive ? 'semibold' : 'medium'}>
+            <SidebarLabel expanded={expanded} fontWeight={groupActive ? 'semibold' : 'medium'}>
               {label}
-            </Text>
+            </SidebarLabel>
             <Box ml="auto" display={expanded ? 'flex' : 'none'} color={groupActive ? 'teal.fg' : 'fg.subtle'}>
               {open ? <ChevronDown size={15} strokeWidth={2.25} /> : <ChevronRight size={15} strokeWidth={2.25} />}
             </Box>
@@ -511,6 +590,7 @@ function UnifiedSidebar({
   isAdmin,
   aiFeaturesEnabled,
   onOpenTransfers,
+  onToggleExpanded,
   onSignOut,
 }: {
   expanded: boolean;
@@ -520,6 +600,7 @@ function UnifiedSidebar({
   isAdmin?: boolean;
   aiFeaturesEnabled: boolean;
   onOpenTransfers: () => void;
+  onToggleExpanded: () => void;
   onSignOut: () => void;
 }) {
   const roleLabel = isAdmin ? 'Admin' : 'Member';
@@ -541,53 +622,68 @@ function UnifiedSidebar({
       borderColor="border.strong"
       bg="bg.rail"
       px="2.5"
-      pt="3"
+      pt="2.5"
       pb="3"
       transition="width 180ms ease"
       overflow="hidden"
     >
-      <Flex align="center" gap="2" minW="0">
+      <Box flexShrink={0} mb={expanded ? '4' : '3'}>
         <SidebarTooltip label="Arkivra" disabled={expanded}>
-          <Link to={ROUTES.vaults} aria-label="Arkivra" style={{ color: 'inherit', textDecoration: 'none', minWidth: 0 }}>
+          <chakra.button
+            type="button"
+            aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            title={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            display="flex"
+            minW="0"
+            w="full"
+            minH={SIDEBAR_ICON_ITEM_SIZE}
+            alignItems="center"
+            justifyContent={expanded ? 'flex-start' : 'center'}
+            gap={expanded ? '2.5' : '0'}
+            rounded="md"
+            px={expanded ? '1.5' : '0'}
+            py={expanded ? '1.5' : '0'}
+            color="fg"
+            cursor="pointer"
+            transition="background-color 150ms ease, color 150ms ease"
+            _hover={{ bg: 'bg.muted' }}
+            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
+            onClick={onToggleExpanded}
+          >
             <Flex
-              minW="0"
-              flex={expanded ? '1' : undefined}
+              boxSize={expanded ? SIDEBAR_BRAND_EXPANDED_LOGO_SIZE : SIDEBAR_BRAND_COLLAPSED_LOGO_SIZE}
+              shrink={0}
               align="center"
-              justify={expanded ? 'flex-start' : 'center'}
-              gap="2.5"
-              rounded="md"
-              px={expanded ? '1.5' : '0'}
-              py="1"
-              color="fg"
-              _hover={{ bg: 'bg.muted' }}
+              justify="center"
+              rounded="lg"
+              bg="bg.sidebar"
+              borderWidth="1px"
+              borderColor="bg.inverted"
+              p="1"
+              overflow="hidden"
+              transition="transform 180ms ease"
             >
-              <Flex
-                boxSize="9"
-                shrink={0}
-                align="center"
-                justify="center"
-                rounded="lg"
-                bg="bg.sidebar"
-                borderWidth="1px"
-                borderColor="bg.inverted"
-                p="1"
-                overflow="hidden"
-              >
-                <ArkivraLogo boxSize="full" color="bg.inverted" />
-              </Flex>
-              <Box minW="0" display={expanded ? 'flex' : 'none'} flexDirection="column" gap={0}>
-                <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">
-                  Arkivra
-                </Text>
-                <Text textStyle="caption" lineHeight="none" color="fg.muted">
-                  v{packageJson.version}
-                </Text>
-              </Box>
+              <ArkivraLogo boxSize="full" color="bg.inverted" />
             </Flex>
-          </Link>
+            <Box
+              minW="0"
+              display={expanded ? 'block' : 'none'}
+              maxW={expanded ? '8rem' : '0'}
+              opacity={expanded ? 1 : 0}
+              overflow="hidden"
+              textAlign="left"
+              transition="opacity 160ms ease, max-width 180ms ease"
+            >
+              <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">
+                Arkivra
+              </Text>
+              <Text textStyle="caption" lineHeight="none" color="fg.muted">
+                v{packageJson.version}
+              </Text>
+            </Box>
+          </chakra.button>
         </SidebarTooltip>
-
-      </Flex>
+      </Box>
 
       <Box
         flex="1"
@@ -595,7 +691,6 @@ function UnifiedSidebar({
         minW="0"
         overflowY="auto"
         overflowX="hidden"
-        mt="5"
         css={{
           scrollbarWidth: 'thin',
           scrollbarColor: 'transparent transparent',
@@ -947,48 +1042,22 @@ function QuickSearchTrigger({
   );
 }
 
-function PrimarySidebarToggle({
-  isExpanded,
-  onToggle,
-}: {
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <IconButton
-      type="button"
-      aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-      title={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-      variant="ghost"
-      color="fg.muted"
-      flexShrink={0}
-      onClick={onToggle}
-    >
-      {isExpanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-    </IconButton>
-  );
-}
-
 function WorkspaceHeader({
   breadcrumbs,
   headerConfig,
-  isPrimarySidebarExpanded,
   hasSecondarySidebar,
   isSecondarySidebarOpen,
   quickSearchShortcut,
   hideQuickSearch = false,
-  onTogglePrimarySidebar,
   onToggleSecondarySidebar,
   onOpenQuickSearch,
 }: {
   breadcrumbs: BreadcrumbEntry[];
   headerConfig: WorkspaceHeaderConfig | null;
-  isPrimarySidebarExpanded: boolean;
   hasSecondarySidebar: boolean;
   isSecondarySidebarOpen: boolean;
   quickSearchShortcut: ReturnType<typeof getQuickSearchShortcut>;
   hideQuickSearch?: boolean;
-  onTogglePrimarySidebar: () => void;
   onToggleSecondarySidebar: () => void;
   onOpenQuickSearch: () => void;
 }) {
@@ -1007,12 +1076,8 @@ function WorkspaceHeader({
         bg="bg.workspace"
         position="relative"
       >
-        <Flex align="center" gap="1" px={{ base: '4', md: '5', lg: '4' }}>
-          <PrimarySidebarToggle
-            isExpanded={isPrimarySidebarExpanded}
-            onToggle={onTogglePrimarySidebar}
-          />
-          {hasSecondarySidebar ? (
+        {hasSecondarySidebar ? (
+          <Flex align="center" gap="1" px={{ base: '4', md: '5', lg: '4' }}>
             <IconButton
               display={{ base: 'none', md: 'inline-flex' }}
               type="button"
@@ -1025,8 +1090,8 @@ function WorkspaceHeader({
             >
               {isSecondarySidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
             </IconButton>
-          ) : null}
-        </Flex>
+          </Flex>
+        ) : null}
         <Box minW="0" flex="1">
           {headerConfig.content}
         </Box>
@@ -1057,10 +1122,6 @@ function WorkspaceHeader({
       position="relative"
     >
       <Flex minW="0" flex="1" align="center" gap="3">
-        <PrimarySidebarToggle
-          isExpanded={isPrimarySidebarExpanded}
-          onToggle={onTogglePrimarySidebar}
-        />
         {hasSecondarySidebar ? (
           <IconButton
             display={{ base: 'none', md: 'inline-flex' }}
@@ -1131,7 +1192,7 @@ export function AppShell() {
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
   const [secondaryContent, setSecondaryContent] = useState<ReactNode | null>(null);
-  const [isPrimarySidebarExpanded, setIsPrimarySidebarExpanded] = useState(true);
+  const [isPrimarySidebarExpanded, setIsPrimarySidebarExpanded] = useState(readPrimarySidebarExpandedPreference);
   const [isSecondarySidebarOpen, setIsSecondarySidebarOpen] = useState(true);
   const [isTransfersDrawerOpen, setIsTransfersDrawerOpen] = useState(false);
   const previousLocationKeyRef = useRef<string | null>(null);
@@ -1208,6 +1269,25 @@ export function AppShell() {
     setIsQuickSearchOpen(true);
   }
 
+  function togglePrimarySidebar() {
+    setIsPrimarySidebarExpanded((expanded) => !expanded);
+  }
+
+  useEffect(() => {
+    try {
+      if (typeof window.localStorage?.setItem !== 'function') {
+        return;
+      }
+
+      window.localStorage.setItem(
+        PRIMARY_SIDEBAR_STORAGE_KEY,
+        isPrimarySidebarExpanded ? 'expanded' : 'collapsed',
+      );
+    } catch {
+      // Ignore storage failures so restricted browsers can still use the shell.
+    }
+  }, [isPrimarySidebarExpanded]);
+
   useEffect(() => {
     function handleQuickSearchShortcut(event: KeyboardEvent) {
       if (!event.metaKey || event.key.toLowerCase() !== 'k') return;
@@ -1217,6 +1297,24 @@ export function AppShell() {
 
     window.addEventListener('keydown', handleQuickSearchShortcut);
     return () => window.removeEventListener('keydown', handleQuickSearchShortcut);
+  }, []);
+
+  useEffect(() => {
+    function handleSidebarShortcut(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== 'b' || (!event.metaKey && !event.ctrlKey)) {
+        return;
+      }
+
+      if (isTextEntryTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      togglePrimarySidebar();
+    }
+
+    window.addEventListener('keydown', handleSidebarShortcut);
+    return () => window.removeEventListener('keydown', handleSidebarShortcut);
   }, []);
 
   useEffect(() => {
@@ -1321,6 +1419,7 @@ export function AppShell() {
             isAdmin={meQuery.data?.isAdmin}
             aiFeaturesEnabled={aiFeaturesEnabled}
             onOpenTransfers={() => setIsTransfersDrawerOpen(true)}
+            onToggleExpanded={togglePrimarySidebar}
             onSignOut={() => void handleSignOut()}
           />
           {hasSecondarySidebar ? (
@@ -1336,12 +1435,10 @@ export function AppShell() {
             <WorkspaceHeader
               breadcrumbs={breadcrumbs}
               headerConfig={isChatRoute ? { hidden: true } : headerConfig}
-              isPrimarySidebarExpanded={isPrimarySidebarExpanded}
               hasSecondarySidebar={hasSecondarySidebar}
               isSecondarySidebarOpen={isSecondarySidebarOpen}
               quickSearchShortcut={quickSearchShortcut}
               hideQuickSearch={location.pathname === ROUTES.search}
-              onTogglePrimarySidebar={() => setIsPrimarySidebarExpanded((expanded) => !expanded)}
               onToggleSecondarySidebar={() => setIsSecondarySidebarOpen((open) => !open)}
               onOpenQuickSearch={openQuickSearch}
             />

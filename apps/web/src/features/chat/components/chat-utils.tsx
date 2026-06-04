@@ -3,8 +3,6 @@ import { Fragment } from 'react';
 import {
   CalendarDays,
   FileText,
-  Scale,
-  ScanText,
   Search,
   Sparkles,
 } from 'lucide-react';
@@ -48,8 +46,6 @@ export interface ChatExperienceConfig {
   }[];
 }
 
-export type GlobalGuidedPrompt = (typeof GLOBAL_GUIDED_PROMPTS)[number];
-
 export const INLINE_MARKDOWN_PATTERN = /(\[\d+\]|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
 export const WINDOWS_NEWLINE_PATTERN = /\r\n/g;
 export const ORDERED_LIST_PREFIX_PATTERN = /^\d+$/;
@@ -66,41 +62,6 @@ export const VAULT_PROMPT_SUGGESTIONS = [
   { label: 'Summarize the main themes', icon: FileText },
   { label: 'Extract key details', icon: Sparkles },
   { label: 'Find important dates', icon: CalendarDays },
-] as const;
-
-export const GLOBAL_GUIDED_PROMPTS = [
-  {
-    id: 'search',
-    title: 'Find documents about a topic or keyword',
-    description: 'Search across your documents for relevant matches.',
-    example: 'e.g. "Find invoices for 2024"',
-    prefill: 'Find documents about: ',
-    icon: Search,
-  },
-  {
-    id: 'summarize',
-    title: 'Summarize documents about a topic',
-    description: 'Combine information from multiple documents into a clear summary.',
-    example: 'e.g. "Summarise all my tax filings"',
-    prefill: 'Summarise documents about: ',
-    icon: FileText,
-  },
-  {
-    id: 'compare',
-    title: 'Compare documents or versions',
-    description: 'Compare two documents or time-based versions.',
-    example: 'e.g. "Compare my 2023 tax filing with 2024"',
-    prefill: 'Compare: ',
-    icon: Scale,
-  },
-  {
-    id: 'extract',
-    title: 'Extract key information from documents',
-    description: 'Find names, organizations, IDs, and important details.',
-    example: 'e.g. "Extract all tax IDs from my documents"',
-    prefill: 'Extract key information about: ',
-    icon: ScanText,
-  },
 ] as const;
 
 export const NEW_CHAT_DRAFT_ID = '__new_chat_draft__';

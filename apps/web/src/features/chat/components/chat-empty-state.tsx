@@ -1,28 +1,23 @@
-import { Flex, SimpleGrid, Text, chakra } from '@chakra-ui/react';
+import { Flex, Text, chakra } from '@chakra-ui/react';
 import { MessageSquare } from 'lucide-react';
 import type { Search } from 'lucide-react';
 import { AppEmptyState } from '@/components/ui/empty-state';
 import { Separator } from '@/components/ui/separator';
-import type { GlobalGuidedPrompt } from './chat-utils';
 
 export function ChatEmptyState({
   title,
   description,
   promptSuggestions,
-  guidedPrompts,
   disabled,
   onPromptSelect,
-  onGuidedPromptSelect,
 }: {
   title: string;
   description: string;
   promptSuggestions: readonly { label: string; icon: typeof Search }[];
-  guidedPrompts?: readonly GlobalGuidedPrompt[];
   disabled?: boolean;
   onPromptSelect: (prompt: string) => void;
-  onGuidedPromptSelect?: (prompt: GlobalGuidedPrompt) => void;
 }) {
-  const hasGuidedPrompts = Boolean(guidedPrompts?.length && onGuidedPromptSelect);
+  const hasPromptSuggestions = promptSuggestions.length > 0;
 
   return (
     <Flex minH="100%" align="center" justify="center" px="6" py="6">
@@ -34,65 +29,7 @@ export function ChatEmptyState({
         mx="auto"
         w="100%"
       >
-        {hasGuidedPrompts ? (
-          <SimpleGrid
-            columns={{ base: 1, sm: 2, xl: 4 }}
-            gap="3"
-            mt="5"
-            w="100%"
-            maxW="72rem"
-          >
-            {guidedPrompts?.map((prompt) => {
-              const Icon = prompt.icon;
-              return (
-                <chakra.button
-                  key={prompt.id}
-                  type="button"
-                  display="flex"
-                  alignItems="flex-start"
-                  rounded="lg"
-                  borderWidth="1px"
-                  borderColor="border.surface"
-                  bg="bg.surface"
-                  p="4"
-                  textAlign="left"
-                  shadow="xs"
-                  cursor={disabled ? 'not-allowed' : 'pointer'}
-                  disabled={disabled}
-                  minH="9.5rem"
-                  opacity={disabled ? 0.55 : undefined}
-                  _hover={disabled ? undefined : { borderColor: 'teal.muted', bg: 'bg.subtle' }}
-                  onClick={() => onGuidedPromptSelect?.(prompt)}
-                >
-                  <Flex align="flex-start" gap="3">
-                    <Flex
-                      boxSize="10"
-                      shrink="0"
-                      alignItems="center"
-                      justify="center"
-                      rounded="lg"
-                      bg="bg.subtle"
-                      color="fg.muted"
-                    >
-                      <Icon size={18} />
-                    </Flex>
-                    <Flex direction="column" gap="2" minW="0">
-                      <Text fontSize="sm" fontWeight="semibold" color="fg">
-                        {prompt.title}
-                      </Text>
-                      <Text fontSize="sm" lineHeight="1.45" color="fg.muted">
-                        {prompt.description}
-                      </Text>
-                      <Text mt="1" fontSize="xs" lineHeight="1.4" color="fg.muted">
-                        {prompt.example}
-                      </Text>
-                    </Flex>
-                  </Flex>
-                </chakra.button>
-              );
-            })}
-          </SimpleGrid>
-        ) : (
+        {hasPromptSuggestions ? (
           <Flex mt="5" w="100%" maxW="container.md" justify="center" gap="2.5" flexWrap="wrap">
             {promptSuggestions.map(({ label, icon: Icon }) => (
               <chakra.button
@@ -125,17 +62,21 @@ export function ChatEmptyState({
               </chakra.button>
             ))}
           </Flex>
-        )}
+        ) : null}
 
-        <Flex mt="5" w="100%" maxW="container.xs" align="center" gap="3">
-          <Separator style={{ flex: 1 }} />
-          <Text fontSize="xs" fontWeight="medium" textTransform="uppercase" letterSpacing="0.22em" color="fg.muted">
-            Or
-          </Text>
-          <Separator style={{ flex: 1 }} />
-        </Flex>
+        {hasPromptSuggestions ? (
+          <>
+            <Flex mt="5" w="100%" maxW="container.xs" align="center" gap="3">
+              <Separator style={{ flex: 1 }} />
+              <Text fontSize="xs" fontWeight="medium" textTransform="uppercase" letterSpacing="0.22em" color="fg.muted">
+                Or
+              </Text>
+              <Separator style={{ flex: 1 }} />
+            </Flex>
 
-        <Text mt="2.5" fontSize="sm" color="fg.muted">Start typing your question below</Text>
+            <Text mt="2.5" fontSize="sm" color="fg.muted">Start typing your question below</Text>
+          </>
+        ) : null}
       </AppEmptyState>
     </Flex>
   );

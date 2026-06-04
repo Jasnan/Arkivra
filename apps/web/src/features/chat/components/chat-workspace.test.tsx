@@ -1,12 +1,28 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatWorkspace } from './chat-workspace';
 import { renderWithProviders } from '@/test/utils';
+import type { ChatContextSnapshot } from '../chat.types';
 
 const createConversationMock = vi.hoisted(() => vi.fn());
+const updateConversationContextMock = vi.hoisted(() => vi.fn());
 const deleteConversationMock = vi.hoisted(() => vi.fn());
 const streamChatMessageMock = vi.hoisted(() => vi.fn());
+const createdConversationState = vi.hoisted(() => ({
+  conversation: null as null | {
+    id: string;
+    title: string;
+    scope: 'global' | 'vault' | 'document';
+    vaultId: string | null;
+    documentId: string | null;
+    contextSnapshot: ChatContextSnapshot;
+    userId: string | null;
+    createdAt: string;
+    updatedAt: string;
+    deletedAt: null;
+  },
+}));
 
 vi.mock('../chat.api', () => ({
   getChatContextSnapshot: ({ vaultId, documentId }: { vaultId?: string; documentId?: string }) => {
@@ -27,6 +43,7 @@ vi.mock('@/features/vaults/vaults.queries', () => ({
       vaults: [
         { id: 'vlt_1', name: 'Finance', fileCount: 4, aiAccessLevel: 'full' },
         { id: 'vlt_2', name: 'Legal', fileCount: 2, aiAccessLevel: 'full' },
+        { id: 'vlt_3', name: 'Archive', fileCount: 8, aiAccessLevel: 'full' },
       ],
     },
     isLoading: false,
@@ -41,6 +58,19 @@ vi.mock('../chat.queries', () => ({
     conversation: (chatId: string) => ['chat', 'conversation', chatId],
   },
   useChatConversationQuery: ({ chatId }: { chatId: string }) => {
+    if (chatId === 'chat_created' && createdConversationState.conversation !== null) {
+      return {
+        data: {
+          conversation: {
+            ...createdConversationState.conversation,
+            contextAvailability: { status: 'available', readOnly: false },
+            messages: [],
+          },
+        },
+        isLoading: false,
+      };
+    }
+
     if (chatId === 'chat_existing') {
       return {
         data: {
@@ -230,6 +260,10 @@ vi.mock('../chat.queries', () => ({
     mutateAsync: createConversationMock,
     isPending: false,
   }),
+  useUpdateChatConversationContextMutation: () => ({
+    mutateAsync: updateConversationContextMock,
+    isPending: false,
+  }),
   useDeleteChatConversationMutation: () => ({
     mutateAsync: deleteConversationMock,
     isPending: false,
@@ -239,19 +273,47 @@ vi.mock('../chat.queries', () => ({
 describe('chat workspace new chat drafts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    createConversationMock.mockResolvedValue({
-      conversation: {
+    createdConversationState.conversation = null;
+    createConversationMock.mockImplementation(async ({ title, contextSnapshot }) => {
+      createdConversationState.conversation = {
         id: 'chat_created',
-        title: 'Hello from a draft',
-        scope: 'global',
-        vaultId: null,
-        documentId: null,
-        contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
+        title: title ?? 'New chat',
+        scope: contextSnapshot.type === 'document'
+          ? 'document'
+          : contextSnapshot.type === 'vault'
+            ? 'vault'
+            : 'global',
+        vaultId: contextSnapshot.type === 'document' || contextSnapshot.type === 'vault'
+          ? contextSnapshot.vaultId
+          : null,
+        documentId: contextSnapshot.type === 'document' ? contextSnapshot.documentId : null,
+        contextSnapshot,
         userId: 'usr_1',
         createdAt: '2026-05-05T11:00:00.000Z',
         updatedAt: '2026-05-05T11:00:00.000Z',
         deletedAt: null,
-      },
+      };
+      return { conversation: createdConversationState.conversation };
+    });
+    updateConversationContextMock.mockImplementation(async ({ contextSnapshot }) => {
+      if (createdConversationState.conversation === null) {
+        throw new Error('No created conversation');
+      }
+      createdConversationState.conversation = {
+        ...createdConversationState.conversation,
+        scope: contextSnapshot.type === 'document'
+          ? 'document'
+          : contextSnapshot.type === 'vault'
+            ? 'vault'
+            : 'global',
+        vaultId: contextSnapshot.type === 'document' || contextSnapshot.type === 'vault'
+          ? contextSnapshot.vaultId
+          : null,
+        documentId: contextSnapshot.type === 'document' ? contextSnapshot.documentId : null,
+        contextSnapshot,
+        updatedAt: '2026-05-05T11:01:00.000Z',
+      };
+      return { conversation: createdConversationState.conversation };
     });
     deleteConversationMock.mockResolvedValue(undefined);
     streamChatMessageMock.mockResolvedValue(undefined);
@@ -435,7 +497,7 @@ describe('chat workspace new chat drafts', () => {
     await user.click(screen.getByRole('button', { name: /new chat/i }));
     await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
     await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
-    await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
+    fireEvent.click(await screen.findByText('Legal'));
     await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     expect(await screen.findByText('1 vault attached')).toBeInTheDocument();
@@ -471,7 +533,7 @@ describe('chat workspace new chat drafts', () => {
     expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
     await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
-    await user.click(await screen.findByRole('checkbox', { name: /legal/i }));
+    fireEvent.click(await screen.findByText('Legal'));
     await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     expect(await screen.findByText('Start a new conversation with updated context?')).toBeInTheDocument();
@@ -499,6 +561,56 @@ describe('chat workspace new chat drafts', () => {
       },
     });
     expect(streamChatMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('updates a pristine fork instead of forking again before the first message', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
+    await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
+    fireEvent.click(await screen.findByText('Legal'));
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
+
+    expect(await screen.findByText('Start a new conversation with updated context?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /new conversation/i }));
+
+    await waitFor(() => {
+      expect(createConversationMock).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /start a new conversation with updated context/i })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
+    await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
+    fireEvent.click(await screen.findByText('Archive'));
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
+
+    await waitFor(() => {
+      expect(updateConversationContextMock).toHaveBeenCalledTimes(1);
+    });
+    expect(updateConversationContextMock).toHaveBeenCalledWith({
+      chatId: 'chat_created',
+      contextSnapshot: {
+        type: 'selection',
+        vaults: [
+          { vaultId: 'vlt_1', name: 'Finance' },
+          { vaultId: 'vlt_2', name: 'Legal' },
+          { vaultId: 'vlt_3', name: 'Archive' },
+        ],
+        documents: [],
+      },
+    });
+    expect(createConversationMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: /start a new conversation with updated context/i })).not.toBeInTheDocument();
   });
 
   it('shows the assistant loading state immediately after submit', async () => {

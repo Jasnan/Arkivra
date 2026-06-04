@@ -28,18 +28,17 @@ import {
   useChatConversationsQuery,
   useCreateChatConversationMutation,
   useDeleteChatConversationMutation,
+  useUpdateChatConversationContextMutation,
   useChatModelOptionsQuery,
 } from '../chat.queries';
-import type { ChatContextSnapshot, ChatConversation, ChatIntent, ChatStreamStatus } from '../chat.types';
+import type { ChatContextSnapshot, ChatConversation, ChatConversationDetail, ChatIntent, ChatStreamStatus } from '../chat.types';
 import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
 import type {
   ChatMetricsByMessageId,
   ChatWorkspaceProps,
-  GlobalGuidedPrompt,
   LocalMessage,
 } from './chat-utils';
 import {
-  GLOBAL_GUIDED_PROMPTS,
   NEW_CHAT_DRAFT_ID,
   conversationDayLabel,
   getChatExperienceConfig,
@@ -170,6 +169,7 @@ export function ChatWorkspace({
   const conversationsQuery = useChatConversationsQuery();
   const modelOptionsQuery = useChatModelOptionsQuery();
   const createConversation = useCreateChatConversationMutation();
+  const updateConversationContext = useUpdateChatConversationContextMutation();
   const deleteConversation = useDeleteChatConversationMutation();
   const vaultsQuery = useVaultsQuery();
   const initialDraftContext = useMemo(
@@ -186,7 +186,6 @@ export function ChatWorkspace({
   const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
   const [selectedModel, setSelectedModel] = useState('');
   const [composerValue, setComposerValue] = useState('');
-  const [currentIntent, setCurrentIntent] = useState<ChatIntent | null>(null);
   const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
@@ -212,20 +211,27 @@ export function ChatWorkspace({
     [hydratedDraftContext],
   );
   const lockedContextSnapshot = selectedChatQuery.data?.conversation.contextSnapshot ?? null;
+  const selectedConversationMessageCount = selectedChatQuery.data?.conversation.messages.length;
+  const isPristineSavedConversation = effectiveSelectedChatId.length > 0
+    && selectedConversationMessageCount === 0
+    && localMessages.length === 0
+    && !isStreaming;
+  const isContextLocked = effectiveSelectedChatId.length > 0 && !isPristineSavedConversation;
   const contextAvailability = selectedChatQuery.data?.conversation.contextAvailability;
   const isContextReadOnly = contextAvailability?.readOnly === true;
-  const activeContextSnapshot = lockedContextSnapshot ?? draftContextSnapshot;
+  const activeContextSnapshot = isContextLocked && lockedContextSnapshot
+    ? lockedContextSnapshot
+    : draftContextSnapshot;
   const activeScope = scopeFromContextSnapshot(activeContextSnapshot);
   const displayedContext = useMemo(
-    () => lockedContextSnapshot
+    () => isContextLocked && lockedContextSnapshot
       ? hydrateDraftContextLabels({
           context: draftContextFromSnapshot(lockedContextSnapshot),
           vaults: vaultsQuery.data?.vaults ?? [],
         })
       : hydratedDraftContext,
-    [hydratedDraftContext, lockedContextSnapshot, vaultsQuery.data?.vaults],
+    [hydratedDraftContext, isContextLocked, lockedContextSnapshot, vaultsQuery.data?.vaults],
   );
-  const isContextLocked = effectiveSelectedChatId.length > 0;
   const activeVaultId = activeScope.vaultId;
   const activeDocumentId = activeScope.documentId;
   const isActiveDocumentChat = Boolean(activeVaultId && activeDocumentId);
@@ -274,7 +280,7 @@ export function ChatWorkspace({
     [effectiveSelectedChatId, localMessages, selectedChatQuery.data?.conversation.messages],
   );
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
-  const effectiveIntent = currentIntent ?? activeConversationIntent;
+  const effectiveIntent = activeConversationIntent;
   const shouldShowEmptyState = messages.length === 0 && !isStreaming;
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
@@ -326,7 +332,6 @@ export function ChatWorkspace({
     setStreamError(null);
     setIsAssistantResponsePending(false);
     setComposerValue('');
-    setCurrentIntent(null);
     setMetricsByMessageId({});
   }, []);
 
@@ -346,6 +351,12 @@ export function ChatWorkspace({
       setDraftContext(initialDraftContext);
     }
   }, [initialDraftContext, selectedChatId, selectedConversationId]);
+
+  useEffect(() => {
+    const conversation = selectedChatQuery.data?.conversation;
+    if (!isPristineSavedConversation || conversation === undefined) return;
+    setDraftContext(draftContextFromSnapshot(conversation.contextSnapshot));
+  }, [isPristineSavedConversation, selectedChatQuery.data?.conversation]);
 
   const handleCreateConversation = useCallback(() => {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
@@ -383,12 +394,6 @@ export function ChatWorkspace({
     void handleDeleteConversation(chatId);
   }, [handleDeleteConversation]);
 
-  function handleGuidedPromptSelect(prompt: GlobalGuidedPrompt) {
-    setCurrentIntent(prompt.id);
-    setComposerValue(prompt.prefill);
-    focusComposer();
-  }
-
   function applyContextChange(nextContext: DraftChatContext) {
     const hydratedNextContext = hydrateDraftContextLabels({
       context: nextContext,
@@ -402,6 +407,34 @@ export function ChatWorkspace({
     }
 
     setDraftContext(hydratedNextContext);
+    if (effectiveSelectedChatId.length > 0) {
+      const contextSnapshot = contextSnapshotFromDraft(hydratedNextContext);
+      void updateConversationContext.mutateAsync({ chatId: effectiveSelectedChatId, contextSnapshot })
+        .then((result) => {
+          queryClient.setQueryData(
+            chatQueryKeys.conversation(effectiveSelectedChatId),
+            (current: { conversation: ChatConversationDetail } | undefined) => {
+              const currentConversation = current?.conversation;
+              return {
+                conversation: {
+                  ...(currentConversation ?? {}),
+                  ...result.conversation,
+                  messages: currentConversation?.messages ?? [],
+                },
+              };
+            },
+          );
+          void queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
+        })
+        .catch((error) => {
+          const message = error instanceof Error
+            ? error.message
+            : 'Could not update conversation context.';
+          toast.error(message);
+          void queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(effectiveSelectedChatId) });
+          void queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
+        });
+    }
   }
 
   function handleVaultSelectionConfirm(vaults: DraftChatVault[]) {
@@ -791,9 +824,7 @@ export function ChatWorkspace({
                   title={experience.emptyTitle}
                   description={experience.emptyDescription}
                   promptSuggestions={experience.promptSuggestions}
-                  guidedPrompts={isActiveGlobalChat ? GLOBAL_GUIDED_PROMPTS : undefined}
                   disabled={!canUseChat}
-                  onGuidedPromptSelect={isActiveGlobalChat ? handleGuidedPromptSelect : undefined}
                   onPromptSelect={(prompt) => {
                     void handleSend(prompt);
                   }}

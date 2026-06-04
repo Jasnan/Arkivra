@@ -1170,6 +1170,59 @@ export function createChatServices({
     return { conversation: toConversation(row) };
   }
 
+  async function updatePristineConversationContext({
+    userId,
+    chatId,
+    scope,
+  }: {
+    userId: string;
+    chatId: string;
+    scope: ChatScopeInput;
+  }): Promise<
+    | { status: 'updated'; conversation: ChatConversation }
+    | { status: 'not_found' }
+    | { status: 'not_pristine' }
+  > {
+    const [conversation] = await db
+      .select({ id: chatConversationsTable.id })
+      .from(chatConversationsTable)
+      .where(getConversationOwnershipConditions({ userId, chatId }))
+      .limit(1);
+
+    if (conversation === undefined) {
+      return { status: 'not_found' };
+    }
+
+    const [message] = await db
+      .select({ id: chatMessagesTable.id })
+      .from(chatMessagesTable)
+      .where(eq(chatMessagesTable.conversationId, chatId))
+      .limit(1);
+
+    if (message !== undefined) {
+      return { status: 'not_pristine' };
+    }
+
+    const scopeValues = getScopeValues(scope);
+    const [row] = await db
+      .update(chatConversationsTable)
+      .set({
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        contextSnapshot: scope,
+        updatedAt: new Date(),
+      })
+      .where(getConversationOwnershipConditions({ userId, chatId }))
+      .returning();
+
+    if (row === undefined) {
+      return { status: 'not_found' };
+    }
+
+    return { status: 'updated', conversation: toConversation(row) };
+  }
+
   async function getConversation({
     userId,
     chatId,
@@ -1553,6 +1606,7 @@ export function createChatServices({
   return {
     listConversations,
     createConversation,
+    updatePristineConversationContext,
     getConversation,
     deleteConversation,
     getModelOptions,

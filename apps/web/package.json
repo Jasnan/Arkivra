@@ -15,6 +15,7 @@
     "test:watch": "vitest watch --config vitest.config.ts"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.14.14",
     "@chakra-ui/react": "^3.35.0",
     "@emotion/react": "^11.14.0",
     "@fontsource-variable/inter": "^5.2.8",

@@ -13,8 +13,7 @@ function createPreferences() {
     fontSize: 'md',
     radius: 'md',
     language: 'en',
-    timezone: 'auto',
-    dateFormat: 'medium',
+    dateFormat: null,
     showExtractedTextTab: false,
     defaultFileBrowserView: 'list',
     createdAt: '2026-05-15T00:00:00.000Z',
@@ -88,9 +87,10 @@ describe('user preferences routes', () => {
       body: JSON.stringify({
         accentColor: 'blue',
         fontFamily: 'sora',
+        language: 'de',
+        dateFormat: 'DD.MM.YYYY',
         defaultFileBrowserView: 'grid',
         showExtractedTextTab: true,
-        timezone: 'europe-berlin',
       }),
     });
 
@@ -100,9 +100,10 @@ describe('user preferences routes', () => {
       preferences: {
         accentColor: 'blue',
         fontFamily: 'sora',
+        language: 'de',
+        dateFormat: 'DD.MM.YYYY',
         defaultFileBrowserView: 'grid',
         showExtractedTextTab: true,
-        timezone: 'europe-berlin',
       },
     });
   });

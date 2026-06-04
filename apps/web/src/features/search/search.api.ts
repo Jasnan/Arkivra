@@ -1,4 +1,5 @@
 import { fetchJson } from '@/lib/api';
+import { localDateToUtcBoundary } from '@/lib/localization';
 import type { SearchMode, SearchResultPage } from './search.types';
 
 export async function searchVaultDocuments({
@@ -42,11 +43,11 @@ export async function searchVaultDocuments({
   }
 
   if (dateFrom) {
-    params.set('dateFrom', dateFrom);
+    params.set('dateFrom', localDateToUtcBoundary(dateFrom, 'start') ?? dateFrom);
   }
 
   if (dateTo) {
-    params.set('dateTo', dateTo);
+    params.set('dateTo', localDateToUtcBoundary(dateTo, 'end') ?? dateTo);
   }
 
   if (sortBy) {
@@ -111,11 +112,11 @@ export async function searchAllDocuments({
   }
 
   if (dateFrom) {
-    params.set('dateFrom', dateFrom);
+    params.set('dateFrom', localDateToUtcBoundary(dateFrom, 'start') ?? dateFrom);
   }
 
   if (dateTo) {
-    params.set('dateTo', dateTo);
+    params.set('dateTo', localDateToUtcBoundary(dateTo, 'end') ?? dateTo);
   }
 
   if (sortBy) {

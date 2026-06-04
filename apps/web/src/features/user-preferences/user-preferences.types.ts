@@ -4,10 +4,9 @@ import type {
   AppearanceFont,
   AppearanceFontSize,
   AppearanceRadius,
-  PreferenceDateFormat,
   PreferenceFileBrowserView,
+  PreferenceDateFormat,
   PreferenceLanguage,
-  PreferenceTimezone,
   ThemeMode,
 } from '@/components/providers/accent-color-context';
 
@@ -19,8 +18,7 @@ export interface UserUiPreferences {
   fontSize: AppearanceFontSize;
   radius: AppearanceRadius;
   language: PreferenceLanguage;
-  timezone: PreferenceTimezone;
-  dateFormat: PreferenceDateFormat;
+  dateFormat: PreferenceDateFormat | null;
   showExtractedTextTab: boolean;
   defaultFileBrowserView: PreferenceFileBrowserView;
   createdAt: string;
@@ -31,15 +29,14 @@ export type UserUiPreferencesUpdate = Partial<
   Pick<
     UserUiPreferences,
     'accentColor'
-    | 'dateFormat'
     | 'defaultFileBrowserView'
     | 'density'
     | 'fontFamily'
     | 'fontSize'
     | 'language'
+    | 'dateFormat'
     | 'radius'
     | 'showExtractedTextTab'
     | 'themeMode'
-    | 'timezone'
   >
 >;

@@ -79,8 +79,6 @@ function enableExtractedTextPreference() {
     fontSize: 'md',
     radius: 'md',
     language: 'en',
-    timezone: 'auto',
-    dateFormat: 'medium',
     showExtractedTextTab: true,
   });
 

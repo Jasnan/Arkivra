@@ -242,13 +242,13 @@ describe('global search page', () => {
     expect(screen.getByLabelText(/search documents/i)).toHaveValue('invoice');
     expect(await screen.findByText('Sherlock')).toBeInTheDocument();
     expect(await screen.findByText('Invoices')).toBeInTheDocument();
-    expect(screen.getByText(/1 Apr 2026 - 30 Apr 2026/i)).toBeInTheDocument();
+    expect(screen.getByText(/Apr 1, 2026 - Apr 30, 2026/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sort/i })).toHaveTextContent(/a → z/i);
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01&dateTo=2026-04-30&sortBy=name_asc')
+          String(url).includes('/api/search?pageIndex=0&pageSize=25&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-04-01T00%3A00%3A00.000Z&dateTo=2026-04-30T23%3A59%3A59.999Z&sortBy=name_asc')
           && !String(url).includes('searchMode=hybrid')
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
@@ -850,27 +850,27 @@ describe('documents library search controls', () => {
     await selectRadixOption(user, /^sort$/i, /name \(a-z\)/i);
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
-    const vaultFilter = screen.getByRole('combobox', { name: /vault filter/i });
+    const vaultFilter = screen.getByRole('combobox', { name: /filter by vaults/i });
     await user.click(vaultFilter);
-    await user.type(vaultFilter, 'sher');
+    fireEvent.change(vaultFilter, { target: { value: 'sher' } });
     const sherlockOption = (await screen.findByText('Sherlock')).closest('[role="option"]');
     expect(sherlockOption).not.toBeNull();
     await user.click(sherlockOption!);
-    await user.click(screen.getByRole('combobox', { name: /tags filter/i }));
+    await user.click(screen.getByRole('combobox', { name: /filter by tags/i }));
     const invoicesOption = (await screen.findByText('Invoices')).closest('[role="option"]');
     expect(invoicesOption).not.toBeNull();
     await user.click(invoicesOption!);
     await user.click(screen.getByLabelText(/custom range/i));
     const fromInput = screen.getByRole('textbox', { name: /^from$/i });
     await user.click(fromInput);
-    await selectCalendarDate(user, /may 1, 2026/i);
-    await waitFor(() => expect(fromInput).toHaveValue('2026-05-01'));
-    await selectCalendarDate(user, /may 20, 2026/i);
+    await selectCalendarDate(user, /june 1, 2026/i);
+    await waitFor(() => expect(fromInput).toHaveValue('06/01/2026'));
+    await selectCalendarDate(user, /june 2, 2026/i);
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url).includes('/api/search?pageIndex=0&pageSize=100&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-05-01&dateTo=2026-05-20&sortBy=name_asc')
+          String(url).includes('/api/search?pageIndex=0&pageSize=100&q=invoice&vaultIds=vlt_1&tagIds=tag_1&dateFrom=2026-06-01T00%3A00%3A00.000Z&dateTo=2026-06-02T23%3A59%3A59.999Z&sortBy=name_asc')
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
@@ -929,13 +929,13 @@ describe('documents library search controls', () => {
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
 
-    const vaultSearch = screen.getByRole('combobox', { name: /vault filter/i });
+    const vaultSearch = screen.getByRole('combobox', { name: /filter by vaults/i });
     await user.click(vaultSearch);
-    await user.type(vaultSearch, 'sher');
+    fireEvent.change(vaultSearch, { target: { value: 'sher' } });
     expect(vaultSearch).toHaveValue('sher');
     expect(vaultSearch).toHaveFocus();
 
-    const tagSearch = screen.getByRole('combobox', { name: /tags filter/i });
+    const tagSearch = screen.getByRole('combobox', { name: /filter by tags/i });
     await user.click(tagSearch);
     fireEvent.change(tagSearch, { target: { value: 'ins' } });
     expect(tagSearch).toHaveValue('ins');
@@ -1184,13 +1184,13 @@ describe('documents library search controls', () => {
     expect(fromInput).toHaveAttribute('readonly');
 
     await user.click(fromInput);
-    expect(dialog).toContainElement(await findCalendarDate(/may 18, 2026/i));
-    await selectCalendarDate(user, /may 18, 2026/i);
-    await waitFor(() => expect(fromInput).toHaveValue('2026-05-18'));
-    await selectCalendarDate(user, /may 19, 2026/i);
+    expect(dialog).toContainElement(await findCalendarDate(/june 1, 2026/i));
+    await selectCalendarDate(user, /june 1, 2026/i);
+    await waitFor(() => expect(fromInput).toHaveValue('06/01/2026'));
+    await selectCalendarDate(user, /june 2, 2026/i);
 
-    expect(fromInput).toHaveValue('2026-05-18');
-    expect(toInput).toHaveValue('2026-05-19');
+    expect(fromInput).toHaveValue('06/01/2026');
+    expect(toInput).toHaveValue('06/02/2026');
   });
 
   it('keeps custom date ranges valid when opened from either date field', async () => {
@@ -1241,15 +1241,15 @@ describe('documents library search controls', () => {
     await user.click(screen.getByLabelText(/custom range/i));
 
     await user.click(screen.getByRole('textbox', { name: /^to$/i }));
-    const futureDate = await findCalendarDate(/may 31, 2026/i);
+    const futureDate = await findCalendarDate(/june 30, 2026/i);
     expect(futureDate).toHaveAttribute('aria-disabled', 'true');
 
-    await selectCalendarDate(user, /may 18, 2026/i);
-    await waitFor(() => expect(screen.getByRole('textbox', { name: /^from$/i })).toHaveValue('2026-05-18'));
-    await selectCalendarDate(user, /may 20, 2026/i);
+    await selectCalendarDate(user, /june 1, 2026/i);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /^from$/i })).toHaveValue('06/01/2026'));
+    await selectCalendarDate(user, /june 2, 2026/i);
 
-    expect(screen.getByRole('textbox', { name: /^from$/i })).toHaveValue('2026-05-18');
-    expect(screen.getByRole('textbox', { name: /^to$/i })).toHaveValue('2026-05-20');
+    expect(screen.getByRole('textbox', { name: /^from$/i })).toHaveValue('06/01/2026');
+    expect(screen.getByRole('textbox', { name: /^to$/i })).toHaveValue('06/02/2026');
   });
 
   it('does not run an unbounded global search when Any time clears the date filter', async () => {
@@ -1317,7 +1317,7 @@ describe('documents library search controls', () => {
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([url, init]) =>
-          String(url) === '/api/search?pageIndex=0&pageSize=25&dateFrom=2026-05-01&dateTo=2026-05-20&sortBy=created_desc'
+          String(url) === '/api/search?pageIndex=0&pageSize=25&dateFrom=2026-05-01T00%3A00%3A00.000Z&dateTo=2026-05-20T23%3A59%3A59.999Z&sortBy=created_desc'
           && (init as RequestInit | undefined)?.credentials === 'include'
         ),
       ).toBe(true);
@@ -1438,7 +1438,7 @@ describe('documents library search controls', () => {
 
     await user.click(screen.getByRole('button', { name: /filter/i }));
     await screen.findByRole('dialog', { name: /filters/i });
-    const vaultFilter = screen.getByRole('combobox', { name: /vault filter/i });
+    const vaultFilter = screen.getByRole('combobox', { name: /filter by vaults/i });
     await user.click(vaultFilter);
     await user.click((await screen.findByText('Sherlock')).closest('[role="option"]')!);
 

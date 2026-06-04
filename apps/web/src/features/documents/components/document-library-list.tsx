@@ -6,6 +6,7 @@ import { formatBytes } from '@/features/documents/documents.utils';
 import { getFileDisplayName } from '@/features/file-browser/components/vault-browser.types';
 import type { SearchResultTag } from '@/features/search/search.types';
 import { TagBadge } from '@/features/tags/components/tag-badge';
+import { formatShortDate } from '@/lib/localization';
 import { DocumentFileIcon } from './document-file-icon';
 import { getDocumentSelectionKey } from './document-library-utils';
 
@@ -24,13 +25,7 @@ export interface DocumentLibraryItem {
 }
 
 function formatDateOnly(value: string | null) {
-  if (!value) {
-    return 'Not set';
-  }
-
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-  }).format(new Date(value));
+  return formatShortDate(value);
 }
 
 const tableCellLinkStyle = {

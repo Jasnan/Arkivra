@@ -8,6 +8,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
+import { formatShortDate, formatShortDateTime } from '@/lib/localization';
 import type { ChatApiScope } from '../chat.api';
 import type { ChatGenerationMetrics, ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
 
@@ -105,12 +106,7 @@ export const GLOBAL_GUIDED_PROMPTS = [
 export const NEW_CHAT_DRAFT_ID = '__new_chat_draft__';
 
 export function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+  return formatShortDateTime(value);
 }
 
 export function conversationDayLabel(value: string) {
@@ -125,10 +121,7 @@ export function conversationDayLabel(value: string) {
   if (dayDifference === 0) return 'Today';
   if (dayDifference === 1) return 'Yesterday';
 
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  }).format(date);
+  return formatShortDate(date);
 }
 
 export function formatDurationMs(value: number | null) {

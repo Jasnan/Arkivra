@@ -245,8 +245,6 @@ describe('documents page', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
       showExtractedTextTab: true,
     }));
     installDocumentDetailFetchMock();
@@ -270,8 +268,6 @@ describe('documents page', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
       showExtractedTextTab: true,
     }));
     installDocumentDetailFetchMock({
@@ -320,8 +316,6 @@ describe('documents page', () => {
       fontSize: 'md',
       radius: 'md',
       language: 'en',
-      timezone: 'auto',
-      dateFormat: 'medium',
       showExtractedTextTab: false,
       defaultFileBrowserView: 'grid',
     }));

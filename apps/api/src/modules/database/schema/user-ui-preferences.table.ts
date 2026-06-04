@@ -17,8 +17,9 @@ export const userUiPreferencesTable = pgTable('user_ui_preferences', {
   fontSize: text('font_size', { enum: ['sm', 'md', 'lg', 'xl', '2xl'] }).notNull().default('md'),
   radius: text('radius', { enum: ['none', 'sm', 'md', 'lg', 'xl'] }).notNull().default('md'),
   language: text('language', { enum: ['en', 'de', 'fr'] }).notNull().default('en'),
-  timezone: text('timezone', { enum: ['auto', 'utc', 'europe-berlin', 'america-new-york'] }).notNull().default('auto'),
-  dateFormat: text('date_format', { enum: ['medium', 'numeric', 'short'] }).notNull().default('medium'),
+  dateFormat: text('date_format', {
+    enum: ['DD.MM.YYYY', 'DD/MM/YYYY', 'DD-MM-YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'YYYY/MM/DD'],
+  }),
   showExtractedTextTab: boolean('show_extracted_text_tab').notNull().default(false),
   defaultFileBrowserView: text('default_file_browser_view', { enum: ['list', 'grid'] }).notNull().default('list'),
 });

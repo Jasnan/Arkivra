@@ -699,7 +699,7 @@ describe.sequential('migrations smoke', () => {
     expect(indexNames).toContain('documents_vault_hash_unique');
   });
 
-  test('0013 adds regional preference columns to user_ui_preferences', async () => {
+  test('0013 and 0026 keep date format optional and remove manual timezone', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -725,13 +725,10 @@ describe.sequential('migrations smoke', () => {
     expect(byName.language?.is_nullable).toBe('NO');
     expect(byName.language?.column_default).toContain("'en'");
 
-    expect(byName.timezone?.data_type).toBe('text');
-    expect(byName.timezone?.is_nullable).toBe('NO');
-    expect(byName.timezone?.column_default).toContain("'auto'");
-
+    expect(byName.timezone).toBeUndefined();
     expect(byName.date_format?.data_type).toBe('text');
-    expect(byName.date_format?.is_nullable).toBe('NO');
-    expect(byName.date_format?.column_default).toContain("'medium'");
+    expect(byName.date_format?.is_nullable).toBe('YES');
+    expect(byName.date_format?.column_default).toBeNull();
   });
 
   test('0015 replaces legacy authorization tables with admin, capability, vault role, and AI access schema', async () => {

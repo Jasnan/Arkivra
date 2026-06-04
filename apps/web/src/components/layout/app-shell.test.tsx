@@ -84,8 +84,6 @@ describe('app shell account menu', () => {
               fontSize: 'md',
               radius: 'md',
               language: 'en',
-              timezone: 'auto',
-              dateFormat: 'medium',
               defaultFileBrowserView: 'grid',
               showExtractedTextTab: true,
               createdAt: '2026-05-15T00:00:00.000Z',

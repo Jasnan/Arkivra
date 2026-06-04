@@ -46,6 +46,7 @@ import type { SearchResultItem, SearchSortBy } from '@/features/search/search.ty
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
+import { formatDateRange } from '@/lib/localization';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 
 const SEARCH_PAGE_SIZE = 100;
@@ -83,20 +84,7 @@ function buildPresetRange(preset: Exclude<DatePreset, 'custom'>) {
 }
 
 function formatDateRangeLabel(dateFrom?: string, dateTo?: string) {
-  if (!dateFrom && !dateTo) {
-    return 'Any time';
-  }
-
-  const formatter = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-
-  const fromLabel = dateFrom ? formatter.format(new Date(`${dateFrom}T00:00:00`)) : 'Start';
-  const toLabel = dateTo ? formatter.format(new Date(`${dateTo}T00:00:00`)) : 'Now';
-
-  return `${fromLabel} - ${toLabel}`;
+  return formatDateRange(dateFrom, dateTo);
 }
 
 function getDateFilterLabel({

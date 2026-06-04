@@ -11,8 +11,7 @@ const defaultPreferences: Required<UserUiPreferencesUpdate> = {
   fontSize: 'md',
   radius: 'md',
   language: 'en',
-  timezone: 'auto',
-  dateFormat: 'medium',
+  dateFormat: null,
   showExtractedTextTab: false,
   defaultFileBrowserView: 'list',
 } satisfies Omit<UserUiPreferencesUpdate, never>;
@@ -34,7 +33,6 @@ function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
     fontSize: row.fontSize,
     radius: row.radius,
     language: row.language,
-    timezone: row.timezone,
     dateFormat: row.dateFormat,
     showExtractedTextTab: row.showExtractedTextTab,
     defaultFileBrowserView: row.defaultFileBrowserView,

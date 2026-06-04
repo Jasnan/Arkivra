@@ -46,7 +46,7 @@ describe('audit api helpers', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/vaults/vlt_1/audit-events?limit=50&eventType=document.deleted&outcome=success&actorId=usr_1&documentId=doc_1&dateFrom=2026-01-01',
+      '/api/vaults/vlt_1/audit-events?limit=50&eventType=document.deleted&outcome=success&actorId=usr_1&documentId=doc_1&dateFrom=2026-01-01T00%3A00%3A00.000Z',
       expect.objectContaining({ credentials: 'include' }),
     );
   });

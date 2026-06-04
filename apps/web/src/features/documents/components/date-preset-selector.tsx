@@ -5,6 +5,7 @@ import { CalendarDays } from 'lucide-react';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { formatLocalDateInput, getLocalDateInputPlaceholder } from '@/lib/localization';
 
 export type DatePreset = 'any' | 'last_7_days' | 'last_30_days' | 'custom';
 
@@ -54,6 +55,7 @@ function DateRangePickerFields({
   const [isOpen, setIsOpen] = useState(false);
   const today = toDateValue(toInputDateValue(new Date()));
   const selectedDates = [toDateValue(customDateFrom), toDateValue(customDateTo)].filter((date): date is DateValue => Boolean(date));
+  const placeholder = getLocalDateInputPlaceholder();
 
   return (
     <DatePicker.Root
@@ -64,7 +66,7 @@ function DateRangePickerFields({
       value={selectedDates}
       max={today}
       positioning={{ placement: 'top-start' }}
-      placeholder="yyyy-mm-dd"
+      placeholder={placeholder}
       onOpenChange={(details) => setIsOpen(details.open)}
       onValueChange={(details) => {
         const [nextFromDate, nextToDate] = details.value;
@@ -102,8 +104,8 @@ function DateRangePickerFields({
             <Input
               id="custom-date-range-from"
               aria-label="From"
-              value={customDateFrom}
-              placeholder="yyyy-mm-dd"
+              value={formatLocalDateInput(customDateFrom)}
+              placeholder={placeholder}
               readOnly
               cursor="pointer"
               h="10"
@@ -128,8 +130,8 @@ function DateRangePickerFields({
             <Input
               id="custom-date-range-to"
               aria-label="To"
-              value={customDateTo}
-              placeholder="yyyy-mm-dd"
+              value={formatLocalDateInput(customDateTo)}
+              placeholder={placeholder}
               readOnly
               cursor="pointer"
               h="10"

@@ -17,6 +17,8 @@ const authClientMock = vi.hoisted(() => ({
   signOut: vi.fn(),
 }));
 
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+
 vi.mock('@/lib/auth-client', () => ({
   authClient: authClientMock,
 }));
@@ -28,8 +30,32 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function installLocalStorageMock() {
+  const store = new Map<string, string>();
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => store.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        store.set(key, value);
+      }),
+      removeItem: vi.fn((key: string) => {
+        store.delete(key);
+      }),
+    },
+  });
+}
+
+function restoreLocalStorage() {
+  if (originalLocalStorageDescriptor) {
+    Object.defineProperty(window, 'localStorage', originalLocalStorageDescriptor);
+  }
+}
+
 describe('app shell account menu', () => {
   beforeEach(() => {
+    restoreLocalStorage();
     vi.restoreAllMocks();
     vi.stubGlobal(
       'matchMedia',
@@ -247,8 +273,9 @@ describe('app shell account menu', () => {
     expect(within(primarySidebar).queryByText('member-with-a-long-name@example.com')).not.toBeInTheDocument();
   });
 
-  it('keeps the unified primary sidebar navigable and collapsible', async () => {
+  it('keeps the unified primary sidebar navigable and collapsible from the brand area', async () => {
     const user = userEvent.setup();
+    installLocalStorageMock();
 
     await renderWithProviders(
       <AppShell />,
@@ -266,9 +293,11 @@ describe('app shell account menu', () => {
     expect(within(primaryNav).getByRole('link', { name: 'Trash' })).toHaveAttribute('href', '/trash');
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
     expect(
-      within(screen.getByRole('complementary', { name: 'Primary sidebar' }))
-        .queryByRole('button', { name: /collapse sidebar/i }),
+      within(screen.getByRole('banner')).queryByRole('button', { name: /collapse sidebar/i }),
     ).not.toBeInTheDocument();
+
+    const primarySidebar = screen.getByRole('complementary', { name: 'Primary sidebar' });
+    const brandToggle = within(primarySidebar).getByRole('button', { name: /collapse sidebar/i });
 
     await user.click(within(primaryNav).getByRole('button', { name: 'Transfers' }));
 
@@ -278,10 +307,59 @@ describe('app shell account menu', () => {
       expect(screen.queryByRole('dialog', { name: 'Transfers' })).not.toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /collapse sidebar/i }));
+    await user.click(brandToggle);
 
     expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
     expect(within(primaryNav).getByRole('link', { name: 'Vaults' })).toHaveAttribute('href', '/vaults');
+    expect(window.localStorage.getItem('arkivra:primary-sidebar-state')).toBe('collapsed');
+  });
+
+  it('toggles the primary sidebar from the global shortcut outside text entry', async () => {
+    installLocalStorageMock();
+
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    const primarySidebar = screen.getByRole('complementary', { name: 'Primary sidebar' });
+    expect(within(primarySidebar).getByRole('button', { name: /collapse sidebar/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'b', ctrlKey: true });
+
+    expect(within(primarySidebar).getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
+    expect(window.localStorage.getItem('arkivra:primary-sidebar-state')).toBe('collapsed');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    document.body.append(input);
+    input.focus();
+
+    fireEvent.keyDown(input, { key: 'b', ctrlKey: true });
+
+    expect(within(primarySidebar).getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument();
+    input.remove();
+  });
+
+  it('restores the persisted primary sidebar state', async () => {
+    installLocalStorageMock();
+    window.localStorage.setItem('arkivra:primary-sidebar-state', 'collapsed');
+
+    await renderWithProviders(
+      <AppShell />,
+      {
+        initialEntries: ['/vaults'],
+        routePath: '/vaults',
+      },
+    );
+
+    expect(
+      within(screen.getByRole('complementary', { name: 'Primary sidebar' }))
+        .getByRole('button', { name: /expand sidebar/i }),
+    ).toBeInTheDocument();
   });
 
   it('hides chat navigation when AI features are disabled', async () => {

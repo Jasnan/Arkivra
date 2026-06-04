@@ -23,6 +23,7 @@ type ChatRouteErrorCode =
   | 'chat.invalid_context'
   | 'chat.invalid_intent'
   | 'chat.invalid_model'
+  | 'chat.not_pristine'
   | 'chat.invalid_response_mode'
   | 'chat.invalid_title'
   | 'chat.model_options_unavailable'
@@ -41,7 +42,7 @@ const SOURCE_DOCUMENT_DELETED_CONTEXT: ChatContextAvailability = {
 
 function routeError(
   context: Context<ServerContext>,
-  { code, message, status }: { code: ChatRouteErrorCode; message: string; status: 400 | 401 | 403 | 404 | 502 },
+  { code, message, status }: { code: ChatRouteErrorCode; message: string; status: 400 | 401 | 403 | 404 | 409 | 502 },
 ) {
   return context.json({ error: { code, message } }, status);
 }
@@ -636,6 +637,45 @@ export function registerChatRoutes({
     }
 
     return context.json({ conversation });
+  });
+
+  app.patch('/api/chats/:chatId/context', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+    }
+
+    const body = await context.req.json().catch(() => ({})) as Record<string, unknown>;
+    const resolved = await resolveCreatableContext({
+      context,
+      requestedContext: parseRequestedContext(body),
+      db,
+      vaultServices: vaultsServices,
+    });
+
+    if (!resolved.ok) {
+      return routeError(context, resolved);
+    }
+
+    const result = await services.updatePristineConversationContext({
+      userId,
+      chatId: context.req.param('chatId'),
+      scope: resolved.scope,
+    });
+
+    if (result.status === 'not_found') {
+      return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
+    }
+
+    if (result.status === 'not_pristine') {
+      return routeError(context, {
+        status: 409,
+        code: 'chat.not_pristine',
+        message: 'Conversation context can only be changed before the first message.',
+      });
+    }
+
+    return context.json({ conversation: result.conversation });
   });
 
   app.delete('/api/chats/:chatId', async (context) => {

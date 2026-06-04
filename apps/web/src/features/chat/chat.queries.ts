@@ -5,6 +5,7 @@ import {
   getChatModelOptions,
   getChatConversation,
   listChatConversations,
+  updateChatConversationContext,
 } from './chat.api';
 
 export const chatQueryKeys = {
@@ -46,6 +47,12 @@ export function useChatConversationQuery({
 export function useCreateChatConversationMutation() {
   return useMutation({
     mutationFn: createChatConversation,
+  });
+}
+
+export function useUpdateChatConversationContextMutation() {
+  return useMutation({
+    mutationFn: updateChatConversationContext,
   });
 }
 

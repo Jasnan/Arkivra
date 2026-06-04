@@ -64,6 +64,20 @@ export async function getChatConversation({
   );
 }
 
+export async function updateChatConversationContext({
+  chatId,
+  contextSnapshot,
+}: {
+  chatId: string;
+  contextSnapshot: ChatContextSnapshot;
+}) {
+  return fetchJson<{ conversation: ChatConversation }>(`/api/chats/${chatId}/context`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ contextSnapshot }),
+  });
+}
+
 export async function deleteChatConversation({
   chatId,
 }: {

@@ -76,6 +76,7 @@ function createMockChatServices(overrides: Partial<ChatServices> = {}) {
   return {
     listConversations: vi.fn(async () => ({ conversations: [] })),
     createConversation: vi.fn(),
+    updatePristineConversationContext: vi.fn(),
     getConversation: vi.fn(async () => conversation),
     deleteConversation: vi.fn(async () => true),
     getModelOptions: vi.fn(async () => ({ defaultModel: 'llama3.2', models: ['llama3.2'] })),
@@ -176,5 +177,65 @@ describe('chat routes', () => {
 
     expect(response.status).toBe(204);
     expect(services.deleteConversation).toHaveBeenCalledWith({ userId: 'usr_1', chatId: 'cht_1' });
+  });
+
+  test('updates context for a pristine conversation', async () => {
+    const services = createMockChatServices({
+      updatePristineConversationContext: vi.fn(async () => ({
+        status: 'updated' as const,
+        conversation: {
+          id: 'cht_1',
+          vaultId: 'vlt_1',
+          documentId: null,
+          scope: 'vault' as const,
+          contextSnapshot: { type: 'vault' as const, vaultId: 'vlt_1', vaultName: 'Finance' },
+          userId: 'usr_1',
+          title: 'Updated context',
+          createdAt: '2026-05-05T10:00:00.000Z',
+          updatedAt: '2026-05-05T10:10:00.000Z',
+        },
+      })),
+    });
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/cht_1/context', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({ contextSnapshot: { type: 'vault', vaultId: 'vlt_1' } }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      conversation: {
+        id: 'cht_1',
+        contextSnapshot: { type: 'vault', vaultId: 'vlt_1', vaultName: 'Finance' },
+      },
+    });
+    expect(services.updatePristineConversationContext).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      scope: { type: 'vault', vaultId: 'vlt_1', vaultName: 'Finance' },
+    });
+  });
+
+  test('rejects context updates once a conversation has messages', async () => {
+    const services = createMockChatServices({
+      updatePristineConversationContext: vi.fn(async () => ({ status: 'not_pristine' as const })),
+    });
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/cht_1/context', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({ contextSnapshot: { type: 'vault', vaultId: 'vlt_1' } }),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'chat.not_pristine',
+        message: 'Conversation context can only be changed before the first message.',
+      },
+    });
   });
 });

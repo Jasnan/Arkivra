@@ -21,6 +21,11 @@ export function hasSameMessageIds(left: ChatMessage[], right: ChatMessage[]) {
   return left.every((message, index) => message.id === right[index]?.id);
 }
 
+export function startsWithSameMessageIds(messages: ChatMessage[], prefix: ChatMessage[]) {
+  if (prefix.length > messages.length) return false;
+  return prefix.every((message, index) => message.id === messages[index]?.id);
+}
+
 export function createAssistantChatTransport({
   chatId,
   intent,

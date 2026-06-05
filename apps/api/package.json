@@ -31,7 +31,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^1.0.39",
+    "@ai-sdk/openai-compatible": "^2.0.48",
     "@hono/node-server": "^1.19.6",
     "@napi-rs/canvas": "^0.1.100",
     "@paralleldrive/cuid2": "^2.2.2",

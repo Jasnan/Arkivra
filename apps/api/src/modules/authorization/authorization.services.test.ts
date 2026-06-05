@@ -18,21 +18,19 @@ describe('authorization services', () => {
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     };
-    let requestQuery: {
+    const requestQuery: {
       from: ReturnType<typeof vi.fn>;
       where: ReturnType<typeof vi.fn>;
       limit: ReturnType<typeof vi.fn>;
-    };
-    requestQuery = {
+    } = {
       from: vi.fn(() => requestQuery),
       where: vi.fn(() => requestQuery),
       limit: vi.fn(async () => [request]),
     };
-    let documentCountQuery: {
+    const documentCountQuery: {
       from: ReturnType<typeof vi.fn>;
       where: ReturnType<typeof vi.fn>;
-    };
-    documentCountQuery = {
+    } = {
       from: vi.fn(() => documentCountQuery),
       where: vi.fn(async () => [{ count: 1 }]),
     };

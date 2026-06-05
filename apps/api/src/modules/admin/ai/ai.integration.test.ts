@@ -106,7 +106,7 @@ function createTestApp({
 function createEmbeddingProbeFetch(dimensions: number) {
   return vi.fn(async () =>
     new Response(JSON.stringify({
-      embeddings: [Array.from({ length: dimensions }, () => 0.1)],
+      embeddings: [Array.from({ length: dimensions }).fill(0.1)],
     }), {
       status: 200,
       headers: { 'content-type': 'application/json' },

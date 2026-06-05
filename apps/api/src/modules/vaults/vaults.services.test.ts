@@ -36,24 +36,22 @@ describe('vaults services', () => {
         ownerName: 'Admin One',
       },
     ];
-    let query: {
+    const query: {
       from: ReturnType<typeof vi.fn>;
       leftJoin: ReturnType<typeof vi.fn>;
       where: ReturnType<typeof vi.fn>;
       orderBy: ReturnType<typeof vi.fn>;
-    };
-    query = {
+    } = {
       from: vi.fn(() => query),
       leftJoin: vi.fn(() => query),
       where: vi.fn(() => query),
       orderBy: vi.fn(async () => rows),
     };
-    let memberCountQuery: {
+    const memberCountQuery: {
       from: ReturnType<typeof vi.fn>;
       where: ReturnType<typeof vi.fn>;
       groupBy: ReturnType<typeof vi.fn>;
-    };
-    memberCountQuery = {
+    } = {
       from: vi.fn(() => memberCountQuery),
       where: vi.fn(() => memberCountQuery),
       groupBy: vi.fn(async () => [

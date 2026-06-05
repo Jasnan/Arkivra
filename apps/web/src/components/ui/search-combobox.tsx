@@ -37,6 +37,7 @@ export function SearchCombobox({
   multiple = false,
   hideLabel = false,
   controlSize = 'default',
+  size = 'md',
   controlBg,
   contentBg,
   showColorSwatch = false,
@@ -56,6 +57,7 @@ export function SearchCombobox({
   multiple?: boolean;
   hideLabel?: boolean;
   controlSize?: 'default' | 'toolbar';
+  size?: 'sm' | 'md';
   controlBg?: string;
   contentBg?: string;
   showColorSwatch?: boolean;
@@ -103,6 +105,7 @@ export function SearchCombobox({
     <Box>
       <Combobox.Root
         multiple={multiple}
+        size={size}
         openOnClick
         closeOnSelect
         collection={collection}
@@ -130,7 +133,6 @@ export function SearchCombobox({
             aria-label={ariaLabel ?? `Filter by ${label.toLowerCase()}`}
             aria-describedby={`${label.toLowerCase().replace(WHITESPACE_PATTERN, '-')}-combobox-hint`}
             placeholder={inputPlaceholder}
-            h="var(--arkivra-controlHeight, 2.5rem)"
             rounded={controlSize === 'toolbar' ? 'md' : 'xl'}
             borderColor="border.surface"
             bg={controlBg ?? 'bg.surface'}

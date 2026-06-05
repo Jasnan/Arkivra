@@ -4,7 +4,7 @@ import { Box, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Check, CheckCircle2, CircleX, Clock3, Info, Mail, Package, Plus, Search, Send, ShieldCheck, ShieldX, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
@@ -1123,7 +1123,7 @@ export function AdminUsersPage() {
               value={userSearch}
               placeholder="Search users..."
               aria-label="Search users"
-              h="10"
+              size="sm"
               pl="10"
               rounded="md"
               bg="bg.surface"
@@ -1133,8 +1133,8 @@ export function AdminUsersPage() {
           </Box>
 
           <Box w={{ base: 'full', md: '10.5rem' }}>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as AdminUserStatusFilter)}>
-              <SelectTrigger aria-label="Filter users by status" h="10" rounded="md" bg="bg.surface" borderColor="border.strong">
+            <Select size="sm" value={statusFilter} onValueChange={(value) => setStatusFilter(value as AdminUserStatusFilter)}>
+              <SelectTrigger aria-label="Filter users by status" rounded="md" bg="bg.surface" borderColor="border.strong">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1146,8 +1146,8 @@ export function AdminUsersPage() {
           </Box>
 
           <Box w={{ base: 'full', md: '10rem' }}>
-            <Select value={accessFilter} onValueChange={(value) => setAccessFilter(value as AdminUserAccessFilter)}>
-              <SelectTrigger aria-label="Filter users by role" h="10" rounded="md" bg="bg.surface" borderColor="border.strong">
+            <Select size="sm" value={accessFilter} onValueChange={(value) => setAccessFilter(value as AdminUserAccessFilter)}>
+              <SelectTrigger aria-label="Filter users by role" rounded="md" bg="bg.surface" borderColor="border.strong">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1158,8 +1158,8 @@ export function AdminUsersPage() {
             </Select>
           </Box>
 
-          <Button h="10" px="3.5" colorPalette="teal" onClick={openInviteDialog}>
-            <Plus size={16} />
+          <Button size="sm" colorPalette="teal" onClick={openInviteDialog}>
+            <Plus size={14} />
             Invite
           </Button>
         </Flex>
@@ -1344,7 +1344,7 @@ export function AdminUsersPage() {
 
               const email = adminInviteEmail.trim();
               if (!email) {
-                toast.error('Email is required.');
+                toast.warning('Email is required.');
                 return;
               }
               createAdminInvitationMutation.mutate({
@@ -1420,7 +1420,7 @@ export function AdminUsersPage() {
                           type="email"
                           value={adminInviteEmail}
                           placeholder="user@example.com"
-                          h="10"
+                          size="md"
                           pr="11"
                           borderColor="border.strong"
                           onChange={(event) => setAdminInviteEmail(event.target.value)}
@@ -1433,8 +1433,8 @@ export function AdminUsersPage() {
 
                     <Field>
                       <FieldLabel>System role</FieldLabel>
-                      <Select value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
-                        <SelectTrigger aria-label="System role" h="10" rounded="md" borderColor="border.strong">
+                      <Select size="md" value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
+                        <SelectTrigger aria-label="System role" rounded="md" borderColor="border.strong">
                           <HStack gap="2.5">
                             <UserRound size={16} />
                             <SelectValue />
@@ -2317,7 +2317,7 @@ export function AdminAiSettingsPage() {
                     disabled={(!aiDraft.aiFeaturesEnabled && !isAiReady) || aiSettingsMutation.isPending}
                     onCheckedChange={(checked) => {
                       if (checked && !isAiReady) {
-                        toast.error('Complete AI readiness requirements before enabling AI.');
+                        toast.warning('Complete AI readiness requirements before enabling AI.');
                         return;
                       }
 

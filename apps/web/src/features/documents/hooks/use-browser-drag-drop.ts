@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react';
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import {
   getBrowserItemKey,
   getBrowserItemParentId,
@@ -200,7 +200,7 @@ export function useBrowserDragDrop({
     setDropTarget(null);
 
     if (!validation.valid) {
-      toast.error(validation.message);
+      toast.warning(validation.message);
       return;
     }
 

@@ -101,7 +101,7 @@ export function CreateVaultDialog({
                   autoFocus
                   value={name}
                   placeholder="Personal Vault"
-                  h="12"
+                  size="lg"
                   rounded="lg"
                   bg="bg.modalField"
                   borderColor="border.surface"
@@ -156,8 +156,7 @@ export function CreateVaultDialog({
               <Button
                 type="button"
                 variant="outline"
-                h="12"
-                px="6"
+                size="lg"
                 rounded="lg"
                 borderColor="border.strong"
                 bg="transparent"
@@ -167,7 +166,7 @@ export function CreateVaultDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" h="12" px="6" rounded="lg" colorPalette="teal" disabled={isPending}>
+              <Button type="submit" size="lg" rounded="lg" colorPalette="teal" disabled={isPending}>
                 <Plus size={18} />
                 {isPending ? 'Submitting...' : canCreateVault ? 'Create' : 'Request'}
               </Button>

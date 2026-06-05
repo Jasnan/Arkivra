@@ -6,9 +6,6 @@ type InputProps = React.ComponentProps<typeof ChakraInput> & {
 };
 
 export function Input({
-  h,
-  minH,
-  px,
   ref,
   type = 'text',
   variant = 'outline',
@@ -19,9 +16,6 @@ export function Input({
       ref={ref}
       type={type}
       variant={variant}
-      h={h ?? 'var(--arkivra-controlHeight, 2.5rem)'}
-      minH={minH ?? 'var(--arkivra-controlHeight, 2.5rem)'}
-      px={px ?? 'var(--arkivra-controlPaddingX, 0.75rem)'}
       {...props}
     />
   );

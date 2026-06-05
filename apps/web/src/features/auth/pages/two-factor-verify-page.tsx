@@ -63,7 +63,7 @@ export function TwoFactorVerifyPage() {
           type="button"
           variant={mode === 'totp' ? 'default' : 'ghost'}
           flex="1"
-          h="11"
+          size="lg"
           rounded="calc(var(--chakra-radii-auth-control) - 0.25rem)"
           onClick={() => setMode('totp')}
         >
@@ -73,7 +73,7 @@ export function TwoFactorVerifyPage() {
           type="button"
           variant={mode === 'backup' ? 'default' : 'ghost'}
           flex="1"
-          h="11"
+          size="lg"
           rounded="calc(var(--chakra-radii-auth-control) - 0.25rem)"
           onClick={() => setMode('backup')}
         >

@@ -115,29 +115,23 @@ export function AppearancePreferencesControls() {
             const selected = themeMode === option.value;
 
             return (
-              <chakra.button
+              <Button
                 key={option.value}
                 type="button"
-                display="flex"
-                alignItems="center"
+                size="sm"
+                variant="outline"
                 justifyContent="center"
-                gap="2"
-                minH="var(--arkivra-controlHeight, 2.5rem)"
                 rounded="md"
                 borderWidth="1px"
                 borderColor={selected ? 'teal.solid' : 'border.surface'}
                 bg={selected ? 'teal.subtle' : 'bg.subtle'}
                 color={selected ? 'teal.fg' : 'fg'}
-                px="2"
-                fontSize="sm"
-                fontWeight="medium"
-                cursor="pointer"
                 _hover={{ borderColor: 'teal.solid', bg: 'teal.subtle' }}
                 onClick={() => setThemeMode(option.value)}
               >
                 <Icon size={15} />
                 <Text as="span" truncate>{option.label}</Text>
-              </chakra.button>
+              </Button>
             );
           })}
         </SimpleGrid>
@@ -188,27 +182,22 @@ export function AppearancePreferencesControls() {
             const selected = density === option.value;
 
             return (
-              <chakra.button
+              <Button
                 key={option.value}
                 type="button"
-                display="flex"
-                alignItems="center"
+                size="sm"
+                variant="outline"
                 justifyContent="center"
-                minH="var(--arkivra-controlHeight, 2.5rem)"
                 rounded="md"
                 borderWidth="1px"
                 borderColor={selected ? 'teal.solid' : 'border.surface'}
                 bg={selected ? 'teal.subtle' : 'bg.subtle'}
                 color={selected ? 'teal.fg' : 'fg'}
-                px="2"
-                fontSize="sm"
-                fontWeight="medium"
-                cursor="pointer"
                 _hover={{ borderColor: 'teal.solid', bg: 'teal.subtle' }}
                 onClick={() => setDensity(option.value)}
               >
                 <Text truncate>{option.label}</Text>
-              </chakra.button>
+              </Button>
             );
           })}
         </SimpleGrid>

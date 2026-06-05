@@ -18,11 +18,9 @@ export function ActionMenuTriggerButton({
     <Button
       type="button"
       variant="ghost"
-      size="icon"
+      size="xs"
       aria-label={label}
-      h="calc(var(--arkivra-controlHeight, 2.5rem) - 0.25rem)"
-      w="calc(var(--arkivra-controlHeight, 2.5rem) - 0.25rem)"
-      rounded="lg"
+      rounded="md"
       borderWidth="1px"
       borderColor="border.surface"
       bg="bg.surface"

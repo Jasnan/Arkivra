@@ -41,7 +41,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
@@ -2347,9 +2347,8 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                   value={tagSearchValue}
                   onChange={(event) => setTagSearchValue(event.target.value)}
                   placeholder="Filter tags..."
-                  h="10"
+                  size="md"
                   borderColor="transparent"
-                  px="3"
                   focusRing="none"
                   autoFocus
                 />

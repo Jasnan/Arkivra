@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRightLeft } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { SaveButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import {
   useVaultMembersQuery,
   vaultQueryKeys,
 } from '@/features/vaults/vaults.queries';
+import { formatAiAccess, formatVaultRole } from '@/features/vaults/components/vault-member-formatters';
 import type { AiAccessLevel, VaultDetail, VaultMember, VaultRole } from '@/features/vaults/vaults.types';
 
 const roleOptions: Array<{ value: VaultRole; label: string }> = [
@@ -42,19 +43,6 @@ const aiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
   { value: 'document_chat', label: 'Document chat' },
   { value: 'full', label: 'Full AI access' },
 ];
-
-export function formatVaultRole(role: VaultRole | null | undefined, isAdmin = false) {
-  if (role === 'owner') return 'Owner';
-  if (role === 'editor') return 'Editor';
-  if (role === 'viewer') return 'Viewer';
-  return isAdmin ? 'Administrative Read-Only Access' : 'No membership';
-}
-
-export function formatAiAccess(level: AiAccessLevel | null | undefined) {
-  if (level === 'full') return 'Full AI access';
-  if (level === 'document_chat') return 'Document chat';
-  return 'No AI access';
-}
 
 function isRequestResponse<T extends object>(value: T | { request: unknown }): value is { request: unknown } {
   return 'request' in value;
@@ -269,7 +257,7 @@ export function VaultMembersPanel({
 
     const userId = inviteUserId.trim();
     if (!userId) {
-      toast.error('User ID is required.');
+      toast.warning('User ID is required.');
       return;
     }
 
@@ -286,7 +274,7 @@ export function VaultMembersPanel({
 
     const email = inviteEmail.trim();
     if (!email) {
-      toast.error('Email is required.');
+      toast.warning('Email is required.');
       return;
     }
 

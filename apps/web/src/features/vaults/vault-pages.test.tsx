@@ -13,9 +13,38 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function installLocalStorageMock() {
+  const store = new Map<string, string>();
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => store.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        store.set(key, value);
+      }),
+      removeItem: vi.fn((key: string) => {
+        store.delete(key);
+      }),
+    },
+  });
+}
+
 describe('vault pages', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    installLocalStorageMock();
+    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      showExtractedTextTab: false,
+      defaultFileBrowserView: 'list',
+    }));
   });
 
   it('renders vault links for documents and settings', async () => {
@@ -51,7 +80,7 @@ describe('vault pages', () => {
     expect(within(vaultToolbar as HTMLElement).getByRole('button', { name: 'Grid view' })).toBeInTheDocument();
     expect(within(vaultToolbar as HTMLElement).getByRole('button', { name: 'List view' })).toBeInTheDocument();
     expect(await screen.findByText('Personal')).toBeInTheDocument();
-    expect(screen.getByText('Household records')).toBeInTheDocument();
+    expect(screen.queryByText('Household records')).not.toBeInTheDocument();
     expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Owner')).toBeInTheDocument();
     expect(screen.getByText('Files')).toBeInTheDocument();
@@ -72,8 +101,9 @@ describe('vault pages', () => {
     ]);
     await user.keyboard('{Escape}');
 
-    await user.click(screen.getByRole('button', { name: /vault actions for personal/i }));
-    expect(screen.getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+    screen.getByRole('button', { name: /vault actions for personal/i }).focus();
+    await user.keyboard('{Enter}');
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent?.trim())).toEqual([
       'Open',
       'Members',
       'Activity',
@@ -84,6 +114,82 @@ describe('vault pages', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/vaults/vlt_1/settings');
     });
+  });
+
+  it('persists the vault index grid/list choice as the shared vault browser view', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          preferences: {
+            themeMode: 'system',
+            accentColor: 'teal',
+            density: 'comfortable',
+            fontFamily: 'inter',
+            fontSize: 'md',
+            radius: 'md',
+            language: 'en',
+            dateFormat: null,
+            showExtractedTextTab: false,
+            defaultFileBrowserView: 'list',
+            createdAt: '2026-05-15T00:00:00.000Z',
+            updatedAt: '2026-05-15T00:00:00.000Z',
+          },
+        });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        return jsonResponse({
+          preferences: {
+            themeMode: 'system',
+            accentColor: 'teal',
+            density: 'comfortable',
+            fontFamily: 'inter',
+            fontSize: 'md',
+            radius: 'md',
+            language: 'en',
+            dateFormat: null,
+            showExtractedTextTab: false,
+            defaultFileBrowserView: 'grid',
+            createdAt: '2026-05-15T00:00:00.000Z',
+            updatedAt: '2026-05-15T01:00:00.000Z',
+          },
+        });
+      }
+
+      if (url === '/api/vaults') {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<VaultsPage />);
+
+    expect(await screen.findByRole('button', { name: /list view/i })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: /grid view/i }));
+
+    expect(screen.getByRole('button', { name: /grid view/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').defaultFileBrowserView).toBe('grid');
   });
 
   it('uses the shared app-shell vault tree instead of overriding secondary content', async () => {

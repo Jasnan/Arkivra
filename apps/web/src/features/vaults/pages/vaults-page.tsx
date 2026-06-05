@@ -4,7 +4,7 @@ import { Box, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderDot, FolderOpen, History, MessageSquare, Settings2, Users, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { useWorkspaceHeader, useWorkspaceSecondary } from '@/components/layout/workspace-context';
@@ -253,7 +253,7 @@ export function VaultsPage() {
 
     const normalizedName = name.trim();
     if (!normalizedName) {
-      toast.error('Vault name is required.');
+      toast.warning('Vault name is required.');
       return;
     }
 
@@ -295,10 +295,10 @@ export function VaultsPage() {
 
   const vaultHeaderActions = useMemo(() => (
     <HStack gap="2">
-      <CreateButton ref={createButtonRef} onClick={() => setIsCreateModalOpen(true)}>
+      <CreateButton ref={createButtonRef} size="sm" onClick={() => setIsCreateModalOpen(true)}>
         New vault
       </CreateButton>
-      <FileBrowserViewToggle value={vaultsView} onValueChange={setVaultsView} />
+      <FileBrowserViewToggle value={vaultsView} onValueChange={setVaultsView} size="sm" />
     </HStack>
   ), [vaultsView, setVaultsView]);
   const workspaceHeader = useMemo(() => ({
@@ -332,7 +332,8 @@ export function VaultsPage() {
         minH="0"
         overflowY="auto"
         px={vaultsView === 'grid' ? { base: '4', lg: '6' } : '0'}
-        py={vaultsView === 'grid' && isInWorkspaceShell ? '4' : '0'}
+        pt={vaultsView === 'grid' ? { base: '4', lg: '6' } : '0'}
+        pb={vaultsView === 'grid' && isInWorkspaceShell ? '4' : '0'}
       >
         {vaultsQuery.isLoading ? (
           <Text px="3" py="4" textStyle="sm">Loading vaults...</Text>
@@ -391,6 +392,7 @@ export function VaultsPage() {
                   right="3"
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                 >
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
@@ -480,6 +482,13 @@ export function VaultsPage() {
                 _hover={{ bg: 'bg.workspaceMuted' }}
                 _last={{ borderBottomWidth: '0' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
+                css={{
+                  '&:hover .vault-list-actions, &:focus-within .vault-list-actions': {
+                    opacity: 1,
+                    pointerEvents: 'auto',
+                    transform: 'none',
+                  },
+                }}
                 onClick={() => navigate({ to: ROUTES.vaultRoot(vault.id) })}
                 onContextMenu={(event) => openContextMenu(event, vault)}
                 onKeyDown={(event) => {
@@ -498,11 +507,6 @@ export function VaultsPage() {
                     <Text truncate fontSize="md" fontWeight="semibold" color="fg">
                       {vault.name}
                     </Text>
-                    {getVaultDescription(vault.description) ? (
-                      <Text truncate fontSize="sm" color="fg.muted">
-                        {getDescriptionPreview(getVaultDescription(vault.description) ?? '')}
-                      </Text>
-                    ) : null}
                   </Stack>
                 </Flex>
 
@@ -530,10 +534,23 @@ export function VaultsPage() {
                 </Text>
 
                 <Box
+                  className="vault-list-actions"
                   position="relative"
                   flexShrink="0"
+                  opacity="0"
+                  pointerEvents="none"
+                  transform="translateY(-1px)"
+                  transition="opacity 120ms ease, transform 120ms ease"
+                  css={{
+                    '@media (hover: none)': {
+                      opacity: 1,
+                      pointerEvents: 'auto',
+                      transform: 'none',
+                    },
+                  }}
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                 >
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>

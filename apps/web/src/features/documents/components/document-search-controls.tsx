@@ -77,6 +77,7 @@ export function SearchFilterMultiSelect({
   showColorSwatch = false,
   hideLabel = false,
   controlSize = 'default',
+  size = 'md',
   controlBg,
   contentBg,
 }: {
@@ -95,6 +96,7 @@ export function SearchFilterMultiSelect({
   showColorSwatch?: boolean;
   hideLabel?: boolean;
   controlSize?: 'default' | 'toolbar';
+  size?: 'sm' | 'md';
   controlBg?: string;
   contentBg?: string;
 }) {
@@ -119,6 +121,7 @@ export function SearchFilterMultiSelect({
       }}
       hideLabel={hideLabel}
       controlSize={controlSize}
+      size={size}
       controlBg={controlBg}
       contentBg={contentBg}
       showColorSwatch={showColorSwatch}
@@ -449,7 +452,7 @@ export function DocumentSearchControls<TSortValue extends string>({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 placeholder={searchPlaceholder}
-                h={isHeaderLayout ? '10' : '11'}
+                size={isHeaderLayout ? 'sm' : 'lg'}
                 borderColor="border.strong"
                 bg="bg.surface"
                 pl="11"

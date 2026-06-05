@@ -1,6 +1,7 @@
-import { SimpleGrid, Text, chakra } from '@chakra-ui/react';
+import { SimpleGrid, Text } from '@chakra-ui/react';
 import type { AppearanceFont } from '@/components/providers/typography';
 import { typographyOptions } from '@/components/providers/typography';
+import { Button } from '@/components/ui/button';
 
 interface TypographyPickerProps {
   onValueChange: (value: AppearanceFont) => void;
@@ -14,23 +15,20 @@ export function TypographyPicker({ onValueChange, value }: TypographyPickerProps
         const selected = value === option.value;
 
         return (
-          <chakra.button
+          <Button
             key={option.value}
             type="button"
             data-arkivra-font={option.value}
-            display="flex"
+            size="sm"
+            variant="outline"
             flexDirection="column"
-            alignItems="center"
             justifyContent="center"
             minW="0"
-            minH="var(--arkivra-controlHeight, 2.5rem)"
             rounded="md"
             borderWidth="1px"
             borderColor={selected ? 'teal.solid' : 'border.surface'}
             bg={selected ? 'teal.subtle' : 'bg.subtle'}
             color="fg"
-            px="1.5"
-            cursor="pointer"
             fontFamily="var(--arkivra-font-body)"
             textAlign="center"
             transition="border-color 120ms ease, background-color 120ms ease"
@@ -40,7 +38,7 @@ export function TypographyPicker({ onValueChange, value }: TypographyPickerProps
             <Text maxW="full" whiteSpace="nowrap" fontSize="xs" fontWeight="medium" lineHeight="1.2" color="fg">
               {option.label}
             </Text>
-          </chakra.button>
+          </Button>
         );
       })}
     </SimpleGrid>

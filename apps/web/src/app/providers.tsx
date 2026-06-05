@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/toaster';
 import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { searchQueryKeys } from '@/features/search/search.queries';
@@ -44,7 +44,7 @@ export function AppProviders({ children }: PropsWithChildren) {
         <AccentColorProvider>
           <UploadCompletionInvalidation />
           {children}
-          <Toaster position="top-right" richColors />
+          <Toaster />
         </AccentColorProvider>
       </QueryClientProvider>
     </ThemeProvider>

@@ -178,12 +178,10 @@ export function AuthField({
         <Input
           id={id}
           className={['arkivra-auth-input', className].filter(Boolean).join(' ')}
-          h="11"
-          minH="11"
+          size="lg"
           rounded="authControl"
           borderColor={error ? 'fg.error' : 'auth.fieldBorder'}
           bg="auth.field"
-          px={{ base: '5', md: '6' }}
           pe={pe ?? (rightElement || FieldIcon ? '4rem' : { base: '5', md: '6' })}
           color="fg"
           fontSize="sm"
@@ -247,12 +245,10 @@ export function AuthPasswordField({
       <PasswordInput
         id={id}
         className={['arkivra-auth-input', className].filter(Boolean).join(' ')}
-        h="11"
-        minH="11"
+        size="lg"
         rounded="authControl"
         borderColor={error ? 'fg.error' : 'auth.fieldBorder'}
         bg="auth.field"
-        px={{ base: '5', md: '6' }}
         pe={pe ?? '3.75rem'}
         color="fg"
         fontSize="sm"
@@ -292,8 +288,7 @@ export function AuthPrimaryButton({
     <Button
       type="submit"
       w="100%"
-      h="11"
-      minH="11"
+      size="lg"
       rounded="authControl"
       bgGradient="to-r"
       gradientFrom="auth.primaryFrom"
@@ -374,8 +369,7 @@ function AuthOAuthButton({
     <Button
       type="button"
       variant="outline"
-      h="10"
-      minH="10"
+      size="md"
       rounded="authControl"
       borderColor="auth.cardBorder"
       bg="transparent"

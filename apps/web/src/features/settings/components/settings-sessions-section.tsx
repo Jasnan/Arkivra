@@ -1,7 +1,7 @@
 import { Box, Flex, HStack, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Laptop, LogOut } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { Button } from '@/components/ui/button';
 import { useMeQuery } from '@/features/me/me.queries';
 import { authClient } from '@/lib/auth-client';

@@ -2,7 +2,7 @@ import { DocumentSortMenu } from '@/features/documents/components/document-sort-
 import type { DocumentSortOption } from '@/features/documents/components/document-sort-menu';
 import type { FileBrowserSort } from '@/features/file-browser/components/vault-browser.types';
 
-export const fileSortOptions: Array<DocumentSortOption<FileBrowserSort>> = [
+const fileSortOptions: Array<DocumentSortOption<FileBrowserSort>> = [
   { value: 'name_asc', label: 'A → Z' },
   { value: 'name_desc', label: 'Z → A' },
   { value: 'updated_desc', label: 'Recent' },
@@ -15,11 +15,13 @@ export function FileSortMenu({
   ariaLabel = 'Sort folder items',
   hideLabel = false,
   onValueChange,
+  size = 'md',
   value,
 }: {
   ariaLabel?: string;
   hideLabel?: boolean;
   onValueChange: (value: FileBrowserSort) => void;
+  size?: 'sm' | 'md';
   value: FileBrowserSort;
 }) {
   return (
@@ -28,15 +30,13 @@ export function FileSortMenu({
       value={value}
       onValueChange={onValueChange}
       options={fileSortOptions}
+      size={size}
       variant="toolbar"
       hideLabel={hideLabel}
       iconOnlyOnMobile
       buttonProps={{
         flexShrink: 0,
-        w: hideLabel ? 'auto' : { base: '10', sm: '10rem' },
-        minW: hideLabel ? '0' : { base: '10', sm: '10rem' },
-        maxW: hideLabel ? 'none' : '10rem',
-        px: hideLabel ? '3' : { base: '0', sm: '3' },
+        w: hideLabel ? 'auto' : { base: 'auto', sm: 'auto' },
       }}
     />
   );

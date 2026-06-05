@@ -8,12 +8,14 @@ type ActionButtonProps = Omit<ComponentProps<typeof Button>, 'children' | 'ref'>
 };
 
 export const CreateButton = forwardRef<HTMLButtonElement, ActionButtonProps>((
-  { children, className, ...props },
+  { children, className, size, ...props },
   ref,
 ) => {
+  const iconClassName = size === 'sm' ? 'size-3.5' : 'size-4';
+
   return (
-    <Button ref={ref} className={className} {...props}>
-      <Plus className="size-4" />
+    <Button ref={ref} className={className} size={size} {...props}>
+      <Plus className={iconClassName} />
       {children}
     </Button>
   );

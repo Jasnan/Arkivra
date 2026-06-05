@@ -1001,7 +1001,7 @@ function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] })
 function QuickSearchTrigger({
   shortcut,
   onOpen,
-  size = 'md',
+  size = 'sm',
 }: {
   shortcut: ReturnType<typeof getQuickSearchShortcut>;
   onOpen: () => void;
@@ -1016,16 +1016,13 @@ function QuickSearchTrigger({
       aria-keyshortcuts="Meta+K"
       onClick={onOpen}
       variant="plain"
+      size={size}
       justifyContent="center"
-      h="var(--arkivra-controlHeight, 2.5rem)"
-      minH="var(--arkivra-controlHeight, 2.5rem)"
-      minW="var(--arkivra-controlHeight, 2.5rem)"
-      gap="2"
+      gap="1.5"
       rounded="md"
       borderWidth="1px"
       borderColor="border.surface"
       bg="bg.workspace"
-      px={size === 'sm' ? '2' : '2.5'}
       color="fg.subtle"
       _hover={{ borderColor: 'border.strong', bg: 'bg.workspace', color: 'fg.muted' }}
       _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
@@ -1084,11 +1081,12 @@ function WorkspaceHeader({
               aria-label={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
               title={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
               variant="ghost"
+              size="sm"
               color="fg.muted"
               flexShrink={0}
               onClick={onToggleSecondarySidebar}
             >
-              {isSecondarySidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+              {isSecondarySidebarOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </IconButton>
           </Flex>
         ) : null}
@@ -1129,11 +1127,12 @@ function WorkspaceHeader({
             aria-label={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
             title={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
             variant="ghost"
+            size="sm"
             color="fg.muted"
             flexShrink={0}
             onClick={onToggleSecondarySidebar}
           >
-            {isSecondarySidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+            {isSecondarySidebarOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
           </IconButton>
         ) : null}
         <Box minW="0" flex="1">
@@ -1438,7 +1437,7 @@ export function AppShell() {
               hasSecondarySidebar={hasSecondarySidebar}
               isSecondarySidebarOpen={isSecondarySidebarOpen}
               quickSearchShortcut={quickSearchShortcut}
-              hideQuickSearch={location.pathname === ROUTES.search}
+              hideQuickSearch={location.pathname === ROUTES.search || location.pathname === ROUTES.trash}
               onToggleSecondarySidebar={() => setIsSecondarySidebarOpen((open) => !open)}
               onOpenQuickSearch={openQuickSearch}
             />
@@ -1511,8 +1510,7 @@ export function AppShell() {
                       top="50%"
                       transform="translateY(-50%)"
                       variant="ghost"
-                      h="8"
-                      w="8"
+                      size="sm"
                       rounded="md"
                       color="fg.muted"
                       _hover={{ bg: 'teal.subtle', color: 'fg' }}
@@ -1526,8 +1524,7 @@ export function AppShell() {
                   type="button"
                   aria-label="Close search"
                   variant="outline"
-                  h="10"
-                  w="10"
+                  size="sm"
                   rounded="md"
                   borderColor="border.surface"
                   bg="bg.surface"

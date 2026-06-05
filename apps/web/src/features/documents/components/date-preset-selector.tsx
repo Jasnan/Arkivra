@@ -108,9 +108,8 @@ function DateRangePickerFields({
               placeholder={placeholder}
               readOnly
               cursor="pointer"
-              h="10"
+              size="md"
               minW="0"
-              px="0"
               rounded="none"
               borderWidth="0"
               bg="transparent"
@@ -134,9 +133,8 @@ function DateRangePickerFields({
               placeholder={placeholder}
               readOnly
               cursor="pointer"
-              h="10"
+              size="md"
               minW="0"
-              px="0"
               rounded="none"
               borderWidth="0"
               bg="transparent"

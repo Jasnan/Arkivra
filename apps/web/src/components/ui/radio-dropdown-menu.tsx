@@ -23,6 +23,7 @@ export function RadioDropdownMenu<TValue extends string>({
   triggerLabel,
   emptyLabel,
   placeholder = 'Select',
+  size = 'md',
   value,
   variant = 'default',
 }: {
@@ -40,11 +41,13 @@ export function RadioDropdownMenu<TValue extends string>({
   triggerLabel?: string;
   emptyLabel?: string;
   placeholder?: string;
+  size?: 'sm' | 'md';
   value: TValue;
   variant?: 'default' | 'toolbar' | 'input';
 }) {
   const isToolbar = variant === 'toolbar';
   const isInput = variant === 'input';
+  const iconSize = size === 'sm' ? 14 : 16;
   const selectedLabel = triggerLabel ?? options.find(option => option.value === value)?.label ?? placeholder;
 
   return (
@@ -56,10 +59,8 @@ export function RadioDropdownMenu<TValue extends string>({
           aria-label={ariaLabel}
           aria-labelledby={labelId}
           disabled={isDisabled}
-          h={isInput ? '8' : isToolbar ? '10' : 'calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)'}
-          minH={isInput ? '8' : undefined}
-          w={isInput ? 'auto' : isToolbar ? { base: 'full', sm: '10rem' } : 'full'}
-          minW={isInput ? '8' : isToolbar ? { base: '0', sm: '10rem' } : { md: '11rem' }}
+          size={isInput ? 'xs' : isToolbar ? size : 'md'}
+          w={isInput ? 'auto' : 'full'}
           justifyContent={isInput ? 'center' : iconOnlyOnMobile ? { base: 'center', sm: 'space-between' } : 'space-between'}
           gap="2"
           rounded={isInput || isToolbar ? 'md' : undefined}
@@ -104,7 +105,7 @@ export function RadioDropdownMenu<TValue extends string>({
             color="fg.muted"
             aria-hidden="true"
           >
-            <ChevronDown size={16} />
+            <ChevronDown size={iconSize} />
           </Box>
         </Button>
       </Menu.Trigger>

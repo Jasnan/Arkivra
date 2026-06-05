@@ -34,9 +34,9 @@ import { getBrowserItemKey, getDocumentTypeLabel, getFileDisplayName, getItemDis
 import type { BrowserAction, BrowserContextItem, BrowserContextMenuEntry, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination, MoveDialogTarget } from './vault-browser.types';
 
 const listRowHeights = {
-  compact: 56,
-  comfortable: 72,
-  relaxed: 80,
+  compact: 48,
+  comfortable: 56,
+  relaxed: 72,
 } as const;
 const BREADCRUMB_LABEL_MAX_LENGTH = 10;
 const LIST_GRID_COLUMNS = 'minmax(0, 1fr) 6rem 8.5rem 2.75rem';
@@ -151,12 +151,29 @@ function getItemKindLabel(item: BrowserContextItem) {
 }
 
 export function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' | 'search' }) {
+  const { density } = useAccentColor();
   const isList = size === 'list';
   const isSearch = size === 'search';
-  const containerSize = isSearch ? '8' : isList ? '8' : '12';
-  const documentBoxSize = isSearch ? '8' : isList ? '6' : '9';
-  const documentIconSize = isSearch ? 30 : isList ? 22 : 36;
-  const folderIconSize = isSearch ? 24 : isList ? 20 : 34;
+  const listIconSize = density === 'compact' ? {
+    container: '7',
+    documentBox: '5.5',
+    documentIcon: 20,
+    folderIcon: 18,
+  } : density === 'relaxed' ? {
+    container: '10',
+    documentBox: '7',
+    documentIcon: 26,
+    folderIcon: 23,
+  } : {
+    container: '8',
+    documentBox: '6',
+    documentIcon: 22,
+    folderIcon: 20,
+  };
+  const containerSize = isSearch ? '8' : isList ? listIconSize.container : '12';
+  const documentBoxSize = isSearch ? '8' : isList ? listIconSize.documentBox : '9';
+  const documentIconSize = isSearch ? 30 : isList ? listIconSize.documentIcon : 36;
+  const folderIconSize = isSearch ? 24 : isList ? listIconSize.folderIcon : 34;
 
   if (item.type === 'folder') {
     return (
@@ -549,6 +566,7 @@ function BrowserItemActions({
           label={`Open actions for ${getItemName(item)}`}
           disabled={disabled || availableActions.length === 0}
           onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" minW="48">
@@ -588,6 +606,39 @@ function GridItemActions({
       opacity="0"
       pointerEvents="none"
       transform="translateY(-2px)"
+      transition="opacity 120ms ease, transform 120ms ease"
+      css={{
+        '@media (hover: none)': {
+          opacity: 1,
+          pointerEvents: 'auto',
+          transform: 'none',
+        },
+      }}
+    >
+      <BrowserItemActions
+        item={item}
+        actions={actions}
+        disabled={disabled}
+      />
+    </Box>
+  );
+}
+
+function ListItemActions({
+  item,
+  actions,
+  disabled,
+}: {
+  item: BrowserItem;
+  actions: BrowserAction[];
+  disabled?: boolean;
+}) {
+  return (
+    <Box
+      className="browser-list-actions"
+      opacity="0"
+      pointerEvents="none"
+      transform="translateY(-1px)"
       transition="opacity 120ms ease, transform 120ms ease"
       css={{
         '@media (hover: none)': {
@@ -832,6 +883,7 @@ export function BrowserItemList({
   listGridColumns,
   listColumns,
   renderDocumentListMetadata,
+  hideActionsUntilHover = false,
   onDragStartItem,
   onDragEndItem,
   onDragOverFolder,
@@ -860,6 +912,7 @@ export function BrowserItemList({
   listGridColumns?: string;
   listColumns?: BrowserListColumn[];
   renderDocumentListMetadata?: (item: Extract<BrowserItem, { type: 'document' }>) => BrowserListCell[];
+  hideActionsUntilHover?: boolean;
   onDragStartItem: (event: DragEvent<HTMLElement>, item: BrowserItem) => void;
   onDragEndItem: () => void;
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
@@ -975,6 +1028,13 @@ export function BrowserItemList({
                 onDragLeave={isDraggable && item.type === 'folder' ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined}
                 onDrop={isDraggable && item.type === 'folder' ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
                 onContextMenu={(event) => onOpenContextMenu(event, item)}
+                css={hideActionsUntilHover ? {
+                  '&:hover .browser-list-actions, &:focus-within .browser-list-actions': {
+                    opacity: 1,
+                    pointerEvents: 'auto',
+                    transform: 'none',
+                  },
+                } : undefined}
               >
                 {item.type === 'folder' ? (
                   <Grid
@@ -1019,7 +1079,11 @@ export function BrowserItemList({
                     </chakra.button>
                     <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
                     <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatDateOnly(updatedAt)}</Text>
-                    <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
+                    {hideActionsUntilHover ? (
+                      <ListItemActions item={item} actions={actions} disabled={isMutating} />
+                    ) : (
+                      <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
+                    )}
                   </Grid>
                 ) : (
                   <Grid
@@ -1065,11 +1129,15 @@ export function BrowserItemList({
                         <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{cell.content}</Text>
                       </Link>
                     ))}
-                    <BrowserItemActions
-                      item={item}
-                      actions={actions}
-                      disabled={isMutating}
-                    />
+                    {hideActionsUntilHover ? (
+                      <ListItemActions item={item} actions={actions} disabled={isMutating} />
+                    ) : (
+                      <BrowserItemActions
+                        item={item}
+                        actions={actions}
+                        disabled={isMutating}
+                      />
+                    )}
                   </Grid>
                 )}
               </Box>
@@ -1143,6 +1211,7 @@ export function BrowserItemGrid({
       borderColor="border.surface"
       bg="bg.workspace"
       px={{ base: '3', lg: '4' }}
+      pt={{ base: '3', lg: '4' }}
       onContextMenu={onOpenBackgroundContextMenu}
     >
       <VirtuosoGrid
@@ -1257,16 +1326,18 @@ export function BrowserItemGrid({
                 ) : null}
                 <Stack align="center" gap="2.5" w="full" minW="0">
                   <FileBrowserIcon item={item} />
-                  <Link
-                    to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
-                    style={{ display: 'block', width: '100%', maxWidth: '100%', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <Box w="full" minW="0" maxW="full" px="1">
-                      <GridItemName name={displayName} density={density} />
-                    </Box>
-                  </Link>
-                  {renderDocumentGridMeta?.(item)}
+                  <Stack align="center" gap="0.5" w="full" minW="0">
+                    <Link
+                      to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
+                      style={{ display: 'block', width: '100%', maxWidth: '100%', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <Box w="full" minW="0" maxW="full" px="1">
+                        <GridItemName name={displayName} density={density} />
+                      </Box>
+                    </Link>
+                    {renderDocumentGridMeta?.(item)}
+                  </Stack>
                 </Stack>
               </Stack>
             </Box>

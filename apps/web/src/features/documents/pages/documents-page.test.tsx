@@ -306,7 +306,7 @@ describe('documents page', () => {
     expect(screen.getByText('Policy scope')).toBeInTheDocument();
   });
 
-  it('uses the stored default project view while keeping view toggles session-local', async () => {
+  it('uses and updates the shared default vault browser view', async () => {
     const user = userEvent.setup();
     window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
       themeMode: 'system',
@@ -331,7 +331,7 @@ describe('documents page', () => {
     await user.click(screen.getByRole('button', { name: /list view/i }));
 
     expect(screen.getByRole('button', { name: /list view/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').defaultFileBrowserView).toBe('grid');
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').defaultFileBrowserView).toBe('list');
   });
 });
 

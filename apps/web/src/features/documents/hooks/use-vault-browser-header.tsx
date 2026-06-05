@@ -103,12 +103,11 @@ export function useVaultBrowserHeader({
               size="sm"
               px="3"
               colorPalette="teal"
-              h="10"
               rounded="md"
               shadow="none"
             >
-              <Upload size={16} />
-              <ChevronDown size={14} />
+              <Upload size={15} />
+              <ChevronDown size={13} />
             </Button>
           </Menu.Trigger>
           <Portal>
@@ -137,10 +136,10 @@ export function useVaultBrowserHeader({
         </Menu.Root>
         {browserSort && onBrowserSortChange ? (
           <Box flexShrink={0}>
-            <FileSortMenu hideLabel value={browserSort} onValueChange={onBrowserSortChange} />
+            <FileSortMenu hideLabel size="sm" value={browserSort} onValueChange={onBrowserSortChange} />
           </Box>
         ) : null}
-        <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
+        <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} size="sm" />
       </HStack>
   ) : null, [
     browserSort,

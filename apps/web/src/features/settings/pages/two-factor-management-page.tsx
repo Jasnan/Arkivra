@@ -15,7 +15,7 @@ import {
   ShieldOff,
   Smartphone,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

@@ -921,8 +921,8 @@ describe('settings, admin, and about pages', () => {
     await waitFor(() => {
       expect(document.documentElement.dataset.density).toBe('compact');
       expect(document.documentElement.style.getPropertyValue('--arkivra-controlHeight')).toBe('2rem');
-      expect(document.documentElement.style.getPropertyValue('--arkivra-listRowHeight')).toBe('3.5rem');
-      expect(document.documentElement.style.getPropertyValue('--arkivra-listIconSize')).toBe('2rem');
+      expect(document.documentElement.style.getPropertyValue('--arkivra-listRowHeight')).toBe('3rem');
+      expect(document.documentElement.style.getPropertyValue('--arkivra-listIconSize')).toBe('1.75rem');
     });
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({

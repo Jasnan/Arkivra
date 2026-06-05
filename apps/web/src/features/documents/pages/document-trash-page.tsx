@@ -13,7 +13,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { RotateCcw, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
@@ -52,7 +52,7 @@ import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 type TrashSort = 'name_asc' | 'name_desc' | 'deleted_desc' | 'deleted_asc';
 
-const TRASH_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) minmax(9rem, 12rem) 9.5rem 7rem 2.75rem';
+const TRASH_LIST_GRID_COLUMNS = '2.5rem minmax(0, 0.9fr) minmax(9rem, 12rem) minmax(10.5rem, 12rem) 7rem 2rem';
 
 const trashSortOptions: Array<{ value: TrashSort; label: string }> = [
   { value: 'deleted_desc', label: 'Recent' },
@@ -360,6 +360,7 @@ export function DocumentTrashPage() {
             label="Vaults"
             hideLabel
             controlSize="toolbar"
+            size="sm"
             triggerLabel={selectedVaultsLabel}
             triggerAriaLabel="Vault filter"
             searchLabel="Search vaults"
@@ -381,11 +382,12 @@ export function DocumentTrashPage() {
           value={browserSort}
           onValueChange={setBrowserSort}
           options={trashSortOptions}
-          variant="toolbar"
+          size="sm"
+          variant="input"
         />
         <DeleteButton
           type="button"
-          h="10"
+          size="sm"
           rounded="md"
           px="3"
           shadow="none"
@@ -394,7 +396,7 @@ export function DocumentTrashPage() {
         >
           Empty trash
         </DeleteButton>
-        <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
+        <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} size="sm" />
       </Flex>
     </Flex>
   ), [
@@ -503,6 +505,7 @@ export function DocumentTrashPage() {
             onToggleItem={toggleBrowserItem}
             getItemActions={getItemActions}
             getDocumentLink={(document) => ROUTES.trashDocument(document.id)}
+            hideActionsUntilHover
             listGridColumns={TRASH_LIST_GRID_COLUMNS}
             listColumns={[
               { key: 'name', label: 'Name' },
@@ -543,9 +546,6 @@ export function DocumentTrashPage() {
               <Stack gap="1" maxW="full" px="2" textAlign="center">
                 <Text truncate fontSize="xs" color="fg.muted">
                   {getResolvedVaultName(item.document)}
-                </Text>
-                <Text truncate fontSize="xs" color="fg.muted">
-                  Deleted {formatDate(item.document.deletedAt)}
                 </Text>
               </Stack>
             )}

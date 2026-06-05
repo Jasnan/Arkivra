@@ -180,6 +180,7 @@ export function TransfersPage() {
             </Flex>
           ) : (
             <Select
+              size="md"
               value={vaultId || '__none__'}
               onValueChange={(value) =>
                 navigate({ search: value === '__none__' ? {} : { vaultId: value }, replace: true } as any)
@@ -188,12 +189,10 @@ export function TransfersPage() {
               <SelectTrigger
                 aria-labelledby="transfer-vault-label"
                 className={vaultInputClassName}
-                h="10"
                 w="full"
                 maxW="17.5rem"
                 rounded="lg"
                 bg="bg.subtle"
-                px="4"
                 fontSize="sm"
                 color="fg"
               >

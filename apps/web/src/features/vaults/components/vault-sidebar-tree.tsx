@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TreeView, createTreeCollection } from '@chakra-ui/react';
 import { useNavigate } from '@tanstack/react-router';
 import { ChevronRight, Folder, FolderDot, FolderOpen, FolderOpenDot, Vault } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import {
   INTERNAL_BROWSER_DRAG_TYPE,
   getBrowserDropValidation,
@@ -510,7 +510,7 @@ export function VaultSidebarTree({
     setDropTarget(null);
 
     if (!validation.valid) {
-      toast.error(validation.message);
+      toast.warning(validation.message);
       return;
     }
 

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Box, Flex, HStack, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LockKeyhole, Pencil } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

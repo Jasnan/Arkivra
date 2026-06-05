@@ -67,7 +67,7 @@ export function AuditDateFilterPicker({
           readOnly
           cursor="pointer"
           bg="bg.surface"
-          h="calc(var(--arkivra-controlHeight, 2.5rem) + 0.25rem)"
+          size="lg"
           rounded="lg"
           borderColor="border.strong"
           fontSize="sm"

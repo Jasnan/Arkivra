@@ -16,7 +16,7 @@ import {
   MessageSquare,
   X,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';

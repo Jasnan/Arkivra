@@ -354,11 +354,9 @@ export function SettingsDropdown({
     <RadioDropdownMenu
       ariaLabel={ariaLabel}
       buttonProps={{
-        h: 'var(--arkivra-controlHeight, 2.5rem)',
         minW: '0',
         rounded: 'md',
         borderColor: 'border.surface',
-        px: 'var(--arkivra-controlPaddingX, 0.75rem)',
       }}
       options={options}
       value={value}

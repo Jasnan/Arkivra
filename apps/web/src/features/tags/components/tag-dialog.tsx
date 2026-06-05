@@ -136,7 +136,7 @@ export function TagDialog({
                     maxLength={64}
                     value={nameValue}
                     placeholder="Tag name"
-                    h="12"
+                    size="lg"
                     rounded="lg"
                     bg="bg.modalField"
                     borderColor="border.surface"
@@ -225,8 +225,7 @@ export function TagDialog({
                     <Button
                       type="button"
                       variant="outline"
-                      h="12"
-                      px="6"
+                      size="lg"
                       rounded="lg"
                       borderColor="border.strong"
                       bg="transparent"
@@ -238,12 +237,12 @@ export function TagDialog({
                     </Button>
                   </ChakraDialog.ActionTrigger>
                   {isCreateMode ? (
-                    <Button type="submit" h="12" px="6" rounded="lg" colorPalette="teal" disabled={isSubmitDisabled}>
+                    <Button type="submit" size="lg" rounded="lg" colorPalette="teal" disabled={isSubmitDisabled}>
                       <Plus size={18} />
                       {isPending ? pendingLabel : submitLabel}
                     </Button>
                   ) : (
-                    <Button type="submit" h="12" px="6" rounded="lg" colorPalette="teal" disabled={isSubmitDisabled}>
+                    <Button type="submit" size="lg" rounded="lg" colorPalette="teal" disabled={isSubmitDisabled}>
                       <Save size={18} />
                       {isPending ? pendingLabel : submitLabel}
                     </Button>

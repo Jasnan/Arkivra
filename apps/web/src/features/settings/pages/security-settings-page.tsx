@@ -31,7 +31,7 @@ import {
   ShieldCheck,
   ShieldOff,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import githubBrandSvg from '@/assets/brand-github.svg?raw';
 import googleBrandSvg from '@/assets/brand-google.svg?raw';
 import { ROUTES } from '@/app/routes';
@@ -607,9 +607,7 @@ function TwoFactorSetupPanel({
                       readOnly
                       value={secret ?? ''}
                       fontFamily="mono"
-                      h="var(--arkivra-controlHeight, 2.5rem)"
-                      minH="var(--arkivra-controlHeight, 2.5rem)"
-                      px="var(--arkivra-controlPaddingX, 0.75rem)"
+                      size="md"
                       {...securityInputStyleProps}
                     />
                   </Clipboard.Input>

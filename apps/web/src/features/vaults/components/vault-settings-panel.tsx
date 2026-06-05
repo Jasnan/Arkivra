@@ -4,7 +4,7 @@ import { Box, Grid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck, Users, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import {
   StatCard,
@@ -27,7 +27,7 @@ import {
   useVaultQuery,
   vaultQueryKeys,
 } from '@/features/vaults/vaults.queries';
-import { formatAiAccess, formatVaultRole } from '@/features/vaults/components/vault-members-panel';
+import { formatAiAccess, formatVaultRole } from '@/features/vaults/components/vault-member-formatters';
 
 function isRequestResponse<T extends object>(value: T | { request: unknown }): value is { request: unknown } {
   return 'request' in value;

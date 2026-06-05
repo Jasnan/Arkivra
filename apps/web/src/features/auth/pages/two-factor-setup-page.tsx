@@ -25,7 +25,7 @@ import {
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { useRouter, useSearch } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';

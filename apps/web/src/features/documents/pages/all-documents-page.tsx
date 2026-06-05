@@ -10,7 +10,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import {
   PageIntro,

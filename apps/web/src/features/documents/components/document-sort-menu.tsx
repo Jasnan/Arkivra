@@ -13,6 +13,7 @@ export function DocumentSortMenu<TValue extends string>({
   labelId,
   onValueChange,
   options,
+  size = 'md',
   value,
   variant = 'default',
 }: {
@@ -23,20 +24,24 @@ export function DocumentSortMenu<TValue extends string>({
   labelId?: string;
   onValueChange: (value: TValue) => void;
   options: Array<DocumentSortOption<TValue>>;
+  size?: 'sm' | 'md';
   value: TValue;
   variant?: 'default' | 'toolbar' | 'input';
 }) {
+  const iconSize = size === 'sm' ? 14 : 16;
+
   return (
     <RadioDropdownMenu
       ariaLabel={ariaLabel}
       buttonProps={buttonProps}
       hideLabel={hideLabel}
-      icon={<ArrowUpDown size={16} />}
+      icon={<ArrowUpDown size={iconSize} />}
       iconOnlyOnMobile={iconOnlyOnMobile}
       labelId={labelId}
       onValueChange={onValueChange}
       options={options}
       placeholder="Sort"
+      size={size}
       triggerLabel={variant === 'input' ? 'Sort' : undefined}
       value={value}
       variant={variant}

@@ -47,12 +47,11 @@ export function AnswerModePicker({
           aria-label="Select answer mode"
           title="Select answer mode"
           disabled={disabled}
-          h={triggerWidth ? 'var(--arkivra-controlHeight, 2.5rem)' : '9'}
+          size={triggerWidth ? 'md' : 'sm'}
           w={triggerWidth}
           minW="0"
           justifyContent={triggerWidth ? 'space-between' : 'center'}
           gap="1.5"
-          px={triggerWidth ? 'var(--arkivra-controlPaddingX, 0.75rem)' : '2.5'}
           rounded={triggerWidth ? 'md' : 'lg'}
           borderColor="border.surface"
           bg={triggerWidth ? 'bg.surface' : undefined}

@@ -46,7 +46,11 @@ const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
 const SEARCH_RESULT_COLUMNS = 'minmax(0, 1fr) minmax(7rem, 9rem) minmax(5.5rem, 7rem) minmax(8rem, 10rem)';
 const SEARCH_RETURN_SOURCE = 'search';
 const SEARCH_LIST_SEPARATOR = ',';
-const SEARCH_LIST_ROW_HEIGHT = 92;
+const searchListRowHeights = {
+  compact: 72,
+  comfortable: 80,
+  relaxed: 92,
+} as const;
 const SEARCH_GRID_ITEM_WIDTH = '10.75rem';
 const SEARCH_GRID_ITEM_HEIGHT = '8rem';
 const SEARCH_GRID_ITEM_GAP = '0.8rem';
@@ -391,6 +395,8 @@ function SearchResultList({
   query: string;
   results: SearchResultItem[];
 }) {
+  const { density } = useAccentColor();
+
   return (
     <Flex flex="1" minH="0" direction="column" overflow="hidden">
       <Grid
@@ -415,7 +421,7 @@ function SearchResultList({
       <Box flex="1" minH="0" overflow="hidden">
         <Virtuoso
           data={results}
-          defaultItemHeight={SEARCH_LIST_ROW_HEIGHT}
+          defaultItemHeight={searchListRowHeights[density]}
           computeItemKey={(index, result) => result ? `${result.vaultId}-${result.documentId}` : `result-${index}`}
           initialItemCount={Math.min(results.length, 24)}
           style={{ height: '100%' }}
@@ -959,7 +965,7 @@ export function SearchPage() {
       ) : undefined}
       trailingAccessory={layout === 'header' ? undefined : (
         <HStack flexShrink={0}>
-          <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
+          <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} size={layout === 'shell' ? 'sm' : 'md'} />
         </HStack>
       )}
       filtersContent={
@@ -1056,7 +1062,7 @@ export function SearchPage() {
   ]);
   const searchHeaderControls = useMemo(() => renderSearchControls('header'), [renderSearchControls]);
   const searchHeaderActions = useMemo(() => (
-    <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} />
+    <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} size="sm" />
   ), [browserView, setBrowserView]);
   const workspaceHeader = useMemo(() => ({
     left: searchHeaderControls,

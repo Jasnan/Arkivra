@@ -869,8 +869,7 @@ export function VaultSelectionDialog({
             <Button
               type="button"
               variant="outline"
-              h="12"
-              px="6"
+              size="lg"
               rounded="lg"
               borderColor="border.strong"
               bg="transparent"
@@ -879,7 +878,7 @@ export function VaultSelectionDialog({
             >
               Cancel
             </Button>
-            <Button type="button" h="12" px="6" rounded="lg" colorPalette="teal" onClick={confirm}>
+            <Button type="button" size="lg" rounded="lg" colorPalette="teal" onClick={confirm}>
               <Plus size={18} />
               Add
             </Button>
@@ -1330,8 +1329,7 @@ export function DocumentSelectionDialog({
               <Button
                 type="button"
                 variant="outline"
-                h="12"
-                px="6"
+                size="lg"
                 rounded="lg"
                 borderColor="border.strong"
                 bg="transparent"
@@ -1348,8 +1346,7 @@ export function DocumentSelectionDialog({
                   <Button
                     type="button"
                     variant="ghost"
-                    h="8"
-                    px="2"
+                    size="xs"
                     rounded="md"
                     color="fg.muted"
                     _hover={{ bg: 'bg.modalField', color: 'fg' }}
@@ -1360,7 +1357,7 @@ export function DocumentSelectionDialog({
                 </Flex>
               ) : null}
             </Flex>
-            <Button type="button" h="12" px="6" rounded="lg" colorPalette="teal" onClick={confirm}>
+            <Button type="button" size="lg" rounded="lg" colorPalette="teal" onClick={confirm}>
               <Plus size={18} />
               Add
             </Button>

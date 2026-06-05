@@ -1,6 +1,6 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ApiError } from '@/lib/api';
 import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { chatQueryKeys } from '@/features/chat/chat.queries';

@@ -113,7 +113,6 @@ export function SelectTrigger({ className, children, ref, ...props }: SelectTrig
         ref={ref}
         className={className}
         display="flex"
-        h="var(--arkivra-controlHeight, 2.5rem)"
         w="full"
         alignItems="center"
         justifyContent="space-between"
@@ -122,7 +121,6 @@ export function SelectTrigger({ className, children, ref, ...props }: SelectTrig
         borderWidth="1px"
         borderColor="border.surface"
         bg="bg.surface"
-        px="var(--arkivra-controlPaddingX, 0.75rem)"
         textAlign="left"
         fontSize="sm"
         fontWeight="medium"
@@ -244,6 +242,7 @@ export function SelectItem({ className, children, ref, value, ...props }: Select
       cursor="default"
       userSelect="none"
       alignItems="center"
+      minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
       rounded="md"
       py="var(--arkivra-menuItemPaddingY, 0.5rem)"
       ps="3"

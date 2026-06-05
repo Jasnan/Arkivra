@@ -16,7 +16,7 @@ import {
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Files, Pencil, Tags, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -589,6 +589,7 @@ export function TagsPage() {
             value={filterText}
             onChange={(event) => setFilterText(event.target.value)}
             placeholder="Search tags"
+            size="sm"
           />
         </Field>
       </Box>
@@ -598,6 +599,7 @@ export function TagsPage() {
     <CreateButton
       ref={createButtonRef}
       type="button"
+      size="sm"
       onClick={(event) => openCreateDialog(event.currentTarget)}
     >
       New tag

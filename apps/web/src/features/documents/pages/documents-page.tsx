@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings2, Tags, Trash2, Users } from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/ui/action-buttons';
@@ -1020,6 +1020,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                     onDropOnFolder={handleDropOnFolder}
                     onOpenContextMenu={openContextMenu}
                     onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
+                    hideActionsUntilHover
                     isMutating={itemMutationPending}
                   />
                 ) : (

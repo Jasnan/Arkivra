@@ -2,7 +2,7 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
-import { Toaster } from 'sonner'
+import { Toaster } from '@/components/ui/toaster'
 import { AccentColorProvider } from '@/components/providers/accent-color-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 
@@ -44,7 +44,7 @@ export async function renderWithProviders(
         <QueryClientProvider client={queryClient}>
           <AccentColorProvider>
             <RouterProvider router={router} />
-            <Toaster position="top-right" richColors />
+            <Toaster />
           </AccentColorProvider>
         </QueryClientProvider>
       </ThemeProvider>

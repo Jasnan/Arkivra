@@ -21,7 +21,6 @@ import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
 import type { ChatApiScope, ChatResponseMode } from '../chat.api';
-import { streamChatMessage } from '../chat.api';
 import {
   chatQueryKeys,
   useChatConversationQuery,
@@ -31,12 +30,10 @@ import {
   useUpdateChatConversationContextMutation,
   useChatModelOptionsQuery,
 } from '../chat.queries';
-import type { ChatContextSnapshot, ChatConversation, ChatConversationDetail, ChatIntent, ChatStreamStatus } from '../chat.types';
+import type { ChatContextSnapshot, ChatConversation, ChatConversationDetail, ChatIntent, ChatMessage } from '../chat.types';
 import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
 import type {
-  ChatMetricsByMessageId,
   ChatWorkspaceProps,
-  LocalMessage,
 } from './chat-utils';
 import {
   NEW_CHAT_DRAFT_ID,
@@ -60,9 +57,9 @@ import {
 import { ChatEmptyState } from './chat-empty-state';
 import {
   AssistantChatRuntimeProvider,
+  type AssistantChatRuntimeHandle,
+  type AssistantChatRuntimeState,
 } from './assistant-chat-runtime';
-import { getAppendMessageText } from './assistant-chat-runtime.utils';
-import type { AssistantChatMessage } from './assistant-chat-runtime.utils';
 import { AssistantChatThread } from './assistant-chat-thread';
 import { AssistantChatComposer } from './assistant-chat-composer';
 
@@ -183,15 +180,14 @@ export function ChatWorkspace({
   );
   const [selectedChatId, setSelectedChatId] = useState(selectedConversationId ?? '');
   const [draftContext, setDraftContext] = useState<DraftChatContext>(initialDraftContext);
-  const [localMessages, setLocalMessages] = useState<LocalMessage[]>([]);
-  const [streamingText, setStreamingText] = useState('');
-  const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
-  const [streamError, setStreamError] = useState<string | null>(null);
-  const [isAssistantResponsePending, setIsAssistantResponsePending] = useState(false);
+  const [runtimeState, setRuntimeState] = useState<AssistantChatRuntimeState>({
+    messages: [],
+    status: 'ready',
+  });
+  const [runtimeHandle, setRuntimeHandle] = useState<AssistantChatRuntimeHandle | null>(null);
   const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
   const [selectedModel, setSelectedModel] = useState('');
   const [composerValue, setComposerValue] = useState('');
-  const [metricsByMessageId, setMetricsByMessageId] = useState<ChatMetricsByMessageId>({});
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false);
@@ -200,7 +196,7 @@ export function ChatWorkspace({
   const [isContextWarningDismissed, setIsContextWarningDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousSelectedConversationIdRef = useRef(selectedConversationId);
-  const isStreaming = isAssistantResponsePending || streamStatus !== null;
+  const isStreaming = runtimeState.status === 'submitted' || runtimeState.status === 'streaming';
   const shouldAutoSelectLatestConversation = !vaultId && !documentId && selectedConversationId === undefined;
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation
@@ -219,7 +215,6 @@ export function ChatWorkspace({
   const selectedConversationMessageCount = selectedChatQuery.data?.conversation.messages.length;
   const isPristineSavedConversation = effectiveSelectedChatId.length > 0
     && selectedConversationMessageCount === 0
-    && localMessages.length === 0
     && !isStreaming;
   const isContextLocked = effectiveSelectedChatId.length > 0 && !isPristineSavedConversation;
   const contextAvailability = selectedChatQuery.data?.conversation.contextAvailability;
@@ -277,63 +272,14 @@ export function ChatWorkspace({
       ? selectedModel
       : defaultModel || availableModels[0] || '';
 
-  const messages = useMemo(
-    () => [
-      ...(selectedChatQuery.data?.conversation.messages ?? []),
-      ...localMessages.filter((message) => message.conversationId === effectiveSelectedChatId),
-    ],
-    [effectiveSelectedChatId, localMessages, selectedChatQuery.data?.conversation.messages],
+  const persistedMessages = useMemo<ChatMessage[]>(
+    () => selectedChatQuery.data?.conversation.messages ?? [],
+    [selectedChatQuery.data?.conversation.messages],
   );
+  const messages = runtimeState.messages;
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
   const effectiveIntent = activeConversationIntent;
   const shouldShowEmptyState = messages.length === 0 && !isStreaming;
-  const shouldRenderStreamingMessage = streamingText.length > 0 || isStreaming;
-  const assistantMessages = useMemo<AssistantChatMessage[]>(() => {
-    const runtimeMessages = messages.map((message) => ({
-      message,
-      activeStatus: streamStatus,
-    }));
-
-    if (!shouldRenderStreamingMessage) {
-      return runtimeMessages;
-    }
-
-    return [
-      ...runtimeMessages,
-      {
-        activeStatus: streamStatus,
-        isStreamingPlaceholder: true,
-        message: {
-          id: '__streaming_response__',
-          conversationId: effectiveSelectedChatId || NEW_CHAT_DRAFT_ID,
-          vaultId: activeVaultId ?? null,
-          documentId: activeDocumentId ?? null,
-          scope: isActiveDocumentChat ? 'document' : isActiveGlobalChat ? 'global' : 'vault',
-          userId: null,
-          role: 'assistant',
-          content: streamingText,
-          metadata: null,
-          citations: [],
-          generationMetrics: null,
-          generationStatus: null,
-          generationError: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          localOnly: true,
-        },
-      },
-    ];
-  }, [
-    activeDocumentId,
-    activeVaultId,
-    effectiveSelectedChatId,
-    isActiveDocumentChat,
-    isActiveGlobalChat,
-    messages,
-    shouldRenderStreamingMessage,
-    streamStatus,
-    streamingText,
-  ]);
   const isComposerDisabled = !canUseChat || isStreaming || createConversation.isPending;
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
@@ -380,12 +326,8 @@ export function ChatWorkspace({
   }, []);
 
   const resetComposerState = useCallback(() => {
-    setLocalMessages([]);
-    setStreamingText('');
-    setStreamError(null);
-    setIsAssistantResponsePending(false);
     setComposerValue('');
-    setMetricsByMessageId({});
+    setRuntimeState({ messages: [], status: 'ready' });
   }, []);
 
   useEffect(() => {
@@ -548,97 +490,51 @@ export function ChatWorkspace({
   }
 
   async function handleSend(content: string, intentOverride?: ChatIntent | null) {
-    setStreamError(null);
-    setStreamingText('');
-    setIsAssistantResponsePending(true);
     const resolvedIntent = isActiveGlobalChat ? (intentOverride ?? effectiveIntent) : null;
-
-    let chatId = effectiveSelectedChatId;
-    if (!chatId) {
-      const result = await createConversation.mutateAsync({
-        contextSnapshot: contextSnapshotFromDraft(hydratedDraftContext),
-        title: content,
-      });
-      chatId = result.conversation.id;
-      setSelectedChatId(chatId);
-      onConversationCreated?.(chatId);
-      queryClient.setQueryData(chatQueryKeys.conversation(chatId), {
-        conversation: { ...result.conversation, messages: [] },
-      });
-      await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
-    }
-
-    const optimisticMessage: LocalMessage = {
-      id: `local-${Date.now()}`,
-      conversationId: chatId,
-      vaultId: activeVaultId ?? null,
-      documentId: activeDocumentId ?? null,
-      scope: isActiveDocumentChat ? 'document' : isActiveGlobalChat ? 'global' : 'vault',
-      userId: null,
-      role: 'user',
-      content,
-      metadata: resolvedIntent ? { intent: resolvedIntent } : null,
-      citations: [],
-      generationMetrics: null,
-      generationStatus: null,
-      generationError: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      localOnly: true,
-    };
-
-    setLocalMessages([optimisticMessage]);
+    if (runtimeHandle === null) return;
 
     try {
-      await streamChatMessage({
-        chatId,
-        content,
-        intent: resolvedIntent ?? undefined,
-        model: resolvedSelectedModel || undefined,
-        responseMode,
-        onStatus: setStreamStatus,
-        onToken: (token) => setStreamingText((current) => `${current}${token}`),
-        onError: (message) => {
-          setStreamError(message);
-          setLocalMessages([]);
-          setIsAssistantResponsePending(false);
-          setStreamStatus(null);
-          void Promise.all([
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() }),
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(chatId) }),
-          ]);
-        },
-        onDone: (payload) => {
-          setMetricsByMessageId((current) => ({
-            ...current,
-            [payload.assistantMessage.id]: payload.metrics ?? undefined,
-          }));
-          setLocalMessages([]);
-          setStreamingText('');
-          setIsAssistantResponsePending(false);
-          setStreamStatus(null);
-          void Promise.all([
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() }),
-            queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(chatId) }),
-          ]);
-        },
-      });
-      setIsAssistantResponsePending(false);
+      await runtimeHandle.sendText(content, { intent: resolvedIntent });
+      setComposerValue('');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not send message.';
-      setStreamError(message);
       toast.error(message);
-      setIsAssistantResponsePending(false);
-      setStreamStatus(null);
     }
   }
 
-  async function handleAssistantNewMessage(message: Parameters<typeof getAppendMessageText>[0]) {
-    const content = getAppendMessageText(message);
-    if (content.length === 0) return;
-    setComposerValue('');
-    await handleSend(content);
-  }
+  const resolveRuntimeChatId = useCallback(async ({ content }: { content: string }) => {
+    if (effectiveSelectedChatId.length > 0) {
+      return effectiveSelectedChatId;
+    }
+
+    const result = await createConversation.mutateAsync({
+      contextSnapshot: contextSnapshotFromDraft(hydratedDraftContext),
+      title: content,
+    });
+    const chatId = result.conversation.id;
+    setSelectedChatId(chatId);
+    onConversationCreated?.(chatId);
+    queryClient.setQueryData(chatQueryKeys.conversation(chatId), {
+      conversation: { ...result.conversation, messages: [] },
+    });
+    await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
+    return chatId;
+  }, [
+    createConversation,
+    effectiveSelectedChatId,
+    hydratedDraftContext,
+    onConversationCreated,
+    queryClient,
+  ]);
+
+  const handleRuntimeFinish = useCallback(() => {
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() }),
+      effectiveSelectedChatId
+        ? queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(effectiveSelectedChatId) })
+        : Promise.resolve(),
+    ]);
+  }, [effectiveSelectedChatId, queryClient]);
 
   const conversationRailProps = useMemo(() => ({
     conversationsQuery,
@@ -727,7 +623,7 @@ export function ChatWorkspace({
         shadow="none"
       >
         <Box minH="0">
-          {streamError ? (
+          {runtimeState.error ? (
             <Flex
               align="center"
               gap="2"
@@ -741,7 +637,7 @@ export function ChatWorkspace({
               sm={{ px: '6' }}
             >
               <AlertCircle size={16} />
-              {streamError}
+              {runtimeState.error.message}
             </Flex>
           ) : null}
           {showContextReadOnlyBanner ? (
@@ -877,10 +773,16 @@ export function ChatWorkspace({
         </Box>
 
         <AssistantChatRuntimeProvider
-          messages={assistantMessages}
+          chatId={effectiveSelectedChatId}
+          messages={persistedMessages}
           disabled={isComposerDisabled}
-          isRunning={isStreaming}
-          onNew={handleAssistantNewMessage}
+          intent={isActiveGlobalChat ? effectiveIntent : null}
+          responseMode={responseMode}
+          model={resolvedSelectedModel || undefined}
+          resolveChatId={resolveRuntimeChatId}
+          onReady={setRuntimeHandle}
+          onStateChange={setRuntimeState}
+          onFinish={handleRuntimeFinish}
         >
           {shouldShowEmptyState ? (
             <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
@@ -916,7 +818,6 @@ export function ChatWorkspace({
             <AssistantChatThread
               currentVaultId={activeVaultId}
               scope={activeScope}
-              metricsByMessageId={metricsByMessageId}
               onQuickReplySelect={
                 isActiveGlobalChat
                   ? (reply) => {

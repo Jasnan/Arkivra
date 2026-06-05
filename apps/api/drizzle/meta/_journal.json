@@ -190,6 +190,13 @@
       "when": 1780272000000,
       "tag": "0026_remove_manual_regional_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1780617600000,
+      "tag": "0027_chat_ui_messages",
+      "breakpoints": true
     }
   ]
 }

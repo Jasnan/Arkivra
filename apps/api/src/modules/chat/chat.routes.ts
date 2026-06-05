@@ -9,6 +9,7 @@ import type {
   ChatContextSnapshot,
   ChatContextVaultRef,
   ChatIntent,
+  ChatMessage,
 } from './chat.types.js';
 import type { ChatScopeInput, ChatServices } from './chat.services.js';
 import { and, eq } from 'drizzle-orm';
@@ -91,6 +92,39 @@ function parseIntent(value: unknown): ChatIntent | undefined | null {
   return value === 'search' || value === 'summarize' || value === 'compare' || value === 'extract'
     ? value
     : null;
+}
+
+function getUiMessageText(message: ChatMessage) {
+  return message.parts
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map(part => part.text)
+    .join('\n')
+    .trim();
+}
+
+function parseMessages(value: unknown): ChatMessage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is ChatMessage =>
+    isRecord(item)
+    && typeof item.id === 'string'
+    && (item.role === 'system' || item.role === 'user' || item.role === 'assistant')
+    && Array.isArray(item.parts),
+  );
+}
+
+function getLatestUserMessageContent(messages: ChatMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message === undefined) continue;
+    if (message.role === 'user') {
+      return getUiMessageText(message);
+    }
+  }
+
+  return '';
 }
 
 function getUserId(context: Context<ServerContext>) {
@@ -732,18 +766,19 @@ export function registerChatRoutes({
     }
 
     const body = await context.req.json().catch(() => null) as {
-      content?: unknown;
+      messages?: unknown;
       intent?: unknown;
       responseMode?: unknown;
       model?: unknown;
     } | null;
-    const content = typeof body?.content === 'string' ? body.content.trim() : '';
+    const messages = parseMessages(body?.messages);
+    const content = getLatestUserMessageContent(messages);
     const intent = parseIntent(body?.intent);
     const responseMode = parseResponseMode(body?.responseMode);
     const model = parseModel(body?.model);
 
-    if (content.length === 0) {
-      return routeError(context, { status: 400, code: 'chat.invalid_content', message: 'content must be a non-empty string' });
+    if (messages.length === 0 || content.length === 0) {
+      return routeError(context, { status: 400, code: 'chat.invalid_content', message: 'messages must include a non-empty user text message' });
     }
 
     if (responseMode === null) {
@@ -769,7 +804,7 @@ export function registerChatRoutes({
     const stream = await services.createMessageStream({
       userId,
       chatId: context.req.param('chatId'),
-      content,
+      messages,
       intent,
       responseMode,
       model,
@@ -779,13 +814,6 @@ export function registerChatRoutes({
       return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
     }
 
-    return new Response(stream, {
-      status: 200,
-      headers: {
-        'content-type': 'text/event-stream; charset=utf-8',
-        'cache-control': 'no-cache, no-transform',
-        connection: 'keep-alive',
-      },
-    });
+    return stream;
   });
 }

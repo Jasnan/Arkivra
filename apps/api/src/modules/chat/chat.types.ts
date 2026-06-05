@@ -1,3 +1,4 @@
+import type { UIMessage } from 'ai';
 import type { Citation } from '../search/search.types.js';
 
 export type ChatContextSnapshot =
@@ -36,42 +37,13 @@ export type ChatConversation = {
 };
 
 export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
-export type ChatMessageMetadata = {
-  intent?: ChatIntent;
-  model?: string;
-  quickReplies?: string[];
-  followUpQuestion?: boolean;
-};
 
 export type ChatMessageRole = 'user' | 'assistant';
 export type ChatGenerationStatus = 'completed' | 'failed' | null;
 
-export type ChatMessage = {
-  id: string;
-  conversationId: string;
-  vaultId: string | null;
-  documentId: string | null;
-  scope: 'global' | 'vault' | 'document';
-  userId: string | null;
-  role: ChatMessageRole;
-  content: string;
-  metadata: ChatMessageMetadata | null;
-  citations: Citation[];
-  generationMetrics: ChatGenerationMetrics | null;
-  generationStatus: ChatGenerationStatus;
-  generationError: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type ChatConversationDetail = ChatConversation & {
   contextAvailability: ChatContextAvailability;
   messages: ChatMessage[];
-};
-
-export type ChatStatusEvent = {
-  type: 'status';
-  label: 'retrieval' | 'generation' | 'saving';
 };
 
 export type ChatGenerationMetrics = {
@@ -85,25 +57,31 @@ export type ChatGenerationMetrics = {
   timeToFirstTokenMs: number | null;
 };
 
-export type ChatTokenEvent = {
-  type: 'token';
-  token: string;
+export type ChatStreamStatus = 'retrieval' | 'generation' | 'saving';
+
+export type ChatMessageMetadata = {
+  intent?: ChatIntent;
+  model?: string;
+  quickReplies?: string[];
+  followUpQuestion?: boolean;
+  citations?: Citation[];
+  generationMetrics?: ChatGenerationMetrics | null;
+  generationStatus?: ChatGenerationStatus;
+  generationError?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  conversationId?: string;
+  vaultId?: string | null;
+  documentId?: string | null;
+  scope?: 'global' | 'vault' | 'document';
+  userId?: string | null;
 };
 
-export type ChatDoneEvent = {
-  type: 'done';
-  userMessage: ChatMessage;
-  assistantMessage: ChatMessage;
-  metrics: ChatGenerationMetrics | null;
+export type ChatMessageDataParts = {
+  [key: string]: unknown;
+  status: { label: ChatStreamStatus };
+  citations: Citation[];
+  metrics: ChatGenerationMetrics;
 };
 
-export type ChatErrorEvent = {
-  type: 'error';
-  message: string;
-};
-
-export type ChatStreamEvent =
-  | ChatStatusEvent
-  | ChatTokenEvent
-  | ChatDoneEvent
-  | ChatErrorEvent;
+export type ChatMessage = UIMessage<ChatMessageMetadata, ChatMessageDataParts>;

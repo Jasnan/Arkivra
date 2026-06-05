@@ -1,3 +1,5 @@
+import type { UIMessage } from 'ai';
+
 export interface CitationBoundingBox {
   pageNumber: number;
   x0: number;
@@ -78,24 +80,17 @@ export interface ChatMessageMetadata {
   model?: string;
   quickReplies?: string[];
   followUpQuestion?: boolean;
-}
-
-export interface ChatMessage {
-  id: string;
-  conversationId: string;
-  vaultId: string | null;
-  documentId: string | null;
-  scope: 'global' | 'vault' | 'document';
-  userId: string | null;
-  role: 'user' | 'assistant';
-  content: string;
-  metadata: ChatMessageMetadata | null;
-  citations: Citation[];
-  generationMetrics: ChatGenerationMetrics | null;
-  generationStatus: 'completed' | 'failed' | null;
-  generationError: string | null;
-  createdAt: string;
-  updatedAt: string;
+  citations?: Citation[];
+  generationMetrics?: ChatGenerationMetrics | null;
+  generationStatus?: 'completed' | 'failed' | null;
+  generationError?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  conversationId?: string;
+  vaultId?: string | null;
+  documentId?: string | null;
+  scope?: 'global' | 'vault' | 'document';
+  userId?: string | null;
 }
 
 export interface ChatConversationDetail extends ChatConversation {
@@ -116,11 +111,14 @@ export interface ChatGenerationMetrics {
   timeToFirstTokenMs: number | null;
 }
 
-export interface ChatStreamDonePayload {
-  userMessage: ChatMessage;
-  assistantMessage: ChatMessage;
-  metrics: ChatGenerationMetrics | null;
+export interface ChatMessageDataParts {
+  [key: string]: unknown;
+  status: { label: ChatStreamStatus };
+  citations: Citation[];
+  metrics: ChatGenerationMetrics;
 }
+
+export type ChatMessage = UIMessage<ChatMessageMetadata, ChatMessageDataParts>;
 
 export interface ChatModelOptions {
   defaultModel: string;

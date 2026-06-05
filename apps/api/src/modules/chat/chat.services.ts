@@ -1,6 +1,5 @@
 import type { Database } from '../database/database.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
-import type { ChatModelConfig, ChatProvider, ChatProviderMetrics } from '../ai/providers/types.js';
 import { serializeTableHtmlForRetrieval } from '../parsing/table-formatting.js';
 import type { Citation, CitationImageAsset, DocumentSearchServices } from '../search/search.types.js';
 import type {
@@ -14,14 +13,33 @@ import type {
   ChatIntent,
   ChatMessage,
   ChatMessageMetadata,
-  ChatStreamEvent,
 } from './chat.types.js';
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateObject,
+  streamText,
+} from 'ai';
+import type { LanguageModel } from 'ai';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   chatConversationsTable,
   chatMessagesTable,
 } from '../database/schema/index.js';
+import { generateId } from '../database/schema/helpers.js';
+import { buildChatGenerationMetrics, createChatModel } from './chat-ai-sdk.js';
+import {
+  buildAssistantMessage,
+  buildUserMessage,
+  getLatestUserMessage,
+  getMessageText,
+  hydratePersistedChatMessage,
+  omitMessageId,
+  toIso,
+  writeStatus,
+} from './chat-message.utils.js';
 
 const DEFAULT_CHAT_TITLE = 'New chat';
 const AVAILABLE_CHAT_CONTEXT: ChatContextAvailability = { status: 'available', readOnly: false };
@@ -124,7 +142,6 @@ type ChatModelOptions = {
 };
 
 type ChatConversationRow = typeof chatConversationsTable.$inferSelect;
-type ChatMessageRow = typeof chatMessagesTable.$inferSelect;
 export type ChatScopeInput = ChatContextSnapshot;
 
 const intentResolutionSchema = z.object({
@@ -134,45 +151,6 @@ const intentResolutionSchema = z.object({
 });
 
 type IntentResolution = z.infer<typeof intentResolutionSchema>;
-
-function nsToMs(value: number | null) {
-  return value === null ? null : Math.round((value / 1_000_000) * 10) / 10;
-}
-
-function buildChatGenerationMetrics({
-  provider,
-  timeToFirstTokenMs,
-}: {
-  provider: ChatProviderMetrics | null;
-  timeToFirstTokenMs: number | null;
-}): ChatGenerationMetrics | null {
-  if (provider === null && timeToFirstTokenMs === null) {
-    return null;
-  }
-
-  const tokensPerSecond = provider?.evalCount !== null
-    && provider?.evalCount !== undefined
-    && provider.evalDurationNs !== null
-    && provider.evalDurationNs !== undefined
-    && provider.evalDurationNs > 0
-    ? Math.round(((provider.evalCount / (provider.evalDurationNs / 1_000_000_000)) * 10)) / 10
-    : null;
-
-  return {
-    promptEvalCount: provider?.promptEvalCount ?? null,
-    promptEvalDurationMs: nsToMs(provider?.promptEvalDurationNs ?? null),
-    evalCount: provider?.evalCount ?? null,
-    evalDurationMs: nsToMs(provider?.evalDurationNs ?? null),
-    totalDurationMs: nsToMs(provider?.totalDurationNs ?? null),
-    loadDurationMs: nsToMs(provider?.loadDurationNs ?? null),
-    tokensPerSecond,
-    timeToFirstTokenMs,
-  };
-}
-
-function toIso(value: Date | string) {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
-}
 
 function toConversation(row: ChatConversationRow): ChatConversation {
   const contextSnapshot = normalizeConversationContextSnapshot(row);
@@ -190,27 +168,6 @@ function toConversation(row: ChatConversationRow): ChatConversation {
   };
 }
 
-function toMessage(row: ChatMessageRow): ChatMessage {
-  return {
-    id: row.id,
-    conversationId: row.conversationId,
-    vaultId: row.vaultId,
-    documentId: row.documentId,
-    scope: row.scope,
-    userId: row.userId,
-    role: row.role,
-    content: row.content,
-    metadata: row.metadata ?? null,
-    citations: row.citations ?? [],
-    generationMetrics: row.generationMetrics ?? null,
-    generationStatus: row.generationStatus === 'completed' || row.generationStatus === 'failed'
-      ? row.generationStatus
-      : null,
-    generationError: row.generationError,
-    createdAt: toIso(row.createdAt),
-    updatedAt: toIso(row.updatedAt),
-  };
-}
 
 function isGlobalScope(scope: ChatScopeInput) {
   return scope.type === 'global' || scope.type === 'selection';
@@ -332,7 +289,7 @@ function buildGuidedFollowUpUserPrompt({
   content: string;
 }) {
   const transcript = previousMessages.length > 0
-    ? previousMessages.map(message => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.content}`).join('\n')
+    ? previousMessages.map(message => `${message.role === 'user' ? 'User' : 'Assistant'}: ${getMessageText(message)}`).join('\n')
     : '(no prior messages)';
 
   return [
@@ -1014,11 +971,6 @@ export function buildAnswerPrompt({
   ].join('\n');
 }
 
-export function encodeSseEvent(event: ChatStreamEvent) {
-  const { type, ...data } = event;
-  return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
-}
-
 async function collectCitationImages({
   citations,
   documentsServices,
@@ -1032,7 +984,7 @@ async function collectCitationImages({
     return [];
   }
 
-  const images: string[] = [];
+  const images: Array<{ mediaType: string; url: string }> = [];
 
   for (const citation of citations) {
     for (const imageAsset of getCitationImageAssets(citation)) {
@@ -1052,7 +1004,10 @@ async function collectCitationImages({
         && Buffer.isBuffer(asset.fileData)
         && asset.mimeType.startsWith('image/')
       ) {
-        images.push(asset.fileData.toString('base64'));
+        images.push({
+          mediaType: asset.mimeType,
+          url: `data:${asset.mimeType};base64,${asset.fileData.toString('base64')}`,
+        });
       }
     }
   }
@@ -1061,24 +1016,18 @@ async function collectCitationImages({
 }
 
 async function resolveIntentFollowUp({
-  chatProvider,
-  config,
+  model,
   intent,
   previousMessages,
   content,
 }: {
-  chatProvider: ChatProvider;
-  config: ChatModelConfig;
+  model: LanguageModel;
   intent: ChatIntent;
   previousMessages: ChatMessage[];
   content: string;
 }): Promise<IntentResolution> {
-  if (chatProvider.completeJson === undefined) {
-    return { action: 'proceed' };
-  }
-
-  const raw = await chatProvider.completeJson<unknown>({
-    config,
+  const result = await generateObject({
+    model,
     schema: intentResolutionSchema,
     messages: [
       {
@@ -1095,44 +1044,22 @@ async function resolveIntentFollowUp({
     ],
   });
 
-  return intentResolutionSchema.parse(raw);
+  return intentResolutionSchema.parse(result.object);
 }
 
 export function createChatServices({
   db,
   searchServices,
   documentsServices,
-  chatProvider,
   resolveAiSettings,
   listAvailableModels,
 }: {
   db: Database;
   searchServices: DocumentSearchServices;
   documentsServices?: DocumentsServices;
-  chatProvider: ChatProvider;
   resolveAiSettings: () => Promise<AiRuntimeSettings>;
   listAvailableModels: (args: { baseUrl: string }) => Promise<string[]>;
 }) {
-  function buildChatConfig({
-    settings,
-    model,
-    supportsImages,
-  }: {
-    settings: AiRuntimeSettings;
-    model: string;
-    supportsImages: boolean;
-  }): ChatModelConfig {
-    return {
-      provider: chatProvider.kind,
-      model,
-      baseUrl: settings.baseUrl,
-      supportsImages,
-      options: {
-        temperature: 0.1,
-      },
-    };
-  }
-
   async function listConversations({ userId }: { userId: string }) {
     const rows = await db
       .select()
@@ -1249,7 +1176,7 @@ export function createChatServices({
     return {
       ...toConversation(conversation),
       contextAvailability: AVAILABLE_CHAT_CONTEXT,
-      messages: messages.map(toMessage),
+      messages: messages.map(hydratePersistedChatMessage),
     };
   }
 
@@ -1288,14 +1215,14 @@ export function createChatServices({
   async function createMessageStream({
     userId,
     chatId,
-    content,
+    messages,
     intent,
     responseMode,
     model,
   }: {
     userId: string;
     chatId: string;
-    content: string;
+    messages: ChatMessage[];
     intent?: ChatIntent;
     responseMode: 'text' | 'multimodal';
     model?: string;
@@ -1309,17 +1236,33 @@ export function createChatServices({
     const now = new Date();
     const scope = conversation.contextSnapshot;
     const scopeValues = getScopeValues(scope);
+    const submittedUserMessage = getLatestUserMessage(messages);
+    const content = submittedUserMessage === null ? '' : getMessageText(submittedUserMessage);
+
+    if (submittedUserMessage === null || content.length === 0) {
+      throw new Error('Message content is required.');
+    }
+
+    const userMessage = buildUserMessage({
+      message: submittedUserMessage,
+      metadata: {
+        intent,
+        conversationId: chatId,
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        userId,
+        createdAt: toIso(now),
+        updatedAt: toIso(now),
+      },
+    });
     const [userMessageRow] = await db.insert(chatMessagesTable).values({
       conversationId: chatId,
       vaultId: scopeValues.vaultId,
       documentId: scopeValues.documentId,
       scope: scopeValues.scope,
       userId,
-      role: 'user',
-      content,
-      metadata: intent ? { intent } satisfies ChatMessageMetadata : null,
-      citations: [],
-      generationMetrics: null,
+      message: userMessage,
       updatedAt: now,
     }).returning();
 
@@ -1335,272 +1278,278 @@ export function createChatServices({
     }
 
     const previousMessages = conversation.messages.slice(-MAX_RECENT_MESSAGES);
-    const userMessage = toMessage(userMessageRow);
-    const encoder = new TextEncoder();
+    const stream = createUIMessageStream<ChatMessage>({
+      originalMessages: messages,
+      generateId: () => generateId({ prefix: 'msg' }),
+      execute: async ({ writer }) => {
+        let citations: Citation[] = [];
+        let citationsForPersistence: Citation[] = [];
+        let generatedContent = '';
+        let assistantMetadata: ChatMessageMetadata = {};
+        let generationStarted = false;
+        let generationMetrics: ChatGenerationMetrics | null = null;
+        let generationStartMs: number | null = null;
+        let generationFinishedMs: number | null = null;
+        let firstTokenAtMs: number | null = null;
+        const assistantMessageId = generateId({ prefix: 'msg' });
+        const textPartId = generateId({ prefix: 'txt' });
+        const includeImages = responseMode === 'multimodal';
+        const includeInlineCitations = responseMode === 'multimodal';
+        const citationLimit = responseMode === 'multimodal'
+          ? MAX_CONTEXT_CITATIONS
+          : TEXT_ONLY_CONTEXT_CITATIONS;
 
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        let controllerClosed = false;
-        const send = (event: ChatStreamEvent) => {
-          if (controllerClosed) {
-            return false;
-          }
-
-          try {
-            controller.enqueue(encoder.encode(encodeSseEvent(event)));
-            return true;
-          } catch {
-            controllerClosed = true;
-            return false;
-          }
-        };
-
-        const close = () => {
-          if (controllerClosed) {
-            return;
-          }
-
-          try {
-            controller.close();
-          } catch {
-          } finally {
-            controllerClosed = true;
-          }
-        };
-
-        void (async () => {
-          let citations: Citation[] = [];
-          let citationsForPersistence: Citation[] = [];
-          let generatedContent = '';
-          let assistantMetadata: ChatMessageMetadata | null = null;
-          let generationStarted = false;
-          let generationMetrics: ChatGenerationMetrics | null = null;
-          let generationStartMs: number | null = null;
-          let firstTokenAtMs: number | null = null;
-          const includeImages = responseMode === 'multimodal';
-          const includeInlineCitations = responseMode === 'multimodal';
-          const citationLimit = responseMode === 'multimodal'
-            ? MAX_CONTEXT_CITATIONS
-            : TEXT_ONLY_CONTEXT_CITATIONS;
-
-          try {
-            const settings = await resolveAiSettings();
-            const requestedModel = model?.trim();
-            const effectiveModel = requestedModel && requestedModel.length > 0
-              ? requestedModel
-              : settings.model;
-            if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
-              const availableModels = await listAvailableModels({ baseUrl: settings.baseUrl });
-              if (!availableModels.includes(requestedModel)) {
-                throw new Error(`Model "${requestedModel}" is not available from the configured chat provider.`);
-              }
+        try {
+          const settings = await resolveAiSettings();
+          const requestedModel = model?.trim();
+          const effectiveModel = requestedModel && requestedModel.length > 0
+            ? requestedModel
+            : settings.model;
+          if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
+            const availableModels = await listAvailableModels({ baseUrl: settings.baseUrl });
+            if (!availableModels.includes(requestedModel)) {
+              throw new Error(`Model "${requestedModel}" is not available from the configured chat provider.`);
             }
-            const chatConfig = buildChatConfig({
-              settings,
-              model: effectiveModel,
-              supportsImages: responseMode === 'multimodal',
-            });
-            assistantMetadata = { model: effectiveModel };
+          }
 
-            if (isGlobalScope(scope) && intent) {
-              send({ type: 'status', label: 'generation' });
-              generationStarted = true;
-              const resolution = await resolveIntentFollowUp({
-                chatProvider,
-                config: chatConfig,
+          const chatModel = createChatModel({ settings, model: effectiveModel });
+          assistantMetadata = {
+            model: effectiveModel,
+            conversationId: chatId,
+            vaultId: scopeValues.vaultId,
+            documentId: scopeValues.documentId,
+            scope: scopeValues.scope,
+            userId,
+          };
+
+          writer.write({ type: 'start', messageId: assistantMessageId, messageMetadata: assistantMetadata });
+
+          if (isGlobalScope(scope) && intent) {
+            writeStatus(writer, 'generation');
+            generationStarted = true;
+            const resolution = await resolveIntentFollowUp({
+              model: chatModel,
+              intent,
+              previousMessages,
+              content,
+            });
+
+            if (resolution.action === 'follow_up') {
+              const quickReplies = sanitizeFollowUpExamples(intent, resolution.examples);
+              generatedContent = formatFollowUpAssistantMessage({
                 intent,
-                previousMessages,
-                content,
+                question: resolution.question,
+                examples: quickReplies,
               });
+              assistantMetadata = {
+                ...assistantMetadata,
+                quickReplies,
+                followUpQuestion: true,
+                citations: [],
+                generationMetrics: null,
+                generationStatus: 'completed',
+                generationError: null,
+              };
 
-              if (resolution.action === 'follow_up') {
-                const quickReplies = sanitizeFollowUpExamples(intent, resolution.examples);
-                generatedContent = formatFollowUpAssistantMessage({
-                  intent,
-                  question: resolution.question,
-                  examples: quickReplies,
-                });
-                assistantMetadata = {
-                  ...assistantMetadata,
-                  quickReplies,
-                  followUpQuestion: true,
-                };
-
-                send({ type: 'token', token: generatedContent });
-                send({ type: 'status', label: 'saving' });
-                const [assistantFollowUpRow] = await db.insert(chatMessagesTable).values({
-                  conversationId: chatId,
-                  vaultId: scopeValues.vaultId,
-                  documentId: scopeValues.documentId,
-                  scope: scopeValues.scope,
-                  userId,
-                  role: 'assistant',
-                  content: generatedContent,
-                  metadata: assistantMetadata,
-                  citations: [],
-                  generationMetrics: null,
-                  generationStatus: 'completed',
-                  updatedAt: new Date(),
-                }).returning();
-
-                if (assistantFollowUpRow === undefined) {
-                  throw new Error('Failed to persist assistant follow-up message');
-                }
-
-                await db
-                  .update(chatConversationsTable)
-                  .set({ updatedAt: new Date() })
-                  .where(eq(chatConversationsTable.id, chatId));
-
-                send({
-                  type: 'done',
-                  userMessage,
-                  assistantMessage: toMessage(assistantFollowUpRow),
-                  metrics: null,
-                });
-                close();
-                return;
-              }
+              writer.write({ type: 'text-start', id: textPartId });
+              writer.write({ type: 'text-delta', id: textPartId, delta: generatedContent });
+              writer.write({ type: 'text-end', id: textPartId });
+              writeStatus(writer, 'saving');
+              await persistAssistantMessage({
+                id: assistantMessageId,
+                content: generatedContent,
+                metadata: assistantMetadata,
+                citations: [],
+                metrics: null,
+              });
+              writer.write({ type: 'finish', finishReason: 'stop', messageMetadata: assistantMetadata });
+              return;
             }
+          }
 
-            send({ type: 'status', label: 'retrieval' });
-            const result = await searchHybridForScope({
-              searchServices,
-              scope,
-              query: content,
-              limit: citationLimit,
-            });
-            citations = rankCitationsForQuestion({
-              question: content,
-              citations: await expandRetrievedCitationsForChat({ db, citations: result.citations }),
-            });
-            citationsForPersistence = includeInlineCitations ? citations : [];
+          writeStatus(writer, 'retrieval');
+          const result = await searchHybridForScope({
+            searchServices,
+            scope,
+            query: content,
+            limit: citationLimit,
+          });
+          citations = rankCitationsForQuestion({
+            question: content,
+            citations: await expandRetrievedCitationsForChat({ db, citations: result.citations }),
+          });
+          citationsForPersistence = includeInlineCitations ? citations : [];
 
-            send({ type: 'status', label: 'generation' });
+          writeStatus(writer, 'generation');
+          writer.write({ type: 'text-start', id: textPartId });
 
-            if (citations.length === 0) {
-              generatedContent = 'I do not have enough information in the retrieved vault context to answer that.';
-              send({ type: 'token', token: generatedContent });
-            } else {
-              const images = includeImages
-                ? await collectCitationImages({
-                    citations,
-                    documentsServices,
-                    maxImages: settings.maxImagesPerRequest,
-                  })
-                : [];
-              generationStarted = true;
-              generationStartMs = Date.now();
+          if (citations.length === 0) {
+            generatedContent = 'I do not have enough information in the retrieved vault context to answer that.';
+            writer.write({ type: 'text-delta', id: textPartId, delta: generatedContent });
+          } else {
+            const images = includeImages
+              ? await collectCitationImages({
+                  citations,
+                  documentsServices,
+                  maxImages: settings.maxImagesPerRequest,
+                })
+              : [];
+            generationStarted = true;
+            generationStartMs = Date.now();
 
-              for await (const chunk of chatProvider.streamChat({
-                config: chatConfig,
-                messages: [
+            const modelMessages = await convertToModelMessages([
+              {
+                role: 'system',
+                parts: [{
+                  type: 'text',
+                  text: isGlobalScope(scope)
+                    ? buildGlobalAnswerSystemPrompt({
+                        intent,
+                        includeInlineCitations,
+                      })
+                    : includeInlineCitations
+                        ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
+                        : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
+                }],
+              },
+              ...previousMessages.map(omitMessageId),
+              {
+                role: 'user',
+                parts: [
                   {
-                    role: 'system',
-                    content: isGlobalScope(scope)
-                      ? buildGlobalAnswerSystemPrompt({
-                          intent,
-                          includeInlineCitations,
-                        })
-                      : includeInlineCitations
-                          ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
-                          : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
-                  },
-                  ...previousMessages.map(message => ({
-                    role: message.role,
-                    content: message.content,
-                  })),
-                  {
-                    role: 'user',
-                    content: buildAnswerPrompt({
+                    type: 'text',
+                    text: buildAnswerPrompt({
                       question: content,
                       citations,
                       includeInlineCitations,
                     }),
-                    ...(images.length > 0 ? { images } : {}),
                   },
+                  ...images.map(image => ({
+                    type: 'file' as const,
+                    mediaType: image.mediaType,
+                    url: image.url,
+                  })),
                 ],
-              })) {
-                if (chunk.token) {
-                  if (firstTokenAtMs === null && generationStartMs !== null) {
-                    firstTokenAtMs = Date.now();
-                  }
-                  generatedContent += chunk.token;
-                  send({ type: 'token', token: chunk.token });
-                }
+              },
+            ], {
+              convertDataPart: () => undefined,
+            });
 
-                if (chunk.metrics) {
-                  generationMetrics = buildChatGenerationMetrics({
-                    provider: chunk.metrics,
-                    timeToFirstTokenMs: generationStartMs !== null && firstTokenAtMs !== null
-                      ? firstTokenAtMs - generationStartMs
-                      : null,
-                  });
-                }
+            const result = streamText({
+              model: chatModel,
+              messages: modelMessages,
+              temperature: 0.1,
+            });
+
+            for await (const delta of result.textStream) {
+              if (firstTokenAtMs === null) {
+                firstTokenAtMs = Date.now();
               }
+              generatedContent += delta;
+              writer.write({ type: 'text-delta', id: textPartId, delta });
             }
+            generationFinishedMs = Date.now();
+            generationMetrics = buildChatGenerationMetrics({
+              usage: await Promise.resolve(result.totalUsage).catch(() => null),
+              timeToFirstTokenMs: generationStartMs !== null && firstTokenAtMs !== null
+                ? firstTokenAtMs - generationStartMs
+                : null,
+              startedAtMs: generationStartMs,
+              finishedAtMs: generationFinishedMs,
+            });
+          }
 
-            send({ type: 'status', label: 'saving' });
-            const [assistantMessageRow] = await db.insert(chatMessagesTable).values({
-              conversationId: chatId,
-              vaultId: scopeValues.vaultId,
-              documentId: scopeValues.documentId,
-              scope: scopeValues.scope,
-              userId,
-              role: 'assistant',
+          writer.write({ type: 'text-end', id: textPartId });
+          writeStatus(writer, 'saving');
+          if (citationsForPersistence.length > 0) {
+            writer.write({ type: 'data-citations', data: citationsForPersistence });
+          }
+          if (generationMetrics !== null) {
+            writer.write({ type: 'data-metrics', data: generationMetrics });
+          }
+
+          assistantMetadata = {
+            ...assistantMetadata,
+            citations: citationsForPersistence,
+            generationMetrics,
+            generationStatus: 'completed',
+            generationError: null,
+          };
+          await persistAssistantMessage({
+            id: assistantMessageId,
+            content: generatedContent,
+            metadata: assistantMetadata,
+            citations: citationsForPersistence,
+            metrics: generationMetrics,
+          });
+          writer.write({ type: 'finish', finishReason: 'stop', messageMetadata: assistantMetadata });
+        } catch (error) {
+          const message = normalizeChatGenerationError(error);
+          const failedMetadata: ChatMessageMetadata = {
+            ...assistantMetadata,
+            citations: citationsForPersistence,
+            generationMetrics,
+            generationStatus: 'failed',
+            generationError: message,
+          };
+
+          if (generationStarted || generatedContent.length > 0 || citations.length > 0) {
+            await persistAssistantMessage({
+              id: assistantMessageId,
               content: generatedContent,
-              metadata: assistantMetadata,
+              metadata: failedMetadata,
               citations: citationsForPersistence,
-              generationMetrics,
-              generationStatus: 'completed',
-              updatedAt: new Date(),
-            }).returning();
-
-            if (assistantMessageRow === undefined) {
-              throw new Error('Failed to persist assistant message');
-            }
-
-            await db
-              .update(chatConversationsTable)
-              .set({ updatedAt: new Date() })
-              .where(eq(chatConversationsTable.id, chatId));
-
-            send({
-              type: 'done',
-              userMessage,
-              assistantMessage: toMessage(assistantMessageRow),
               metrics: generationMetrics,
             });
-            close();
-          } catch (error) {
-            const message = normalizeChatGenerationError(error);
-
-            if (generationStarted || generatedContent.length > 0 || citations.length > 0) {
-              await db.insert(chatMessagesTable).values({
-                conversationId: chatId,
-                vaultId: scopeValues.vaultId,
-                documentId: scopeValues.documentId,
-                scope: scopeValues.scope,
-                userId,
-                role: 'assistant',
-                content: generatedContent,
-                metadata: assistantMetadata,
-                citations: citationsForPersistence,
-                generationMetrics,
-                generationStatus: 'failed',
-                generationError: message,
-                updatedAt: new Date(),
-              });
-            }
-
-            send({ type: 'error', message });
-            close();
           }
-        })();
+
+          writer.write({ type: 'error', errorText: message });
+          writer.write({ type: 'finish', finishReason: 'error', messageMetadata: failedMetadata });
+        }
       },
     });
 
-    return stream;
+    async function persistAssistantMessage({
+      id,
+      content,
+      metadata,
+      citations,
+      metrics,
+    }: {
+      id: string;
+      content: string;
+      metadata: ChatMessageMetadata;
+      citations: Citation[];
+      metrics: ChatGenerationMetrics | null;
+    }) {
+      const assistantMessage = buildAssistantMessage({
+        id,
+        content,
+        metadata,
+        citations,
+        metrics,
+      });
+      const [assistantMessageRow] = await db.insert(chatMessagesTable).values({
+        conversationId: chatId,
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        userId,
+        message: assistantMessage,
+        updatedAt: new Date(),
+      }).returning();
+
+      if (assistantMessageRow === undefined) {
+        throw new Error('Failed to persist assistant message');
+      }
+
+      await db
+        .update(chatConversationsTable)
+        .set({ updatedAt: new Date() })
+        .where(eq(chatConversationsTable.id, chatId));
+    }
+
+    return createUIMessageStreamResponse({ stream });
   }
 
   return {

@@ -4,35 +4,61 @@ import { ArrowDown, Bot, Sparkles, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ChatApiScope } from '../chat.api';
-import type { ChatGenerationMetrics, ChatStreamStatus, Citation } from '../chat.types';
-import type { LocalMessage } from './chat-utils';
-import { formatDate, renderMetricsSummary, statusLabel } from './chat-utils';
+import type { ChatMessage, ChatMessageMetadata, Citation } from '../chat.types';
+import {
+  formatDate,
+  getMessageActiveStatus,
+  getMessageCitations,
+  getMessageCreatedAt,
+  getMessageGenerationError,
+  getMessageGenerationStatus,
+  getMessageMetadata,
+  getMessageMetrics,
+  getMessageText,
+  renderMetricsSummary,
+  statusLabel,
+} from './chat-utils';
 import { MarkdownMessage, normalizeChatDisplayContent } from './markdown-message';
 import { SourcesAccordion } from './sources-accordion';
 import { CitationPreviewModal } from './citation-preview-modal';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 
 const ThreadRoot = chakra(ThreadPrimitive.Root);
 const ThreadViewport = chakra(ThreadPrimitive.Viewport);
 const ScrollToBottomButton = chakra(ThreadPrimitive.ScrollToBottom);
 
 interface AssistantMessageCustom {
-  arkivraMessage?: LocalMessage;
-  arkivraActiveStatus?: ChatStreamStatus | null;
-  arkivraStreamingPlaceholder?: boolean;
+  isOptimistic?: boolean;
 }
 
 interface AssistantChatThreadContextValue {
   currentVaultId?: string;
   scope: ChatApiScope;
-  metricsByMessageId: Record<string, ChatGenerationMetrics | undefined>;
   onQuickReplySelect?: (reply: string) => void;
 }
 
 const AssistantChatThreadContext = createContext<AssistantChatThreadContextValue | null>(null);
 
-function useArkivraMessageFromRuntime() {
-  return useMessage((message) => message.metadata.custom as AssistantMessageCustom).arkivraMessage ?? null;
+function useArkivraMessageFromRuntime(): ChatMessage {
+  const id = useMessage(message => message.id);
+  const role = useMessage(message => message.role);
+  const metadata = useMessage(message => message.metadata as ChatMessageMetadata);
+  const content = useMessage(message => message.content);
+
+  return useMemo(() => ({
+    id,
+    role,
+    metadata,
+    parts: content.map((part) => {
+      if (part.type === 'text') {
+        return { type: 'text' as const, text: part.text };
+      }
+      if (part.type === 'data') {
+        return { type: `data-${part.name}` as `data-${string}`, data: part.data };
+      }
+      return { type: 'text' as const, text: '' };
+    }).filter((part) => part.type !== 'text' || part.text.length > 0),
+  } as ChatMessage), [content, id, metadata, role]);
 }
 
 function useAssistantChatThreadContext() {
@@ -46,16 +72,14 @@ function useAssistantChatThreadContext() {
 export function AssistantChatThread({
   currentVaultId,
   scope,
-  metricsByMessageId,
   onQuickReplySelect,
 }: {
   currentVaultId?: string;
   scope: ChatApiScope;
-  metricsByMessageId: Record<string, ChatGenerationMetrics | undefined>;
   onQuickReplySelect?: (reply: string) => void;
 }) {
   return (
-    <AssistantChatThreadContext.Provider value={{ currentVaultId, scope, metricsByMessageId, onQuickReplySelect }}>
+    <AssistantChatThreadContext.Provider value={{ currentVaultId, scope, onQuickReplySelect }}>
       <ThreadRoot h="full" minH="0" minW="0" position="relative">
         <ThreadViewport
           h="full"
@@ -124,6 +148,7 @@ export function AssistantChatThread({
 
 function AssistantUserMessage() {
   const message = useArkivraMessageFromRuntime();
+  const metadata = getMessageMetadata(message);
 
   if (!message) return null;
 
@@ -134,13 +159,13 @@ function AssistantUserMessage() {
           <Flex direction="column" align="flex-end" w="100%">
             <Box rounded="xl" bg="teal.solid" px="4" py="3" textStyle="chat" color="fg.inverted" maxW="min(38rem, 100%)" shadow="sm">
               <Text whiteSpace="pre-wrap" overflowWrap="anywhere">
-                {normalizeChatDisplayContent(message.content)}
+                {normalizeChatDisplayContent(getMessageText(message))}
               </Text>
             </Box>
           </Flex>
-          {!message.localOnly ? (
+          {metadata.createdAt ? (
             <Text mt="1" fontSize="xs" color="fg.muted">
-              {formatDate(message.createdAt)}
+              {formatDate(metadata.createdAt)}
             </Text>
           ) : null}
         </Box>
@@ -162,21 +187,27 @@ function AssistantUserMessage() {
 }
 
 function AssistantResponseMessage() {
-  const { currentVaultId, scope, metricsByMessageId, onQuickReplySelect } = useAssistantChatThreadContext();
+  const { currentVaultId, scope, onQuickReplySelect } = useAssistantChatThreadContext();
   const message = useArkivraMessageFromRuntime();
-  const custom = useMessage((state) => state.metadata.custom as AssistantMessageCustom);
+  const custom = useMessage((state) => state.metadata as AssistantMessageCustom);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
 
   if (!message) return null;
 
-  const displayContent = normalizeChatDisplayContent(message.content);
-  const isStreamingPlaceholder = custom.arkivraStreamingPlaceholder === true;
-  const metrics = metricsByMessageId[message.id] ?? message.generationMetrics ?? undefined;
+  const metadata = getMessageMetadata(message);
+  const citations = getMessageCitations(message);
+  const displayContent = normalizeChatDisplayContent(getMessageText(message));
+  const activeStatus = getMessageActiveStatus(message);
+  const isStreamingPlaceholder = custom.isOptimistic === true;
+  const metrics = getMessageMetrics(message) ?? undefined;
   const metricsSummary = renderMetricsSummary(metrics);
   const responseFooter = [
-    message.metadata?.model ?? null,
+    metadata.model ?? null,
     metricsSummary,
   ].filter(Boolean).join(' • ');
+  const generationStatus = getMessageGenerationStatus(message);
+  const generationError = getMessageGenerationError(message);
+  const createdAt = getMessageCreatedAt(message);
 
   return (
     <MessagePrimitive.Root>
@@ -201,17 +232,17 @@ function AssistantResponseMessage() {
               {displayContent.length > 0 ? (
                 <MarkdownMessage
                   content={displayContent}
-                  citations={message.citations}
+                  citations={citations}
                   onCitationClick={(citation) => setSelectedCitation(citation)}
                 />
               ) : (
-                <StreamingAnswerSkeleton label={statusLabel(custom.arkivraActiveStatus ?? null, scope)} />
+                <StreamingAnswerSkeleton label={statusLabel(activeStatus, scope)} />
               )}
             </Box>
 
-            {message.metadata?.quickReplies?.length && onQuickReplySelect ? (
+            {metadata.quickReplies?.length && onQuickReplySelect ? (
               <Flex px={{ base: '5', md: '7' }} pb="4" gap="2" flexWrap="wrap">
-                {message.metadata.quickReplies.map((reply) => (
+                {metadata.quickReplies.map((reply) => (
                   <Button
                     key={reply}
                     type="button"
@@ -226,23 +257,23 @@ function AssistantResponseMessage() {
               </Flex>
             ) : null}
 
-            {responseFooter || message.citations.length > 0 ? (
+            {responseFooter || citations.length > 0 ? (
               <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.subtle" px={{ base: '5', md: '7' }} py="3">
                 {responseFooter ? (
                   <Text fontSize="xs" color="fg.muted">
                     {responseFooter}
                   </Text>
                 ) : null}
-                <SourcesAccordion currentVaultId={currentVaultId} citations={message.citations} />
+                <SourcesAccordion currentVaultId={currentVaultId} citations={citations} />
               </Box>
             ) : null}
           </Box>
 
-          {!message.localOnly || (message.generationStatus === 'failed' && message.generationError) ? (
+          {metadata.createdAt || (generationStatus === 'failed' && generationError) ? (
             <Text mt="1" fontSize="xs" color="fg.muted">
-              {message.localOnly ? statusLabel(custom.arkivraActiveStatus ?? null, scope) : formatDate(message.createdAt)}
-              {message.generationStatus === 'failed' && message.generationError ? (
-                <Text as="span" ml="2" color="fg.error">{message.generationError}</Text>
+              {metadata.createdAt ? formatDate(createdAt) : statusLabel(activeStatus, scope)}
+              {generationStatus === 'failed' && generationError ? (
+                <Text as="span" ml="2" color="fg.error">{generationError}</Text>
               ) : null}
             </Text>
           ) : null}

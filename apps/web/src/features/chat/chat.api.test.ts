@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createChatConversation, getChatModelOptions, streamChatMessage } from './chat.api';
+import { createChatConversation, getChatModelOptions } from './chat.api';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -94,49 +94,4 @@ describe('chat api helpers', () => {
     );
   });
 
-  it('sends intent metadata with streaming requests', async () => {
-    const encoder = new TextEncoder();
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode('event: status\ndata: {"label":"retrieval"}\n\n'));
-        controller.enqueue(encoder.encode('event: token\ndata: {"token":"Hi"}\n\n'));
-        controller.enqueue(encoder.encode('event: done\ndata: {"userMessage":{"id":"msg_1"},"assistantMessage":{"id":"msg_2"}}\n\n'));
-        controller.close();
-      },
-    });
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {
-      status: 200,
-      headers: { 'content-type': 'text/event-stream' },
-    })));
-    const statuses: string[] = [];
-    const tokens: string[] = [];
-    const doneIds: string[] = [];
-
-    await streamChatMessage({
-      chatId: 'cht_1',
-      content: 'Hello',
-      intent: 'compare',
-      model: 'qwen2.5:7b',
-      onStatus: status => statuses.push(status),
-      onToken: token => tokens.push(token),
-      onDone: payload => {
-        doneIds.push(payload.userMessage.id, payload.assistantMessage.id);
-      },
-    });
-
-    expect(statuses).toEqual(['retrieval']);
-    expect(tokens).toEqual(['Hi']);
-    expect(doneIds).toEqual(['msg_1', 'msg_2']);
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/chats/cht_1/messages/stream',
-      expect.objectContaining({
-        body: JSON.stringify({
-          content: 'Hello',
-          intent: 'compare',
-          responseMode: 'multimodal',
-          model: 'qwen2.5:7b',
-        }),
-      }),
-    );
-  });
 });

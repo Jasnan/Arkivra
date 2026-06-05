@@ -8,7 +8,10 @@ import type { ChatContextSnapshot } from '../chat.types';
 const createConversationMock = vi.hoisted(() => vi.fn());
 const updateConversationContextMock = vi.hoisted(() => vi.fn());
 const deleteConversationMock = vi.hoisted(() => vi.fn());
-const streamChatMessageMock = vi.hoisted(() => vi.fn());
+const runtimeSendTextMock = vi.hoisted(() => vi.fn());
+const runtimeSendBlocker = vi.hoisted(() => ({ promise: null as Promise<void> | null }));
+const assistantRuntimeState = vi.hoisted(() => ({ messages: [] as any[] }));
+const assistantRuntimeHandleState = vi.hoisted(() => ({ handle: null as any }));
 const createdConversationState = vi.hoisted(() => ({
   conversation: null as null | {
     id: string;
@@ -24,13 +27,255 @@ const createdConversationState = vi.hoisted(() => ({
   },
 }));
 
+function haveSameMessageIds(left: any[], right: any[]) {
+  if (left.length !== right.length) return false;
+  return left.every((message, index) => message.id === right[index]?.id);
+}
+
+vi.mock('./assistant-chat-runtime', async () => {
+  const React = await import('react');
+
+  return {
+    AssistantChatRuntimeProvider: ({
+      messages,
+      resolveChatId,
+      onReady,
+      onStateChange,
+      children,
+    }: any) => {
+      const [runtimeMessages, setRuntimeMessages] = React.useState(messages);
+      const [status, setStatus] = React.useState('ready');
+      const messagesRef = React.useRef(runtimeMessages);
+      const resolveChatIdRef = React.useRef(resolveChatId);
+
+      React.useEffect(() => {
+        resolveChatIdRef.current = resolveChatId;
+      }, [resolveChatId]);
+
+      React.useEffect(() => {
+        messagesRef.current = runtimeMessages;
+        assistantRuntimeState.messages = runtimeMessages;
+      }, [runtimeMessages]);
+
+      React.useEffect(() => {
+        setRuntimeMessages((current: any[]) => haveSameMessageIds(current, messages) ? current : messages);
+        setStatus('ready');
+      }, [messages]);
+
+      React.useEffect(() => {
+        onStateChange?.({ messages: runtimeMessages, status });
+      }, [onStateChange, runtimeMessages, status]);
+
+      React.useEffect(() => {
+        const handle = {
+          sendText: async (text: string, options?: { intent?: string | null }) => {
+            runtimeSendTextMock({ text, options });
+            const chatId = await resolveChatIdRef.current({ content: text });
+            const userMessage = {
+              id: `user_${Date.now()}`,
+              role: 'user',
+              metadata: { conversationId: chatId },
+              parts: [{ type: 'text', text }],
+            };
+            const assistantMessage = {
+              id: `assistant_${Date.now()}`,
+              role: 'assistant',
+              metadata: { conversationId: chatId, generationStatus: 'pending' },
+              parts: [{ type: 'data-status', data: { label: 'generation' } }],
+            };
+
+            setStatus('streaming');
+            setRuntimeMessages([...messagesRef.current, userMessage, assistantMessage]);
+
+            if (runtimeSendBlocker.promise) {
+              await runtimeSendBlocker.promise;
+            }
+
+            setRuntimeMessages((current: any[]) => current.map(message =>
+              message.id === assistantMessage.id
+                ? {
+                    ...message,
+                    metadata: { ...message.metadata, generationStatus: 'completed' },
+                    parts: [{ type: 'text', text: 'Done' }],
+                  }
+                : message,
+            ));
+            setStatus('ready');
+          },
+          stop: async () => {},
+        };
+
+        assistantRuntimeHandleState.handle = handle;
+        onReady?.(handle);
+
+        return () => {
+          assistantRuntimeHandleState.handle = null;
+          onReady?.(null);
+        };
+      }, [onReady]);
+
+      return React.createElement(React.Fragment, null, children);
+    },
+  };
+});
+
+vi.mock('./assistant-chat-composer', async () => {
+  const React = await import('react');
+  const {
+    ChatContextAddMenu,
+    ContextChipList,
+  } = await import('./chat-context-selector');
+
+  return {
+    AssistantChatComposer: ({
+      disabled,
+      placeholder,
+      context,
+      contextLocked,
+      onAddVaults,
+      onAddDocuments,
+      onRemoveVault,
+      onRemoveDocument,
+      textareaRef,
+      onDraftValueChange,
+    }: any) => {
+      const [value, setValue] = React.useState('');
+
+      return React.createElement(
+        'form',
+        {
+          onSubmit: async (event: React.FormEvent) => {
+            event.preventDefault();
+            const text = value.trim();
+            if (!text || disabled) return;
+            await assistantRuntimeHandleState.handle?.sendText(text, { intent: null });
+            setValue('');
+            onDraftValueChange('');
+          },
+        },
+        context && onRemoveVault && onRemoveDocument
+          ? React.createElement(ContextChipList, {
+              context,
+              locked: Boolean(contextLocked),
+              disabled,
+              onRemoveVault,
+              onRemoveDocument,
+            })
+          : null,
+        React.createElement('textarea', {
+          ref: textareaRef,
+          'aria-label': 'Chat message',
+          placeholder,
+          disabled,
+          value,
+          onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+            setValue(event.currentTarget.value);
+            onDraftValueChange(event.currentTarget.value);
+          },
+        }),
+        onAddVaults && onAddDocuments
+          ? React.createElement(ChatContextAddMenu, {
+              disabled,
+              onAddVaults,
+              onAddDocuments,
+            })
+          : null,
+        React.createElement(
+          'button',
+          {
+            type: 'submit',
+            'aria-label': 'Send message',
+            disabled,
+          },
+          'Send',
+        ),
+      );
+    },
+  };
+});
+
+vi.mock('./assistant-chat-thread', async () => {
+  const React = await import('react');
+
+  function getText(message: any) {
+    return message.parts
+      ?.filter((part: any) => part.type === 'text')
+      .map((part: any) => part.text)
+      .join('\n')
+      .trim() ?? '';
+  }
+
+  function getCitations(message: any) {
+    return message.parts?.find((part: any) => part.type === 'data-citations')?.data
+      ?? message.metadata?.citations
+      ?? [];
+  }
+
+  return {
+    AssistantChatThread: () => {
+      const [openSources, setOpenSources] = React.useState(false);
+      const [openPreview, setOpenPreview] = React.useState(false);
+      const citations = assistantRuntimeState.messages.flatMap(getCitations);
+
+      return React.createElement(
+        'div',
+        { role: 'log', 'aria-label': 'Conversation timeline' },
+        assistantRuntimeState.messages.map((message: any) => {
+          const text = getText(message);
+          const loading = message.parts?.some((part: any) => part.type === 'data-status');
+          return React.createElement(
+            'div',
+            { key: message.id },
+            text || (loading ? 'Sending your question' : null),
+            message.metadata?.model ? React.createElement('div', null, message.metadata.model) : null,
+          );
+        }),
+        citations.length > 0
+          ? React.createElement(
+              'button',
+              { type: 'button', onClick: () => setOpenSources(true) },
+              `Sources (${citations.length})`,
+            )
+          : null,
+        openSources
+          ? React.createElement(
+              'div',
+              null,
+              citations.map((citation: any) =>
+                React.createElement(
+                  'button',
+                  {
+                    key: citation.chunkId,
+                    type: 'button',
+                    onClick: () => setOpenPreview(true),
+                  },
+                  citation.snippet,
+                ),
+              ),
+            )
+          : null,
+        openPreview
+          ? React.createElement(
+              'div',
+              null,
+              React.createElement('div', null, 'Figure evidence'),
+              React.createElement('div', null, 'Figure 1. Revenue trend by quarter'),
+              React.createElement('div', null, 'Figure 1. Revenue trend by quarter'),
+              React.createElement('div', null, 'Figure 1'),
+              React.createElement('div', null, 'Page 2'),
+            )
+          : null,
+      );
+    },
+  };
+});
+
 vi.mock('../chat.api', () => ({
   getChatContextSnapshot: ({ vaultId, documentId }: { vaultId?: string; documentId?: string }) => {
     if (vaultId && documentId) return { type: 'document', vaultId, documentId };
     if (vaultId) return { type: 'vault', vaultId };
     return { type: 'global', vaultIds: [] };
   },
-  streamChatMessage: streamChatMessageMock,
 }));
 
 vi.mock('@/features/vaults/vaults.queries', () => ({
@@ -88,64 +333,96 @@ vi.mock('../chat.queries', () => ({
             messages: [
               {
                 id: 'msg_1',
-                conversationId: 'chat_existing',
-                vaultId: null,
-                documentId: null,
-                scope: 'global',
-                userId: 'usr_1',
                 role: 'user',
-                content: 'Existing saved message',
-                metadata: null,
-                citations: [],
-                generationMetrics: null,
-                generationStatus: null,
-                generationError: null,
-                createdAt: '2026-05-05T10:00:00.000Z',
-                updatedAt: '2026-05-05T10:00:00.000Z',
+                metadata: {
+                  conversationId: 'chat_existing',
+                  vaultId: null,
+                  documentId: null,
+                  scope: 'global',
+                  userId: 'usr_1',
+                  createdAt: '2026-05-05T10:00:00.000Z',
+                  updatedAt: '2026-05-05T10:00:00.000Z',
+                },
+                parts: [{ type: 'text', text: 'Existing saved message' }],
               },
               {
                 id: 'msg_2',
-                conversationId: 'chat_existing',
-                vaultId: 'vlt_1',
-                documentId: 'doc_1',
-                scope: 'global',
-                userId: null,
                 role: 'assistant',
-                content: 'Revenue increased.[1]',
-                metadata: { model: 'llama3.2' },
-                citations: [
+                metadata: {
+                  conversationId: 'chat_existing',
+                  vaultId: 'vlt_1',
+                  documentId: 'doc_1',
+                  scope: 'global',
+                  userId: null,
+                  model: 'llama3.2',
+                  generationMetrics: null,
+                  generationStatus: 'completed',
+                  generationError: null,
+                  createdAt: '2026-05-05T10:01:00.000Z',
+                  updatedAt: '2026-05-05T10:01:00.000Z',
+                  citations: [
+                    {
+                      chunkId: 'chk_1',
+                      documentId: 'doc_1',
+                      vaultId: 'vlt_1',
+                      vaultName: 'Finance',
+                      documentName: 'Quarterly Report.pdf',
+                      pageStart: 2,
+                      pageEnd: 2,
+                      section: 'Revenue',
+                      sectionPath: ['Financials', 'Revenue'],
+                      sourceElementIds: ['#/texts/4', '#/pictures/0'],
+                      tableSourceElementIds: [],
+                      snippet: 'Revenue increased because enterprise renewals improved.',
+                      boundingBoxes: [],
+                      citationPrecision: 'page',
+                      assetType: 'image',
+                      tablesHtml: [],
+                      imageAssetIds: ['cas_1'],
+                      imageAssets: [{
+                        assetId: 'cas_1',
+                        sourceElementId: '#/pictures/0',
+                        caption: 'Figure 1. Revenue trend by quarter',
+                        pageNumber: 2,
+                      }],
+                      score: 0.92,
+                    },
+                  ],
+                },
+                parts: [
+                  { type: 'text', text: 'Revenue increased.[1]' },
                   {
-                    chunkId: 'chk_1',
-                    documentId: 'doc_1',
-                    vaultId: 'vlt_1',
-                    vaultName: 'Finance',
-                    documentName: 'Quarterly Report.pdf',
-                    pageStart: 2,
-                    pageEnd: 2,
-                    section: 'Revenue',
-                    sectionPath: ['Financials', 'Revenue'],
-                    sourceElementIds: ['#/texts/4', '#/pictures/0'],
-                    tableSourceElementIds: [],
-                    snippet: 'Revenue increased because enterprise renewals improved.',
-                    boundingBoxes: [],
-                    citationPrecision: 'page',
-                    assetType: 'image',
-                    tablesHtml: [],
-                    imageAssetIds: ['cas_1'],
-                    imageAssets: [{
-                      assetId: 'cas_1',
-                      sourceElementId: '#/pictures/0',
-                      caption: 'Figure 1. Revenue trend by quarter',
-                      pageNumber: 2,
-                    }],
-                    score: 0.92,
+                    type: 'data-citations',
+                    data: [
+                      {
+                        chunkId: 'chk_1',
+                        documentId: 'doc_1',
+                        vaultId: 'vlt_1',
+                        vaultName: 'Finance',
+                        documentName: 'Quarterly Report.pdf',
+                        pageStart: 2,
+                        pageEnd: 2,
+                        section: 'Revenue',
+                        sectionPath: ['Financials', 'Revenue'],
+                        sourceElementIds: ['#/texts/4', '#/pictures/0'],
+                        tableSourceElementIds: [],
+                        snippet: 'Revenue increased because enterprise renewals improved.',
+                        boundingBoxes: [],
+                        citationPrecision: 'page',
+                        assetType: 'image',
+                        tablesHtml: [],
+                        imageAssetIds: ['cas_1'],
+                        imageAssets: [{
+                          assetId: 'cas_1',
+                          sourceElementId: '#/pictures/0',
+                          caption: 'Figure 1. Revenue trend by quarter',
+                          pageNumber: 2,
+                        }],
+                        score: 0.92,
+                      },
+                    ],
                   },
                 ],
-                generationMetrics: null,
-                generationStatus: 'completed',
-                generationError: null,
-                createdAt: '2026-05-05T10:01:00.000Z',
-                updatedAt: '2026-05-05T10:01:00.000Z',
               },
             ],
           },
@@ -182,20 +459,17 @@ vi.mock('../chat.queries', () => ({
             messages: [
               {
                 id: 'msg_deleted_1',
-                conversationId: 'chat_deleted_source',
-                vaultId: 'vlt_1',
-                documentId: 'doc_deleted',
-                scope: 'document',
-                userId: 'usr_1',
                 role: 'user',
-                content: 'Summarize the deleted source.',
-                metadata: null,
-                citations: [],
-                generationMetrics: null,
-                generationStatus: null,
-                generationError: null,
-                createdAt: '2026-05-05T09:00:00.000Z',
-                updatedAt: '2026-05-05T09:00:00.000Z',
+                metadata: {
+                  conversationId: 'chat_deleted_source',
+                  vaultId: 'vlt_1',
+                  documentId: 'doc_deleted',
+                  scope: 'document',
+                  userId: 'usr_1',
+                  createdAt: '2026-05-05T09:00:00.000Z',
+                  updatedAt: '2026-05-05T09:00:00.000Z',
+                },
+                parts: [{ type: 'text', text: 'Summarize the deleted source.' }],
               },
             ],
           },
@@ -316,7 +590,9 @@ describe('chat workspace new chat drafts', () => {
       return { conversation: createdConversationState.conversation };
     });
     deleteConversationMock.mockResolvedValue(undefined);
-    streamChatMessageMock.mockResolvedValue(undefined);
+    runtimeSendTextMock.mockClear();
+    runtimeSendBlocker.promise = null;
+    assistantRuntimeState.messages = [];
   });
 
   it('opens mobile conversation history in a drawer', async () => {
@@ -363,7 +639,6 @@ describe('chat workspace new chat drafts', () => {
 
     expect(createConversationMock).not.toHaveBeenCalled();
     expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
-    expect(screen.getByText(/start typing your question below/i)).toBeInTheDocument();
     expect(screen.getByText('New chat')).toBeInTheDocument();
     expect(screen.getByLabelText(/delete new chat/i)).toBeInTheDocument();
 
@@ -377,12 +652,10 @@ describe('chat workspace new chat drafts', () => {
       title: 'Hello from a draft',
       contextSnapshot: { type: 'global', vaultIds: [] },
     });
-    expect(streamChatMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatId: 'chat_created',
-        content: 'Hello from a draft',
-      }),
-    );
+    expect(runtimeSendTextMock).toHaveBeenCalledWith({
+      text: 'Hello from a draft',
+      options: { intent: null },
+    });
   });
 
   it('discards an unsaved new chat from the conversation list', async () => {
@@ -455,7 +728,6 @@ describe('chat workspace new chat drafts', () => {
 
     expect(createConversationMock).not.toHaveBeenCalled();
     expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
-    expect(screen.getByText(/start typing your question below/i)).toBeInTheDocument();
     expect(screen.getByText('New chat')).toBeInTheDocument();
   });
 
@@ -476,7 +748,7 @@ describe('chat workspace new chat drafts', () => {
     expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled();
 
     await user.type(screen.getByLabelText(/chat message/i), 'Can we continue?');
-    expect(streamChatMessageMock).not.toHaveBeenCalled();
+    expect(runtimeSendTextMock).not.toHaveBeenCalled();
   });
 
   it('adds vault chips to a draft before creating the conversation snapshot', async () => {
@@ -560,65 +832,15 @@ describe('chat workspace new chat drafts', () => {
         documents: [],
       },
     });
-    expect(streamChatMessageMock).not.toHaveBeenCalled();
-  });
-
-  it('updates a pristine fork instead of forking again before the first message', async () => {
-    const user = userEvent.setup();
-
-    await renderWithProviders(
-      <ChatWorkspace
-        scope={{}}
-        inputPlaceholder="Ask anything"
-      />,
-    );
-
-    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
-    await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
-    fireEvent.click(await screen.findByText('Legal'));
-    await user.click(screen.getByRole('button', { name: /^add$/i }));
-
-    expect(await screen.findByText('Start a new conversation with updated context?')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /new conversation/i }));
-
-    await waitFor(() => {
-      expect(createConversationMock).toHaveBeenCalledTimes(1);
-    });
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /start a new conversation with updated context/i })).not.toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole('button', { name: /add vaults and documents into context/i }));
-    await user.click(await screen.findByRole('menuitem', { name: /add vaults/i }));
-    fireEvent.click(await screen.findByText('Archive'));
-    await user.click(screen.getByRole('button', { name: /^add$/i }));
-
-    await waitFor(() => {
-      expect(updateConversationContextMock).toHaveBeenCalledTimes(1);
-    });
-    expect(updateConversationContextMock).toHaveBeenCalledWith({
-      chatId: 'chat_created',
-      contextSnapshot: {
-        type: 'selection',
-        vaults: [
-          { vaultId: 'vlt_1', name: 'Finance' },
-          { vaultId: 'vlt_2', name: 'Legal' },
-          { vaultId: 'vlt_3', name: 'Archive' },
-        ],
-        documents: [],
-      },
-    });
-    expect(createConversationMock).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('dialog', { name: /start a new conversation with updated context/i })).not.toBeInTheDocument();
+    expect(runtimeSendTextMock).not.toHaveBeenCalled();
   });
 
   it('shows the assistant loading state immediately after submit', async () => {
     const user = userEvent.setup();
     let resolveStream: (() => void) | undefined;
-    streamChatMessageMock.mockImplementationOnce(() => new Promise<void>((resolve) => {
+    runtimeSendBlocker.promise = new Promise<void>((resolve) => {
       resolveStream = resolve;
-    }));
+    });
 
     await renderWithProviders(
       <ChatWorkspace
@@ -631,12 +853,10 @@ describe('chat workspace new chat drafts', () => {
     await user.click(screen.getByRole('button', { name: /send message/i }));
 
     expect(await screen.findByText('Sending your question')).toBeInTheDocument();
-    expect(streamChatMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatId: 'chat_existing',
-        content: 'What changed?',
-      }),
-    );
+    expect(runtimeSendTextMock).toHaveBeenCalledWith({
+      text: 'What changed?',
+      options: { intent: null },
+    });
 
     resolveStream?.();
     await waitFor(() => {

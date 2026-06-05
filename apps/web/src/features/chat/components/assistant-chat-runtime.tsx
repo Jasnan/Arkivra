@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { AssistantRuntimeProvider } from '@assistant-ui/react';
 import { useAISDKRuntime } from '@assistant-ui/react-ai-sdk';
 import type { ChatResponseMode } from '../chat.api';
 import type { ChatIntent, ChatMessage } from '../chat.types';
-import { createAssistantChatTransport, hasSameMessageIds } from './assistant-chat-runtime.helpers';
+import { createAssistantChatTransport, hasSameMessageIds, startsWithSameMessageIds } from './assistant-chat-runtime.helpers';
 
 export type AssistantChatRuntimeStatus = ReturnType<typeof useChat<ChatMessage>>['status'];
 
@@ -44,6 +45,7 @@ export function AssistantChatRuntimeProvider({
   onFinish?: () => void;
   children: ReactNode;
 }) {
+  const runtimeId = useId();
   const transport = useMemo(
     () =>
       createAssistantChatTransport({
@@ -57,7 +59,7 @@ export function AssistantChatRuntimeProvider({
   );
 
   const chat = useChat<ChatMessage>({
-    id: chatId || 'new-chat',
+    id: runtimeId,
     messages,
     transport,
     onFinish,
@@ -71,6 +73,7 @@ export function AssistantChatRuntimeProvider({
   const chatRef = useRef(chat);
   const intentRef = useRef(intent);
   const lastStateRef = useRef<AssistantChatRuntimeState | null>(null);
+  const previousChatIdRef = useRef(chatId);
 
   useEffect(() => {
     chatRef.current = chat;
@@ -78,11 +81,25 @@ export function AssistantChatRuntimeProvider({
   }, [chat, intent]);
 
   useEffect(() => {
+    const previousChatId = previousChatIdRef.current;
+    const isSameConversation = previousChatId === chatId;
+    const isCreatedDraftConversation = previousChatId.length === 0 && chatId.length > 0;
+    previousChatIdRef.current = chatId;
+
+    if (
+      (isSameConversation || isCreatedDraftConversation)
+      && startsWithSameMessageIds(chat.messages, messages)
+      && chat.messages.length > 0
+      && chat.messages.length > messages.length
+    ) {
+      return;
+    }
+
     chat.setMessages(messages);
     // AI SDK chat helpers are intentionally omitted here; this effect should only
     // reload server state when the selected conversation changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId, messages]);
+  }, [chatId, chat.messages.length, chat.status, messages]);
 
   useEffect(() => {
     const nextState = {

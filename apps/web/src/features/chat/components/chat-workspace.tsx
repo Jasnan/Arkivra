@@ -55,10 +55,12 @@ import {
   removeVaultFromDraftContext,
 } from './chat-context-selector';
 import { ChatEmptyState } from './chat-empty-state';
+import type {
+  AssistantChatRuntimeHandle,
+  AssistantChatRuntimeState,
+} from './assistant-chat-runtime';
 import {
   AssistantChatRuntimeProvider,
-  type AssistantChatRuntimeHandle,
-  type AssistantChatRuntimeState,
 } from './assistant-chat-runtime';
 import { AssistantChatThread } from './assistant-chat-thread';
 import { AssistantChatComposer } from './assistant-chat-composer';
@@ -233,8 +235,6 @@ export function ChatWorkspace({
     [hydratedDraftContext, isContextLocked, lockedContextSnapshot, vaultsQuery.data?.vaults],
   );
   const activeVaultId = activeScope.vaultId;
-  const activeDocumentId = activeScope.documentId;
-  const isActiveDocumentChat = Boolean(activeVaultId && activeDocumentId);
   const isActiveGlobalChat = !activeVaultId;
   const experience = getChatExperienceConfig({ scope: activeScope, documentName });
   const vaultQuery = useVaultQuery({ vaultId: activeVaultId ?? '' });
@@ -333,9 +333,10 @@ export function ChatWorkspace({
   useEffect(() => {
     if (selectedConversationId === previousSelectedConversationIdRef.current) return;
     previousSelectedConversationIdRef.current = selectedConversationId;
+    if (selectedConversationId && selectedConversationId === selectedChatId) return;
     setSelectedChatId(selectedConversationId ?? '');
     resetComposerState();
-  }, [resetComposerState, selectedConversationId]);
+  }, [resetComposerState, selectedChatId, selectedConversationId]);
 
   useEffect(() => {
     setIsContextWarningDismissed(false);

@@ -1029,11 +1029,8 @@ async function resolveIntentFollowUp({
   const result = await generateObject({
     model,
     schema: intentResolutionSchema,
+    system: buildGlobalIntentSystemPrompt(intent),
     messages: [
-      {
-        role: 'system',
-        content: buildGlobalIntentSystemPrompt(intent),
-      },
       {
         role: 'user',
         content: buildGuidedFollowUpUserPrompt({
@@ -1397,46 +1394,44 @@ export function createChatServices({
             generationStarted = true;
             generationStartMs = Date.now();
 
-            const modelMessages = await convertToModelMessages([
-              {
-                role: 'system',
-                parts: [{
-                  type: 'text',
-                  text: isGlobalScope(scope)
-                    ? buildGlobalAnswerSystemPrompt({
-                        intent,
+            const answerSystemPrompt = isGlobalScope(scope)
+              ? buildGlobalAnswerSystemPrompt({
+                  intent,
+                  includeInlineCitations,
+                })
+              : includeInlineCitations
+                  ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
+                  : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.';
+            const modelMessages = await convertToModelMessages(
+              [
+                ...previousMessages.map(omitMessageId),
+                {
+                  role: 'user',
+                  parts: [
+                    {
+                      type: 'text',
+                      text: buildAnswerPrompt({
+                        question: content,
+                        citations,
                         includeInlineCitations,
-                      })
-                    : includeInlineCitations
-                        ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
-                        : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.',
-                }],
-              },
-              ...previousMessages.map(omitMessageId),
+                      }),
+                    },
+                    ...images.map(image => ({
+                      type: 'file' as const,
+                      mediaType: image.mediaType,
+                      url: image.url,
+                    })),
+                  ],
+                },
+              ],
               {
-                role: 'user',
-                parts: [
-                  {
-                    type: 'text',
-                    text: buildAnswerPrompt({
-                      question: content,
-                      citations,
-                      includeInlineCitations,
-                    }),
-                  },
-                  ...images.map(image => ({
-                    type: 'file' as const,
-                    mediaType: image.mediaType,
-                    url: image.url,
-                  })),
-                ],
+                convertDataPart: () => undefined,
               },
-            ], {
-              convertDataPart: () => undefined,
-            });
+            );
 
             const result = streamText({
               model: chatModel,
+              system: answerSystemPrompt,
               messages: modelMessages,
               temperature: 0.1,
             });

@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatWorkspace } from './chat-workspace';
 import { renderWithProviders } from '@/test/utils';
@@ -32,12 +33,18 @@ function haveSameMessageIds(left: any[], right: any[]) {
   return left.every((message, index) => message.id === right[index]?.id);
 }
 
+function startsWithSameMessageIds(messages: any[], prefix: any[]) {
+  if (prefix.length > messages.length) return false;
+  return prefix.every((message, index) => message.id === messages[index]?.id);
+}
+
 vi.mock('./assistant-chat-runtime', async () => {
   const React = await import('react');
 
   return {
     AssistantChatRuntimeProvider: ({
       messages,
+      chatId,
       resolveChatId,
       onReady,
       onStateChange,
@@ -46,6 +53,7 @@ vi.mock('./assistant-chat-runtime', async () => {
       const [runtimeMessages, setRuntimeMessages] = React.useState(messages);
       const [status, setStatus] = React.useState('ready');
       const messagesRef = React.useRef(runtimeMessages);
+      const previousChatIdRef = React.useRef(chatId);
       const resolveChatIdRef = React.useRef(resolveChatId);
 
       React.useEffect(() => {
@@ -58,9 +66,23 @@ vi.mock('./assistant-chat-runtime', async () => {
       }, [runtimeMessages]);
 
       React.useEffect(() => {
+        const previousChatId = previousChatIdRef.current;
+        const isSameConversation = previousChatId === chatId;
+        const isCreatedDraftConversation = previousChatId.length === 0 && chatId.length > 0;
+        previousChatIdRef.current = chatId;
+
+        if (
+          (isSameConversation || isCreatedDraftConversation)
+          && startsWithSameMessageIds(messagesRef.current, messages)
+          && messagesRef.current.length > 0
+          && messagesRef.current.length > messages.length
+        ) {
+          return;
+        }
+
         setRuntimeMessages((current: any[]) => haveSameMessageIds(current, messages) ? current : messages);
         setStatus('ready');
-      }, [messages]);
+      }, [chatId, messages]);
 
       React.useEffect(() => {
         onStateChange?.({ messages: runtimeMessages, status });
@@ -862,6 +884,52 @@ describe('chat workspace new chat drafts', () => {
     await waitFor(() => {
       expect(screen.queryByText('Sending your question')).not.toBeInTheDocument();
     });
+  });
+
+  it('keeps the document guided prompt stream visible after creating the conversation route', async () => {
+    const user = userEvent.setup();
+    let resolveStream: (() => void) | undefined;
+    runtimeSendBlocker.promise = new Promise<void>((resolve) => {
+      resolveStream = resolve;
+    });
+
+    function DocumentChatRouteHarness() {
+      const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>();
+
+      return (
+        <ChatWorkspace
+          scope={{ vaultId: 'vlt_1', documentId: 'doc_passport' }}
+          documentName="Passport.pdf"
+          inputPlaceholder="Ask about this document..."
+          selectedConversationId={selectedConversationId}
+          onConversationCreated={setSelectedConversationId}
+        />
+      );
+    }
+
+    await renderWithProviders(<DocumentChatRouteHarness />);
+
+    await user.click(screen.getByRole('button', { name: 'What is this document about?' }));
+
+    await waitFor(() => {
+      expect(createConversationMock).toHaveBeenCalledWith({
+        title: 'What is this document about?',
+        contextSnapshot: {
+          type: 'document',
+          vaultId: 'vlt_1',
+          documentId: 'doc_passport',
+          vaultName: 'Finance',
+          documentName: 'Passport.pdf',
+        },
+      });
+    });
+    expect(await screen.findByText('Sending your question')).toBeInTheDocument();
+
+    resolveStream?.();
+    await waitFor(() => {
+      expect(screen.queryByText('Sending your question')).not.toBeInTheDocument();
+    });
+    expect(await screen.findByText('Done')).toBeInTheDocument();
   });
 
   it('shows the model name on assistant responses', async () => {

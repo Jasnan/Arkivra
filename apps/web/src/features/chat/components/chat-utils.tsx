@@ -213,7 +213,7 @@ export function statusLabel(status: ChatStreamStatus | null, scope: ChatApiScope
     case 'saving':
       return 'Saving the answer';
     default:
-      return 'Sending your question';
+      return 'Preparing the answer';
   }
 }
 

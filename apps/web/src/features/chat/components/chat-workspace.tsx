@@ -121,6 +121,65 @@ function getContextUnavailableMessage(message?: string) {
   return message ?? 'One or more source documents were deleted. This conversation is available as read-only history.';
 }
 
+function getMessageConversationId(message: ChatMessage) {
+  const conversationId = message.metadata?.conversationId;
+  return typeof conversationId === 'string' && conversationId.length > 0 ? conversationId : null;
+}
+
+function getRuntimeConversationId(messages: ChatMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const conversationId = getMessageConversationId(messages[index]);
+    if (conversationId !== null) return conversationId;
+  }
+
+  return null;
+}
+
+function hasPendingAssistantMessage(messages: ChatMessage[]) {
+  return messages.some((message) => {
+    if (message.role !== 'assistant') return false;
+    const generationStatus = message.metadata?.generationStatus;
+    if (generationStatus === 'completed' || generationStatus === 'failed') return false;
+    return message.parts.some(part => part.type === 'data-status') || generationStatus === undefined || generationStatus === null;
+  });
+}
+
+function messageSignature(messages: ChatMessage[]) {
+  return messages
+    .map((message) => [
+      message.id,
+      message.role,
+      message.metadata?.generationStatus ?? '',
+      message.parts.map((part) => {
+        if (part.type === 'text') return `text:${part.text}`;
+        if (part.type === 'data-status') {
+          const label = typeof part.data === 'object'
+            && part.data !== null
+            && 'label' in part.data
+            && typeof part.data.label === 'string'
+            ? part.data.label
+            : '';
+          return `status:${label}`;
+        }
+        return part.type;
+      }).join(','),
+    ].join('|'))
+    .join('||');
+}
+
+function shouldUseLocalRuntimeMessages({
+  localMessages,
+  persistedMessages,
+}: {
+  localMessages: ChatMessage[] | undefined;
+  persistedMessages: ChatMessage[];
+}) {
+  if (!localMessages || localMessages.length === 0) return false;
+  if (persistedMessages.length === 0) return true;
+  if (hasPendingAssistantMessage(localMessages) && persistedMessages.length < localMessages.length) return true;
+  return false;
+}
+
 function canUseContextSnapshot({
   snapshot,
   aiAccessByVaultId,
@@ -190,6 +249,7 @@ export function ChatWorkspace({
   const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
   const [selectedModel, setSelectedModel] = useState('');
   const [composerValue, setComposerValue] = useState('');
+  const [localRuntimeMessagesByChatId, setLocalRuntimeMessagesByChatId] = useState<Record<string, ChatMessage[]>>({});
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false);
@@ -198,13 +258,20 @@ export function ChatWorkspace({
   const [isContextWarningDismissed, setIsContextWarningDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousSelectedConversationIdRef = useRef(selectedConversationId);
+  const activeRuntimeChatIdRef = useRef('');
   const isStreaming = runtimeState.status === 'submitted' || runtimeState.status === 'streaming';
-  const shouldAutoSelectLatestConversation = !vaultId && !documentId && selectedConversationId === undefined;
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation
     ? ''
-    : selectedChatId || (shouldAutoSelectLatestConversation ? conversationsQuery.data?.conversations[0]?.id : '') || '';
-  const selectedChatQuery = useChatConversationQuery({ chatId: effectiveSelectedChatId });
+    : selectedChatId;
+  const selectedLocalRuntimeMessages = effectiveSelectedChatId
+    ? localRuntimeMessagesByChatId[effectiveSelectedChatId]
+    : undefined;
+  const selectedHasPendingLocalMessages = hasPendingAssistantMessage(selectedLocalRuntimeMessages ?? []);
+  const selectedChatQuery = useChatConversationQuery({
+    chatId: effectiveSelectedChatId,
+    refetchInterval: selectedHasPendingLocalMessages ? 1500 : false,
+  });
   const hydratedDraftContext = useMemo(
     () => hydrateDraftContextLabels({ context: draftContext, vaults: vaultsQuery.data?.vaults ?? [] }),
     [draftContext, vaultsQuery.data?.vaults],
@@ -276,6 +343,15 @@ export function ChatWorkspace({
     () => selectedChatQuery.data?.conversation.messages ?? [],
     [selectedChatQuery.data?.conversation.messages],
   );
+  const runtimeMessagesForSelectedChat = useMemo(
+    () => shouldUseLocalRuntimeMessages({
+      localMessages: selectedLocalRuntimeMessages,
+      persistedMessages,
+    })
+      ? selectedLocalRuntimeMessages ?? []
+      : persistedMessages,
+    [persistedMessages, selectedLocalRuntimeMessages],
+  );
   const messages = runtimeState.messages;
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
   const effectiveIntent = activeConversationIntent;
@@ -330,6 +406,46 @@ export function ChatWorkspace({
     setRuntimeState({ messages: [], status: 'ready' });
   }, []);
 
+  const setLocalRuntimeMessages = useCallback((chatId: string, messages: ChatMessage[]) => {
+    if (chatId.length === 0 || messages.length === 0) return;
+
+    setLocalRuntimeMessagesByChatId((current) => {
+      const existing = current[chatId];
+      if (existing && messageSignature(existing) === messageSignature(messages)) return current;
+      return { ...current, [chatId]: messages };
+    });
+
+    queryClient.setQueryData(
+      chatQueryKeys.conversation(chatId),
+      (current: { conversation: ChatConversationDetail } | undefined) => {
+        const currentConversation = current?.conversation;
+        if (!currentConversation) return current;
+        if (messageSignature(currentConversation.messages) === messageSignature(messages)) return current;
+
+        return {
+          conversation: {
+            ...currentConversation,
+            messages,
+          },
+        };
+      },
+    );
+  }, [queryClient]);
+
+  const handleRuntimeStateChange = useCallback((state: AssistantChatRuntimeState) => {
+    const runtimeConversationId = getRuntimeConversationId(state.messages);
+    const targetChatId = runtimeConversationId
+      ?? (state.status === 'submitted' || state.status === 'streaming' ? activeRuntimeChatIdRef.current : effectiveSelectedChatId);
+
+    if (targetChatId && state.messages.length > 0) {
+      setLocalRuntimeMessages(targetChatId, state.messages);
+    }
+
+    if (!targetChatId || targetChatId === effectiveSelectedChatId) {
+      setRuntimeState(state);
+    }
+  }, [effectiveSelectedChatId, setLocalRuntimeMessages]);
+
   useEffect(() => {
     if (selectedConversationId === previousSelectedConversationIdRef.current) return;
     previousSelectedConversationIdRef.current = selectedConversationId;
@@ -354,6 +470,19 @@ export function ChatWorkspace({
     setDraftContext(draftContextFromSnapshot(conversation.contextSnapshot));
   }, [isPristineSavedConversation, selectedChatQuery.data?.conversation]);
 
+  useEffect(() => {
+    if (!effectiveSelectedChatId || selectedLocalRuntimeMessages === undefined) return;
+    if (hasPendingAssistantMessage(persistedMessages)) return;
+    if (persistedMessages.length < selectedLocalRuntimeMessages.length) return;
+
+    setLocalRuntimeMessagesByChatId((current) => {
+      if (!(effectiveSelectedChatId in current)) return current;
+      const next = { ...current };
+      delete next[effectiveSelectedChatId];
+      return next;
+    });
+  }, [effectiveSelectedChatId, persistedMessages, selectedLocalRuntimeMessages]);
+
   const handleCreateConversation = useCallback(() => {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
     setDraftContext(selectedConversationId === undefined ? initialDraftContext : createEmptyDraftContext());
@@ -363,10 +492,11 @@ export function ChatWorkspace({
   }, [focusComposer, initialDraftContext, resetComposerState, selectedConversationId]);
 
   const handleSelectConversation = useCallback((chatId: string) => {
+    if (chatId === effectiveSelectedChatId) return;
     setSelectedChatId(chatId);
     resetComposerState();
     onConversationSelected?.(chatId);
-  }, [onConversationSelected, resetComposerState]);
+  }, [effectiveSelectedChatId, onConversationSelected, resetComposerState]);
 
   const handleSelectMobileConversation = useCallback((chatId: string) => {
     handleSelectConversation(chatId);
@@ -493,6 +623,7 @@ export function ChatWorkspace({
   async function handleSend(content: string, intentOverride?: ChatIntent | null) {
     const resolvedIntent = isActiveGlobalChat ? (intentOverride ?? effectiveIntent) : null;
     if (runtimeHandle === null) return;
+    activeRuntimeChatIdRef.current = effectiveSelectedChatId;
 
     try {
       await runtimeHandle.sendText(content, { intent: resolvedIntent });
@@ -505,6 +636,7 @@ export function ChatWorkspace({
 
   const resolveRuntimeChatId = useCallback(async ({ content }: { content: string }) => {
     if (effectiveSelectedChatId.length > 0) {
+      activeRuntimeChatIdRef.current = effectiveSelectedChatId;
       return effectiveSelectedChatId;
     }
 
@@ -513,6 +645,7 @@ export function ChatWorkspace({
       title: content,
     });
     const chatId = result.conversation.id;
+    activeRuntimeChatIdRef.current = chatId;
     setSelectedChatId(chatId);
     onConversationCreated?.(chatId);
     queryClient.setQueryData(chatQueryKeys.conversation(chatId), {
@@ -775,14 +908,14 @@ export function ChatWorkspace({
 
         <AssistantChatRuntimeProvider
           chatId={effectiveSelectedChatId}
-          messages={persistedMessages}
+          messages={runtimeMessagesForSelectedChat}
           disabled={isComposerDisabled}
           intent={isActiveGlobalChat ? effectiveIntent : null}
           responseMode={responseMode}
           model={resolvedSelectedModel || undefined}
           resolveChatId={resolveRuntimeChatId}
           onReady={setRuntimeHandle}
-          onStateChange={setRuntimeState}
+          onStateChange={handleRuntimeStateChange}
           onFinish={handleRuntimeFinish}
         >
           {shouldShowEmptyState ? (

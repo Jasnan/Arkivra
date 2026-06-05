@@ -34,13 +34,16 @@ export function useChatConversationsQuery() {
 
 export function useChatConversationQuery({
   chatId,
+  refetchInterval = false,
 }: {
   chatId: string;
+  refetchInterval?: number | false;
 }) {
   return useQuery({
     queryKey: chatQueryKeys.conversation(chatId),
     queryFn: () => getChatConversation({ chatId }),
     enabled: chatId.length > 0,
+    refetchInterval,
   });
 }
 

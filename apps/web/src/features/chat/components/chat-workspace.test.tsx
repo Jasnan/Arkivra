@@ -248,7 +248,7 @@ vi.mock('./assistant-chat-thread', async () => {
           return React.createElement(
             'div',
             { key: message.id },
-            text || (loading ? 'Sending your question' : null),
+            text || (loading ? 'Preparing the answer' : null),
             message.metadata?.model ? React.createElement('div', null, message.metadata.model) : null,
           );
         }),
@@ -508,6 +508,7 @@ vi.mock('../chat.queries', () => ({
   useChatConversationsQuery: () => ({
     data: {
       conversations: [
+        ...(createdConversationState.conversation !== null ? [createdConversationState.conversation] : []),
         {
           id: 'chat_existing',
           title: 'Existing chat',
@@ -649,7 +650,7 @@ describe('chat workspace new chat drafts', () => {
       />,
     );
 
-    expect(screen.getByText('Existing saved message')).toBeInTheDocument();
+    expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
 
     // Open the mobile conversation rail if the desktop sidebar is hidden
     const showHistoryButton = screen.queryByRole('button', { name: /show history/i });
@@ -680,6 +681,46 @@ describe('chat workspace new chat drafts', () => {
     });
   });
 
+  it('loads saved history only after selecting a previous conversation', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
+
+    const showHistoryButton = screen.queryByRole('button', { name: /show history/i });
+    if (showHistoryButton) {
+      await user.click(showHistoryButton);
+    }
+
+    await user.click(screen.getAllByRole('button', { name: /existing chat/i })[0]);
+    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
+  });
+
+  it('keeps saved history visible when reselecting the active conversation', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+        selectedConversationId="chat_existing"
+      />,
+    );
+
+    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Existing chat'));
+
+    expect(screen.getByText('Existing saved message')).toBeInTheDocument();
+    expect(screen.queryByText('What is in this vault?')).not.toBeInTheDocument();
+  });
+
   it('discards an unsaved new chat from the conversation list', async () => {
     const user = userEvent.setup();
 
@@ -701,8 +742,8 @@ describe('chat workspace new chat drafts', () => {
     await user.click(screen.getByLabelText(/delete new chat/i));
 
     expect(deleteConversationMock).not.toHaveBeenCalled();
-    expect(screen.queryByText(/start typing your question below/i)).not.toBeInTheDocument();
-    expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
+    expect(screen.queryByText('New chat')).not.toBeInTheDocument();
+    expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
   });
 
   it('filters conversation history by context type', async () => {
@@ -821,6 +862,7 @@ describe('chat workspace new chat drafts', () => {
       <ChatWorkspace
         scope={{}}
         inputPlaceholder="Ask anything"
+        selectedConversationId="chat_existing"
       />,
     );
 
@@ -874,7 +916,7 @@ describe('chat workspace new chat drafts', () => {
     await user.type(screen.getByLabelText(/chat message/i), 'What changed?');
     await user.click(screen.getByRole('button', { name: /send message/i }));
 
-    expect(await screen.findByText('Sending your question')).toBeInTheDocument();
+    expect(await screen.findByText('Preparing the answer')).toBeInTheDocument();
     expect(runtimeSendTextMock).toHaveBeenCalledWith({
       text: 'What changed?',
       options: { intent: null },
@@ -882,7 +924,7 @@ describe('chat workspace new chat drafts', () => {
 
     resolveStream?.();
     await waitFor(() => {
-      expect(screen.queryByText('Sending your question')).not.toBeInTheDocument();
+      expect(screen.queryByText('Preparing the answer')).not.toBeInTheDocument();
     });
   });
 
@@ -923,11 +965,11 @@ describe('chat workspace new chat drafts', () => {
         },
       });
     });
-    expect(await screen.findByText('Sending your question')).toBeInTheDocument();
+    expect(await screen.findByText('Preparing the answer')).toBeInTheDocument();
 
     resolveStream?.();
     await waitFor(() => {
-      expect(screen.queryByText('Sending your question')).not.toBeInTheDocument();
+      expect(screen.queryByText('Preparing the answer')).not.toBeInTheDocument();
     });
     expect(await screen.findByText('Done')).toBeInTheDocument();
   });
@@ -937,6 +979,7 @@ describe('chat workspace new chat drafts', () => {
       <ChatWorkspace
         scope={{}}
         inputPlaceholder="Ask anything"
+        selectedConversationId="chat_existing"
       />,
     );
 
@@ -950,6 +993,7 @@ describe('chat workspace new chat drafts', () => {
       <ChatWorkspace
         scope={{}}
         inputPlaceholder="Ask anything"
+        selectedConversationId="chat_existing"
       />,
     );
 

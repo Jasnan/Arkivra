@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { formatShortDate, formatShortDateTime } from '@/lib/localization';
 import type { ChatApiScope } from '../chat.api';
-import type { ChatGenerationMetrics, ChatMessage, ChatStreamStatus, Citation } from '../chat.types';
+import type { ChatGenerationMetrics, ChatMessage, ChatMessageMetadata, ChatStreamStatus, Citation } from '../chat.types';
 
 export interface ChatWorkspaceProps {
   scope: ChatApiScope;
@@ -20,9 +20,7 @@ export interface ChatWorkspaceProps {
   onConversationSelected?: (chatId: string) => void;
 }
 
-export interface LocalMessage extends ChatMessage {
-  localOnly?: boolean;
-}
+export interface LocalMessage extends ChatMessage {}
 
 export type ChatMetricsByMessageId = Record<string, ChatGenerationMetrics | undefined>;
 
@@ -91,6 +89,61 @@ export function renderMetricsSummary(metrics: ChatGenerationMetrics | null | und
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(' • ') : null;
+}
+
+export function getMessageText(message: ChatMessage) {
+  return message.parts
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map(part => part.text)
+    .join('\n')
+    .trim();
+}
+
+export function getMessageMetadata(message: ChatMessage): ChatMessageMetadata {
+  return message.metadata ?? {};
+}
+
+export function getMessageCitations(message: ChatMessage): Citation[] {
+  const citationsPart = message.parts.find((part): part is { type: 'data-citations'; data: Citation[] } =>
+    part.type === 'data-citations',
+  );
+  return citationsPart?.data ?? getMessageMetadata(message).citations ?? [];
+}
+
+export function getMessageMetrics(message: ChatMessage): ChatGenerationMetrics | null {
+  const metricsPart = message.parts.find((part): part is { type: 'data-metrics'; data: ChatGenerationMetrics } =>
+    part.type === 'data-metrics',
+  );
+  return metricsPart?.data ?? getMessageMetadata(message).generationMetrics ?? null;
+}
+
+export function getMessageActiveStatus(message: ChatMessage): ChatStreamStatus | null {
+  for (let index = message.parts.length - 1; index >= 0; index -= 1) {
+    const part = message.parts[index];
+    if (
+      part?.type === 'data-status'
+      && typeof part.data === 'object'
+      && part.data !== null
+      && 'label' in part.data
+      && (part.data.label === 'retrieval' || part.data.label === 'generation' || part.data.label === 'saving')
+    ) {
+      return part.data.label;
+    }
+  }
+
+  return null;
+}
+
+export function getMessageCreatedAt(message: ChatMessage) {
+  return getMessageMetadata(message).createdAt ?? new Date().toISOString();
+}
+
+export function getMessageGenerationStatus(message: ChatMessage) {
+  return getMessageMetadata(message).generationStatus ?? null;
+}
+
+export function getMessageGenerationError(message: ChatMessage) {
+  return getMessageMetadata(message).generationError ?? null;
 }
 
 export function pageRange(citation: Citation) {

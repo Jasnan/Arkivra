@@ -43,7 +43,6 @@ import { createAdminAiServices } from '../admin/ai/ai.services.js';
 import { createSensitiveActionServices } from '../security/sensitive-actions.services.js';
 import { registerSensitiveActionRoutes } from '../security/sensitive-actions.routes.js';
 import {
-  createOllamaChatProvider,
   createOllamaEmbeddingProvider,
 } from '../ai/providers/index.js';
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
@@ -115,7 +114,6 @@ export function createServer({
     batchSize: config.ollama.embeddingBatchSize,
   });
   const embeddingIndexServices = createEmbeddingIndexServices({ db });
-  const chatProvider = createOllamaChatProvider();
   const searchServices = createDocumentSearchServices({
     db,
     embeddingProvider,
@@ -142,7 +140,6 @@ export function createServer({
     db,
     searchServices,
     documentsServices,
-    chatProvider,
     resolveAiSettings: async () => {
       const [settings, ingestionSettings] = await Promise.all([
         aiServices.getSettings(),

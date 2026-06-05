@@ -3,26 +3,7 @@ import { createPrimaryKeyField, createTimestampColumns } from './helpers.js';
 import { documentsTable } from './documents.table.js';
 import { usersTable } from './users.table.js';
 import { vaultsTable } from './vaults.table.js';
-import type { Citation } from '../../search/search.types.js';
-import type { ChatContextSnapshot, ChatIntent } from '../../chat/chat.types.js';
-
-export type ChatMessageGenerationMetrics = {
-  promptEvalCount: number | null;
-  promptEvalDurationMs: number | null;
-  evalCount: number | null;
-  evalDurationMs: number | null;
-  totalDurationMs: number | null;
-  loadDurationMs: number | null;
-  tokensPerSecond: number | null;
-  timeToFirstTokenMs: number | null;
-};
-
-export type ChatMessageMetadata = {
-  intent?: ChatIntent;
-  model?: string;
-  quickReplies?: string[];
-  followUpQuestion?: boolean;
-};
+import type { ChatContextSnapshot, ChatMessage } from '../../chat/chat.types.js';
 
 export const chatConversationsTable = pgTable(
   'chat_conversations',
@@ -59,13 +40,7 @@ export const chatMessagesTable = pgTable(
     userId: text('user_id').references(() => usersTable.id, { onDelete: 'set null' }),
     scope: text('scope', { enum: ['global', 'vault', 'document'] }).notNull().default('vault'),
     documentId: text('document_id').references(() => documentsTable.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: ['user', 'assistant'] }).notNull(),
-    content: text('content').notNull(),
-    metadata: jsonb('metadata').$type<ChatMessageMetadata>(),
-    citations: jsonb('citations').$type<Citation[]>(),
-    generationMetrics: jsonb('generation_metrics').$type<ChatMessageGenerationMetrics>(),
-    generationStatus: text('generation_status'),
-    generationError: text('generation_error'),
+    message: jsonb('message').$type<ChatMessage>().notNull(),
   },
   (table) => [
     index('chat_messages_conversation_created_idx').on(table.conversationId, table.createdAt),

@@ -1,12 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { parseOllamaChatStream } from '../ai/providers/ollama-chat.provider.js';
 import type { Citation } from '../search/search.types.js';
 import {
   buildAnswerPrompt,
   buildCitationContext,
   buildExpandedCitationForChat,
   buildGlobalIntentSystemPrompt,
-  encodeSseEvent,
   formatFollowUpAssistantMessage,
   normalizeChatGenerationError,
   rankCitationsForQuestion,
@@ -142,39 +140,6 @@ describe('chat service helpers', () => {
 
   test('renders an explicit empty retrieval context', () => {
     expect(buildCitationContext([])).toBe('(no retrieved context)');
-  });
-
-  test('encodes status, token, done, and error events as SSE frames', () => {
-    expect(encodeSseEvent({ type: 'status', label: 'retrieval' })).toBe(
-      'event: status\ndata: {"label":"retrieval"}\n\n',
-    );
-    expect(encodeSseEvent({ type: 'token', token: 'Hello' })).toBe(
-      'event: token\ndata: {"token":"Hello"}\n\n',
-    );
-    expect(encodeSseEvent({ type: 'error', message: 'boom' })).toBe(
-      'event: error\ndata: {"message":"boom"}\n\n',
-    );
-  });
-
-  test('parses Ollama newline-delimited chat stream tokens', async () => {
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        const encoder = new TextEncoder();
-        controller.enqueue(encoder.encode('{"message":{"content":"Hel"}}\n'));
-        controller.enqueue(encoder.encode('{"message":{"content":"lo"},"done":false}\n'));
-        controller.enqueue(encoder.encode('{"done":true}\n'));
-        controller.close();
-      },
-    });
-
-    const tokens: string[] = [];
-    for await (const chunk of parseOllamaChatStream(new Response(body))) {
-      if (chunk.token) {
-        tokens.push(chunk.token);
-      }
-    }
-
-    expect(tokens).toEqual(['Hel', 'lo']);
   });
 
   test('normalizes invalid stream-controller errors to a user-friendly retry message', () => {

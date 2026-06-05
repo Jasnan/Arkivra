@@ -5,8 +5,8 @@ import sitemap from '@astrojs/sitemap';
 import astroExpressiveCode from 'astro-expressive-code';
 import { defineConfig } from 'astro/config';
 import UnoCSS from 'unocss/astro';
-import { config } from './src/app.config';
-import createRedirectsFile from './src/plugins/redirects';
+import { config } from './src/app.config.ts';
+import createRedirectsFile from './src/plugins/redirects.ts';
 
 export default defineConfig({
   site: 'https://arkivra.app',

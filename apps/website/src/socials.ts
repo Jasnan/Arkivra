@@ -1,5 +1,5 @@
-import type { Translator } from './i18n/i18n';
-import { useI18n } from './i18n/i18n';
+import type { Translator } from './i18n/i18n.ts';
+import { useI18n } from './i18n/i18n.ts';
 
 export const GITHUB_REPO_URL = 'https://github.com/Jasnan/Arkivra';
 export const GITHUB_ISSUES_URL = `${GITHUB_REPO_URL}/issues`;

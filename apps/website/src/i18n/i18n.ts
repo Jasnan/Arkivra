@@ -1,8 +1,8 @@
-import type { TranslationsDictionary } from './i18n.types';
+import type { TranslationsDictionary } from './i18n.types.ts';
 import { createBranchlet } from '@branchlet/core';
 import { joinUrlPaths } from '@corentinth/chisels';
-import { translations } from '../locales/index';
-import { DEFAULT_LOCALE } from './i18n.constants';
+import { translations } from '../locales/index.ts';
+import { DEFAULT_LOCALE } from './i18n.constants.ts';
 
 export function getLocaleFromUrl(url: URL) {
   void url;

@@ -461,14 +461,6 @@ export class UploadManager {
     void savePersistedTransfers(items).catch(() => undefined);
   }
 
-  private emit() {
-    this.state = this.computeSummary(this.state);
-    this.persist();
-    for (const listener of this.listeners) {
-      listener();
-    }
-  }
-
   private setState(nextState: TransferState) {
     this.state = this.computeSummary({
       ...nextState,

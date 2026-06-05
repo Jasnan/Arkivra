@@ -21,7 +21,7 @@ export function formatAuditMetadataValue(key: string, value: unknown) {
 }
 
 export function formatAuditMetadataEntries(metadata: Record<string, unknown>) {
-  const hasFileName = Object.prototype.hasOwnProperty.call(metadata, 'file_name');
+  const hasFileName = Object.hasOwn(metadata, 'file_name');
 
   return Object.entries(metadata).flatMap(([key, value]) => {
     if (key === 'document_name' && hasFileName) {

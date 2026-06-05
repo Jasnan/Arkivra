@@ -8,7 +8,7 @@ import {
   transformerVariantGroup,
 } from 'unocss';
 import presetAnimations from 'unocss-preset-animations';
-import { getSocials } from './src/socials';
+import { getSocials } from './src/socials.ts';
 
 export default defineConfig({
   presets: [
@@ -23,7 +23,7 @@ export default defineConfig({
     presetIcons({
       collections: {
         'simple-icons': () => import('@iconify-json/simple-icons/icons.json').then(i => i.default),
-        tabler: () => import('@iconify-json/tabler/icons.json').then(i => i.default),
+        'tabler': () => import('@iconify-json/tabler/icons.json').then(i => i.default),
       },
     }),
     presetTypography(),

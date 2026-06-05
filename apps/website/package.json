@@ -2,7 +2,6 @@
   "name": "@arkivra/website",
   "type": "module",
   "version": "0.0.1",
-  "packageManager": "pnpm@9.11.0",
   "description": "Website for Arkivra, an open-source document system for vaults, search, and AI-assisted document workflows",
   "scripts": {
     "dev": "astro dev",

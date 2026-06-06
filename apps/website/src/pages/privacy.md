@@ -3,10 +3,10 @@ layout: ../layouts/MdPage.astro
 title: Privacy Policy
 description: How the Arkivra website, self-hosted deployments, and future managed services handle data and privacy.
 ---
-# Privacy
+## Privacy
 
-- Effective Date: May 24, 2026
-- Last Updated: May 24, 2026
+- **Effective Date:** May 24, 2026
+- **Last Updated:** May 24, 2026
 
 ## Overview
 

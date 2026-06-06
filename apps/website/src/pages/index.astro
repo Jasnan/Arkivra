@@ -36,6 +36,29 @@ const workflows = [
   },
 ];
 
+const coreCapabilities = [
+  {
+    marker: '01',
+    title: 'Self-hosted',
+    description: 'Run Arkivra on your own infrastructure with full control over storage and access.',
+  },
+  {
+    marker: '02',
+    title: 'Search & retrieval',
+    description: 'Full-text and semantic search across filenames, content, and meaning.',
+  },
+  {
+    marker: '03',
+    title: 'Local or cloud AI',
+    description: 'Bring your own local or cloud models for retrieval and translation workflows.',
+  },
+  {
+    marker: '04',
+    title: 'Security & access',
+    description: 'Authentication, two-factor security, permissions, and administrative controls.',
+  },
+];
+
 const stack = [
   ['Web', 'React, TypeScript, Vite, Chakra UI'],
   ['API', 'Hono, Node.js, TypeScript'],
@@ -146,7 +169,7 @@ const faqItems = [
       </div>
     </section>
 
-    <section id="features" class="border-b border-border bg-card py-18 md:py-24">
+    <section class="border-b border-border bg-card py-18 md:py-24">
       <div class="mx-auto max-w-1200px px-5 md:px-8">
         <div class="grid gap-8 md:grid-cols-[0.75fr_1.25fr]">
           <div>
@@ -175,7 +198,7 @@ const faqItems = [
       </div>
     </section>
 
-    <section class="border-b border-border bg-background py-18 md:py-24">
+    <section id="features" class="border-b border-border bg-background py-18 md:py-24">
       <div class="mx-auto grid max-w-1200px gap-10 px-5 md:grid-cols-[0.78fr_1.22fr] md:px-8">
         <div>
           <div class="text-sm font-semibold uppercase tracking-wide text-primary">Core Capabilities</div>
@@ -185,26 +208,22 @@ const faqItems = [
           </p>
         </div>
 
-        <div class="border border-border bg-card">
-          <div class="grid grid-cols-1 border-b border-border sm:grid-cols-2">
-            <div class="border-b border-border p-6 sm:border-b-0 sm:border-r md:p-8">
-              <div class="text-xl font-semibold">Self-hosted</div>
-              <p class="mt-4 max-w-280px text-base leading-7 text-muted-foreground">Run Arkivra on your own infrastructure with full control over storage and access.</p>
-            </div>
-            <div class="p-6 md:p-8">
-              <div class="text-xl font-semibold">Search & retrieval</div>
-              <p class="mt-4 max-w-280px text-base leading-7 text-muted-foreground">Full-text and semantic search across filenames, content, and meaning.</p>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2">
-            <div class="border-b border-border p-6 sm:border-b-0 sm:border-r md:p-8">
-              <div class="text-xl font-semibold">Local or cloud AI</div>
-              <p class="mt-4 max-w-280px text-base leading-7 text-muted-foreground">Bring your own local or cloud models for retrieval and translation workflows.</p>
-            </div>
-            <div class="p-6 md:p-8">
-              <div class="text-xl font-semibold">Security & access</div>
-              <p class="mt-4 max-w-280px text-base leading-7 text-muted-foreground">Authentication, two-factor security, permissions, and administrative controls.</p>
-            </div>
+        <div class="relative border border-border bg-card">
+          <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--foreground)/0.12)_1px,transparent_0)] bg-[size:24px_24px] opacity-[0.16] dark:opacity-[0.08]" aria-hidden="true"></div>
+
+          <div class="relative grid grid-cols-1 gap-px bg-border sm:grid-cols-2">
+            {
+              coreCapabilities.map(item => (
+                <article class="group relative min-h-220px border border-transparent bg-card/95 p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] md:p-8">
+                  <div class="flex items-center gap-2 text-xs font-semibold leading-none text-muted-foreground transition-colors duration-200 group-hover:text-primary">
+                    <span>{item.marker}</span>
+                    <span class="h-px w-0 bg-primary transition-[width] duration-200 ease-out group-hover:w-5" aria-hidden="true"></span>
+                  </div>
+                  <h3 class="mt-5 font-display text-xl font-semibold leading-tight">{item.title}</h3>
+                  <p class="mt-4 max-w-300px text-base leading-7 text-muted-foreground">{item.description}</p>
+                </article>
+              ))
+            }
           </div>
         </div>
       </div>

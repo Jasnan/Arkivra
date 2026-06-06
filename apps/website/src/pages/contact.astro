@@ -3,56 +3,35 @@ import Footer from '../components/Footer.astro';
 import Header from '../components/Header.astro';
 import { useI18n } from '../i18n/i18n';
 import Layout from '../layouts/Layout.astro';
+import { GITHUB_REPO_URL } from '../socials';
 
 const { t } = useI18n();
 
-const generalCards = [
+const contactCards = [
   {
-    title: t('contact.general-inquiries.title'),
-    description: t('contact.general-inquiries.description'),
+    title: t('contact.card.direct.title'),
+    description: [t('contact.card.direct.description-1'), t('contact.card.direct.description-2')],
     icon: 'i-tabler-mail',
-    iconClass: 'bg-blue-500/10 text-blue-700 dark:bg-blue-400/12 dark:text-blue-300',
-    actionClass: 'border-blue-600/25 text-blue-700 hover:bg-blue-500/8 dark:border-blue-300/35 dark:text-blue-300 dark:hover:bg-blue-400/10',
-    button: {
+    iconClass: 'bg-emerald-500/10 text-emerald-700 ring-emerald-700/10 dark:bg-emerald-400/12 dark:text-emerald-300 dark:ring-emerald-300/15',
+    accentClass: 'bg-emerald-700 dark:bg-emerald-300',
+    buttonIconClass: 'text-emerald-700 dark:text-emerald-300',
+    action: {
       icon: 'i-tabler-mail',
       label: 'contact@arkivra.app',
       url: 'mailto:contact@arkivra.app',
     },
   },
   {
-    title: t('contact.partnerships.title'),
-    description: t('contact.partnerships.description'),
-    icon: 'i-tabler-bulb',
-    iconClass: 'bg-green-500/10 text-green-700 dark:bg-green-400/12 dark:text-green-300',
-    actionClass: 'border-green-600/25 text-green-700 dark:border-green-300/35 dark:text-green-300',
-    button: {
+    title: t('contact.card.involved.title'),
+    description: [t('contact.card.involved.description-1'), t('contact.card.involved.description-2')],
+    icon: 'i-tabler-brand-github',
+    iconClass: 'bg-blue-500/10 text-blue-700 ring-blue-700/10 dark:bg-blue-400/12 dark:text-blue-300 dark:ring-blue-300/15',
+    accentClass: 'bg-blue-600 dark:bg-blue-300',
+    buttonIconClass: 'text-foreground',
+    action: {
       icon: 'i-tabler-brand-github',
-      label: t('contact.bug.button-label'),
-      isAvailable: false,
-    },
-  },
-  {
-    title: t('contact.bug.title'),
-    description: t('contact.bug.description'),
-    icon: 'i-tabler-bug',
-    iconClass: 'bg-orange-500/10 text-orange-700 dark:bg-orange-400/12 dark:text-orange-300',
-    actionClass: 'border-orange-600/25 text-orange-700 dark:border-orange-300/35 dark:text-orange-300',
-    button: {
-      icon: 'i-tabler-brand-github',
-      label: t('contact.bug.button-label'),
-      isAvailable: false,
-    },
-  },
-  {
-    title: t('contact.community.title'),
-    description: t('contact.community.description'),
-    icon: 'i-tabler-users',
-    iconClass: 'bg-violet-500/10 text-violet-700 dark:bg-violet-400/12 dark:text-violet-300',
-    actionClass: 'border-violet-600/25 text-violet-700 dark:border-violet-300/35 dark:text-violet-300',
-    button: {
-      icon: 'i-tabler-brand-github',
-      label: t('contact.community.button-label'),
-      isAvailable: false,
+      label: t('contact.card.involved.button-label'),
+      url: GITHUB_REPO_URL,
     },
   },
 ];
@@ -64,40 +43,40 @@ const generalCards = [
 
     <main class="mx-auto max-w-1200px px-5 pt-28 pb-16 md:px-8 md:pt-34 md:pb-24">
       <div class="max-w-760px">
-        <div class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('contact.eyebrow')}</div>
+        <div class="text-sm font-semibold uppercase tracking-wide text-primary">{t('contact.eyebrow')}</div>
         <h1 class="mt-4 font-display text-4xl font-semibold leading-tight md:text-6xl">{t('contact.title')}</h1>
-        <p class="mt-5 max-w-660px text-base leading-7 text-muted-foreground md:text-xl md:leading-8">{t('contact.subtitle')}</p>
+        <p class="mt-5 max-w-700px text-base leading-7 text-muted-foreground md:text-xl md:leading-8">
+          {t('contact.subtitle.line-1')}
+          <br class="hidden sm:block" />
+          {t('contact.subtitle.line-2')}
+        </p>
       </div>
 
       <div class="mt-12 grid grid-cols-1 gap-7 md:grid-cols-2">
         {
-          generalCards.map(card => (
-            <article class="grid gap-6 border border-border bg-card p-7 shadow-sm md:grid-cols-[96px_1fr] md:p-9">
-              <div class={`flex size-20 items-center justify-center rounded-lg ${card.iconClass}`}>
-                <div class={`${card.icon} size-10`} aria-hidden="true" />
+          contactCards.map(card => (
+            <article class="grid min-h-330px gap-6 rounded-lg border border-border bg-card p-7 shadow-sm md:grid-cols-[88px_1fr] md:p-9">
+              <div class={`flex size-18 items-center justify-center rounded-full ring-1 ${card.iconClass}`}>
+                <div class={`${card.icon} size-8`} aria-hidden="true" />
               </div>
 
-              <div>
+              <div class="flex flex-col">
                 <h2 class="text-2xl font-semibold leading-tight">{card.title}</h2>
-                <p class="mt-4 max-w-390px text-base leading-7 text-muted-foreground">{card.description}</p>
-                {card.button && card.button.isAvailable !== false
-                  ? (
-                    <a
-                      href={card.button.url}
-                      class={`mt-8 inline-flex items-center gap-3 rounded-sm border bg-background px-4 py-3 text-base font-semibold transition ${card.actionClass}`}
-                    >
-                      <div class={`${card.button.icon} size-6`} aria-hidden="true" />
-                      {card.button.label}
-                    </a>
-                    )
-                  : card.button
-                    ? (
-                      <span class={`mt-8 inline-flex cursor-default items-center gap-3 rounded-sm border bg-background px-4 py-3 text-base font-semibold opacity-80 ${card.actionClass}`} aria-disabled="true">
-                        <div class={`${card.button.icon} size-6`} aria-hidden="true" />
-                        {card.button.label}
-                      </span>
-                      )
-                    : null}
+                <div class={`mt-6 h-0.75 w-14 ${card.accentClass}`} aria-hidden="true"></div>
+                <p class="mt-10 max-w-390px text-base leading-7 text-muted-foreground">
+                  {card.description[0]}
+                  <br />
+                  {card.description[1]}
+                </p>
+
+                <a
+                  href={card.action.url}
+                  class="mt-8 inline-flex w-fit items-center gap-2.5 rounded-sm border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted"
+                >
+                  <div class={`${card.action.icon} size-5 ${card.buttonIconClass}`} aria-hidden="true" />
+                  {card.action.label}
+                  {card.action.url === GITHUB_REPO_URL && <div class="i-tabler-external-link size-4 text-muted-foreground" aria-hidden="true" />}
+                </a>
               </div>
             </article>
           ))

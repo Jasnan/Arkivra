@@ -102,7 +102,7 @@ const responsibilities = [
         <div class="mt-10 grid gap-4 md:grid-cols-3">
           {
             responsibilities.map(item => (
-              <article class="border border-border bg-card p-6">
+              <article class="border border-border bg-card p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]">
                 <h3 class="text-lg font-semibold">{item.title}</h3>
                 <p class="mt-4 leading-7 text-muted-foreground">{item.description}</p>
               </article>

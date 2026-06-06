@@ -55,7 +55,7 @@ const contactCards = [
       <div class="mt-12 grid grid-cols-1 gap-7 md:grid-cols-2">
         {
           contactCards.map(card => (
-            <article class="grid min-h-330px gap-6 rounded-lg border border-border bg-card p-7 shadow-sm md:grid-cols-[88px_1fr] md:p-9">
+            <article class="grid min-h-330px gap-6 rounded-lg border border-border bg-card p-7 shadow-sm transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] md:grid-cols-[88px_1fr] md:p-9">
               <div class={`flex size-18 items-center justify-center rounded-full ring-1 ${card.iconClass}`}>
                 <div class={`${card.icon} size-8`} aria-hidden="true" />
               </div>

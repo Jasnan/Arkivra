@@ -20,7 +20,7 @@ const { post } = Astro.props;
 const coverImage = await resolveImage(post.data.coverImage);
 ---
 
-<article class="relative border max-w-700px mx-auto bg-card transition hover:border-primary overflow-hidden" aria-labelledby={post.slug}>
+<article class="relative mx-auto max-w-700px overflow-hidden border bg-card transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]" aria-labelledby={post.slug}>
   {coverImage && <Image src={coverImage} alt={post.data.title} height={(630 * 700) / 1500} width={700} class="border-b" />}
 
   <div class="p-6">

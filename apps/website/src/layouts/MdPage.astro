@@ -8,10 +8,10 @@ import Layout from './Layout.astro';
 <div class="bg-background text-foreground">
   <Header />
 
-  <div class="w-full border-b border-border bg-card pt-32 pb-24">
-      <div class="max-w-700px mx-auto p-4">
-        <h1 class="mb-3 font-display text-4xl font-semibold leading-tight">{Astro.props.frontmatter.title}</h1>
-        <p class="mb-2 text-base leading-7 text-muted-foreground">{Astro.props.frontmatter.description}</p>
+  <div class="w-full border-b border-border bg-card pt-28 pb-16 md:pt-34 md:pb-24">
+      <div class="mx-auto max-w-760px px-5 md:px-8">
+        <h1 class="font-display text-4xl font-semibold leading-tight md:text-6xl">{Astro.props.frontmatter.title}</h1>
+        <p class="mt-5 max-w-700px text-base leading-7 text-muted-foreground md:text-xl md:leading-8">{Astro.props.frontmatter.description}</p>
 
         {Astro.props.frontmatter.tags && (
           <div class="flex flex-wrap mt-2">
@@ -24,8 +24,8 @@ import Layout from './Layout.astro';
 
     </div>
 
-  <div class="px-6">
-  <div class="prose mx-auto text-base pb-32">
+  <div class="px-5 md:px-8">
+  <div class="prose mx-auto max-w-760px pb-32 pt-12 text-base">
       <slot />
   </div>
   </div>

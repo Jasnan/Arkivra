@@ -70,16 +70,30 @@ const stack = [
 
 const securityNotes = [
   {
-    title: 'Encrypted storage',
+    title: 'Document storage',
     description: 'Uploaded files remain stored on your infrastructure with encryption at rest support.',
+    icon: 'i-tabler-file-text-shield',
   },
   {
-    title: 'Derived retrieval data',
-    description: 'Arkivra stores extracted text, metadata, and search indexes separately from original files to enable full-text search, semantic search, and AI-assisted retrieval.',
+    title: 'Vault access',
+    description: 'Permissions are managed at the vault level, keeping access control simple and predictable.',
+    icon: 'i-tabler-lock-access',
   },
   {
-    title: 'Local and cloud models',
-    description: 'Local models keep document context inside your infrastructure. Cloud models receive only the retrieved context required for a request.',
+    title: 'Authentication',
+    description: 'Password sign-in, connected providers, and optional two-factor authentication.',
+    icon: 'i-tabler-key',
+  },
+  {
+    title: 'Audit trail',
+    description: 'Security and activity events provide visibility into user and system actions.',
+    icon: 'i-tabler-clipboard-check',
+  },
+  {
+    title: 'Optional AI integration',
+    description: 'Arkivra does not provide AI services. Connect local models or providers you trust using your own credentials.',
+    secondaryDescription: 'When AI features are used, the prompt and retrieved context needed for the request are sent to the configured provider.',
+    icon: 'i-tabler-robot',
   },
 ];
 
@@ -181,12 +195,12 @@ const faqItems = [
           </p>
         </div>
 
-        <div class="mt-14 grid grid-cols-1 border border-border md:grid-cols-4">
+        <div class="mt-14 grid grid-cols-1 md:grid-cols-4">
           {
             workflows.map((item, index) => (
-              <article class={`bg-background p-6 ${index < workflows.length - 1 ? 'border-b border-border md:border-b-0 md:border-r' : ''}`}>
+              <article class={`group relative border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] ${index > 0 ? '-mt-px md:-ml-px md:mt-0' : ''}`}>
                 <div class="flex items-center justify-between gap-4">
-                  <span class="text-xs font-semibold text-muted-foreground">{item.label}</span>
+                  <span class="text-xs font-semibold text-muted-foreground transition-colors duration-200 group-hover:text-primary">{item.label}</span>
                   <span class={`${item.icon} size-6 text-primary`} aria-hidden="true"></span>
                 </div>
                 <h3 class="mt-8 text-xl font-semibold">{item.title}</h3>
@@ -208,16 +222,15 @@ const faqItems = [
           </p>
         </div>
 
-        <div class="relative border border-border bg-card">
+        <div class="relative bg-background">
           <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--foreground)/0.12)_1px,transparent_0)] bg-[size:24px_24px] opacity-[0.16] dark:opacity-[0.08]" aria-hidden="true"></div>
 
-          <div class="relative grid grid-cols-1 gap-px bg-border sm:grid-cols-2">
+          <div class="relative grid grid-cols-1 sm:grid-cols-2">
             {
-              coreCapabilities.map(item => (
-                <article class="group relative min-h-220px border border-transparent bg-card/95 p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] md:p-8">
+              coreCapabilities.map((item, index) => (
+                <article class={`group relative min-h-220px border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] md:p-8 ${index > 0 ? '-mt-px' : ''} ${index % 2 === 1 ? 'sm:-ml-px sm:mt-0' : ''} ${index > 1 ? 'sm:-mt-px' : ''}`}>
                   <div class="flex items-center gap-2 text-xs font-semibold leading-none text-muted-foreground transition-colors duration-200 group-hover:text-primary">
                     <span>{item.marker}</span>
-                    <span class="h-px w-0 bg-primary transition-[width] duration-200 ease-out group-hover:w-5" aria-hidden="true"></span>
                   </div>
                   <h3 class="mt-5 font-display text-xl font-semibold leading-tight">{item.title}</h3>
                   <p class="mt-4 max-w-300px text-base leading-7 text-muted-foreground">{item.description}</p>
@@ -268,22 +281,43 @@ const faqItems = [
     </section>
 
     <section id="security" class="border-b border-border bg-background py-18 md:py-24">
-      <div class="mx-auto grid max-w-1200px gap-10 px-5 md:grid-cols-[0.9fr_1.1fr] md:px-8">
+      <div class="mx-auto grid max-w-1200px gap-10 px-5 md:grid-cols-[0.82fr_1.18fr] md:px-8">
         <div>
-          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Security Model</div>
+          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Security & Privacy</div>
           <h2 class="mt-4 max-w-580px font-display text-3xl font-semibold leading-tight md:text-5xl">Clear about what is stored, processed, and shared.</h2>
           <p class="mt-6 max-w-560px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">
-            Arkivra separates original documents, retrieval data, and model interaction so deployment choices remain visible and controllable.
+            Arkivra separates storage, access control, authentication, auditing, and AI integration so deployment choices remain visible and controllable.
           </p>
+
+          <div class="mt-12 max-w-300px border border-border bg-background p-6 shadow-sm transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]">
+            <div class="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <span class="i-tabler-shield-check size-8" aria-hidden="true"></span>
+            </div>
+            <h3 class="mt-6 text-xl font-semibold leading-tight text-primary">You're in control</h3>
+            <p class="mt-3 text-base leading-7 text-foreground">
+              Self-hosted by you.<br />
+              Configured by you.<br />
+              Your data, your decisions.
+            </p>
+          </div>
         </div>
 
-        <div class="border border-border bg-card">
+        <div class="bg-background">
           {
             securityNotes.map((item, index) => (
-              <div class={`p-6 md:p-7 ${index < securityNotes.length - 1 ? 'border-b border-border' : ''}`}>
-                <h3 class="text-xl font-semibold">{item.title}</h3>
-                <p class="mt-4 text-base leading-7 text-muted-foreground md:text-lg md:leading-8">{item.description}</p>
-              </div>
+              <article class={`group relative grid gap-5 border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] sm:grid-cols-[72px_1fr] md:p-7 ${index > 0 ? '-mt-px' : ''}`}>
+                <div class="flex size-14 items-center justify-center text-primary sm:size-16">
+                  <span class={`${item.icon} size-8 sm:size-9`} aria-hidden="true"></span>
+                </div>
+
+                <div class="border-border transition-colors duration-200 group-hover:border-primary/35 sm:border-l sm:pl-7">
+                  <h3 class="text-xl font-semibold leading-tight">{item.title}</h3>
+                  <p class="mt-3 max-w-560px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">{item.description}</p>
+                  {item.secondaryDescription && (
+                    <p class="mt-3 max-w-560px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">{item.secondaryDescription}</p>
+                  )}
+                </div>
+              </article>
             ))
           }
         </div>
@@ -303,7 +337,7 @@ const faqItems = [
         <div class="space-y-3">
           {
             faqItems.map((item, index) => (
-              <details class="group border border-border bg-background p-6 md:p-7" open={index === 0}>
+              <details class="group border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] md:p-7" open={index === 0}>
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-5 [&::-webkit-details-marker]:hidden">
                   <h3 class="text-xl font-semibold">{item.question}</h3>
                   <span class="i-tabler-chevron-down size-5 flex-shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true"></span>

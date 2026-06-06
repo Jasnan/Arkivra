@@ -81,15 +81,28 @@
   /* inspired by Astro blog https://github.com/withastro/astro.build/blob/cc7df140766a6c60ec54284593ea8ea940604dd5/src/styles/prose.css */
   @layer components {
     .prose {
-      @apply mx-auto w-full tracking-wide lg:text-lg;
-      line-height: 1.75em;
+      @apply mx-auto w-full text-foreground;
+      line-height: 1.75;
+    }
+
+    .prose :where(h1, h2, h3, h4, h5, h6) {
+      @apply font-display font-semibold leading-tight text-foreground;
+    }
+
+    .prose :where(h2) {
+      @apply mt-10 mb-4 text-2xl;
+    }
+
+    .prose :where(h3) {
+      @apply mt-8 mb-3 text-xl;
     }
   
     .prose > p,
     .prose > blockquote > p {
-      @apply my-4;
+      @apply my-4 text-foreground;
     }
     .prose > blockquote {
+      @apply text-muted-foreground;
       padding-left: 2rem;
       border-left: 1px solid;
     }
@@ -103,7 +116,7 @@
     }
   
     .prose strong {
-      @apply font-medium text-white;
+      @apply font-medium text-foreground;
     }
   
     .prose ul {
@@ -164,7 +177,7 @@
       @apply pr-0;
     }
     .prose th {
-      @apply text-white font-medium;
+      @apply text-foreground font-medium;
     }
     .prose th:not([align]) {
       @apply text-start;

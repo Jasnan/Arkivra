@@ -11,12 +11,11 @@
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "check": "astro check",
-    "test": "vitest run",
-    "test:watch": "vitest watch"
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest watch --config vitest.config.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
-    "@astrojs/cloudflare": "^12.6.10",
     "@astrojs/rss": "^4.0.11",
     "@astrojs/sitemap": "^3.3.0",
     "@branchlet/core": "^1.0.0",

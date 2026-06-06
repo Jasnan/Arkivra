@@ -35,21 +35,19 @@ export const translations = {
   'footer.link.about': 'About',
 
   // Contact Page
+  'contact.eyebrow': 'Get in touch',
   'contact.title': 'Get in Touch',
-  'contact.subtitle': 'Have questions, ideas, or bug reports? The best place to start is the Arkivra repository.',
+  'contact.subtitle': 'Have questions, ideas, or bug reports? Contact Arkivra directly while the public repository is being prepared.',
   'contact.general-inquiries.title': 'General Inquiries',
-  'contact.general-inquiries.description': 'For questions about Arkivra, contact the maintainer directly.',
+  'contact.general-inquiries.description': 'For questions about Arkivra, contact the project directly.',
   'contact.partnerships.title': 'Project Feedback',
-  'contact.partnerships.description': 'Have a workflow idea, deployment note, or product suggestion? Open a GitHub issue.',
+  'contact.partnerships.description': 'Have a workflow idea, deployment note, or product suggestion? The issue tracker will open with the public repository.',
   'contact.bug.title': 'Found a Bug?',
-  'contact.bug.description': 'Report issues you encounter while running or using Arkivra.',
+  'contact.bug.description': 'Bug reports will move to GitHub once the public repository opens.',
   'contact.bug.button-label': 'Report on GitHub',
   'contact.community.title': 'Join the Work',
-  'contact.community.description': 'Follow development, open issues, and contribute through GitHub.',
+  'contact.community.description': 'Contribution and issue workflows will open with the public repository.',
   'contact.community.button-label': 'View Repository',
-  'contact.connect.title': 'Follow the Project',
-  'contact.connect.description': 'Use GitHub for source code, releases, issues, and roadmap discussion.',
-
   'socials.github.name': 'GitHub',
   'socials.github.label': 'Arkivra GitHub repository',
 

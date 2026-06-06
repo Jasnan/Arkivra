@@ -7,10 +7,7 @@ export default antfu({
     semi: true,
   },
 
-  ignores: [
-    'src/components/PosthogAnalytics.astro', // Inlined script
-    'src/components/ContactForm.astro', // Inlined script
-  ],
+  ignores: [],
 
   rules: {
     // To allow export on top of files

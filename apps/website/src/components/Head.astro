@@ -3,7 +3,6 @@ import { Head as CapoHead } from 'astro-capo';
 import { getPathWithoutLocale, useI18n } from '../i18n/i18n';
 import { DEFAULT_LOCALE, LOCALES } from '../i18n/i18n.constants';
 import { formatCanonicalUrl } from '../utils/urls';
-import PosthogAnalytics from './PosthogAnalytics.astro';
 
 const { t } = useI18n({ locale: Astro.currentLocale });
 
@@ -159,8 +158,6 @@ const alternateLinks = isMultiLangPage
   <meta name="twitter:site" content={twitter.creator} />
   <meta name="twitter:creator" content={twitter.creator} />
   <meta name="twitter:url" content={twitter.canonicalUrl} />
-
-  <PosthogAnalytics />
 
   <meta name="robots" content="max-image-preview:large" />
   <link rel="alternate" type="application/rss+xml" title="Arkivra Blog" href={new URL('rss.xml', Astro.site)} />

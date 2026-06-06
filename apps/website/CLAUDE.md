@@ -12,7 +12,7 @@ The current site is English-only. Some i18n helpers remain from the original tem
 
 - **Framework:** Astro
 - **Styling:** UnoCSS
-- **Deployment:** Cloudflare adapter
+- **Deployment:** Static build for Cloudflare Pages
 - **Package Manager:** pnpm
 - **Content:** MDX for blog posts and markdown pages
 - **Testing:** Vitest
@@ -35,4 +35,4 @@ pnpm test
 - Main marketing copy lives in `src/locales/en.ts`.
 - Main pages live directly under `src/pages/`; the site is English-only.
 - Blog content lives in `src/content/blog/`.
-- Shared social and project links live in `src/socials.ts` and `src/app.config.ts`.
+- Shared social and project links live in `src/socials.ts`.

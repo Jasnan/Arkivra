@@ -16,6 +16,8 @@ pnpm build
 pnpm preview
 ```
 
+The website builds as a static Astro site for Cloudflare Pages. The production domain is `https://arkivra.app`.
+
 ## License
 
 This website follows the repository license. Arkivra itself is licensed under AGPL-3.0.

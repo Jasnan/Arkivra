@@ -11,7 +11,8 @@ const requirements = [
   'A protected ARKIVRA_ENCRYPTION_KEYS backup outside the server',
 ];
 
-const commands = `git clone https://github.com/Jasnan/Arkivra.git
+const commands = `# Public repository unavailable during release prep
+# Clone Arkivra after the repository opens
 cd Arkivra
 
 cp .env.example .env
@@ -110,14 +111,13 @@ const responsibilities = [
         </div>
 
         <div class="mt-10 flex flex-col gap-3 sm:flex-row">
-          <a href="https://docs.arkivra.app/self-hosting" class="inline-flex items-center justify-center gap-2 bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/85" target="_blank" rel="noopener">
+          <button type="button" class="inline-flex cursor-not-allowed items-center justify-center gap-2 bg-primary/70 px-4 py-2.5 text-sm font-semibold text-primary-foreground" disabled>
             Read self-hosting docs
-            <span class="i-tabler-arrow-right size-5"></span>
-          </a>
-          <a href="https://github.com/Jasnan/Arkivra" class="inline-flex items-center justify-center gap-2 border border-border px-4 py-2.5 text-sm font-semibold transition hover:border-primary hover:text-primary" target="_blank" rel="noopener">
-            View source
+          </button>
+          <button type="button" class="inline-flex cursor-not-allowed items-center justify-center gap-2 border border-border px-4 py-2.5 text-sm font-semibold text-muted-foreground" disabled>
             <span class="i-tabler-brand-github size-5"></span>
-          </a>
+            View source
+          </button>
         </div>
       </div>
     </section>

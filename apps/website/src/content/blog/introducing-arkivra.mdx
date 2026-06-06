@@ -1,34 +1,120 @@
 ---
 title: Introducing Arkivra
-description: Arkivra is an open-source document system for vaults, search, and AI-assisted document workflows.
-publishedAt: 2026-05-24
+description: After years of collecting important documents from government offices, banks, insurers, and employers, I wanted a better way to organize, search, translate, and understand them while keeping them under my control.
+publishedAt: 2026-06-06
+draft: true
 lang: en
 ---
 
-Arkivra is an open-source document system for people who want their files organized, searchable, and understandable inside their own infrastructure.
+Over the last decade, I've accumulated hundreds of documents.
 
-The project combines practical document workflows with local or cloud AI models: upload files, organize them into vaults, search across extracted content, and ask questions against a document, a vault, or your whole library.
+Government letters. Insurance paperwork. Tax documents. School records. Employment contracts. Utility bills. Bank statements. PDFs received by email. Scanned documents that started as physical mail.
 
-## What Arkivra Focuses On
+Like many people living in Germany, a surprising amount of life eventually ends up inside folders full of documents.
 
-Arkivra is built around a few core ideas:
+Finding a file was usually possible.
 
-- **Vault-based organization** for separating document collections by workspace, project, or access level.
-- **Roles and permissions** so vaults can be shared without exposing every document to every user.
-- **Full-text and semantic search** using PostgreSQL, pgvector, extracted text, chunks, and metadata.
-- **AI chat over documents** with local model support and optional cloud providers.
-- **Docling-based parsing** for turning files into useful searchable structure.
-- **Encrypted file storage at rest** for uploaded files.
-- **Self-hosting support** with Docker Compose and open-source code.
+Finding the information inside a file was often much harder.
 
-Arkivra is explicit about the tradeoffs behind ingestion, retrieval, and AI integration. Uploaded files are encrypted at rest, while extracted retrieval data is stored separately in PostgreSQL to support search and chat. If you run local AI models, document context stays inside your infrastructure, and Arkivra does not collect telemetry.
+A document might be stored somewhere in an archive, but I still needed a quick way to answer simple questions:
+
+- What is this document about?
+- Which authority sent it?
+- Where is the letter related to this topic?
+- Which documents mention a specific person or reference number?
+
+Finding documents was one challenge. Understanding them was another.
+
+Government letters, insurance paperwork, contracts, and technical documents often contain terminology that requires additional context or explanation. Sometimes a summary was enough. Other times I wanted to ask questions about a specific section or translate part of a document into another language.
+
+Modern AI tools can help with these tasks, but many require uploading sensitive documents to third-party services. For personal records and private correspondence, that was a tradeoff I wasn't always comfortable making.
+
+I wanted something different.
+
+I wanted a system that could help me organize, search, understand, and retrieve information from my documents while remaining under my control.
+
+That eventually became Arkivra.
+
+## What Is Arkivra?
+
+Arkivra is an open-source document management system designed for people who want ownership over their documents without giving up modern search and AI-assisted retrieval.
+
+You can upload files, organize them into vaults, search across their contents, translate documents when needed, and ask questions about the information already stored in your archive.
+
+The goal is not to replace traditional document storage.
+
+The goal is to make stored documents easier to understand and retrieve.
+
+Arkivra does not require AI to be useful. At its core, it remains a document management system focused on organizing, securing, and searching document collections. AI-assisted retrieval, translation, and semantic search are optional capabilities that can be enabled when they provide additional value.
+
+## Core Principles
+
+Arkivra is built around a handful of principles that guide the project.
+
+### Vault-Based Organization
+
+Documents are grouped into vaults.
+
+A vault can represent a project, department, customer, family archive, or any other logical collection of documents.
+
+Vaults also form the foundation for permissions, allowing collections to be shared without exposing every document to every user.
+
+### Search First
+
+Document archives become useful only when information can be found quickly.
+
+Arkivra combines traditional full-text search with semantic search, making it possible to search both by exact keywords and by meaning.
+
+The goal is to help users find relevant information even when they don't remember the exact words used in a document.
+
+### AI-Assisted Retrieval
+
+Arkivra can answer questions about a document, a collection of documents, or an entire archive.
+
+Rather than acting as a general-purpose chatbot, it focuses on retrieving and presenting information already contained within your documents.
+
+### Privacy and Control
+
+Privacy is not an optional feature.
+
+Many document collections contain personal, financial, legal, medical, or business information.
+
+Arkivra supports self-hosted deployments with or without AI features enabled. For users who choose to use AI, local models can be used to keep document processing within their own infrastructure.
+
+### Open Source
+
+Arkivra is built in the open.
+
+The code is available for inspection, modification, and self-hosting. Users should be able to understand how their documents are processed, indexed, and retrieved.
+
+## How It Works
+
+Behind the scenes, Arkivra extracts structure and text from uploaded documents, stores searchable representations inside PostgreSQL, and builds retrieval indexes that power search and AI-assisted querying.
+
+Uploaded files are encrypted at rest. Search and retrieval data are stored separately to enable fast queries across large document collections.
+
+If you choose to run local AI models, document context can remain entirely within your own infrastructure.
+
+Arkivra does not collect telemetry and is designed to operate without sending usage data back to a central service.
 
 ## Current Status
 
-Arkivra is under active development. The core platform is already usable, while deployment, documentation, and operational tooling are still being refined before the first stable release.
+Arkivra is currently approaching its first public release.
 
-If you want to follow along, inspect the code, or try a local deployment, start with the GitHub repository.
+The core platform already supports document ingestion, vault organization, permissions, search, semantic retrieval, AI chat, and self-hosted deployment.
 
-- [GitHub repository](https://github.com/Jasnan/Arkivra)
-- [Documentation](https://docs.arkivra.app)
-- [Self-hosting](https://docs.arkivra.app/self-hosting)
+The current focus is on testing, documentation, operational tooling, and preparing the project for long-term maintenance.
+
+## Looking Ahead
+
+My goal for Arkivra is not to build the largest document management platform.
+
+The goal is to build a dependable one.
+
+A system that is easy to self-host, straightforward to understand, respectful of user privacy, and genuinely useful when you need to find information buried somewhere inside years of accumulated documents.
+
+If that sounds interesting, I hope you'll follow along as the project moves toward its first stable release.
+
+The repository, documentation, and installation guides will be published alongside the public launch.
+
+Thanks for reading.

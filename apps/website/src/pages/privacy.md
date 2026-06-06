@@ -1,50 +1,100 @@
 ---
 layout: ../layouts/MdPage.astro
-title: Privacy
-description: Privacy information for Arkivra, the open-source document management system.
+title: Privacy Policy
+description: How the Arkivra website, self-hosted deployments, and future managed services handle data and privacy.
 ---
+# Privacy
 
-## Privacy
+- Effective Date: May 24, 2026
+- Last Updated: May 24, 2026
 
-- **Effective Date:** May 24, 2026
-- **Last Updated:** May 24, 2026
+## Overview
 
-Arkivra is open-source software. Self-hosting is fully supported, and this page describes the Arkivra website and project defaults.
+Arkivra is an open-source document management system designed primarily for self-hosted deployments.
 
-Independent Arkivra operators are responsible for their own deployments, data processing, access controls, backups, model choices, and legal compliance.
+This privacy policy covers:
 
-### Website Data
+1. The Arkivra project website.
+2. Self-hosted Arkivra deployments.
+3. Future managed services, if they are ever offered.
 
-The Arkivra website is a static marketing and project website. It may receive ordinary web server metadata such as IP address, user agent, requested URL, referrer, and timestamp through hosting infrastructure and security logs.
+Independent operators of self-hosted Arkivra instances are responsible for their own infrastructure, access controls, backups, security practices, AI provider configuration, and legal compliance.
+
+## The Arkivra Website
+
+The Arkivra website is a public project and documentation website.
+
+When you visit the website, hosting infrastructure may process standard web server information such as:
+
+- IP address
+- Browser and device information
+- Requested pages and URLs
+- Referrer information
+- Timestamps
+- Security and operational logs
 
 The website does not need access to your Arkivra documents.
 
+### Analytics and Tracking
+
+Arkivra does not use advertising trackers.
+
+The website does not collect analytics data beyond what may be recorded in standard hosting and security logs required to operate and protect the website.
+
+## Self-Hosted Arkivra Deployments
+
+Arkivra is designed so that you can run the software on infrastructure you control.
+
 ### Telemetry
 
-Arkivra does not include product telemetry and does not collect user information from your instance.
+Arkivra does not include built-in product telemetry.
 
-If you run Arkivra in your own infrastructure and use only local AI models, document content and model context do not need to leave that environment.
+The software does not send document content, user information, usage data, or operational metrics to the project maintainers.
 
-### Document Storage and Ingestion
+### Document Storage
 
 Uploaded files are encrypted at rest by Arkivra.
 
-During ingestion, Arkivra extracts retrieval data from documents so search and AI-assisted workflows can work. This data is stored separately from original files in PostgreSQL, along with metadata, embeddings, vectors, chat history, user accounts, vault membership, permissions, and background job data. Deployment choices determine how that database is secured.
+To support search, retrieval, and optional AI-assisted features, Arkivra also stores processed document data separately from the original files. Depending on configuration, this may include:
 
-Arkivra is not designed as a zero-knowledge or end-to-end encrypted vault.
+- Extracted text
+- Document metadata
+- Structured document content
+- Search indexes
+- Embeddings and vector data
+- Chat history
+- User accounts
+- Permissions and vault membership information
+- Background job data
+
+How this information is secured depends on the infrastructure and security practices of the deployment operator.
+
+Arkivra is not designed as a zero-knowledge or end-to-end encrypted system.
 
 ### AI Processing
 
-With local models, context stays inside the infrastructure where you run Arkivra.
+AI features in Arkivra are optional.
 
-If you configure cloud models, Arkivra sends only the retrieved context needed for the request to the configured provider. It does not send full documents as model context, but retrieved context may contain document content. The provider may log, retain, or process that data depending on its own privacy policy and configuration.
+When using local models, document processing and model context can remain entirely within the infrastructure where Arkivra is deployed.
 
-Review the privacy terms of any cloud model provider before using it with sensitive documents.
+When using cloud-based AI providers, Arkivra sends only the retrieved context required for a request rather than entire documents by default. Depending on retrieval results, that context may contain portions of document content.
 
-### Managed Hosting
+Cloud providers may log, retain, or process submitted data according to their own policies and configuration.
 
-Arkivra does not currently offer a managed hosted service. Managed hosting may be considered later if there is demand. If that happens, the privacy terms for the hosted service should be documented separately from self-hosted deployments.
+Before using cloud-based AI services with sensitive documents, review the privacy and data-handling terms of the selected provider.
 
-### Contact
+## Future Managed Services
 
-For project questions, open an issue at [github.com/Jasnan/Arkivra](https://github.com/Jasnan/Arkivra) or contact the maintainer through [jasnan.xyz](https://jasnan.xyz).
+Arkivra does not currently provide a managed hosted service.
+
+If a managed Arkivra service is offered in the future, it may require additional processing of account information, operational data, and hosted content to provide the service.
+
+Any managed offering should be governed by separate privacy terms that clearly describe:
+
+- What data is collected
+- Why the data is processed
+- How long data is retained
+- Which third-party services are involved
+- The rights available to users of the hosted service
+
+Those terms would be published separately from this policy.

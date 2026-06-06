@@ -5,9 +5,9 @@
 <p align="center">
   <a href="https://arkivra.app">Website</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="https://docs.arkivra.app">Documentation</a>
+  <span>Documentation coming soon</span>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="https://docs.arkivra.app/self-hosting">Self-hosting</a>
+  <span>Self-hosting docs coming soon</span>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
   <a href="#features">Features</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
@@ -87,7 +87,20 @@ Docker Compose currently starts PostgreSQL with pgvector, Docling, the API proce
 
 More detailed setup, deployment, and operational documentation is available at:
 
-- https://docs.arkivra.app
+- https://docs.arkivra.app (coming soon)
+
+---
+
+## Project Surfaces
+
+The repository is organized around these public surfaces:
+
+| Surface | Source | Target |
+| ------- | ------ | ------ |
+| API | `apps/api` | `api` |
+| Dashboard | `apps/web` | `dashboard` |
+| Website | `apps/website` | `https://arkivra.app` |
+| Documentation | `docs` | `https://docs.arkivra.app` |
 
 ---
 

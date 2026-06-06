@@ -14,7 +14,9 @@ const { t } = useI18n({ locale: Astro.currentLocale });
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
   const posts = await getCollection('blog');
 
-  const sortedPosts = posts.sort((a, b) => b.data.publishedAt.getTime() - a.data.publishedAt.getTime());
+  const sortedPosts = posts
+    .filter(post => !post.data.draft)
+    .sort((a, b) => b.data.publishedAt.getTime() - a.data.publishedAt.getTime());
 
   return paginate(sortedPosts, { pageSize: 12 });
 }
@@ -31,8 +33,8 @@ const { page } = Astro.props as { page: Page<CollectionEntry<'blog'>> };
 <Layout title="Blog" description="Notes from the Arkivra project: releases, architecture, and document workflows." image={{ src: '/og/blog.png', alt: 'What is new in Arkivra' }}>
   <Header />
 
-  <div class="flex flex-col min-h-screen">
-    <div class="w-full bg-[linear-gradient(to_right,#80808010_1px,transparent_1px),linear-gradient(to_bottom,#80808010_1px,transparent_1px)] bg-[size:48px_48px] bg-background border-b pt-32 pb-24">
+  <div class="flex min-h-screen flex-col bg-background text-foreground">
+    <div class="w-full border-b border-border bg-card pt-32 pb-20">
       <div class="max-w-450px mx-auto p-4 text-center">
         <h1 class="mb-3 font-display text-3xl font-semibold leading-tight">{t('blog.title')}</h1>
         <p class="mb-2 text-base leading-7 text-muted-foreground">{t('blog.subtitle')}</p>
@@ -40,7 +42,7 @@ const { page } = Astro.props as { page: Page<CollectionEntry<'blog'>> };
     </div>
 
     <h2 class="sr-only">{t('blog.posts-heading')}</h2>
-    <div class="p-6 flex-1 py-20 flex flex-col gap-8">
+    <div class="flex flex-1 flex-col gap-8 px-6 py-16">
       {
         page.data.map(post => (
           <BlogCard {...{ post }} />

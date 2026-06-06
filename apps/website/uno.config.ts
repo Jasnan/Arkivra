@@ -22,8 +22,8 @@ export default defineConfig({
     presetAnimations(),
     presetIcons({
       collections: {
-        'simple-icons': () => import('@iconify-json/simple-icons/icons.json').then(i => i.default),
-        'tabler': () => import('@iconify-json/tabler/icons.json').then(i => i.default),
+        'simple-icons': () => import('@iconify-json/simple-icons/icons.json', { with: { type: 'json' } }).then(i => i.default),
+        'tabler': () => import('@iconify-json/tabler/icons.json', { with: { type: 'json' } }).then(i => i.default),
       },
     }),
     presetTypography(),

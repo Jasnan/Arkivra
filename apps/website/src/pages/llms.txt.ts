@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 
 export const GET: APIRoute = async ({ site }) => {
-  const posts = await getCollection('blog');
+  const posts = await getCollection('blog', post => !post.data.draft);
   const getBlogPostUrl = (slug: string) => new URL(`blog/${slug}`, site).href;
 
   const llmTxt = `
@@ -16,8 +16,8 @@ ${posts.map(post => `- [${post.data.title}](${getBlogPostUrl(post.slug)}): ${pos
 
 ## Assets
 
-- [Arkivra Documentation](https://docs.arkivra.app): Documentation for running and using Arkivra.
-- [Arkivra GitHub](https://github.com/Jasnan/Arkivra): The source code for Arkivra.
+- Arkivra Documentation: unavailable during release prep.
+- Arkivra GitHub: unavailable during release prep.
 - [Contact](https://jasnan.xyz): Contact the maintainer.
 
 ## Legal

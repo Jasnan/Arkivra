@@ -13,7 +13,7 @@ function formatDate(date: Date) {
 
 export const GET: APIRoute = async (context) => {
   const unsortedPosts = await getCollection('blog');
-  const posts = sortPosts(unsortedPosts);
+  const posts = sortPosts(unsortedPosts.filter(post => !post.data.draft));
 
   return rss({
     title: 'Arkivra Blog',

@@ -52,7 +52,7 @@ const securityNotes = [
   },
   {
     title: 'Derived retrieval data',
-    description: 'Search indexes and retrieval data are stored separately from original files to support search and AI workflows.',
+    description: 'Arkivra stores extracted text, metadata, and search indexes separately from original files to enable full-text search, semantic search, and AI-assisted retrieval.',
   },
   {
     title: 'Local and cloud models',
@@ -67,15 +67,18 @@ const faqItems = [
   },
   {
     question: 'Do my documents leave my machine?',
-    answer: 'No. When configured with local LLMs via Ollama, indexing, embedding, and chat processing happens on your own hardware. Your private data stays inside your environment.',
+    answer: [
+      'Not by default. Core document management and full-text search run entirely inside your Arkivra deployment.',
+      'AI-assisted chat, translation, semantic search, and retrieval use the model provider you configure. With local models, document context can remain entirely within your own environment. When using a cloud or remote provider, only the selected or retrieved document context required for that request is sent to the configured provider.',
+    ],
   },
   {
     question: 'Which AI models are supported?',
-    answer: 'Arkivra integrates with Ollama, so models supported by Ollama, like Llama 3, Mistral, and Phi-3, can be used locally. Cloud APIs are also supported for users who prefer them.',
+    answer: 'Arkivra supports local models through Ollama and can be configured to use supported cloud providers. The available models depend on the providers you configure.',
   },
   {
-    question: 'Does Arkivra support scanned documents?',
-    answer: 'Arkivra extracts searchable text and structure during ingestion, including from scanned documents when parsing is configured for them.',
+    question: 'Can Arkivra search scanned PDFs and documents?',
+    answer: 'Yes. Arkivra extracts searchable text and document structure from scanned documents during ingestion. Once processed, scanned documents can be searched just like other documents in your archive.',
   },
 ];
 ---
@@ -108,9 +111,9 @@ const faqItems = [
           <div class="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <span>Open Source</span>
             <span aria-hidden="true">·</span>
-            <span>Semantic Search</span>
+            <span>Privacy Minded</span>
             <span aria-hidden="true">·</span>
-            <span>AI Chat</span>
+            <span>Optional AI</span>
           </div>
 
           <h1 class="max-w-660px font-display text-4xl font-semibold leading-tight text-balance md:text-6xl">
@@ -118,8 +121,8 @@ const faqItems = [
             Find anything.
           </h1>
 
-          <p class="mt-6 max-w-600px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">
-            Arkivra is an open-source document system for organizing files into vaults, searching with full-text and semantic search, and chatting with documents using local or cloud AI.
+          <p class="mt-6 max-w-700px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">
+            Arkivra is an open-source document management system for organizing, searching, and understanding your documents. Use full-text search out of the box, then add semantic search and AI-assisted retrieval when you need them.
           </p>
 
           <div class="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -130,15 +133,14 @@ const faqItems = [
               Self-host Arkivra
               <span class="i-tabler-arrow-right size-5"></span>
             </a>
-            <a
-              href="https://github.com/Jasnan/Arkivra"
-              class="inline-flex items-center justify-center gap-2 border border-border bg-background/60 px-4 py-2.5 text-sm font-semibold transition hover:border-foreground/30 hover:text-foreground"
-              target="_blank"
-              rel="noopener"
+            <button
+              type="button"
+              class="inline-flex cursor-not-allowed items-center justify-center gap-2 border border-border bg-background/60 px-4 py-2.5 text-sm font-semibold text-muted-foreground"
+              disabled
             >
               <span class="i-tabler-brand-github size-5"></span>
               View on GitHub
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -287,7 +289,11 @@ const faqItems = [
                   <h3 class="text-xl font-semibold">{item.question}</h3>
                   <span class="i-tabler-chevron-down size-5 flex-shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true"></span>
                 </summary>
-                <p class="mt-4 text-base leading-7 text-muted-foreground">{item.answer}</p>
+                <div class="mt-4 space-y-4 text-base leading-7 text-muted-foreground">
+                  {(Array.isArray(item.answer) ? item.answer : [item.answer]).map(paragraph => (
+                    <p>{paragraph}</p>
+                  ))}
+                </div>
               </details>
             ))
           }

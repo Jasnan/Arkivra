@@ -13,7 +13,7 @@ Arkivra is open-source software released under the AGPL-3.0 license. You may use
 
 ### Open-Source Software
 
-The Arkivra source code is available at [github.com/Jasnan/Arkivra](https://github.com/Jasnan/Arkivra).
+The Arkivra source code will be available when the public repository opens.
 
 Self-hosted deployments are operated by the people or organizations that run them. The Arkivra project does not control independent deployments and is not responsible for their data processing, availability, backups, security posture, or legal compliance.
 
@@ -37,4 +37,4 @@ Losing the active encryption key means losing access to encrypted stored files.
 
 ### Contact
 
-For project questions, open an issue at [github.com/Jasnan/Arkivra](https://github.com/Jasnan/Arkivra) or contact the maintainer through [jasnan.xyz](https://jasnan.xyz).
+For project questions before the public repository opens, contact the maintainer through [jasnan.xyz](https://jasnan.xyz).

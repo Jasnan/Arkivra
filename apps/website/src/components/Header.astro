@@ -1,33 +1,24 @@
 ---
-import { config } from '../app.config';
 import { buildLocalizedPath, useI18n } from '../i18n/i18n';
-import { getSocials } from '../socials';
-import { cn } from '../utils/cn';
 
 const { t } = useI18n({ locale: Astro.currentLocale });
 
-const socials = getSocials({ t }).filter(social => social.inHeader);
+type NavigationItem
+  = | { name: string; url: string; isAvailable?: true }
+    | { name: string; isAvailable: false };
 
-const navigation = [
-  {
-    name: t('nav.features'),
-    url: '/#features',
-  },
-  {
-    name: t('nav.self-host'),
-    url: '/self-host',
-  },
-  {
-    name: t('nav.security'),
-    url: '/#security',
-  },
+const navigation: NavigationItem[] = [
   {
     name: t('nav.docs'),
-    url: 'https://docs.arkivra.app',
+    isAvailable: false,
+  },
+  {
+    name: t('nav.blog'),
+    url: '/blog',
   },
   {
     name: t('nav.demo'),
-    url: 'https://github.com/Jasnan/Arkivra',
+    isAvailable: false,
   },
 ];
 
@@ -35,7 +26,7 @@ type Props = {
   class?: string;
 };
 
-const { class: className } = Astro.props;
+const { class: className = '' } = Astro.props;
 ---
 
 <nav
@@ -54,24 +45,22 @@ const { class: className } = Astro.props;
   <div class="items-center gap-6 hidden md:flex">
     {
       navigation.map(nav => (
-        <a href={nav.url} class="text-sm font-medium text-muted-foreground transition hover:text-foreground" {...(nav.url.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {})}>
-          {nav.name}
-        </a>
+        nav.isAvailable === false
+          ? (
+            <span class="cursor-default text-sm font-medium text-muted-foreground/75" aria-disabled="true">
+              {nav.name}
+            </span>
+            )
+          : (
+            <a href={nav.url} class="text-sm font-medium text-muted-foreground transition hover:text-foreground" {...(nav.url.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {})}>
+              {nav.name}
+            </a>
+            )
       ))
     }
   </div>
 
   <div class="flex items-center gap-4">
-    <div class="flex items-center gap-2">
-      {
-        socials.map(social => (
-          <a href={social.url} target="_blank" rel="noopener noreferrer" class="text-muted-foreground transition hover:text-foreground" aria-label={social.name}>
-            <div class={cn('size-5', social.icon)} />
-          </a>
-        ))
-      }
-    </div>
-
     <button
       type="button"
       class="inline-flex size-9 items-center justify-center border border-border bg-background/70 text-foreground transition hover:border-foreground/30"
@@ -82,15 +71,6 @@ const { class: className } = Astro.props;
       <span class="i-tabler-sun size-5 dark:hidden" aria-hidden="true"></span>
       <span class="i-tabler-moon hidden size-5 dark:block" aria-hidden="true"></span>
     </button>
-
-    <a
-      class="flex gap-1.5 items-center border border-border bg-background/70 font-medium py-1.5 px-3 text-foreground text-sm transition hover:border-foreground/30"
-      href={config.getStartedLink}
-      target="_blank"
-    >
-      {t('nav.sign-in')}
-      <div class="i-tabler-arrow-right size-4"></div>
-    </a>
   </div>
 </nav>
 

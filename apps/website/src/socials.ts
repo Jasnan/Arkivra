@@ -3,7 +3,6 @@ import { useI18n } from './i18n/i18n.ts';
 
 export const GITHUB_REPO_URL = 'https://github.com/Jasnan/Arkivra';
 export const GITHUB_ISSUES_URL = `${GITHUB_REPO_URL}/issues`;
-export const DISCORD_INVITE_URL = GITHUB_REPO_URL;
 
 export function getSocials({
   t = useI18n().t,
@@ -17,7 +16,8 @@ export function getSocials({
       label: t('socials.github.label'),
       url: GITHUB_REPO_URL,
       icon: 'i-tabler-brand-github',
-      inHeader: true,
+      inHeader: false,
+      isAvailable: false,
     },
   ];
 }

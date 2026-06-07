@@ -13,7 +13,7 @@ Paperless-NGX is a mature, widely used document management project with a strong
 - **Vault-first organization**: Separate collections by workspace, team, project, or sensitivity.
 - **Semantic retrieval**: Combine full-text search with pgvector-backed semantic search.
 - **Document chat**: Ask questions against a document, a vault, or the full library.
-- **Local-first AI workflows**: Use local models when you want AI features under your own control, with cloud models as an operator choice.
+- **Local-first AI workflows**: Use Ollama-backed local models when you want AI features under your own control.
 - **Modern TypeScript stack**: React, Hono, Drizzle, PostgreSQL, Docling, and background workers.
 
 Arkivra is newer and still under active development. Paperless-NGX remains the better choice if you need a very mature production system today.
@@ -45,7 +45,7 @@ Arkivra is newer and still under active development. Paperless-NGX remains the b
     {
       feature: 'AI deployment style',
       paperless: 'Depends on external integrations',
-      arkivra: 'Local AI supported, cloud models optional'
+      arkivra: 'Ollama-backed local AI supported'
     },
     {
       feature: 'Parsing',

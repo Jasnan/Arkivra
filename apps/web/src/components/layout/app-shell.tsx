@@ -51,7 +51,6 @@ import type { SecondaryNavIcon } from '@/components/layout/secondary-nav-link';
 import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
 import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-context';
 import { ROUTES } from '@/app/routes';
-import { RouterDebugProbe } from '@/features/auth/auth-guards';
 import { authClient } from '@/lib/auth-client';
 import { formatDate } from '@/features/documents/documents.utils';
 import { useDocumentQuery } from '@/features/documents/documents.queries';
@@ -1403,7 +1402,6 @@ export function AppShell() {
           </chakra.button>
         </Box>
       ) : null}
-      <RouterDebugProbe />
       <Outlet />
     </>
   );

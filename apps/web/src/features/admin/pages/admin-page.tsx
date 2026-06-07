@@ -2589,8 +2589,8 @@ export function AdminAiSettingsPage() {
         </SimpleGrid>
 
         <AiSettingsSection
-          title="Providers"
-          description="Infrastructure configuration for AI providers."
+          title="Provider"
+          description="Ollama provider configuration, with additional provider slots reserved for future support."
           actions={
             <Button type="button" size="sm" variant="outline" disabled>
               <Plus size={14} />
@@ -2748,7 +2748,7 @@ export function AdminAiSettingsPage() {
                 </RadioGroup>
               ) : (
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
-                  {chatModelsQuery.isFetching ? 'Loading chat models from configured providers...' : 'No chat models are available from configured providers.'}
+                  {chatModelsQuery.isFetching ? 'Loading chat models from Ollama...' : 'No chat models are available from the configured Ollama endpoint.'}
                 </Text>
               )}
             </Box>
@@ -2826,7 +2826,7 @@ export function AdminAiSettingsPage() {
                   </RadioGroup>
                 ) : (
                   <Text px="3" py="3" textStyle="sm" color="fg.muted">
-                    {chatModelsQuery.isFetching ? 'Loading models from configured providers...' : 'No catalog embedding models were found from configured providers.'}
+                    {chatModelsQuery.isFetching ? 'Loading models from Ollama...' : 'No catalog embedding models were found from the configured Ollama endpoint.'}
                   </Text>
                 )}
               </Box>

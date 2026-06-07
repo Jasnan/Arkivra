@@ -7,7 +7,7 @@ const requirements = [
   'Docker Compose for the current first-class deployment path',
   'PostgreSQL with pgvector for metadata, search, embeddings, and chat state',
   'Docling for document parsing and ingestion',
-  'Local model support for private AI search and chat workflows',
+  'Optional Ollama support for local AI search, translation, and chat workflows',
   'A protected ARKIVRA_ENCRYPTION_KEYS backup outside the server',
 ];
 
@@ -32,12 +32,12 @@ const responsibilities = [
   },
   {
     title: 'Choose your AI boundary',
-    description: 'With local models, document context stays inside your infrastructure. With cloud models, only retrieved context needed for the request is sent to the provider you configure.',
+    description: 'With a local Ollama server, document context stays inside your infrastructure. If you point Arkivra at a remote model endpoint, retrieved context needed for the request is sent to that endpoint.',
   },
 ];
 ---
 
-<Layout title="Self-host Arkivra" description="Run Arkivra on your own infrastructure with Docker Compose, PostgreSQL, Docling, and local-first AI workflows.">
+<Layout title="Self-host Arkivra" description="Run Arkivra on your own infrastructure with Docker Compose, PostgreSQL, Docling, and optional Ollama-backed AI workflows.">
   <div class="min-h-screen bg-background">
     <Header />
 
@@ -47,7 +47,7 @@ const responsibilities = [
           <div class="text-sm font-semibold uppercase tracking-wide text-primary">Self-hosting</div>
           <h1 class="mt-4 font-display text-4xl font-semibold leading-tight md:text-6xl">Run the document stack where your documents already belong.</h1>
           <p class="mt-5 text-base leading-7 text-muted-foreground md:text-xl md:leading-8">
-            Arkivra is designed to run well in your own infrastructure. The current deployment path is intentionally direct: Docker Compose, PostgreSQL, Docling, the API, the web app, and background workers.
+            Arkivra is designed to run well in your own infrastructure. The current Compose path is intentionally direct: PostgreSQL, Docling, the API, and background workers, with the dashboard run separately during local evaluation.
           </p>
           <p class="mt-4 text-base leading-7 text-muted-foreground">
             A managed hosting option may be considered later if demand appears. Self-hosting will remain a supported deployment path.
@@ -95,7 +95,7 @@ const responsibilities = [
           <div class="text-sm font-semibold uppercase tracking-wide text-primary">Operator notes</div>
           <h2 class="mt-4 font-display text-2xl font-semibold leading-tight md:text-4xl">Security is part of the deployment.</h2>
           <p class="mt-5 max-w-680px leading-7 text-muted-foreground">
-            Arkivra does not include telemetry and does not collect user information. If you run it in your own infrastructure with local models, document context stays in that environment.
+            Arkivra does not include telemetry and does not collect user information. If you run it in your own infrastructure with a local Ollama server, document context stays in that environment.
           </p>
         </div>
 

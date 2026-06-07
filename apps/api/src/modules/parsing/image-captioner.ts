@@ -1,4 +1,5 @@
-import { z } from 'zod';
+import type { OllamaProvider } from '../ai/providers/index.js';
+import { createOllamaProvider } from '../ai/providers/index.js';
 
 export type ImageCaptionerSettings = {
   enabled: boolean;
@@ -12,58 +13,37 @@ export interface ImageCaptioner {
   caption: (image: { mimeType: string; data: Buffer }) => Promise<string | null>;
 }
 
-const ollamaChatResponseSchema = z.object({
-  message: z.object({
-    content: z.string().optional().default(''),
-  }).optional().default({ content: '' }),
-});
-
-async function readErrorMessage(response: Response) {
-  return await response.text().catch(() => '');
-}
-
 async function captionImage({
-  host,
+  ollama,
+  settings,
   model,
   base64Image,
-  fetchImpl,
 }: {
-  host: string;
+  ollama: OllamaProvider;
+  settings: ImageCaptionerSettings;
   model: string;
   base64Image: string;
-  fetchImpl: typeof fetch;
 }) {
-  const response = await fetchImpl(`${host}/api/chat`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      think: false,
-      options: {
-        temperature: 0,
+  return await ollama.chat({
+    host: settings.host,
+    model,
+    errorResponse: 'text',
+    options: {
+      temperature: 0,
+    },
+    messages: [
+      {
+        role: 'user',
+        content: [
+          'Describe this image in one concise sentence for semantic search.',
+          'Focus on what the image depicts, its content, and key visual elements.',
+          'Do not mention that it is an image or picture.',
+          'Return only the description, nothing else.',
+        ].join('\n'),
+        images: [base64Image],
       },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            'Describe this image in one concise sentence for semantic search.',
-            'Focus on what the image depicts, its content, and key visual elements.',
-            'Do not mention that it is an image or picture.',
-            'Return only the description, nothing else.',
-          ].join('\n'),
-          images: [base64Image],
-        },
-      ],
-    }),
+    ],
   });
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
-  const payload = ollamaChatResponseSchema.parse(await response.json());
-  return payload.message.content.trim();
 }
 
 export function createRuntimeConfiguredOllamaImageCaptioner({
@@ -73,6 +53,8 @@ export function createRuntimeConfiguredOllamaImageCaptioner({
   resolveSettings: () => Promise<ImageCaptionerSettings>;
   fetchImpl?: typeof fetch;
 }): ImageCaptioner {
+  const ollama = createOllamaProvider({ fetchImpl });
+
   return {
     name: 'ollama-image-captioner',
     caption: async (image) => {
@@ -91,10 +73,10 @@ export function createRuntimeConfiguredOllamaImageCaptioner({
 
       try {
         const caption = await captionImage({
-          host: settings.host.trim().replace(/\/+$/, ''),
+          ollama,
+          settings,
           model: settings.model,
           base64Image,
-          fetchImpl,
         });
 
         if (caption.length === 0) {

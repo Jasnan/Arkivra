@@ -1,6 +1,7 @@
 import type { ParsedChunk } from './parsed-document.schema.js';
 import { serializeTableHtmlForRetrieval } from './table-formatting.js';
-import { z } from 'zod';
+import type { OllamaProvider } from '../ai/providers/index.js';
+import { createOllamaProvider } from '../ai/providers/index.js';
 
 export type RuntimeOllamaSummarisationSettings = {
   enabled: boolean;
@@ -18,12 +19,6 @@ export interface ChunkSummariser {
   }>;
 }
 
-const ollamaChatResponseSchema = z.object({
-  message: z.object({
-    content: z.string().optional().default(''),
-  }).optional().default({ content: '' }),
-});
-
 function previewSnippet(value: string, maxLength = 180) {
   const collapsed = value.replace(/\s+/g, ' ').trim();
   if (collapsed.length <= maxLength) {
@@ -31,10 +26,6 @@ function previewSnippet(value: string, maxLength = 180) {
   }
 
   return `${collapsed.slice(0, maxLength)}...`;
-}
-
-async function readErrorMessage(response: Response) {
-  return await response.text().catch(() => '');
 }
 
 function buildPrompt(chunk: ParsedChunk) {
@@ -66,45 +57,34 @@ function buildPrompt(chunk: ParsedChunk) {
 }
 
 async function summariseChunk({
-  host,
+  ollama,
+  settings,
   model,
   chunk,
   maxImagesPerChunk,
-  fetchImpl,
 }: {
-  host: string;
+  ollama: OllamaProvider;
+  settings: RuntimeOllamaSummarisationSettings;
   model: string;
   chunk: ParsedChunk;
   maxImagesPerChunk: number;
-  fetchImpl: typeof fetch;
 }) {
   const selectedImages = chunk.images.slice(0, Math.max(0, maxImagesPerChunk));
-  const response = await fetchImpl(`${host}/api/chat`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      think: false,
-      options: {
-        temperature: 0,
+  return await ollama.chat({
+    host: settings.host,
+    model,
+    errorResponse: 'text',
+    options: {
+      temperature: 0,
+    },
+    messages: [
+      {
+        role: 'user',
+        content: buildPrompt(chunk),
+        images: selectedImages.map(image => image.data.toString('base64')),
       },
-      messages: [
-        {
-          role: 'user',
-          content: buildPrompt(chunk),
-          images: selectedImages.map(image => image.data.toString('base64')),
-        },
-      ],
-    }),
+    ],
   });
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
-  const payload = ollamaChatResponseSchema.parse(await response.json());
-  return payload.message.content.trim();
 }
 
 export function createNoopChunkSummariser(): ChunkSummariser {
@@ -125,6 +105,7 @@ export function createRuntimeConfiguredOllamaChunkSummariser({
   fetchImpl?: typeof fetch;
 }): ChunkSummariser {
   const noopSummariser = createNoopChunkSummariser();
+  const ollama = createOllamaProvider({ fetchImpl });
 
   return {
     name: 'runtime-configured-ollama-chunk-summariser',
@@ -165,11 +146,11 @@ export function createRuntimeConfiguredOllamaChunkSummariser({
 
       try {
         const enhancedContent = await summariseChunk({
-          host: settings.host,
+          ollama,
+          settings,
           model: settings.model,
           chunk,
           maxImagesPerChunk: cappedImageCount,
-          fetchImpl,
         });
 
         return {

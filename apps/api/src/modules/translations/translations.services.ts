@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { createOllamaProvider } from '../ai/providers/index.js';
 
 export const SUPPORTED_TRANSLATION_LANGUAGES = ['de', 'en'] as const;
 
@@ -55,12 +55,6 @@ export interface TranslationProvider {
     model: string;
   }>;
 }
-
-const ollamaChatResponseSchema = z.object({
-  message: z.object({
-    content: z.string().optional().default(''),
-  }).optional().default({ content: '' }),
-});
 
 const TRANSLATION_SYSTEM_PROMPT = [
   'You are Arkivra\'s document translation engine.',
@@ -152,15 +146,6 @@ function getOllamaImageAttachments(source: TranslationSource) {
   return [source.imageBase64];
 }
 
-async function readOllamaError(response: Response) {
-  try {
-    const body = await response.json() as { error?: string };
-    return body.error ?? `Ollama returned status ${response.status}`;
-  } catch {
-    return `Ollama returned status ${response.status}`;
-  }
-}
-
 export function createRuntimeConfiguredOllamaTranslationProvider({
   resolveSettings,
   fetchImpl = fetch,
@@ -168,6 +153,8 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
   resolveSettings: () => Promise<RuntimeTranslationSettings>;
   fetchImpl?: typeof fetch;
 }): TranslationProvider {
+  const ollama = createOllamaProvider({ fetchImpl });
+
   return {
     name: 'ollama',
     async translate({ targetLanguage, source, signal }) {
@@ -175,7 +162,6 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
       if (settings.enabled === false) {
         throw new Error('AI features are disabled for this Arkivra instance.');
       }
-      const host = settings.host.replace(/\/+$/, '');
       const prompt = buildPrompt({ targetLanguage, source });
       const images = getOllamaImageAttachments(source);
 
@@ -185,37 +171,26 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
         );
       }
 
-      const response = await fetchImpl(`${host}/api/chat`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
+      const text = await ollama.chat({
+        host: settings.host,
+        model: settings.model,
         signal,
-        body: JSON.stringify({
-          model: settings.model,
-          stream: false,
-          think: false,
-          messages: [
-            {
-              role: 'system',
-              content: TRANSLATION_SYSTEM_PROMPT,
-            },
-            {
-              role: 'user',
-              content: prompt,
-              ...(images ? { images } : {}),
-            },
-          ],
-          options: {
-            temperature: 0,
+        errorResponse: 'json',
+        messages: [
+          {
+            role: 'system',
+            content: TRANSLATION_SYSTEM_PROMPT,
           },
-        }),
+          {
+            role: 'user',
+            content: prompt,
+            ...(images ? { images } : {}),
+          },
+        ],
+        options: {
+          temperature: 0,
+        },
       });
-
-      if (!response.ok) {
-        throw new Error(await readOllamaError(response));
-      }
-
-      const payload = ollamaChatResponseSchema.parse(await response.json());
-      const text = payload.message.content.trim();
 
       if (text.length === 0) {
         throw new Error('Ollama returned an empty translation.');

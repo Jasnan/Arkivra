@@ -11,31 +11,11 @@ import type {
 } from './ai.types.js';
 import type { EmbeddingIndexQueue } from '../../ai/indexing/index.js';
 import { eq, sql } from 'drizzle-orm';
-import { z } from 'zod';
 import { createEmbeddingIndexServices } from '../../ai/indexing/index.js';
+import { createOllamaProvider, normalizeOllamaHost } from '../../ai/providers/index.js';
 import { instanceSettingsTable } from '../../database/schema/index.js';
 
 const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
-
-const ollamaTagsResponseSchema = z.object({
-  models: z.array(z.object({
-    name: z.string().min(1),
-    size: z.number().nullable().optional(),
-    modified_at: z.string().nullable().optional(),
-  })).default([]),
-});
-
-const ollamaGenerateResponseSchema = z.object({
-  response: z.string().optional(),
-});
-
-const ollamaEmbedResponseSchema = z.object({
-  embeddings: z.array(z.array(z.number())),
-});
-
-const ollamaLegacyEmbeddingResponseSchema = z.object({
-  embedding: z.array(z.number()),
-});
 
 type EmbeddingIndexSummaryRow = {
   id: string;
@@ -77,7 +57,7 @@ type CurrentEmbeddedChunkCountRow = {
 };
 
 function normalizeHost(host: string) {
-  return host.trim().replace(/\/+$/, '');
+  return normalizeOllamaHost(host);
 }
 
 function toIsoOrNull(value: Date | string | null) {
@@ -103,15 +83,6 @@ function shouldCompareIndexWithCorpus(status: AdminEmbeddingIndexSummary['status
   return status === 'building'
     || status === 'ready'
     || status === 'active';
-}
-
-async function readErrorMessage(response: Response) {
-  try {
-    const body = await response.json() as { error?: string };
-    return body.error ?? `status ${response.status}`;
-  } catch {
-    return `status ${response.status}`;
-  }
 }
 
 function createDefaultSettings(config: Config): AdminAiSettings {
@@ -181,59 +152,15 @@ function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
 }
 
 async function resolveOllamaEmbeddingDimensions({
-  fetchImpl,
+  ollama,
   host,
   model,
 }: {
-  fetchImpl: typeof fetch;
+  ollama: ReturnType<typeof createOllamaProvider>;
   host: string;
   model: string;
 }) {
-  const normalizedHost = normalizeHost(host);
-  const embedResponse = await fetchImpl(`${normalizedHost}/api/embed`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      input: ['dimension probe'],
-    }),
-  });
-
-  if (embedResponse.ok) {
-    const payload = ollamaEmbedResponseSchema.parse(await embedResponse.json());
-    const dimensions = payload.embeddings[0]?.length;
-
-    if (dimensions === undefined || dimensions <= 0) {
-      throw new Error(`Ollama returned an empty embedding for model "${model}".`);
-    }
-
-    return dimensions;
-  }
-
-  if (embedResponse.status !== 404) {
-    throw new Error(await readErrorMessage(embedResponse));
-  }
-
-  const legacyResponse = await fetchImpl(`${normalizedHost}/api/embeddings`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      prompt: 'dimension probe',
-    }),
-  });
-
-  if (!legacyResponse.ok) {
-    throw new Error(await readErrorMessage(legacyResponse));
-  }
-
-  const payload = ollamaLegacyEmbeddingResponseSchema.parse(await legacyResponse.json());
-
-  if (payload.embedding.length <= 0) {
-    throw new Error(`Ollama returned an empty embedding for model "${model}".`);
-  }
-
-  return payload.embedding.length;
+  return await ollama.resolveEmbeddingDimensions({ host, model });
 }
 
 export function createAdminAiServices({
@@ -247,6 +174,8 @@ export function createAdminAiServices({
   embeddingIndexQueue?: EmbeddingIndexQueue;
   fetchImpl?: typeof fetch;
 }) {
+  const ollama = createOllamaProvider({ fetchImpl });
+
   async function getStoredSettings() {
     const [settings] = await db
       .select()
@@ -502,7 +431,7 @@ export function createAdminAiServices({
           embedding: {
             ...initialNormalized.embedding,
             dimensions: await resolveOllamaEmbeddingDimensions({
-              fetchImpl,
+              ollama,
               host: initialNormalized.embedding.baseUrl,
               model: initialNormalized.embedding.model,
             }),
@@ -574,21 +503,7 @@ export function createAdminAiServices({
 
   async function listModels({ host }: { host?: string } = {}): Promise<AdminAiModel[]> {
     const effectiveHost = normalizeHost(host ?? (await getSettings()).ollamaHost);
-    const response = await fetchImpl(`${effectiveHost}/api/tags`);
-
-    if (!response.ok) {
-      throw new Error(`Could not query Ollama models from ${effectiveHost} (status ${response.status})`);
-    }
-
-    const body = ollamaTagsResponseSchema.parse(await response.json());
-
-    return body.models
-      .map(model => ({
-        name: model.name,
-        size: model.size ?? null,
-        modifiedAt: model.modified_at ?? null,
-      }))
-      .sort((left, right) => left.name.localeCompare(right.name));
+    return await ollama.listModels({ host: effectiveHost });
   }
 
   async function probeModelLoad({
@@ -598,25 +513,7 @@ export function createAdminAiServices({
     host: string;
     model: string;
   }) {
-    const response = await fetchImpl(`${host}/api/generate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        prompt: 'ping',
-        stream: false,
-        options: {
-          num_predict: 1,
-          temperature: 0,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(await readErrorMessage(response));
-    }
-
-    ollamaGenerateResponseSchema.parse(await response.json());
+    await ollama.probeGenerate({ host, model });
   }
 
   async function checkModelAvailability({

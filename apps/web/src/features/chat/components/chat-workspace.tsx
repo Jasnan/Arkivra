@@ -140,8 +140,39 @@ function hasPendingAssistantMessage(messages: ChatMessage[]) {
     if (message.role !== 'assistant') return false;
     const generationStatus = message.metadata?.generationStatus;
     if (generationStatus === 'completed' || generationStatus === 'failed') return false;
-    return message.parts.some(part => part.type === 'data-status') || generationStatus === undefined || generationStatus === null;
+    return message.parts.some(part => part.type === 'data-status')
+      || generationStatus === 'pending'
+      || generationStatus === undefined
+      || generationStatus === null;
   });
+}
+
+function localPendingAssistantMessages(messages: ChatMessage[]) {
+  return messages.filter((message) => {
+    if (message.role !== 'assistant') return false;
+    const generationStatus = message.metadata?.generationStatus;
+    return generationStatus !== 'completed' && generationStatus !== 'failed';
+  });
+}
+
+function hasTerminalPersistedMessageForLocalPending({
+  localMessages,
+  persistedMessages,
+}: {
+  localMessages: ChatMessage[];
+  persistedMessages: ChatMessage[];
+}) {
+  const terminalPersistedIds = new Set(
+    persistedMessages
+      .filter(message =>
+        message.role === 'assistant'
+        && (message.metadata?.generationStatus === 'completed' || message.metadata?.generationStatus === 'failed'))
+      .map(message => message.id),
+  );
+
+  const pendingLocalMessages = localPendingAssistantMessages(localMessages);
+  return pendingLocalMessages.length > 0
+    && pendingLocalMessages.every(message => terminalPersistedIds.has(message.id));
 }
 
 function messageSignature(messages: ChatMessage[]) {
@@ -176,7 +207,9 @@ function shouldUseLocalRuntimeMessages({
 }) {
   if (!localMessages || localMessages.length === 0) return false;
   if (persistedMessages.length === 0) return true;
-  if (hasPendingAssistantMessage(localMessages) && persistedMessages.length < localMessages.length) return true;
+  if (hasPendingAssistantMessage(localMessages)) {
+    return !hasTerminalPersistedMessageForLocalPending({ localMessages, persistedMessages });
+  }
   return false;
 }
 
@@ -255,7 +288,9 @@ export function ChatWorkspace({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previousSelectedConversationIdRef = useRef(selectedConversationId);
   const activeRuntimeChatIdRef = useRef('');
-  const isStreaming = runtimeState.status === 'submitted' || runtimeState.status === 'streaming';
+  const isStreaming = runtimeState.status === 'submitted'
+    || runtimeState.status === 'streaming'
+    || hasPendingAssistantMessage(runtimeState.messages);
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation
     ? ''
@@ -266,7 +301,12 @@ export function ChatWorkspace({
   const selectedHasPendingLocalMessages = hasPendingAssistantMessage(selectedLocalRuntimeMessages ?? []);
   const selectedChatQuery = useChatConversationQuery({
     chatId: effectiveSelectedChatId,
-    refetchInterval: selectedHasPendingLocalMessages ? 1500 : false,
+    refetchInterval: (query) => {
+      const conversation = query.state.data?.conversation;
+      return selectedHasPendingLocalMessages || hasPendingAssistantMessage(conversation?.messages ?? [])
+        ? 1500
+        : false;
+    },
   });
   const hydratedDraftContext = useMemo(
     () => hydrateDraftContextLabels({ context: draftContext, vaults: vaultsQuery.data?.vaults ?? [] }),

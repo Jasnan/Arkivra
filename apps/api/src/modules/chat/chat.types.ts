@@ -39,7 +39,7 @@ export type ChatConversation = {
 export type ChatIntent = 'search' | 'summarize' | 'compare' | 'extract';
 
 export type ChatMessageRole = 'user' | 'assistant';
-export type ChatGenerationStatus = 'completed' | 'failed' | null;
+export type ChatGenerationStatus = 'pending' | 'completed' | 'failed' | null;
 
 export type ChatConversationDetail = ChatConversation & {
   contextAvailability: ChatContextAvailability;

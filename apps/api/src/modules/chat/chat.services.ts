@@ -1275,6 +1275,30 @@ export function createChatServices({
     }
 
     const previousMessages = conversation.messages.slice(-MAX_RECENT_MESSAGES);
+    const assistantMessageId = generateId({ prefix: 'msg' });
+    const textPartId = generateId({ prefix: 'txt' });
+    const pendingAssistantMetadata: ChatMessageMetadata = {
+      conversationId: chatId,
+      vaultId: scopeValues.vaultId,
+      documentId: scopeValues.documentId,
+      scope: scopeValues.scope,
+      userId,
+      citations: [],
+      generationMetrics: null,
+      generationStatus: 'pending',
+      generationError: null,
+      createdAt: toIso(now),
+      updatedAt: toIso(now),
+    };
+
+    await persistAssistantMessage({
+      id: assistantMessageId,
+      content: '',
+      metadata: pendingAssistantMetadata,
+      citations: [],
+      metrics: null,
+    });
+
     const stream = createUIMessageStream<ChatMessage>({
       originalMessages: messages,
       generateId: () => generateId({ prefix: 'msg' }),
@@ -1283,13 +1307,10 @@ export function createChatServices({
         let citationsForPersistence: Citation[] = [];
         let generatedContent = '';
         let assistantMetadata: ChatMessageMetadata = {};
-        let generationStarted = false;
         let generationMetrics: ChatGenerationMetrics | null = null;
         let generationStartMs: number | null = null;
         let generationFinishedMs: number | null = null;
         let firstTokenAtMs: number | null = null;
-        const assistantMessageId = generateId({ prefix: 'msg' });
-        const textPartId = generateId({ prefix: 'txt' });
         const includeImages = responseMode === 'multimodal';
         const includeInlineCitations = responseMode === 'multimodal';
         const citationLimit = responseMode === 'multimodal'
@@ -1323,7 +1344,6 @@ export function createChatServices({
 
           if (isGlobalScope(scope) && intent) {
             writeStatus(writer, 'generation');
-            generationStarted = true;
             const resolution = await resolveIntentFollowUp({
               model: chatModel,
               intent,
@@ -1391,7 +1411,6 @@ export function createChatServices({
                   maxImages: settings.maxImagesPerRequest,
                 })
               : [];
-            generationStarted = true;
             generationStartMs = Date.now();
 
             const answerSystemPrompt = isGlobalScope(scope)
@@ -1488,15 +1507,13 @@ export function createChatServices({
             generationError: message,
           };
 
-          if (generationStarted || generatedContent.length > 0 || citations.length > 0) {
-            await persistAssistantMessage({
-              id: assistantMessageId,
-              content: generatedContent,
-              metadata: failedMetadata,
-              citations: citationsForPersistence,
-              metrics: generationMetrics,
-            });
-          }
+          await persistAssistantMessage({
+            id: assistantMessageId,
+            content: generatedContent,
+            metadata: failedMetadata,
+            citations: citationsForPersistence,
+            metrics: generationMetrics,
+          });
 
           writer.write({ type: 'error', errorText: message });
           writer.write({ type: 'finish', finishReason: 'error', messageMetadata: failedMetadata });
@@ -1525,6 +1542,7 @@ export function createChatServices({
         metrics,
       });
       const [assistantMessageRow] = await db.insert(chatMessagesTable).values({
+        id,
         conversationId: chatId,
         vaultId: scopeValues.vaultId,
         documentId: scopeValues.documentId,
@@ -1532,6 +1550,12 @@ export function createChatServices({
         userId,
         message: assistantMessage,
         updatedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: chatMessagesTable.id,
+        set: {
+          message: assistantMessage,
+          updatedAt: new Date(),
+        },
       }).returning();
 
       if (assistantMessageRow === undefined) {

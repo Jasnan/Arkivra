@@ -92,6 +92,11 @@ export function buildAssistantMessage({
   citations: Citation[];
   metrics: ChatGenerationMetrics | null;
 }): ChatMessage {
+  const textParts = content.length > 0 ? [{ type: 'text' as const, text: content }] : [];
+  const statusParts = metadata.generationStatus === 'pending'
+    ? [{ type: 'data-status' as const, data: { label: 'generation' as const } }]
+    : [];
+
   return {
     id,
     role: 'assistant',
@@ -103,7 +108,8 @@ export function buildAssistantMessage({
       generationError: metadata.generationError ?? null,
     },
     parts: [
-      { type: 'text', text: content },
+      ...textParts,
+      ...statusParts,
       ...(citations.length > 0 ? [{ type: 'data-citations' as const, data: citations }] : []),
       ...(metrics !== null ? [{ type: 'data-metrics' as const, data: metrics }] : []),
     ],

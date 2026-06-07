@@ -500,6 +500,61 @@ vi.mock('../chat.queries', () => ({
       };
     }
 
+    if (chatId === 'chat_pending') {
+      return {
+        data: {
+          conversation: {
+            id: 'chat_pending',
+            title: 'Pending chat',
+            scope: 'global',
+            vaultId: null,
+            documentId: null,
+            contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
+            contextAvailability: { status: 'available', readOnly: false },
+            userId: 'usr_1',
+            createdAt: '2026-05-05T11:00:00.000Z',
+            updatedAt: '2026-05-05T11:00:30.000Z',
+            deletedAt: null,
+            messages: [
+              {
+                id: 'msg_pending_user',
+                role: 'user',
+                metadata: {
+                  conversationId: 'chat_pending',
+                  vaultId: null,
+                  documentId: null,
+                  scope: 'global',
+                  userId: 'usr_1',
+                  createdAt: '2026-05-05T11:00:00.000Z',
+                  updatedAt: '2026-05-05T11:00:00.000Z',
+                },
+                parts: [{ type: 'text', text: 'Summarize the archive' }],
+              },
+              {
+                id: 'msg_pending_assistant',
+                role: 'assistant',
+                metadata: {
+                  conversationId: 'chat_pending',
+                  vaultId: null,
+                  documentId: null,
+                  scope: 'global',
+                  userId: 'usr_1',
+                  generationMetrics: null,
+                  generationStatus: 'pending',
+                  generationError: null,
+                  citations: [],
+                  createdAt: '2026-05-05T11:00:01.000Z',
+                  updatedAt: '2026-05-05T11:00:01.000Z',
+                },
+                parts: [{ type: 'data-status', data: { label: 'generation' } }],
+              },
+            ],
+          },
+        },
+        isLoading: false,
+      };
+    }
+
     return {
       data: undefined,
       isLoading: false,
@@ -537,6 +592,18 @@ vi.mock('../chat.queries', () => ({
           userId: 'usr_1',
           createdAt: '2026-05-05T08:00:00.000Z',
           updatedAt: '2026-05-05T08:05:00.000Z',
+          deletedAt: null,
+        },
+        {
+          id: 'chat_pending',
+          title: 'Pending chat',
+          scope: 'global',
+          vaultId: null,
+          documentId: null,
+          contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
+          userId: 'usr_1',
+          createdAt: '2026-05-05T11:00:00.000Z',
+          updatedAt: '2026-05-05T11:00:30.000Z',
           deletedAt: null,
         },
       ],
@@ -925,6 +992,22 @@ describe('chat workspace new chat drafts', () => {
     resolveStream?.();
     await waitFor(() => {
       expect(screen.queryByText('Preparing the answer')).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps a persisted pending assistant response visible after refresh', async () => {
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+        selectedConversationId="chat_pending"
+      />,
+    );
+
+    expect(await screen.findByText('Summarize the archive')).toBeInTheDocument();
+    expect(await screen.findByText('Preparing the answer')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled();
     });
   });
 

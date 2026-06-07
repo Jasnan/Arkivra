@@ -82,7 +82,7 @@ export interface ChatMessageMetadata {
   followUpQuestion?: boolean;
   citations?: Citation[];
   generationMetrics?: ChatGenerationMetrics | null;
-  generationStatus?: 'completed' | 'failed' | null;
+  generationStatus?: 'pending' | 'completed' | 'failed' | null;
   generationError?: string | null;
   createdAt?: string;
   updatedAt?: string;

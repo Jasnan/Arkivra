@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Citation } from '../search/search.types.js';
+import { buildAssistantMessage } from './chat-message.utils.js';
 import {
   buildAnswerPrompt,
   buildCitationContext,
@@ -149,5 +150,32 @@ describe('chat service helpers', () => {
     expect(
       normalizeChatGenerationError(new TypeError('ERR_INVALID_STATE')),
     ).toBe('The chat response was interrupted before it finished. Please try again.');
+  });
+
+  test('builds pending assistant messages with a status part for persisted refresh state', () => {
+    const message = buildAssistantMessage({
+      id: 'msg_pending',
+      content: '',
+      metadata: {
+        conversationId: 'cht_1',
+        generationStatus: 'pending',
+        generationError: null,
+      },
+      citations: [],
+      metrics: null,
+    });
+
+    expect(message).toMatchObject({
+      id: 'msg_pending',
+      role: 'assistant',
+      metadata: {
+        conversationId: 'cht_1',
+        generationStatus: 'pending',
+        generationError: null,
+      },
+      parts: [
+        { type: 'data-status', data: { label: 'generation' } },
+      ],
+    });
   });
 });

@@ -245,7 +245,7 @@ function canUseVaultChat(vault: VaultAccess) {
 }
 
 function canUseDocumentChat(vault: VaultAccess) {
-  return canReadVault(vault) && (vault.aiAccessLevel === 'document_chat' || vault.aiAccessLevel === 'full');
+  return canReadVault(vault) && vault.aiAccessLevel === 'full';
 }
 
 function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapshot {

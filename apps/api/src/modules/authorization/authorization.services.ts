@@ -40,7 +40,7 @@ function canVaultRoleManageMembers(role: VaultRole | null) {
 }
 
 function canUseDocumentChatLevel(aiAccessLevel: AiAccessLevel) {
-  return aiAccessLevel === 'document_chat' || aiAccessLevel === 'full';
+  return aiAccessLevel === 'full';
 }
 
 function canUseSemanticRetrievalLevel(aiAccessLevel: AiAccessLevel) {
@@ -50,8 +50,6 @@ function canUseSemanticRetrievalLevel(aiAccessLevel: AiAccessLevel) {
 function getAiAccessRank(aiAccessLevel: AiAccessLevel) {
   switch (aiAccessLevel) {
     case 'full':
-      return 2;
-    case 'document_chat':
       return 1;
     case 'none':
       return 0;
@@ -88,7 +86,6 @@ function getInvitationVaultMemberships(payload: Record<string, unknown>) {
       || (candidate.role !== 'owner' && candidate.role !== 'editor' && candidate.role !== 'viewer')
       || (
         candidate.aiAccessLevel !== 'none'
-        && candidate.aiAccessLevel !== 'document_chat'
         && candidate.aiAccessLevel !== 'full'
       )
     ) {
@@ -549,13 +546,13 @@ export function createAuthorizationServices({ db }: { db: Database }) {
           });
         result.vaultId = request.vaultId;
         result.userId = request.targetUserId;
-      } else if (request.type === 'vault.ai_escalation') {
+      } else if (request.type === 'vault.ai_access_grant') {
         if (request.vaultId === null || request.targetUserId === null) {
           throw new Error('authorization.invalid_permission_request_payload');
         }
 
-        const aiAccessLevel = request.payload.aiAccessLevel;
-        if (aiAccessLevel !== 'document_chat' && aiAccessLevel !== 'full') {
+        const aiAccessLevel = request.payload.aiAccessLevel ?? 'full';
+        if (aiAccessLevel !== 'full') {
           throw new Error('authorization.invalid_permission_request_payload');
         }
 
@@ -575,7 +572,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         result.vaultId = request.vaultId;
         result.userId = request.targetUserId;
         result.aiAccessLevel = aiAccessLevel;
-      } else if (request.type === 'vault.email_invitation') {
+      } else if (request.type === 'vault.external_invite') {
         if (request.vaultId === null) {
           throw new Error('authorization.invalid_permission_request_payload');
         }
@@ -590,7 +587,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         if (
           email.length === 0
           || (role !== 'owner' && role !== 'editor' && role !== 'viewer')
-          || (aiAccessLevel !== 'none' && aiAccessLevel !== 'document_chat' && aiAccessLevel !== 'full')
+          || (aiAccessLevel !== 'none' && aiAccessLevel !== 'full')
           || (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
         ) {
           throw new Error('authorization.invalid_permission_request_payload');

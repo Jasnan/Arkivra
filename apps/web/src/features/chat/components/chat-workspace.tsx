@@ -186,7 +186,7 @@ function canUseContextSnapshot({
   hasFullAiVault,
 }: {
   snapshot: ChatContextSnapshot;
-  aiAccessByVaultId: Map<string, 'none' | 'document_chat' | 'full'>;
+  aiAccessByVaultId: Map<string, 'none' | 'full'>;
   hasFullAiVault: boolean;
 }) {
   if (snapshot.type === 'global') {
@@ -199,8 +199,7 @@ function canUseContextSnapshot({
   }
 
   if (snapshot.type === 'document') {
-    const access = aiAccessByVaultId.get(snapshot.vaultId);
-    return access === 'document_chat' || access === 'full';
+    return aiAccessByVaultId.get(snapshot.vaultId) === 'full';
   }
 
   if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) {
@@ -209,10 +208,7 @@ function canUseContextSnapshot({
 
   return (
     snapshot.vaults.every(vault => aiAccessByVaultId.get(vault.vaultId) === 'full')
-    && snapshot.documents.every((document) => {
-      const access = aiAccessByVaultId.get(document.vaultId);
-      return access === 'document_chat' || access === 'full';
-    })
+    && snapshot.documents.every(document => aiAccessByVaultId.get(document.vaultId) === 'full')
   );
 }
 
@@ -307,7 +303,7 @@ export function ChatWorkspace({
   const vaultQuery = useVaultQuery({ vaultId: activeVaultId ?? '' });
   const vaultAiAccessLevel = activeVaultId ? vaultQuery.data?.vault.aiAccessLevel : undefined;
   const aiAccessByVaultId = useMemo(() => {
-    const accessByVaultId = new Map<string, 'none' | 'document_chat' | 'full'>();
+    const accessByVaultId = new Map<string, 'none' | 'full'>();
     for (const vault of vaultsQuery.data?.vaults ?? []) {
       accessByVaultId.set(vault.id, vault.aiAccessLevel);
     }

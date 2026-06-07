@@ -290,7 +290,9 @@ export function createVaultsServices({ db }: { db: Database }) {
     const requestRows = await db
       .select({
         id: permissionRequestsTable.id,
+        type: permissionRequestsTable.type,
         requestedBy: permissionRequestsTable.requestedBy,
+        targetUserId: permissionRequestsTable.targetUserId,
         payload: permissionRequestsTable.payload,
         createdAt: permissionRequestsTable.createdAt,
         updatedAt: permissionRequestsTable.updatedAt,
@@ -298,9 +300,24 @@ export function createVaultsServices({ db }: { db: Database }) {
       .from(permissionRequestsTable)
       .where(and(
         eq(permissionRequestsTable.vaultId, vaultId),
-        eq(permissionRequestsTable.type, 'vault.email_invitation'),
+        inArray(permissionRequestsTable.type, ['vault.external_invite', 'vault.owner_promote', 'vault.ai_access_grant']),
         eq(permissionRequestsTable.status, 'pending'),
       ));
+
+    const targetUserIds = requestRows
+      .map(row => row.targetUserId)
+      .filter((userId): userId is string => userId !== null);
+    const targetUsers = targetUserIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: usersTable.id,
+            email: usersTable.email,
+            name: usersTable.name,
+          })
+          .from(usersTable)
+          .where(inArray(usersTable.id, targetUserIds));
+    const targetUsersById = new Map(targetUsers.map(user => [user.id, user]));
 
     return [
       ...invitationRows
@@ -319,15 +336,20 @@ export function createVaultsServices({ db }: { db: Database }) {
         })),
       ...requestRows
         .map((row) => {
-          const email = typeof row.payload.email === 'string' ? row.payload.email : null;
-          const role = row.payload.role;
-          const aiAccessLevel = row.payload.aiAccessLevel ?? 'none';
+          const requestType = row.type;
+          const targetUserId = row.targetUserId;
+          const targetUser = targetUserId === null ? null : targetUsersById.get(targetUserId) ?? null;
+          const email = typeof row.payload.email === 'string'
+            ? row.payload.email
+            : targetUser?.email ?? null;
+          const role = row.payload.role ?? (requestType === 'vault.owner_promote' ? 'owner' : null);
+          const aiAccessLevel = row.payload.aiAccessLevel ?? (requestType === 'vault.ai_access_grant' ? 'full' : 'none');
           const expiresAt = typeof row.payload.expiresAt === 'string' ? new Date(row.payload.expiresAt) : null;
 
           if (
             email === null
             || (role !== 'owner' && role !== 'editor' && role !== 'viewer')
-            || (aiAccessLevel !== 'none' && aiAccessLevel !== 'document_chat' && aiAccessLevel !== 'full')
+            || (aiAccessLevel !== 'none' && aiAccessLevel !== 'full')
           ) {
             return null;
           }
@@ -337,6 +359,9 @@ export function createVaultsServices({ db }: { db: Database }) {
             source: 'permission_request' as const,
             status: 'approval_pending' as const,
             email,
+            name: targetUser?.name ?? null,
+            targetUserId,
+            requestType,
             role,
             aiAccessLevel,
             requestedBy: row.requestedBy,
@@ -435,6 +460,20 @@ export function createVaultsServices({ db }: { db: Database }) {
       role: member.role as VaultRole,
       aiAccessLevel: member.aiAccessLevel as AiAccessLevel,
     };
+  }
+
+  async function getUserByEmail({ email }: { email: string }) {
+    const [user] = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        name: usersTable.name,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.email, email.trim().toLowerCase()))
+      .limit(1);
+
+    return user ?? null;
   }
 
   async function removeMember({ vaultId, userId }: { vaultId: string; userId: string }) {
@@ -566,6 +605,7 @@ export function createVaultsServices({ db }: { db: Database }) {
     createVault,
     createPermissionRequest,
     getMember,
+    getUserByEmail,
     getVaultForUser,
     listAllVaults,
     listMembers,

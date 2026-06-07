@@ -8,7 +8,6 @@ export function formatVaultRole(role: VaultRole | null | undefined, isAdmin = fa
 }
 
 export function formatAiAccess(level: AiAccessLevel | null | undefined) {
-  if (level === 'full') return 'Full AI access';
-  if (level === 'document_chat') return 'Document chat';
-  return 'No AI access';
+  if (level === 'full') return 'Enabled';
+  return 'Disabled';
 }

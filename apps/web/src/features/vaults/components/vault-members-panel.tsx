@@ -47,9 +47,8 @@ const roleOptions: Array<{ value: VaultRole; label: string }> = [
 ];
 
 const aiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
-  { value: 'none', label: 'No AI access' },
-  { value: 'document_chat', label: 'Semantic access' },
-  { value: 'full', label: 'Full AI access' },
+  { value: 'none', label: 'Disabled' },
+  { value: 'full', label: 'Enabled' },
 ];
 
 const roleDescriptions: Record<VaultRole, string> = {
@@ -59,9 +58,8 @@ const roleDescriptions: Record<VaultRole, string> = {
 };
 
 const aiAccessDescriptions: Record<AiAccessLevel, string> = {
-  none: 'Choose the level of AI features this member can use in this vault.',
-  document_chat: 'Allow semantic search and document chat for this vault.',
-  full: 'Allow all available AI features for this vault.',
+  none: 'AI features are disabled for this member in this vault.',
+  full: 'AI features are enabled for this member in this vault.',
 };
 
 type InviteMode = 'direct' | 'email';
@@ -109,11 +107,15 @@ function getAiAccessSelectTone(aiAccessLevel: AiAccessLevel) {
   if (aiAccessLevel === 'full') {
     return { bg: 'green.subtle', color: 'green.fg', borderColor: 'green.muted' };
   }
-  if (aiAccessLevel === 'document_chat') {
-    return { bg: 'purple.subtle', color: 'purple.fg', borderColor: 'purple.muted' };
-  }
 
   return { bg: 'orange.subtle', color: 'orange.fg', borderColor: 'orange.muted' };
+}
+
+function getPendingRequestLabel(invitation: VaultPendingInvitation) {
+  if (invitation.requestType === 'vault.owner_promote') return 'Owner promotion pending approval';
+  if (invitation.requestType === 'vault.ai_access_grant') return 'AI access pending approval';
+  if (invitation.requestType === 'vault.external_invite') return 'External invitation pending approval';
+  return 'Invitation pending approval';
 }
 
 function getPendingInvitationStatus(invitation: VaultPendingInvitation) {
@@ -789,9 +791,9 @@ export function VaultMembersPanel({
             py="4"
           >
             <Box>
-              <Text fontSize="md" fontWeight="semibold" color="fg">Pending invites</Text>
+              <Text fontSize="md" fontWeight="semibold" color="fg">Pending requests</Text>
               <Text mt="1" fontSize="sm" color="fg.muted">
-                Invitations waiting for admin approval or recipient acceptance.
+                Requested permissions and invitations that are not active yet.
               </Text>
             </Box>
             <Badge variant="secondary" colorPalette="gray" alignSelf={{ base: 'flex-start', md: 'center' }}>
@@ -809,7 +811,7 @@ export function VaultMembersPanel({
             py="3"
             display={{ base: 'none', lg: 'grid' }}
           >
-            {['Email', 'Role', 'AI access', 'Status', 'Expires'].map((heading) => (
+            {['Target', 'Requested role', 'Requested AI', 'Status', 'Expires'].map((heading) => (
               <Text key={heading} fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
                 {heading}
               </Text>
@@ -828,7 +830,7 @@ export function VaultMembersPanel({
           ) : null}
           {!pendingInvitationsQuery.isLoading && !pendingInvitationsQuery.isError && pendingInvitations.length === 0 ? (
             <Box px="6" py="6">
-              <Text fontSize="sm" color="fg.muted">No pending invites.</Text>
+              <Text fontSize="sm" color="fg.muted">No pending requests.</Text>
             </Box>
           ) : null}
           {!pendingInvitationsQuery.isLoading && !pendingInvitationsQuery.isError && pendingInvitations.length > 0 ? (
@@ -849,10 +851,10 @@ export function VaultMembersPanel({
                   >
                     <Box minW="0">
                       <Text fontSize="sm" fontWeight="semibold" color="fg" truncate>
-                        {invitation.email}
+                        {invitation.name ?? invitation.email}
                       </Text>
                       <Text mt="1" fontSize="xs" color="fg.muted" truncate>
-                        Requested {formatPendingInviteDate(invitation.createdAt)}
+                        {invitation.email} · Requested {formatPendingInviteDate(invitation.createdAt)}
                       </Text>
                     </Box>
                     <Box>
@@ -872,7 +874,7 @@ export function VaultMembersPanel({
                         Status
                       </Text>
                       <Badge variant="secondary" colorPalette={status.colorPalette}>
-                        {status.label}
+                        {invitation.status === 'approval_pending' ? getPendingRequestLabel(invitation) : status.label}
                       </Badge>
                     </Box>
                     <Box>

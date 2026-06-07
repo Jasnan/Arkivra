@@ -1036,7 +1036,7 @@ export function DocumentSelectionDialog({
   const [selectedFilterVaultIds, setSelectedFilterVaultIds] = useState<string[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<Map<string, DraftChatDocument>>(() => new Map());
   const selectableVaults = useMemo(
-    () => vaults.filter(vault => vault.aiAccessLevel === 'document_chat' || vault.aiAccessLevel === 'full'),
+    () => vaults.filter(vault => vault.aiAccessLevel === 'full'),
     [vaults],
   );
   const effectiveVaultIds = selectedFilterVaultIds.length === 0

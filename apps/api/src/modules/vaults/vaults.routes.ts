@@ -78,11 +78,36 @@ function getValidAiAccessLevel(value: unknown): AiAccessLevel | null {
 function isAiEscalation(current: AiAccessLevel | null | undefined, next: AiAccessLevel) {
   const ranks: Record<AiAccessLevel, number> = {
     none: 0,
-    document_chat: 1,
-    full: 2,
+    full: 1,
   };
 
   return ranks[next] > ranks[current ?? 'none'];
+}
+
+function getMemberUpdateAuditEventType({
+  previousRole,
+  nextRole,
+  previousAiAccessLevel,
+  nextAiAccessLevel,
+}: {
+  previousRole: VaultRole;
+  nextRole: VaultRole;
+  previousAiAccessLevel: AiAccessLevel;
+  nextAiAccessLevel: AiAccessLevel;
+}) {
+  if (previousRole === 'owner' && nextRole !== 'owner') {
+    return AUDIT_EVENT_TYPES.vaultOwnerRoleRemoved;
+  }
+
+  if (previousAiAccessLevel !== 'full' && nextAiAccessLevel === 'full') {
+    return AUDIT_EVENT_TYPES.vaultAiAccessEnabled;
+  }
+
+  if (previousAiAccessLevel === 'full' && nextAiAccessLevel !== 'full') {
+    return AUDIT_EVENT_TYPES.vaultAiAccessDisabled;
+  }
+
+  return AUDIT_EVENT_TYPES.vaultMemberRoleChanged;
 }
 
 export function registerVaultRoutes({
@@ -503,8 +528,104 @@ export function registerVaultRoutes({
       }
 
       if (!isAdmin) {
+        const existingUser = await vaultsServices.getUserByEmail({ email });
+
+        if (existingUser !== null) {
+          if (role === 'owner') {
+            const request = await vaultsServices.createPermissionRequest({
+              type: 'vault.owner_promote',
+              requestedBy,
+              vaultId,
+              targetUserId: existingUser.id,
+              payload: { role: 'owner' },
+            });
+
+            await auditServices?.emitAuditEvent({
+              eventType: AUDIT_EVENT_TYPES.vaultOwnerPromotionRequested,
+              eventCategory: 'permission',
+              severity: 'notice',
+              outcome: 'success',
+              actor: getAuditActorFromContext(context),
+              vaultId,
+              target: { type: 'user', id: existingUser.id, displayName: existingUser.email },
+              source: 'web',
+              requestContext: getAuditRequestContext(context),
+              metadata: { request_id: request.id, request_type: 'vault.owner_promote', member_user_id: existingUser.id },
+            });
+
+            return context.json({ request }, 202);
+          }
+
+          if (aiAccessLevel === 'full') {
+            const existingMember = await vaultsServices.getMember({ vaultId, userId: existingUser.id });
+
+            if (existingMember === null || existingMember.role !== role) {
+              await vaultsServices.upsertMember({
+                vaultId,
+                userId: existingUser.id,
+                role,
+                aiAccessLevel: existingMember?.aiAccessLevel ?? 'none',
+              });
+            }
+
+            const request = await vaultsServices.createPermissionRequest({
+              type: 'vault.ai_access_grant',
+              requestedBy,
+              vaultId,
+              targetUserId: existingUser.id,
+              payload: { aiAccessLevel: 'full', role },
+            });
+
+            await auditServices?.emitAuditEvent({
+              eventType: AUDIT_EVENT_TYPES.vaultAiAccessRequested,
+              eventCategory: 'permission',
+              severity: 'notice',
+              outcome: 'success',
+              actor: getAuditActorFromContext(context),
+              vaultId,
+              target: { type: 'user', id: existingUser.id, displayName: existingUser.email },
+              source: 'web',
+              requestContext: getAuditRequestContext(context),
+              metadata: { request_id: request.id, request_type: 'vault.ai_access_grant', member_user_id: existingUser.id },
+            });
+
+            return context.json({ request }, 202);
+          }
+
+          const member = await vaultsServices.upsertMember({
+            vaultId,
+            userId: existingUser.id,
+            role,
+            aiAccessLevel: 'none',
+          });
+
+          await auditServices?.emitAuditEvent({
+            eventType: AUDIT_EVENT_TYPES.vaultMemberAdded,
+            eventCategory: 'vault',
+            outcome: 'success',
+            actor: getAuditActorFromContext(context),
+            vaultId,
+            target: { type: 'user', id: existingUser.id, displayName: existingUser.email },
+            source: 'web',
+            requestContext: getAuditRequestContext(context),
+            metadata: { member_user_id: existingUser.id, role, ai_access_level: 'none' },
+          });
+          await activityServices?.emitActivityEvent({
+            activityType: ACTIVITY_EVENT_TYPES.vaultMemberAdded,
+            entityType: 'vault',
+            entityId: vaultId,
+            actor: getAuditActorFromContext(context),
+            vaultId,
+            target: { type: 'user', id: existingUser.id },
+            source: 'web',
+            metadata: { member_user_id: existingUser.id, role, ai_access_level: 'none' },
+          });
+
+          return context.json({ member }, 201);
+        }
+
         const request = await vaultsServices.createPermissionRequest({
-          type: 'vault.email_invitation',
+          type: 'vault.external_invite',
           requestedBy,
           vaultId,
           payload: {
@@ -523,7 +644,19 @@ export function registerVaultRoutes({
           vaultId,
           target: { type: 'permission_request', id: request.id, displayName: email },
           source: 'web',
-          metadata: { request_type: 'vault.email_invitation', email, role, ai_access_level: aiAccessLevel },
+          metadata: { request_type: 'vault.external_invite', email, role, ai_access_level: aiAccessLevel },
+        });
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.vaultExternalInvitationRequested,
+          eventCategory: 'permission',
+          severity: 'notice',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          vaultId,
+          target: { type: 'email_invitation', displayName: email },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: { request_id: request.id, request_type: 'vault.external_invite', email, role, ai_access_level: aiAccessLevel },
         });
 
         return context.json({ request }, 202);
@@ -694,6 +827,19 @@ export function registerVaultRoutes({
           payload: { role },
         });
 
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.vaultOwnerPromotionRequested,
+          eventCategory: 'permission',
+          severity: 'notice',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          vaultId,
+          target: { type: 'user', id: memberUserId },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: { request_id: request.id, request_type: 'vault.owner_promote', member_user_id: memberUserId },
+        });
+
         return context.json({ request }, 202);
       }
 
@@ -710,11 +856,24 @@ export function registerVaultRoutes({
         }
 
         const request = await vaultsServices.createPermissionRequest({
-          type: 'vault.ai_escalation',
+          type: 'vault.ai_access_grant',
           requestedBy,
           vaultId,
           targetUserId: memberUserId,
-          payload: { aiAccessLevel },
+          payload: { aiAccessLevel, role },
+        });
+
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.vaultAiAccessRequested,
+          eventCategory: 'permission',
+          severity: 'notice',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          vaultId,
+          target: { type: 'user', id: memberUserId },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: { request_id: request.id, request_type: 'vault.ai_access_grant', member_user_id: memberUserId },
         });
 
         return context.json({ request }, 202);
@@ -833,6 +992,19 @@ export function registerVaultRoutes({
           payload: { role },
         });
 
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.vaultOwnerPromotionRequested,
+          eventCategory: 'permission',
+          severity: 'notice',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          vaultId,
+          target: { type: 'user', id: memberUserId },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: { request_id: request.id, request_type: 'vault.owner_promote', member_user_id: memberUserId },
+        });
+
         return context.json({ request }, 202);
       }
 
@@ -863,11 +1035,24 @@ export function registerVaultRoutes({
         }
 
         const request = await vaultsServices.createPermissionRequest({
-          type: 'vault.ai_escalation',
+          type: 'vault.ai_access_grant',
           requestedBy,
           vaultId,
           targetUserId: memberUserId,
-          payload: { aiAccessLevel },
+          payload: { aiAccessLevel, role },
+        });
+
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.vaultAiAccessRequested,
+          eventCategory: 'permission',
+          severity: 'notice',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          vaultId,
+          target: { type: 'user', id: memberUserId },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: { request_id: request.id, request_type: 'vault.ai_access_grant', member_user_id: memberUserId },
         });
 
         return context.json({ request }, 202);
@@ -898,9 +1083,12 @@ export function registerVaultRoutes({
       }
 
       await auditServices?.emitAuditEvent({
-        eventType: role !== targetMember.role || aiAccessLevel !== targetMember.aiAccessLevel
-          ? AUDIT_EVENT_TYPES.vaultMemberRoleChanged
-          : AUDIT_EVENT_TYPES.vaultMemberAdded,
+        eventType: getMemberUpdateAuditEventType({
+          previousRole: targetMember.role,
+          nextRole: role,
+          previousAiAccessLevel: targetMember.aiAccessLevel,
+          nextAiAccessLevel: aiAccessLevel,
+        }),
         eventCategory: 'vault',
         outcome: 'success',
         actor: getAuditActorFromContext(context),

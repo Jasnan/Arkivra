@@ -731,6 +731,7 @@ describe('vault pages', () => {
                   id: 'perm_req_invite',
                   source: 'permission_request',
                   status: 'approval_pending',
+                  requestType: 'vault.external_invite',
                   email: 'pending@example.com',
                   role: 'viewer',
                   aiAccessLevel: 'none',
@@ -749,7 +750,7 @@ describe('vault pages', () => {
         return jsonResponse({
           request: {
             id: 'perm_req_invite',
-            type: 'vault.email_invitation',
+            type: 'vault.external_invite',
             status: 'pending',
             requestedBy: 'usr_owner',
             reviewedBy: null,
@@ -786,7 +787,7 @@ describe('vault pages', () => {
     });
     expect(await screen.findByText(/email invitation request queued for admin approval/i)).toBeInTheDocument();
     expect(await screen.findByText('pending@example.com')).toBeInTheDocument();
-    expect(screen.getByText(/awaiting admin approval/i)).toBeInTheDocument();
+    expect(screen.getByText(/external invitation pending approval/i)).toBeInTheDocument();
   });
 
   it('keeps member row actions destructive and confirmation based', async () => {
@@ -858,7 +859,7 @@ describe('vault pages', () => {
               status: 'pending',
               email: 'invited@example.com',
               role: 'editor',
-              aiAccessLevel: 'document_chat',
+              aiAccessLevel: 'full',
               requestedBy: 'usr_owner',
               expiresAt: '2026-02-01T00:00:00.000Z',
               createdAt: '2026-01-01T00:00:00.000Z',

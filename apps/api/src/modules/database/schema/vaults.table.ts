@@ -33,7 +33,7 @@ export const vaultMembersTable = pgTable(
       .references(() => usersTable.id, { onDelete: 'cascade' }),
 
     role: text('role', { enum: ['owner', 'editor', 'viewer'] }).notNull(),
-    aiAccessLevel: text('ai_access_level', { enum: ['none', 'document_chat', 'full'] })
+    aiAccessLevel: text('ai_access_level', { enum: ['none', 'full'] })
       .notNull()
       .default('none'),
   },

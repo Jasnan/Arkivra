@@ -23,6 +23,7 @@ function createMockVaultsServices() {
       userId,
     })),
     getMember: vi.fn(async () => null),
+    getUserByEmail: vi.fn(async () => null),
     getVaultForUser: vi.fn(async () => null),
     listMembers: vi.fn(async () => []),
     listPendingInvitations: vi.fn(async () => []),
@@ -767,7 +768,7 @@ describe('vaults integration', () => {
     });
   });
 
-  test('queues owner email invitation for admin approval', async () => {
+  test('queues owner external email invitation for admin approval', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -800,7 +801,7 @@ describe('vaults integration', () => {
 
     expect(response.status).toBe(202);
     expect(services.createPermissionRequest).toHaveBeenCalledWith({
-      type: 'vault.email_invitation',
+      type: 'vault.external_invite',
       requestedBy: 'usr_owner',
       vaultId: 'vlt_1',
       payload: {
@@ -810,6 +811,52 @@ describe('vaults integration', () => {
         expiresAt: null,
       },
     });
+    expect(services.createEmailInvitation).not.toHaveBeenCalled();
+  });
+
+  test('adds existing email user immediately as viewer for owner', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'owner',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+    }));
+    (services as any).getUserByEmail = vi.fn(async () => ({
+      id: 'usr_existing',
+      email: 'existing@example.com',
+      name: 'Existing User',
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1/email-invitations', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_owner',
+      },
+      body: JSON.stringify({
+        email: 'Existing@Example.com',
+        role: 'viewer',
+        aiAccessLevel: 'none',
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(services.upsertMember).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      userId: 'usr_existing',
+      role: 'viewer',
+      aiAccessLevel: 'none',
+    });
+    expect(services.createPermissionRequest).not.toHaveBeenCalled();
     expect(services.createEmailInvitation).not.toHaveBeenCalled();
   });
 
@@ -839,7 +886,7 @@ describe('vaults integration', () => {
       body: JSON.stringify({
         email: 'Invitee@Example.com',
         role: 'editor',
-        aiAccessLevel: 'document_chat',
+        aiAccessLevel: 'full',
         expiresAt: '2026-02-01T00:00:00.000Z',
       }),
     });
@@ -850,7 +897,7 @@ describe('vaults integration', () => {
       invitedBy: 'usr_root',
       vaultId: 'vlt_1',
       role: 'editor',
-      aiAccessLevel: 'document_chat',
+      aiAccessLevel: 'full',
       expiresAt: new Date('2026-02-01T00:00:00.000Z'),
     });
     expect(services.createPermissionRequest).not.toHaveBeenCalled();

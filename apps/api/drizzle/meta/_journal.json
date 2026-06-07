@@ -204,6 +204,13 @@
       "when": 1780704000000,
       "tag": "0028_vault_email_invitation_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780790400000,
+      "tag": "0029_vault_authorization_approval_model",
+      "breakpoints": true
     }
   ]
 }

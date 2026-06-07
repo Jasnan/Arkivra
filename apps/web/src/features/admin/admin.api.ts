@@ -96,7 +96,7 @@ export async function createAdminEmailInvitation({
   vaultMemberships?: Array<{
     vaultId: string;
     role: 'owner' | 'editor' | 'viewer';
-    aiAccessLevel: 'none' | 'document_chat' | 'full';
+    aiAccessLevel: 'none' | 'full';
   }>;
   expiresAt?: string | null;
 }) {

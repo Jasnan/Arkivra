@@ -31,8 +31,8 @@ export type PermissionRequestType =
   | 'vault.create'
   | 'vault.delete'
   | 'vault.owner_promote'
-  | 'vault.ai_escalation'
-  | 'vault.email_invitation';
+  | 'vault.ai_access_grant'
+  | 'vault.external_invite';
 
 export type PermissionRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
@@ -63,7 +63,7 @@ export interface EmailInvitation {
   vaultId: string | null;
   vaultMemberId: string | null;
   vaultRole: 'owner' | 'editor' | 'viewer' | null;
-  aiAccessLevel: 'none' | 'document_chat' | 'full';
+  aiAccessLevel: 'none' | 'full';
   systemRole: 'admin' | 'member' | null;
   payload: Record<string, unknown>;
   createdAt: string;

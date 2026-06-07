@@ -326,8 +326,8 @@ function getPermissionRequestLabel(request: PermissionRequest) {
   if (request.type === 'vault.create') return 'Create vault';
   if (request.type === 'vault.delete') return 'Delete vault';
   if (request.type === 'vault.owner_promote') return 'Promote owner';
-  if (request.type === 'vault.email_invitation') return 'Email invitation';
-  return 'AI access escalation';
+  if (request.type === 'vault.external_invite') return 'External invitation';
+  return 'AI access';
 }
 
 function formatPermissionRequestRole(value: unknown) {
@@ -338,9 +338,8 @@ function formatPermissionRequestRole(value: unknown) {
 }
 
 function formatPermissionRequestAiAccess(value: unknown) {
-  if (value === 'full') return 'Full AI access';
-  if (value === 'document_chat') return 'Semantic access';
-  return 'No AI access';
+  if (value === 'full') return 'Enabled';
+  return 'Disabled';
 }
 
 function getPermissionRequestDescription(request: PermissionRequest) {
@@ -357,15 +356,14 @@ function getPermissionRequestDescription(request: PermissionRequest) {
     return `Requested by ${request.requestedBy} for ${request.targetUserId ?? 'unknown user'}.`;
   }
 
-  if (request.type === 'vault.email_invitation') {
+  if (request.type === 'vault.external_invite') {
     const email = typeof request.payload.email === 'string' ? request.payload.email : 'unknown email';
     const role = formatPermissionRequestRole(request.payload.role);
     const aiAccess = formatPermissionRequestAiAccess(request.payload.aiAccessLevel);
     return `Requested by ${request.requestedBy} for ${email}: ${role}, ${aiAccess}.`;
   }
 
-  const aiAccessLevel = typeof request.payload.aiAccessLevel === 'string' ? request.payload.aiAccessLevel : 'AI access';
-  return `Requested by ${request.requestedBy} for ${request.targetUserId ?? 'unknown user'}: ${aiAccessLevel}.`;
+  return `Requested by ${request.requestedBy} for ${request.targetUserId ?? 'unknown user'}: AI access enabled.`;
 }
 
 const emptyAiSettings: AdminAiSettings = {

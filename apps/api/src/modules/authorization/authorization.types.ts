@@ -7,15 +7,15 @@ export type SystemCapability = (typeof SYSTEM_CAPABILITIES)[number];
 export const VAULT_ROLES = ['owner', 'editor', 'viewer'] as const;
 export type VaultRole = (typeof VAULT_ROLES)[number];
 
-export const AI_ACCESS_LEVELS = ['none', 'document_chat', 'full'] as const;
+export const AI_ACCESS_LEVELS = ['none', 'full'] as const;
 export type AiAccessLevel = (typeof AI_ACCESS_LEVELS)[number];
 
 export const PERMISSION_REQUEST_TYPES = [
   'vault.create',
   'vault.delete',
   'vault.owner_promote',
-  'vault.ai_escalation',
-  'vault.email_invitation',
+  'vault.ai_access_grant',
+  'vault.external_invite',
 ] as const;
 export type PermissionRequestType = (typeof PERMISSION_REQUEST_TYPES)[number];
 

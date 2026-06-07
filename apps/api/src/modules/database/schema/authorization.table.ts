@@ -26,7 +26,7 @@ export const permissionRequestsTable = pgTable(
     ...createTimestampColumns(),
 
     type: text('type', {
-      enum: ['vault.create', 'vault.delete', 'vault.owner_promote', 'vault.ai_escalation', 'vault.email_invitation'],
+      enum: ['vault.create', 'vault.delete', 'vault.owner_promote', 'vault.ai_access_grant', 'vault.external_invite'],
     }).notNull(),
     status: text('status', { enum: ['pending', 'approved', 'rejected', 'cancelled'] })
       .notNull()
@@ -66,7 +66,7 @@ export const emailInvitationsTable = pgTable(
     vaultId: text('vault_id').references(() => vaultsTable.id, { onDelete: 'cascade' }),
     vaultMemberId: text('vault_member_id').references(() => vaultMembersTable.id, { onDelete: 'set null' }),
     vaultRole: text('vault_role', { enum: ['owner', 'editor', 'viewer'] }),
-    aiAccessLevel: text('ai_access_level', { enum: ['none', 'document_chat', 'full'] })
+    aiAccessLevel: text('ai_access_level', { enum: ['none', 'full'] })
       .notNull()
       .default('none'),
     systemRole: text('system_role', { enum: ['admin', 'member'] }),

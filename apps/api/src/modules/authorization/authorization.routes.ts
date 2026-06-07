@@ -47,7 +47,7 @@ function parseSystemCapabilities(value: unknown) {
 
 function parseInitialVaultMemberships(value: unknown) {
   if (value === undefined || value === null) {
-    return [] as Array<{ vaultId: string; role: 'owner' | 'editor' | 'viewer'; aiAccessLevel: 'none' | 'document_chat' | 'full' }>;
+    return [] as Array<{ vaultId: string; role: 'owner' | 'editor' | 'viewer'; aiAccessLevel: 'none' | 'full' }>;
   }
 
   if (!Array.isArray(value)) {
@@ -88,6 +88,20 @@ function parseOptionalDate(value: unknown) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function getApprovalAuditEventType(type: string) {
+  if (type === 'vault.owner_promote') return 'vault.owner_promotion_approved';
+  if (type === 'vault.ai_access_grant') return 'vault.ai_access_approved';
+  if (type === 'vault.external_invite') return 'vault.external_invitation_approved';
+  return 'permission_request.approved';
+}
+
+function getRejectionAuditEventType(type: string) {
+  if (type === 'vault.owner_promote') return 'vault.owner_promotion_rejected';
+  if (type === 'vault.ai_access_grant') return 'vault.ai_access_rejected';
+  if (type === 'vault.external_invite') return 'vault.external_invitation_rejected';
+  return 'permission_request.rejected';
 }
 
 export function registerAuthorizationRoutes({
@@ -184,7 +198,7 @@ export function registerAuthorizationRoutes({
       }
 
       await auditServices?.emitAuditEvent({
-        eventType: `permission_request.${request.type}.approved`,
+        eventType: getApprovalAuditEventType(request.type),
         eventCategory: 'permission',
         severity: 'notice',
         outcome: 'success',
@@ -193,7 +207,12 @@ export function registerAuthorizationRoutes({
         target: { type: 'permission_request', id: request.id },
         source: 'web',
         requestContext: getAuditRequestContext(context),
-        metadata: { request_type: request.type, requested_by: request.requestedBy },
+        metadata: {
+          request_type: request.type,
+          requested_by: request.requestedBy,
+          request_payload: request.payload,
+          request_result: request.result,
+        },
       });
       if (request.type === 'vault.create' && typeof request.result?.vaultId === 'string') {
         await activityServices?.emitActivityEvent({
@@ -272,7 +291,7 @@ export function registerAuthorizationRoutes({
     }
 
     await auditServices?.emitAuditEvent({
-      eventType: `permission_request.${request.type}.rejected`,
+        eventType: getRejectionAuditEventType(request.type),
       eventCategory: 'permission',
       severity: 'notice',
       outcome: 'success',
@@ -281,7 +300,12 @@ export function registerAuthorizationRoutes({
       target: { type: 'permission_request', id: request.id },
       source: 'web',
       requestContext: getAuditRequestContext(context),
-      metadata: { request_type: request.type, requested_by: request.requestedBy },
+      metadata: {
+        request_type: request.type,
+        requested_by: request.requestedBy,
+        request_payload: request.payload,
+        decision_reason: reason,
+      },
     });
     await activityServices?.emitActivityEvent({
       activityType: ACTIVITY_EVENT_TYPES.vaultRejected,

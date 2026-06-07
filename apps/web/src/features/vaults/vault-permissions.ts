@@ -13,5 +13,5 @@ export function canManageVaultWorkspace(vault: VaultDetail | null | undefined) {
 }
 
 export function canUseVaultChat(vault: VaultDetail | null | undefined) {
-  return Boolean(vault?.aiAccessLevel === 'document_chat' || vault?.aiAccessLevel === 'full');
+  return Boolean(vault?.aiAccessLevel === 'full');
 }

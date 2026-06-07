@@ -8,7 +8,7 @@ import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit
 type VaultAuthorizationPredicate = (args: {
   isAdmin: boolean;
   role: VaultRole | null;
-  aiAccessLevel: 'none' | 'document_chat' | 'full';
+  aiAccessLevel: 'none' | 'full';
   isMember: boolean;
   accessMode: 'member' | 'admin' | null;
 }) => boolean;
@@ -212,9 +212,7 @@ export function requireCanManageVault() {
 }
 
 export function requireCanUseDocumentChat() {
-  return requireVaultAuthorization(({ aiAccessLevel }) =>
-    aiAccessLevel === 'document_chat' || aiAccessLevel === 'full',
-  );
+  return requireVaultAuthorization(({ aiAccessLevel }) => aiAccessLevel === 'full');
 }
 
 export function requireCanUseSemanticRetrieval() {

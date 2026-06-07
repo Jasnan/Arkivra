@@ -3,10 +3,10 @@ import { describe, expect, test, vi } from 'vitest';
 import { createAuthorizationServices } from './authorization.services.js';
 
 describe('authorization services', () => {
-  test('approves vault email invitation request by creating a pending invitation', async () => {
+  test('approves vault external invitation request by creating a pending invitation', async () => {
     const request = {
       id: 'perm_invite_1',
-      type: 'vault.email_invitation',
+      type: 'vault.external_invite',
       status: 'pending',
       requestedBy: 'usr_owner',
       reviewedBy: null,
@@ -16,7 +16,7 @@ describe('authorization services', () => {
       payload: {
         email: 'Invitee@Example.com',
         role: 'editor',
-        aiAccessLevel: 'document_chat',
+        aiAccessLevel: 'full',
         expiresAt: '2026-02-01T00:00:00.000Z',
       },
       result: null,
@@ -48,7 +48,7 @@ describe('authorization services', () => {
         invitationId: 'invite_1',
         email: 'invitee@example.com',
         role: 'editor',
-        aiAccessLevel: 'document_chat',
+        aiAccessLevel: 'full',
       },
     };
     const updateQuery: {
@@ -83,7 +83,7 @@ describe('authorization services', () => {
       invitedBy: 'usr_owner',
       vaultId: 'vlt_1',
       vaultRole: 'editor',
-      aiAccessLevel: 'document_chat',
+      aiAccessLevel: 'full',
       systemRole: 'member',
       expiresAt: new Date('2026-02-01T00:00:00.000Z'),
       payload: {
@@ -100,7 +100,7 @@ describe('authorization services', () => {
         invitationId: 'invite_1',
         email: 'invitee@example.com',
         role: 'editor',
-        aiAccessLevel: 'document_chat',
+        aiAccessLevel: 'full',
       },
     }));
   });

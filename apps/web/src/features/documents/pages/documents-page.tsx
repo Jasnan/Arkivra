@@ -192,9 +192,8 @@ const adminJoinRoleOptions: Array<{ value: VaultRole; label: string }> = [
 ];
 
 const adminJoinAiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
-  { value: 'none', label: 'No AI access' },
-  { value: 'document_chat', label: 'Document chat' },
-  { value: 'full', label: 'Full AI access' },
+  { value: 'none', label: 'Disabled' },
+  { value: 'full', label: 'Enabled' },
 ];
 
 function getBrowserItemUpdatedTime(item: BrowserItem) {

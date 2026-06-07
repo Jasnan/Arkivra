@@ -15,6 +15,7 @@ export const PERMISSION_REQUEST_TYPES = [
   'vault.delete',
   'vault.owner_promote',
   'vault.ai_escalation',
+  'vault.email_invitation',
 ] as const;
 export type PermissionRequestType = (typeof PERMISSION_REQUEST_TYPES)[number];
 

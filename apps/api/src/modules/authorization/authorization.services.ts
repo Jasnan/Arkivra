@@ -575,6 +575,55 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         result.vaultId = request.vaultId;
         result.userId = request.targetUserId;
         result.aiAccessLevel = aiAccessLevel;
+      } else if (request.type === 'vault.email_invitation') {
+        if (request.vaultId === null) {
+          throw new Error('authorization.invalid_permission_request_payload');
+        }
+
+        const email = typeof request.payload.email === 'string' ? normalizeEmail(request.payload.email) : '';
+        const role = request.payload.role;
+        const aiAccessLevel = request.payload.aiAccessLevel ?? 'none';
+        const expiresAt = typeof request.payload.expiresAt === 'string'
+          ? new Date(request.payload.expiresAt)
+          : null;
+
+        if (
+          email.length === 0
+          || (role !== 'owner' && role !== 'editor' && role !== 'viewer')
+          || (aiAccessLevel !== 'none' && aiAccessLevel !== 'document_chat' && aiAccessLevel !== 'full')
+          || (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
+        ) {
+          throw new Error('authorization.invalid_permission_request_payload');
+        }
+
+        const [invitation] = await tx
+          .insert(emailInvitationsTable)
+          .values({
+            type: 'vault_member',
+            email,
+            invitedBy: request.requestedBy,
+            vaultId: request.vaultId,
+            vaultRole: role,
+            aiAccessLevel,
+            systemRole: 'member',
+            expiresAt,
+            payload: {
+              systemCapabilities: [],
+              vaultMemberships: [],
+              permissionRequestId: request.id,
+            },
+          })
+          .returning({ id: emailInvitationsTable.id });
+
+        if (invitation === undefined) {
+          throw new Error('authorization.email_invitation_failed');
+        }
+
+        result.vaultId = request.vaultId;
+        result.invitationId = invitation.id;
+        result.email = email;
+        result.role = role;
+        result.aiAccessLevel = aiAccessLevel;
       }
 
       const [updatedRequest] = await tx

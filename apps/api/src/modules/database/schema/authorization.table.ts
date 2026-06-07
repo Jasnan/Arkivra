@@ -26,7 +26,7 @@ export const permissionRequestsTable = pgTable(
     ...createTimestampColumns(),
 
     type: text('type', {
-      enum: ['vault.create', 'vault.delete', 'vault.owner_promote', 'vault.ai_escalation'],
+      enum: ['vault.create', 'vault.delete', 'vault.owner_promote', 'vault.ai_escalation', 'vault.email_invitation'],
     }).notNull(),
     status: text('status', { enum: ['pending', 'approved', 'rejected', 'cancelled'] })
       .notNull()

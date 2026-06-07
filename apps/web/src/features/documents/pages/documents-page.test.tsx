@@ -137,8 +137,8 @@ describe('documents page', () => {
       'Upload files',
       'Upload folder',
       'Members',
-      'Activity',
       'Settings',
+      'Activity',
       'Chat',
     ]);
   });
@@ -171,6 +171,80 @@ describe('documents page', () => {
     expect(within(menu).queryByRole('menuitem', { name: /^activity$/i })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /^settings$/i })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /^chat$/i })).not.toBeInTheDocument();
+  });
+
+  it('restricts direct members and settings routes to vault managers', async () => {
+    const fetchMock = installVaultContentsFetchMock({
+      items: [],
+      vault: {
+        role: 'viewer',
+        aiAccessLevel: 'none',
+        isAdmin: false,
+        accessMode: 'member',
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage section="members" />, {
+      initialEntries: ['/vaults/vlt_1/members'],
+      routePath: '/vaults/:vaultId/members',
+    });
+
+    expect(await screen.findByText(/vault management is restricted/i)).toBeInTheDocument();
+    expect(screen.getByText(/only vault owners and admins can view members and settings/i)).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /members/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /settings/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults/vlt_1/members', expect.anything());
+  });
+
+  it('keeps vault activity visible to regular members without exposing management tabs', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse({
+          vault: {
+            id: 'vlt_1',
+            name: 'MyDocs',
+            description: null,
+            fileCount: 2,
+            totalSize: 3072,
+            role: 'viewer',
+            aiAccessLevel: 'none',
+            isAdmin: false,
+            isMember: true,
+            accessMode: 'member',
+          },
+        });
+      }
+
+      if (url === '/api/vaults/vlt_1/activity?limit=50') {
+        return jsonResponse({ activity: [], nextCursor: null });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<DocumentsPage section="activity" />, {
+      initialEntries: ['/vaults/vlt_1/activity'],
+      routePath: '/vaults/:vaultId/activity',
+    });
+
+    expect((await screen.findAllByRole('tab')).map(tab => tab.textContent?.trim())).toEqual(['Activity']);
+    expect(await screen.findByText(/no vault activity yet/i)).toBeInTheDocument();
   });
 
   it('hides vault chat actions when AI features are disabled globally', async () => {

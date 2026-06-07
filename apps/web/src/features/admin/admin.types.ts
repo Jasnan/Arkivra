@@ -31,7 +31,8 @@ export type PermissionRequestType =
   | 'vault.create'
   | 'vault.delete'
   | 'vault.owner_promote'
-  | 'vault.ai_escalation';
+  | 'vault.ai_escalation'
+  | 'vault.email_invitation';
 
 export type PermissionRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 

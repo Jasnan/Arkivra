@@ -51,4 +51,4 @@ export const chatMessagesTable = pgTable(
 
 export type ChatRole = 'user' | 'assistant';
 export type ChatScope = 'global' | 'vault' | 'document';
-export type ChatGenerationStatus = 'completed' | 'failed';
+export type ChatGenerationStatus = 'pending' | 'completed' | 'failed';

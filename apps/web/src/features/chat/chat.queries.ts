@@ -7,6 +7,7 @@ import {
   listChatConversations,
   updateChatConversationContext,
 } from './chat.api';
+import type { ChatConversationDetail } from './chat.types';
 
 export const chatQueryKeys = {
   all: ['chat'] as const,
@@ -37,7 +38,7 @@ export function useChatConversationQuery({
   refetchInterval = false,
 }: {
   chatId: string;
-  refetchInterval?: number | false;
+  refetchInterval?: Parameters<typeof useQuery<{ conversation: ChatConversationDetail }>>[0]['refetchInterval'];
 }) {
   return useQuery({
     queryKey: chatQueryKeys.conversation(chatId),

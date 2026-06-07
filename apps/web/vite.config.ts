@@ -4,6 +4,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
+const browserMcpShim = fileURLToPath(new URL('./src/lib/ai-sdk-mcp-browser-shim.ts', import.meta.url));
 
 function readPort(value: string | undefined, fallback: number) {
   if (value === undefined || value.trim() === '') {
@@ -27,9 +28,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
-      },
+      alias: [
+        { find: '@ai-sdk/mcp/mcp-stdio', replacement: browserMcpShim },
+        { find: '@ai-sdk/mcp', replacement: browserMcpShim },
+        { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+      ],
     },
     server: {
       port: webPort,

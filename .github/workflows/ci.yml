@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  static-checks:
+    name: Lint, typecheck, and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Check website
+        run: pnpm --filter @arkivra/website check
+
+      - name: Build
+        run: pnpm build
+
+  tests:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: arkivra
+          POSTGRES_PASSWORD: arkivra
+          POSTGRES_DB: arkivra
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arkivra -d arkivra"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      docling:
+        image: quay.io/docling-project/docling-serve-cpu:v1.20.0
+        env:
+          UVICORN_WORKERS: '1'
+        ports:
+          - 5001:5001
+        options: >-
+          --health-cmd "curl -f http://localhost:5001/health"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+          --health-start-period 30s
+    env:
+      NODE_ENV: test
+      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@127.0.0.1:5432/arkivra
+      ARKIVRA_DOCLING_URL: http://127.0.0.1:5001
+      ARKIVRA_AUTH_SECRET: arkivra-ci-secret-change-before-production
+      ARKIVRA_ENCRYPTION_KEYS: 1:0000000000000000000000000000000000000000000000000000000000000000
+      ARKIVRA_STORAGE_FS_PATH: /tmp/arkivra-ci/document-storage
+      ARKIVRA_UPLOAD_STAGING_PATH: /tmp/arkivra-ci/upload-staging
+      ARKIVRA_BACKUPS_PATH: /tmp/arkivra-ci/backups
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        run: pnpm db:migrate
+
+      - name: Test
+        run: pnpm test

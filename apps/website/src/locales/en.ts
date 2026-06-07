@@ -2,7 +2,7 @@ export const translations = {
   'language-name': 'English',
 
   'site.title': 'Arkivra - Open-source document management with AI search',
-  'site.description': 'Arkivra is an open-source document system for organizing files into vaults, searching across them, and chatting with your documents using local or cloud AI models.',
+  'site.description': 'Arkivra is an open-source document system for organizing files into vaults, searching across them, and optionally chatting with your documents through an operator-configured Ollama-compatible endpoint.',
 
   // Footer Section
   'footer.made-in-europe': 'Built by <a href="https://jasnan.xyz" class="text-primary border-b hover:border-b-primary transition">Jasnan Thachaparamban</a>.',

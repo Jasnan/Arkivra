@@ -75,13 +75,13 @@ Arkivra is not designed as a zero-knowledge or end-to-end encrypted system.
 
 AI features in Arkivra are optional.
 
-When using local models, document processing and model context can remain entirely within the infrastructure where Arkivra is deployed.
+Arkivra currently uses Ollama-compatible provider settings for first-class AI features.
 
-When using cloud-based AI providers, Arkivra sends only the retrieved context required for a request rather than entire documents by default. Depending on retrieval results, that context may contain portions of document content.
+When using a local Ollama server, document processing and model context can remain entirely within the infrastructure where Arkivra is deployed.
 
-Cloud providers may log, retain, or process submitted data according to their own policies and configuration.
+If an operator points Arkivra at a remote or hosted model endpoint, Arkivra sends only the selected or retrieved context required for a request rather than entire documents by default. Depending on retrieval results, that context may contain portions of document content.
 
-Before using cloud-based AI services with sensitive documents, review the privacy and data-handling terms of the selected provider.
+Remote or hosted model providers may log, retain, or process submitted data according to their own policies and configuration. Before using remote AI services with sensitive documents, review the privacy and data-handling terms of the selected provider.
 
 ## Future Managed Services
 

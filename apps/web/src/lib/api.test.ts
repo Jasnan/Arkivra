@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { ApiError } from '@/lib/api';
 import { fetchJson } from '@/lib/api';
 
 describe('fetchJson', () => {
@@ -11,5 +12,24 @@ describe('fetchJson', () => {
       credentials: 'include',
       method: 'DELETE',
     }));
+  });
+
+  it('preserves structured error status, message, and code', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'vault.forbidden',
+        message: 'Forbidden',
+      },
+    }), {
+      status: 403,
+      headers: { 'content-type': 'application/json' },
+    })));
+
+    await expect(fetchJson('/api/test')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 403,
+      message: 'Forbidden',
+      code: 'vault.forbidden',
+    } satisfies Partial<ApiError>);
   });
 });

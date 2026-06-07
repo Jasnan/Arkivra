@@ -1,6 +1,6 @@
 # Arkivra Website
 
-This is the Astro marketing website for Arkivra, an open-source document system for organizing files into vaults, searching across them, and chatting with documents using local or cloud AI models.
+This is the Astro marketing website for Arkivra, an open-source document system for organizing files into vaults, searching across them, and optionally chatting with documents through an operator-configured Ollama-compatible endpoint.
 
 ## Development
 

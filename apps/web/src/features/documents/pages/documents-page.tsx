@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Tabs as ChakraTabs, Text, chakra } from '@chakra-ui/react';
 import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings2, Tags, Trash2, Users } from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from '@/components/ui/toaster-store';
@@ -64,9 +64,122 @@ import { useMeQuery } from '@/features/me/me.queries';
 import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
 import { canManageVaultWorkspace, canMutateVaultDocuments, canReadVault, canUseVaultChat } from '@/features/vaults/vault-permissions';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
-import type { AiAccessLevel, VaultRole } from '@/features/vaults/vaults.types';
+import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
 export type VaultSection = 'contents' | 'members' | 'activity' | 'settings';
+type VaultManagementSection = Exclude<VaultSection, 'contents'>;
+
+const vaultManagementTabs: Array<{ value: VaultManagementSection; label: string; icon: typeof Users | typeof Settings2 | typeof History }> = [
+  { value: 'members', label: 'Members', icon: Users },
+  { value: 'settings', label: 'Settings', icon: Settings2 },
+  { value: 'activity', label: 'Activity', icon: History },
+];
+
+function canViewVaultManagementSection(vault: VaultDetail, section: VaultManagementSection) {
+  return section === 'activity' || canManageVaultWorkspace(vault);
+}
+
+function getVaultManagementRoute(vaultId: string, section: VaultManagementSection) {
+  if (section === 'members') return ROUTES.vaultMembers(vaultId);
+  if (section === 'activity') return ROUTES.vaultActivity(vaultId);
+  return ROUTES.vaultSettings(vaultId);
+}
+
+function VaultManagementTabs({
+  vault,
+  vaultId,
+  section,
+  onSectionChange,
+}: {
+  vault: VaultDetail;
+  vaultId: string;
+  section: VaultManagementSection;
+  onSectionChange: (section: VaultManagementSection) => void;
+}) {
+  const visibleTabs = vaultManagementTabs.filter((tab) => canViewVaultManagementSection(vault, tab.value));
+  const canViewSection = canViewVaultManagementSection(vault, section);
+
+  return (
+    <ChakraTabs.Root
+      value={section}
+      onValueChange={(event) => {
+        if (
+          (event.value === 'members' || event.value === 'settings' || event.value === 'activity')
+          && canViewVaultManagementSection(vault, event.value)
+        ) {
+          onSectionChange(event.value);
+        }
+      }}
+      lazyMount
+      unmountOnExit
+      display="flex"
+      flexDirection="column"
+      flex="1"
+      minH="0"
+      gap="0"
+    >
+      <ChakraTabs.List
+        w="full"
+        flexShrink={0}
+        borderBottomWidth="1px"
+        borderColor="border.surface"
+        gap="8"
+      >
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon;
+
+          return (
+            <ChakraTabs.Trigger
+              key={tab.value}
+              value={tab.value}
+              position="relative"
+              gap="2"
+              borderBottomWidth="2px"
+              borderColor="transparent"
+              rounded="0"
+              px="0"
+              py="3"
+              fontSize="sm"
+              fontWeight="semibold"
+              color="fg.muted"
+              _selected={{ color: 'teal.fg', borderColor: 'teal.solid' }}
+            >
+              <Icon size={15} />
+              {tab.label}
+            </ChakraTabs.Trigger>
+          );
+        })}
+      </ChakraTabs.List>
+
+      {canViewSection ? (
+        <>
+          {canViewVaultManagementSection(vault, 'members') ? (
+            <ChakraTabs.Content value="members" flex="1" minH="0" pt="8">
+              <VaultMembersPanel vault={vault} vaultId={vaultId} />
+            </ChakraTabs.Content>
+          ) : null}
+
+          {canViewVaultManagementSection(vault, 'settings') ? (
+            <ChakraTabs.Content value="settings" flex="1" minH="0" pt="8">
+              <VaultSettingsPanel vaultId={vaultId} />
+            </ChakraTabs.Content>
+          ) : null}
+
+          <ChakraTabs.Content value="activity" flex="1" minH="0" pt="8">
+            <VaultActivityPanel vaultId={vaultId} />
+          </ChakraTabs.Content>
+        </>
+      ) : (
+        <Box pt="8">
+          <CenteredEmptyState
+            title="Vault management is restricted"
+            description="Only vault owners and admins can view members and settings."
+          />
+        </Box>
+      )}
+    </ChakraTabs.Root>
+  );
+}
 
 function isBrowserAction(entry: BrowserContextMenuEntry): entry is BrowserAction {
   return !('type' in entry);
@@ -245,6 +358,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   const navigate = useNavigate();
   const meQuery = useMeQuery();
   const vaultId = params.vaultId ?? '';
+  const isContentsSection = section === 'contents';
   const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const currentFolderId = search.folderId ?? null;
   const queryClient = useQueryClient();
@@ -272,11 +386,11 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   const folderItemsQuery = useFolderItemsQuery({
     vaultId,
     folderId: currentFolderId,
-    enabled: !isRestrictedAdminOverview && vaultQuery.isSuccess,
+    enabled: isContentsSection && !isRestrictedAdminOverview && vaultQuery.isSuccess,
   });
   const folderTreeQuery = useFolderTreeQuery({
     vaultId,
-    enabled: !isRestrictedAdminOverview && vaultQuery.isSuccess,
+    enabled: isContentsSection && !isRestrictedAdminOverview && vaultQuery.isSuccess,
   });
 
   const browserItems = useMemo<BrowserItem[]>(
@@ -578,8 +692,8 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     const adminSectionEntries: BrowserAction[] = canManageVaultWorkspace(vault)
       ? [
           { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }) },
-          { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
           { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
+          { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
         ]
       : [];
     const chatEntry: BrowserAction[] = aiFeaturesEnabled && canUseVaultChat(vault)
@@ -742,9 +856,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     currentFolderId,
     breadcrumbs: folderItemsQuery.data?.breadcrumbs ?? [],
     selectedCount,
-    showBrowserActions: section === 'contents',
-    browserSort: section === 'contents' ? browserSort : undefined,
-    onBrowserSortChange: section === 'contents' ? setBrowserSort : undefined,
+    showBrowserActions: isContentsSection,
+    browserSort: isContentsSection ? browserSort : undefined,
+    onBrowserSortChange: isContentsSection ? setBrowserSort : undefined,
     browserView,
     setBrowserView,
     dropTarget,
@@ -917,6 +1031,8 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     folderId: currentFolderId,
     name: currentFolderId === null ? 'Vault root' : folderItemsQuery.data?.folder?.name ?? 'Folder',
   };
+  const managementSection: VaultManagementSection | null = isContentsSection ? null : section;
+
   return (
     <Flex as="section" h="full" minH="0" direction="column" overflow="hidden">
       {!browserHeader.isInWorkspaceShell ? (
@@ -1052,26 +1168,19 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
         </>
       ) : null}
 
-      {section === 'members' ? (
+      {managementSection ? (
         <Flex flex="1" minH="0" direction="column" overflowY="auto">
           <Box px={{ base: '4', lg: '6' }} py="5">
-            <VaultMembersPanel vault={vaultQuery.data.vault} vaultId={vaultId} />
-          </Box>
-        </Flex>
-      ) : null}
-
-      {section === 'activity' ? (
-        <Flex flex="1" minH="0" direction="column">
-          <Box px={{ base: '4', lg: '6' }} py="5" overflowY="auto">
-            <VaultActivityPanel vaultId={vaultId} />
-          </Box>
-        </Flex>
-      ) : null}
-
-      {section === 'settings' ? (
-        <Flex flex="1" minH="0" direction="column" overflowY="auto">
-          <Box px={{ base: '4', lg: '6' }} py="5">
-            <VaultSettingsPanel vaultId={vaultId} />
+            <VaultManagementTabs
+              vault={vaultQuery.data.vault}
+              vaultId={vaultId}
+              section={managementSection}
+              onSectionChange={(nextSection) => {
+                if (nextSection !== managementSection) {
+                  navigate({ to: getVaultManagementRoute(vaultId, nextSection) });
+                }
+              }}
+            />
           </Box>
         </Flex>
       ) : null}

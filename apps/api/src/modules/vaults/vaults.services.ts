@@ -4,6 +4,8 @@ import type { PermissionRequestType } from '../authorization/authorization.types
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   documentsTable,
+  emailInvitationsTable,
+  permissionRequestsTable,
   usersTable,
   vaultFoldersTable,
   vaultMembersTable,
@@ -266,6 +268,87 @@ export function createVaultsServices({ db }: { db: Database }) {
     }));
   }
 
+  async function listPendingInvitations({ vaultId }: { vaultId: string }) {
+    const invitationRows = await db
+      .select({
+        id: emailInvitationsTable.id,
+        email: emailInvitationsTable.email,
+        invitedBy: emailInvitationsTable.invitedBy,
+        role: emailInvitationsTable.vaultRole,
+        aiAccessLevel: emailInvitationsTable.aiAccessLevel,
+        expiresAt: emailInvitationsTable.expiresAt,
+        createdAt: emailInvitationsTable.createdAt,
+        updatedAt: emailInvitationsTable.updatedAt,
+      })
+      .from(emailInvitationsTable)
+      .where(and(
+        eq(emailInvitationsTable.vaultId, vaultId),
+        eq(emailInvitationsTable.type, 'vault_member'),
+        eq(emailInvitationsTable.status, 'pending'),
+      ));
+
+    const requestRows = await db
+      .select({
+        id: permissionRequestsTable.id,
+        requestedBy: permissionRequestsTable.requestedBy,
+        payload: permissionRequestsTable.payload,
+        createdAt: permissionRequestsTable.createdAt,
+        updatedAt: permissionRequestsTable.updatedAt,
+      })
+      .from(permissionRequestsTable)
+      .where(and(
+        eq(permissionRequestsTable.vaultId, vaultId),
+        eq(permissionRequestsTable.type, 'vault.email_invitation'),
+        eq(permissionRequestsTable.status, 'pending'),
+      ));
+
+    return [
+      ...invitationRows
+        .filter(row => row.role !== null)
+        .map(row => ({
+          id: row.id,
+          source: 'email_invitation' as const,
+          status: 'pending' as const,
+          email: row.email,
+          role: row.role as VaultRole,
+          aiAccessLevel: row.aiAccessLevel as AiAccessLevel,
+          requestedBy: row.invitedBy,
+          expiresAt: row.expiresAt,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        })),
+      ...requestRows
+        .map((row) => {
+          const email = typeof row.payload.email === 'string' ? row.payload.email : null;
+          const role = row.payload.role;
+          const aiAccessLevel = row.payload.aiAccessLevel ?? 'none';
+          const expiresAt = typeof row.payload.expiresAt === 'string' ? new Date(row.payload.expiresAt) : null;
+
+          if (
+            email === null
+            || (role !== 'owner' && role !== 'editor' && role !== 'viewer')
+            || (aiAccessLevel !== 'none' && aiAccessLevel !== 'document_chat' && aiAccessLevel !== 'full')
+          ) {
+            return null;
+          }
+
+          return {
+            id: row.id,
+            source: 'permission_request' as const,
+            status: 'approval_pending' as const,
+            email,
+            role,
+            aiAccessLevel,
+            requestedBy: row.requestedBy,
+            expiresAt: expiresAt !== null && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          };
+        })
+        .filter(row => row !== null),
+    ].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
   async function countOwners({
     vaultId,
     excludeUserId,
@@ -446,14 +529,47 @@ export function createVaultsServices({ db }: { db: Database }) {
     });
   }
 
+  async function createEmailInvitation({
+    email,
+    invitedBy,
+    vaultId,
+    role,
+    aiAccessLevel,
+    expiresAt = null,
+  }: {
+    email: string;
+    invitedBy: string;
+    vaultId: string;
+    role: VaultRole;
+    aiAccessLevel: AiAccessLevel;
+    expiresAt?: Date | null;
+  }) {
+    return authorizationServices.createEmailInvitation({
+      type: 'vault_member',
+      email,
+      invitedBy,
+      vaultId,
+      vaultRole: role,
+      aiAccessLevel,
+      systemRole: 'member',
+      expiresAt,
+      payload: {
+        systemCapabilities: [],
+        vaultMemberships: [],
+      },
+    });
+  }
+
   return {
     countVaultContents,
+    createEmailInvitation,
     createVault,
     createPermissionRequest,
     getMember,
     getVaultForUser,
     listAllVaults,
     listMembers,
+    listPendingInvitations,
     listUserVaults,
     removeMember,
     softDeleteVault,

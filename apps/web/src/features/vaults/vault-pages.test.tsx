@@ -95,8 +95,8 @@ describe('vault pages', () => {
     expect(within(contextMenu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
       'Open',
       'Members',
-      'Activity',
       'Settings',
+      'Activity',
       'Chat',
     ]);
     await user.keyboard('{Escape}');
@@ -106,8 +106,8 @@ describe('vault pages', () => {
     expect((await screen.findAllByRole('menuitem')).map(item => item.textContent?.trim())).toEqual([
       'Open',
       'Members',
-      'Activity',
       'Settings',
+      'Activity',
       'Chat',
     ]);
     await user.click(screen.getByRole('menuitem', { name: /settings/i }));
@@ -547,13 +547,18 @@ describe('vault pages', () => {
       routePath: '/vaults/:vaultId/settings',
     });
 
-    expect(screen.queryByRole('tab', { name: /settings/i })).not.toBeInTheDocument();
+    expect((await screen.findAllByRole('tab')).map(tab => tab.textContent?.trim())).toEqual([
+      'Members',
+      'Settings',
+      'Activity',
+    ]);
+    expect(screen.getByRole('tab', { name: /settings/i })).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByText(/personal/i)).toBeInTheDocument();
     await user.clear(screen.getByLabelText(/name/i));
     await user.type(screen.getByLabelText(/name/i), 'Personal Vault');
     await user.clear(screen.getByLabelText(/description/i));
     await user.type(screen.getByLabelText(/description/i), 'Updated household records');
-    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await user.click(screen.getByRole('button', { name: /^save changes$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({
@@ -614,6 +619,10 @@ describe('vault pages', () => {
         });
       }
 
+      if (url.endsWith('/api/vaults/vlt_1/invitations')) {
+        return jsonResponse({ invitations: [] });
+      }
+
       if (url.endsWith('/api/vaults/vlt_1/members') && init?.method === 'POST') {
         return jsonResponse({
           member: {
@@ -626,6 +635,18 @@ describe('vault pages', () => {
         }, 201);
       }
 
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_owner',
+          sessionId: 'ses_owner',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
       throw new Error(`Unhandled request ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -635,9 +656,15 @@ describe('vault pages', () => {
       routePath: '/vaults/:vaultId/members',
     });
 
-    expect(screen.queryByRole('tab', { name: /members/i })).not.toBeInTheDocument();
-    await user.type(await screen.findByPlaceholderText(/usr_/i), 'usr_new');
-    await user.click(screen.getByRole('button', { name: /^add$/i }));
+    expect((await screen.findAllByRole('tab')).map(tab => tab.textContent?.trim())).toEqual([
+      'Members',
+      'Settings',
+      'Activity',
+    ]);
+    expect(screen.getByRole('tab', { name: /members/i })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('button', { name: /invite member/i }));
+    await user.type(await screen.findByPlaceholderText(/enter email address or user id/i), 'usr_new');
+    await user.click(screen.getByRole('button', { name: /^send invite$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/members', expect.objectContaining({
@@ -647,5 +674,251 @@ describe('vault pages', () => {
       }));
     });
     expect(await screen.findByText(/member added to vault/i)).toBeInTheDocument();
+  });
+
+  it('queues owner email invitations for admin approval and shows them in pending invites', async () => {
+    const user = userEvent.setup();
+    let inviteRequested = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1')) {
+        return jsonResponse({
+          vault: {
+            id: 'vlt_1',
+            name: 'Personal',
+            description: 'Household records',
+            role: 'owner',
+            aiAccessLevel: 'full',
+            isAdmin: false,
+            isMember: true,
+            accessMode: 'member',
+          },
+        });
+      }
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_owner',
+          sessionId: 'ses_owner',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/members') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          members: [
+            {
+              userId: 'usr_owner',
+              role: 'owner',
+              email: 'owner@example.com',
+              name: 'Owner',
+              aiAccessLevel: 'full',
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/invitations')) {
+        return jsonResponse({
+          invitations: inviteRequested
+            ? [
+                {
+                  id: 'perm_req_invite',
+                  source: 'permission_request',
+                  status: 'approval_pending',
+                  email: 'pending@example.com',
+                  role: 'viewer',
+                  aiAccessLevel: 'none',
+                  requestedBy: 'usr_owner',
+                  expiresAt: null,
+                  createdAt: '2026-01-01T00:00:00.000Z',
+                  updatedAt: '2026-01-01T00:00:00.000Z',
+                },
+              ]
+            : [],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/email-invitations') && init?.method === 'POST') {
+        inviteRequested = true;
+        return jsonResponse({
+          request: {
+            id: 'perm_req_invite',
+            type: 'vault.email_invitation',
+            status: 'pending',
+            requestedBy: 'usr_owner',
+            reviewedBy: null,
+            reviewedAt: null,
+            vaultId: 'vlt_1',
+            targetUserId: null,
+            payload: { email: 'pending@example.com', role: 'viewer', aiAccessLevel: 'none' },
+            result: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        }, 202);
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage section="members" />, {
+      initialEntries: ['/vaults/vlt_1/members'],
+      routePath: '/vaults/:vaultId/members',
+    });
+
+    await user.click(await screen.findByRole('button', { name: /invite member/i }));
+    await user.type(await screen.findByPlaceholderText(/enter email address or user id/i), 'pending@example.com');
+    await user.click(screen.getByRole('button', { name: /^send invite$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/email-invitations', expect.objectContaining({
+        body: JSON.stringify({ email: 'pending@example.com', role: 'viewer', aiAccessLevel: 'none', expiresAt: null }),
+        credentials: 'include',
+        method: 'POST',
+      }));
+    });
+    expect(await screen.findByText(/email invitation request queued for admin approval/i)).toBeInTheDocument();
+    expect(await screen.findByText('pending@example.com')).toBeInTheDocument();
+    expect(screen.getByText(/awaiting admin approval/i)).toBeInTheDocument();
+  });
+
+  it('keeps member row actions destructive and confirmation based', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1')) {
+        return jsonResponse({
+          vault: {
+            id: 'vlt_1',
+            name: 'Personal',
+            description: 'Household records',
+            role: 'owner',
+            aiAccessLevel: 'full',
+            isAdmin: false,
+            isMember: true,
+            accessMode: 'member',
+          },
+        });
+      }
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_owner',
+          sessionId: 'ses_owner',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/members') && (!init || init.method === undefined)) {
+        return jsonResponse({
+          members: [
+            {
+              userId: 'usr_owner',
+              role: 'owner',
+              email: 'owner@example.com',
+              name: 'Owner',
+              aiAccessLevel: 'full',
+            },
+            {
+              userId: 'usr_coowner',
+              role: 'owner',
+              email: 'coowner@example.com',
+              name: 'Co-owner',
+              aiAccessLevel: 'full',
+            },
+            {
+              userId: 'usr_editor',
+              role: 'editor',
+              email: 'editor@example.com',
+              name: 'Editor',
+              aiAccessLevel: 'none',
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/invitations')) {
+        return jsonResponse({
+          invitations: [
+            {
+              id: 'invite_pending',
+              source: 'email_invitation',
+              status: 'pending',
+              email: 'invited@example.com',
+              role: 'editor',
+              aiAccessLevel: 'document_chat',
+              requestedBy: 'usr_owner',
+              expiresAt: '2026-02-01T00:00:00.000Z',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/members/usr_editor') && init?.method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+
+      if (url.endsWith('/api/vaults/vlt_1/members/usr_coowner') && init?.method === 'PATCH') {
+        return jsonResponse({
+          member: {
+            userId: 'usr_coowner',
+            role: 'viewer',
+            aiAccessLevel: 'full',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentsPage section="members" />, {
+      initialEntries: ['/vaults/vlt_1/members'],
+      routePath: '/vaults/:vaultId/members',
+    });
+
+    expect(await screen.findByText('Co-owner')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /actions for owner/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /actions for editor/i }));
+    expect(screen.queryByRole('menuitem', { name: /make owner/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: /^remove from vault$/i }));
+    const removeMemberDialog = await screen.findByRole('dialog', { name: /remove member from vault/i });
+    await user.click(within(removeMemberDialog).getByRole('button', { name: /^remove from vault$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/members/usr_editor', expect.objectContaining({
+        credentials: 'include',
+        method: 'DELETE',
+      }));
+    });
+
+    await user.click(screen.getByRole('button', { name: /actions for co-owner/i }));
+    expect(screen.getByRole('menuitem', { name: /^remove owner role$/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: /^remove owner role$/i }));
+    const removeOwnerDialog = await screen.findByRole('dialog', { name: /remove owner role/i });
+    await user.click(within(removeOwnerDialog).getByRole('button', { name: /^remove owner role$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1/members/usr_coowner', expect.objectContaining({
+        body: JSON.stringify({ role: 'viewer', aiAccessLevel: 'full' }),
+        credentials: 'include',
+        method: 'PATCH',
+      }));
+    });
   });
 });

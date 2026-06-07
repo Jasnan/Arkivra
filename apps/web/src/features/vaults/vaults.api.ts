@@ -5,6 +5,7 @@ import type {
   PermissionRequest,
   VaultDetail,
   VaultMember,
+  VaultPendingInvitation,
   VaultRole,
   VaultSummary,
 } from './vaults.types';
@@ -23,6 +24,10 @@ interface PermissionRequestResponse {
 
 interface VaultMembersResponse {
   members: VaultMember[];
+}
+
+interface VaultPendingInvitationsResponse {
+  invitations: VaultPendingInvitation[];
 }
 
 export async function listVaults() {
@@ -65,6 +70,10 @@ export async function deleteVault({ vaultId }: { vaultId: string }) {
 
 export async function listVaultMembers({ vaultId }: { vaultId: string }) {
   return fetchJson<VaultMembersResponse>(`/api/vaults/${vaultId}/members`);
+}
+
+export async function listVaultPendingInvitations({ vaultId }: { vaultId: string }) {
+  return fetchJson<VaultPendingInvitationsResponse>(`/api/vaults/${vaultId}/invitations`);
 }
 
 export async function addVaultMember(
@@ -156,13 +165,11 @@ export async function createVaultEmailInvitation({
   aiAccessLevel: AiAccessLevel;
   expiresAt?: string | null;
 }) {
-  return fetchJson<{ invitation: EmailInvitation }>('/api/admin/email-invitations', {
+  return fetchJson<{ invitation: EmailInvitation } | PermissionRequestResponse>(`/api/vaults/${vaultId}/email-invitations`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      type: 'vault_member',
       email,
-      vaultId,
       role,
       aiAccessLevel,
       expiresAt: expiresAt ?? null,

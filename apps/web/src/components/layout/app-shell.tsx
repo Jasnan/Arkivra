@@ -342,7 +342,9 @@ function buildBreadcrumbs({
     ];
 
     if (parts.length === 2) return base;
+    if (parts[2] === 'members') return [...base, { label: 'Members' }];
     if (parts[2] === 'settings') return [...base, { label: 'Settings' }];
+    if (parts[2] === 'activity') return [...base, { label: 'Activity' }];
     if (parts[2] === 'chat') return [...base, { label: 'Chat' }];
     if (parts[3] === 'chat') return [...base, { label: currentDocumentLabel }, { label: 'Chat' }];
     if (parts[2]) return [...base, { label: currentDocumentLabel }];

@@ -9,6 +9,7 @@ export const PERMISSION_REQUEST_TYPES = [
   'vault.delete',
   'vault.owner_promote',
   'vault.ai_escalation',
+  'vault.email_invitation',
 ] as const;
 export type PermissionRequestType = (typeof PERMISSION_REQUEST_TYPES)[number];
 
@@ -86,4 +87,17 @@ export interface VaultMember {
   email: string;
   name: string | null;
   aiAccessLevel: AiAccessLevel;
+}
+
+export interface VaultPendingInvitation {
+  id: string;
+  source: 'email_invitation' | 'permission_request';
+  status: 'pending' | 'approval_pending';
+  email: string;
+  role: VaultRole;
+  aiAccessLevel: AiAccessLevel;
+  requestedBy: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

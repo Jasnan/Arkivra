@@ -193,6 +193,12 @@ export function requireCanReadVault(options: { auditServices?: AuditServices } =
   return requireVaultAuthorization(({ role }) => canReadRole(role), options);
 }
 
+export function requireCanViewVaultManagement() {
+  return requireVaultAuthorization(({ isAdmin, role, accessMode }) =>
+    role === 'owner' || isAdmin || accessMode === 'admin',
+  );
+}
+
 export function requireCanMutateVaultDocuments(options: { auditServices?: AuditServices } = {}) {
   return requireVaultAuthorization(({ role }) => canMutateDocumentsRole(role), options);
 }

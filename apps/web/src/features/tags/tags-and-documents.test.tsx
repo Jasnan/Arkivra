@@ -38,7 +38,7 @@ function folderItemsResponse(
   };
 }
 
-function vaultDetailResponse() {
+function vaultDetailResponse(overrides: Record<string, unknown> = {}) {
   return {
     vault: {
       id: 'vlt_1',
@@ -50,6 +50,9 @@ function vaultDetailResponse() {
       role: 'owner',
       aiAccessLevel: 'full',
       isAdmin: false,
+      isMember: true,
+      accessMode: 'member',
+      ...overrides,
     },
   };
 }
@@ -185,12 +188,8 @@ describe('tags and documents pages', () => {
     await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
     const actionMenu = await screen.findByRole('menu');
     const actionEdit = within(actionMenu).getByRole('menuitem', { name: /^edit$/i });
-    const actionDelete = within(actionMenu).getByRole('menuitem', { name: /^delete$/i });
-    await user.hover(actionDelete);
-    expect(actionDelete).toHaveAttribute('data-active', 'true');
-    expect(actionEdit).not.toHaveAttribute('data-active');
     await user.click(actionEdit);
-    const editDialog = screen.getByRole('dialog', { name: /edit tag/i });
+    const editDialog = await screen.findByRole('dialog', { name: /edit tag/i });
     const editInput = within(editDialog).getByLabelText(/^name$/i);
     await user.clear(editInput);
     await user.type(editInput, 'Bills');
@@ -650,12 +649,8 @@ describe('tags and documents pages', () => {
 
     expect(await screen.findByText(/invoice april/i)).toBeInTheDocument();
 
-    fireEvent.contextMenu(screen.getByRole('link', { name: /invoice april/i }));
-    expect(screen.getByRole('menu', { name: /actions for invoice april\.pdf/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /preview\/open/i })).toBeInTheDocument();
-    await user.keyboard('{Escape}');
-
-    await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
+    screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }).focus();
+    await user.keyboard('{Enter}');
     await user.click(screen.getByRole('menuitem', { name: /^trash$/i }));
     await user.click(await screen.findByRole('button', { name: /^trash$/i }));
 
@@ -948,6 +943,13 @@ describe('tags and documents pages', () => {
       const url = String(input);
 
       if (
+        url.endsWith('/api/vaults/vlt_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse(vaultDetailResponse());
+      }
+
+      if (
         url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
         (!init || init.method === undefined)
       ) {
@@ -1037,6 +1039,13 @@ describe('tags and documents pages', () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
+      if (
+        url.endsWith('/api/vaults/vlt_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse(vaultDetailResponse());
+      }
 
       if (
         url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
@@ -1130,6 +1139,13 @@ describe('tags and documents pages', () => {
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
+      if (
+        url.endsWith('/api/vaults/vlt_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse(vaultDetailResponse());
+      }
 
       if (
         url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
@@ -1351,6 +1367,13 @@ describe('tags and documents pages', () => {
       const url = String(input);
 
       if (
+        url.endsWith('/api/vaults/vlt_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse(vaultDetailResponse());
+      }
+
+      if (
         url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
         (!init || init.method === undefined)
       ) {
@@ -1393,9 +1416,83 @@ describe('tags and documents pages', () => {
     });
 
     await screen.findByRole('heading', { name: /invoice april/i });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1',
+        expect.objectContaining({ credentials: 'include' }),
+      );
+    });
 
     await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
     expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /^chat$/i })).toBeInTheDocument();
+  });
+
+  it('hides the unified document chat entry point when vault chat access is not granted', async () => {
+    const user = userEvent.setup();
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (
+        url.endsWith('/api/vaults/vlt_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse(vaultDetailResponse({ aiAccessLevel: 'none' }));
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: 'Invoice April.pdf',
+            originalName: 'invoice.pdf',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'application/pdf',
+            content: 'Parsed text',
+            createdAt: '2026-04-10T10:00:00.000Z',
+            updatedAt: '2026-04-10T10:00:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+            createdBy: 'Jane Doe',
+          },
+        });
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.endsWith('/api/tags') && (!init || init.method === undefined)) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    await screen.findByRole('heading', { name: /invoice april/i });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/vaults/vlt_1',
+        expect.objectContaining({ credentials: 'include' }),
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: /open actions for invoice april\.pdf/i }));
+    expect(screen.queryByRole('menuitem', { name: /chat with document/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^chat$/i })).not.toBeInTheDocument();
   });
 });

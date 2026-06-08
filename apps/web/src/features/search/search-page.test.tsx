@@ -985,7 +985,7 @@ describe('documents library search controls', () => {
 
     await user.type(screen.getByLabelText(/search documents/i), 'invoice');
     await selectRadixOption(user, /^sort$/i, /name \(a-z\)/i);
-    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await user.click(screen.getByRole('button', { name: /^open filters$/i }));
     await screen.findByRole('dialog', { name: /filters/i });
     const vaultFilter = screen.getByRole('combobox', { name: /filter by vaults/i });
     await user.click(vaultFilter);
@@ -1063,17 +1063,24 @@ describe('documents library search controls', () => {
       routePath: '/documents',
     });
 
-    await user.click(screen.getByRole('button', { name: /filter/i }));
+    await user.click(screen.getByRole('button', { name: /^open filters$/i }));
     await screen.findByRole('dialog', { name: /filters/i });
 
     const vaultSearch = screen.getByRole('combobox', { name: /filter by vaults/i });
-    await user.click(vaultSearch);
+    vaultSearch.focus();
+    await waitFor(() => expect(vaultSearch).toHaveFocus());
     fireEvent.change(vaultSearch, { target: { value: 'sher' } });
     expect(vaultSearch).toHaveValue('sher');
     expect(vaultSearch).toHaveFocus();
 
+    fireEvent.keyDown(vaultSearch, { key: 'Escape' });
+    await waitFor(() => expect(vaultSearch).toHaveAttribute('data-state', 'closed'));
+    await user.click(screen.getByRole('button', { name: /^open filters$/i }));
+    await screen.findByRole('dialog', { name: /filters/i });
+
     const tagSearch = screen.getByRole('combobox', { name: /filter by tags/i });
-    await user.click(tagSearch);
+    tagSearch.focus();
+    await waitFor(() => expect(tagSearch).toHaveFocus());
     fireEvent.change(tagSearch, { target: { value: 'ins' } });
     expect(tagSearch).toHaveValue('ins');
     expect(tagSearch).toHaveFocus();

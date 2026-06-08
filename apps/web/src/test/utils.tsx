@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { ComponentType, PropsWithChildren, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
@@ -8,9 +8,21 @@ import { ThemeProvider } from '@/components/providers/theme-provider'
 
 const routeParamPattern = /:(\w+)/g
 
+interface TestRouteDefinition {
+  path: string
+  component?: ComponentType
+}
+
 export async function renderWithProviders(
   ui: ReactNode,
-  options?: { initialEntries?: string[]; routePath?: string; routePaths?: string[]; rootComponent?: boolean },
+  options?: {
+    initialEntries?: string[]
+    routePath?: string
+    routePaths?: string[]
+    routes?: TestRouteDefinition[]
+    rootComponent?: boolean
+    includeToaster?: boolean
+  },
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -23,11 +35,14 @@ export async function renderWithProviders(
   const rootRoute = createRootRoute(options?.rootComponent ? {
     component: () => <>{ui}</>,
   } : undefined)
-  const paths = options?.routePaths ?? [options?.routePath ?? '/']
-  const testRoutes = paths.map((routePath) => createRoute({
+  const routeDefinitions: TestRouteDefinition[] = options?.routes
+    ?? (options?.routePaths ?? [options?.routePath ?? '/']).map(path => ({ path }))
+  const testRoutes = routeDefinitions.map(({ path, component: Component }) => createRoute({
     getParentRoute: () => rootRoute,
-    path: routePath.replace(routeParamPattern, '$$$1'),
-    component: options?.rootComponent ? undefined : () => <>{ui}</>,
+    path: path.replace(routeParamPattern, '$$$1'),
+    component: Component
+      ? () => <Component />
+      : options?.rootComponent ? undefined : () => <>{ui}</>,
   }))
   const routeTree = rootRoute.addChildren(testRoutes)
 
@@ -44,7 +59,7 @@ export async function renderWithProviders(
         <QueryClientProvider client={queryClient}>
           <AccentColorProvider>
             <RouterProvider router={router} />
-            <Toaster />
+            {options?.includeToaster ? <Toaster /> : null}
           </AccentColorProvider>
         </QueryClientProvider>
       </ThemeProvider>

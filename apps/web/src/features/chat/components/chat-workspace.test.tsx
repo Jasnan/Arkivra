@@ -27,6 +27,9 @@ const createdConversationState = vi.hoisted(() => ({
     deletedAt: null;
   },
 }));
+const loadingConversationState = vi.hoisted(() => ({
+  chatId: '',
+}));
 
 function haveSameMessageIds(left: any[], right: any[]) {
   if (left.length !== right.length) return false;
@@ -325,6 +328,13 @@ vi.mock('../chat.queries', () => ({
     conversation: (chatId: string) => ['chat', 'conversation', chatId],
   },
   useChatConversationQuery: ({ chatId }: { chatId: string }) => {
+    if (chatId === loadingConversationState.chatId) {
+      return {
+        data: undefined,
+        isLoading: true,
+      };
+    }
+
     if (chatId === 'chat_created' && createdConversationState.conversation !== null) {
       return {
         data: {
@@ -445,6 +455,57 @@ vi.mock('../chat.queries', () => ({
                     ],
                   },
                 ],
+              },
+            ],
+          },
+        },
+        isLoading: false,
+      };
+    }
+
+    if (chatId === 'chat_legacy_status') {
+      return {
+        data: {
+          conversation: {
+            id: 'chat_legacy_status',
+            title: 'Legacy chat',
+            scope: 'global',
+            vaultId: null,
+            documentId: null,
+            contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
+            contextAvailability: { status: 'available', readOnly: false },
+            userId: 'usr_1',
+            createdAt: '2026-05-05T12:00:00.000Z',
+            updatedAt: '2026-05-05T12:05:00.000Z',
+            deletedAt: null,
+            messages: [
+              {
+                id: 'msg_legacy_user',
+                role: 'user',
+                metadata: {
+                  conversationId: 'chat_legacy_status',
+                  vaultId: null,
+                  documentId: null,
+                  scope: 'global',
+                  userId: 'usr_1',
+                  createdAt: '2026-05-05T12:00:00.000Z',
+                  updatedAt: '2026-05-05T12:00:00.000Z',
+                },
+                parts: [{ type: 'text', text: 'What is in the vault?' }],
+              },
+              {
+                id: 'msg_legacy_assistant',
+                role: 'assistant',
+                metadata: {
+                  conversationId: 'chat_legacy_status',
+                  vaultId: null,
+                  documentId: null,
+                  scope: 'global',
+                  userId: 'usr_1',
+                  createdAt: '2026-05-05T12:01:00.000Z',
+                  updatedAt: '2026-05-05T12:01:00.000Z',
+                },
+                parts: [{ type: 'text', text: 'The vault contains finance documents.' }],
               },
             ],
           },
@@ -638,6 +699,7 @@ describe('chat workspace new chat drafts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createdConversationState.conversation = null;
+    loadingConversationState.chatId = '';
     createConversationMock.mockImplementation(async ({ title, contextSnapshot }) => {
       createdConversationState.conversation = {
         id: 'chat_created',
@@ -769,6 +831,23 @@ describe('chat workspace new chat drafts', () => {
     expect(await screen.findByText('Existing saved message')).toBeInTheDocument();
   });
 
+  it('shows a loading state instead of guided prompts while a selected conversation hydrates', async () => {
+    loadingConversationState.chatId = 'chat_loading';
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+        selectedConversationId="chat_loading"
+      />,
+    );
+
+    expect(await screen.findByText(/loading conversation/i)).toBeInTheDocument();
+    expect(screen.queryByText('Chat with your documents')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/chat message/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled();
+  });
+
   it('keeps saved history visible when reselecting the active conversation', async () => {
     const user = userEvent.setup();
 
@@ -786,6 +865,31 @@ describe('chat workspace new chat drafts', () => {
 
     expect(screen.getByText('Existing saved message')).toBeInTheDocument();
     expect(screen.queryByText('What is in this vault?')).not.toBeInTheDocument();
+  });
+
+  it('keeps legacy completed assistant messages follow-up capable when generation status is absent', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+        selectedConversationId="chat_legacy_status"
+      />,
+    );
+
+    expect(await screen.findByText('The vault contains finance documents.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/chat message/i)).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /send message/i })).not.toBeDisabled();
+
+    await user.type(screen.getByLabelText(/chat message/i), 'Can you summarize that?');
+    await user.click(screen.getByRole('button', { name: /send message/i }));
+
+    expect(runtimeSendTextMock).toHaveBeenCalledWith({
+      text: 'Can you summarize that?',
+      options: { intent: null },
+    });
+    expect(createConversationMock).not.toHaveBeenCalled();
   });
 
   it('discards an unsaved new chat from the conversation list', async () => {

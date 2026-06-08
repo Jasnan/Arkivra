@@ -136,23 +136,29 @@ function getRuntimeConversationId(messages: ChatMessage[]) {
 }
 
 function hasPendingAssistantMessage(messages: ChatMessage[]) {
-  return messages.some((message) => {
-    if (message.role !== 'assistant') return false;
-    const generationStatus = message.metadata?.generationStatus;
-    if (generationStatus === 'completed' || generationStatus === 'failed') return false;
-    return message.parts.some(part => part.type === 'data-status')
-      || generationStatus === 'pending'
-      || generationStatus === undefined
-      || generationStatus === null;
-  });
+  return messages.some(isPendingAssistantMessage);
 }
 
 function localPendingAssistantMessages(messages: ChatMessage[]) {
-  return messages.filter((message) => {
-    if (message.role !== 'assistant') return false;
-    const generationStatus = message.metadata?.generationStatus;
-    return generationStatus !== 'completed' && generationStatus !== 'failed';
-  });
+  return messages.filter(isPendingAssistantMessage);
+}
+
+function hasTextContent(message: ChatMessage) {
+  return message.parts.some(part => part.type === 'text' && part.text.trim().length > 0);
+}
+
+function hasStatusPart(message: ChatMessage) {
+  return message.parts.some(part => part.type === 'data-status');
+}
+
+function isPendingAssistantMessage(message: ChatMessage) {
+  if (message.role !== 'assistant') return false;
+
+  const generationStatus = message.metadata?.generationStatus;
+  if (generationStatus === 'completed' || generationStatus === 'failed') return false;
+  if (generationStatus === 'pending') return true;
+
+  return hasStatusPart(message) && !hasTextContent(message);
 }
 
 function hasTerminalPersistedMessageForLocalPending({
@@ -166,7 +172,7 @@ function hasTerminalPersistedMessageForLocalPending({
     persistedMessages
       .filter(message =>
         message.role === 'assistant'
-        && (message.metadata?.generationStatus === 'completed' || message.metadata?.generationStatus === 'failed'))
+        && !isPendingAssistantMessage(message))
       .map(message => message.id),
   );
 
@@ -391,8 +397,14 @@ export function ChatWorkspace({
   const messages = runtimeState.messages;
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
   const effectiveIntent = activeConversationIntent;
-  const shouldShowEmptyState = messages.length === 0 && !isStreaming;
-  const isComposerDisabled = !canUseChat || isStreaming || createConversation.isPending;
+  const isSelectedConversationLoading = effectiveSelectedChatId.length > 0
+    && selectedChatQuery.isLoading
+    && messages.length === 0;
+  const shouldShowEmptyState = effectiveSelectedChatId.length === 0
+    && messages.length === 0
+    && !isStreaming
+    && !createConversation.isPending;
+  const isComposerDisabled = isSelectedConversationLoading || !canUseChat || isStreaming || createConversation.isPending;
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
     if (!isDraftConversation) return conversations;
@@ -954,7 +966,18 @@ export function ChatWorkspace({
           onStateChange={handleRuntimeStateChange}
           onFinish={handleRuntimeFinish}
         >
-          {shouldShowEmptyState ? (
+          {isSelectedConversationLoading ? (
+            <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
+              <ScrollArea.Viewport h="full">
+                <ScrollArea.Content minH="full">
+                  <ChatConversationSkeleton />
+                </ScrollArea.Content>
+              </ScrollArea.Viewport>
+              <ScrollArea.Scrollbar bg="transparent">
+                <ScrollArea.Thumb />
+              </ScrollArea.Scrollbar>
+            </ScrollArea.Root>
+          ) : shouldShowEmptyState ? (
             <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
               <ScrollArea.Viewport h="full">
                 <ScrollArea.Content minH="full">
@@ -967,17 +990,6 @@ export function ChatWorkspace({
                       void handleSend(prompt);
                     }}
                   />
-                </ScrollArea.Content>
-              </ScrollArea.Viewport>
-              <ScrollArea.Scrollbar bg="transparent">
-                <ScrollArea.Thumb />
-              </ScrollArea.Scrollbar>
-            </ScrollArea.Root>
-          ) : selectedChatQuery.isLoading && messages.length === 0 ? (
-            <ScrollArea.Root h="full" minH="0" minW="0" size="xs" variant="hover">
-              <ScrollArea.Viewport h="full">
-                <ScrollArea.Content minH="full">
-                  <ChatConversationSkeleton />
                 </ScrollArea.Content>
               </ScrollArea.Viewport>
               <ScrollArea.Scrollbar bg="transparent">

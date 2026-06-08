@@ -32,10 +32,9 @@ describe.sequential('migrations smoke', () => {
     adminUrl.pathname = '/postgres';
 
     isolatedDatabaseName = `arkivra_migrations_e2e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    isolatedDatabaseUrl = new URL(baseDatabaseUrl).toString().replace(
-      /\/[^/?]+(\?.*)?$/,
-      `/${isolatedDatabaseName}$1`,
-    );
+    isolatedDatabaseUrl = new URL(baseDatabaseUrl)
+      .toString()
+      .replace(/\/[^/?]+(\?.*)?$/, `/${isolatedDatabaseName}$1`);
 
     adminPool = new Pool({ connectionString: adminUrl.toString() });
     await adminPool.query(`CREATE DATABASE "${isolatedDatabaseName}"`);
@@ -418,17 +417,18 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    const columnKeys = new Set(columns.map(row => `${row.table_name}.${row.column_name}`));
+    const columnKeys = new Set(columns.map((row) => `${row.table_name}.${row.column_name}`));
 
     expect(columnKeys).toContain('chat_conversations.vault_id');
     expect(columnKeys).toContain('chat_conversations.user_id');
     expect(columnKeys).toContain('chat_conversations.title');
     expect(columnKeys).toContain('chat_conversations.deleted_at');
     expect(columnKeys).toContain('chat_messages.conversation_id');
-    expect(columnKeys).toContain('chat_messages.content');
-    expect(columnKeys).toContain('chat_messages.citations');
-    expect(columnKeys).toContain('chat_messages.generation_status');
-    expect(columnKeys).toContain('chat_messages.generation_error');
+    expect(columnKeys).toContain('chat_messages.message');
+    expect(columnKeys).not.toContain('chat_messages.content');
+    expect(columnKeys).not.toContain('chat_messages.citations');
+    expect(columnKeys).not.toContain('chat_messages.generation_status');
+    expect(columnKeys).not.toContain('chat_messages.generation_error');
 
     const { rows: indexes } = await pool.query<{ indexname: string }>(
       `
@@ -439,7 +439,7 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    const indexNames = indexes.map(row => row.indexname);
+    const indexNames = indexes.map((row) => row.indexname);
     expect(indexNames).toContain('chat_conversations_vault_created_idx');
     expect(indexNames).toContain('chat_conversations_user_id_vault_idx');
     expect(indexNames).toContain('chat_messages_conversation_created_idx');
@@ -466,7 +466,7 @@ describe.sequential('migrations smoke', () => {
     );
 
     const byKey = Object.fromEntries(
-      columns.map(row => [`${row.table_name}.${row.column_name}`, row]),
+      columns.map((row) => [`${row.table_name}.${row.column_name}`, row]),
     );
 
     expect(byKey['chat_conversations.vault_id']?.is_nullable).toBe('YES');
@@ -530,12 +530,14 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    expect(new Set(tableRows.map(row => row.table_name))).toEqual(new Set([
-      'ai_provider_configs',
-      'embedding_indexes',
-      'document_chunk_embeddings',
-      'document_embedding_index_status',
-    ]));
+    expect(new Set(tableRows.map((row) => row.table_name))).toEqual(
+      new Set([
+        'ai_provider_configs',
+        'embedding_indexes',
+        'document_chunk_embeddings',
+        'document_embedding_index_status',
+      ]),
+    );
 
     const { rows: embeddingColumnRows } = await pool.query<{ format_type: string }>(
       `
@@ -568,12 +570,14 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    expect(new Set(indexRows.map(row => row.indexname))).toEqual(new Set([
-      'embedding_indexes_single_active_idx',
-      'document_chunk_embeddings_index_doc_idx',
-      'document_chunk_embeddings_index_vault_idx',
-      'document_embedding_index_status_pkey',
-    ]));
+    expect(new Set(indexRows.map((row) => row.indexname))).toEqual(
+      new Set([
+        'embedding_indexes_single_active_idx',
+        'document_chunk_embeddings_index_doc_idx',
+        'document_chunk_embeddings_index_vault_idx',
+        'document_embedding_index_status_pkey',
+      ]),
+    );
   });
 
   test('0014 creates the background_jobs table used by async workers', async () => {
@@ -616,7 +620,7 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    expect(indexRows.map(row => row.indexname)).toEqual(
+    expect(indexRows.map((row) => row.indexname)).toEqual(
       expect.arrayContaining([
         'background_jobs_queue_status_run_idx',
         'background_jobs_status_run_idx',
@@ -649,7 +653,7 @@ describe.sequential('migrations smoke', () => {
     );
 
     const byKey = Object.fromEntries(
-      rows.map(row => [`${row.table_name}.${row.column_name}`, row]),
+      rows.map((row) => [`${row.table_name}.${row.column_name}`, row]),
     );
 
     expect(byKey['vault_folders.id']?.data_type).toBe('text');
@@ -670,7 +674,7 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    expect(indexRows.map(row => row.indexname)).toEqual(
+    expect(indexRows.map((row) => row.indexname)).toEqual(
       expect.arrayContaining([
         'vault_folders_active_sibling_name_unique',
         'vault_folders_vault_parent_deleted_name_idx',
@@ -694,7 +698,7 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    const indexNames = rows.map(row => row.indexname);
+    const indexNames = rows.map((row) => row.indexname);
     expect(indexNames).toContain('documents_active_folder_filename_unique');
     expect(indexNames).toContain('documents_vault_hash_unique');
   });
@@ -719,7 +723,7 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    const byName = Object.fromEntries(rows.map(row => [row.column_name, row]));
+    const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
 
     expect(byName.language?.data_type).toBe('text');
     expect(byName.language?.is_nullable).toBe('NO');
@@ -757,7 +761,7 @@ describe.sequential('migrations smoke', () => {
     );
 
     const byKey = Object.fromEntries(
-      columnRows.map(row => [`${row.table_name}.${row.column_name}`, row]),
+      columnRows.map((row) => [`${row.table_name}.${row.column_name}`, row]),
     );
 
     expect(byKey['users.system_role']?.data_type).toBe('text');
@@ -791,13 +795,9 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    const tableNames = tableRows.map(row => row.table_name);
+    const tableNames = tableRows.map((row) => row.table_name);
     expect(tableNames).toEqual(
-      expect.arrayContaining([
-        'system_capabilities',
-        'permission_requests',
-        'email_invitations',
-      ]),
+      expect.arrayContaining(['system_capabilities', 'permission_requests', 'email_invitations']),
     );
     expect(tableNames).not.toContain('user_global_roles');
     expect(tableNames).not.toContain('vault_member_permissions');

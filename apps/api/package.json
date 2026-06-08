@@ -25,6 +25,7 @@
     "test:e2e:processing": "vitest run src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts",
     "test:watch": "vitest watch",
     "typecheck": "tsc --noEmit",
+    "db:check": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/scripts/check-schema-migration-drift.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/scripts/migrate.ts",
     "db:cleanup:e2e": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/scripts/cleanup-e2e-data.ts",

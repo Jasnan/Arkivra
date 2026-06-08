@@ -28,6 +28,7 @@
     "db:cleanup:e2e": "pnpm --filter @arkivra/api db:cleanup:e2e",
     "test:watch": "vitest watch",
     "typecheck": "pnpm --filter './apps/*' typecheck",
+    "db:check": "pnpm --filter @arkivra/api db:check",
     "db:generate": "pnpm --filter @arkivra/api db:generate",
     "db:migrate": "pnpm --filter @arkivra/api db:migrate",
     "db:reset:dev": "bash scripts/reset-dev-data.sh",

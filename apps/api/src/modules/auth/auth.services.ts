@@ -1,6 +1,6 @@
 import type { Config } from '../config/config.js';
 import type { Database } from '../database/database.js';
-import type { BetterAuthPlugin, User } from 'better-auth';
+import type { BetterAuthPlugin, Session, User } from 'better-auth';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
@@ -17,7 +17,34 @@ import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
 import { createAuthEmailServices } from './auth-email.services.js';
 import { oauthTwoFactorChallengePlugin } from './oauth-two-factor.plugin.js';
 
-export type Auth = ReturnType<typeof createAuth>['auth'];
+type BetterAuthContext = Awaited<ReturnType<typeof betterAuth>['$context']>;
+
+export type Auth = {
+  $context: Promise<{
+    appName: string;
+    password: Pick<BetterAuthContext['password'], 'config' | 'hash' | 'verify'>;
+    secretConfig: BetterAuthContext['secretConfig'];
+  }>;
+  api: {
+    changeEmail(input: {
+      body: {
+        callbackURL?: string;
+        newEmail: string;
+      };
+      headers: Headers;
+    }): Promise<unknown>;
+    getSession(input: { headers: Headers }): Promise<{ session: Session; user: User } | null>;
+    linkSocialAccount(input: {
+      asResponse: true;
+      body: {
+        callbackURL?: string;
+        provider: 'github' | 'google';
+      };
+      headers: Headers;
+    }): Promise<Response>;
+  };
+  handler(request: Request): Promise<Response>;
+};
 
 function getOAuthRedirectUri(config: Config, provider: 'google' | 'github') {
   const baseUrl = new URL(config.auth.baseUrl ?? config.server.baseUrl);
@@ -365,7 +392,7 @@ function buildPlugins(config: Config, db: Database) {
   ];
 }
 
-export function createAuth({ db, config }: { db: Database; config: Config }) {
+export function createAuth({ db, config }: { db: Database; config: Config }): { auth: Auth } {
   const authEmailServices = createAuthEmailServices({ config });
   const auditServices = createAuditServices({ db });
 
@@ -498,5 +525,5 @@ export function createAuth({ db, config }: { db: Database; config: Config }) {
     plugins: buildPlugins(config, db),
   });
 
-  return { auth };
+  return { auth: auth as unknown as Auth };
 }

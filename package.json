@@ -15,6 +15,9 @@
     "dev:web": "pnpm --filter @arkivra/web dev",
     "build": "pnpm --filter './apps/*' build",
     "commitmsg:check": "node scripts/validate-commit-message.mjs",
+    "deps:audit": "pnpm audit --audit-level high",
+    "deps:audit:prod": "pnpm audit --prod --audit-level high",
+    "deps:outdated": "pnpm outdated --recursive",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm --filter './apps/*' lint",
@@ -33,6 +36,11 @@
   "devDependencies": {
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.3"
+    "vitest": "^4.1.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "vite": "^6.4.3"
+    }
   }
 }

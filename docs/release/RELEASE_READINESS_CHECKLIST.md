@@ -37,7 +37,8 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 
 ## Dependency and Secret Hygiene
 
-- [ ] Dependency audit is run and release-impacting vulnerabilities are fixed or documented.
+- [ ] Dependency audit is run using `pnpm deps:audit` or the [dependency audit workflow](./DEPENDENCY_AUDIT_WORKFLOW.md), and release-impacting vulnerabilities are fixed or documented.
+- [ ] Parser, PDF, auth, AI, and rendering dependencies are reviewed using the sensitive dependency list in the dependency audit workflow.
 - [ ] Secret scanning is run against the repo history and working tree.
 - [ ] No real secrets are present in `.env.example`, docs, tests, screenshots, or logs.
 - [ ] Docker images and base images are reviewed for known issues.

@@ -1,0 +1,51 @@
+name: Dependency Audit
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - pnpm-lock.yaml
+      - apps/*/package.json
+      - .github/workflows/dependency-audit.yml
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - pnpm-lock.yaml
+      - apps/*/package.json
+      - .github/workflows/dependency-audit.yml
+  schedule:
+    - cron: '27 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  audit:
+    name: Audit high and critical dependency vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm deps:audit

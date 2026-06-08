@@ -1861,10 +1861,15 @@ describe('settings, admin, and about pages', () => {
     view = await renderWithProviders(<AdminUsersPage />);
     expect(await screen.findByText(/alex@example.com/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /user actions for alex@example.com/i }));
-    expect(screen.getByRole('menuitem', { name: /access/i })).toBeInTheDocument();
+    const accessAction = screen.getByRole('menuitem', { name: /access/i });
+    const deactivateAction = screen.getByRole('menuitem', { name: /deactivate user/i });
+    expect(accessAction).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /resend invitation/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /view activity/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('menuitem', { name: /deactivate user/i }));
+    await user.hover(accessAction);
+    expect(accessAction).toHaveAttribute('data-active', 'true');
+    expect(deactivateAction).not.toHaveAttribute('data-active', 'true');
+    await user.click(deactivateAction);
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/users/usr_1',

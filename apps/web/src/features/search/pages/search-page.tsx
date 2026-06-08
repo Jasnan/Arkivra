@@ -730,14 +730,24 @@ function SearchModeControl({
                 position="relative"
                 minH="3.5rem"
                 rounded="md"
-                ps="9"
-                pe="3"
+                ps="3"
+                pe="10"
                 py="2"
                 color="fg"
                 _checked={{ bg: 'teal.subtle' }}
                 _highlighted={{ bg: value === 'hybrid' ? 'teal.subtle' : 'bg.subtle' }}
               >
-                <Box position="absolute" left="3" top="3" color="teal.solid">
+                <Box
+                  position="absolute"
+                  right="2.5"
+                  top="50%"
+                  display="flex"
+                  boxSize="5"
+                  alignItems="center"
+                  justifyContent="center"
+                  color="teal.solid"
+                  transform="translateY(-50%)"
+                >
                   <Menu.ItemIndicator>
                     <Check size={16} strokeWidth={2.5} />
                   </Menu.ItemIndicator>
@@ -759,14 +769,24 @@ function SearchModeControl({
                 position="relative"
                 minH="3.5rem"
                 rounded="md"
-                ps="9"
-                pe="3"
+                ps="3"
+                pe="10"
                 py="2"
                 color="fg"
                 _checked={{ bg: 'teal.subtle' }}
                 _highlighted={{ bg: value === 'keyword' ? 'teal.subtle' : 'bg.subtle' }}
               >
-                <Box position="absolute" left="3" top="3" color="teal.solid">
+                <Box
+                  position="absolute"
+                  right="2.5"
+                  top="50%"
+                  display="flex"
+                  boxSize="5"
+                  alignItems="center"
+                  justifyContent="center"
+                  color="teal.solid"
+                  transform="translateY(-50%)"
+                >
                   <Menu.ItemIndicator>
                     <Check size={16} strokeWidth={2.5} />
                   </Menu.ItemIndicator>

@@ -14,16 +14,7 @@ import type { ChatConversation } from '../chat.types';
 import type { useChatConversationsQuery } from '../chat.queries';
 import { formatDate } from './chat-utils';
 
-type ConversationContextFilter = 'all' | 'global' | 'vault' | 'document' | 'selection';
 type ConversationTimeFilter = 'all' | 'today' | 'yesterday' | 'last7' | 'older';
-
-const contextFilterOptions: Array<{ value: ConversationContextFilter; label: string }> = [
-  { value: 'all', label: 'All contexts' },
-  { value: 'global', label: 'All documents' },
-  { value: 'vault', label: 'Vault chats' },
-  { value: 'document', label: 'Document chats' },
-  { value: 'selection', label: 'Selected context' },
-];
 
 const timeFilterOptions: Array<{ value: ConversationTimeFilter; label: string }> = [
   { value: 'all', label: 'Any time' },
@@ -32,12 +23,6 @@ const timeFilterOptions: Array<{ value: ConversationTimeFilter; label: string }>
   { value: 'last7', label: 'Last 7 days' },
   { value: 'older', label: 'Older' },
 ];
-
-function getContextFilterValue(conversation: ChatConversation): Exclude<ConversationContextFilter, 'all'> {
-  if (conversation.contextSnapshot.type === 'selection') return 'selection';
-  if (conversation.contextSnapshot.type === 'global') return 'global';
-  return conversation.scope;
-}
 
 function getDayDifference(value: string) {
   const date = new Date(value);
@@ -79,9 +64,8 @@ export function ChatConversationRail({
   onDeleteConversation: (chatId: string) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [contextFilter, setContextFilter] = useState<ConversationContextFilter>('all');
   const [timeFilter, setTimeFilter] = useState<ConversationTimeFilter>('all');
-  const activeFilterCount = (contextFilter === 'all' ? 0 : 1) + (timeFilter === 'all' ? 0 : 1);
+  const activeFilterCount = timeFilter === 'all' ? 0 : 1;
   const filteredConversationSections = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -91,13 +75,11 @@ export function ChatConversationRail({
         conversations.filter((conversation) => {
           const matchesSearch = normalizedQuery.length === 0
             || conversation.title.toLowerCase().includes(normalizedQuery);
-          const matchesContext = contextFilter === 'all'
-            || getContextFilterValue(conversation) === contextFilter;
-          return matchesSearch && matchesContext && matchesTimeFilter(conversation, timeFilter);
+          return matchesSearch && matchesTimeFilter(conversation, timeFilter);
         }),
       ] as [string, ChatConversation[]])
       .filter(([, conversations]) => conversations.length > 0);
-  }, [contextFilter, conversationSections, searchQuery, timeFilter]);
+  }, [conversationSections, searchQuery, timeFilter]);
 
   return (
     <>
@@ -199,20 +181,6 @@ export function ChatConversationRail({
           </DropdownMenuTrigger>
           <DropdownMenuContent minW="15rem">
             <Box px="3" py="2">
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted">Context</Text>
-            </Box>
-            <DropdownMenuRadioGroup
-              value={`context:${contextFilter}`}
-              onValueChange={(value) => setContextFilter(value.replace('context:', '') as ConversationContextFilter)}
-            >
-              {contextFilterOptions.map(option => (
-                <DropdownMenuRadioItem key={option.value} value={`context:${option.value}`}>
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <Box mx="2" my="1.5" h="1px" bg="border.surface" />
-            <Box px="3" py="2">
               <Text fontSize="xs" fontWeight="semibold" color="fg.muted">Time</Text>
             </Box>
             <DropdownMenuRadioGroup
@@ -235,7 +203,6 @@ export function ChatConversationRail({
                   w="full"
                   justifyContent="flex-start"
                   onClick={() => {
-                    setContextFilter('all');
                     setTimeFilter('all');
                   }}
                 >

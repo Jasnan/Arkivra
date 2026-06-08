@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -917,7 +917,7 @@ describe('chat workspace new chat drafts', () => {
     expect(screen.queryByText('Existing saved message')).not.toBeInTheDocument();
   });
 
-  it('filters conversation history by context type', async () => {
+  it('filters conversation history by time without showing context filters', async () => {
     const user = userEvent.setup();
 
     await renderWithProviders(
@@ -931,12 +931,16 @@ describe('chat workspace new chat drafts', () => {
     expect(screen.getByText('Passport check')).toBeInTheDocument();
 
     await user.click(screen.getByLabelText('Filter conversations'));
-    await user.click(await screen.findByText('Document chats'));
+    const filterMenu = screen.getByRole('menu');
+    expect(within(filterMenu).queryByText('Context')).not.toBeInTheDocument();
+    expect(within(filterMenu).queryByText('Document chats')).not.toBeInTheDocument();
+    await user.click(within(filterMenu).getByText('Today'));
 
     await waitFor(() => {
       expect(screen.queryByText('Existing chat')).not.toBeInTheDocument();
     });
-    expect(screen.getByText('Passport check')).toBeInTheDocument();
+    expect(screen.queryByText('Passport check')).not.toBeInTheDocument();
+    expect(screen.getByText('No conversations match your filters.')).toBeInTheDocument();
     expect(screen.getByLabelText('Filter conversations, 1 active')).toBeInTheDocument();
   });
 

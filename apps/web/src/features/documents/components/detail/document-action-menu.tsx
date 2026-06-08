@@ -1,4 +1,5 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
+import { useState } from 'react';
 import { Download, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
@@ -32,6 +33,51 @@ export interface DocumentSectionMenuItem {
   label: string;
   icon: ComponentType<{ className?: string }>;
   route: string;
+}
+
+function DocumentActionMenuItem({
+  value,
+  destructive = false,
+  disabled,
+  onSelect,
+  children,
+  asChild,
+}: {
+  value: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  onSelect?: () => void;
+  children: ReactNode;
+  asChild?: boolean;
+}) {
+  const [active, setActive] = useState(false);
+  const inactiveColor = destructive ? 'fg.error' : 'fg.muted';
+  const activeColor = destructive ? 'fg.error' : 'teal.fg';
+
+  return (
+    <DropdownMenuItem
+      value={value}
+      asChild={asChild}
+      data-active={active ? 'true' : undefined}
+      borderWidth="1px"
+      borderColor={active ? 'teal.muted' : 'transparent'}
+      bg={active ? 'teal.subtle' : 'transparent'}
+      color={active ? activeColor : inactiveColor}
+      transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+      _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
+      _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
+      _highlighted={{ bg: 'transparent', borderColor: 'transparent', color: inactiveColor }}
+      disabled={disabled}
+      onPointerEnter={() => setActive(true)}
+      onPointerMove={() => setActive(true)}
+      onPointerLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+      onSelect={onSelect}
+    >
+      {children}
+    </DropdownMenuItem>
+  );
 }
 
 export function DocumentActionMenu({
@@ -73,52 +119,50 @@ export function DocumentActionMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" minW="56">
         {sectionMenuItems.map((item) => (
-          <DropdownMenuItem
+          <DocumentActionMenuItem
             key={item.key}
             value={item.key}
             onSelect={() => onNavigateToSection(item.route)}
           >
             <ActionMenuItemIcon icon={item.icon} />
             {item.label}
-          </DropdownMenuItem>
+          </DocumentActionMenuItem>
         ))}
         {sectionMenuItems.length > 0 ? <DropdownMenuSeparator /> : null}
         {!isTrashDocumentRoute ? (
-          <DropdownMenuItem value="download-original" asChild>
+          <DocumentActionMenuItem value="download-original" asChild>
             <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
               <ActionMenuItemIcon icon={Download} />
               Download
             </a>
-          </DropdownMenuItem>
+          </DocumentActionMenuItem>
         ) : null}
         {canPrint ? (
-          <DropdownMenuItem value="print" onSelect={onPrint}>
+          <DocumentActionMenuItem value="print" onSelect={onPrint}>
             <ActionMenuItemIcon icon={Printer} />
             Print
-          </DropdownMenuItem>
+          </DocumentActionMenuItem>
         ) : null}
         {!isTrashDocumentRoute || isDeleted ? <DropdownMenuSeparator /> : null}
         {isDeleted ? (
-          <DropdownMenuItem
+          <DocumentActionMenuItem
             value="restore-document"
             disabled={isRestorePending}
             onSelect={onRestore}
           >
             <ActionMenuItemIcon icon={RotateCcw} />
             {isRestorePending ? 'Restoring...' : 'Restore'}
-          </DropdownMenuItem>
+          </DocumentActionMenuItem>
         ) : (
-          <DropdownMenuItem
+          <DocumentActionMenuItem
             value="move-to-trash"
-            color="fg.error"
-            _hover={{ bg: 'bg.error', color: 'fg.error' }}
-            _focus={{ bg: 'bg.error', color: 'fg.error' }}
+            destructive
             disabled={isDeletePending}
             onSelect={onOpenDeleteDialog}
           >
             <ActionMenuItemIcon icon={Trash2} tone="destructive" />
             Trash
-          </DropdownMenuItem>
+          </DocumentActionMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

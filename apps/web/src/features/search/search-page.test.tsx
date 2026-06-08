@@ -407,6 +407,75 @@ describe('global search page', () => {
     expect(resultUrl.searchParams.has('pageIndex')).toBe(false);
   });
 
+  it('opens file-style context actions from search results', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults')) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Sherlock', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url.includes('/api/search?')) {
+        return jsonResponse({
+          query: 'invoice',
+          pageIndex: 0,
+          pageSize: 25,
+          resultsCount: 1,
+          filters: {
+            vaultIds: ['vlt_1'],
+            tagIds: [],
+            dateFrom: '',
+            dateTo: '',
+            sortBy: 'created_desc',
+          },
+          results: [
+            {
+              vaultId: 'vlt_1',
+              vaultName: 'Sherlock',
+              documentId: 'doc_1',
+              name: 'Invoice.pdf',
+              originalName: 'Invoice.pdf',
+              originalSize: 42000,
+              mimeType: 'application/pdf',
+              createdAt: '2026-04-10T10:00:00.000Z',
+              updatedAt: '2026-04-12T10:00:00.000Z',
+              matchedChunksCount: 0,
+              bestChunk: null,
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }));
+
+    await renderWithProviders(<SearchPage />, {
+      initialEntries: ['/search?q=invoice&vaultIds=vlt_1'],
+      routePath: '/search',
+    });
+
+    fireEvent.contextMenu(await screen.findByRole('link', { name: /^open invoice\.pdf$/i }));
+
+    const menu = screen.getByRole('menu', { name: /actions for invoice\.pdf/i });
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+      'Preview/open',
+      'Download',
+      'Rename',
+      'Move to',
+      'Tags',
+      'Info',
+      'Trash',
+    ]);
+  });
+
   it('renders grid results as filename-only cards', async () => {
     const user = userEvent.setup();
 

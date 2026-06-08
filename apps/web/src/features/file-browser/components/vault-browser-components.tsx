@@ -570,21 +570,47 @@ function BrowserItemActions({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" minW="48">
-        {availableActions.map((action) => (
-          <DropdownMenuItem
-            key={action.key}
-            value={action.key}
-            color={action.tone === 'destructive' ? 'fg.error' : undefined}
-            onClick={(event) => event.stopPropagation()}
-            onSelect={action.onSelect}
-          >
-            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
-            {action.label}
-          </DropdownMenuItem>
-        ))}
+        <BrowserActionDropdownItems actions={availableActions} />
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function BrowserActionDropdownItems({ actions }: { actions: BrowserAction[] }) {
+  const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
+
+  return actions.map((action) => {
+    const isActive = activeActionKey === action.key;
+    const isDestructive = action.tone === 'destructive';
+    const inactiveColor = isDestructive ? 'fg.error' : 'fg.muted';
+    const activeColor = isDestructive ? 'fg.error' : 'teal.fg';
+
+    return (
+      <DropdownMenuItem
+        key={action.key}
+        value={action.key}
+        data-active={isActive ? 'true' : undefined}
+        borderWidth="1px"
+        borderColor={isActive ? 'teal.muted' : 'transparent'}
+        bg={isActive ? 'teal.subtle' : 'transparent'}
+        color={isActive ? activeColor : inactiveColor}
+        transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+        _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
+        _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
+        _highlighted={{ bg: 'transparent', borderColor: 'transparent', color: inactiveColor }}
+        onPointerEnter={() => setActiveActionKey(action.key)}
+        onPointerMove={() => setActiveActionKey(action.key)}
+        onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
+        onFocus={() => setActiveActionKey(action.key)}
+        onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
+        onClick={(event) => event.stopPropagation()}
+        onSelect={action.onSelect}
+      >
+        <ActionMenuItemIcon icon={action.icon} tone={isDestructive ? 'destructive' : 'default'} />
+        {action.label}
+      </DropdownMenuItem>
+    );
+  });
 }
 
 function GridItemActions({
@@ -700,6 +726,8 @@ export function BrowserContextMenu({
   const visibleEntries = actions.filter(entry => 'type' in entry || !entry.disabled);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: state.x, y: state.y });
+  const menuIdentity = `${state.item.type}:${getItemId(state.item)}:${state.x}:${state.y}`;
+  const [activeAction, setActiveAction] = useState<{ menuIdentity: string; actionKey: string } | null>(null);
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
@@ -796,30 +824,52 @@ export function BrowserContextMenu({
             );
           }
 
+          const isActive = activeAction?.menuIdentity === menuIdentity && activeAction.actionKey === entry.key;
+          const isDestructive = entry.tone === 'destructive';
+          const inactiveColor = isDestructive ? 'fg.error' : 'fg.muted';
+          const activeColor = isDestructive ? 'fg.error' : 'teal.fg';
+
           return (
             <chakra.button
               key={entry.key}
               type="button"
               role="menuitem"
+              data-active={isActive ? 'true' : undefined}
               display="flex"
+              minH="9"
               w="full"
               alignItems="center"
               gap="3"
               rounded="md"
+              borderWidth="1px"
+              borderColor={isActive ? 'teal.muted' : 'transparent'}
+              bg={isActive ? 'teal.subtle' : 'transparent'}
               px="3"
               py="2"
               textAlign="left"
               fontSize="sm"
               fontWeight="medium"
-              color={entry.tone === 'destructive' ? 'fg.error' : 'fg.muted'}
-              _hover={{ bg: 'bg.subtle', color: entry.tone === 'destructive' ? 'fg.error' : 'fg' }}
+              lineHeight="1.25"
+              color={isActive ? activeColor : inactiveColor}
+              transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+              _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
+              _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
               _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+              onPointerEnter={() => setActiveAction({ menuIdentity, actionKey: entry.key })}
+              onPointerMove={() => setActiveAction({ menuIdentity, actionKey: entry.key })}
+              onPointerLeave={() => setActiveAction(current => (
+                current?.menuIdentity === menuIdentity && current.actionKey === entry.key ? null : current
+              ))}
+              onFocus={() => setActiveAction({ menuIdentity, actionKey: entry.key })}
+              onBlur={() => setActiveAction(current => (
+                current?.menuIdentity === menuIdentity && current.actionKey === entry.key ? null : current
+              ))}
               onClick={() => {
                 onClose();
                 window.setTimeout(entry.onSelect, 0);
               }}
             >
-              <ActionMenuItemIcon icon={entry.icon} tone={entry.tone === 'destructive' ? 'destructive' : 'default'} />
+              <ActionMenuItemIcon icon={entry.icon} tone={isDestructive ? 'destructive' : 'default'} />
               {entry.label}
             </chakra.button>
           );

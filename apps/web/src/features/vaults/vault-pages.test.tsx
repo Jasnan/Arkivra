@@ -68,6 +68,7 @@ describe('vault pages', () => {
       return jsonResponse({
         vaults: [
           { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          { id: 'vlt_2', name: 'Team', description: 'Shared records', fileCount: 0, totalSize: 0, createdAt: '2025-01-02T00:00:00.000Z', role: 'editor', aiAccessLevel: 'none', isAdmin: false },
         ],
       });
     }));
@@ -99,6 +100,22 @@ describe('vault pages', () => {
       'Activity',
       'Chat',
     ]);
+    const openAction = within(contextMenu).getByRole('menuitem', { name: /^open$/i });
+    const settingsAction = within(contextMenu).getByRole('menuitem', { name: /^settings$/i });
+    await user.hover(settingsAction);
+    expect(settingsAction).toHaveAttribute('data-active', 'true');
+    expect(openAction).not.toHaveAttribute('data-active');
+    await user.hover(openAction);
+    expect(openAction).toHaveAttribute('data-active', 'true');
+    expect(settingsAction).not.toHaveAttribute('data-active');
+    fireEvent.focus(settingsAction);
+    await waitFor(() => {
+      expect(settingsAction).toHaveAttribute('data-active', 'true');
+    });
+    expect(openAction).not.toHaveAttribute('data-active');
+    fireEvent.contextMenu(screen.getByRole('link', { name: /team/i }));
+    const teamContextMenu = screen.getByRole('menu', { name: /vault actions for team/i });
+    expect(within(teamContextMenu).queryAllByRole('menuitem').filter(item => item.getAttribute('data-active') === 'true')).toEqual([]);
     await user.keyboard('{Escape}');
 
     screen.getByRole('button', { name: /vault actions for personal/i }).focus();
@@ -110,7 +127,13 @@ describe('vault pages', () => {
       'Activity',
       'Chat',
     ]);
-    await user.click(screen.getByRole('menuitem', { name: /settings/i }));
+    const actionMenu = screen.getByRole('menu');
+    const actionOpen = within(actionMenu).getByRole('menuitem', { name: /^open$/i });
+    const actionSettings = within(actionMenu).getByRole('menuitem', { name: /^settings$/i });
+    await user.hover(actionSettings);
+    expect(actionSettings).toHaveAttribute('data-active', 'true');
+    expect(actionOpen).not.toHaveAttribute('data-active');
+    await user.click(actionSettings);
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/vaults/vlt_1/settings');
     });

@@ -1,4 +1,4 @@
-import type { FormEvent, MouseEvent } from 'react';
+import type { FormEvent, MouseEvent, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionBar,
@@ -56,6 +56,53 @@ interface TagAction {
   tone?: 'default' | 'destructive';
   disabled?: boolean;
   onSelect: () => void;
+}
+
+function getTagActionMenuColors(tone: TagAction['tone'], active: boolean) {
+  const inactiveColor = tone === 'destructive' ? 'fg.error' : 'fg.muted';
+  const activeColor = tone === 'destructive' ? 'fg.error' : 'teal.fg';
+
+  return {
+    inactiveColor,
+    activeColor,
+    color: active ? activeColor : inactiveColor,
+  };
+}
+
+function TagDropdownMenuItem({
+  action,
+  onSelect,
+  children,
+}: {
+  action: TagAction;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
+  const [active, setActive] = useState(false);
+  const colors = getTagActionMenuColors(action.tone, active);
+
+  return (
+    <DropdownMenuItem
+      value={action.key}
+      data-active={active ? 'true' : undefined}
+      borderWidth="1px"
+      borderColor={active ? 'teal.muted' : 'transparent'}
+      bg={active ? 'teal.subtle' : 'transparent'}
+      color={colors.color}
+      transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+      _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: colors.activeColor }}
+      _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: colors.activeColor }}
+      _highlighted={{ bg: 'transparent', borderColor: 'transparent', color: colors.inactiveColor }}
+      onPointerEnter={() => setActive(true)}
+      onPointerMove={() => setActive(true)}
+      onPointerLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+      onSelect={onSelect}
+    >
+      {children}
+    </DropdownMenuItem>
+  );
 }
 
 function DeleteTagDialog({
@@ -187,17 +234,16 @@ function TagActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" minWidth="12rem">
         {availableActions.map((action) => (
-          <DropdownMenuItem
+          <TagDropdownMenuItem
             key={action.key}
-            value={action.key}
-            color={action.tone === 'destructive' ? 'fg.error' : undefined}
+            action={action}
             onSelect={() => {
               actions(triggerRef.current).find((currentAction) => currentAction.key === action.key)?.onSelect();
             }}
           >
             <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
             {action.label}
-          </DropdownMenuItem>
+          </TagDropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -214,6 +260,7 @@ function TagContextMenu({
   onClose: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
   const availableActions = actions.filter((action) => !action.disabled);
 
   useEffect(() => {
@@ -276,33 +323,53 @@ function TagContextMenu({
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.preventDefault()}
       >
-        {availableActions.map((action) => (
-          <chakra.button
-            key={action.key}
-            type="button"
-            role="menuitem"
-            display="flex"
-            w="full"
-            alignItems="center"
-            gap="3"
-            rounded="md"
-            px="3"
-            py="2"
-            textAlign="left"
-            fontSize="sm"
-            fontWeight="medium"
-            color={action.tone === 'destructive' ? 'fg.error' : 'fg.muted'}
-            _hover={{ bg: 'bg.subtle', color: action.tone === 'destructive' ? 'fg.error' : 'fg' }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
-            onClick={() => {
-              onClose();
-              window.setTimeout(action.onSelect, 0);
-            }}
-          >
-            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
-            {action.label}
-          </chakra.button>
-        ))}
+        <Stack gap="1">
+          {availableActions.map((action) => {
+            const active = activeActionKey === action.key;
+            const colors = getTagActionMenuColors(action.tone, active);
+
+            return (
+              <chakra.button
+                key={action.key}
+                type="button"
+                role="menuitem"
+                data-active={active ? 'true' : undefined}
+                display="flex"
+                minH="9"
+                w="full"
+                alignItems="center"
+                gap="3"
+                rounded="md"
+                borderWidth="1px"
+                borderColor={active ? 'teal.muted' : 'transparent'}
+                bg={active ? 'teal.subtle' : 'transparent'}
+                px="3"
+                py="2"
+                textAlign="left"
+                fontSize="sm"
+                fontWeight="medium"
+                lineHeight="1.25"
+                color={colors.color}
+                transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+                _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: colors.activeColor }}
+                _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: colors.activeColor }}
+                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+                onPointerEnter={() => setActiveActionKey(action.key)}
+                onPointerMove={() => setActiveActionKey(action.key)}
+                onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
+                onFocus={() => setActiveActionKey(action.key)}
+                onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
+                onClick={() => {
+                  onClose();
+                  window.setTimeout(action.onSelect, 0);
+                }}
+              >
+                <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+                {action.label}
+              </chakra.button>
+            );
+          })}
+        </Stack>
       </Box>
     </Portal>
   );

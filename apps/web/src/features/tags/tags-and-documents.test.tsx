@@ -183,7 +183,13 @@ describe('tags and documents pages', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /open actions for invoices/i }));
-    await user.click(await screen.findByRole('menuitem', { name: /^edit$/i }));
+    const actionMenu = await screen.findByRole('menu');
+    const actionEdit = within(actionMenu).getByRole('menuitem', { name: /^edit$/i });
+    const actionDelete = within(actionMenu).getByRole('menuitem', { name: /^delete$/i });
+    await user.hover(actionDelete);
+    expect(actionDelete).toHaveAttribute('data-active', 'true');
+    expect(actionEdit).not.toHaveAttribute('data-active');
+    await user.click(actionEdit);
     const editDialog = screen.getByRole('dialog', { name: /edit tag/i });
     const editInput = within(editDialog).getByLabelText(/^name$/i);
     await user.clear(editInput);
@@ -201,6 +207,15 @@ describe('tags and documents pages', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /edit tag/i })).not.toBeInTheDocument();
     });
+
+    fireEvent.contextMenu(screen.getByText('Invoices'));
+    const contextMenu = screen.getByRole('menu', { name: /tag actions for invoices/i });
+    const contextEdit = within(contextMenu).getByRole('menuitem', { name: /^edit$/i });
+    const contextDelete = within(contextMenu).getByRole('menuitem', { name: /^delete$/i });
+    await user.hover(contextDelete);
+    expect(contextDelete).toHaveAttribute('data-active', 'true');
+    expect(contextEdit).not.toHaveAttribute('data-active');
+    await user.keyboard('{Escape}');
 
     const actionsTrigger = screen.getByRole('button', { name: /open actions for invoices/i });
     await waitFor(() => expect(actionsTrigger).toHaveAttribute('aria-expanded', 'false'));

@@ -1,6 +1,17 @@
 import type { ChangeEvent, DragEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Flex, Grid, Heading, Stack, Text, CloseButton, Dialog as ChakraDialog, Portal, chakra } from '@chakra-ui/react';
+import {
+  Box,
+  Flex,
+  Grid,
+  Heading,
+  Stack,
+  Text,
+  CloseButton,
+  Dialog as ChakraDialog,
+  Portal,
+  chakra,
+} from '@chakra-ui/react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -11,20 +22,14 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import {
-  PageIntro,
-  SurfacePanel,
-  vaultInputClassName,
-} from '@/components/layout/vault-ui';
+import { ROUTES } from '@/app/routes';
+import { validateTransfersSearch } from '@/app/search-params';
+import { PageIntro, SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { AppEmptyState } from '@/components/ui/empty-state';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,8 +72,8 @@ function statusLabel(status: string) {
 }
 
 export function TransfersPage() {
-  const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as Record<string, string>;
+  const navigate = useNavigate({ from: ROUTES.transfers });
+  const search = validateTransfersSearch(useSearch({ strict: false }));
   const { data } = useVaultsQuery();
   const state = useUploadManagerState();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -100,12 +105,14 @@ export function TransfersPage() {
     [state.items],
   );
   const hasClearableStatus = useMemo(
-    () => state.items.some((item) =>
-      item.status === 'completed'
-      || item.status === 'failed'
-      || item.status === 'canceled'
-      || item.status === 'paused',
-    ),
+    () =>
+      state.items.some(
+        (item) =>
+          item.status === 'completed' ||
+          item.status === 'failed' ||
+          item.status === 'canceled' ||
+          item.status === 'paused',
+      ),
     [state.items],
   );
 
@@ -183,7 +190,7 @@ export function TransfersPage() {
               size="md"
               value={vaultId || '__none__'}
               onValueChange={(value) =>
-                navigate({ search: value === '__none__' ? {} : { vaultId: value }, replace: true } as any)
+                navigate({ search: value === '__none__' ? {} : { vaultId: value }, replace: true })
               }
             >
               <SelectTrigger
@@ -237,7 +244,14 @@ export function TransfersPage() {
             opacity={canUpload ? '1' : '0.7'}
             disabled={!canUpload}
           >
-            <Flex boxSize="4.8rem" align="center" justify="center" rounded="lg" bg="bg.surface" color="teal.solid">
+            <Flex
+              boxSize="4.8rem"
+              align="center"
+              justify="center"
+              rounded="lg"
+              bg="bg.surface"
+              color="teal.solid"
+            >
               <FileUp size={32} />
             </Flex>
             <Heading as="h2" mt="6" textStyle="lg" fontWeight="semibold" lineHeight="short">
@@ -246,7 +260,19 @@ export function TransfersPage() {
             <Text mt="2" maxW="md" textStyle="sm" color="fg.muted">
               Select a vault and add files. Dropped folders are uploaded as individual files.
             </Text>
-            <Flex mt="6" h="10" align="center" rounded="full" bg="teal.solid" px="6" fontSize="sm" fontWeight="semibold" color="teal.fg" transition="opacity 0.15s ease" _groupHover={{ opacity: 0.95 }}>
+            <Flex
+              mt="6"
+              h="10"
+              align="center"
+              rounded="full"
+              bg="teal.solid"
+              px="6"
+              fontSize="sm"
+              fontWeight="semibold"
+              color="teal.fg"
+              transition="opacity 0.15s ease"
+              _groupHover={{ opacity: 0.95 }}
+            >
               Browse files
             </Flex>
           </chakra.button>
@@ -279,17 +305,26 @@ export function TransfersPage() {
       ) : null}
 
       <SurfacePanel display="flex" flexDirection="column" gap="4" p={{ base: '5', sm: '6' }}>
-        <Flex direction={{ base: 'column', lg: 'row' }} align={{ lg: 'flex-start' }} justify={{ lg: 'space-between' }} gap="4">
+        <Flex
+          direction={{ base: 'column', lg: 'row' }}
+          align={{ lg: 'flex-start' }}
+          justify={{ lg: 'space-between' }}
+          gap="4"
+        >
           <Stack gap="2">
             <Stack gap="1">
-              <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">Upload queue</Heading>
+              <Heading as="h2" textStyle="lg" fontWeight="semibold" lineHeight="short">
+                Upload queue
+              </Heading>
               <Text textStyle="sm" color="fg.muted">
                 This page only tracks the file upload itself. Transfer status is kept for this tab
                 until sign out or close.
               </Text>
             </Stack>
             <Flex flexWrap="wrap" align="center" gap="3" fontSize="sm" color="fg.muted">
-              <Text as="span" fontWeight="semibold" color="fg">{state.items.length} files</Text>
+              <Text as="span" fontWeight="semibold" color="fg">
+                {state.items.length} files
+              </Text>
               <Separator orientation="vertical" h="5" bg="border.surface" />
               <Text as="span">{formatBytes(uploadedBytes)}</Text>
             </Flex>
@@ -351,7 +386,14 @@ export function TransfersPage() {
               style={{ width: `${percent}%` }}
             />
           </Box>
-          <Text textAlign="right" fontFamily="heading" fontSize="2xl" fontWeight="semibold" lineHeight="none" color="fg">
+          <Text
+            textAlign="right"
+            fontFamily="heading"
+            fontSize="2xl"
+            fontWeight="semibold"
+            lineHeight="none"
+            color="fg"
+          >
             {percent}%
           </Text>
         </Grid>
@@ -372,7 +414,9 @@ export function TransfersPage() {
           <Text as="span">File name</Text>
           <Text as="span">Size</Text>
           <Text as="span">Status</Text>
-          <Text as="span" textAlign="right">Actions</Text>
+          <Text as="span" textAlign="right">
+            Actions
+          </Text>
         </Grid>
 
         {state.items.length === 0 ? (
@@ -394,9 +438,15 @@ export function TransfersPage() {
               py="4"
               _last={{ borderBottomWidth: 0 }}
             >
-              <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
+              <Grid
+                gap="4"
+                templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }}
+                alignItems={{ md: 'center' }}
+              >
                 <Box minW="0">
-                  <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                  <Text truncate fontWeight="medium" color="fg">
+                    {item.fileName}
+                  </Text>
                   {item.relativePath && item.relativePath !== item.fileName ? (
                     <Text mt="1" truncate textStyle="xs" color="fg.muted">
                       {item.relativePath}
@@ -423,7 +473,11 @@ export function TransfersPage() {
                     <AlertCircle size={16} color="var(--chakra-colors-fg-error)" />
                   ) : null}
                   {item.status === 'uploading' ? (
-                    <LoaderCircle size={16} color="var(--chakra-colors-teal-solid)" style={{ animation: 'spin 1s linear infinite' }} />
+                    <LoaderCircle
+                      size={16}
+                      color="var(--chakra-colors-teal-solid)"
+                      style={{ animation: 'spin 1s linear infinite' }}
+                    />
                   ) : null}
                   <Text as="span" color={item.status === 'failed' ? 'fg.error' : undefined}>
                     {statusLabel(item.status)}
@@ -442,7 +496,9 @@ export function TransfersPage() {
               </Grid>
 
               {item.error ? (
-                <Text mt="2" textStyle="sm" color="fg.error">{item.error}</Text>
+                <Text mt="2" textStyle="sm" color="fg.error">
+                  {item.error}
+                </Text>
               ) : (
                 <Text mt="2" textStyle="sm">
                   {item.status === 'completed'
@@ -475,7 +531,9 @@ export function TransfersPage() {
                 _hover={{ bg: 'bg.subtle' }}
               >
                 <Box>
-                  <Text fontWeight="medium" color="fg">Completed ({completedItems.length})</Text>
+                  <Text fontWeight="medium" color="fg">
+                    Completed ({completedItems.length})
+                  </Text>
                   <Text mt="1" textStyle="sm">
                     Recent completed uploads remain visible for this tab.
                   </Text>
@@ -494,9 +552,15 @@ export function TransfersPage() {
             <CollapsibleContent>
               {completedItems.map((item) => (
                 <Box key={item.id} borderTopWidth="1px" borderColor="border.surface" px="7" py="4">
-                  <Grid gap="4" templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }} alignItems={{ md: 'center' }}>
+                  <Grid
+                    gap="4"
+                    templateColumns={{ base: '1fr', md: 'minmax(0, 1.3fr) 140px 160px 160px' }}
+                    alignItems={{ md: 'center' }}
+                  >
                     <Box minW="0">
-                      <Text truncate fontWeight="medium" color="fg">{item.fileName}</Text>
+                      <Text truncate fontWeight="medium" color="fg">
+                        {item.fileName}
+                      </Text>
                       {item.relativePath && item.relativePath !== item.fileName ? (
                         <Text mt="1" truncate textStyle="xs" color="fg.muted">
                           {item.relativePath}
@@ -565,11 +629,22 @@ export function TransfersPage() {
               </ChakraDialog.Body>
               <ChakraDialog.Footer>
                 <ChakraDialog.ActionTrigger asChild>
-                  <Button type="button" variant="outline" onClick={() => setIsClearAllDialogOpen(false)} disabled={isClearingAll}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsClearAllDialogOpen(false)}
+                    disabled={isClearingAll}
+                  >
                     Keep
                   </Button>
                 </ChakraDialog.ActionTrigger>
-                <Button type="button" bg="fg.error" color="fg.inverted" disabled={isClearingAll} onClick={() => void handleConfirmClearAll()}>
+                <Button
+                  type="button"
+                  bg="fg.error"
+                  color="fg.inverted"
+                  disabled={isClearingAll}
+                  onClick={() => void handleConfirmClearAll()}
+                >
                   {isClearingAll ? 'Clearing...' : 'Clear all'}
                 </Button>
               </ChakraDialog.Footer>

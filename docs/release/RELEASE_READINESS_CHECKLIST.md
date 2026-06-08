@@ -55,7 +55,7 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 
 ## Database and Migrations
 
-- [ ] Drizzle schema matches generated migrations.
+- [ ] Drizzle schema matches generated migrations: `pnpm db:check`.
 - [ ] `pnpm db:migrate` succeeds on a clean database.
 - [ ] Migration e2e tests pass: `pnpm --filter @arkivra/api test:e2e:migrations`.
 - [ ] Destructive migration risks are documented.

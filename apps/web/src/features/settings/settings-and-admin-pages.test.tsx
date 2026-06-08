@@ -1425,6 +1425,7 @@ describe('settings, admin, and about pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await renderWithProviders(<SecuritySettingsPage />, {
+      includeToaster: true,
       initialEntries: ['/settings/security'],
       routePath: '/settings/security',
     });

@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
+import { toaster } from '@/components/ui/toaster-store';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
 import { VaultsPage } from '@/features/vaults/pages/vaults-page';
 import { renderWithProviders } from '@/test/utils';
@@ -429,6 +430,7 @@ describe('vault pages', () => {
 
   it('queues vault creation requests for users without vault creation capability', async () => {
     const user = userEvent.setup();
+    const createToastSpy = vi.spyOn(toaster, 'create');
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -488,7 +490,14 @@ describe('vault pages', () => {
         method: 'POST',
       }));
     });
-    expect(await screen.findByText(/vault creation request queued/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /new vault/i })).not.toBeInTheDocument();
+    });
+    expect(createToastSpy).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Vault creation request queued for admin approval.',
+      type: 'success',
+    }));
+    expect(screen.getByRole('button', { name: /new vault/i })).toBeInTheDocument();
   });
 
   it('loads vault settings and updates vault identity', async () => {
@@ -675,6 +684,7 @@ describe('vault pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await renderWithProviders(<DocumentsPage section="members" />, {
+      includeToaster: true,
       initialEntries: ['/vaults/vlt_1/members'],
       routePath: '/vaults/:vaultId/members',
     });
@@ -793,6 +803,7 @@ describe('vault pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await renderWithProviders(<DocumentsPage section="members" />, {
+      includeToaster: true,
       initialEntries: ['/vaults/vlt_1/members'],
       routePath: '/vaults/:vaultId/members',
     });

@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/app-shell';
+import { VaultWorkspaceLayout } from '@/features/vaults/components/vault-workspace-layout';
 import { renderWithProviders } from '@/test/utils';
 
 const authClientMock = vi.hoisted(() => ({
@@ -121,9 +122,43 @@ describe('app shell account menu', () => {
         if (url === '/api/vaults') {
           return jsonResponse({
             vaults: [
-              { id: 'vlt_1', name: 'MyDocs', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
-              { id: 'vlt_2', name: 'MyFiles', role: 'viewer', aiAccessLevel: 'none', isAdmin: false },
+              {
+                id: 'vlt_1',
+                name: 'MyDocs',
+                role: 'owner',
+                aiAccessLevel: 'full',
+                isAdmin: false,
+                isMember: true,
+                accessMode: 'member',
+              },
+              {
+                id: 'vlt_2',
+                name: 'MyFiles',
+                role: 'viewer',
+                aiAccessLevel: 'none',
+                isAdmin: false,
+                isMember: true,
+                accessMode: 'member',
+              },
             ],
+          });
+        }
+
+        if (url === '/api/vaults/vlt_1') {
+          return jsonResponse({
+            vault: {
+              id: 'vlt_1',
+              name: 'MyDocs',
+              description: null,
+              fileCount: 2,
+              totalSize: 3072,
+              createdAt: '2026-04-10T10:00:00.000Z',
+              role: 'owner',
+              aiAccessLevel: 'full',
+              isAdmin: false,
+              isMember: true,
+              accessMode: 'member',
+            },
           });
         }
 
@@ -460,7 +495,10 @@ describe('app shell account menu', () => {
       <AppShell />,
       {
         initialEntries: ['/vaults/vlt_1'],
-        routePath: '/vaults/:vaultId',
+        rootComponent: true,
+        routes: [
+          { path: '/vaults/:vaultId', component: VaultWorkspaceLayout },
+        ],
       },
     );
 
@@ -478,7 +516,11 @@ describe('app shell account menu', () => {
       <AppShell />,
       {
         initialEntries: ['/vaults/vlt_1'],
-        routePaths: ['/vaults/:vaultId', '/vaults/:vaultId/settings'],
+        rootComponent: true,
+        routes: [
+          { path: '/vaults/:vaultId', component: VaultWorkspaceLayout },
+          { path: '/vaults/:vaultId/settings' },
+        ],
       },
     );
 
@@ -506,7 +548,10 @@ describe('app shell account menu', () => {
       <AppShell />,
       {
         initialEntries: ['/vaults/vlt_1?folderId=fld_1'],
-        routePath: '/vaults/:vaultId',
+        rootComponent: true,
+        routes: [
+          { path: '/vaults/:vaultId', component: VaultWorkspaceLayout },
+        ],
       },
     );
 
@@ -520,7 +565,10 @@ describe('app shell account menu', () => {
       <AppShell />,
       {
         initialEntries: ['/vaults/vlt_1/doc_1'],
-        routePath: '/vaults/:vaultId/:documentId',
+        rootComponent: true,
+        routes: [
+          { path: '/vaults/:vaultId/:documentId', component: VaultWorkspaceLayout },
+        ],
       },
     );
 

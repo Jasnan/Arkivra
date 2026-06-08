@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "check": "astro check",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "pnpm run test:fast",
+    "test:fast": "vitest run --config vitest.config.ts",
     "test:watch": "vitest watch --config vitest.config.ts"
   },
   "dependencies": {

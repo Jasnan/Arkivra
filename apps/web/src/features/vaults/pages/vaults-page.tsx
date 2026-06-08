@@ -46,6 +46,38 @@ interface VaultAction {
   onSelect: () => void;
 }
 
+function VaultActionDropdownItems({ actions }: { actions: VaultAction[] }) {
+  const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
+
+  return actions.map((action) => {
+    const isActive = activeActionKey === action.key;
+
+    return (
+      <DropdownMenuItem
+        key={action.key}
+        data-active={isActive ? 'true' : undefined}
+        borderWidth="1px"
+        borderColor={isActive ? 'teal.muted' : 'transparent'}
+        bg={isActive ? 'teal.subtle' : 'transparent'}
+        color={isActive ? 'teal.fg' : 'fg.muted'}
+        transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+        _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+        _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+        _highlighted={{ bg: 'transparent', borderColor: 'transparent', color: 'fg.muted' }}
+        onPointerEnter={() => setActiveActionKey(action.key)}
+        onPointerMove={() => setActiveActionKey(action.key)}
+        onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
+        onFocus={() => setActiveActionKey(action.key)}
+        onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
+        onSelect={action.onSelect}
+      >
+        <ActionMenuItemIcon icon={action.icon} />
+        {action.label}
+      </DropdownMenuItem>
+    );
+  });
+}
+
 function formatVaultDate(value: string | null | undefined) {
   return formatShortDate(value);
 }
@@ -79,6 +111,7 @@ function VaultContextMenu({
   onClose: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
 
   useEffect(() => {
     function closeOnEscape(event: globalThis.KeyboardEvent) {
@@ -140,33 +173,51 @@ function VaultContextMenu({
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.preventDefault()}
       >
-        {actions.map((action) => (
-          <chakra.button
-            key={action.key}
-            type="button"
-            role="menuitem"
-            display="flex"
-            w="full"
-            alignItems="center"
-            gap="3"
-            rounded="md"
-            px="3"
-            py="2"
-            textAlign="left"
-            fontSize="sm"
-            fontWeight="medium"
-            color="fg.muted"
-            _hover={{ bg: 'bg.subtle', color: 'fg' }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
-            onClick={() => {
-              onClose();
-              window.setTimeout(action.onSelect, 0);
-            }}
-          >
-            <ActionMenuItemIcon icon={action.icon} />
-            {action.label}
-          </chakra.button>
-        ))}
+        <Stack gap="1">
+          {actions.map((action) => {
+            const isActive = activeActionKey === action.key;
+
+            return (
+              <chakra.button
+                key={action.key}
+                type="button"
+                role="menuitem"
+                data-active={isActive ? 'true' : undefined}
+                display="flex"
+                minH="9"
+                w="full"
+                alignItems="center"
+                gap="3"
+                rounded="md"
+                borderWidth="1px"
+                borderColor={isActive ? 'teal.muted' : 'transparent'}
+                bg={isActive ? 'teal.subtle' : 'transparent'}
+                px="3"
+                py="2"
+                textAlign="left"
+                fontSize="sm"
+                fontWeight="medium"
+                lineHeight="1.25"
+                color={isActive ? 'teal.fg' : 'fg.muted'}
+                transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+                _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+                onPointerEnter={() => setActiveActionKey(action.key)}
+                onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
+                onFocus={() => setActiveActionKey(action.key)}
+                onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
+                onClick={() => {
+                  onClose();
+                  window.setTimeout(action.onSelect, 0);
+                }}
+              >
+                <ActionMenuItemIcon icon={action.icon} />
+                {action.label}
+              </chakra.button>
+            );
+          })}
+        </Stack>
       </Box>
     </Portal>
   );
@@ -187,6 +238,8 @@ export function VaultsPage() {
   const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const shouldRestoreCreateButtonFocusRef = useRef(false);
+  const createButtonFocusFrameRef = useRef<number | null>(null);
+  const createButtonFocusTimeoutRef = useRef<number | null>(null);
 
   const createMutation = useMutation({
     mutationFn: createVault,
@@ -219,12 +272,29 @@ export function VaultsPage() {
     shouldRestoreCreateButtonFocusRef.current = true;
   }
 
+  function clearCreateButtonFocusTimer() {
+    if (createButtonFocusFrameRef.current !== null) {
+      cancelAnimationFrame(createButtonFocusFrameRef.current);
+      createButtonFocusFrameRef.current = null;
+    }
+
+    if (createButtonFocusTimeoutRef.current !== null) {
+      window.clearTimeout(createButtonFocusTimeoutRef.current);
+      createButtonFocusTimeoutRef.current = null;
+    }
+  }
+
   function restoreCreateButtonFocus() {
     const button = createButtonRef.current;
     if (button) {
+      clearCreateButtonFocusTimer();
       button.focus();
-      requestAnimationFrame(() => {
-        window.setTimeout(() => button.focus(), 0);
+      createButtonFocusFrameRef.current = requestAnimationFrame(() => {
+        createButtonFocusFrameRef.current = null;
+        createButtonFocusTimeoutRef.current = window.setTimeout(() => {
+          createButtonFocusTimeoutRef.current = null;
+          button.focus();
+        }, 0);
       });
     }
   }
@@ -234,7 +304,19 @@ export function VaultsPage() {
       return;
     }
 
-    window.setTimeout(() => createButtonRef.current?.focus(), 0);
+    clearCreateButtonFocusTimer();
+    const timeoutId = window.setTimeout(() => {
+      createButtonFocusTimeoutRef.current = null;
+      createButtonRef.current?.focus();
+    }, 0);
+    createButtonFocusTimeoutRef.current = timeoutId;
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (createButtonFocusTimeoutRef.current === timeoutId) {
+        createButtonFocusTimeoutRef.current = null;
+      }
+    };
   }, [isCreateModalOpen]);
 
   function closeCreateModal() {
@@ -399,12 +481,7 @@ export function VaultsPage() {
                       <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" minWidth="9rem">
-                      {getVaultActions(vault).map((action) => (
-                        <DropdownMenuItem key={action.key} onSelect={action.onSelect}>
-                          <ActionMenuItemIcon icon={action.icon} />
-                          {action.label}
-                        </DropdownMenuItem>
-                      ))}
+                      <VaultActionDropdownItems actions={getVaultActions(vault)} />
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Box>
@@ -557,12 +634,7 @@ export function VaultsPage() {
                       <ActionMenuTriggerButton label={`Vault actions for ${vault.name}`} />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" minWidth="9rem">
-                      {getVaultActions(vault).map((action) => (
-                        <DropdownMenuItem key={action.key} onSelect={action.onSelect}>
-                          <ActionMenuItemIcon icon={action.icon} />
-                          {action.label}
-                        </DropdownMenuItem>
-                      ))}
+                      <VaultActionDropdownItems actions={getVaultActions(vault)} />
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Box>
@@ -605,6 +677,7 @@ export function VaultsPage() {
 
       {contextMenu !== null ? (
         <VaultContextMenu
+          key={`${contextMenu.vault.id}:${contextMenu.x}:${contextMenu.y}`}
           state={contextMenu}
           actions={getVaultActions(contextMenu.vault)}
           onClose={() => setContextMenu(null)}

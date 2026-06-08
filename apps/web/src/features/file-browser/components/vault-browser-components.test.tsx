@@ -127,6 +127,33 @@ describe('move item dialog', () => {
     getBoundingClientRect.mockRestore();
   });
 
+  it('marks only the hovered browser context menu action active', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <BrowserContextMenu
+        state={{ item: documentTarget, x: 120, y: 160 }}
+        actions={[
+          { key: 'open', label: 'Open', icon: FolderOpen, onSelect: vi.fn() },
+          { key: 'move', label: 'Move', icon: FolderOpen, onSelect: vi.fn() },
+        ]}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const menu = screen.getByRole('menu', { name: /actions for budget\.pdf/i });
+    const openAction = within(menu).getByRole('menuitem', { name: /^open$/i });
+    const moveAction = within(menu).getByRole('menuitem', { name: /^move$/i });
+
+    await user.hover(moveAction);
+    expect(moveAction).toHaveAttribute('data-active', 'true');
+    expect(openAction).not.toHaveAttribute('data-active');
+
+    await user.hover(openAction);
+    expect(openAction).toHaveAttribute('data-active', 'true');
+    expect(moveAction).not.toHaveAttribute('data-active');
+  });
+
   it('lists common move destinations for multiple selected folders and documents', () => {
     const destinations = getMoveDestinations({
       folders: [
@@ -278,6 +305,43 @@ describe('move item dialog', () => {
     });
 
     expect(onDragOverFolder.mock.calls.at(-1)?.[1]).toBe('fld_projects');
+  });
+
+  it('marks only the hovered file action menu item active', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <BrowserItemList
+        items={[documentTarget]}
+        vaultId="vlt_1"
+        selectedItemKeys={new Set()}
+        draggedItemKeys={new Set()}
+        dropTarget={null}
+        onOpenItem={vi.fn()}
+        onSelectItem={vi.fn()}
+        getItemActions={() => [
+          { key: 'open', label: 'Open', icon: FolderOpen, onSelect: vi.fn() },
+          { key: 'move', label: 'Move', icon: FolderOpen, onSelect: vi.fn() },
+        ]}
+        onDragStartItem={vi.fn()}
+        onDragEndItem={vi.fn()}
+        onDragOverFolder={vi.fn()}
+        onDragLeaveFolder={vi.fn()}
+        onDropOnFolder={vi.fn()}
+        onOpenContextMenu={vi.fn()}
+        onOpenBackgroundContextMenu={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /open actions for budget\.pdf/i }));
+
+    const menu = screen.getByRole('menu');
+    const openAction = within(menu).getByRole('menuitem', { name: /^open$/i });
+    const moveAction = within(menu).getByRole('menuitem', { name: /^move$/i });
+
+    await user.hover(moveAction);
+    expect(moveAction).toHaveAttribute('data-active', 'true');
+    expect(openAction).not.toHaveAttribute('data-active');
   });
 
   it('shortens comfortable grid item names over twelve characters with a full-name hover title', async () => {

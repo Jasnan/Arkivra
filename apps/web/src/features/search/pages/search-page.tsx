@@ -1,10 +1,11 @@
-import type { ComponentPropsWithoutRef } from 'react';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
+import type { ComponentPropsWithoutRef, FormEvent, MouseEvent } from 'react';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import type { VirtuosoGridProps } from 'react-virtuoso';
-import { Box, Flex, Grid, HStack, Menu, Portal, SimpleGrid, Stack, Text } from '@chakra-ui/react';
-import { Check, ChevronDown, FileSearch, SearchX, Sparkles, Vault } from 'lucide-react';
+import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Menu, Portal, SimpleGrid, Stack, Text } from '@chakra-ui/react';
+import { Check, ChevronDown, Download, Eye, FileSearch, Info, MoveRight, Pencil, SearchX, Sparkles, Tags, Trash2, Vault } from 'lucide-react';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SearchRouteSearch } from '@/app/search-params';
 import { validateSearchRouteSearch } from '@/app/search-params';
 import { ROUTES } from '@/app/routes';
@@ -12,6 +13,7 @@ import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Button } from '@/components/ui/button';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
+import { toast } from '@/components/ui/toaster-store';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
 import {
@@ -19,16 +21,23 @@ import {
   SearchFilterMultiSelect,
 } from '@/features/documents/components/document-search-controls';
 import type { DocumentSearchControlFilter } from '@/features/documents/components/document-search-controls';
+import { getDocumentDownloadUrl, moveDocument, renameDocument, softDeleteDocument } from '@/features/documents/documents.api';
+import { documentQueryKeys } from '@/features/documents/documents.queries';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
 import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
 import {
+  BrowserContextMenu,
   FileBrowserIcon,
   GridItemName,
+  ItemInfoDialog,
+  MoveItemDialog,
+  RenameItemDialog,
 } from '@/features/file-browser/components/vault-browser-components';
-import { getFileDisplayName } from '@/features/file-browser/components/vault-browser.types';
-import type { BrowserItem } from '@/features/file-browser/components/vault-browser.types';
-import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
+import { fileBrowserQueryKeys, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import { getFileDisplayName, getMoveDestinations } from '@/features/file-browser/components/vault-browser.types';
+import type { BrowserContextMenuEntry, BrowserItem } from '@/features/file-browser/components/vault-browser.types';
+import { searchQueryKeys, useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import type { SearchMode, SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { TagBadge } from '@/features/tags/components/tag-badge';
@@ -142,6 +151,57 @@ function parseSearchList(value: string | undefined) {
 
 function joinSearchList(values: string[]) {
   return values.join(SEARCH_LIST_SEPARATOR);
+}
+
+type SearchResultBrowserDocument = Extract<BrowserItem, { type: 'document' }>['document'] & {
+  vaultId: string;
+  vaultName: string;
+};
+
+type SearchResultBrowserItem = Extract<BrowserItem, { type: 'document' }> & {
+  type: 'document';
+  document: SearchResultBrowserDocument;
+};
+
+type SearchResultContextMenuState = {
+  item: SearchResultBrowserItem;
+  x: number;
+  y: number;
+} | null;
+
+function searchResultToBrowserItem(result: SearchResultItem): SearchResultBrowserItem {
+  return {
+    type: 'document',
+    document: {
+      id: result.documentId,
+      vaultId: result.vaultId,
+      vaultName: result.vaultName,
+      name: result.name,
+      originalName: result.originalName,
+      folderId: null,
+      originalSize: result.originalSize,
+      mimeType: result.mimeType,
+      processingStatus: 'completed',
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+      isDeleted: false,
+      deletedAt: null,
+    },
+  };
+}
+
+function getSearchItemVaultId(item: SearchResultBrowserItem) {
+  return item.document.vaultId;
+}
+
+function downloadSearchResultDocument(item: SearchResultBrowserItem) {
+  const link = window.document.createElement('a');
+  link.href = getDocumentDownloadUrl({ vaultId: getSearchItemVaultId(item), documentId: item.document.id });
+  link.download = '';
+  link.rel = 'noopener';
+  window.document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function tokenizeTextMatches(text: string, query: string) {
@@ -342,20 +402,19 @@ function SearchResultRow({
   result,
   detailSearch,
   isLast,
+  onOpenContextMenu,
   query,
 }: {
   result: SearchResultItem;
   detailSearch: Record<string, string>;
   isLast?: boolean;
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: SearchResultBrowserItem) => void;
   query: string;
 }) {
   const documentTo = ROUTES.vaultDocument(result.vaultId, result.documentId);
   const visibleTags = (result.tags ?? []).slice(0, 2);
   const remainingTagsCount = Math.max(0, (result.tags ?? []).length - visibleTags.length);
-  const browserItem = {
-    type: 'document',
-    document: result,
-  } as unknown as BrowserItem;
+  const browserItem = searchResultToBrowserItem(result);
 
   return (
     <Link
@@ -363,6 +422,7 @@ function SearchResultRow({
       search={detailSearch as any}
       style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
       aria-label={`Open ${result.name}`}
+      onContextMenu={(event) => onOpenContextMenu(event, browserItem)}
     >
       <Grid
         as="article"
@@ -453,10 +513,12 @@ function SearchResultRow({
 
 function SearchResultList({
   detailSearch,
+  onOpenContextMenu,
   query,
   results,
 }: {
   detailSearch: Record<string, string>;
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: SearchResultBrowserItem) => void;
   query: string;
   results: SearchResultItem[];
 }) {
@@ -498,6 +560,7 @@ function SearchResultList({
                 result={result}
                 detailSearch={detailSearch}
                 isLast={index === results.length - 1}
+                onOpenContextMenu={onOpenContextMenu}
                 query={query}
               />
             ) : null
@@ -510,17 +573,16 @@ function SearchResultList({
 
 function SearchResultGridCard({
   detailSearch,
+  onOpenContextMenu,
   result,
 }: {
   detailSearch: Record<string, string>;
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: SearchResultBrowserItem) => void;
   result: SearchResultItem;
 }) {
   const { density } = useAccentColor();
   const displayName = getFileDisplayName(result.name);
-  const browserItem = {
-    type: 'document',
-    document: result,
-  } as unknown as BrowserItem;
+  const browserItem = searchResultToBrowserItem(result);
 
   return (
     <Link
@@ -528,6 +590,7 @@ function SearchResultGridCard({
       search={detailSearch as any}
       style={{ display: 'block', width: '100%', color: 'inherit', textDecoration: 'none' }}
       aria-label={`Open ${result.name}`}
+      onContextMenu={(event) => onOpenContextMenu(event, browserItem)}
     >
       <Flex
         h={`var(--arkivra-gridItemHeight, ${SEARCH_GRID_ITEM_HEIGHT})`}
@@ -561,9 +624,11 @@ function SearchResultGridCard({
 
 function SearchResultGrid({
   detailSearch,
+  onOpenContextMenu,
   results,
 }: {
   detailSearch: Record<string, string>;
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: SearchResultBrowserItem) => void;
   results: SearchResultItem[];
 }) {
   return (
@@ -577,7 +642,15 @@ function SearchResultGrid({
         initialItemCount={Math.min(results.length, 24)}
         style={{ height: '100%', width: '100%' }}
         itemContent={(_, result) =>
-          result ? <SearchResultGridCard result={result} detailSearch={detailSearch} /> : null
+          result
+            ? (
+                <SearchResultGridCard
+                  result={result}
+                  detailSearch={detailSearch}
+                  onOpenContextMenu={onOpenContextMenu}
+                />
+              )
+            : null
         }
       />
     </Box>
@@ -769,11 +842,70 @@ function getDateFilterLabel({
   return 'Any time';
 }
 
+function SearchTrashConfirmDialog({
+  item,
+  isPending,
+  onClose,
+  onConfirm,
+}: {
+  item: SearchResultBrowserItem | null;
+  isPending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <ChakraDialog.Root
+      open={item !== null}
+      onOpenChange={(event) => {
+        if (!event.open && !isPending) {
+          onClose();
+        }
+      }}
+      size={{ mdDown: 'full', md: 'lg' }}
+    >
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>
+                {item ? `Move "${item.document.name}" to trash?` : 'Move document to trash?'}
+              </ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              <Text color="fg.muted">This document will be moved to Trash.</Text>
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button type="button" colorPalette="red" onClick={onConfirm} loading={isPending}>
+                {isPending ? 'Moving...' : 'Move to trash'}
+              </Button>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
+  );
+}
+
 export function SearchPage() {
   const navigate = useNavigate({ from: ROUTES.search });
+  const queryClient = useQueryClient();
   const search = validateSearchRouteSearch(useSearch({ strict: false }));
   const [query, setQuery] = useState(search.q ?? '');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<SearchResultContextMenuState>(null);
+  const [renameTarget, setRenameTarget] = useState<SearchResultBrowserItem | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [moveTarget, setMoveTarget] = useState<SearchResultBrowserItem | null>(null);
+  const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
+  const [infoTarget, setInfoTarget] = useState<SearchResultBrowserItem | null>(null);
+  const [pendingTrashItem, setPendingTrashItem] = useState<SearchResultBrowserItem | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(
     search.dateFrom || search.dateTo ? 'custom' : 'any',
   );
@@ -858,6 +990,62 @@ export function SearchPage() {
     sortBy,
     searchMode,
     enabled: !vaultsQuery.isLoading && hasSearchCriteria,
+  });
+  const moveVaultId = moveTarget ? getSearchItemVaultId(moveTarget) : '';
+  const folderTreeQuery = useFolderTreeQuery({
+    vaultId: moveVaultId,
+    enabled: moveTarget !== null,
+  });
+  const moveDestinations = useMemo(
+    () => getMoveDestinations({ folders: folderTreeQuery.data?.folders ?? [], target: moveTarget }),
+    [folderTreeQuery.data?.folders, moveTarget],
+  );
+
+  async function invalidateSearchResultActions() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
+    ]);
+  }
+
+  const renameMutation = useMutation({
+    mutationFn: ({ target, name }: { target: SearchResultBrowserItem; name: string }) =>
+      renameDocument({ vaultId: getSearchItemVaultId(target), documentId: target.document.id, name }),
+    onSuccess: async () => {
+      toast.success('Document renamed.');
+      setRenameTarget(null);
+      setRenameValue('');
+      await invalidateSearchResultActions();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not rename document.');
+    },
+  });
+  const moveMutation = useMutation({
+    mutationFn: ({ target, destinationId }: { target: SearchResultBrowserItem; destinationId: string | null }) =>
+      moveDocument({ vaultId: getSearchItemVaultId(target), documentId: target.document.id, folderId: destinationId }),
+    onSuccess: async () => {
+      toast.success('Document moved.');
+      setMoveTarget(null);
+      setMoveDestinationId(null);
+      await invalidateSearchResultActions();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not move document.');
+    },
+  });
+  const trashMutation = useMutation({
+    mutationFn: (target: SearchResultBrowserItem) =>
+      softDeleteDocument({ vaultId: getSearchItemVaultId(target), documentId: target.document.id }),
+    onSuccess: async () => {
+      toast.success('Document moved to trash.');
+      setPendingTrashItem(null);
+      await invalidateSearchResultActions();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not move document to trash.');
+    },
   });
 
   const selectedVaults = useMemo(
@@ -975,6 +1163,108 @@ export function SearchPage() {
     sortBy,
     searchMode: selectedSearchMode,
   });
+  const canMutateSearchItem = useCallback(
+    (item: SearchResultBrowserItem) => {
+      const vault = vaults.find(candidate => candidate.id === getSearchItemVaultId(item));
+      return vault?.isAdmin === true || vault?.role === 'owner' || vault?.role === 'editor';
+    },
+    [vaults],
+  );
+  const openSearchResultContextMenu = useCallback((event: MouseEvent<HTMLElement>, item: SearchResultBrowserItem) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      item,
+      x: Math.min(event.clientX, window.innerWidth - 208),
+      y: Math.min(event.clientY, window.innerHeight - 288),
+    });
+  }, []);
+  const getSearchResultContextMenuEntries = useCallback((item: SearchResultBrowserItem): BrowserContextMenuEntry[] => {
+    const vaultId = getSearchItemVaultId(item);
+    const canMutate = canMutateSearchItem(item);
+
+    return [
+      {
+        key: 'open',
+        label: 'Preview/open',
+        icon: Eye,
+        onSelect: () => navigate({ to: ROUTES.vaultDocument(vaultId, item.document.id), search: detailSearch as any }),
+      },
+      {
+        key: 'download',
+        label: 'Download',
+        icon: Download,
+        onSelect: () => downloadSearchResultDocument(item),
+      },
+      {
+        key: 'rename',
+        label: 'Rename',
+        icon: Pencil,
+        disabled: !canMutate,
+        onSelect: () => {
+          setRenameTarget(item);
+          setRenameValue(item.document.name);
+        },
+      },
+      {
+        key: 'move',
+        label: 'Move to',
+        icon: MoveRight,
+        disabled: !canMutate,
+        onSelect: () => {
+          setMoveTarget(item);
+          setMoveDestinationId(item.document.folderId);
+        },
+      },
+      {
+        key: 'tags',
+        label: 'Tags',
+        icon: Tags,
+        disabled: !canMutate,
+        onSelect: () => navigate({ to: ROUTES.vaultDocumentMetadata(vaultId, item.document.id), search: detailSearch as any }),
+      },
+      {
+        key: 'info',
+        label: 'Info',
+        icon: Info,
+        onSelect: () => setInfoTarget(item),
+      },
+      {
+        key: 'trash',
+        label: 'Trash',
+        icon: Trash2,
+        tone: 'destructive',
+        disabled: !canMutate || trashMutation.isPending,
+        onSelect: () => setPendingTrashItem(item),
+      },
+    ];
+  }, [canMutateSearchItem, detailSearch, navigate, trashMutation.isPending]);
+
+  function handleRenameSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (renameTarget === null || renameValue.trim().length === 0) {
+      return;
+    }
+
+    renameMutation.mutate({ target: renameTarget, name: renameValue.trim() });
+  }
+
+  function handleMoveSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (moveTarget === null) {
+      return;
+    }
+
+    moveMutation.mutate({ target: moveTarget, destinationId: moveDestinationId });
+  }
+
+  function confirmPendingTrash() {
+    if (pendingTrashItem === null) {
+      return;
+    }
+
+    trashMutation.mutate(pendingTrashItem);
+  }
 
   const selectedVaultsLabel = useMemo(() => {
     if (selectedVaults.length === 0) {
@@ -1242,15 +1532,65 @@ export function SearchPage() {
                 <SearchResultList
                   results={results}
                   detailSearch={detailSearch}
+                  onOpenContextMenu={openSearchResultContextMenu}
                   query={debouncedQuery}
                 />
               ) : (
-                <SearchResultGrid results={results} detailSearch={detailSearch} />
+                <SearchResultGrid
+                  results={results}
+                  detailSearch={detailSearch}
+                  onOpenContextMenu={openSearchResultContextMenu}
+                />
               )
             ) : null}
           </Flex>
         )}
       </Flex>
+      <RenameItemDialog
+        open={renameTarget !== null}
+        target={renameTarget}
+        value={renameValue}
+        isPending={renameMutation.isPending}
+        onValueChange={setRenameValue}
+        onClose={() => {
+          setRenameTarget(null);
+          setRenameValue('');
+        }}
+        onSubmit={handleRenameSubmit}
+      />
+      <MoveItemDialog
+        open={moveTarget !== null}
+        target={moveTarget}
+        value={moveDestinationId}
+        destinations={moveDestinations}
+        isPending={moveMutation.isPending}
+        isLoading={folderTreeQuery.isLoading}
+        onValueChange={setMoveDestinationId}
+        onClose={() => {
+          setMoveTarget(null);
+          setMoveDestinationId(null);
+        }}
+        onSubmit={handleMoveSubmit}
+      />
+      <ItemInfoDialog
+        open={infoTarget !== null}
+        target={infoTarget}
+        folderPath={(infoTarget?.document as SearchResultBrowserItem['document'] | undefined)?.vaultName ?? 'Search result'}
+        onClose={() => setInfoTarget(null)}
+      />
+      <SearchTrashConfirmDialog
+        item={pendingTrashItem}
+        isPending={trashMutation.isPending}
+        onClose={() => setPendingTrashItem(null)}
+        onConfirm={confirmPendingTrash}
+      />
+      {contextMenu !== null ? (
+        <BrowserContextMenu
+          state={contextMenu}
+          actions={getSearchResultContextMenuEntries(contextMenu.item)}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : null}
     </Flex>
   );
 }

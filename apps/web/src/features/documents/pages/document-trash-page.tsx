@@ -15,6 +15,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
+import { validateTrashSearch } from '@/app/search-params';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { DeleteButton } from '@/components/ui/action-buttons';
@@ -39,9 +40,7 @@ import {
 } from '@/features/file-browser/components/vault-browser-components';
 import { FileBrowserViewToggle } from '@/features/file-browser/components/file-browser-view-toggle';
 import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
-import {
-  getBrowserItemKey,
-} from '@/features/file-browser/components/vault-browser.types';
+import { getBrowserItemKey } from '@/features/file-browser/components/vault-browser.types';
 import type {
   BrowserAction,
   BrowserContextItem,
@@ -52,7 +51,8 @@ import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 
 type TrashSort = 'name_asc' | 'name_desc' | 'deleted_desc' | 'deleted_asc';
 
-const TRASH_LIST_GRID_COLUMNS = '2.5rem minmax(0, 0.9fr) minmax(9rem, 12rem) minmax(10.5rem, 12rem) 7rem 2rem';
+const TRASH_LIST_GRID_COLUMNS =
+  '2.5rem minmax(0, 0.9fr) minmax(9rem, 12rem) minmax(10.5rem, 12rem) 7rem 2rem';
 
 const trashSortOptions: Array<{ value: TrashSort; label: string }> = [
   { value: 'deleted_desc', label: 'Recent' },
@@ -86,13 +86,17 @@ function compareTrashDocuments(
   }
 
   if (sortBy === 'deleted_desc') {
-    return getDeletedTime(right) - getDeletedTime(left)
-      || left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+    return (
+      getDeletedTime(right) - getDeletedTime(left) ||
+      left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+    );
   }
 
   if (sortBy === 'deleted_asc') {
-    return getDeletedTime(left) - getDeletedTime(right)
-      || left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+    return (
+      getDeletedTime(left) - getDeletedTime(right) ||
+      left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+    );
   }
 
   return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
@@ -118,7 +122,13 @@ function TrashConfirmDialog({
   onConfirm: () => void;
 }) {
   return (
-    <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root
+      open={open}
+      onOpenChange={(event) => {
+        if (!event.open && !isPending) onClose();
+      }}
+      size={{ mdDown: 'full', md: 'lg' }}
+    >
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -148,7 +158,7 @@ function TrashConfirmDialog({
 }
 
 export function DocumentTrashPage() {
-  const search = useSearch({ strict: false }) as Record<string, string | string[] | undefined>;
+  const search = validateTrashSearch(useSearch({ strict: false }));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const vaultsQuery = useVaultsQuery();
@@ -164,7 +174,9 @@ export function DocumentTrashPage() {
   const [browserView, setBrowserView] = usePreferredFileBrowserView();
   const [browserSort, setBrowserSort] = useState<TrashSort>('deleted_desc');
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
-  const [pendingPermanentDelete, setPendingPermanentDelete] = useState<DeletedDocumentSummary[]>([]);
+  const [pendingPermanentDelete, setPendingPermanentDelete] = useState<DeletedDocumentSummary[]>(
+    [],
+  );
 
   const deletedDocuments = useMemo(
     () => deletedDocumentsQuery.data?.documents ?? [],
@@ -174,11 +186,12 @@ export function DocumentTrashPage() {
   const vaultOptions = useMemo(() => vaultsQuery.data?.vaults ?? [], [vaultsQuery.data?.vaults]);
   const selectedVaultIdSet = useMemo(() => new Set(selectedVaultIds), [selectedVaultIds]);
   const visibleDocuments = useMemo(
-    () => deletedDocuments
-      .filter((document) => (
-        selectedVaultIdSet.size === 0 || selectedVaultIdSet.has(document.vaultId)
-      ))
-      .sort((left, right) => compareTrashDocuments(left, right, browserSort)),
+    () =>
+      deletedDocuments
+        .filter(
+          (document) => selectedVaultIdSet.size === 0 || selectedVaultIdSet.has(document.vaultId),
+        )
+        .sort((left, right) => compareTrashDocuments(left, right, browserSort)),
     [browserSort, deletedDocuments, selectedVaultIdSet],
   );
   const browserItems = useMemo<BrowserItem[]>(
@@ -223,7 +236,7 @@ export function DocumentTrashPage() {
     onSuccess: async (data, documents) => {
       toast.success(
         documents.length === 1
-          ? data[0]?.message ?? 'File restored to original location'
+          ? (data[0]?.message ?? 'File restored to original location')
           : `${documents.length} documents restored.`,
       );
       clearSelection();
@@ -272,14 +285,17 @@ export function DocumentTrashPage() {
   });
   const itemMutationPending = restoreMutation.isPending || permanentDeleteMutation.isPending;
 
-  const updateVaultFilter = useCallback((values: string[]) => {
-    navigate({
-      to: ROUTES.trash,
-      search: values.length > 0 ? { vaultId: values } : {},
-      replace: true,
-    } as any);
-    clearSelection();
-  }, [clearSelection, navigate]);
+  const updateVaultFilter = useCallback(
+    (values: string[]) => {
+      navigate({
+        to: ROUTES.trash,
+        search: values.length > 0 ? { vaultId: values } : {},
+        replace: true,
+      } as any);
+      clearSelection();
+    },
+    [clearSelection, navigate],
+  );
 
   function openDocument(item: BrowserItem) {
     if (item.type !== 'document') {
@@ -293,7 +309,7 @@ export function DocumentTrashPage() {
   }
 
   function openContextMenu(event: MouseEvent<HTMLElement>, item: BrowserContextItem) {
-    const actions = getItemActions(item).filter(action => !action.disabled);
+    const actions = getItemActions(item).filter((action) => !action.disabled);
 
     if (actions.length === 0) {
       return;
@@ -337,111 +353,134 @@ export function DocumentTrashPage() {
     selectedVaultIds.length === 0
       ? 'All vaults'
       : selectedVaultIds.length === 1
-        ? vaultOptions.find((vault) => vault.id === selectedVaultIds[0])?.name ?? '1 vault'
+        ? (vaultOptions.find((vault) => vault.id === selectedVaultIds[0])?.name ?? '1 vault')
         : `${selectedVaultIds.length} vaults`;
 
-  const trashItemCount = useMemo(() => (
-    <Text whiteSpace="nowrap" fontSize="xs" color="fg.muted">
-      {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
-      {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
-    </Text>
-  ), [activeResultCount, selectedCount]);
-
-  const trashHeaderActions = useMemo(() => (
-    <Flex align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="2" minW="0">
-      <Flex align={{ sm: 'center' }} direction={{ base: 'column', sm: 'row' }} gap="2" minW="0">
-        {selectedCount > 0 ? (
-          <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
-            Clear
-          </Button>
-        ) : null}
-        <Box w={{ base: 'full', sm: '15rem' }}>
-          <SearchFilterMultiSelect
-            label="Vaults"
-            hideLabel
-            controlSize="toolbar"
-            size="sm"
-            triggerLabel={selectedVaultsLabel}
-            triggerAriaLabel="Vault filter"
-            searchLabel="Search vaults"
-            searchPlaceholder="Search vaults"
-            emptyLabel="No vaults found."
-            loadingLabel="Loading vaults..."
-            options={vaultOptions.map((vault) => ({
-              value: vault.id,
-              label: vault.name,
-            }))}
-            selectedValues={selectedVaultIds}
-            isLoading={vaultsQuery.isLoading}
-            onValueChange={updateVaultFilter}
-            onClear={() => updateVaultFilter([])}
-          />
-        </Box>
-        <DocumentSortMenu
-          ariaLabel="Sort trashed documents"
-          value={browserSort}
-          onValueChange={setBrowserSort}
-          options={trashSortOptions}
-          size="sm"
-          variant="input"
-        />
-        <DeleteButton
-          type="button"
-          size="sm"
-          rounded="md"
-          px="3"
-          shadow="none"
-          disabled={browserItems.length === 0 || itemMutationPending}
-          onClick={() => setPendingPermanentDelete(visibleDocuments)}
-        >
-          Empty trash
-        </DeleteButton>
-        <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} size="sm" />
-      </Flex>
-    </Flex>
-  ), [
-    browserItems.length,
-    browserSort,
-    browserView,
-    clearSelection,
-    itemMutationPending,
-    selectedCount,
-    selectedVaultIds,
-    selectedVaultsLabel,
-    setBrowserView,
-    updateVaultFilter,
-    vaultOptions,
-    vaultsQuery.isLoading,
-    visibleDocuments,
-  ]);
-
-  const workspaceHeader = useMemo(() => ({
-    left: (
-      <Stack direction={{ base: 'column', sm: 'row' }} align={{ sm: 'center' }} gap={{ base: '0.5', sm: '3' }} minW="0">
-        <WorkspacePageTitle>Trash</WorkspacePageTitle>
-        {trashItemCount}
-      </Stack>
+  const trashItemCount = useMemo(
+    () => (
+      <Text whiteSpace="nowrap" fontSize="xs" color="fg.muted">
+        {activeResultCount} item{activeResultCount === 1 ? '' : 's'}
+        {selectedCount > 0 ? ` - ${selectedCount} selected` : ''}
+      </Text>
     ),
-    actions: trashHeaderActions,
-  }), [trashHeaderActions, trashItemCount]);
+    [activeResultCount, selectedCount],
+  );
+
+  const trashHeaderActions = useMemo(
+    () => (
+      <Flex
+        align={{ base: 'stretch', md: 'center' }}
+        direction={{ base: 'column', md: 'row' }}
+        gap="2"
+        minW="0"
+      >
+        <Flex align={{ sm: 'center' }} direction={{ base: 'column', sm: 'row' }} gap="2" minW="0">
+          {selectedCount > 0 ? (
+            <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
+              Clear
+            </Button>
+          ) : null}
+          <Box w={{ base: 'full', sm: '15rem' }}>
+            <SearchFilterMultiSelect
+              label="Vaults"
+              hideLabel
+              controlSize="toolbar"
+              size="sm"
+              triggerLabel={selectedVaultsLabel}
+              triggerAriaLabel="Vault filter"
+              searchLabel="Search vaults"
+              searchPlaceholder="Search vaults"
+              emptyLabel="No vaults found."
+              loadingLabel="Loading vaults..."
+              options={vaultOptions.map((vault) => ({
+                value: vault.id,
+                label: vault.name,
+              }))}
+              selectedValues={selectedVaultIds}
+              isLoading={vaultsQuery.isLoading}
+              onValueChange={updateVaultFilter}
+              onClear={() => updateVaultFilter([])}
+            />
+          </Box>
+          <DocumentSortMenu
+            ariaLabel="Sort trashed documents"
+            value={browserSort}
+            onValueChange={setBrowserSort}
+            options={trashSortOptions}
+            size="sm"
+            variant="input"
+          />
+          <DeleteButton
+            type="button"
+            size="sm"
+            rounded="md"
+            px="3"
+            shadow="none"
+            disabled={browserItems.length === 0 || itemMutationPending}
+            onClick={() => setPendingPermanentDelete(visibleDocuments)}
+          >
+            Empty trash
+          </DeleteButton>
+          <FileBrowserViewToggle value={browserView} onValueChange={setBrowserView} size="sm" />
+        </Flex>
+      </Flex>
+    ),
+    [
+      browserItems.length,
+      browserSort,
+      browserView,
+      clearSelection,
+      itemMutationPending,
+      selectedCount,
+      selectedVaultIds,
+      selectedVaultsLabel,
+      setBrowserView,
+      updateVaultFilter,
+      vaultOptions,
+      vaultsQuery.isLoading,
+      visibleDocuments,
+    ],
+  );
+
+  const workspaceHeader = useMemo(
+    () => ({
+      left: (
+        <Stack
+          direction={{ base: 'column', sm: 'row' }}
+          align={{ sm: 'center' }}
+          gap={{ base: '0.5', sm: '3' }}
+          minW="0"
+        >
+          <WorkspacePageTitle>Trash</WorkspacePageTitle>
+          {trashItemCount}
+        </Stack>
+      ),
+      actions: trashHeaderActions,
+    }),
+    [trashHeaderActions, trashItemCount],
+  );
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
 
-  const secondaryToolbar = useMemo(() => isInWorkspaceShell ? null : (
-    <Flex
-      align={{ base: 'stretch', md: 'center' }}
-      justify="space-between"
-      direction={{ base: 'column', md: 'row' }}
-      gap="3"
-      borderBottomWidth="1px"
-      borderColor="border.surface"
-      bg="bg.workspace"
-      px={{ base: '4', lg: '6' }}
-      py="3"
-    >
-      {trashItemCount}
-      {trashHeaderActions}
-    </Flex>
-  ), [isInWorkspaceShell, trashHeaderActions, trashItemCount]);
+  const secondaryToolbar = useMemo(
+    () =>
+      isInWorkspaceShell ? null : (
+        <Flex
+          align={{ base: 'stretch', md: 'center' }}
+          justify="space-between"
+          direction={{ base: 'column', md: 'row' }}
+          gap="3"
+          borderBottomWidth="1px"
+          borderColor="border.surface"
+          bg="bg.workspace"
+          px={{ base: '4', lg: '6' }}
+          py="3"
+        >
+          {trashItemCount}
+          {trashHeaderActions}
+        </Flex>
+      ),
+    [isInWorkspaceShell, trashHeaderActions, trashItemCount],
+  );
 
   const noOpDragStart = () => {};
   const noOpDragEnd = () => {};
@@ -575,7 +614,8 @@ export function DocumentTrashPage() {
         py="2.5"
       >
         <Text fontSize="xs" color="fg.muted">
-          Trashed documents stay here for {retentionDays} days before Arkivra removes them automatically.
+          Trashed documents stay here for {retentionDays} days before Arkivra removes them
+          automatically.
         </Text>
       </Box>
 

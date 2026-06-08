@@ -14,9 +14,15 @@ import {
 import { ROUTES } from '@/app/routes';
 import { DocumentFileIcon } from '@/features/documents/components/document-file-icon';
 import { getBrowserItemKey } from '@/features/file-browser/components/vault-browser.types';
-import type { BrowserDropTarget, BrowserItem } from '@/features/file-browser/components/vault-browser.types';
+import type {
+  BrowserDropTarget,
+  BrowserItem,
+} from '@/features/file-browser/components/vault-browser.types';
 import { useOptionalVaultBrowserDragDrop } from '@/features/file-browser/components/vault-browser-drag-drop-context';
-import type { FolderTreeDocumentEntry, FolderTreeEntry } from '@/features/file-browser/file-browser.types';
+import type {
+  FolderTreeDocumentEntry,
+  FolderTreeEntry,
+} from '@/features/file-browser/file-browser.types';
 
 const ROOT_VALUE = 'vaults-root';
 const VAULT_VALUE_PREFIX = 'vault:';
@@ -46,9 +52,29 @@ const fallbackTimestamp = '1970-01-01T00:00:00.000Z';
 
 type VaultTreeNode =
   | { id: string; name: string; type: 'root'; children: VaultTreeNode[] }
-  | { id: string; name: string; type: 'vault'; vaultId: string; children?: VaultTreeNode[]; childrenCount?: number }
-  | { id: string; name: string; type: 'folder'; vaultId: string; folder: FolderTreeEntry; children?: VaultTreeNode[] }
-  | { id: string; name: string; type: 'document'; vaultId: string; document: FolderTreeDocumentEntry };
+  | {
+      id: string;
+      name: string;
+      type: 'vault';
+      vaultId: string;
+      children?: VaultTreeNode[];
+      childrenCount?: number;
+    }
+  | {
+      id: string;
+      name: string;
+      type: 'folder';
+      vaultId: string;
+      folder: FolderTreeEntry;
+      children?: VaultTreeNode[];
+    }
+  | {
+      id: string;
+      name: string;
+      type: 'document';
+      vaultId: string;
+      document: FolderTreeDocumentEntry;
+    };
 
 function rootValue() {
   return ROOT_VALUE;
@@ -123,7 +149,12 @@ function buildFolderNodes({
 
   return [
     ...childFolders.map((folder): VaultTreeNode => {
-      const children = buildFolderNodes({ vaultId, foldersByParentId, documentsByFolderId, parentId: folder.id });
+      const children = buildFolderNodes({
+        vaultId,
+        foldersByParentId,
+        documentsByFolderId,
+        parentId: folder.id,
+      });
 
       return {
         id: folderValue(folder.id),
@@ -134,13 +165,15 @@ function buildFolderNodes({
         children: children.length > 0 ? children : undefined,
       };
     }),
-    ...childDocuments.map((document): VaultTreeNode => ({
-      id: documentValue(document.id),
-      name: document.name,
-      type: 'document',
-      vaultId,
-      document,
-    })),
+    ...childDocuments.map(
+      (document): VaultTreeNode => ({
+        id: documentValue(document.id),
+        name: document.name,
+        type: 'document',
+        vaultId,
+        document,
+      }),
+    ),
   ];
 }
 
@@ -180,13 +213,20 @@ function createVaultTreeCollection({
     documentsByFolderId.set(folderId, sortByName(childDocuments));
   }
 
-  const visibleVaults = activeVaultRootOnly && activeVaultId
-    ? vaults.filter(vault => vault.id === activeVaultId)
-    : vaults;
+  const visibleVaults =
+    activeVaultRootOnly && activeVaultId
+      ? vaults.filter((vault) => vault.id === activeVaultId)
+      : vaults;
   const vaultNodes = visibleVaults.map((vault): VaultTreeNode => {
-    const children = activeVaultId === vault.id
-      ? buildFolderNodes({ vaultId: vault.id, foldersByParentId, documentsByFolderId, parentId: null })
-      : [];
+    const children =
+      activeVaultId === vault.id
+        ? buildFolderNodes({
+            vaultId: vault.id,
+            foldersByParentId,
+            documentsByFolderId,
+            parentId: null,
+          })
+        : [];
 
     return {
       id: vaultValue(vault.id),
@@ -201,28 +241,36 @@ function createVaultTreeCollection({
     id: 'ROOT',
     name: '',
     type: 'root',
-    children: activeVaultRootOnly && activeVaultId
-      ? vaultNodes
-      : [
-          {
-            id: rootValue(),
-            name: 'Vaults',
-            type: 'root',
-            children: vaultNodes,
-          },
-        ],
+    children:
+      activeVaultRootOnly && activeVaultId
+        ? vaultNodes
+        : [
+            {
+              id: rootValue(),
+              name: 'Vaults',
+              type: 'root',
+              children: vaultNodes,
+            },
+          ],
   };
 
   return createTreeCollection<VaultTreeNode>({
-    nodeToValue: node => node.id,
-    nodeToString: node => node.name,
+    nodeToValue: (node) => node.id,
+    nodeToString: (node) => node.name,
     rootNode,
   });
 }
 
 function getNodeIcon(node: VaultTreeNode, isExpanded = false) {
   if (node.type === 'document') {
-    return <DocumentFileIcon name={node.document.name} mimeType={node.document.mimeType} iconSize={18} boxSize="5" />;
+    return (
+      <DocumentFileIcon
+        name={node.document.name}
+        mimeType={node.document.mimeType}
+        iconSize={18}
+        boxSize="5"
+      />
+    );
   }
 
   if (node.type === 'vault') {
@@ -230,10 +278,18 @@ function getNodeIcon(node: VaultTreeNode, isExpanded = false) {
   }
 
   if (node.type === 'root') {
-    return isExpanded ? <FolderOpenDot size={18} strokeWidth={2.1} /> : <FolderDot size={18} strokeWidth={2.1} />;
+    return isExpanded ? (
+      <FolderOpenDot size={18} strokeWidth={2.1} />
+    ) : (
+      <FolderDot size={18} strokeWidth={2.1} />
+    );
   }
 
-  return isExpanded ? <FolderOpen size={18} strokeWidth={2.1} /> : <Folder size={18} strokeWidth={2.1} />;
+  return isExpanded ? (
+    <FolderOpen size={18} strokeWidth={2.1} />
+  ) : (
+    <Folder size={18} strokeWidth={2.1} />
+  );
 }
 
 function getNodeNavigation(node: VaultTreeNode) {
@@ -250,7 +306,7 @@ function getNodeNavigation(node: VaultTreeNode) {
 }
 
 function getFolderRevealValues(folderId: string | null, folders: FolderTreeEntry[]) {
-  const foldersById = new Map(folders.map(folder => [folder.id, folder]));
+  const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
   const revealValues: string[] = [];
   let current = folderId === null ? null : foldersById.get(folderId);
 
@@ -324,11 +380,12 @@ export function VaultSidebarTree({
     ? sharedDragDrop.dragState.items
     : localDraggedItems;
   const collection = useMemo(
-    () => createVaultTreeCollection({ vaults, activeVaultId, activeVaultRootOnly, folders, documents }),
+    () =>
+      createVaultTreeCollection({ vaults, activeVaultId, activeVaultRootOnly, folders, documents }),
     [activeVaultId, activeVaultRootOnly, documents, folders, vaults],
   );
   const activeDocumentFolderId = useMemo(
-    () => documents.find(document => document.id === currentDocumentId)?.folderId ?? null,
+    () => documents.find((document) => document.id === currentDocumentId)?.folderId ?? null,
     [currentDocumentId, documents],
   );
   const selectedValue = useMemo(() => {
@@ -361,7 +418,9 @@ export function VaultSidebarTree({
     ];
     const currentExpandedValue = expandedValueRef.current;
     const nextExpandedValue = uniqueValues([...currentExpandedValue, ...valuesToExpand]);
-    const missingValues = nextExpandedValue.filter(value => !currentExpandedValue.includes(value));
+    const missingValues = nextExpandedValue.filter(
+      (value) => !currentExpandedValue.includes(value),
+    );
 
     if (missingValues.length > 0) {
       expandedValueRef.current = nextExpandedValue;
@@ -379,7 +438,7 @@ export function VaultSidebarTree({
 
   const isLockedExpandedNode = (node: VaultTreeNode) => lockedExpandedValue.includes(node.id);
   const draggedItemKeys = useMemo(
-    () => new Set(draggedItems.map(item => getBrowserItemKey(item))),
+    () => new Set(draggedItems.map((item) => getBrowserItemKey(item))),
     [draggedItems],
   );
 
@@ -393,7 +452,7 @@ export function VaultSidebarTree({
     const navigation = getNodeNavigation(node);
     void navigate({
       to: navigation.to,
-      search: 'search' in navigation ? navigation.search as any : undefined,
+      ...('search' in navigation ? { search: navigation.search } : {}),
     });
   };
 
@@ -405,17 +464,16 @@ export function VaultSidebarTree({
 
     handleExpandedValueChange(
       effectiveExpandedValue.includes(node.id)
-        ? expandedValue.filter(value => value !== node.id)
+        ? expandedValue.filter((value) => value !== node.id)
         : [...expandedValue, node.id],
     );
     handleItemClick(node);
   };
 
-  const getContextMenuHandler = (node: VaultTreeNode) => (
+  const getContextMenuHandler = (node: VaultTreeNode) =>
     node.type === 'vault' && onOpenVaultContextMenu
       ? (event: MouseEvent<HTMLElement>) => onOpenVaultContextMenu(event, node.vaultId)
-      : undefined
-  );
+      : undefined;
 
   const getDropDestinationId = (node: VaultTreeNode) => {
     if (node.type === 'vault' && node.vaultId === activeVaultId) {
@@ -439,13 +497,14 @@ export function VaultSidebarTree({
     });
   };
 
-  const getDropValidation = (destinationId: string | null) => getBrowserDropValidation({
-    canUpdateItems: canMoveItems,
-    itemMutationPending,
-    destinationId,
-    targets: draggedItems,
-    folders,
-  });
+  const getDropValidation = (destinationId: string | null) =>
+    getBrowserDropValidation({
+      canUpdateItems: canMoveItems,
+      itemMutationPending,
+      destinationId,
+      targets: draggedItems,
+      folders,
+    });
 
   const handleDragStart = (event: DragEvent<HTMLElement>, node: VaultTreeNode) => {
     const item = treeNodeToBrowserItem(node);
@@ -471,7 +530,11 @@ export function VaultSidebarTree({
   const handleDragOver = (event: DragEvent<HTMLElement>, node: VaultTreeNode) => {
     const destinationId = getDropDestinationId(node);
 
-    if (destinationId === undefined || draggedItems.length === 0 || !hasInternalBrowserDrag(event)) {
+    if (
+      destinationId === undefined ||
+      draggedItems.length === 0 ||
+      !hasInternalBrowserDrag(event)
+    ) {
       return;
     }
 
@@ -485,7 +548,11 @@ export function VaultSidebarTree({
   const handleDragLeave = (event: DragEvent<HTMLElement>, node: VaultTreeNode) => {
     const destinationId = getDropDestinationId(node);
 
-    if (destinationId === undefined || draggedItems.length === 0 || !hasInternalBrowserDrag(event)) {
+    if (
+      destinationId === undefined ||
+      draggedItems.length === 0 ||
+      !hasInternalBrowserDrag(event)
+    ) {
       return;
     }
 
@@ -494,13 +561,19 @@ export function VaultSidebarTree({
       return;
     }
 
-    setDropTarget(previousDropTarget => previousDropTarget?.folderId === destinationId ? null : previousDropTarget);
+    setDropTarget((previousDropTarget) =>
+      previousDropTarget?.folderId === destinationId ? null : previousDropTarget,
+    );
   };
 
   const handleDrop = (event: DragEvent<HTMLElement>, node: VaultTreeNode) => {
     const destinationId = getDropDestinationId(node);
 
-    if (destinationId === undefined || draggedItems.length === 0 || !hasInternalBrowserDrag(event)) {
+    if (
+      destinationId === undefined ||
+      draggedItems.length === 0 ||
+      !hasInternalBrowserDrag(event)
+    ) {
       return;
     }
 
@@ -524,7 +597,7 @@ export function VaultSidebarTree({
       collection={collection}
       maxW="sm"
       expandedValue={effectiveExpandedValue}
-      onExpandedChange={details => handleExpandedValueChange(details.expandedValue)}
+      onExpandedChange={(details) => handleExpandedValueChange(details.expandedValue)}
       selectedValue={selectedValue}
       expandOnClick={false}
       fontSize="sm"
@@ -536,7 +609,8 @@ export function VaultSidebarTree({
             const isExpanded = effectiveExpandedValue.includes(node.id);
             const showBranchIndicator = !isLockedExpandedNode(node);
             const browserItem = treeNodeToBrowserItem(node);
-            const isDragSource = browserItem !== null && draggedItemKeys.has(getBrowserItemKey(browserItem));
+            const isDragSource =
+              browserItem !== null && draggedItemKeys.has(getBrowserItemKey(browserItem));
             const dropDestinationId = getDropDestinationId(node);
             const dragDropProps = {
               draggable: browserItem !== null && canMoveItems && !itemMutationPending,
@@ -546,7 +620,9 @@ export function VaultSidebarTree({
               onDragOver: (event: DragEvent<HTMLElement>) => handleDragOver(event, node),
               onDragLeave: (event: DragEvent<HTMLElement>) => handleDragLeave(event, node),
               onDrop: (event: DragEvent<HTMLElement>) => handleDrop(event, node),
-              ...(dropDestinationId !== undefined ? getTreeDropTargetStyles(dropTarget, dropDestinationId) : {}),
+              ...(dropDestinationId !== undefined
+                ? getTreeDropTargetStyles(dropTarget, dropDestinationId)
+                : {}),
             };
 
             return nodeState.isBranch ? (
@@ -566,7 +642,9 @@ export function VaultSidebarTree({
                   </TreeView.BranchIndicator>
                 ) : null}
                 {getNodeIcon(node, isExpanded)}
-                <TreeView.BranchText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.BranchText>
+                <TreeView.BranchText truncate fontSize="sm" lineHeight="1.25">
+                  {node.name}
+                </TreeView.BranchText>
               </TreeView.BranchControl>
             ) : (
               <TreeView.Item
@@ -576,7 +654,9 @@ export function VaultSidebarTree({
                 {...dragDropProps}
               >
                 {getNodeIcon(node)}
-                <TreeView.ItemText truncate fontSize="sm" lineHeight="1.25">{node.name}</TreeView.ItemText>
+                <TreeView.ItemText truncate fontSize="sm" lineHeight="1.25">
+                  {node.name}
+                </TreeView.ItemText>
               </TreeView.Item>
             );
           }}

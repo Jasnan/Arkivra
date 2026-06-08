@@ -17,15 +17,22 @@ export function useFolderNavigation({
       to: ROUTES.vaultRoot(vaultId),
       search: folderId === null ? {} : { folderId },
       replace: false,
-    } as any);
+    });
   }
 
   function navigateToDocument(documentId: string) {
-    void navigate({ to: ROUTES.vaultDocument(vaultId, documentId) } as any);
+    void navigate({ to: ROUTES.vaultDocument(vaultId, documentId) });
   }
 
   function navigateToUpload(folderId: string | null) {
-    void navigate({ to: ROUTES.transfersWithLock(vaultId, folderId) } as any);
+    void navigate({
+      to: ROUTES.transfers,
+      search: {
+        vaultId,
+        locked: 'true',
+        ...(folderId ? { folderId } : {}),
+      },
+    });
   }
 
   function openItem(item: BrowserContextItem) {

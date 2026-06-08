@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Flex } from '@chakra-ui/react';
 import { Outlet, useLocation } from '@tanstack/react-router';
+import { readOptionalSearchString } from '@/app/search-params';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
 import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-context';
@@ -18,7 +19,10 @@ import {
   shouldHideSecondarySidebar,
   UnifiedSidebar,
 } from '@/components/layout/app-shell-navigation';
-import { QuickSearchDialog, useQuickSearchController } from '@/components/layout/app-shell-quick-search';
+import {
+  QuickSearchDialog,
+  useQuickSearchController,
+} from '@/components/layout/app-shell-quick-search';
 import {
   AppShellTransfersDrawer,
   UploadTransferBanner,
@@ -40,7 +44,9 @@ export function AppShell() {
   const { data: sessionData } = authClient.useSession();
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
   const [secondaryContent, setSecondaryContent] = useState<ReactNode | null>(null);
-  const [isPrimarySidebarExpanded, setIsPrimarySidebarExpanded] = useState(readPrimarySidebarExpandedPreference);
+  const [isPrimarySidebarExpanded, setIsPrimarySidebarExpanded] = useState(
+    readPrimarySidebarExpandedPreference,
+  );
   const [isSecondarySidebarOpen, setIsSecondarySidebarOpen] = useState(true);
   const quickSearch = useQuickSearchController();
   const pathParts = location.pathname.split('/').filter(Boolean);
@@ -51,17 +57,14 @@ export function AppShell() {
   const transfers = useTransfersDrawerController(locationKey);
   const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
   const transferVaultId = useMemo(
-    () => (location.search as Record<string, string | undefined>).vaultId ?? null,
+    () => readOptionalSearchString(location.search, 'vaultId') ?? null,
     [location.search],
   );
   const isChatRoute = isChatPath(location.pathname);
   const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
   const isAdminUsersRoute = location.pathname === ROUTES.adminUsers;
-  const activeVaultId =
-    pathParts[0] === 'vaults'
-      ? pathParts[1]
-      : transferVaultId;
+  const activeVaultId = pathParts[0] === 'vaults' ? pathParts[1] : transferVaultId;
   const activeDocumentRoute = useMemo(() => {
     if (pathParts[0] === 'vaults' && pathParts[2] && !isVaultSectionSegment(pathParts[2])) {
       return { vaultId: pathParts[1] ?? '', documentId: pathParts[2] ?? '' };
@@ -95,10 +98,7 @@ export function AppShell() {
       }),
     [activeDocumentQuery.data?.document.name, activeVaultName, location.pathname, transferVaultId],
   );
-  const layoutContextValue = useMemo(
-    () => ({ setHeaderConfig, setSecondaryContent }),
-    [],
-  );
+  const layoutContextValue = useMemo(() => ({ setHeaderConfig, setSecondaryContent }), []);
 
   async function handleSignOut() {
     await uploadManager.clearForLogout();
@@ -191,7 +191,9 @@ export function AppShell() {
               hasSecondarySidebar={hasSecondarySidebar}
               isSecondarySidebarOpen={isSecondarySidebarOpen}
               quickSearchShortcut={quickSearch.shortcut}
-              hideQuickSearch={location.pathname === ROUTES.search || location.pathname === ROUTES.trash}
+              hideQuickSearch={
+                location.pathname === ROUTES.search || location.pathname === ROUTES.trash
+              }
               onToggleSecondarySidebar={() => setIsSecondarySidebarOpen((open) => !open)}
               onOpenQuickSearch={quickSearch.open}
             />
@@ -213,10 +215,7 @@ export function AppShell() {
 
         <QuickSearchDialog controller={quickSearch} />
 
-        <AppShellTransfersDrawer
-          open={transfers.isOpen}
-          onOpenChange={transfers.setIsOpen}
-        />
+        <AppShellTransfersDrawer open={transfers.isOpen} onOpenChange={transfers.setIsOpen} />
       </WorkspaceLayoutContext>
     </TooltipProvider>
   );

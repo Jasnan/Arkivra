@@ -23,6 +23,8 @@ import {
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
+import type { SearchRouteSearch, VaultWorkspaceSearch } from '@/app/search-params';
+import { validateVaultWorkspaceSearch } from '@/app/search-params';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { DeleteButton } from '@/components/ui/action-buttons';
@@ -81,7 +83,17 @@ import { useVaultQuery } from '@/features/vaults/vaults.queries';
 type PreviewKind = DocumentPreviewKind;
 export type DocumentSection = 'preview' | 'content' | 'metadata' | 'activity';
 
-const searchReturnParamKeys = ['q', 'vaultId', 'tagId', 'dateFrom', 'dateTo', 'sortBy'] as const;
+const searchReturnParamKeys = [
+  'q',
+  'vaultId',
+  'vaultIds',
+  'tagId',
+  'tagIds',
+  'dateFrom',
+  'dateTo',
+  'sortBy',
+  'searchMode',
+] as const;
 const documentFileExtensionPattern = /\.[^/.]+$/;
 
 function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null | undefined) {
@@ -112,19 +124,17 @@ function getDocumentFileTypeLabel(mimeType: string) {
   return 'Document';
 }
 
-function getSearchReturnParams(search: Record<string, unknown>) {
+function getSearchReturnParams(search: VaultWorkspaceSearch): SearchRouteSearch | null {
   if (search.source !== 'search') {
     return null;
   }
 
-  const params: Record<string, string> = {};
+  const params: SearchRouteSearch = {};
 
   for (const key of searchReturnParamKeys) {
     const value = search[key];
     if (typeof value === 'string' && value.length > 0) {
-      params[key] = value;
-    } else if (typeof value === 'number' && Number.isFinite(value)) {
-      params[key] = String(value);
+      Object.assign(params, { [key]: value });
     }
   }
 
@@ -258,10 +268,11 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
 
     return path;
   }, [documentQuery.data?.document.folderId, folderTreeQuery.data?.folders]);
-  const searchReturnParams = useMemo(
-    () => getSearchReturnParams(location.search as Record<string, unknown>),
+  const routeSearch = useMemo(
+    () => validateVaultWorkspaceSearch(location.search),
     [location.search],
   );
+  const searchReturnParams = useMemo(() => getSearchReturnParams(routeSearch), [routeSearch]);
 
   const documentBreadcrumbEntries = useMemo<VaultBreadcrumbEntry[]>(() => {
     if (isTrashDocumentRoute) {
@@ -284,7 +295,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
             {
               key: 'search-results',
               label: 'Search results',
-              onClick: () => navigate({ to: ROUTES.search, search: searchReturnParams as any }),
+              onClick: () => navigate({ to: ROUTES.search, search: searchReturnParams }),
             },
           ]
         : [{ key: 'vaults', label: 'Vaults', to: ROUTES.vaults }]),
@@ -299,7 +310,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
         onClick: () =>
           navigate({
             to: ROUTES.vaultRoot(vaultId),
-            search: { folderId: folder.id } as any,
+            search: { folderId: folder.id },
           }),
       })),
       {
@@ -329,7 +340,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
 
   function closeDocumentDetail() {
     if (searchReturnParams) {
-      navigate({ to: ROUTES.search, search: searchReturnParams as any });
+      navigate({ to: ROUTES.search, search: searchReturnParams });
       return;
     }
 
@@ -544,7 +555,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   );
   const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
   const showExtractionStatus = isExtractionActive || document.processingStatus === 'failed';
-  const documentSectionSearch = location.search as Record<string, string | undefined>;
+  const documentSectionSearch = routeSearch;
   const documentSectionMenuItems = !isTrashDocumentRoute
     ? [
         {
@@ -743,7 +754,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
       sectionMenuItems={documentSectionMenuItems}
       isRestorePending={restoreMutation.isPending}
       isDeletePending={deleteMutation.isPending}
-      onNavigateToSection={(route) => navigate({ to: route, search: documentSectionSearch as any })}
+      onNavigateToSection={(route) => navigate({ to: route, search: documentSectionSearch })}
       onPrint={handlePrintClick}
       onRestore={() => {
         restoreMutation.mutate({ vaultId, documentId });

@@ -6,20 +6,20 @@ import {
   createRoute,
   createRouter,
   useParams,
-} from '@tanstack/react-router'
-import { AuthLayout, AuthLoadingState } from '@/features/auth/auth-layout'
-import { EmailVerificationPage } from '@/features/auth/pages/email-verification-page'
-import { LoginPage } from '@/features/auth/pages/login-page'
-import { RegisterPage } from '@/features/auth/pages/register-page'
-import { RequestPasswordResetPage } from '@/features/auth/pages/request-password-reset-page'
-import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page'
-import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page'
-import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page'
-import { ChatPage } from '@/features/chat/pages/chat-page'
-import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page'
-import { DocumentsPage } from '@/features/documents/pages/documents-page'
-import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page'
-import { AdminIndexPage } from '@/features/admin/pages/admin-index-page'
+} from '@tanstack/react-router';
+import { AuthLayout, AuthLoadingState } from '@/features/auth/auth-layout';
+import { EmailVerificationPage } from '@/features/auth/pages/email-verification-page';
+import { LoginPage } from '@/features/auth/pages/login-page';
+import { RegisterPage } from '@/features/auth/pages/register-page';
+import { RequestPasswordResetPage } from '@/features/auth/pages/request-password-reset-page';
+import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
+import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
+import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
+import { ChatPage } from '@/features/chat/pages/chat-page';
+import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
+import { DocumentsPage } from '@/features/documents/pages/documents-page';
+import { DocumentTrashPage } from '@/features/documents/pages/document-trash-page';
+import { AdminIndexPage } from '@/features/admin/pages/admin-index-page';
 import {
   AdminAiSettingsPage,
   AdminAuditLogPage,
@@ -27,334 +27,348 @@ import {
   AdminOverviewPage,
   AdminUserAccessPage,
   AdminUsersPage,
-} from '@/features/admin/pages/admin-page'
-import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page'
-import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page'
-import { SecuritySettingsPage } from '@/features/settings/pages/security-settings-page'
-import { SettingsIndexPage } from '@/features/settings/pages/settings-index-page'
-import { SettingsPage } from '@/features/settings/pages/settings-page'
-import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-management-page'
-import { TagsPage } from '@/features/tags/pages/tags-page'
-import { TransfersPage } from '@/features/uploads/pages/transfers-page'
-import { VaultChatPage } from '@/features/vaults/pages/vault-chat-page'
-import { VaultWorkspaceLayout } from '@/features/vaults/components/vault-workspace-layout'
-import { VaultsPage } from '@/features/vaults/pages/vaults-page'
-import { SearchPage } from '@/features/search/pages/search-page'
-import { AppShell } from '@/components/layout/app-shell'
-import { ROUTES } from '@/app/routes'
-import { authClient } from '@/lib/auth-client'
+} from '@/features/admin/pages/admin-page';
+import { AboutSettingsPage } from '@/features/settings/pages/about-settings-page';
+import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page';
+import { SecuritySettingsPage } from '@/features/settings/pages/security-settings-page';
+import { SettingsIndexPage } from '@/features/settings/pages/settings-index-page';
+import { SettingsPage } from '@/features/settings/pages/settings-page';
+import { TwoFactorManagementPage } from '@/features/settings/pages/two-factor-management-page';
+import { TagsPage } from '@/features/tags/pages/tags-page';
+import { TransfersPage } from '@/features/uploads/pages/transfers-page';
+import { VaultChatPage } from '@/features/vaults/pages/vault-chat-page';
+import { VaultWorkspaceLayout } from '@/features/vaults/components/vault-workspace-layout';
+import { VaultsPage } from '@/features/vaults/pages/vaults-page';
+import { SearchPage } from '@/features/search/pages/search-page';
+import { AppShell } from '@/components/layout/app-shell';
+import { ROUTES } from '@/app/routes';
+import {
+  validateChatSearch,
+  validateEmailVerificationSearch,
+  validateSearchRouteSearch,
+  validateTransfersSearch,
+  validateTrashSearch,
+  validateVaultWorkspaceSearch,
+} from '@/app/search-params';
+import { authClient } from '@/lib/auth-client';
 
 function PublicAuthLayout() {
-  const { data: session, isPending } = authClient.useSession()
+  const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) return <AuthLoadingState />
-  if (session) return <Navigate to={ROUTES.root} />
+  if (isPending) return <AuthLoadingState />;
+  if (session) return <Navigate to={ROUTES.root} />;
 
   return (
     <AuthLayout>
       <Outlet />
     </AuthLayout>
-  )
+  );
 }
 
 function DocumentChatRedirect() {
-  const { vaultId, documentId } = useParams({ strict: false }) as { vaultId?: string; documentId?: string };
-  return vaultId && documentId
-    ? <Navigate to={ROUTES.chat} search={{ vaultId, documentId }} replace />
-    : <Navigate to={ROUTES.chat} replace />;
+  const { vaultId, documentId } = useParams({ strict: false }) as {
+    vaultId?: string;
+    documentId?: string;
+  };
+  return vaultId && documentId ? (
+    <Navigate to={ROUTES.chat} search={{ vaultId, documentId }} replace />
+  ) : (
+    <Navigate to={ROUTES.chat} replace />
+  );
 }
 
 function ProtectedAppShell() {
-  const { data: session, isPending } = authClient.useSession()
+  const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) return <AuthLoadingState />
-  if (!session) return <Navigate to={ROUTES.login} />
+  if (isPending) return <AuthLoadingState />;
+  if (!session) return <Navigate to={ROUTES.login} />;
 
-  return <AppShell />
+  return <AppShell />;
 }
 
-const rootRoute = createRootRoute()
+const rootRoute = createRootRoute();
 
 const publicLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'public',
   component: PublicAuthLayout,
-})
+});
 
 const loginRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/login',
   component: LoginPage,
-})
+});
 
 const registerRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/register',
   component: RegisterPage,
-})
+});
 
 const requestPasswordResetRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/request-password-reset',
   component: RequestPasswordResetPage,
-})
+});
 
 const resetPasswordRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/reset-password',
   component: ResetPasswordPage,
-})
+});
 
 const emailVerificationRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/verify-email',
-  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
+  validateSearch: validateEmailVerificationSearch,
   component: EmailVerificationPage,
-})
+});
 
 const twoFactorVerifyRoute = createRoute({
   getParentRoute: () => publicLayoutRoute,
   path: '/two-factor/verify',
   component: TwoFactorVerifyPage,
-})
+});
 
 const protectedLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'protected',
   component: ProtectedAppShell,
-})
+});
 
 const indexRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/',
   component: () => <Navigate to={ROUTES.vaults} />,
-})
+});
 
 const vaultsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults',
   component: VaultsPage,
-})
+});
 
 const vaultWorkspaceRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   id: 'vault-workspace',
+  validateSearch: validateVaultWorkspaceSearch,
   component: VaultWorkspaceLayout,
-})
+});
 
 const vaultRoute = createRoute({
   getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId',
   component: () => <DocumentsPage section="contents" />,
-})
+});
 
 const vaultMembersRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/members',
   component: () => <DocumentsPage section="members" />,
-})
+});
 
 const vaultActivityRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/activity',
   component: () => <DocumentsPage section="activity" />,
-})
+});
 
 const vaultSettingsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/settings',
   component: () => <DocumentsPage section="settings" />,
-})
+});
 
 const vaultChatRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/chat',
   component: VaultChatPage,
-})
+});
 
 const vaultChatConversationRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/chat/$conversationId',
   component: VaultChatPage,
-})
+});
 
 const documentRoute = createRoute({
   getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId',
   component: () => <DocumentDetailPage section="preview" />,
-})
+});
 
 const documentExtractedTextRoute = createRoute({
   getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId/extracted-text',
   component: () => <DocumentDetailPage section="content" />,
-})
+});
 
 const documentMetadataRoute = createRoute({
   getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId/metadata',
   component: () => <DocumentDetailPage section="metadata" />,
-})
+});
 
 const documentActivityRoute = createRoute({
   getParentRoute: () => vaultWorkspaceRoute,
   path: '/vaults/$vaultId/$documentId/activity',
   component: () => <DocumentDetailPage section="activity" />,
-})
+});
 
 const documentChatRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/vaults/$vaultId/$documentId/chat',
   component: DocumentChatRedirect,
-})
+});
 
 const chatRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/chat',
-  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
+  validateSearch: validateChatSearch,
   component: ChatPage,
-})
+});
 
 const chatConversationRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/chat/$conversationId',
   component: ChatPage,
-})
+});
 
 const trashRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/trash',
-  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
+  validateSearch: validateTrashSearch,
   component: DocumentTrashPage,
-})
+});
 
 const trashDocumentRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/trash/$documentId',
   component: DocumentDetailPage,
-})
+});
 
 const tagsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/tags',
   component: TagsPage,
-})
+});
 
 const searchRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/search',
-  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
+  validateSearch: validateSearchRouteSearch,
   component: SearchPage,
-})
+});
 
 const transfersRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/transfers',
-  validateSearch: (search: Record<string, unknown>) => search as Record<string, string>,
+  validateSearch: validateTransfersSearch,
   component: TransfersPage,
-})
+});
 
 const settingsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/settings',
   component: SettingsIndexPage,
-})
+});
 
 const settingsAccountRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/settings/account',
   component: SettingsPage,
-})
+});
 
 const settingsSecurityRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/settings/security',
   component: Outlet,
-})
+});
 
 const settingsSecurityIndexRoute = createRoute({
   getParentRoute: () => settingsSecurityRoute,
   path: '/',
   component: SecuritySettingsPage,
-})
+});
 
 const twoFactorSetupRoute = createRoute({
   getParentRoute: () => settingsSecurityRoute,
   path: 'two-factor/setup',
   component: TwoFactorSetupPage,
-})
+});
 
 const twoFactorManageRoute = createRoute({
   getParentRoute: () => settingsSecurityRoute,
   path: 'two-factor/manage',
   component: TwoFactorManagementPage,
-})
+});
 
 const settingsPreferencesRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/settings/preferences',
   component: PreferencesSettingsPage,
-})
+});
 
 const settingsAboutRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/settings/about',
   component: AboutSettingsPage,
-})
+});
 
 const adminRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin',
   component: AdminIndexPage,
-})
+});
 
 const adminOverviewRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/overview',
   component: AdminOverviewPage,
-})
+});
 
 const adminUsersRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/users',
   component: AdminUsersPage,
-})
+});
 
 const adminUserAccessRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/users/$userId/access',
   component: AdminUserAccessPage,
-})
+});
 
 const adminBackupsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/backups',
   component: AdminBackupsPage,
-})
+});
 
 const adminAuditLogRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/audit-log',
   component: AdminAuditLogPage,
-})
+});
 
 const legacyAdminVaultRedirectRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/vaults',
   component: () => <Navigate to={ROUTES.adminOverview} />,
-})
+});
 
 const adminAiSettingsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/admin/ai-settings',
   component: AdminAiSettingsPage,
-})
+});
 
 const catchAllRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '$',
   component: () => <Navigate to={ROUTES.vaults} />,
-})
+});
 
 const routeTree = rootRoute.addChildren([
   publicLayoutRoute.addChildren([
@@ -407,9 +421,9 @@ const routeTree = rootRoute.addChildren([
     adminAiSettingsRoute,
     catchAllRoute,
   ]),
-])
+]);
 
 export const appRouter = createRouter({
   routeTree,
   defaultPreload: 'intent',
-})
+});

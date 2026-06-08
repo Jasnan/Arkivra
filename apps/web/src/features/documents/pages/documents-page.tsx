@@ -1,11 +1,42 @@
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Tabs as ChakraTabs, Text, chakra } from '@chakra-ui/react';
-import { Download, Eye, FileUp, Folder, FolderPlus, FolderUp, History, Home, Info, MessageSquare, MoveRight, Pencil, Settings2, Tags, Trash2, Users } from 'lucide-react';
+import {
+  ActionBar,
+  Box,
+  CloseButton,
+  Dialog as ChakraDialog,
+  Flex,
+  Grid,
+  HStack,
+  Portal,
+  Stack,
+  Tabs as ChakraTabs,
+  Text,
+  chakra,
+} from '@chakra-ui/react';
+import {
+  Download,
+  Eye,
+  FileUp,
+  Folder,
+  FolderPlus,
+  FolderUp,
+  History,
+  Home,
+  Info,
+  MessageSquare,
+  MoveRight,
+  Pencil,
+  Settings2,
+  Tags,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
+import { validateVaultWorkspaceSearch } from '@/app/search-params';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
@@ -56,20 +87,33 @@ import type {
   InfoDialogTarget,
   ItemDialogTarget,
 } from '@/features/file-browser/components/vault-browser.types';
-import { fileBrowserQueryKeys, useFolderItemsQuery, useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
+import {
+  fileBrowserQueryKeys,
+  useFolderItemsQuery,
+  useFolderTreeQuery,
+} from '@/features/file-browser/file-browser.queries';
 import { VaultMembersPanel } from '@/features/vaults/components/vault-members-panel';
 import { VaultSettingsPanel } from '@/features/vaults/components/vault-settings-panel';
 import { VaultActivityPanel } from '@/features/audit/components/vault-activity-panel';
 import { useMeQuery } from '@/features/me/me.queries';
 import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
-import { canManageVaultWorkspace, canMutateVaultDocuments, canReadVault, canUseVaultChat } from '@/features/vaults/vault-permissions';
+import {
+  canManageVaultWorkspace,
+  canMutateVaultDocuments,
+  canReadVault,
+  canUseVaultChat,
+} from '@/features/vaults/vault-permissions';
 import { useVaultQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/vaults.types';
 
 export type VaultSection = 'contents' | 'members' | 'activity' | 'settings';
 type VaultManagementSection = Exclude<VaultSection, 'contents'>;
 
-const vaultManagementTabs: Array<{ value: VaultManagementSection; label: string; icon: typeof Users | typeof Settings2 | typeof History }> = [
+const vaultManagementTabs: Array<{
+  value: VaultManagementSection;
+  label: string;
+  icon: typeof Users | typeof Settings2 | typeof History;
+}> = [
   { value: 'members', label: 'Members', icon: Users },
   { value: 'settings', label: 'Settings', icon: Settings2 },
   { value: 'activity', label: 'Activity', icon: History },
@@ -96,7 +140,9 @@ function VaultManagementTabs({
   section: VaultManagementSection;
   onSectionChange: (section: VaultManagementSection) => void;
 }) {
-  const visibleTabs = vaultManagementTabs.filter((tab) => canViewVaultManagementSection(vault, tab.value));
+  const visibleTabs = vaultManagementTabs.filter((tab) =>
+    canViewVaultManagementSection(vault, tab.value),
+  );
   const canViewSection = canViewVaultManagementSection(vault, section);
 
   return (
@@ -104,8 +150,8 @@ function VaultManagementTabs({
       value={section}
       onValueChange={(event) => {
         if (
-          (event.value === 'members' || event.value === 'settings' || event.value === 'activity')
-          && canViewVaultManagementSection(vault, event.value)
+          (event.value === 'members' || event.value === 'settings' || event.value === 'activity') &&
+          canViewVaultManagementSection(vault, event.value)
         ) {
           onSectionChange(event.value);
         }
@@ -211,7 +257,8 @@ function getCommonBrowserItemParentId(items: BrowserItem[]) {
   }
 
   const [firstItem] = items;
-  const firstParentId = firstItem.type === 'folder' ? firstItem.folder.parentId : firstItem.document.folderId;
+  const firstParentId =
+    firstItem.type === 'folder' ? firstItem.folder.parentId : firstItem.document.folderId;
 
   return items.every((item) => {
     const parentId = item.type === 'folder' ? item.folder.parentId : item.document.folderId;
@@ -230,7 +277,7 @@ function getDeleteConfirmTitle(items: BrowserItem[]) {
 }
 
 function getDeleteConfirmDescription(items: BrowserItem[]) {
-  const hasFolder = items.some(item => item.type === 'folder');
+  const hasFolder = items.some((item) => item.type === 'folder');
 
   if (items.length === 1) {
     return hasFolder
@@ -290,7 +337,7 @@ function DeleteItemsConfirmDialog({
                   p="3"
                   ps="6"
                 >
-                  {items.map(item => (
+                  {items.map((item) => (
                     <Text
                       as="li"
                       key={getBrowserItemKey(item)}
@@ -325,23 +372,31 @@ function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: File
   }
 
   if (sortBy === 'updated_desc') {
-    return getBrowserItemUpdatedTime(right) - getBrowserItemUpdatedTime(left)
-      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
+    return (
+      getBrowserItemUpdatedTime(right) - getBrowserItemUpdatedTime(left) ||
+      getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' })
+    );
   }
 
   if (sortBy === 'updated_asc') {
-    return getBrowserItemUpdatedTime(left) - getBrowserItemUpdatedTime(right)
-      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
+    return (
+      getBrowserItemUpdatedTime(left) - getBrowserItemUpdatedTime(right) ||
+      getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' })
+    );
   }
 
   if (sortBy === 'size_desc') {
-    return getBrowserItemSize(right) - getBrowserItemSize(left)
-      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
+    return (
+      getBrowserItemSize(right) - getBrowserItemSize(left) ||
+      getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' })
+    );
   }
 
   if (sortBy === 'size_asc') {
-    return getBrowserItemSize(left) - getBrowserItemSize(right)
-      || getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' });
+    return (
+      getBrowserItemSize(left) - getBrowserItemSize(right) ||
+      getItemName(left).localeCompare(getItemName(right), undefined, { sensitivity: 'base' })
+    );
   }
 
   if (sortBy === 'name_desc') {
@@ -353,7 +408,7 @@ function compareBrowserItems(left: BrowserItem, right: BrowserItem, sortBy: File
 
 export function DocumentsPage({ section = 'contents' }: { section?: VaultSection }) {
   const params = useParams({ strict: false }) as { vaultId?: string };
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const search = validateVaultWorkspaceSearch(useSearch({ strict: false }));
   const navigate = useNavigate();
   const meQuery = useMeQuery();
   const vaultId = params.vaultId ?? '';
@@ -393,15 +448,15 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   });
 
   const browserItems = useMemo<BrowserItem[]>(
-    () => [...(folderItemsQuery.data?.items ?? [])].sort((left, right) => compareBrowserItems(left, right, browserSort)),
+    () =>
+      [...(folderItemsQuery.data?.items ?? [])].sort((left, right) =>
+        compareBrowserItems(left, right, browserSort),
+      ),
     [browserSort, folderItemsQuery.data?.items],
   );
   const activeIsLoading = folderItemsQuery.isLoading;
   const activeIsError = folderItemsQuery.isError;
-  const emptyState =
-    !activeIsLoading &&
-    !activeIsError &&
-    browserItems.length === 0;
+  const emptyState = !activeIsLoading && !activeIsError && browserItems.length === 0;
   const canUpdateItems = canMutateVaultDocuments(vaultQuery.data?.vault);
   const canDeleteItems = canMutateVaultDocuments(vaultQuery.data?.vault);
   const canDownloadItems = canReadVault(vaultQuery.data?.vault);
@@ -464,7 +519,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
         queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) }),
         queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() }),
         queryClient.invalidateQueries({ queryKey: vaultQueryKeys.members(vaultId) }),
-        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.folderItems(vaultId, currentFolderId) }),
+        queryClient.invalidateQueries({
+          queryKey: fileBrowserQueryKeys.folderItems(vaultId, currentFolderId),
+        }),
         queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.folderTree(vaultId) }),
       ]);
     },
@@ -494,11 +551,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     folders: folderTreeQuery.data?.folders,
     onMoveItems: moveItemsMutation.mutate,
   });
-  const {
-    navigateToFolder,
-    navigateToDocument,
-    openItem,
-  } = useFolderNavigation({
+  const { navigateToFolder, navigateToDocument, openItem } = useFolderNavigation({
     vaultId,
     onBeforeFolderNavigate: () => {
       clearSelection();
@@ -506,7 +559,8 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     },
   });
   const moveDestinations = useMemo(
-    () => getMoveDestinations({ folders: folderTreeQuery.data?.folders ?? [], target: moveTargets }),
+    () =>
+      getMoveDestinations({ folders: folderTreeQuery.data?.folders ?? [], target: moveTargets }),
     [folderTreeQuery.data?.folders, moveTargets],
   );
   const allItemsSelected = browserItems.length > 0 && selectedCount === browserItems.length;
@@ -523,7 +577,8 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     if (infoTarget.type === 'background') {
       return infoTarget.folderId === null
         ? 'Vault root'
-        : folderTreeQuery.data?.folders.find(folder => folder.id === infoTarget.folderId)?.path ?? 'Folder';
+        : (folderTreeQuery.data?.folders.find((folder) => folder.id === infoTarget.folderId)
+            ?.path ?? 'Folder');
     }
 
     if (infoTarget.type === 'document') {
@@ -531,10 +586,16 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
         return 'Vault root';
       }
 
-      return folderTreeQuery.data?.folders.find(folder => folder.id === infoTarget.document.folderId)?.path ?? 'Folder';
+      return (
+        folderTreeQuery.data?.folders.find((folder) => folder.id === infoTarget.document.folderId)
+          ?.path ?? 'Folder'
+      );
     }
 
-    return folderTreeQuery.data?.folders.find(folder => folder.id === infoTarget.folder.id)?.path ?? 'Folder';
+    return (
+      folderTreeQuery.data?.folders.find((folder) => folder.id === infoTarget.folder.id)?.path ??
+      'Folder'
+    );
   }, [folderTreeQuery.data?.folders, infoTarget]);
 
   useEffect(() => {
@@ -561,8 +622,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   useEffect(() => {
     try {
       window.localStorage?.setItem?.(FILE_BROWSER_SORT_STORAGE_KEY, browserSort);
-    } catch {
-    }
+    } catch {}
   }, [browserSort]);
 
   useEffect(() => {
@@ -649,7 +709,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   function openContextMenu(event: MouseEvent<HTMLElement>, item: BrowserContextItem) {
     const actions = getContextMenuEntries(item)
       .filter(isBrowserAction)
-      .filter(action => !action.disabled);
+      .filter((action) => !action.disabled);
 
     if (actions.length === 0) {
       return;
@@ -672,7 +732,12 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     ];
     const uploadEntries: BrowserContextMenuEntry[] = canCreateItems
       ? [
-          { key: 'new-folder', label: 'New folder', icon: FolderPlus, onSelect: () => openCreateFolderDialog(currentFolderId) },
+          {
+            key: 'new-folder',
+            label: 'New folder',
+            icon: FolderPlus,
+            onSelect: () => openCreateFolderDialog(currentFolderId),
+          },
           { key: 'after-new-folder', type: 'separator' } satisfies BrowserContextMenuEntry,
           {
             key: 'upload-files',
@@ -690,14 +755,37 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       : [];
     const adminSectionEntries: BrowserAction[] = canManageVaultWorkspace(vault)
       ? [
-          { key: 'members', label: 'Members', icon: Users, onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }) },
-          { key: 'settings', label: 'Settings', icon: Settings2, onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }) },
-          { key: 'activity', label: 'Activity', icon: History, onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }) },
+          {
+            key: 'members',
+            label: 'Members',
+            icon: Users,
+            onSelect: () => navigate({ to: ROUTES.vaultMembers(vaultId) }),
+          },
+          {
+            key: 'settings',
+            label: 'Settings',
+            icon: Settings2,
+            onSelect: () => navigate({ to: ROUTES.vaultSettings(vaultId) }),
+          },
+          {
+            key: 'activity',
+            label: 'Activity',
+            icon: History,
+            onSelect: () => navigate({ to: ROUTES.vaultActivity(vaultId) }),
+          },
         ]
       : [];
-    const chatEntry: BrowserAction[] = aiFeaturesEnabled && canUseVaultChat(vault)
-      ? [{ key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }) }]
-      : [];
+    const chatEntry: BrowserAction[] =
+      aiFeaturesEnabled && canUseVaultChat(vault)
+        ? [
+            {
+              key: 'chat',
+              label: 'Chat',
+              icon: MessageSquare,
+              onSelect: () => navigate({ to: ROUTES.vaultChat(vaultId) }),
+            },
+          ]
+        : [];
     const workspaceEntries = [...adminSectionEntries, ...chatEntry];
 
     entries.push(...uploadEntries);
@@ -723,8 +811,20 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   function getItemActions(item: BrowserContextItem): BrowserAction[] {
     if (item.type === 'root') {
       return [
-        { key: 'open', label: 'Open root', icon: Home, disabled: currentFolderId === null, onSelect: () => openItem(item) },
-        { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(null) },
+        {
+          key: 'open',
+          label: 'Open root',
+          icon: Home,
+          disabled: currentFolderId === null,
+          onSelect: () => openItem(item),
+        },
+        {
+          key: 'new-folder',
+          label: 'New folder',
+          icon: FolderPlus,
+          disabled: !canCreateItems,
+          onSelect: () => openCreateFolderDialog(null),
+        },
         {
           key: 'upload-files',
           label: 'Upload',
@@ -745,7 +845,13 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
 
     if (item.type === 'background') {
       return [
-        { key: 'new-folder', label: 'New folder', icon: FolderPlus, disabled: !canCreateItems, onSelect: () => openCreateFolderDialog(currentFolderId) },
+        {
+          key: 'new-folder',
+          label: 'New folder',
+          icon: FolderPlus,
+          disabled: !canCreateItems,
+          onSelect: () => openCreateFolderDialog(currentFolderId),
+        },
         {
           key: 'upload-files',
           label: 'Upload files',
@@ -766,8 +872,20 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     if (item.type === 'folder') {
       return [
         { key: 'open', label: 'Open', icon: Folder, onSelect: () => openItem(item) },
-        { key: 'rename', label: 'Rename', icon: Pencil, disabled: !canUpdateItems, onSelect: () => openRenameDialog(item) },
-        { key: 'move', label: 'Move to', icon: MoveRight, disabled: !canUpdateItems, onSelect: () => openMoveDialog(item) },
+        {
+          key: 'rename',
+          label: 'Rename',
+          icon: Pencil,
+          disabled: !canUpdateItems,
+          onSelect: () => openRenameDialog(item),
+        },
+        {
+          key: 'move',
+          label: 'Move to',
+          icon: MoveRight,
+          disabled: !canUpdateItems,
+          onSelect: () => openMoveDialog(item),
+        },
         { key: 'info', label: 'Info', icon: Info, onSelect: () => openInfoDialog(item) },
         {
           key: 'trash',
@@ -789,8 +907,20 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
         disabled: !canDownloadItems,
         onSelect: () => downloadDocuments([{ vaultId, documentId: item.document.id }]),
       },
-      { key: 'rename', label: 'Rename', icon: Pencil, disabled: !canUpdateItems, onSelect: () => openRenameDialog(item) },
-      { key: 'move', label: 'Move to', icon: MoveRight, disabled: !canUpdateItems, onSelect: () => openMoveDialog(item) },
+      {
+        key: 'rename',
+        label: 'Rename',
+        icon: Pencil,
+        disabled: !canUpdateItems,
+        onSelect: () => openRenameDialog(item),
+      },
+      {
+        key: 'move',
+        label: 'Move to',
+        icon: MoveRight,
+        disabled: !canUpdateItems,
+        onSelect: () => openMoveDialog(item),
+      },
       {
         key: 'tags',
         label: 'Tags',
@@ -863,7 +993,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     dropTarget,
     onClearSelection: clearSelection,
     onNavigateFolder: navigateToFolder,
-    onOpenRootContextMenu: event => openContextMenu(event, { type: 'root', vaultId }),
+    onOpenRootContextMenu: (event) => openContextMenu(event, { type: 'root', vaultId }),
     onOpenUploadFiles: () => openUploadFilesPicker(currentFolderId),
     onOpenUploadDirectory: () => openUploadDirectoryPicker(currentFolderId),
     onDragOverFolder: handleDragOverFolder,
@@ -873,12 +1003,24 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   useWorkspaceSecondary(null);
 
   if (!vaultId) {
-    return <Text fontSize="sm" color="fg.error">Invalid vault id.</Text>;
+    return (
+      <Text fontSize="sm" color="fg.error">
+        Invalid vault id.
+      </Text>
+    );
   }
 
   if (vaultQuery.isLoading) {
     return (
-      <Flex as="section" h="full" minH="0" direction="column" align="center" justify="center" color="fg.muted">
+      <Flex
+        as="section"
+        h="full"
+        minH="0"
+        direction="column"
+        align="center"
+        justify="center"
+        color="fg.muted"
+      >
         <Text fontSize="sm">Loading vault...</Text>
       </Flex>
     );
@@ -886,7 +1028,15 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
 
   if (vaultQuery.isError || !vaultQuery.data) {
     return (
-      <Flex as="section" h="full" minH="0" direction="column" align="center" justify="center" color="fg.error">
+      <Flex
+        as="section"
+        h="full"
+        minH="0"
+        direction="column"
+        align="center"
+        justify="center"
+        color="fg.error"
+      >
         <Text fontSize="sm">Unable to load vault.</Text>
       </Flex>
     );
@@ -926,7 +1076,8 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
               Become a vault member to access documents
             </Text>
             <Text fontSize="sm" lineHeight="1.55" color="fg.muted">
-              Admin accounts can see that this vault exists and inspect basic metadata, but document access requires visible vault membership.
+              Admin accounts can see that this vault exists and inspect basic metadata, but document
+              access requires visible vault membership.
             </Text>
             <Text fontSize="sm" lineHeight="1.55" color="fg.muted">
               {vault.description ?? 'No description set.'}
@@ -973,31 +1124,47 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                   <ChakraDialog.Body>
                     <Stack gap="4">
                       <Text fontSize="sm" lineHeight="6" color="fg.muted">
-                        You are about to become an explicit participant of this vault. This enables collaborative actions and AI participation under your account.
+                        You are about to become an explicit participant of this vault. This enables
+                        collaborative actions and AI participation under your account.
                       </Text>
-                      <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}>
+                      <Grid
+                        gap="3"
+                        templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}
+                      >
                         <Field>
                           <FieldLabel>Vault role</FieldLabel>
-                          <Select value={joinRole} onValueChange={(value) => setJoinRole(value as VaultRole)} disabled={joinVaultMutation.isPending}>
+                          <Select
+                            value={joinRole}
+                            onValueChange={(value) => setJoinRole(value as VaultRole)}
+                            disabled={joinVaultMutation.isPending}
+                          >
                             <SelectTrigger aria-label="Vault role">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {adminJoinRoleOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </Field>
                         <Field>
                           <FieldLabel>AI access</FieldLabel>
-                          <Select value={joinAiAccessLevel} onValueChange={(value) => setJoinAiAccessLevel(value as AiAccessLevel)} disabled={joinVaultMutation.isPending}>
+                          <Select
+                            value={joinAiAccessLevel}
+                            onValueChange={(value) => setJoinAiAccessLevel(value as AiAccessLevel)}
+                            disabled={joinVaultMutation.isPending}
+                          >
                             <SelectTrigger aria-label="AI access">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {adminJoinAiAccessOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -1007,7 +1174,12 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                   </ChakraDialog.Body>
                   <ChakraDialog.Footer>
                     <ChakraDialog.ActionTrigger asChild>
-                      <Button type="button" variant="outline" disabled={joinVaultMutation.isPending} onClick={() => setIsJoinDialogOpen(false)}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={joinVaultMutation.isPending}
+                        onClick={() => setIsJoinDialogOpen(false)}
+                      >
                         Cancel
                       </Button>
                     </ChakraDialog.ActionTrigger>
@@ -1028,7 +1200,8 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     type: 'background',
     vaultId,
     folderId: currentFolderId,
-    name: currentFolderId === null ? 'Vault root' : folderItemsQuery.data?.folder?.name ?? 'Folder',
+    name:
+      currentFolderId === null ? 'Vault root' : (folderItemsQuery.data?.folder?.name ?? 'Folder'),
   };
   const managementSection: VaultManagementSection | null = isContentsSection ? null : section;
 
@@ -1048,13 +1221,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
           </Box>
         </Flex>
       ) : null}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        hidden
-        onChange={handleUploadInputChange}
-      />
+      <input ref={fileInputRef} type="file" multiple hidden onChange={handleUploadInputChange} />
       <input
         ref={directoryInputRef}
         type="file"
@@ -1095,14 +1262,18 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                   title={currentFolderId === null ? 'This vault is empty' : 'This folder is empty'}
                   description="Create a folder or upload documents here."
                   icon={<Folder size={28} />}
-                  action={(
+                  action={
                     <HStack gap="2">
-                      <Button type="button" variant="outline" onClick={() => openCreateFolderDialog(currentFolderId)}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => openCreateFolderDialog(currentFolderId)}
+                      >
                         <FolderPlus size={16} />
                         New folder
                       </Button>
                     </HStack>
-                  )}
+                  }
                   containerProps={{
                     flex: '1',
                     minH: '0',
@@ -1134,7 +1305,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                     onDragLeaveFolder={handleDragLeaveFolder}
                     onDropOnFolder={handleDropOnFolder}
                     onOpenContextMenu={openContextMenu}
-                    onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
+                    onOpenBackgroundContextMenu={(event) =>
+                      openContextMenu(event, backgroundContextItem)
+                    }
                     hideActionsUntilHover
                     isMutating={itemMutationPending}
                   />
@@ -1157,7 +1330,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                     onDragLeaveFolder={handleDragLeaveFolder}
                     onDropOnFolder={handleDropOnFolder}
                     onOpenContextMenu={openContextMenu}
-                    onOpenBackgroundContextMenu={(event) => openContextMenu(event, backgroundContextItem)}
+                    onOpenBackgroundContextMenu={(event) =>
+                      openContextMenu(event, backgroundContextItem)
+                    }
                     isMutating={itemMutationPending}
                   />
                 )
@@ -1188,9 +1363,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
         <Portal>
           <ActionBar.Positioner>
             <ActionBar.Content>
-              <ActionBar.SelectionTrigger>
-                {selectedCount} selected
-              </ActionBar.SelectionTrigger>
+              <ActionBar.SelectionTrigger>{selectedCount} selected</ActionBar.SelectionTrigger>
               <ActionBar.Separator />
               <Button
                 size="sm"
@@ -1242,7 +1415,12 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                 </ChakraDialog.Header>
                 <ChakraDialog.Body>
                   <Stack gap="2">
-                    <chakra.label htmlFor="folder-name" fontSize="sm" fontWeight="medium" color="fg">
+                    <chakra.label
+                      htmlFor="folder-name"
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color="fg"
+                    >
                       Name
                     </chakra.label>
                     <Input
@@ -1255,11 +1433,18 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
                 </ChakraDialog.Body>
                 <ChakraDialog.Footer>
                   <ChakraDialog.ActionTrigger asChild>
-                    <Button type="button" variant="outline" disabled={createFolderMutation.isPending}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={createFolderMutation.isPending}
+                    >
                       Cancel
                     </Button>
                   </ChakraDialog.ActionTrigger>
-                  <Button type="submit" disabled={folderName.trim().length === 0 || createFolderMutation.isPending}>
+                  <Button
+                    type="submit"
+                    disabled={folderName.trim().length === 0 || createFolderMutation.isPending}
+                  >
                     {createFolderMutation.isPending ? 'Creating...' : 'Create'}
                   </Button>
                 </ChakraDialog.Footer>

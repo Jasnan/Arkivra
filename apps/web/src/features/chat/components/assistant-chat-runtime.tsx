@@ -6,6 +6,7 @@ import { useAISDKRuntime } from '@assistant-ui/react-ai-sdk';
 import type { ChatResponseMode } from '../chat.api';
 import type { ChatIntent, ChatMessage } from '../chat.types';
 import { createAssistantChatTransport, hasSameMessageIds, startsWithSameMessageIds } from './assistant-chat-runtime.helpers';
+import type { AssistantChatTransportConfig } from './assistant-chat-runtime.helpers';
 
 export type AssistantChatRuntimeStatus = ReturnType<typeof useChat<ChatMessage>>['status'];
 
@@ -46,16 +47,30 @@ export function AssistantChatRuntimeProvider({
   children: ReactNode;
 }) {
   const runtimeId = useId();
+  const transportConfigRef = useRef<AssistantChatTransportConfig>({
+    chatId,
+    intent,
+    model,
+    resolveChatId,
+    responseMode,
+  });
+
+  transportConfigRef.current = {
+    chatId,
+    intent,
+    model,
+    resolveChatId,
+    responseMode,
+  };
+
   const transport = useMemo(
     () =>
       createAssistantChatTransport({
-        chatId,
-        intent,
-        responseMode,
-        model,
-        resolveChatId,
+        // useChat keeps the same Chat instance while runtimeId is stable, so
+        // the transport reads route/model/context changes from this ref.
+        getConfig: () => transportConfigRef.current,
       }),
-    [chatId, intent, model, resolveChatId, responseMode],
+    [],
   );
 
   const chat = useChat<ChatMessage>({

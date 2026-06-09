@@ -2,19 +2,9 @@ name: Dependency Audit
 
 on:
   pull_request:
-    paths:
-      - package.json
-      - pnpm-lock.yaml
-      - apps/*/package.json
-      - .github/workflows/dependency-audit.yml
   push:
     branches:
       - main
-    paths:
-      - package.json
-      - pnpm-lock.yaml
-      - apps/*/package.json
-      - .github/workflows/dependency-audit.yml
   schedule:
     - cron: '27 4 * * 1'
   workflow_dispatch:

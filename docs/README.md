@@ -12,6 +12,7 @@ The core document workflow does not require AI. PostgreSQL, Docling, the API, th
 - [First admin and authentication](./first-admin-and-auth.md)
 - [Storage, encryption, and backups](./storage-encryption-backups.md)
 - [Search and optional AI](./search-and-ai.md)
+- [CI strategy](./ci.md)
 - [Troubleshooting](./troubleshooting.md)
 
 ## Security And Privacy Boundaries

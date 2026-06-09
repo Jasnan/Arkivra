@@ -1,125 +1,24 @@
-name: CI
+name: Nightly CI
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   CI: 'true'
 
+concurrency:
+  group: nightly-ci
+  cancel-in-progress: false
+
 jobs:
-  changes:
-    name: Detect changed paths
+  postgresql-suite:
+    name: Full PostgreSQL suite
     runs-on: ubuntu-latest
-    outputs:
-      api_changed: ${{ steps.filter.outputs.api }}
-      web_changed: ${{ steps.filter.outputs.web }}
-      website_changed: ${{ steps.filter.outputs.website }}
-      db_changed: ${{ steps.filter.outputs.db }}
-      docling_changed: ${{ steps.filter.outputs.docling }}
-      fast_tests_changed: ${{ steps.filter.outputs.fast_tests }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Detect changed paths
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            api:
-              - 'apps/api/**'
-            web:
-              - 'apps/web/**'
-            website:
-              - 'apps/website/**'
-            fast_tests:
-              - 'apps/api/**'
-              - 'apps/web/**'
-              - 'packages/**'
-            db:
-              - 'apps/api/**'
-              - 'drizzle/**'
-              - 'packages/**'
-              - '.github/workflows/**'
-            docling:
-              - 'apps/api/**'
-              - 'packages/**'
-              - 'docker/**'
-              - '.github/workflows/**'
-
-  static-checks:
-    name: Lint, typecheck, and build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Check website
-        run: pnpm --filter @arkivra/website check
-
-      - name: Build
-        run: pnpm build
-
-  fast-tests:
-    name: Fast tests
-    runs-on: ubuntu-latest
-    needs:
-      - changes
-    if: ${{ needs.changes.outputs.fast_tests_changed == 'true' }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run fast tests
-        run: pnpm test:fast
-
-  database-tests:
-    name: PostgreSQL-backed tests
-    runs-on: ubuntu-latest
-    needs:
-      - changes
-    if: ${{ needs.changes.outputs.db_changed == 'true' }}
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -166,12 +65,12 @@ jobs:
       - name: Run PostgreSQL-backed tests
         run: pnpm test:db
 
+      - name: Check schema and migration drift
+        run: pnpm db:check
+
   docling-e2e:
-    name: Docling e2e tests
+    name: Full Docling e2e suite
     runs-on: ubuntu-latest
-    needs:
-      - changes
-    if: ${{ needs.changes.outputs.docling_changed == 'true' }}
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -231,28 +130,9 @@ jobs:
       - name: Run Docling e2e tests
         run: pnpm test:e2e:docling
 
-  migration-drift:
-    name: Migration drift
+  security-scanning:
+    name: Security scanning
     runs-on: ubuntu-latest
-    needs:
-      - changes
-    if: ${{ needs.changes.outputs.db_changed == 'true' }}
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: arkivra
-          POSTGRES_PASSWORD: arkivra
-          POSTGRES_DB: arkivra
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U arkivra -d arkivra"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@127.0.0.1:5432/arkivra
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -271,5 +151,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check schema and migration drift
-        run: pnpm db:check
+      - name: Audit dependencies
+        run: pnpm deps:audit

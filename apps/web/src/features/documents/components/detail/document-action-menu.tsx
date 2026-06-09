@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
 import { useState } from 'react';
-import { Download, Printer, RotateCcw, Trash2 } from 'lucide-react';
+import { Download, History, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
   DropdownMenu,
@@ -92,6 +92,7 @@ export function DocumentActionMenu({
   isDeletePending,
   onNavigateToSection,
   onPrint,
+  onOpenVersionsDialog,
   onRestore,
   onOpenDeleteDialog,
 }: {
@@ -106,6 +107,7 @@ export function DocumentActionMenu({
   isDeletePending: boolean;
   onNavigateToSection: (route: string) => void;
   onPrint: () => void;
+  onOpenVersionsDialog: () => void;
   onRestore: () => void;
   onOpenDeleteDialog: () => void;
 }) {
@@ -130,12 +132,18 @@ export function DocumentActionMenu({
         ))}
         {sectionMenuItems.length > 0 ? <DropdownMenuSeparator /> : null}
         {!isTrashDocumentRoute ? (
-          <DocumentActionMenuItem value="download-original" asChild>
-            <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
-              <ActionMenuItemIcon icon={Download} />
-              Download
-            </a>
-          </DocumentActionMenuItem>
+          <>
+            <DocumentActionMenuItem value="versions" onSelect={onOpenVersionsDialog}>
+              <ActionMenuItemIcon icon={History} />
+              Versions
+            </DocumentActionMenuItem>
+            <DocumentActionMenuItem value="download-original" asChild>
+              <a href={getDocumentDownloadUrl({ vaultId, documentId })}>
+                <ActionMenuItemIcon icon={Download} />
+                Download
+              </a>
+            </DocumentActionMenuItem>
+          </>
         ) : null}
         {canPrint ? (
           <DocumentActionMenuItem value="print" onSelect={onPrint}>

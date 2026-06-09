@@ -15,6 +15,8 @@ export type ChatContextVaultRef = {
 export type ChatContextDocumentRef = {
   vaultId: string;
   documentId: string;
+  documentVersionId?: string;
+  versionNumber?: number;
   name?: string;
   vaultName?: string;
   path?: string;

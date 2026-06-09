@@ -226,16 +226,43 @@ describe.sequential('migrations smoke', () => {
       `,
     );
 
-    const byColumn = Object.fromEntries(rows.map((row) => [row.column_name, row]));
+    const hasForeignKey = ({
+      columnName,
+      deleteRule,
+      foreignTableName,
+    }: {
+      columnName: string;
+      deleteRule: string;
+      foreignTableName: string;
+    }) =>
+      rows.some(
+        (row) =>
+          row.column_name === columnName &&
+          row.foreign_table_name === foreignTableName &&
+          row.delete_rule === deleteRule,
+      );
 
-    expect(byColumn.chunk_id?.foreign_table_name).toBe('document_chunks');
-    expect(byColumn.chunk_id?.delete_rule).toBe('CASCADE');
-
-    expect(byColumn.document_id?.foreign_table_name).toBe('documents');
-    expect(byColumn.document_id?.delete_rule).toBe('CASCADE');
-
-    expect(byColumn.vault_id?.foreign_table_name).toBe('vaults');
-    expect(byColumn.vault_id?.delete_rule).toBe('CASCADE');
+    expect(
+      hasForeignKey({
+        columnName: 'chunk_id',
+        deleteRule: 'CASCADE',
+        foreignTableName: 'document_chunks',
+      }),
+    ).toBe(true);
+    expect(
+      hasForeignKey({
+        columnName: 'document_id',
+        deleteRule: 'CASCADE',
+        foreignTableName: 'documents',
+      }),
+    ).toBe(true);
+    expect(
+      hasForeignKey({
+        columnName: 'vault_id',
+        deleteRule: 'CASCADE',
+        foreignTableName: 'vaults',
+      }),
+    ).toBe(true);
   });
 
   test('ingestion AI settings default to disabled', async () => {
@@ -287,12 +314,12 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ollama_embedding_dimensions?.column_default).toContain('1024');
   });
 
-  test('0004 adds raw markdown and structured parser artifacts columns to documents', async () => {
+  test('0030 moves parser artifacts from documents to document_versions', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
 
-    const { rows } = await pool.query<{
+    const { rows: versionRows } = await pool.query<{
       column_name: string;
       data_type: string;
       is_nullable: string;
@@ -302,16 +329,19 @@ describe.sequential('migrations smoke', () => {
         SELECT column_name, data_type, is_nullable, column_default
         FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND table_name = 'documents'
+          AND table_name = 'document_versions'
           AND column_name IN (
             'raw_text',
             'raw_markdown',
-            'parser_structured_output'
+            'parser_structured_output',
+            'processing_status',
+            'file_encryption_key_wrapped',
+            'file_encryption_kek_version'
           )
       `,
     );
 
-    const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
+    const byName = Object.fromEntries(versionRows.map((row) => [row.column_name, row]));
 
     expect(byName.raw_text?.data_type).toBe('text');
     expect(byName.raw_text?.is_nullable).toBe('NO');
@@ -323,6 +353,44 @@ describe.sequential('migrations smoke', () => {
 
     expect(byName.parser_structured_output?.data_type).toBe('jsonb');
     expect(byName.parser_structured_output?.is_nullable).toBe('YES');
+
+    expect(byName.processing_status?.data_type).toBe('text');
+    expect(byName.processing_status?.is_nullable).toBe('NO');
+    expect(byName.processing_status?.column_default).toContain("'pending'");
+
+    expect(byName.file_encryption_key_wrapped?.data_type).toBe('text');
+    expect(byName.file_encryption_key_wrapped?.is_nullable).toBe('YES');
+
+    expect(byName.file_encryption_kek_version?.data_type).toBe('text');
+    expect(byName.file_encryption_kek_version?.is_nullable).toBe('YES');
+
+    const { rows: documentRows } = await pool.query<{ column_name: string }>(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'documents'
+          AND column_name IN (
+            'raw_text',
+            'raw_markdown',
+            'parser_structured_output',
+            'processing_status',
+            'file_encryption_key_wrapped',
+            'file_encryption_kek_version'
+          )
+      `,
+    );
+
+    expect(documentRows.map((row) => row.column_name)).toEqual(
+      expect.arrayContaining([
+        'raw_text',
+        'raw_markdown',
+        'parser_structured_output',
+        'processing_status',
+        'file_encryption_key_wrapped',
+        'file_encryption_kek_version',
+      ]),
+    );
   });
 
   test('0005 adds chunk section lineage and durable asset source element ids', async () => {
@@ -580,6 +648,310 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
+  test('0030 adds document_versions and current version ownership columns', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columns } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+    }>(
+      `
+        SELECT table_name, column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+            table_name = 'document_versions'
+            OR (table_name = 'documents' AND column_name = 'current_version_id')
+          )
+      `,
+    );
+
+    const byKey = Object.fromEntries(
+      columns.map((row) => [`${row.table_name}.${row.column_name}`, row]),
+    );
+
+    expect(byKey['documents.current_version_id']?.data_type).toBe('text');
+    expect(byKey['documents.current_version_id']?.is_nullable).toBe('YES');
+
+    expect(byKey['document_versions.id']?.data_type).toBe('text');
+    expect(byKey['document_versions.document_id']?.is_nullable).toBe('NO');
+    expect(byKey['document_versions.vault_id']?.is_nullable).toBe('NO');
+    expect(byKey['document_versions.version_number']?.data_type).toBe('integer');
+    expect(byKey['document_versions.version_number']?.is_nullable).toBe('NO');
+    expect(byKey['document_versions.uploaded_at']?.column_default).toContain('now()');
+    expect(byKey['document_versions.original_storage_key']?.is_nullable).toBe('NO');
+    expect(byKey['document_versions.original_sha256_hash']?.is_nullable).toBe('NO');
+    expect(byKey['document_versions.mime_type']?.is_nullable).toBe('NO');
+    expect(byKey['document_versions.processing_status']?.column_default).toContain("'pending'");
+
+    const { rows: indexes } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename IN ('documents', 'document_versions')
+      `,
+    );
+
+    expect(indexes.map((row) => row.indexname)).toEqual(
+      expect.arrayContaining([
+        'documents_id_vault_unique',
+        'documents_current_version_idx',
+        'document_versions_document_number_unique',
+        'document_versions_id_document_vault_unique',
+        'document_versions_vault_document_number_idx',
+        'document_versions_vault_status_uploaded_idx',
+        'document_versions_vault_hash_idx',
+        'document_versions_kek_version_idx',
+      ]),
+    );
+  });
+
+  test('0030 wires version-owned chunks, assets, embeddings, and upload sessions', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columns } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT table_name, column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+            (table_name = 'document_chunks'
+              AND column_name IN ('document_version_id', 'content_sha256', 'tsv'))
+            OR (table_name = 'document_chunk_assets' AND column_name = 'document_version_id')
+            OR (table_name = 'document_chunk_embeddings'
+              AND column_name IN ('document_version_id', 'embedding'))
+            OR (table_name = 'document_embedding_index_status'
+              AND column_name = 'document_version_id')
+            OR (table_name = 'upload_sessions' AND column_name = 'document_version_id')
+          )
+      `,
+    );
+
+    const byKey = Object.fromEntries(
+      columns.map((row) => [`${row.table_name}.${row.column_name}`, row]),
+    );
+
+    expect(byKey['document_chunks.document_version_id']?.is_nullable).toBe('NO');
+    expect(byKey['document_chunks.content_sha256']?.data_type).toBe('text');
+    expect(byKey['document_chunks.tsv']?.data_type).toBe('tsvector');
+    expect(byKey['document_chunk_assets.document_version_id']?.is_nullable).toBe('NO');
+    expect(byKey['document_chunk_embeddings.document_version_id']?.is_nullable).toBe('NO');
+    expect(byKey['document_chunk_embeddings.embedding']?.data_type).toBe('USER-DEFINED');
+    expect(byKey['document_embedding_index_status.document_version_id']?.is_nullable).toBe('NO');
+    expect(byKey['upload_sessions.document_version_id']?.is_nullable).toBe('YES');
+
+    const { rows: indexes } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename IN (
+            'document_chunks',
+            'document_chunk_assets',
+            'document_chunk_embeddings',
+            'document_embedding_index_status',
+            'upload_sessions'
+          )
+      `,
+    );
+
+    expect(indexes.map((row) => row.indexname)).toEqual(
+      expect.arrayContaining([
+        'document_chunks_version_index_unique',
+        'document_chunks_vault_version_idx',
+        'document_chunks_version_page_idx',
+        'document_chunk_assets_vault_version_idx',
+        'document_chunk_embeddings_index_version_idx',
+        'document_chunk_embeddings_index_doc_version_idx',
+        'document_embedding_index_status_pkey',
+        'document_embedding_index_status_doc_version_idx',
+        'upload_sessions_document_version_idx',
+      ]),
+    );
+
+    const { rows: primaryKeyRows } = await pool.query<{ column_name: string }>(
+      `
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_schema = tc.constraint_schema
+          AND kcu.constraint_name = tc.constraint_name
+          AND kcu.table_name = tc.table_name
+        WHERE tc.table_schema = 'public'
+          AND tc.table_name = 'document_embedding_index_status'
+          AND tc.constraint_type = 'PRIMARY KEY'
+        ORDER BY kcu.ordinal_position
+      `,
+    );
+
+    expect(primaryKeyRows.map((row) => row.column_name)).toEqual([
+      'embedding_index_id',
+      'document_version_id',
+    ]);
+  });
+
+  test('0030 adds frozen chat manifests and purge-tolerant citation references', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columns } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT table_name, column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+            (table_name = 'chat_conversations' AND column_name = 'context_frozen_at')
+            OR table_name IN ('chat_conversation_document_versions', 'chat_message_citations')
+          )
+      `,
+    );
+
+    const byKey = Object.fromEntries(
+      columns.map((row) => [`${row.table_name}.${row.column_name}`, row]),
+    );
+
+    expect(byKey['chat_conversations.context_frozen_at']?.data_type).toBe(
+      'timestamp without time zone',
+    );
+    expect(byKey['chat_conversation_document_versions.conversation_id']?.is_nullable).toBe('NO');
+    expect(byKey['chat_conversation_document_versions.vault_id']?.is_nullable).toBe('NO');
+    expect(byKey['chat_conversation_document_versions.document_id']?.is_nullable).toBe('NO');
+    expect(byKey['chat_conversation_document_versions.document_version_id']?.is_nullable).toBe(
+      'YES',
+    );
+    expect(byKey['chat_message_citations.version_number']?.data_type).toBe('integer');
+    expect(byKey['chat_message_citations.page_start']?.data_type).toBe('integer');
+    expect(byKey['chat_message_citations.locator_json']?.data_type).toBe('jsonb');
+
+    const { rows: foreignKeys } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      foreign_table_name: string;
+      delete_rule: string;
+    }>(
+      `
+        SELECT
+          tc.table_name,
+          kcu.column_name,
+          ccu.table_name AS foreign_table_name,
+          rc.delete_rule
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.referential_constraints rc
+          ON tc.constraint_name = rc.constraint_name
+         AND tc.constraint_schema = rc.constraint_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name
+         AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
+          AND tc.table_name IN (
+            'chat_conversations',
+            'chat_messages',
+            'chat_conversation_document_versions',
+            'chat_message_citations'
+          )
+      `,
+    );
+
+    const hasForeignKey = ({
+      columnName,
+      deleteRule,
+      foreignTableName,
+      tableName,
+    }: {
+      columnName: string;
+      deleteRule: string;
+      foreignTableName: string;
+      tableName: string;
+    }) =>
+      foreignKeys.some(
+        (row) =>
+          row.table_name === tableName &&
+          row.column_name === columnName &&
+          row.foreign_table_name === foreignTableName &&
+          row.delete_rule === deleteRule,
+      );
+
+    expect(
+      hasForeignKey({
+        columnName: 'document_id',
+        deleteRule: 'SET NULL',
+        foreignTableName: 'documents',
+        tableName: 'chat_conversations',
+      }),
+    ).toBe(true);
+    expect(
+      hasForeignKey({
+        columnName: 'document_id',
+        deleteRule: 'SET NULL',
+        foreignTableName: 'documents',
+        tableName: 'chat_messages',
+      }),
+    ).toBe(true);
+    expect(
+      hasForeignKey({
+        columnName: 'document_version_id',
+        deleteRule: 'SET NULL',
+        foreignTableName: 'document_versions',
+        tableName: 'chat_conversation_document_versions',
+      }),
+    ).toBe(true);
+    expect(
+      hasForeignKey({
+        columnName: 'document_version_id',
+        deleteRule: 'NO ACTION',
+        foreignTableName: 'document_versions',
+        tableName: 'chat_conversation_document_versions',
+      }),
+    ).toBe(false);
+    expect(
+      hasForeignKey({
+        columnName: 'document_version_id',
+        deleteRule: 'SET NULL',
+        foreignTableName: 'document_versions',
+        tableName: 'chat_message_citations',
+      }),
+    ).toBe(true);
+    expect(
+      hasForeignKey({
+        columnName: 'document_version_id',
+        deleteRule: 'NO ACTION',
+        foreignTableName: 'document_versions',
+        tableName: 'chat_message_citations',
+      }),
+    ).toBe(false);
+    expect(
+      hasForeignKey({
+        columnName: 'chunk_id',
+        deleteRule: 'SET NULL',
+        foreignTableName: 'document_chunks',
+        tableName: 'chat_message_citations',
+      }),
+    ).toBe(true);
+  });
+
   test('0014 creates the background_jobs table used by async workers', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
@@ -684,23 +1056,45 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0008 and 0009 enforce active filename and hash uniqueness', async () => {
+  test('0030 and 0031 keep active logical filename uniqueness and move hash indexing to versions', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
 
-    const { rows } = await pool.query<{ indexname: string }>(
+    const { rows: documentIndexRows } = await pool.query<{ indexname: string; indexdef: string }>(
       `
-        SELECT indexname
+        SELECT indexname, indexdef
         FROM pg_indexes
         WHERE schemaname = 'public'
           AND tablename = 'documents'
       `,
     );
 
-    const indexNames = rows.map((row) => row.indexname);
-    expect(indexNames).toContain('documents_active_folder_filename_unique');
-    expect(indexNames).toContain('documents_vault_hash_unique');
+    const documentIndexes = Object.fromEntries(
+      documentIndexRows.map((row) => [row.indexname, row.indexdef]),
+    );
+
+    expect(documentIndexes.documents_active_folder_filename_unique).toContain('lower');
+    expect(documentIndexes.documents_active_folder_filename_unique).toContain('original_name');
+    expect(documentIndexes.documents_vault_hash_unique).toBeUndefined();
+
+    const { rows: versionIndexRows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'document_versions'
+      `,
+    );
+
+    const versionIndexNames = versionIndexRows.map((row) => row.indexname);
+    expect(versionIndexNames).toEqual(
+      expect.arrayContaining([
+        'document_versions_document_number_unique',
+        'document_versions_vault_document_number_idx',
+        'document_versions_vault_hash_idx',
+      ]),
+    );
   });
 
   test('0013 and 0026 keep date format optional and remove manual timezone', async () => {

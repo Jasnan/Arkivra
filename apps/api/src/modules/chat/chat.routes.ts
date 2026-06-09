@@ -27,6 +27,7 @@ type ChatRouteErrorCode =
   | 'chat.not_pristine'
   | 'chat.invalid_response_mode'
   | 'chat.invalid_title'
+  | 'chat.context_unavailable'
   | 'chat.model_options_unavailable'
   | 'chat.not_found'
   | 'vault.forbidden';
@@ -248,12 +249,37 @@ function canUseDocumentChat(vault: VaultAccess) {
   return canReadVault(vault) && vault.aiAccessLevel === 'full';
 }
 
-function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapshot {
-  const rawContext = isRecord(body.contextSnapshot)
+function getRawRequestedContext(body: Record<string, unknown>) {
+  return isRecord(body.contextSnapshot)
     ? body.contextSnapshot
     : isRecord(body.context)
       ? body.context
       : body;
+}
+
+function hasOwnField(value: Record<string, unknown>, field: string) {
+  return Object.hasOwn(value, field);
+}
+
+function hasUnsupportedDocumentVersionContext(body: Record<string, unknown>) {
+  const rawContext = getRawRequestedContext(body);
+
+  if (hasOwnField(rawContext, 'documentVersionId') || hasOwnField(rawContext, 'versionNumber')) {
+    return true;
+  }
+
+  if (!Array.isArray(rawContext.documents)) {
+    return false;
+  }
+
+  return rawContext.documents.some(item =>
+    isRecord(item)
+    && (hasOwnField(item, 'documentVersionId') || hasOwnField(item, 'versionNumber')),
+  );
+}
+
+function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapshot {
+  const rawContext = getRawRequestedContext(body);
   const rawVaultRefs = parseVaultRefs(rawContext.vaults);
   const rawVaultIdRefs = parseStringArray(rawContext.vaultIds).map(vaultId => ({ vaultId }));
   const vaults = dedupeVaultRefs([...rawVaultRefs, ...rawVaultIdRefs]);
@@ -621,6 +647,14 @@ export function registerChatRoutes({
       return routeError(context, { status: 400, code: 'chat.invalid_title', message: 'title must be a string' });
     }
 
+    if (hasUnsupportedDocumentVersionContext(body)) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_context',
+        message: 'Explicit document versions are not supported in chat context yet',
+      });
+    }
+
     const resolved = await resolveCreatableContext({
       context,
       requestedContext: parseRequestedContext(body),
@@ -680,6 +714,14 @@ export function registerChatRoutes({
     }
 
     const body = await context.req.json().catch(() => ({})) as Record<string, unknown>;
+    if (hasUnsupportedDocumentVersionContext(body)) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_context',
+        message: 'Explicit document versions are not supported in chat context yet',
+      });
+    }
+
     const resolved = await resolveCreatableContext({
       context,
       requestedContext: parseRequestedContext(body),
@@ -763,6 +805,14 @@ export function registerChatRoutes({
 
     if (!resolved.ok) {
       return routeError(context, resolved);
+    }
+
+    if (conversation.contextAvailability.readOnly) {
+      return routeError(context, {
+        status: 409,
+        code: 'chat.context_unavailable',
+        message: conversation.contextAvailability.message,
+      });
     }
 
     const body = await context.req.json().catch(() => null) as {

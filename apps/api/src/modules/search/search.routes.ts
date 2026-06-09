@@ -7,6 +7,7 @@ import type {
   DocumentSearchMode,
   DocumentSearchServices,
   HybridSearchMode,
+  SearchVersionMode,
 } from './search.types.js';
 import { SEARCH_SORT_VALUES } from './search.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
@@ -38,6 +39,7 @@ type DocumentSearchQueryParams = {
   dateTo?: Date;
   sortBy: SearchSortBy;
   searchMode: DocumentSearchMode;
+  includeVersions: SearchVersionMode;
 };
 
 type GlobalDocumentSearchQueryParams = DocumentSearchQueryParams & {
@@ -49,7 +51,10 @@ type HybridSearchBody = {
   query: string;
   limit: number;
   mode: HybridSearchMode;
+  documentVersionIds?: string[];
 };
+
+const HYBRID_DOCUMENT_VERSION_IDS_LIMIT = 100;
 
 function parsePageIndex(value: string | undefined) {
   if (value === undefined) {
@@ -135,12 +140,47 @@ function parseHybridMode(value: unknown) {
   return value === 'hybrid' || value === 'fts' ? (value as HybridSearchMode) : null;
 }
 
+function parseStringList(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  if (value.some((item) => typeof item !== 'string')) {
+    return null;
+  }
+
+  const values = [
+    ...new Set(value.flatMap((item) => {
+      const trimmed = item.trim();
+      return trimmed.length > 0 ? [trimmed] : [];
+    })),
+  ];
+
+  if (values.length > HYBRID_DOCUMENT_VERSION_IDS_LIMIT) {
+    return null;
+  }
+
+  return values.length > 0 ? values : undefined;
+}
+
 function parseDocumentSearchMode(value: string | undefined) {
   if (value === undefined || value.trim().length === 0) {
     return 'keyword' as const;
   }
 
   return value === 'keyword' || value === 'hybrid' ? (value as DocumentSearchMode) : null;
+}
+
+function parseSearchVersionMode(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return 'latest' as const;
+  }
+
+  return value === 'latest' || value === 'historical' ? (value as SearchVersionMode) : null;
 }
 
 function isSearchSortBy(value: string): value is SearchSortBy {
@@ -185,6 +225,9 @@ const documentSearchQuerySchema: z.ZodType<DocumentSearchQueryParams, z.ZodTypeD
     searchMode: parsedParam<DocumentSearchMode>((value) =>
       parseDocumentSearchMode(optionalString(value)),
     ),
+    includeVersions: parsedParam<SearchVersionMode>((value) =>
+      parseSearchVersionMode(optionalString(value)),
+    ),
   });
 
 const globalDocumentSearchQuerySchema: z.ZodType<
@@ -208,6 +251,9 @@ const globalDocumentSearchQuerySchema: z.ZodType<
   searchMode: parsedParam<DocumentSearchMode>((value) =>
     parseDocumentSearchMode(optionalString(value)),
   ),
+  includeVersions: parsedParam<SearchVersionMode>((value) =>
+    parseSearchVersionMode(optionalString(value)),
+  ),
 });
 
 const hybridSearchBodySchema: z.ZodType<HybridSearchBody, z.ZodTypeDef, unknown> = z.object({
@@ -223,6 +269,7 @@ const hybridSearchBodySchema: z.ZodType<HybridSearchBody, z.ZodTypeDef, unknown>
   }),
   limit: parsedParam<number>((value) => parseHybridLimit(value)),
   mode: parsedParam<HybridSearchMode>((value) => parseHybridMode(value)),
+  documentVersionIds: parsedParam<string[] | undefined>((value) => parseStringList(value)),
 });
 
 const searchValidationErrors = {
@@ -250,6 +297,10 @@ const searchValidationErrors = {
     code: 'search.invalid_search_mode',
     message: 'searchMode must be one of keyword, hybrid',
   },
+  includeVersions: {
+    code: 'search.invalid_include_versions',
+    message: 'includeVersions must be one of latest, historical',
+  },
 } as const;
 
 const hybridSearchValidationErrors = {
@@ -264,6 +315,10 @@ const hybridSearchValidationErrors = {
   mode: {
     code: 'search.invalid_mode',
     message: 'mode must be one of hybrid, fts',
+  },
+  documentVersionIds: {
+    code: 'search.invalid_document_version_ids',
+    message: `documentVersionIds must be an array of at most ${HYBRID_DOCUMENT_VERSION_IDS_LIMIT} strings`,
   },
 } as const;
 
@@ -296,6 +351,9 @@ export function registerSearchRoutes({
   app.use('/api/vaults/:vaultId/search', requireAuthentication());
   app.use('/api/vaults/:vaultId/search', requireVaultAccess({ services: vaultsServices }));
   app.use('/api/vaults/:vaultId/search', requireCanReadVault());
+  app.use('/api/vaults/:vaultId/search/*', requireAuthentication());
+  app.use('/api/vaults/:vaultId/search/*', requireVaultAccess({ services: vaultsServices }));
+  app.use('/api/vaults/:vaultId/search/*', requireCanReadVault());
 
   app.get('/api/vaults/:vaultId/search', async (context) => {
     const vaultId = context.get('vaultId');
@@ -325,6 +383,7 @@ export function registerSearchRoutes({
       dateTo,
       sortBy,
       searchMode,
+      includeVersions,
     } = parsedQuery.data;
 
     if (searchMode === 'hybrid' && context.get('vaultAiAccessLevel') !== 'full') {
@@ -344,6 +403,7 @@ export function registerSearchRoutes({
       dateFrom,
       dateTo,
       sortBy,
+      includeVersions,
       ...(searchMode === 'hybrid' ? { searchMode } : {}),
     });
 
@@ -372,10 +432,11 @@ export function registerSearchRoutes({
         return validationErrorResponse(context, parsedBody.error);
       }
 
-      const { query, limit, mode } = parsedBody.data;
+      const { query, limit, mode, documentVersionIds } = parsedBody.data;
 
       const result = await searchServices.searchHybrid({
         vaultId,
+        documentVersionIds,
         query,
         limit,
         mode,
@@ -415,6 +476,7 @@ export function registerSearchRoutes({
       dateTo,
       sortBy,
       searchMode,
+      includeVersions,
     } = parsedQuery.data;
 
     const vaults = await vaultsServices.listUserVaults({ userId });
@@ -426,6 +488,17 @@ export function registerSearchRoutes({
       searchMode === 'hybrid'
         ? readableVaults.filter((vault) => vault.aiAccessLevel === 'full').map((vault) => vault.id)
         : readableVaults.map((vault) => vault.id);
+
+    if (requestedVaultId && !allowedVaultIds.includes(requestedVaultId)) {
+      return forbiddenResponse(context);
+    }
+
+    if (
+      requestedVaultIds &&
+      requestedVaultIds.some((vaultId) => !allowedVaultIds.includes(vaultId))
+    ) {
+      return forbiddenResponse(context);
+    }
 
     if (allowedVaultIds.length === 0) {
       return context.json({
@@ -441,19 +514,9 @@ export function registerSearchRoutes({
           dateFrom: dateFrom?.toISOString() ?? null,
           dateTo: dateTo?.toISOString() ?? null,
           sortBy,
+          includeVersions,
         },
       });
-    }
-
-    if (requestedVaultId && !allowedVaultIds.includes(requestedVaultId)) {
-      return forbiddenResponse(context);
-    }
-
-    if (
-      requestedVaultIds &&
-      requestedVaultIds.some((vaultId) => !allowedVaultIds.includes(vaultId))
-    ) {
-      return forbiddenResponse(context);
     }
 
     const effectiveRequestedVaultIds =
@@ -474,6 +537,7 @@ export function registerSearchRoutes({
       dateFrom,
       dateTo,
       sortBy,
+      includeVersions,
       ...(searchMode === 'hybrid' ? { searchMode } : {}),
     });
 

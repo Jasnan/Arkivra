@@ -11,6 +11,7 @@ export interface UploadSessionSummary {
   vaultId: string;
   userId: string;
   documentId: string | null;
+  documentVersionId: string | null;
   folderId: string | null;
   relativePath: string | null;
   fileName: string;
@@ -27,6 +28,17 @@ export interface UploadSessionSummary {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type UploadConflictStrategy = 'skip' | 'keep_both' | 'new_version';
+
+export interface UploadConflictDetails {
+  code: 'document.name_conflict' | 'document.duplicate' | string;
+  message: string;
+  existingId: string | null;
+  duplicateScope: string | null;
+  conflictType: 'name' | 'hash' | string;
+  availableStrategies: UploadConflictStrategy[];
 }
 
 export interface TransferItem {
@@ -49,6 +61,8 @@ export interface TransferItem {
   error: string | null;
   uploadId: string | null;
   documentId: string | null;
+  documentVersionId?: string | null;
+  conflict?: UploadConflictDetails | null;
   createdAt: number;
   completedAt: number | null;
 }

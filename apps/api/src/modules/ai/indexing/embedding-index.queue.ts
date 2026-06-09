@@ -8,16 +8,31 @@ export const EMBEDDING_INDEX_FINALIZE_JOB = 'embedding-index-finalize';
 export const EMBEDDING_INDEX_CLEANUP_JOB = 'embedding-index-cleanup';
 
 export type EmbeddingIndexJobData =
-  | { embeddingIndexId: string; documentId?: never; retiredEmbeddingIndexId?: never }
-  | { embeddingIndexId: string; documentId: string; retiredEmbeddingIndexId?: never }
-  | { embeddingIndexId: string; documentId?: never; retiredEmbeddingIndexId: string };
+  | {
+    embeddingIndexId: string;
+    documentId?: never;
+    documentVersionId?: never;
+    retiredEmbeddingIndexId?: never;
+  }
+  | {
+    embeddingIndexId: string;
+    documentVersionId: string;
+    documentId?: never;
+    retiredEmbeddingIndexId?: never;
+  }
+  | {
+    embeddingIndexId: string;
+    documentId?: never;
+    documentVersionId?: never;
+    retiredEmbeddingIndexId: string;
+  };
 
 function orchestrateJobId(embeddingIndexId: string) {
   return `embedding-index-orchestrate-${embeddingIndexId}`;
 }
 
-function documentJobId(embeddingIndexId: string, documentId: string) {
-  return `embedding-index-document-${embeddingIndexId}-${documentId}`;
+export function embeddingIndexDocumentJobId(embeddingIndexId: string, documentVersionId: string) {
+  return `embedding-index-document-${embeddingIndexId}-${documentVersionId}`;
 }
 
 function finalizeJobId(embeddingIndexId: string) {
@@ -57,15 +72,15 @@ export function createEmbeddingIndexQueue({
 
   async function enqueueDocumentIndexing({
     embeddingIndexId,
-    documentId,
+    documentVersionId,
   }: {
     embeddingIndexId: string;
-    documentId: string;
+    documentVersionId: string;
   }) {
     await queue.add(
       EMBEDDING_INDEX_DOCUMENT_JOB,
-      { embeddingIndexId, documentId },
-      { jobId: documentJobId(embeddingIndexId, documentId) },
+      { embeddingIndexId, documentVersionId },
+      { jobId: embeddingIndexDocumentJobId(embeddingIndexId, documentVersionId) },
     );
   }
 
@@ -93,15 +108,16 @@ export function createEmbeddingIndexQueue({
 
   async function cancelEmbeddingIndexJobs({
     embeddingIndexId,
-    documentIds,
+    documentVersionIds,
   }: {
     embeddingIndexId: string;
-    documentIds: string[];
+    documentVersionIds: string[];
   }) {
     const jobIds = [
       orchestrateJobId(embeddingIndexId),
       finalizeJobId(embeddingIndexId),
-      ...documentIds.map(documentId => documentJobId(embeddingIndexId, documentId)),
+      ...documentVersionIds.map(documentVersionId =>
+        embeddingIndexDocumentJobId(embeddingIndexId, documentVersionId)),
     ];
 
     for (const jobId of jobIds) {

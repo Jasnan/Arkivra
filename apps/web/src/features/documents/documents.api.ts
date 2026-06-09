@@ -6,8 +6,12 @@ import type {
   DocumentDetail,
   DocumentLanguageMetadata,
   DocumentSummary,
+  DocumentVersionDetail,
+  DocumentVersionSummary,
   TagSummary,
 } from './documents.types';
+
+export type UploadConflictStrategy = 'skip' | 'keep_both' | 'new_version';
 
 export type DocumentTranslationLanguage = 'de' | 'en';
 
@@ -66,6 +70,14 @@ interface DocumentChunksResponse {
   chunks: DocumentChunkSummary[];
 }
 
+interface DocumentVersionsResponse {
+  versions: DocumentVersionSummary[];
+}
+
+interface DocumentVersionResponse {
+  version: DocumentVersionDetail;
+}
+
 export async function listDocuments({
   vaultId,
   includeDeleted = false,
@@ -111,6 +123,34 @@ export async function listDocumentChunks({ vaultId, documentId }: { vaultId: str
   return fetchJson<DocumentChunksResponse>(`/api/vaults/${vaultId}/documents/${documentId}/chunks`);
 }
 
+export async function listDocumentVersions({ vaultId, documentId }: { vaultId: string; documentId: string }) {
+  return fetchJson<DocumentVersionsResponse>(`/api/vaults/${vaultId}/documents/${documentId}/versions`);
+}
+
+export async function getDocumentVersion({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+}) {
+  return fetchJson<DocumentVersionResponse>(`/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}`);
+}
+
+export async function listDocumentVersionChunks({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+}) {
+  return fetchJson<DocumentChunksResponse>(`/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/chunks`);
+}
+
 export async function listDeletedDocuments({ vaultId }: { vaultId?: string } = {}) {
   const params = new URLSearchParams();
 
@@ -138,11 +178,13 @@ export async function uploadDocument({
   file,
   folderId,
   relativePath,
+  conflictStrategy,
 }: {
   vaultId: string;
   file: File;
   folderId?: string | null;
   relativePath?: string | null;
+  conflictStrategy?: UploadConflictStrategy;
 }) {
   const formData = new FormData();
   formData.append('file', file);
@@ -151,6 +193,9 @@ export async function uploadDocument({
   }
   if (relativePath !== undefined && relativePath !== null) {
     formData.append('relativePath', relativePath);
+  }
+  if (conflictStrategy !== undefined) {
+    formData.append('conflictStrategy', conflictStrategy);
   }
 
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents`, {
@@ -255,8 +300,51 @@ export async function permanentlyDeleteDocument({
   });
 }
 
+export async function restoreDocumentVersion({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+}) {
+  return fetchJson<DocumentVersionResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/restore`,
+    {
+      method: 'POST',
+    },
+  );
+}
+
+export async function deleteDocumentVersion({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+}) {
+  return fetchJson<void>(`/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function getDocumentDownloadUrl({ vaultId, documentId }: { vaultId: string; documentId: string }) {
   return `/api/vaults/${vaultId}/documents/${documentId}/download`;
+}
+
+export function getDocumentVersionDownloadUrl({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+}) {
+  return `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/download`;
 }
 
 export function getDocumentInlineFileUrl({

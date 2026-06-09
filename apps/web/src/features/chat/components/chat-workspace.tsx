@@ -118,7 +118,7 @@ function getContextAccessMessage(snapshot: ChatContextSnapshot) {
 }
 
 function getContextUnavailableMessage(message?: string) {
-  return message ?? 'One or more source documents were deleted. This conversation is available as read-only history.';
+  return message ?? 'One or more source versions are unavailable. This conversation is available as read-only history.';
 }
 
 function getMessageConversationId(message: ChatMessage) {
@@ -843,10 +843,10 @@ export function ChatWorkspace({
                 </Flex>
                 <Box minW="0" flex="1">
                   <Text fontSize="sm" fontWeight="semibold" color="orange.fg">
-                    One or more source documents were deleted.
+                    Source context unavailable
                   </Text>
                   <Text mt="1.5" fontSize="sm" color="fg">
-                    {contextUnavailableMessage.replace('One or more source documents were deleted. ', '')}
+                    {contextUnavailableMessage}
                   </Text>
                 </Box>
                 <Button

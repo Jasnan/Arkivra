@@ -69,9 +69,11 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 - [ ] OAuth behavior is documented if enabled.
 - [ ] Two-factor authentication behavior is tested or documented.
 - [ ] Vault creation, membership, roles, and invitations work.
-- [ ] Upload, processing, preview, download, restore, and trash workflows work.
+- [ ] Upload, processing, preview, download, document versioning, restore, and trash workflows work.
+- [ ] Upload conflict strategies are tested or manually verified: skip, keep both, and new version.
 - [ ] Folder, tag, metadata, and filtering workflows work.
 - [ ] Full-text search works without AI enabled.
+- [ ] Default document search returns current completed versions only, and historical search is explicitly requested.
 - [ ] Worker processing recovers from common failure states.
 
 ## Tests
@@ -84,7 +86,8 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 - [ ] API background job e2e tests pass.
 - [ ] Dashboard tests pass.
 - [ ] Website tests pass.
-- [ ] Manual smoke test covers upload, parse, search, preview, download, and backup.
+- [ ] Manual smoke test covers upload, parse, version restore, search, preview, download, purge, and backup.
+- [ ] Manual versioning smoke test covers upload v1, upload v2 as a new version, freeze a chat, upload v3, restore v1 to v4, and verify the frozen chat does not switch to v3 or v4.
 
 ## Backup and Restore
 
@@ -92,6 +95,7 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 - [ ] Restore flow is documented.
 - [ ] Maintenance mode behavior during restore is documented.
 - [ ] Storage and database consistency expectations are documented.
+- [ ] Version-owned source files, previews, chunks, embeddings, chat manifests, and citation metadata are covered by backup and restore validation.
 - [ ] Encryption key backup warning is prominent.
 - [ ] Loss of encryption key impact is documented.
 
@@ -104,7 +108,7 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 - [ ] Semantic search requirements are documented, including active embedding index behavior.
 - [ ] Full-text fallback behavior is documented.
 - [ ] Provider credentials are stored and handled according to implementation.
-- [ ] RAG/chat permission boundaries are tested or reviewed.
+- [ ] RAG/chat permission boundaries are tested or reviewed, including frozen document-version manifests.
 
 ## Privacy and Security Claims Audit
 
@@ -112,6 +116,7 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 - [ ] No "fully private", "zero knowledge", or end-to-end encrypted claims appear unless proven by code.
 - [ ] Uploaded files and extracted assets encryption-at-rest claims match implementation.
 - [ ] Extracted text, chunks, metadata, chat history, embeddings, and vectors are described accurately.
+- [ ] Document-version deletion and permanent purge docs do not imply purged source content remains available.
 - [ ] AI provider data exposure is clear.
 - [ ] Audit logs and activity logs are described separately.
 
@@ -133,6 +138,7 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 - [ ] First admin and auth setup.
 - [ ] Vaults, roles, and permissions.
 - [ ] Uploads, parsing, and storage.
+- [ ] Document versioning, historical restore, individual version deletion, and permanent purge behavior.
 - [ ] Search and optional semantic search.
 - [ ] Optional AI providers.
 - [ ] Security and privacy model.

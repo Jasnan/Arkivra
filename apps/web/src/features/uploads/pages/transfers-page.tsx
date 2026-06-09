@@ -76,6 +76,19 @@ function statusLabel(status: string) {
   }
 }
 
+function conflictStrategyLabel(strategy: string) {
+  switch (strategy) {
+    case 'skip':
+      return 'Skip';
+    case 'keep_both':
+      return 'Keep both';
+    case 'new_version':
+      return 'New version';
+    default:
+      return strategy;
+  }
+}
+
 export function TransfersPage() {
   const navigate = useNavigate({ from: ROUTES.transfers });
   const search = validateTransfersSearch(useSearch({ strict: false }));
@@ -498,9 +511,28 @@ export function TransfersPage() {
               </Grid>
 
               {item.error ? (
-                <Text mt="2" textStyle="sm" color="fg.error">
-                  {item.error}
-                </Text>
+                <Box mt="2">
+                  <Text textStyle="sm" color="fg.error">
+                    {item.error}
+                  </Text>
+                  {item.conflict ? (
+                    <Flex mt="2.5" flexWrap="wrap" gap="2">
+                      {item.conflict.availableStrategies.map((strategy) => (
+                        <Button
+                          key={strategy}
+                          type="button"
+                          size="sm"
+                          variant={strategy === 'new_version' ? 'default' : 'outline'}
+                          onClick={() => {
+                            void uploadManager.resolveConflict(item.id, strategy);
+                          }}
+                        >
+                          {conflictStrategyLabel(strategy)}
+                        </Button>
+                      ))}
+                    </Flex>
+                  ) : null}
+                </Box>
               ) : (
                 <Text mt="2" textStyle="sm">
                   {item.status === 'completed'

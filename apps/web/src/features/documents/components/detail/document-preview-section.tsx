@@ -1,5 +1,6 @@
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
-import { Image as ImageIcon } from 'lucide-react';
+import { Download, Image as ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
 import { PdfPreviewFrame } from '@/features/documents/components/detail/pdf-preview-frame';
 import type { DocumentDetail } from '@/features/documents/documents.types';
@@ -19,6 +20,8 @@ export function DocumentPreviewSection({
   isMarkdownLoading,
   isMarkdownError,
   fallbackMarkdownContent,
+  isHistoricalVersion = false,
+  historicalDownloadUrl,
   onPrint,
 }: {
   previewKind: DocumentPreviewKind;
@@ -33,8 +36,81 @@ export function DocumentPreviewSection({
   isMarkdownLoading: boolean;
   isMarkdownError: boolean;
   fallbackMarkdownContent: string;
+  isHistoricalVersion?: boolean;
+  historicalDownloadUrl?: string;
   onPrint: () => void;
 }) {
+  if (isHistoricalVersion) {
+    if ((previewKind === 'markdown' || previewKind === 'text') && canPreview) {
+      return (
+        <Box
+          h="full"
+          minH={{ base: '720px', md: '0' }}
+          overflow="auto"
+          rounded="lg"
+          borderWidth="1px"
+          borderColor="border.surface"
+          bg="bg.surface"
+          px={{ base: '4', md: '8' }}
+          py={{ base: '5', md: '7' }}
+        >
+          {previewKind === 'markdown' ? (
+            <DocumentMarkdownPreview markdown={fallbackMarkdownContent} />
+          ) : (
+            <Text
+              as="pre"
+              whiteSpace="pre-wrap"
+              overflowWrap="anywhere"
+              fontFamily="document"
+              fontSize="sm"
+              color="fg"
+            >
+              {fallbackMarkdownContent || 'No extracted text is available for this version.'}
+            </Text>
+          )}
+        </Box>
+      );
+    }
+
+    return (
+      <Box h="full" minH={{ base: '720px', md: '0' }} rounded="lg" bg="bg.subtle" p="6">
+        <Flex
+          h="full"
+          direction="column"
+          align="center"
+          justify="center"
+          gap="4"
+          rounded="lg"
+          borderWidth="1px"
+          borderStyle="dashed"
+          borderColor="border.surface"
+          bg="bg.surface"
+          px="6"
+          textAlign="center"
+        >
+          <ImageIcon size={40} />
+          <Box>
+            <Text fontSize="sm" fontWeight="semibold" color="fg">
+              Historical preview is limited
+            </Text>
+            <Text maxW="xl" fontSize="sm" lineHeight="6" color="fg.muted">
+              This read-only version can be reviewed through extracted text, chunks, metadata, or
+              by downloading the original source file.
+            </Text>
+          </Box>
+          {historicalDownloadUrl ? (
+            <a href={historicalDownloadUrl}>
+              <Button as="span" variant="outline" size="sm">
+                <Download size={16} />
+                Download version
+              </Button>
+            </a>
+          ) : null}
+        </Flex>
+      </Box>
+    );
+  }
+
   if (previewKind === 'pdf' && canPreview) {
     return (
       <PdfPreviewFrame

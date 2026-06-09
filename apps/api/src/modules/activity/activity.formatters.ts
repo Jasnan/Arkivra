@@ -30,6 +30,12 @@ export function formatActivitySummary(event: ActivityEventRecord) {
       return `${actor} deleted file`;
     case 'document.restored':
       return `${actor} restored file`;
+    case 'document.version_created':
+      return `${actor} uploaded a new version`;
+    case 'document.version_restored':
+      return `${actor} restored a document version`;
+    case 'document.version_deleted':
+      return `${actor} deleted a document version`;
     case 'document.moved': {
       const from = getMetadataString(event, 'from_path') ?? 'Unknown location';
       const to = getMetadataString(event, 'to_path') ?? 'Unknown location';

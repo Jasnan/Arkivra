@@ -24,6 +24,7 @@ describe('document action menu', () => {
         isDeletePending={false}
         onNavigateToSection={vi.fn()}
         onPrint={vi.fn()}
+        onOpenVersionsDialog={vi.fn()}
         onRestore={vi.fn()}
         onOpenDeleteDialog={vi.fn()}
       />,
@@ -32,12 +33,14 @@ describe('document action menu', () => {
     await user.click(screen.getByRole('button', { name: /open actions for budget\.pdf/i }));
 
     const menu = screen.getByRole('menu');
+    const versionsAction = within(menu).getByRole('menuitem', { name: /^versions$/i });
     const downloadAction = within(menu).getByRole('menuitem', { name: /^download$/i });
     const printAction = within(menu).getByRole('menuitem', { name: /^print$/i });
     const trashAction = within(menu).getByRole('menuitem', { name: /^trash$/i });
 
     await user.hover(printAction);
     expect(printAction).toHaveAttribute('data-active', 'true');
+    expect(versionsAction).not.toHaveAttribute('data-active');
     expect(downloadAction).not.toHaveAttribute('data-active');
     expect(trashAction).not.toHaveAttribute('data-active');
 

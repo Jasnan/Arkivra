@@ -25,7 +25,9 @@ import type { LanguageModel } from 'ai';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  chatConversationDocumentVersionsTable,
   chatConversationsTable,
+  chatMessageCitationsTable,
   chatMessagesTable,
 } from '../database/schema/index.js';
 import { generateId } from '../database/schema/helpers.js';
@@ -143,6 +145,30 @@ type ChatModelOptions = {
 
 type ChatConversationRow = typeof chatConversationsTable.$inferSelect;
 export type ChatScopeInput = ChatContextSnapshot;
+type ChatManifestIncludedBy = 'vault' | 'document' | 'selection';
+
+export type ChatManifestRow = {
+  vaultId: string;
+  documentId: string;
+  documentVersionId: string | null;
+  includedBy: ChatManifestIncludedBy;
+};
+
+type LiveChatManifestRow = ChatManifestRow & {
+  documentVersionId: string;
+};
+
+type ManifestInsertRow = {
+  vault_id: string;
+  document_id: string;
+  document_version_id: string;
+  included_by: ChatManifestIncludedBy;
+};
+
+type ManifestAvailabilityRow = {
+  total_count: number | string;
+  unavailable_count: number | string;
+};
 
 const intentResolutionSchema = z.object({
   action: z.enum(['proceed', 'follow_up']),
@@ -456,7 +482,7 @@ function mergeCitationImageAssets(citations: Citation[]): CitationImageAsset[] {
 }
 
 function getCitationGroupKey(citation: Citation) {
-  return `${citation.vaultId}:${citation.documentId}`;
+  return `${citation.vaultId}:${citation.documentId}:${citation.documentVersionId}`;
 }
 
 function groupCitationsByDocument(citations: Citation[]) {
@@ -659,8 +685,18 @@ async function loadContextChunksForCitationGroup({
       dc.section,
       COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet
     FROM document_chunks AS dc
+    INNER JOIN documents AS d ON d.id = dc.document_id
+    INNER JOIN document_versions AS dv
+      ON dv.id = dc.document_version_id
+      AND dv.document_id = d.id
+      AND dv.vault_id = d.vault_id
     WHERE dc.vault_id = ${base.vaultId}
       AND dc.document_id = ${base.documentId}
+      AND dc.document_version_id = ${base.documentVersionId}
+      AND d.vault_id = ${base.vaultId}
+      AND d.is_deleted = false
+      AND dv.deleted_at IS NULL
+      AND dv.processing_status = 'completed'
       AND COALESCE(dc.page_end, dc.page_start, dc.page_number) >= ${pageWindow.start}
       AND COALESCE(dc.page_start, dc.page_number, dc.page_end) <= ${pageWindow.end}
     ORDER BY dc.chunk_index ASC, dc.id ASC
@@ -744,99 +780,6 @@ function getScopeValues(scope: ChatScopeInput) {
   };
 }
 
-async function searchHybridForScope({
-  searchServices,
-  scope,
-  query,
-  limit,
-}: {
-  searchServices: DocumentSearchServices;
-  scope: ChatScopeInput;
-  query: string;
-  limit: number;
-}) {
-  if (scope.type === 'global') {
-    return searchServices.searchHybrid({
-      vaultIds: scope.vaultIds,
-      query,
-      limit,
-      mode: 'hybrid',
-    });
-  }
-
-  if (scope.type === 'vault') {
-    return searchServices.searchHybrid({
-      vaultId: scope.vaultId,
-      query,
-      limit,
-      mode: 'hybrid',
-    });
-  }
-
-  if (scope.type === 'document') {
-    return searchServices.searchHybrid({
-      vaultId: scope.vaultId,
-      documentId: scope.documentId,
-      query,
-      limit,
-      mode: 'hybrid',
-    });
-  }
-
-  const selectedVaultIds = normalizeVaultRefs(scope.vaults).map(vault => vault.vaultId);
-  const selectedVaultIdsSet = new Set(selectedVaultIds);
-  const documentRefs = normalizeDocumentRefs(scope.documents)
-    .filter(document => !selectedVaultIdsSet.has(document.vaultId));
-  const searches = [
-    selectedVaultIds.length > 0
-      ? searchServices.searchHybrid({
-          vaultIds: selectedVaultIds,
-          query,
-          limit,
-          mode: 'hybrid',
-        })
-      : null,
-    ...documentRefs.map(document =>
-      searchServices.searchHybrid({
-        vaultId: document.vaultId,
-        documentId: document.documentId,
-        query,
-        limit,
-        mode: 'hybrid',
-      }),
-    ),
-  ].filter((search): search is ReturnType<DocumentSearchServices['searchHybrid']> => search !== null);
-
-  if (searches.length === 0) {
-    return {
-      query,
-      limit,
-      mode: 'hybrid' as const,
-      citations: [],
-    };
-  }
-
-  const results = await Promise.all(searches);
-  const citationsByChunkId = new Map<string, Citation>();
-  for (const result of results) {
-    for (const citation of result.citations) {
-      const current = citationsByChunkId.get(citation.chunkId);
-      if (current === undefined || citation.score > current.score) {
-        citationsByChunkId.set(citation.chunkId, citation);
-      }
-    }
-  }
-
-  return {
-    query,
-    limit,
-    mode: results.some(result => result.mode === 'hybrid') ? 'hybrid' as const : 'fts' as const,
-    citations: [...citationsByChunkId.values()]
-      .sort((left, right) => right.score - left.score)
-      .slice(0, limit),
-  };
-}
-
 function getConversationOwnershipConditions({
   userId,
   chatId,
@@ -849,6 +792,373 @@ function getConversationOwnershipConditions({
     eq(chatConversationsTable.userId, userId),
     isNull(chatConversationsTable.deletedAt),
   );
+}
+
+function toManifestRows(rows: Array<typeof chatConversationDocumentVersionsTable.$inferSelect>): ChatManifestRow[] {
+  return rows.map(row => ({
+    vaultId: row.vaultId,
+    documentId: row.documentId,
+    documentVersionId: row.documentVersionId,
+    includedBy: row.includedBy,
+  }));
+}
+
+function getLiveManifestRows(rows: ChatManifestRow[]): LiveChatManifestRow[] {
+  return rows.filter((row): row is LiveChatManifestRow => row.documentVersionId !== null);
+}
+
+function uniqueVaultIdsForManifest(rows: ChatManifestRow[]) {
+  return [...new Set(rows.map(row => row.vaultId).filter(vaultId => vaultId.length > 0))];
+}
+
+function createEmptyHybridResult({
+  query,
+  limit,
+}: {
+  query: string;
+  limit: number;
+}) {
+  return {
+    query,
+    limit,
+    mode: 'hybrid' as const,
+    citations: [],
+  };
+}
+
+export function shouldMaterializeConversationManifest({
+  contextFrozenAt,
+}: {
+  contextFrozenAt: Date | null;
+}) {
+  return contextFrozenAt === null;
+}
+
+export function getFrozenManifestContextAvailability({
+  totalCount,
+  unavailableCount,
+}: {
+  totalCount: number;
+  unavailableCount: number;
+}): ChatContextAvailability {
+  return totalCount === 0 || unavailableCount > 0
+    ? {
+        status: 'source_document_deleted',
+        readOnly: true,
+        message: totalCount === 0
+          ? 'No source document versions are available. This conversation is available as read-only history.'
+          : 'One or more source documents were deleted. This conversation is available as read-only history.',
+      }
+    : AVAILABLE_CHAT_CONTEXT;
+}
+
+async function loadConversationManifest({
+  db,
+  conversationId,
+}: {
+  db: Database;
+  conversationId: string;
+}) {
+  const rows = await db
+    .select()
+    .from(chatConversationDocumentVersionsTable)
+    .where(eq(chatConversationDocumentVersionsTable.conversationId, conversationId))
+    .orderBy(
+      asc(chatConversationDocumentVersionsTable.vaultId),
+      asc(chatConversationDocumentVersionsTable.documentId),
+      asc(chatConversationDocumentVersionsTable.documentVersionId),
+    );
+
+  return toManifestRows(rows);
+}
+
+async function resolveConversationContextAvailability({
+  db,
+  conversationId,
+  isFrozen,
+}: {
+  db: Database;
+  conversationId: string;
+  isFrozen: boolean;
+}): Promise<ChatContextAvailability> {
+  if (!isFrozen) {
+    return AVAILABLE_CHAT_CONTEXT;
+  }
+
+  const result = await db.execute<ManifestAvailabilityRow>(sql`
+    SELECT
+      count(*)::int AS total_count,
+      count(*) FILTER (
+        WHERE ccdv.document_version_id IS NULL
+          OR d.id IS NULL
+          OR dv.id IS NULL
+      )::int AS unavailable_count
+    FROM chat_conversation_document_versions AS ccdv
+    LEFT JOIN documents AS d
+      ON d.id = ccdv.document_id
+      AND d.vault_id = ccdv.vault_id
+      AND d.is_deleted = false
+    LEFT JOIN document_versions AS dv
+      ON dv.id = ccdv.document_version_id
+      AND dv.document_id = ccdv.document_id
+      AND dv.vault_id = ccdv.vault_id
+      AND dv.deleted_at IS NULL
+      AND dv.processing_status = 'completed'
+    WHERE ccdv.conversation_id = ${conversationId}
+  `);
+  const row = result.rows[0];
+  const totalCount = Number(row?.total_count ?? 0);
+  const unavailableCount = Number(row?.unavailable_count ?? 0);
+
+  return getFrozenManifestContextAvailability({ totalCount, unavailableCount });
+}
+
+async function insertManifestForCompletedCurrentVersions({
+  db,
+  conversationId,
+  vaultIds,
+  includedBy,
+  documentId,
+}: {
+  db: Database;
+  conversationId: string;
+  vaultIds: string[];
+  includedBy: ChatManifestIncludedBy;
+  documentId?: string;
+}) {
+  const normalizedVaultIds = [...new Set(vaultIds.map(vaultId => vaultId.trim()).filter(Boolean))];
+
+  if (normalizedVaultIds.length === 0) {
+    return [];
+  }
+
+  const vaultIdList = sql.join(normalizedVaultIds.map(vaultId => sql`${vaultId}`), sql`, `);
+  const result = await db.execute<ManifestInsertRow>(sql`
+    INSERT INTO chat_conversation_document_versions (
+      conversation_id,
+      vault_id,
+      document_id,
+      document_version_id,
+      included_by
+    )
+    SELECT
+      ${conversationId},
+      d.vault_id,
+      d.id,
+      dv.id,
+      ${includedBy}
+    FROM documents AS d
+    INNER JOIN document_versions AS dv
+      ON dv.id = d.current_version_id
+      AND dv.document_id = d.id
+      AND dv.vault_id = d.vault_id
+    WHERE d.vault_id IN (${vaultIdList})
+      AND d.is_deleted = false
+      AND d.current_version_id IS NOT NULL
+      AND dv.deleted_at IS NULL
+      AND dv.processing_status = 'completed'
+      AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
+    ON CONFLICT DO NOTHING
+    RETURNING
+      vault_id,
+      document_id,
+      document_version_id,
+      included_by
+  `);
+
+  return result.rows.map(row => ({
+    vaultId: row.vault_id,
+    documentId: row.document_id,
+    documentVersionId: row.document_version_id,
+    includedBy: row.included_by,
+  }));
+}
+
+async function materializeConversationManifest({
+  db,
+  conversationId,
+  scope,
+}: {
+  db: Database;
+  conversationId: string;
+  scope: ChatScopeInput;
+}) {
+  if (scope.type === 'global') {
+    await insertManifestForCompletedCurrentVersions({
+      db,
+      conversationId,
+      vaultIds: scope.vaultIds,
+      includedBy: 'vault',
+    });
+  } else if (scope.type === 'vault') {
+    await insertManifestForCompletedCurrentVersions({
+      db,
+      conversationId,
+      vaultIds: [scope.vaultId],
+      includedBy: 'vault',
+    });
+  } else if (scope.type === 'document') {
+    await insertManifestForCompletedCurrentVersions({
+      db,
+      conversationId,
+      vaultIds: [scope.vaultId],
+      documentId: scope.documentId,
+      includedBy: 'document',
+    });
+  } else {
+    const vaultRefs = normalizeVaultRefs(scope.vaults);
+    const selectedVaultIds = vaultRefs.map(vault => vault.vaultId);
+    await insertManifestForCompletedCurrentVersions({
+      db,
+      conversationId,
+      vaultIds: selectedVaultIds,
+      includedBy: 'vault',
+    });
+
+    const selectedVaultIdSet = new Set(selectedVaultIds);
+    const documentRefs = normalizeDocumentRefs(scope.documents, selectedVaultIdSet);
+    for (const documentRef of documentRefs) {
+      await insertManifestForCompletedCurrentVersions({
+        db,
+        conversationId,
+        vaultIds: [documentRef.vaultId],
+        documentId: documentRef.documentId,
+        includedBy: 'selection',
+      });
+    }
+  }
+
+  return loadConversationManifest({ db, conversationId });
+}
+
+export function buildManifestHybridSearchArgs({
+  manifestRows,
+  query,
+  limit,
+}: {
+  manifestRows: ChatManifestRow[];
+  query: string;
+  limit: number;
+}): Parameters<DocumentSearchServices['searchHybrid']>[0] | null {
+  const liveRows = getLiveManifestRows(manifestRows);
+  const vaultIds = uniqueVaultIdsForManifest(liveRows);
+  const documentVersionIds = [...new Set(liveRows.map(row => row.documentVersionId))];
+
+  if (vaultIds.length === 0 || documentVersionIds.length === 0) {
+    return null;
+  }
+
+  return {
+    vaultIds,
+    documentVersionIds,
+    query,
+    limit,
+    mode: 'hybrid',
+  };
+}
+
+async function searchHybridForManifest({
+  searchServices,
+  manifestRows,
+  query,
+  limit,
+}: {
+  searchServices: DocumentSearchServices;
+  manifestRows: ChatManifestRow[];
+  query: string;
+  limit: number;
+}) {
+  const args = buildManifestHybridSearchArgs({ manifestRows, query, limit });
+
+  if (args === null) {
+    return createEmptyHybridResult({ query, limit });
+  }
+
+  return searchServices.searchHybrid(args);
+}
+
+export function buildChatMessageCitationRows({
+  conversationId,
+  messageId,
+  citations,
+}: {
+  conversationId: string;
+  messageId: string;
+  citations: Citation[];
+}) {
+  return citations.map(citation => ({
+    id: generateId({ prefix: 'cmc' }),
+    conversationId,
+    messageId,
+    vaultId: citation.vaultId,
+    documentId: citation.documentId,
+    documentVersionId: citation.documentVersionId,
+    chunkId: citation.chunkId,
+    versionNumber: citation.versionNumber,
+    pageStart: citation.pageStart,
+    pageEnd: citation.pageEnd,
+    citationPrecision: citation.citationPrecision,
+    snippet: truncate(citation.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH),
+    locatorJson: {
+      section: citation.section,
+      sectionPath: citation.sectionPath ?? [],
+      sourceElementIds: citation.sourceElementIds ?? [],
+      tableSourceElementIds: citation.tableSourceElementIds ?? [],
+      imageAssetIds: citation.imageAssetIds ?? [],
+      imageAssets: citation.imageAssets ?? [],
+      boundingBoxes: citation.boundingBoxes ?? [],
+      assetType: citation.assetType,
+    },
+  }));
+}
+
+export function sanitizeCitationsForMessagePersistence(citations: Citation[]): Citation[] {
+  return citations.map(citation => ({
+    ...citation,
+    snippet: truncate(citation.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH),
+    tablesHtml: [],
+  }));
+}
+
+async function insertChatMessageCitationRow({
+  db,
+  row,
+}: {
+  db: Database;
+  row: ReturnType<typeof buildChatMessageCitationRows>[number];
+}) {
+  await db.execute(sql`
+    INSERT INTO chat_message_citations (
+      id,
+      conversation_id,
+      message_id,
+      vault_id,
+      document_id,
+      document_version_id,
+      chunk_id,
+      version_number,
+      page_start,
+      page_end,
+      citation_precision,
+      snippet,
+      locator_json
+    )
+    VALUES (
+      ${row.id},
+      ${row.conversationId},
+      ${row.messageId},
+      ${row.vaultId},
+      ${row.documentId},
+      (SELECT id FROM document_versions WHERE id = ${row.documentVersionId}),
+      (SELECT id FROM document_chunks WHERE id = ${row.chunkId}),
+      ${row.versionNumber},
+      ${row.pageStart},
+      ${row.pageEnd},
+      ${row.citationPrecision},
+      ${row.snippet},
+      ${JSON.stringify(row.locatorJson)}::jsonb
+    )
+  `);
 }
 
 function formatPageRange(citation: Citation) {
@@ -996,6 +1306,7 @@ async function collectCitationImages({
         vaultId: citation.vaultId,
         chunkId: citation.chunkId,
         assetId: imageAsset.assetId,
+        documentVersionId: citation.documentVersionId,
       });
 
       if (
@@ -1107,44 +1418,72 @@ export function createChatServices({
     | { status: 'not_found' }
     | { status: 'not_pristine' }
   > {
-    const [conversation] = await db
-      .select({ id: chatConversationsTable.id })
-      .from(chatConversationsTable)
-      .where(getConversationOwnershipConditions({ userId, chatId }))
-      .limit(1);
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`
+        SELECT id
+        FROM chat_conversations
+        WHERE id = ${chatId}
+          AND user_id = ${userId}
+          AND deleted_at IS NULL
+        FOR UPDATE
+      `);
 
-    if (conversation === undefined) {
-      return { status: 'not_found' };
-    }
+      const [conversation] = await tx
+        .select({
+          id: chatConversationsTable.id,
+          contextFrozenAt: chatConversationsTable.contextFrozenAt,
+        })
+        .from(chatConversationsTable)
+        .where(getConversationOwnershipConditions({ userId, chatId }))
+        .limit(1);
 
-    const [message] = await db
-      .select({ id: chatMessagesTable.id })
-      .from(chatMessagesTable)
-      .where(eq(chatMessagesTable.conversationId, chatId))
-      .limit(1);
+      if (conversation === undefined) {
+        return { status: 'not_found' };
+      }
 
-    if (message !== undefined) {
-      return { status: 'not_pristine' };
-    }
+      if (conversation.contextFrozenAt !== null) {
+        return { status: 'not_pristine' };
+      }
 
-    const scopeValues = getScopeValues(scope);
-    const [row] = await db
-      .update(chatConversationsTable)
-      .set({
-        vaultId: scopeValues.vaultId,
-        documentId: scopeValues.documentId,
-        scope: scopeValues.scope,
-        contextSnapshot: scope,
-        updatedAt: new Date(),
-      })
-      .where(getConversationOwnershipConditions({ userId, chatId }))
-      .returning();
+      const [message] = await tx
+        .select({ id: chatMessagesTable.id })
+        .from(chatMessagesTable)
+        .where(eq(chatMessagesTable.conversationId, chatId))
+        .limit(1);
 
-    if (row === undefined) {
-      return { status: 'not_found' };
-    }
+      if (message !== undefined) {
+        return { status: 'not_pristine' };
+      }
 
-    return { status: 'updated', conversation: toConversation(row) };
+      const [manifestRow] = await tx
+        .select({ conversationId: chatConversationDocumentVersionsTable.conversationId })
+        .from(chatConversationDocumentVersionsTable)
+        .where(eq(chatConversationDocumentVersionsTable.conversationId, chatId))
+        .limit(1);
+
+      if (manifestRow !== undefined) {
+        return { status: 'not_pristine' };
+      }
+
+      const scopeValues = getScopeValues(scope);
+      const [row] = await tx
+        .update(chatConversationsTable)
+        .set({
+          vaultId: scopeValues.vaultId,
+          documentId: scopeValues.documentId,
+          scope: scopeValues.scope,
+          contextSnapshot: scope,
+          updatedAt: new Date(),
+        })
+        .where(getConversationOwnershipConditions({ userId, chatId }))
+        .returning();
+
+      if (row === undefined) {
+        return { status: 'not_found' };
+      }
+
+      return { status: 'updated', conversation: toConversation(row) };
+    });
   }
 
   async function getConversation({
@@ -1169,10 +1508,15 @@ export function createChatServices({
       .from(chatMessagesTable)
       .where(eq(chatMessagesTable.conversationId, chatId))
       .orderBy(asc(chatMessagesTable.createdAt), asc(chatMessagesTable.id));
+    const contextAvailability = await resolveConversationContextAvailability({
+      db,
+      conversationId: chatId,
+      isFrozen: conversation.contextFrozenAt !== null,
+    });
 
     return {
       ...toConversation(conversation),
-      contextAvailability: AVAILABLE_CHAT_CONTEXT,
+      contextAvailability,
       messages: messages.map(hydratePersistedChatMessage),
     };
   }
@@ -1209,6 +1553,112 @@ export function createChatServices({
     };
   }
 
+  async function persistUserMessageAndFreezeContext({
+    userId,
+    chatId,
+    submittedUserMessage,
+    content,
+    intent,
+    now,
+  }: {
+    userId: string;
+    chatId: string;
+    submittedUserMessage: ChatMessage;
+    content: string;
+    intent?: ChatIntent;
+    now: Date;
+  }) {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`
+        SELECT id
+        FROM chat_conversations
+        WHERE id = ${chatId}
+          AND user_id = ${userId}
+          AND deleted_at IS NULL
+        FOR UPDATE
+      `);
+
+      const [lockedConversation] = await tx
+        .select()
+        .from(chatConversationsTable)
+        .where(getConversationOwnershipConditions({ userId, chatId }))
+        .limit(1);
+
+      if (lockedConversation === undefined) {
+        return null;
+      }
+
+      const previousMessageRows = await tx
+        .select()
+        .from(chatMessagesTable)
+        .where(eq(chatMessagesTable.conversationId, chatId))
+        .orderBy(asc(chatMessagesTable.createdAt), asc(chatMessagesTable.id));
+      const scope = normalizeConversationContextSnapshot(lockedConversation);
+      const scopeValues = getScopeValues(scope);
+      const txDb = tx as unknown as Database;
+
+      let manifestRows = await loadConversationManifest({ db: txDb, conversationId: chatId });
+
+      if (shouldMaterializeConversationManifest({
+        contextFrozenAt: lockedConversation.contextFrozenAt,
+      })) {
+        manifestRows = await materializeConversationManifest({
+          db: txDb,
+          conversationId: chatId,
+          scope,
+        });
+
+        await tx
+          .update(chatConversationsTable)
+          .set({ contextFrozenAt: lockedConversation.contextFrozenAt ?? now, updatedAt: now })
+          .where(eq(chatConversationsTable.id, chatId));
+      }
+
+      const userMessage = buildUserMessage({
+        message: submittedUserMessage,
+        metadata: {
+          intent,
+          conversationId: chatId,
+          vaultId: scopeValues.vaultId,
+          documentId: scopeValues.documentId,
+          scope: scopeValues.scope,
+          userId,
+          createdAt: toIso(now),
+          updatedAt: toIso(now),
+        },
+      });
+      const [userMessageRow] = await tx.insert(chatMessagesTable).values({
+        conversationId: chatId,
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        userId,
+        message: userMessage,
+        updatedAt: now,
+      }).returning();
+
+      if (userMessageRow === undefined) {
+        throw new Error('Failed to persist user message');
+      }
+
+      if (lockedConversation.title === DEFAULT_CHAT_TITLE) {
+        await tx
+          .update(chatConversationsTable)
+          .set({ title: truncate(content, 96), updatedAt: now })
+          .where(eq(chatConversationsTable.id, chatId));
+      }
+
+      return {
+        conversation: lockedConversation,
+        manifestRows,
+        previousMessageRows,
+        scope,
+        scopeValues,
+        userMessageRow,
+      };
+    });
+  }
+
   async function createMessageStream({
     userId,
     chatId,
@@ -1230,9 +1680,11 @@ export function createChatServices({
       return null;
     }
 
+    if (conversation.contextAvailability.readOnly) {
+      throw new Error(conversation.contextAvailability.message);
+    }
+
     const now = new Date();
-    const scope = conversation.contextSnapshot;
-    const scopeValues = getScopeValues(scope);
     const submittedUserMessage = getLatestUserMessage(messages);
     const content = submittedUserMessage === null ? '' : getMessageText(submittedUserMessage);
 
@@ -1240,41 +1692,23 @@ export function createChatServices({
       throw new Error('Message content is required.');
     }
 
-    const userMessage = buildUserMessage({
-      message: submittedUserMessage,
-      metadata: {
-        intent,
-        conversationId: chatId,
-        vaultId: scopeValues.vaultId,
-        documentId: scopeValues.documentId,
-        scope: scopeValues.scope,
-        userId,
-        createdAt: toIso(now),
-        updatedAt: toIso(now),
-      },
-    });
-    const [userMessageRow] = await db.insert(chatMessagesTable).values({
-      conversationId: chatId,
-      vaultId: scopeValues.vaultId,
-      documentId: scopeValues.documentId,
-      scope: scopeValues.scope,
+    const persistedUserMessage = await persistUserMessageAndFreezeContext({
       userId,
-      message: userMessage,
-      updatedAt: now,
-    }).returning();
+      chatId,
+      submittedUserMessage,
+      content,
+      intent,
+      now,
+    });
 
-    if (userMessageRow === undefined) {
-      throw new Error('Failed to persist user message');
+    if (persistedUserMessage === null) {
+      return null;
     }
 
-    if (conversation.title === DEFAULT_CHAT_TITLE) {
-      await db
-        .update(chatConversationsTable)
-        .set({ title: truncate(content, 96), updatedAt: new Date() })
-        .where(eq(chatConversationsTable.id, chatId));
-    }
-
-    const previousMessages = conversation.messages.slice(-MAX_RECENT_MESSAGES);
+    const { manifestRows, previousMessageRows, scope, scopeValues } = persistedUserMessage;
+    const previousMessages = previousMessageRows
+      .map(hydratePersistedChatMessage)
+      .slice(-MAX_RECENT_MESSAGES);
     const assistantMessageId = generateId({ prefix: 'msg' });
     const textPartId = generateId({ prefix: 'txt' });
     const pendingAssistantMetadata: ChatMessageMetadata = {
@@ -1385,9 +1819,9 @@ export function createChatServices({
           }
 
           writeStatus(writer, 'retrieval');
-          const result = await searchHybridForScope({
+          const result = await searchHybridForManifest({
             searchServices,
-            scope,
+            manifestRows,
             query: content,
             limit: citationLimit,
           });
@@ -1395,7 +1829,9 @@ export function createChatServices({
             question: content,
             citations: await expandRetrievedCitationsForChat({ db, citations: result.citations }),
           });
-          citationsForPersistence = includeInlineCitations ? citations : [];
+          citationsForPersistence = includeInlineCitations
+            ? sanitizeCitationsForMessagePersistence(citations)
+            : [];
 
           writeStatus(writer, 'generation');
           writer.write({ type: 'text-start', id: textPartId });
@@ -1541,31 +1977,47 @@ export function createChatServices({
         citations,
         metrics,
       });
-      const [assistantMessageRow] = await db.insert(chatMessagesTable).values({
-        id,
-        conversationId: chatId,
-        vaultId: scopeValues.vaultId,
-        documentId: scopeValues.documentId,
-        scope: scopeValues.scope,
-        userId,
-        message: assistantMessage,
-        updatedAt: new Date(),
-      }).onConflictDoUpdate({
-        target: chatMessagesTable.id,
-        set: {
+      await db.transaction(async (tx) => {
+        const updatedAt = new Date();
+        const [assistantMessageRow] = await tx.insert(chatMessagesTable).values({
+          id,
+          conversationId: chatId,
+          vaultId: scopeValues.vaultId,
+          documentId: scopeValues.documentId,
+          scope: scopeValues.scope,
+          userId,
           message: assistantMessage,
-          updatedAt: new Date(),
-        },
-      }).returning();
+          updatedAt,
+        }).onConflictDoUpdate({
+          target: chatMessagesTable.id,
+          set: {
+            message: assistantMessage,
+            updatedAt,
+          },
+        }).returning();
 
-      if (assistantMessageRow === undefined) {
-        throw new Error('Failed to persist assistant message');
-      }
+        if (assistantMessageRow === undefined) {
+          throw new Error('Failed to persist assistant message');
+        }
 
-      await db
-        .update(chatConversationsTable)
-        .set({ updatedAt: new Date() })
-        .where(eq(chatConversationsTable.id, chatId));
+        await tx
+          .delete(chatMessageCitationsTable)
+          .where(eq(chatMessageCitationsTable.messageId, id));
+
+        const txDb = tx as unknown as Database;
+        for (const row of buildChatMessageCitationRows({
+          conversationId: chatId,
+          messageId: id,
+          citations,
+        })) {
+          await insertChatMessageCitationRow({ db: txDb, row });
+        }
+
+        await tx
+          .update(chatConversationsTable)
+          .set({ updatedAt })
+          .where(eq(chatConversationsTable.id, chatId));
+      });
     }
 
     return createUIMessageStreamResponse({ stream });

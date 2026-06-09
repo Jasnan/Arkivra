@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { StorageDriver } from '../storage/storage.types.js';
@@ -7,8 +7,10 @@ import type { ParsedChunk, ParsedDocument } from './parsed-document.schema.js';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
+  documentVersionsTable,
   documentsTable,
 } from '../database/schema/index.js';
+import { documentVersionChunkAssetStorageKey } from '../documents/document-storage-keys.js';
 
 /**
  * Maximum byte size for table HTML stored inline on the asset row.
@@ -28,32 +30,38 @@ function newAssetId(): string {
 }
 
 function imageStorageKey({
-  documentId,
+  documentVersionId,
   chunkKey,
   imageIndex,
   mimeType,
 }: {
-  documentId: string;
+  documentVersionId: string;
   chunkKey: string;
   imageIndex: number;
   mimeType: string;
 }): string {
   const safeChunkKey = chunkKey.replace(/[^\w:-]/g, '_');
   const ext = mimeType.split('/')[1]?.split('+')[0] ?? 'bin';
-  return `chunks/${documentId}/${safeChunkKey}/image-${imageIndex}.${ext}`;
+  return documentVersionChunkAssetStorageKey({
+    documentVersionId,
+    assetPath: `${safeChunkKey}/image-${imageIndex}.${ext}`,
+  });
 }
 
 function tableStorageKey({
-  documentId,
+  documentVersionId,
   chunkKey,
   tableIndex,
 }: {
-  documentId: string;
+  documentVersionId: string;
   chunkKey: string;
   tableIndex: number;
 }): string {
   const safeChunkKey = chunkKey.replace(/[^\w:-]/g, '_');
-  return `chunks/${documentId}/${safeChunkKey}/table-${tableIndex}.html`;
+  return documentVersionChunkAssetStorageKey({
+    documentVersionId,
+    assetPath: `${safeChunkKey}/table-${tableIndex}.html`,
+  });
 }
 
 type AssetRow = typeof documentChunkAssetsTable.$inferInsert;
@@ -86,6 +94,7 @@ async function buildImageAssetRow({
   chunk,
   chunkId,
   documentId,
+  documentVersionId,
   vaultId,
   imageIndex,
   storage,
@@ -94,6 +103,7 @@ async function buildImageAssetRow({
   chunk: ParsedChunk;
   chunkId: string;
   documentId: string;
+  documentVersionId: string;
   vaultId: string;
   imageIndex: number;
   storage: StorageDriver;
@@ -101,7 +111,7 @@ async function buildImageAssetRow({
 }): Promise<AssetRow> {
   const image = chunk.images[imageIndex]!;
   const storageKey = imageStorageKey({
-    documentId,
+    documentVersionId,
     chunkKey: chunk.id,
     imageIndex,
     mimeType: image.mimeType,
@@ -132,6 +142,7 @@ async function buildImageAssetRow({
     id: newAssetId(),
     chunkId,
     documentId,
+    documentVersionId,
     vaultId,
     assetType: 'image',
     mimeType: image.mimeType,
@@ -151,6 +162,7 @@ async function buildTableAssetRow({
   chunk,
   chunkId,
   documentId,
+  documentVersionId,
   vaultId,
   tableIndex,
   storage,
@@ -159,6 +171,7 @@ async function buildTableAssetRow({
   chunk: ParsedChunk;
   chunkId: string;
   documentId: string;
+  documentVersionId: string;
   vaultId: string;
   tableIndex: number;
   storage: StorageDriver;
@@ -180,6 +193,7 @@ async function buildTableAssetRow({
       id: newAssetId(),
       chunkId,
       documentId,
+      documentVersionId,
       vaultId,
       assetType: 'table',
       mimeType: 'text/html',
@@ -196,7 +210,7 @@ async function buildTableAssetRow({
   }
 
   const storageKey = tableStorageKey({
-    documentId,
+    documentVersionId,
     chunkKey: chunk.id,
     tableIndex,
   });
@@ -218,6 +232,7 @@ async function buildTableAssetRow({
     id: newAssetId(),
     chunkId,
     documentId,
+    documentVersionId,
     vaultId,
     assetType: 'table',
     mimeType: 'text/html',
@@ -234,20 +249,21 @@ async function buildTableAssetRow({
 }
 
 /**
- * Persist a {@link ParsedDocument} into `documents` + `document_chunks`
- * + `document_chunk_assets`. This is the sole writer of parser output —
- * the worker never touches chunk columns directly.
+ * Persist a {@link ParsedDocument} into `document_versions` +
+ * `document_chunks` + `document_chunk_assets`. This is the sole writer of
+ * parser output — the worker never touches chunk columns directly.
  *
- * Idempotent: existing chunk rows and asset rows for the document are
- * deleted before re-insert so re-processing is safe. Storage objects
- * for previous assets are *not* swept here (the storage driver may not
- * support enumeration); a follow-up cleanup task can do that.
+ * Idempotent for an in-progress version: existing chunk rows and asset rows
+ * for the version are deleted before re-insert. Storage objects for previous
+ * assets are *not* swept here (the storage driver may not support
+ * enumeration); logical purge handles stored asset cleanup.
  */
 export async function persistParsedDocument({
   db,
   storage,
   encryption,
   documentId,
+  documentVersionId,
   vaultId,
   parsed,
 }: {
@@ -255,18 +271,38 @@ export async function persistParsedDocument({
   storage: StorageDriver;
   encryption: EncryptionServices;
   documentId: string;
+  documentVersionId: string;
   vaultId: string;
   parsed: ParsedDocument;
 }) {
   await db.transaction(async (tx) => {
+    const [version] = await tx
+      .select({ id: documentVersionsTable.id })
+      .from(documentVersionsTable)
+      .where(
+        and(
+          eq(documentVersionsTable.id, documentVersionId),
+          eq(documentVersionsTable.documentId, documentId),
+          eq(documentVersionsTable.vaultId, vaultId),
+          isNull(documentVersionsTable.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (version === undefined) {
+      throw new Error(`Document version ${documentVersionId} not found for document ${documentId}`);
+    }
+
     // Replace all existing chunks + assets for idempotent re-processing.
     // Asset rows would also cascade-delete via the chunk FK, but explicit
     // deletes give us a deterministic ordering and let us drop stale rows
     // even when the chunk count shrinks.
     await tx
       .delete(documentChunkAssetsTable)
-      .where(eq(documentChunkAssetsTable.documentId, documentId));
-    await tx.delete(documentChunksTable).where(eq(documentChunksTable.documentId, documentId));
+      .where(eq(documentChunkAssetsTable.documentVersionId, documentVersionId));
+    await tx
+      .delete(documentChunksTable)
+      .where(eq(documentChunksTable.documentVersionId, documentVersionId));
 
     if (parsed.chunks.length > 0) {
       const insertedChunks = await tx
@@ -274,6 +310,7 @@ export async function persistParsedDocument({
         .values(
           parsed.chunks.map((chunk, index) => ({
             documentId,
+            documentVersionId,
             vaultId,
             chunkIndex: index,
             chunkKey: chunk.id,
@@ -284,6 +321,7 @@ export async function persistParsedDocument({
             chunkType: chunk.type,
             tokenCount:
               typeof chunk.metadata.tokenCount === 'number' ? chunk.metadata.tokenCount : null,
+            contentSha256: sha256Hex(chunk.text),
             parserEngine: parsed.engine,
             metadata: chunk.metadata,
             pageStart: chunk.pageStart,
@@ -313,6 +351,7 @@ export async function persistParsedDocument({
               chunk,
               chunkId,
               documentId,
+              documentVersionId,
               vaultId,
               imageIndex,
               storage,
@@ -327,6 +366,7 @@ export async function persistParsedDocument({
               chunk,
               chunkId,
               documentId,
+              documentVersionId,
               vaultId,
               tableIndex,
               storage,
@@ -342,6 +382,29 @@ export async function persistParsedDocument({
     }
 
     await tx
+      .update(documentVersionsTable)
+      .set({
+        content: parsed.text,
+        rawText: parsed.rawText,
+        rawMarkdown: parsed.rawMarkdown,
+        parserStructuredOutput: parsed.rawStructuredOutput,
+        language: parsed.language,
+        parserEngine: parsed.engine,
+        parserEngineVersion: parsed.engineVersion,
+        parserWarnings: parsed.warnings,
+        processingStatus: 'completed',
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(documentVersionsTable.id, documentVersionId),
+          eq(documentVersionsTable.documentId, documentId),
+          eq(documentVersionsTable.vaultId, vaultId),
+          isNull(documentVersionsTable.deletedAt),
+        ),
+      );
+
+    await tx
       .update(documentsTable)
       .set({
         content: parsed.text,
@@ -355,6 +418,12 @@ export async function persistParsedDocument({
         processingStatus: 'completed',
         updatedAt: new Date(),
       })
-      .where(eq(documentsTable.id, documentId));
+      .where(
+        and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.vaultId, vaultId),
+          eq(documentsTable.currentVersionId, documentVersionId),
+        ),
+      );
   });
 }

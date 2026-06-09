@@ -6,8 +6,8 @@ import type { ProcessDocumentJobData } from './queue.js';
 import type { createActivityServices } from '../activity/activity.services.js';
 import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
-import { eq, and } from 'drizzle-orm';
-import { documentsTable, uploadSessionsTable } from '../database/schema/index.js';
+import { and, eq, isNull } from 'drizzle-orm';
+import { documentsTable, documentVersionsTable, uploadSessionsTable } from '../database/schema/index.js';
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { persistParsedDocument } from '../parsing/persistence.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
@@ -55,20 +55,23 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
   async function setProcessingStage({
     documentId,
+    documentVersionId,
     vaultId,
     processingStatus,
     progress,
     job,
   }: {
     documentId: string;
+    documentVersionId: string;
     vaultId: string;
     processingStatus: 'partitioning' | 'chunking' | 'summarising' | 'completed';
     progress: number;
     job: AsyncJob<ProcessDocumentJobData>;
   }) {
     console.info(`${logPrefix} ${documentId} -> stage=${processingStatus} progress=${progress}%`);
-    await documentsServices.updateDocumentProcessingStatus({
+    await documentsServices.updateDocumentVersionProcessingStatus({
       documentId,
+      documentVersionId,
       vaultId,
       processingStatus,
     });
@@ -88,11 +91,13 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
   async function updateRelatedUploadSession({
     documentId,
+    documentVersionId,
     status,
     errorCode = null,
     errorMessage = null,
   }: {
     documentId: string;
+    documentVersionId: string;
     status: 'processing' | 'completed' | 'failed';
     errorCode?: string | null;
     errorMessage?: string | null;
@@ -106,13 +111,20 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         completedAt: status === 'completed' ? new Date() : null,
         updatedAt: new Date(),
       })
-      .where(eq(uploadSessionsTable.documentId, documentId));
+      .where(
+        and(
+          eq(uploadSessionsTable.documentId, documentId),
+          eq(uploadSessionsTable.documentVersionId, documentVersionId),
+        ),
+      );
   }
 
   async function enqueueEmbeddingIndexingForCompletedDocument({
     documentId,
+    documentVersionId,
   }: {
     documentId: string;
+    documentVersionId: string;
   }) {
     if (adminAiServices === undefined || embeddingIndexQueue === undefined) {
       return;
@@ -131,7 +143,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
       await embeddingIndexQueue.enqueueDocumentIndexing({
         embeddingIndexId: activeIndex.id,
-        documentId,
+        documentVersionId,
       });
     } catch (error) {
       console.error(
@@ -142,10 +154,11 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
   }
 
   async function processDocument(job: AsyncJob<ProcessDocumentJobData>) {
-    const { documentId, vaultId } = job.data;
-    console.info(`${logPrefix} starting job=${job.id} document=${documentId} vault=${vaultId}`);
+    const { documentId, documentVersionId, vaultId } = job.data;
+    console.info(`${logPrefix} starting job=${job.id} document=${documentId} version=${documentVersionId} vault=${vaultId}`);
     await setProcessingStage({
       documentId,
+      documentVersionId,
       vaultId,
       processingStatus: 'partitioning',
       progress: WORKER_PROGRESS.partitioning,
@@ -153,15 +166,42 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     });
     await updateRelatedUploadSession({
       documentId,
+      documentVersionId,
       status: 'processing',
     });
 
     try {
       // 1. Fetch document record
       const [doc] = await db
-        .select()
-        .from(documentsTable)
-        .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
+        .select({
+          id: documentsTable.id,
+          vaultId: documentsTable.vaultId,
+          isDeleted: documentsTable.isDeleted,
+          versionId: documentVersionsTable.id,
+          originalName: documentVersionsTable.originalName,
+          originalStorageKey: documentVersionsTable.originalStorageKey,
+          mimeType: documentVersionsTable.mimeType,
+          fileEncryptionKeyWrapped: documentVersionsTable.fileEncryptionKeyWrapped,
+          fileEncryptionKekVersion: documentVersionsTable.fileEncryptionKekVersion,
+        })
+        .from(documentVersionsTable)
+        .innerJoin(
+          documentsTable,
+          and(
+            eq(documentVersionsTable.documentId, documentsTable.id),
+            eq(documentVersionsTable.vaultId, documentsTable.vaultId),
+          ),
+        )
+        .where(
+          and(
+            eq(documentVersionsTable.id, documentVersionId),
+            eq(documentVersionsTable.documentId, documentId),
+            eq(documentVersionsTable.vaultId, vaultId),
+            isNull(documentVersionsTable.deletedAt),
+            eq(documentsTable.id, documentId),
+            eq(documentsTable.vaultId, vaultId),
+          ),
+        )
         .limit(1);
 
       if (doc === undefined) {
@@ -182,6 +222,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
           if (stage === 'chunking') {
             await setProcessingStage({
               documentId,
+              documentVersionId,
               vaultId,
               processingStatus: 'chunking',
               progress: WORKER_PROGRESS.chunking,
@@ -192,6 +233,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
           if (stage === 'summarising') {
             await setProcessingStage({
               documentId,
+              documentVersionId,
               vaultId,
               processingStatus: 'summarising',
               progress: WORKER_PROGRESS.summarising,
@@ -229,6 +271,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       const parsed = await parsePipeline.run(
         {
           documentId,
+          documentVersionId,
           fileName: doc.originalName,
           mimeType: doc.mimeType,
           fileData,
@@ -249,6 +292,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         storage,
         encryption,
         documentId,
+        documentVersionId,
         vaultId,
         parsed,
       });
@@ -256,18 +300,20 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
       await updateRelatedUploadSession({
         documentId,
+        documentVersionId,
         status: 'completed',
       });
 
       await setProcessingStage({
         documentId,
+        documentVersionId,
         vaultId,
         processingStatus: 'completed',
         progress: WORKER_PROGRESS.completed,
         job,
       });
 
-      await enqueueEmbeddingIndexingForCompletedDocument({ documentId });
+      await enqueueEmbeddingIndexingForCompletedDocument({ documentId, documentVersionId });
 
       console.info(
         `Processed document ${documentId} via ${parsed.engine}@${parsed.engineVersion}: ${parsed.chunks.length} chunks, ${parsed.text.length} chars of text content`,
@@ -279,8 +325,9 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       console.error(
         `${logPrefix} processing failed for ${documentId}: ${error instanceof Error ? error.message : 'Document processing failed'}`,
       );
-      await documentsServices.updateDocumentProcessingStatus({
+      await documentsServices.updateDocumentVersionProcessingStatus({
         documentId,
+        documentVersionId,
         vaultId,
         processingStatus: 'failed',
       });
@@ -300,6 +347,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       });
       await updateRelatedUploadSession({
         documentId,
+        documentVersionId,
         status: 'failed',
         errorCode: 'document.processing_failed',
         errorMessage: error instanceof Error ? error.message : 'Document processing failed',

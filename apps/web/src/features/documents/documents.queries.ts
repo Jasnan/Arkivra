@@ -1,7 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import type { SearchSortBy } from '@/features/search/search.types';
 import { isDocumentProcessingActive } from './documents.utils';
-import { getDocument, getDocumentFileText, listDeletedDocuments, listDocumentChunks, listDocuments, listDocumentTags } from './documents.api';
+import {
+  getDocument,
+  getDocumentFileText,
+  getDocumentVersion,
+  listDeletedDocuments,
+  listDocumentChunks,
+  listDocumentTags,
+  listDocumentVersionChunks,
+  listDocumentVersions,
+  listDocuments,
+} from './documents.api';
 
 export const documentQueryKeys = {
   all: ['documents'] as const,
@@ -20,6 +30,12 @@ export const documentQueryKeys = {
     [...documentQueryKeys.all, 'detail', vaultId, documentId] as const,
   chunks: (vaultId: string, documentId: string) =>
     [...documentQueryKeys.all, 'chunks', vaultId, documentId] as const,
+  versions: (vaultId: string, documentId: string) =>
+    [...documentQueryKeys.all, 'versions', vaultId, documentId] as const,
+  versionDetail: (vaultId: string, documentId: string, versionId: string) =>
+    [...documentQueryKeys.all, 'version-detail', vaultId, documentId, versionId] as const,
+  versionChunks: (vaultId: string, documentId: string, versionId: string) =>
+    [...documentQueryKeys.all, 'version-chunks', vaultId, documentId, versionId] as const,
   fileText: (vaultId: string, documentId: string, includeDeleted = false) =>
     [...documentQueryKeys.all, 'file-text', vaultId, documentId, includeDeleted] as const,
   tags: (vaultId: string, documentId: string) =>
@@ -95,6 +111,58 @@ export function useDocumentChunksQuery({
     queryKey: documentQueryKeys.chunks(vaultId, documentId),
     queryFn: () => listDocumentChunks({ vaultId, documentId }),
     enabled: enabled && vaultId.length > 0 && documentId.length > 0,
+  });
+}
+
+export function useDocumentVersionsQuery({
+  vaultId,
+  documentId,
+  enabled = true,
+}: {
+  vaultId: string;
+  documentId: string;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: documentQueryKeys.versions(vaultId, documentId),
+    queryFn: () => listDocumentVersions({ vaultId, documentId }),
+    enabled: enabled && vaultId.length > 0 && documentId.length > 0,
+  });
+}
+
+export function useDocumentVersionQuery({
+  vaultId,
+  documentId,
+  versionId,
+  enabled = true,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: documentQueryKeys.versionDetail(vaultId, documentId, versionId),
+    queryFn: () => getDocumentVersion({ vaultId, documentId, versionId }),
+    enabled: enabled && vaultId.length > 0 && documentId.length > 0 && versionId.length > 0,
+  });
+}
+
+export function useDocumentVersionChunksQuery({
+  vaultId,
+  documentId,
+  versionId,
+  enabled = true,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: documentQueryKeys.versionChunks(vaultId, documentId, versionId),
+    queryFn: () => listDocumentVersionChunks({ vaultId, documentId, versionId }),
+    enabled: enabled && vaultId.length > 0 && documentId.length > 0 && versionId.length > 0,
   });
 }
 

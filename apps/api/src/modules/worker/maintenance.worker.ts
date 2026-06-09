@@ -16,6 +16,11 @@ type AssetStorageKeyRow = {
   storage_key: string;
 };
 
+type DocumentVersionStorageRow = {
+  id: string;
+  original_storage_key: string;
+};
+
 export type MaintenanceWorkerDeps = {
   db: Database;
   defaultRetentionDays: number;
@@ -55,8 +60,19 @@ export async function hardDeleteExpiredDocuments({
         AND storage_key IS NOT NULL
     `);
 
+    const versionStorageRows = await db.execute<DocumentVersionStorageRow>(sql`
+      SELECT id, original_storage_key
+      FROM document_versions
+      WHERE document_id = ${document.id}
+    `);
+
     for (const asset of assetStorageKeys.rows) {
       await storage.remove(asset.storage_key);
+    }
+
+    for (const version of versionStorageRows.rows) {
+      await storage.removePrefix?.(`previews/${version.id}`);
+      await storage.remove(version.original_storage_key);
     }
 
     await storage.removePrefix?.(`previews/${document.id}`);

@@ -8,7 +8,14 @@ import {
 } from './uploads.api';
 import { clearPersistedTransfers, loadPersistedTransfers, savePersistedTransfers } from './upload-persistence';
 import { filterAllowedUploadFiles, getUploadSourceRootName, normalizeUploadFileName } from './upload-file-rules';
-import type { TransferItem, TransferState, UploadFileInput, UploadSessionSummary } from './uploads.types';
+import type {
+  TransferItem,
+  TransferState,
+  UploadConflictDetails,
+  UploadConflictStrategy,
+  UploadFileInput,
+  UploadSessionSummary,
+} from './uploads.types';
 
 const MAX_CONCURRENT_UPLOADS = 3;
 const PATH_SEPARATOR_PATTERN = /[\\/]+/;
@@ -70,6 +77,34 @@ function getOptionalUploadErrorMessage(message: string | null | undefined) {
   return message === null || message === undefined ? null : getUploadErrorMessage(message);
 }
 
+function isUploadConflictStrategy(value: unknown): value is UploadConflictStrategy {
+  return value === 'skip' || value === 'keep_both' || value === 'new_version';
+}
+
+function getUploadConflictDetails(error: unknown): UploadConflictDetails | null {
+  if (!(error instanceof ApiError) || error.status !== 409) {
+    return null;
+  }
+
+  if (error.code !== 'document.name_conflict' && error.code !== 'document.duplicate') {
+    return null;
+  }
+
+  const details = error.details ?? {};
+  const availableStrategies = Array.isArray(details.availableStrategies)
+    ? details.availableStrategies.filter(isUploadConflictStrategy)
+    : [];
+
+  return {
+    code: error.code,
+    message: error.message,
+    existingId: typeof details.existingId === 'string' ? details.existingId : null,
+    duplicateScope: typeof details.duplicateScope === 'string' ? details.duplicateScope : null,
+    conflictType: typeof details.conflictType === 'string' ? details.conflictType : 'hash',
+    availableStrategies,
+  };
+}
+
 function mapUploadStatusToTransferStatus(status: string): TransferItem['status'] {
   switch (status) {
     case 'initialized':
@@ -129,6 +164,8 @@ function buildTransferFromSession(upload: UploadSessionSummary): TransferItem {
         : null,
     uploadId: upload.id,
     documentId: upload.documentId,
+    documentVersionId: upload.documentVersionId,
+    conflict: null,
     createdAt: Date.parse(upload.createdAt) || Date.now(),
     completedAt: upload.completedAt ? Date.parse(upload.completedAt) : null,
   };
@@ -141,6 +178,8 @@ function normalizeTransferItem(item: TransferItem): TransferItem {
     sourceRootName: item.sourceRootName ?? getSourceRootNameFromRelativePath(item.relativePath),
     folderId: item.folderId ?? null,
     relativePath: item.relativePath ?? null,
+    documentVersionId: item.documentVersionId ?? null,
+    conflict: item.conflict ?? null,
   };
 }
 
@@ -248,6 +287,8 @@ export class UploadManager {
       error: null,
       uploadId: null,
       documentId: null,
+      documentVersionId: null,
+      conflict: null,
       createdAt: Date.now(),
       completedAt: null,
     }));
@@ -311,6 +352,24 @@ export class UploadManager {
       items: nextItems,
     });
     await this.kick();
+  }
+
+  async resolveConflict(id: string, strategy: UploadConflictStrategy) {
+    const item = this.state.items.find(entry => entry.id === id);
+    const file = item ? this.files.get(item.id) : undefined;
+
+    if (!item || !item.uploadId || !file || !item.conflict) {
+      return;
+    }
+
+    this.updateTransfer(id, current => ({
+      ...current,
+      status: 'queued',
+      error: null,
+      conflict: null,
+    }));
+
+    await this.uploadItem(id, file, { conflictStrategy: strategy });
   }
 
   async remove(id: string) {
@@ -527,6 +586,8 @@ export class UploadManager {
       status: nextStatus,
       uploadId: upload.id,
       documentId: upload.documentId,
+      documentVersionId: upload.documentVersionId,
+      conflict: null,
       error: nextStatus === 'failed'
         ? getUploadErrorMessage(upload.errorMessage ?? item.error ?? 'Upload failed')
         : nextStatus === 'paused' && !this.files.has(item.id)
@@ -573,7 +634,11 @@ export class UploadManager {
     }
   }
 
-  private async uploadItem(id: string, file: File) {
+  private async uploadItem(
+    id: string,
+    file: File,
+    options: { conflictStrategy?: UploadConflictStrategy } = {},
+  ) {
     let item = this.state.items.find(entry => entry.id === id);
     if (!item) {
       return;
@@ -635,6 +700,7 @@ export class UploadManager {
       const response = await completeUploadSession({
         vaultId: current.vaultId,
         uploadId: current.uploadId,
+        conflictStrategy: options.conflictStrategy,
       });
 
       this.applySessionUpdate(response.upload, id);
@@ -651,10 +717,12 @@ export class UploadManager {
     } catch (error) {
       const isPause = error instanceof Error && error.message === 'Upload paused';
       if (!isPause) {
+        const conflict = getUploadConflictDetails(error);
         this.updateTransfer(id, current => ({
           ...current,
           status: 'failed',
           error: getUploadErrorMessage(error),
+          conflict,
           completedAt: null,
         }));
       }

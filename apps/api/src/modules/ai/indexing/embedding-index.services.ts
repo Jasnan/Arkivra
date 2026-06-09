@@ -16,6 +16,7 @@ export type ChunkEmbeddingWrite = {
   id?: string;
   chunkId: string;
   documentId: string;
+  documentVersionId: string;
   vaultId: string;
   content: string;
   embedding: number[];
@@ -37,6 +38,7 @@ export type CreateEmbeddingIndexInput = {
 
 export type DiscoveredIndexDocument = {
   documentId: string;
+  documentVersionId: string;
   vaultId: string;
   expectedChunkCount: number;
 };
@@ -61,12 +63,14 @@ type EmbeddingIndexConfigRow = ActiveEmbeddingIndexRow & {
 
 type DiscoveredIndexDocumentRow = {
   document_id: string;
+  document_version_id: string;
   vault_id: string;
   expected_chunk_count: number;
 };
 
 type DocumentIndexingWorkRow = {
   document_id: string;
+  document_version_id: string;
   vault_id: string;
   expected_chunk_count: number;
 };
@@ -82,6 +86,15 @@ type EmbeddedCountRow = {
 
 type RetiredIndexRow = {
   id: string;
+};
+
+type CopiedVersionEmbeddingRow = {
+  embedding_index_id: string;
+  copied_chunk_count: number;
+};
+
+type VersionChunkCountRow = {
+  chunk_count: number;
 };
 
 function normalizeProvider(provider: string): EmbeddingProviderKind | null {
@@ -233,6 +246,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
           embedding_index_id,
           chunk_id,
           document_id,
+          document_version_id,
           vault_id,
           content_sha256,
           embedding
@@ -242,14 +256,17 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
           ${embeddingIndexId},
           source.chunk_id,
           source.document_id,
+          source.document_version_id,
           source.vault_id,
           source.content_sha256,
           source.embedding
         FROM document_chunk_embeddings AS source
         INNER JOIN reusable_source_index AS reusable ON reusable.id = source.embedding_index_id
-        INNER JOIN document_chunks AS dc ON dc.id = source.chunk_id
-        INNER JOIN documents AS d ON d.id = dc.document_id
-        WHERE d.processing_status = 'completed'
+        INNER JOIN document_versions AS dv ON dv.id = source.document_version_id
+        INNER JOIN documents AS d ON d.id = dv.document_id
+        WHERE d.current_version_id = dv.id
+          AND dv.processing_status = 'completed'
+          AND dv.deleted_at IS NULL
           AND d.is_deleted = false
         ON CONFLICT (embedding_index_id, chunk_id) DO NOTHING
       `);
@@ -342,18 +359,24 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
     const result = await db.execute<DiscoveredIndexDocumentRow>(sql`
       SELECT
         d.id AS document_id,
-        d.vault_id,
+        dv.id AS document_version_id,
+        dv.vault_id,
         count(dc.id)::int AS expected_chunk_count
-      FROM documents AS d
-      INNER JOIN document_chunks AS dc ON dc.document_id = d.id
-      WHERE d.processing_status = 'completed'
+      FROM document_versions AS dv
+      INNER JOIN documents AS d ON d.id = dv.document_id
+        AND d.vault_id = dv.vault_id
+        AND d.current_version_id = dv.id
+      INNER JOIN document_chunks AS dc ON dc.document_version_id = dv.id
+      WHERE dv.processing_status = 'completed'
+        AND dv.deleted_at IS NULL
         AND d.is_deleted = false
-      GROUP BY d.id, d.vault_id
-      ORDER BY d.created_at ASC, d.id ASC
+      GROUP BY d.id, dv.id, dv.vault_id
+      ORDER BY dv.uploaded_at ASC, dv.id ASC
     `);
 
     const documents = result.rows.map(row => ({
       documentId: row.document_id,
+      documentVersionId: row.document_version_id,
       vaultId: row.vault_id,
       expectedChunkCount: row.expected_chunk_count,
     }));
@@ -363,6 +386,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
         documents.map(document => sql`(
           ${embeddingIndexId},
           ${document.documentId},
+          ${document.documentVersionId},
           ${document.vaultId},
           'pending',
           ${document.expectedChunkCount},
@@ -380,6 +404,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
         INSERT INTO document_embedding_index_status (
           embedding_index_id,
           document_id,
+          document_version_id,
           vault_id,
           status,
           expected_chunk_count,
@@ -391,8 +416,9 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
           updated_at
         )
         VALUES ${valuesSql}
-        ON CONFLICT (embedding_index_id, document_id)
+        ON CONFLICT (embedding_index_id, document_version_id)
         DO UPDATE SET
+          document_id = EXCLUDED.document_id,
           vault_id = EXCLUDED.vault_id,
           expected_chunk_count = EXCLUDED.expected_chunk_count,
           status = CASE
@@ -420,19 +446,25 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
     const workRows = await db.execute<DocumentIndexingWorkRow>(sql`
       SELECT
         deis.document_id,
+        deis.document_version_id,
         deis.vault_id,
         deis.expected_chunk_count
       FROM document_embedding_index_status AS deis
-      INNER JOIN documents AS d ON d.id = deis.document_id
+      INNER JOIN document_versions AS dv ON dv.id = deis.document_version_id
+      INNER JOIN documents AS d ON d.id = dv.document_id
+        AND d.vault_id = dv.vault_id
+        AND d.current_version_id = dv.id
       WHERE deis.embedding_index_id = ${embeddingIndexId}
         AND deis.status <> 'ready'
-        AND d.processing_status = 'completed'
+        AND dv.processing_status = 'completed'
+        AND dv.deleted_at IS NULL
         AND d.is_deleted = false
-      ORDER BY deis.created_at ASC, deis.document_id ASC
+      ORDER BY deis.created_at ASC, deis.document_version_id ASC
     `);
 
     return workRows.rows.map(row => ({
       documentId: row.document_id,
+      documentVersionId: row.document_version_id,
       vaultId: row.vault_id,
       expectedChunkCount: row.expected_chunk_count,
     }));
@@ -458,6 +490,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
           ${embeddingIndexId},
           ${chunk.chunkId},
           ${chunk.documentId},
+          ${chunk.documentVersionId},
           ${chunk.vaultId},
           ${contentSha256},
           ${buildVectorLiteral(chunk.embedding)}::vector
@@ -472,6 +505,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
         embedding_index_id,
         chunk_id,
         document_id,
+        document_version_id,
         vault_id,
         content_sha256,
         embedding
@@ -489,6 +523,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
   async function setDocumentIndexStatus({
     embeddingIndexId,
     documentId,
+    documentVersionId,
     vaultId,
     status,
     expectedChunkCount,
@@ -499,6 +534,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
   }: {
     embeddingIndexId: string;
     documentId: string;
+    documentVersionId: string;
     vaultId: string;
     status: 'pending' | 'indexing' | 'ready' | 'failed' | 'stale' | 'skipped';
     expectedChunkCount: number;
@@ -511,6 +547,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
       INSERT INTO document_embedding_index_status (
         embedding_index_id,
         document_id,
+        document_version_id,
         vault_id,
         status,
         expected_chunk_count,
@@ -524,6 +561,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
       VALUES (
         ${embeddingIndexId},
         ${documentId},
+        ${documentVersionId},
         ${vaultId},
         ${status},
         ${expectedChunkCount},
@@ -534,8 +572,9 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
         now(),
         now()
       )
-      ON CONFLICT (embedding_index_id, document_id)
+      ON CONFLICT (embedding_index_id, document_version_id)
       DO UPDATE SET
+        document_id = EXCLUDED.document_id,
         vault_id = EXCLUDED.vault_id,
         status = EXCLUDED.status,
         expected_chunk_count = EXCLUDED.expected_chunk_count,
@@ -549,11 +588,11 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
 
   async function markDocumentIndexFailed({
     embeddingIndexId,
-    documentId,
+    documentVersionId,
     failureMessage,
   }: {
     embeddingIndexId: string;
-    documentId: string;
+    documentVersionId: string;
     failureMessage: string;
   }) {
     await db.execute(sql`
@@ -563,7 +602,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
         failure_message = ${failureMessage},
         updated_at = now()
       WHERE embedding_index_id = ${embeddingIndexId}
-        AND document_id = ${documentId}
+        AND document_version_id = ${documentVersionId}
         AND status <> 'ready'
     `);
   }
@@ -749,25 +788,226 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
     `);
   }
 
-  async function listDocumentIdsForIndex({ embeddingIndexId }: { embeddingIndexId: string }) {
-    const result = await db.execute<{ document_id: string }>(sql`
-      SELECT document_id
+  async function copyEmbeddingsForRestoredVersion({
+    sourceDocumentVersionId,
+    targetDocumentVersionId,
+  }: {
+    sourceDocumentVersionId: string;
+    targetDocumentVersionId: string;
+  }) {
+    const targetCountRows = await db.execute<VersionChunkCountRow>(sql`
+      WITH source_version AS (
+        SELECT id, document_id, vault_id
+        FROM document_versions
+        WHERE id = ${sourceDocumentVersionId}
+          AND deleted_at IS NULL
+        LIMIT 1
+      ),
+      target_version AS (
+        SELECT target.id, target.document_id, target.vault_id
+        FROM document_versions AS target
+        INNER JOIN source_version AS source
+          ON source.id = target.restored_from_version_id
+          AND source.document_id = target.document_id
+          AND source.vault_id = target.vault_id
+        WHERE target.id = ${targetDocumentVersionId}
+          AND target.deleted_at IS NULL
+        LIMIT 1
+      )
+      SELECT count(*)::int AS chunk_count
+      FROM target_version
+      INNER JOIN document_chunks AS target_chunk
+        ON target_chunk.document_version_id = target_version.id
+        AND target_chunk.document_id = target_version.document_id
+        AND target_chunk.vault_id = target_version.vault_id
+    `);
+    const targetChunkCount = targetCountRows.rows[0]?.chunk_count ?? 0;
+
+    if (targetChunkCount === 0) {
+      return {
+        copiedChunkCount: 0,
+        readyEmbeddingIndexIds: [] as string[],
+      };
+    }
+
+    const copiedRows = await db.execute<CopiedVersionEmbeddingRow>(sql`
+      WITH source_version AS (
+        SELECT id, document_id, vault_id
+        FROM document_versions
+        WHERE id = ${sourceDocumentVersionId}
+          AND deleted_at IS NULL
+        LIMIT 1
+      ),
+      target_version AS (
+        SELECT target.id, target.document_id, target.vault_id
+        FROM document_versions AS target
+        INNER JOIN source_version AS source_version
+          ON source_version.id = target.restored_from_version_id
+          AND source_version.document_id = target.document_id
+          AND source_version.vault_id = target.vault_id
+        WHERE target.id = ${targetDocumentVersionId}
+          AND target.deleted_at IS NULL
+        LIMIT 1
+      ),
+      copied AS (
+        INSERT INTO document_chunk_embeddings (
+          id,
+          embedding_index_id,
+          chunk_id,
+          document_id,
+          document_version_id,
+          vault_id,
+          content_sha256,
+          embedding
+        )
+        SELECT
+          'dce_' || md5(source.embedding_index_id || ':' || target_chunk.id),
+          source.embedding_index_id,
+          target_chunk.id,
+          target_version.document_id,
+          target_version.id,
+          target_version.vault_id,
+          source.content_sha256,
+          source.embedding
+        FROM target_version
+        INNER JOIN document_chunks AS target_chunk
+          ON target_chunk.document_version_id = target_version.id
+          AND target_chunk.document_id = target_version.document_id
+          AND target_chunk.vault_id = target_version.vault_id
+        INNER JOIN source_version
+          ON source_version.document_id = target_version.document_id
+          AND source_version.vault_id = target_version.vault_id
+        INNER JOIN document_chunks AS source_chunk
+          ON source_chunk.document_version_id = source_version.id
+          AND source_chunk.document_id = source_version.document_id
+          AND source_chunk.vault_id = source_version.vault_id
+          AND source_chunk.chunk_index = target_chunk.chunk_index
+        INNER JOIN document_chunk_embeddings AS source
+          ON source.chunk_id = source_chunk.id
+          AND source.document_version_id = source_chunk.document_version_id
+          AND source.document_id = source_chunk.document_id
+          AND source.vault_id = source_chunk.vault_id
+          AND source.content_sha256 = target_chunk.content_sha256
+        INNER JOIN document_embedding_index_status AS source_status
+          ON source_status.embedding_index_id = source.embedding_index_id
+          AND source_status.document_version_id = source_version.id
+          AND source_status.status = 'ready'
+        ON CONFLICT (embedding_index_id, chunk_id)
+        DO UPDATE SET
+          document_id = EXCLUDED.document_id,
+          document_version_id = EXCLUDED.document_version_id,
+          vault_id = EXCLUDED.vault_id,
+          content_sha256 = EXCLUDED.content_sha256,
+          embedding = EXCLUDED.embedding
+        RETURNING embedding_index_id
+      )
+      SELECT embedding_index_id, count(*)::int AS copied_chunk_count
+      FROM copied
+      GROUP BY embedding_index_id
+    `);
+
+    const readyEmbeddingIndexIds = copiedRows.rows
+      .filter(row => row.copied_chunk_count === targetChunkCount)
+      .map(row => row.embedding_index_id);
+
+    if (readyEmbeddingIndexIds.length > 0) {
+      const readyStatusSql = sql.join(
+        readyEmbeddingIndexIds.map(embeddingIndexId => sql`(
+          ${embeddingIndexId},
+          ${targetDocumentVersionId},
+          'ready',
+          ${targetChunkCount},
+          ${targetChunkCount},
+          NULL,
+          now(),
+          now()
+        )`),
+        sql`, `,
+      );
+
+      await db.execute(sql`
+        INSERT INTO document_embedding_index_status (
+          embedding_index_id,
+          document_id,
+          document_version_id,
+          vault_id,
+          status,
+          expected_chunk_count,
+          embedded_chunk_count,
+          failure_message,
+          indexed_at,
+          created_at,
+          updated_at
+        )
+        SELECT
+          ready.embedding_index_id,
+          target_version.document_id,
+          target_version.id,
+          target_version.vault_id,
+          ready.status,
+          ready.expected_chunk_count,
+          ready.embedded_chunk_count,
+          ready.failure_message,
+          ready.indexed_at,
+          ready.created_at,
+          now()
+        FROM (
+          VALUES ${readyStatusSql}
+        ) AS ready(
+          embedding_index_id,
+          document_version_id,
+          status,
+          expected_chunk_count,
+          embedded_chunk_count,
+          failure_message,
+          indexed_at,
+          created_at
+        )
+        INNER JOIN document_versions AS target_version
+          ON target_version.id = ready.document_version_id
+        ON CONFLICT (embedding_index_id, document_version_id)
+        DO UPDATE SET
+          document_id = EXCLUDED.document_id,
+          vault_id = EXCLUDED.vault_id,
+          status = EXCLUDED.status,
+          expected_chunk_count = EXCLUDED.expected_chunk_count,
+          embedded_chunk_count = EXCLUDED.embedded_chunk_count,
+          failure_message = NULL,
+          indexed_at = EXCLUDED.indexed_at,
+          updated_at = now()
+      `);
+
+      for (const embeddingIndexId of readyEmbeddingIndexIds) {
+        await refreshEmbeddingIndexCounts({ embeddingIndexId });
+      }
+    }
+
+    return {
+      copiedChunkCount: copiedRows.rows.reduce((total, row) => total + row.copied_chunk_count, 0),
+      readyEmbeddingIndexIds,
+    };
+  }
+
+  async function listDocumentVersionIdsForIndex({ embeddingIndexId }: { embeddingIndexId: string }) {
+    const result = await db.execute<{ document_version_id: string }>(sql`
+      SELECT document_version_id
       FROM document_embedding_index_status
       WHERE embedding_index_id = ${embeddingIndexId}
     `);
 
-    return result.rows.map(row => row.document_id);
+    return result.rows.map(row => row.document_version_id);
   }
 
   return {
     activateEmbeddingIndex,
     buildHnswIndex,
     cleanupRetiredEmbeddingIndex,
+    copyEmbeddingsForRestoredVersion,
     createEmbeddingIndex,
     discoverDocumentsForIndex,
     getActiveEmbeddingIndex,
     getEmbeddingIndexConfig,
-    listDocumentIdsForIndex,
+    listDocumentVersionIdsForIndex,
     markDocumentIndexFailed,
     markEmbeddingIndexFailed,
     removeDocumentFromEmbeddingIndexes,

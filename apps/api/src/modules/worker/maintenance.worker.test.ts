@@ -7,8 +7,8 @@ describe('maintenance worker cleanup', () => {
       .fn()
       .mockResolvedValueOnce({
         rows: [
-          { id: 'doc_1', original_storage_key: 'vlt_1/doc_1' },
-          { id: 'doc_2', original_storage_key: 'vlt_1/doc_2' },
+          { id: 'doc_1', original_storage_key: 'vlt_1/doc_1', vault_id: 'vlt_1' },
+          { id: 'doc_2', original_storage_key: 'vlt_1/doc_2', vault_id: 'vlt_1' },
         ],
       })
       .mockResolvedValueOnce({
@@ -16,6 +16,8 @@ describe('maintenance worker cleanup', () => {
           { storage_key: 'assets/doc_1/image-1.png' },
         ],
       })
+      .mockResolvedValueOnce({ rows: [{ id: 'dvr_1', original_storage_key: 'vlt_1/dvr_1' }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
@@ -35,10 +37,12 @@ describe('maintenance worker cleanup', () => {
     expect(result.deletedCount).toBe(2);
     expect(storage.remove).toHaveBeenCalledWith('assets/doc_1/image-1.png');
     expect(storage.remove).toHaveBeenCalledWith('vlt_1/doc_1');
+    expect(storage.remove).toHaveBeenCalledWith('vlt_1/dvr_1');
     expect(storage.remove).toHaveBeenCalledWith('vlt_1/doc_2');
     expect(storage.removePrefix).toHaveBeenCalledWith('previews/doc_1');
+    expect(storage.removePrefix).toHaveBeenCalledWith('previews/dvr_1');
     expect(storage.removePrefix).toHaveBeenCalledWith('previews/doc_2');
-    expect(execute).toHaveBeenCalledTimes(5);
+    expect(execute).toHaveBeenCalledTimes(7);
   });
 
   test('does nothing when no expired soft-deleted documents exist', async () => {

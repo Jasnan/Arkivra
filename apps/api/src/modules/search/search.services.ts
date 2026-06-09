@@ -13,6 +13,7 @@ import type {
   SearchResultMatchType,
   SearchResultTag,
   SearchSortBy,
+  SearchVersionMode,
 } from './search.types.js';
 import { sql } from 'drizzle-orm';
 
@@ -20,6 +21,8 @@ type SearchRow = {
   vault_id: string;
   vault_name: string;
   document_id: string;
+  document_version_id: string;
+  version_number: number;
   name: string;
   original_name: string;
   original_size: number;
@@ -52,6 +55,8 @@ const HYBRID_DOCUMENT_MIN_SEMANTIC_SIMILARITY = 0.45;
 type HybridSearchRow = {
   chunk_id: string;
   document_id: string;
+  document_version_id: string;
+  version_number: number;
   vault_id: string;
   vault_name: string;
   document_name: string;
@@ -190,6 +195,8 @@ function mapSearchRow(row: SearchRow): SearchResultItem {
     vaultId: row.vault_id,
     vaultName: row.vault_name,
     documentId: row.document_id,
+    documentVersionId: row.document_version_id,
+    versionNumber: row.version_number,
     name: row.name,
     originalName: row.original_name,
     originalSize: row.original_size,
@@ -222,6 +229,7 @@ function createEmptyResponse({
   dateFrom,
   dateTo,
   sortBy,
+  includeVersions,
 }: {
   query: string;
   pageIndex: number;
@@ -231,6 +239,7 @@ function createEmptyResponse({
   dateFrom?: Date | null;
   dateTo?: Date | null;
   sortBy: SearchSortBy;
+  includeVersions: SearchVersionMode;
 }) {
   return {
     query,
@@ -245,6 +254,7 @@ function createEmptyResponse({
       dateFrom: toIsoString(toSqlDateBoundary(dateFrom ?? null, 'start')),
       dateTo: toIsoString(toSqlDateBoundary(dateTo ?? null, 'end')),
       sortBy,
+      includeVersions,
     },
   };
 }
@@ -467,6 +477,7 @@ export function createDocumentSearchServices({
     dateTo,
     sortBy = 'created_desc',
     searchMode = 'keyword',
+    includeVersions = 'latest',
   }: {
     vaultId?: string;
     vaultIds?: string[];
@@ -479,6 +490,7 @@ export function createDocumentSearchServices({
     dateTo?: Date | null;
     sortBy?: SearchSortBy;
     searchMode?: DocumentSearchMode;
+    includeVersions?: SearchVersionMode;
   }) {
     const trimmedQuery = query.trim();
     const effectiveVaultIds: string[] = vaultIds && vaultIds.length > 0 ? vaultIds : vaultId ? [vaultId] : [];
@@ -496,6 +508,7 @@ export function createDocumentSearchServices({
         dateFrom,
         dateTo,
         sortBy,
+        includeVersions,
       });
     }
 
@@ -515,13 +528,23 @@ export function createDocumentSearchServices({
           )`
         : sql`TRUE`;
     const effectiveCreatedAtSql = sql.raw('d.created_at');
+    const versionScopeFilterSql =
+      includeVersions === 'historical'
+        ? sql`TRUE`
+        : sql`dv.id = d.current_version_id`;
 
     if (trimmedQuery.length === 0) {
       const countResult = await db.execute<CountRow>(sql`
         SELECT count(*)::int AS results_count
         FROM documents AS d
+        INNER JOIN document_versions AS dv
+          ON dv.document_id = d.id
+          AND dv.vault_id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
+          AND dv.deleted_at IS NULL
+          AND dv.processing_status = 'completed'
+          AND ${versionScopeFilterSql}
           AND ${tagFilterSql}
           AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
           AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
@@ -539,6 +562,7 @@ export function createDocumentSearchServices({
           dateFrom,
           dateTo,
           sortBy,
+          includeVersions,
         });
       }
 
@@ -547,10 +571,12 @@ export function createDocumentSearchServices({
           d.vault_id,
           v.name AS vault_name,
           d.id AS document_id,
+          dv.id AS document_version_id,
+          dv.version_number,
           d.name,
-          d.original_name,
-          d.original_size,
-          d.mime_type,
+          dv.original_name,
+          dv.original_size,
+          dv.mime_type,
           d.created_at,
           d.updated_at,
           (
@@ -582,12 +608,18 @@ export function createDocumentSearchServices({
           NULL::text AS match_type
         FROM documents AS d
         INNER JOIN vaults AS v ON v.id = d.vault_id
+        INNER JOIN document_versions AS dv
+          ON dv.document_id = d.id
+          AND dv.vault_id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
+          AND dv.deleted_at IS NULL
+          AND dv.processing_status = 'completed'
+          AND ${versionScopeFilterSql}
           AND ${tagFilterSql}
           AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
           AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
-        ORDER BY ${getBrowseOrderSql(sortBy)}
+        ORDER BY ${getBrowseOrderSql(sortBy)}, dv.version_number DESC
         LIMIT ${pageSize}
         OFFSET ${offset}
       `);
@@ -607,6 +639,7 @@ export function createDocumentSearchServices({
           dateFrom: toIsoString(normalizedDateFrom),
           dateTo: toIsoString(normalizedDateTo),
           sortBy,
+          includeVersions,
         },
       };
     }
@@ -622,6 +655,7 @@ export function createDocumentSearchServices({
         normalizedDateFrom,
         normalizedDateTo,
         sortBy,
+        includeVersions,
       });
 
       if (hybridResult !== null) {
@@ -638,15 +672,22 @@ export function createDocumentSearchServices({
         SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
       ),
       matched_documents AS (
-        SELECT DISTINCT document_id
+        SELECT DISTINCT document_id, document_version_id
         FROM (
-          SELECT dc.document_id
+          SELECT dc.document_id, dc.document_version_id
           FROM document_chunks AS dc
           CROSS JOIN search_query
           INNER JOIN documents AS d ON d.id = dc.document_id
+          INNER JOIN document_versions AS dv
+            ON dv.id = dc.document_version_id
+            AND dv.document_id = d.id
+            AND dv.vault_id = d.vault_id
           WHERE dc.vault_id IN (${vaultIdListSql})
             AND d.vault_id IN (${vaultIdListSql})
             AND d.is_deleted = false
+            AND dv.deleted_at IS NULL
+            AND dv.processing_status = 'completed'
+            AND ${versionScopeFilterSql}
             AND ${tagFilterSql}
             AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
             AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
@@ -657,17 +698,23 @@ export function createDocumentSearchServices({
 
           UNION
 
-          SELECT d.id AS document_id
+          SELECT d.id AS document_id, dv.id AS document_version_id
           FROM documents AS d
           CROSS JOIN search_query
+          INNER JOIN document_versions AS dv
+            ON dv.document_id = d.id
+            AND dv.vault_id = d.vault_id
           WHERE d.vault_id IN (${vaultIdListSql})
             AND d.is_deleted = false
+            AND dv.deleted_at IS NULL
+            AND dv.processing_status = 'completed'
+            AND ${versionScopeFilterSql}
             AND ${tagFilterSql}
             AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
             AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
             AND (
               d.name ILIKE ${ilikePattern}
-              OR d.original_name ILIKE ${ilikePattern}
+              OR dv.original_name ILIKE ${ilikePattern}
             )
         ) AS matched_sources
       )
@@ -687,6 +734,7 @@ export function createDocumentSearchServices({
         dateFrom,
         dateTo,
         sortBy,
+        includeVersions,
       });
     }
 
@@ -698,6 +746,7 @@ export function createDocumentSearchServices({
         SELECT
           dc.vault_id,
           dc.document_id,
+          dc.document_version_id,
           dc.chunk_index,
           dc.chunk_type,
           dc.page_number,
@@ -746,7 +795,17 @@ export function createDocumentSearchServices({
           'keyword'::text AS match_type
         FROM document_chunks AS dc
         CROSS JOIN search_query
+        INNER JOIN documents AS d ON d.id = dc.document_id
+        INNER JOIN document_versions AS dv
+          ON dv.id = dc.document_version_id
+          AND dv.document_id = d.id
+          AND dv.vault_id = d.vault_id
         WHERE dc.vault_id IN (${vaultIdListSql})
+          AND d.vault_id IN (${vaultIdListSql})
+          AND d.is_deleted = false
+          AND dv.deleted_at IS NULL
+          AND dv.processing_status = 'completed'
+          AND ${versionScopeFilterSql}
           AND (
             dc.tsv @@ search_query.query
             OR dc.content ILIKE ${ilikePattern}
@@ -757,6 +816,7 @@ export function createDocumentSearchServices({
         SELECT
           d.vault_id,
           d.id AS document_id,
+          dv.id AS document_version_id,
           NULL::int AS chunk_index,
           'title'::text AS chunk_type,
           NULL::int AS page_number,
@@ -783,17 +843,17 @@ export function createDocumentSearchServices({
                 )
               )
             ELSE replace(
-              d.original_name,
+              dv.original_name,
               substring(
-                d.original_name
-                FROM nullif(position(lower(${trimmedQuery}) in lower(d.original_name)), 0)::int
+                dv.original_name
+                FROM nullif(position(lower(${trimmedQuery}) in lower(dv.original_name)), 0)::int
                 FOR char_length(${trimmedQuery})
               ),
               concat(
                 '<mark>',
                 substring(
-                  d.original_name
-                  FROM nullif(position(lower(${trimmedQuery}) in lower(d.original_name)), 0)::int
+                  dv.original_name
+                  FROM nullif(position(lower(${trimmedQuery}) in lower(dv.original_name)), 0)::int
                   FOR char_length(${trimmedQuery})
                 ),
                 '</mark>'
@@ -803,11 +863,17 @@ export function createDocumentSearchServices({
           1.2::float8 AS score,
           'title'::text AS match_type
         FROM documents AS d
+        INNER JOIN document_versions AS dv
+          ON dv.document_id = d.id
+          AND dv.vault_id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
+          AND dv.deleted_at IS NULL
+          AND dv.processing_status = 'completed'
+          AND ${versionScopeFilterSql}
           AND (
             d.name ILIKE ${ilikePattern}
-            OR d.original_name ILIKE ${ilikePattern}
+            OR dv.original_name ILIKE ${ilikePattern}
           )
       ),
       ranked_results AS (
@@ -815,10 +881,12 @@ export function createDocumentSearchServices({
           d.vault_id,
           v.name AS vault_name,
           d.id AS document_id,
+          dv.id AS document_version_id,
+          dv.version_number,
           d.name,
-          d.original_name,
-          d.original_size,
-          d.mime_type,
+          dv.original_name,
+          dv.original_size,
+          dv.mime_type,
           d.created_at,
           d.updated_at,
           (
@@ -837,7 +905,7 @@ export function createDocumentSearchServices({
             INNER JOIN tags AS t ON t.id = dt_all.tag_id
             WHERE dt_all.document_id = d.id
           ) AS tags_json,
-          count(*) OVER (PARTITION BY d.id)::int AS matched_chunks_count,
+          count(*) OVER (PARTITION BY d.id, dv.id)::int AS matched_chunks_count,
           mc.chunk_index,
           mc.chunk_type,
           mc.page_number,
@@ -849,14 +917,21 @@ export function createDocumentSearchServices({
           mc.match_type,
           mc.chunk_type = 'title' AS title_match,
           row_number() OVER (
-            PARTITION BY d.id
+            PARTITION BY d.id, dv.id
             ORDER BY (mc.chunk_type = 'title') DESC, mc.fulltext_match DESC, mc.score DESC, mc.substring_position ASC NULLS LAST, mc.chunk_index ASC NULLS LAST
           )::int AS rank_in_document
         FROM matched_sources AS mc
         INNER JOIN documents AS d ON d.id = mc.document_id
+        INNER JOIN document_versions AS dv
+          ON dv.id = mc.document_version_id
+          AND dv.document_id = d.id
+          AND dv.vault_id = d.vault_id
         INNER JOIN vaults AS v ON v.id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
+          AND dv.deleted_at IS NULL
+          AND dv.processing_status = 'completed'
+          AND ${versionScopeFilterSql}
           AND ${tagFilterSql}
           AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
           AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
@@ -865,6 +940,8 @@ export function createDocumentSearchServices({
         vault_id,
         vault_name,
         document_id,
+        document_version_id,
+        version_number,
         name,
         original_name,
         original_size,
@@ -905,6 +982,7 @@ export function createDocumentSearchServices({
         dateFrom: toIsoString(normalizedDateFrom),
         dateTo: toIsoString(normalizedDateTo),
         sortBy,
+        includeVersions,
       },
     };
   }
@@ -919,6 +997,7 @@ export function createDocumentSearchServices({
     normalizedDateFrom,
     normalizedDateTo,
     sortBy,
+    includeVersions,
   }: {
     vaultId?: string;
     effectiveVaultIds: string[];
@@ -929,6 +1008,7 @@ export function createDocumentSearchServices({
     normalizedDateFrom: Date | null;
     normalizedDateTo: Date | null;
     sortBy: SearchSortBy;
+    includeVersions: SearchVersionMode;
   }) {
     const queryEmbedding = await embedQuery(trimmedQuery);
 
@@ -955,26 +1035,38 @@ export function createDocumentSearchServices({
           )`
         : sql`TRUE`;
     const effectiveCreatedAtSql = sql.raw('d.created_at');
+    const versionScopeFilterSql =
+      includeVersions === 'historical'
+        ? sql`TRUE`
+        : sql`dv.id = d.current_version_id`;
 
     const searchResult = await db.execute<SearchRow>(sql`
       WITH search_query AS (
         SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
       ),
-      scoped_documents AS (
+      scoped_document_versions AS (
         SELECT
           d.vault_id,
           v.name AS vault_name,
           d.id AS document_id,
+          dv.id AS document_version_id,
+          dv.version_number,
           d.name,
-          d.original_name,
-          d.original_size,
-          d.mime_type,
+          dv.original_name,
+          dv.original_size,
+          dv.mime_type,
           d.created_at,
           d.updated_at
         FROM documents AS d
         INNER JOIN vaults AS v ON v.id = d.vault_id
+        INNER JOIN document_versions AS dv
+          ON dv.document_id = d.id
+          AND dv.vault_id = d.vault_id
         WHERE d.vault_id IN (${vaultIdListSql})
           AND d.is_deleted = false
+          AND dv.deleted_at IS NULL
+          AND dv.processing_status = 'completed'
+          AND ${versionScopeFilterSql}
           AND ${tagFilterSql}
           AND (${normalizedDateFrom}::timestamptz IS NULL OR ${effectiveCreatedAtSql} >= ${normalizedDateFrom})
           AND (${normalizedDateTo}::timestamptz IS NULL OR ${effectiveCreatedAtSql} <= ${normalizedDateTo})
@@ -991,7 +1083,7 @@ export function createDocumentSearchServices({
           dc.chunk_index
         FROM document_chunks AS dc
         CROSS JOIN search_query
-        INNER JOIN scoped_documents AS sd ON sd.document_id = dc.document_id
+        INNER JOIN scoped_document_versions AS sd ON sd.document_version_id = dc.document_version_id
         WHERE dc.vault_id IN (${vaultIdListSql})
           AND (
             dc.tsv @@ search_query.query
@@ -1017,9 +1109,10 @@ export function createDocumentSearchServices({
           dc.chunk_index
         FROM document_chunk_embeddings AS dce
         INNER JOIN document_chunks AS dc ON dc.id = dce.chunk_id
-        INNER JOIN scoped_documents AS sd ON sd.document_id = dc.document_id
+        INNER JOIN scoped_document_versions AS sd ON sd.document_version_id = dc.document_version_id
         WHERE dce.embedding_index_id = ${queryEmbedding.index.id}
           AND dce.vault_id IN (${vaultIdListSql})
+          AND dce.document_version_id = sd.document_version_id
         ORDER BY dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector ASC, dc.chunk_index ASC, dc.id ASC
         LIMIT ${HYBRID_DOCUMENT_CANDIDATE_LIMIT}
       ),
@@ -1051,6 +1144,7 @@ export function createDocumentSearchServices({
         SELECT
           dc.vault_id,
           dc.document_id,
+          dc.document_version_id,
           dc.chunk_index,
           dc.chunk_type,
           COALESCE(dc.page_number, dc.page_start) AS page_number,
@@ -1119,6 +1213,7 @@ export function createDocumentSearchServices({
         SELECT
           sd.vault_id,
           sd.document_id,
+          sd.document_version_id,
           NULL::int AS chunk_index,
           'title'::text AS chunk_type,
           NULL::int AS page_number,
@@ -1165,7 +1260,7 @@ export function createDocumentSearchServices({
           1.2::float8 AS score,
           'title'::text AS match_type,
           true AS title_match
-        FROM scoped_documents AS sd
+        FROM scoped_document_versions AS sd
         WHERE sd.name ILIKE ${ilikePattern}
           OR sd.original_name ILIKE ${ilikePattern}
       ),
@@ -1179,6 +1274,8 @@ export function createDocumentSearchServices({
           sd.vault_id,
           sd.vault_name,
           sd.document_id,
+          sd.document_version_id,
+          sd.version_number,
           sd.name,
           sd.original_name,
           sd.original_size,
@@ -1201,7 +1298,7 @@ export function createDocumentSearchServices({
             INNER JOIN tags AS t ON t.id = dt_all.tag_id
             WHERE dt_all.document_id = sd.document_id
           ) AS tags_json,
-          count(*) OVER (PARTITION BY sd.document_id)::int AS matched_chunks_count,
+          count(*) OVER (PARTITION BY sd.document_id, sd.document_version_id)::int AS matched_chunks_count,
           matched_sources.chunk_index,
           matched_sources.chunk_type,
           matched_sources.page_number,
@@ -1213,7 +1310,7 @@ export function createDocumentSearchServices({
           matched_sources.title_match,
           matched_sources.match_type,
           row_number() OVER (
-            PARTITION BY sd.document_id
+            PARTITION BY sd.document_id, sd.document_version_id
             ORDER BY
               matched_sources.title_match DESC,
               (matched_sources.match_type = 'keyword') DESC,
@@ -1223,7 +1320,9 @@ export function createDocumentSearchServices({
               matched_sources.chunk_index ASC NULLS LAST
           )::int AS rank_in_document
         FROM matched_sources
-        INNER JOIN scoped_documents AS sd ON sd.document_id = matched_sources.document_id
+        INNER JOIN scoped_document_versions AS sd
+          ON sd.document_id = matched_sources.document_id
+          AND sd.document_version_id = matched_sources.document_version_id
       ),
       document_results AS (
         SELECT
@@ -1236,6 +1335,8 @@ export function createDocumentSearchServices({
         vault_id,
         vault_name,
         document_id,
+        document_version_id,
+        version_number,
         name,
         original_name,
         original_size,
@@ -1273,6 +1374,7 @@ export function createDocumentSearchServices({
         dateFrom: normalizedDateFrom,
         dateTo: normalizedDateTo,
         sortBy,
+        includeVersions,
       });
     }
 
@@ -1289,6 +1391,7 @@ export function createDocumentSearchServices({
         dateFrom: toIsoString(normalizedDateFrom),
         dateTo: toIsoString(normalizedDateTo),
         sortBy,
+        includeVersions,
       },
     };
   }
@@ -1297,6 +1400,7 @@ export function createDocumentSearchServices({
     vaultId,
     vaultIds,
     documentId,
+    documentVersionIds,
     query,
     limit,
     mode = 'hybrid',
@@ -1304,6 +1408,7 @@ export function createDocumentSearchServices({
     vaultId?: string;
     vaultIds?: string[];
     documentId?: string;
+    documentVersionIds?: string[];
     query: string;
     limit: number;
     mode?: HybridSearchMode;
@@ -1316,7 +1421,18 @@ export function createDocumentSearchServices({
         ...(vaultIds ?? []),
       ].map(item => item.trim()).filter(Boolean)),
     ];
+    const scopedDocumentVersionIds = [
+      ...new Set((documentVersionIds ?? []).map(item => item.trim()).filter(Boolean)),
+    ];
     const scopedVaultIdList = sql.join(scopedVaultIds.map(id => sql`${id}`), sql`, `);
+    const scopedDocumentVersionIdList =
+      scopedDocumentVersionIds.length > 0
+        ? sql.join(scopedDocumentVersionIds.map(id => sql`${id}`), sql`, `)
+        : null;
+    const hybridVersionScopeSql =
+      scopedDocumentVersionIds.length > 0
+        ? sql`dc.document_version_id IN (${scopedDocumentVersionIdList})`
+        : sql`dc.document_version_id = d.current_version_id`;
 
     if (trimmedQuery.length === 0 || scopedVaultIds.length === 0) {
       return {
@@ -1353,9 +1469,16 @@ export function createDocumentSearchServices({
               FROM document_chunks AS dc
               CROSS JOIN search_query
               INNER JOIN documents AS d ON d.id = dc.document_id
+              INNER JOIN document_versions AS dv
+                ON dv.id = dc.document_version_id
+                AND dv.document_id = d.id
+                AND dv.vault_id = d.vault_id
               WHERE dc.vault_id IN (${scopedVaultIdList})
                 AND d.vault_id IN (${scopedVaultIdList})
                 AND d.is_deleted = false
+                AND dv.deleted_at IS NULL
+                AND dv.processing_status = 'completed'
+                AND ${hybridVersionScopeSql}
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
                 AND dc.tsv @@ search_query.query
               ORDER BY ts_rank_cd(dc.tsv, search_query.query) DESC, dc.chunk_index ASC, dc.id ASC
@@ -1364,6 +1487,8 @@ export function createDocumentSearchServices({
             SELECT
               dc.id AS chunk_id,
               dc.document_id,
+              dc.document_version_id,
+              dv.version_number,
               dc.vault_id,
               v.name AS vault_name,
               d.name AS document_name,
@@ -1384,6 +1509,10 @@ export function createDocumentSearchServices({
             FROM fts_ranked
             INNER JOIN document_chunks AS dc ON dc.id = fts_ranked.id
             INNER JOIN documents AS d ON d.id = dc.document_id
+            INNER JOIN document_versions AS dv
+              ON dv.id = dc.document_version_id
+              AND dv.document_id = d.id
+              AND dv.vault_id = d.vault_id
             INNER JOIN vaults AS v ON v.id = dc.vault_id
             LEFT JOIN LATERAL (
               SELECT COALESCE(
@@ -1403,6 +1532,7 @@ export function createDocumentSearchServices({
               FROM document_chunk_assets AS dca
               WHERE dca.chunk_id = dc.id
                 AND dca.vault_id = dc.vault_id
+                AND dca.document_version_id = dc.document_version_id
             ) AS assets ON true
             ORDER BY score DESC, dc.chunk_index ASC, dc.id ASC
             LIMIT ${normalizedLimit}
@@ -1418,9 +1548,16 @@ export function createDocumentSearchServices({
               FROM document_chunks AS dc
               CROSS JOIN search_query
               INNER JOIN documents AS d ON d.id = dc.document_id
+              INNER JOIN document_versions AS dv
+                ON dv.id = dc.document_version_id
+                AND dv.document_id = d.id
+                AND dv.vault_id = d.vault_id
               WHERE dc.vault_id IN (${scopedVaultIdList})
                 AND d.vault_id IN (${scopedVaultIdList})
                 AND d.is_deleted = false
+                AND dv.deleted_at IS NULL
+                AND dv.processing_status = 'completed'
+                AND ${hybridVersionScopeSql}
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
                 AND dc.tsv @@ search_query.query
               ORDER BY rank DESC, dc.chunk_index ASC, dc.id ASC
@@ -1439,10 +1576,18 @@ export function createDocumentSearchServices({
               FROM document_chunk_embeddings AS dce
               INNER JOIN document_chunks AS dc ON dc.id = dce.chunk_id
               INNER JOIN documents AS d ON d.id = dc.document_id
+              INNER JOIN document_versions AS dv
+                ON dv.id = dc.document_version_id
+                AND dv.document_id = d.id
+                AND dv.vault_id = d.vault_id
               WHERE dce.embedding_index_id = ${queryEmbedding.index.id}
                 AND dce.vault_id IN (${scopedVaultIdList})
+                AND dce.document_version_id = dc.document_version_id
                 AND d.vault_id IN (${scopedVaultIdList})
                 AND d.is_deleted = false
+                AND dv.deleted_at IS NULL
+                AND dv.processing_status = 'completed'
+                AND ${hybridVersionScopeSql}
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
               ORDER BY dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector ASC, dc.chunk_index ASC, dc.id ASC
               LIMIT 50
@@ -1464,6 +1609,8 @@ export function createDocumentSearchServices({
             SELECT
               dc.id AS chunk_id,
               dc.document_id,
+              dc.document_version_id,
+              dv.version_number,
               dc.vault_id,
               v.name AS vault_name,
               d.name AS document_name,
@@ -1484,6 +1631,10 @@ export function createDocumentSearchServices({
             FROM ranked
             INNER JOIN document_chunks AS dc ON dc.id = ranked.id
             INNER JOIN documents AS d ON d.id = dc.document_id
+            INNER JOIN document_versions AS dv
+              ON dv.id = dc.document_version_id
+              AND dv.document_id = d.id
+              AND dv.vault_id = d.vault_id
             INNER JOIN vaults AS v ON v.id = dc.vault_id
             LEFT JOIN LATERAL (
               SELECT COALESCE(
@@ -1503,6 +1654,7 @@ export function createDocumentSearchServices({
               FROM document_chunk_assets AS dca
               WHERE dca.chunk_id = dc.id
                 AND dca.vault_id = dc.vault_id
+                AND dca.document_version_id = dc.document_version_id
             ) AS assets ON true
             ORDER BY ranked.score DESC, dc.chunk_index ASC, dc.id ASC
             LIMIT ${normalizedLimit}
@@ -1523,6 +1675,8 @@ export function createDocumentSearchServices({
       return {
         chunkId: row.chunk_id,
         documentId: row.document_id,
+        documentVersionId: row.document_version_id,
+        versionNumber: row.version_number,
         vaultId: row.vault_id,
         vaultName: row.vault_name,
         documentName: row.document_name,

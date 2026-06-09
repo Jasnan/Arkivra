@@ -74,8 +74,16 @@ describe('buildTransferSections', () => {
         relativePath: 'Taxes/2026/form.pdf',
         fileName: 'form.pdf',
         status: 'failed',
-        error: 'Upload failed',
-      }),
+      error: 'Upload failed',
+      conflict: {
+        code: 'document.name_conflict',
+        message: 'A document with this name already exists in this folder',
+        existingId: 'doc_existing',
+        duplicateScope: 'active',
+        conflictType: 'name',
+        availableStrategies: ['skip', 'keep_both', 'new_version'],
+      },
+    }),
       transfer({
         id: 'transfer_b',
         sourceRootName: 'Taxes',
@@ -95,6 +103,10 @@ describe('buildTransferSections', () => {
       mimeType: 'application/pdf',
       isDirectory: false,
       error: 'Upload failed',
+      conflict: expect.objectContaining({
+        conflictType: 'name',
+        availableStrategies: ['skip', 'keep_both', 'new_version'],
+      }),
     });
   });
 });

@@ -1,4 +1,4 @@
-import type { TransferItem } from './uploads.types';
+import type { TransferItem, UploadConflictDetails } from './uploads.types';
 
 export type DisplayTransferStatus = 'queued' | 'uploading' | 'paused' | 'completed' | 'failed' | 'canceled';
 
@@ -12,6 +12,7 @@ export interface DisplayTransfer {
   bytesUploaded: number;
   progress: number;
   error: string | null;
+  conflict: UploadConflictDetails | null;
   isDirectory: boolean;
 }
 
@@ -35,6 +36,7 @@ function directTransfer(item: TransferItem): DisplayTransfer {
     bytesUploaded: item.bytesUploaded,
     progress: item.progress,
     error: item.error,
+    conflict: item.conflict ?? null,
     isDirectory: false,
   };
 }

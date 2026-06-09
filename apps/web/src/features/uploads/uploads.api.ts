@@ -1,5 +1,5 @@
 import { fetchJson } from '@/lib/api';
-import type { UploadSessionSummary } from './uploads.types';
+import type { UploadConflictStrategy, UploadSessionSummary } from './uploads.types';
 
 interface UploadResponse {
   upload: UploadSessionSummary;
@@ -34,12 +34,20 @@ export async function initUploadSession({
 export async function completeUploadSession({
   vaultId,
   uploadId,
+  conflictStrategy,
 }: {
   vaultId: string;
   uploadId: string;
+  conflictStrategy?: UploadConflictStrategy;
 }) {
   return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/complete`, {
     method: 'POST',
+    ...(conflictStrategy
+      ? {
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ conflictStrategy }),
+        }
+      : {}),
   });
 }
 

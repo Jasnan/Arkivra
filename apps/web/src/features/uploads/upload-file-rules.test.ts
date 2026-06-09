@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { filterAllowedUploadFiles, getUploadSourceRootName, normalizeUploadFileName } from './upload-file-rules';
+import { filterAllowedUploadFiles, getUploadSourceRootName, normalizeUploadFileName, UPLOAD_ACCEPT_ATTRIBUTE } from './upload-file-rules';
 
 describe('upload file rules', () => {
   it('keeps supported document, image, json, and text files', () => {
     const files = [
       new File(['pdf'], 'statement.pdf', { type: 'application/pdf' }),
       new File(['doc'], 'contract.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      new File(['sheet'], 'budget.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      new File(['csv'], 'export.csv', { type: 'text/csv' }),
       new File(['json'], 'data.json', { type: 'application/json' }),
       new File(['text'], 'notes.md', { type: 'text/markdown' }),
       new File(['image'], 'photo.png', { type: 'image/png' }),
@@ -15,10 +17,32 @@ describe('upload file rules', () => {
     expect(filterAllowedUploadFiles(files.map(file => ({ file, relativePath: null }))).map(item => item.file.name)).toEqual([
       'statement.pdf',
       'contract.docx',
+      'budget.xlsx',
+      'export.csv',
       'data.json',
       'notes.md',
       'photo.png',
     ]);
+  });
+
+  it('rejects file types outside the explicit file icon families', () => {
+    const files = [
+      new File(['image'], 'scan.tiff', { type: 'image/tiff' }),
+      new File(['rich'], 'notes.rtf', { type: 'application/rtf' }),
+      new File(['html'], 'page.html', { type: 'text/html' }),
+      new File(['binary'], 'archive.zip', { type: 'application/zip' }),
+    ];
+
+    expect(filterAllowedUploadFiles(files.map(file => ({ file, relativePath: null })))).toEqual([]);
+  });
+
+  it('exposes an accept attribute for supported upload pickers', () => {
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('.pdf');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('.xlsx');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('application/pdf');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('text/plain');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).not.toContain('image/*');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).not.toContain('text/*');
   });
 
   it('drops hidden files and files inside hidden directories', () => {

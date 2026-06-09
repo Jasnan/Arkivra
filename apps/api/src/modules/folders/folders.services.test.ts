@@ -6,6 +6,7 @@ import {
   getFolderDepthFromRows,
   getFolderSubtreeDepthFromRows,
   hasSiblingNameCollision,
+  isActiveSiblingNameUniqueError,
   normalizeFolderName,
   normalizeUploadRelativePath,
   validateFolderName,
@@ -87,6 +88,17 @@ describe('folder service helpers', () => {
         excludeFolderId: 'fld_finance',
       }),
     ).toBe(false);
+  });
+
+  test('detects wrapped active sibling unique constraint errors', () => {
+    const error = new Error('Failed query: insert into "vault_folders" ...');
+    (error as Error & { cause: unknown }).cause = {
+      code: '23505',
+      constraint: 'vault_folders_active_sibling_name_unique',
+      message: 'duplicate key value violates unique constraint "vault_folders_active_sibling_name_unique"',
+    };
+
+    expect(isActiveSiblingNameUniqueError(error)).toBe(true);
   });
 
   test('builds ancestor chains and logical paths', () => {

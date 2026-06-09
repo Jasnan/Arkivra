@@ -100,6 +100,7 @@ describe('vault pages', () => {
       'Settings',
       'Activity',
       'Chat',
+      'Delete',
     ]);
     const openAction = within(contextMenu).getByRole('menuitem', { name: /^open$/i });
     const settingsAction = within(contextMenu).getByRole('menuitem', { name: /^settings$/i });
@@ -127,6 +128,7 @@ describe('vault pages', () => {
       'Settings',
       'Activity',
       'Chat',
+      'Delete',
     ]);
     const actionMenu = screen.getByRole('menu');
     const actionOpen = within(actionMenu).getByRole('menuitem', { name: /^open$/i });
@@ -288,7 +290,7 @@ describe('vault pages', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<VaultsPage />);
+    const { router } = await renderWithProviders(<VaultsPage />);
 
     await user.click(await screen.findByRole('button', { name: /new vault/i }));
     const dialog = await screen.findByRole('dialog', { name: /new vault/i });
@@ -307,6 +309,66 @@ describe('vault pages', () => {
         method: 'POST',
       }));
     });
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/vaults/vlt_new');
+    });
+  });
+
+  it('shows delete in the vault context menu and surfaces the empty-vault rule', async () => {
+    const user = userEvent.setup();
+    const createToastSpy = vi.spyOn(toaster, 'create');
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
+      if (url === '/api/vaults' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url === '/api/vaults/vlt_1' && init?.method === 'DELETE') {
+        return jsonResponse({
+          error: {
+            code: 'vault.not_empty',
+            message: 'Empty the vault before deleting it.',
+          },
+        }, 409);
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<VaultsPage />);
+
+    fireEvent.contextMenu(await screen.findByRole('link', { name: /personal/i }));
+    const contextMenu = screen.getByRole('menu', { name: /vault actions for personal/i });
+    await user.click(within(contextMenu).getByRole('menuitem', { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({
+        credentials: 'include',
+        method: 'DELETE',
+      }));
+    });
+    expect(createToastSpy).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Empty the vault before deleting it.',
+      type: 'error',
+    }));
   });
 
   it('returns focus to the create vault button after dismissing the dialog', async () => {

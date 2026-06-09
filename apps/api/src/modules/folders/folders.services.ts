@@ -96,13 +96,41 @@ function getErrorField(error: unknown, field: 'code' | 'constraint' | 'constrain
   return typeof value === 'string' ? value : null;
 }
 
-function isActiveSiblingNameUniqueError(error: unknown) {
-  const message = error instanceof Error ? error.message : '';
-  const constraint = getErrorField(error, 'constraint') ?? getErrorField(error, 'constraint_name');
+function getErrorCause(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('cause' in error)) {
+    return null;
+  }
 
-  return message.includes(ACTIVE_SIBLING_NAME_CONSTRAINT)
-    || constraint === ACTIVE_SIBLING_NAME_CONSTRAINT
-    || (getErrorField(error, 'code') === '23505' && constraint === ACTIVE_SIBLING_NAME_CONSTRAINT);
+  return (error as { cause?: unknown }).cause ?? null;
+}
+
+function getErrorFields(error: unknown) {
+  const fields: Array<{ code: string | null; constraint: string | null; message: string }> = [];
+  let current: unknown = error;
+
+  while (current !== null) {
+    fields.push({
+      code: getErrorField(current, 'code'),
+      constraint: getErrorField(current, 'constraint') ?? getErrorField(current, 'constraint_name'),
+      message: current instanceof Error ? current.message : '',
+    });
+    current = getErrorCause(current);
+  }
+
+  return fields;
+}
+
+export function isActiveSiblingNameUniqueError(error: unknown) {
+  const fields = getErrorFields(error);
+
+  return fields.some(({ code, constraint, message }) =>
+    constraint === ACTIVE_SIBLING_NAME_CONSTRAINT
+    || message.includes(ACTIVE_SIBLING_NAME_CONSTRAINT)
+    || (code === '23505' && (
+      constraint === ACTIVE_SIBLING_NAME_CONSTRAINT
+      || message.includes(ACTIVE_SIBLING_NAME_CONSTRAINT)
+    )),
+  );
 }
 
 export function normalizeFolderName(name: string) {

@@ -2,7 +2,7 @@ import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderDot, FolderOpen, History, MessageSquare, Settings2, Users, Vault } from 'lucide-react';
+import { FolderDot, FolderOpen, History, MessageSquare, Settings2, Trash2, Users, Vault } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
@@ -22,7 +22,7 @@ import { FileBrowserViewToggle } from '@/features/file-browser/components/file-b
 import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
 import { useMeQuery } from '@/features/me/me.queries';
 import { CreateVaultDialog } from '@/features/vaults/components/create-vault-dialog';
-import { createVault } from '@/features/vaults/vaults.api';
+import { createVault, deleteVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { VaultSummary } from '@/features/vaults/vaults.types';
 import { formatShortDate } from '@/lib/localization';
@@ -42,7 +42,9 @@ function isRequestResponse(value: unknown): value is { request: { id: string } }
 interface VaultAction {
   key: string;
   label: string;
-  icon: typeof FolderOpen | typeof Users | typeof History | typeof Settings2 | typeof MessageSquare;
+  icon: typeof FolderOpen | typeof Users | typeof History | typeof Settings2 | typeof MessageSquare | typeof Trash2;
+  tone?: 'default' | 'destructive';
+  disabled?: boolean;
   onSelect: () => void;
 }
 
@@ -57,13 +59,19 @@ function VaultActionDropdownItems({ actions }: { actions: VaultAction[] }) {
         key={action.key}
         data-active={isActive ? 'true' : undefined}
         borderWidth="1px"
-        borderColor={isActive ? 'teal.muted' : 'transparent'}
-        bg={isActive ? 'teal.subtle' : 'transparent'}
-        color={isActive ? 'teal.fg' : 'fg.muted'}
+        borderColor={isActive ? (action.tone === 'destructive' ? 'red.muted' : 'teal.muted') : 'transparent'}
+        bg={isActive ? (action.tone === 'destructive' ? 'red.subtle' : 'teal.subtle') : 'transparent'}
+        color={isActive ? (action.tone === 'destructive' ? 'red.fg' : 'teal.fg') : action.tone === 'destructive' ? 'red.fg' : 'fg.muted'}
         transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
-        _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
-        _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+        _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
+        _hover={action.tone === 'destructive'
+          ? { bg: 'red.subtle', borderColor: 'red.muted', color: 'red.fg' }
+          : { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+        _focus={action.tone === 'destructive'
+          ? { bg: 'red.subtle', borderColor: 'red.muted', color: 'red.fg' }
+          : { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
         _highlighted={{ bg: 'transparent', borderColor: 'transparent', color: 'fg.muted' }}
+        disabled={action.disabled}
         onPointerEnter={() => setActiveActionKey(action.key)}
         onPointerMove={() => setActiveActionKey(action.key)}
         onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
@@ -71,7 +79,7 @@ function VaultActionDropdownItems({ actions }: { actions: VaultAction[] }) {
         onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
         onSelect={action.onSelect}
       >
-        <ActionMenuItemIcon icon={action.icon} />
+        <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : undefined} />
         {action.label}
       </DropdownMenuItem>
     );
@@ -190,29 +198,38 @@ function VaultContextMenu({
                 gap="3"
                 rounded="md"
                 borderWidth="1px"
-                borderColor={isActive ? 'teal.muted' : 'transparent'}
-                bg={isActive ? 'teal.subtle' : 'transparent'}
+                borderColor={isActive ? (action.tone === 'destructive' ? 'red.muted' : 'teal.muted') : 'transparent'}
+                bg={isActive ? (action.tone === 'destructive' ? 'red.subtle' : 'teal.subtle') : 'transparent'}
                 px="3"
                 py="2"
                 textAlign="left"
                 fontSize="sm"
                 fontWeight="medium"
                 lineHeight="1.25"
-                color={isActive ? 'teal.fg' : 'fg.muted'}
+                color={isActive ? (action.tone === 'destructive' ? 'red.fg' : 'teal.fg') : action.tone === 'destructive' ? 'red.fg' : 'fg.muted'}
                 transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
-                _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
-                _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
-                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+                disabled={action.disabled}
+                _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
+                _hover={action.tone === 'destructive'
+                  ? { bg: 'red.subtle', borderColor: 'red.muted', color: 'red.fg' }
+                  : { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                _focus={action.tone === 'destructive'
+                  ? { bg: 'red.subtle', borderColor: 'red.muted', color: 'red.fg' }
+                  : { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                _focusVisible={{ outline: '2px solid', outlineColor: action.tone === 'destructive' ? 'red.solid' : 'teal.solid', outlineOffset: '2px' }}
                 onPointerEnter={() => setActiveActionKey(action.key)}
                 onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
                 onFocus={() => setActiveActionKey(action.key)}
                 onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
                 onClick={() => {
+                  if (action.disabled) {
+                    return;
+                  }
                   onClose();
                   window.setTimeout(action.onSelect, 0);
                 }}
               >
-                <ActionMenuItemIcon icon={action.icon} />
+                <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : undefined} />
                 {action.label}
               </chakra.button>
             );
@@ -259,7 +276,7 @@ export function VaultsPage() {
       setName('');
       setDescription('');
       toast.success('Vault created.');
-      navigate({ to: ROUTES.vaultSettings(vault.id) });
+      navigate({ to: ROUTES.vaultRoot(vault.id) });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not create vault.');
@@ -267,6 +284,26 @@ export function VaultsPage() {
   });
   const isCreateVaultFormDirty = name.trim().length > 0 || description.trim().length > 0;
   const canDismissCreateVaultDialog = !isCreateVaultFormDirty && !createMutation.isPending;
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteVault,
+    onSuccess: async (result, variables) => {
+      if (result && isRequestResponse(result)) {
+        toast.success('Vault deletion request queued for admin approval.');
+        await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
+        return;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
+      toast.success('Vault deleted.');
+      if (window.location.pathname.startsWith(ROUTES.vaultRoot(variables.vaultId))) {
+        navigate({ to: ROUTES.vaults });
+      }
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not delete vault.');
+    },
+  });
 
   function queueCreateButtonFocusRestore() {
     shouldRestoreCreateButtonFocusRef.current = true;
@@ -362,6 +399,14 @@ export function VaultsPage() {
       ...(aiFeaturesEnabled
         ? [{ key: 'chat', label: 'Chat', icon: MessageSquare, onSelect: () => navigate({ to: ROUTES.vaultChat(vault.id) }) }]
         : []),
+      {
+        key: 'delete',
+        label: deleteMutation.isPending && deleteMutation.variables?.vaultId === vault.id ? 'Deleting...' : 'Delete',
+        icon: Trash2,
+        tone: 'destructive',
+        disabled: deleteMutation.isPending,
+        onSelect: () => deleteMutation.mutate({ vaultId: vault.id }),
+      },
     ];
   }
 

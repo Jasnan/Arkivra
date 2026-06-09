@@ -48,9 +48,14 @@ import { formatBytes } from '@/features/documents/documents.utils';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
 import { filesToDroppedFiles, getDroppedFiles } from '../dropped-files';
 import type { DroppedFile } from '../dropped-files';
-import { filterAllowedUploadFiles } from '../upload-file-rules';
+import { filterAllowedUploadFiles, UPLOAD_ACCEPT_ATTRIBUTE } from '../upload-file-rules';
 import { uploadManager } from '../upload-manager';
 import { useUploadManagerState } from '../use-upload-manager';
+
+const DIRECTORY_PICKER_ATTRIBUTES = {
+  directory: '',
+  webkitdirectory: '',
+};
 
 function statusLabel(status: string) {
   switch (status) {
@@ -120,11 +125,6 @@ export function TransfersPage() {
     if (!vaultId) return;
     void uploadManager.reconcileVault(vaultId);
   }, [vaultId]);
-
-  useEffect(() => {
-    folderInputRef.current?.setAttribute('webkitdirectory', '');
-    folderInputRef.current?.setAttribute('directory', '');
-  }, []);
 
   function handleFiles(files: DroppedFile[]) {
     const acceptedFiles = filterAllowedUploadFiles(files);
@@ -281,6 +281,7 @@ export function TransfersPage() {
         <input
           ref={inputRef}
           type="file"
+          accept={UPLOAD_ACCEPT_ATTRIBUTE}
           multiple
           className="hidden"
           onChange={handleInputChange}
@@ -291,6 +292,7 @@ export function TransfersPage() {
           multiple
           className="hidden"
           onChange={handleInputChange}
+          {...DIRECTORY_PICKER_ATTRIBUTES}
         />
       </Stack>
 

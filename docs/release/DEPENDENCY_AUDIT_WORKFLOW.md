@@ -28,8 +28,8 @@ pnpm deps:outdated
 
 `.github/workflows/dependency-audit.yml` runs `pnpm deps:audit`:
 
-- on pull requests that change package manifests, the lockfile, or the audit workflow;
-- on pushes to `main` that change those files;
+- on every pull request;
+- on every push to `main`;
 - weekly by schedule;
 - manually through `workflow_dispatch`.
 

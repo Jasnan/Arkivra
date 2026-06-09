@@ -1,5 +1,6 @@
 import * as React from 'react';
 import {
+  Box,
   Select as ChakraSelect,
   createListCollection,
 } from '@chakra-ui/react';
@@ -255,13 +256,29 @@ export function SelectItem({ className, children, ref, value, ...props }: Select
       _checked={{ bg: 'teal.subtle', color: 'fg' }}
       _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
+      css={{
+        '&[data-highlighted][data-state=checked]': {
+          background: 'var(--chakra-colors-teal-subtle)',
+        },
+      }}
       {...props}
     >
-      <span className="absolute right-2.5 flex size-5 items-center justify-center text-teal-solid">
+      <Box
+        as="span"
+        position="absolute"
+        right="2.5"
+        top="50%"
+        display="flex"
+        boxSize="5"
+        alignItems="center"
+        justifyContent="center"
+        color="teal.solid"
+        transform="translateY(-50%)"
+      >
         <ChakraSelect.ItemIndicator>
           <Check className="size-4 stroke-[2.5]" />
         </ChakraSelect.ItemIndicator>
-      </span>
+      </Box>
       <ChakraSelect.ItemText>{children}</ChakraSelect.ItemText>
     </ChakraSelect.Item>
   );

@@ -1810,8 +1810,8 @@ function OpenMoveItemDialog({
                                 ) : null}
                               </Box>
                             </Flex>
-                            <Flex boxSize="5" shrink={0} align="center" justify="center" color={isSelected ? 'teal.fg' : 'transparent'}>
-                              <Check size={16} />
+                            <Flex boxSize="5" shrink={0} align="center" justify="center" color={isSelected ? 'teal.solid' : 'transparent'}>
+                              <Check size={16} strokeWidth={2.5} />
                             </Flex>
                           </chakra.button>
                         );

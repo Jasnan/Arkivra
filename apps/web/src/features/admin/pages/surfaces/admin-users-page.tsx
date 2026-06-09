@@ -87,27 +87,52 @@ function formatJoinedDate(value: string) {
 
 function AdminUserActionItem({
   action,
+  isActive,
   onSelect,
+  setActiveActionKey,
 }: {
   action: AdminUserAction;
+  isActive: boolean;
   onSelect: () => void;
+  setActiveActionKey: (
+    next: AdminUserActionKey | null | ((current: AdminUserActionKey | null) => AdminUserActionKey | null)
+  ) => void;
 }) {
   const iconTone = action.tone === 'destructive' ? 'destructive' : 'default';
+  const actionColor =
+    action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg';
 
   return (
     <DropdownMenuItem
       value={action.key}
+      data-active={isActive ? 'true' : undefined}
       disabled={action.disabled}
-      color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}
+      borderWidth="1px"
+      borderColor={isActive ? 'teal.muted' : 'transparent'}
+      bg={isActive ? 'teal.subtle' : 'transparent'}
+      color={actionColor}
       alignItems="flex-start"
       gap="2.5"
       px="3"
       py="2.5"
+      transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+      _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted' }}
+      _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted' }}
+      _highlighted={{ bg: 'transparent', borderColor: 'transparent', color: actionColor }}
+      onPointerEnter={() => setActiveActionKey(action.key)}
+      onPointerMove={() => setActiveActionKey(action.key)}
+      onPointerLeave={() =>
+        setActiveActionKey(current => (current === action.key ? null : current))
+      }
+      onFocus={() => setActiveActionKey(action.key)}
+      onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
       onSelect={onSelect}
     >
-      <ActionMenuItemIcon icon={action.icon} tone={iconTone} />
+      <Flex h="5" w="4" shrink="0" align="center" justify="center">
+        <ActionMenuItemIcon icon={action.icon} tone={iconTone} />
+      </Flex>
       <Stack gap="0.5" minW="0">
-        <Text textStyle="sm" fontWeight="semibold" color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}>
+        <Text textStyle="sm" fontWeight="semibold" color={actionColor}>
           {action.label}
         </Text>
         <Text textStyle="xs" color="fg.muted">
@@ -119,17 +144,17 @@ function AdminUserActionItem({
 }
 
 function AdminUserActionMenuItems({ actions }: { actions: AdminUserAction[] }) {
-  return (
-    <>
-      {actions.map((action) => (
-        <AdminUserActionItem
-          key={action.key}
-          action={action}
-          onSelect={action.onSelect}
-        />
-      ))}
-    </>
-  );
+  const [activeActionKey, setActiveActionKey] = useState<AdminUserActionKey | null>(null);
+
+  return actions.map((action) => (
+    <AdminUserActionItem
+      key={action.key}
+      action={action}
+      isActive={activeActionKey === action.key}
+      onSelect={action.onSelect}
+      setActiveActionKey={setActiveActionKey}
+    />
+  ));
 }
 
 function AdminUserContextMenu({
@@ -142,6 +167,7 @@ function AdminUserContextMenu({
   onClose: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [activeActionKey, setActiveActionKey] = useState<AdminUserActionKey | null>(null);
 
   useEffect(() => {
     function closeOnEscape(event: globalThis.KeyboardEvent) {
@@ -204,40 +230,75 @@ function AdminUserContextMenu({
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.preventDefault()}
       >
-        {actions.map((action) => (
-          <chakra.button
-            key={action.key}
-            type="button"
-            role="menuitem"
-            disabled={action.disabled}
-            display="flex"
-            w="full"
-            alignItems="flex-start"
-            gap="2.5"
-            rounded="md"
-            px="3"
-            py="2.5"
-            textAlign="left"
-            color={action.tone === 'destructive' ? 'fg.error' : action.tone === 'success' ? 'fg.success' : 'fg'}
-            _hover={{ bg: action.tone === 'success' ? 'teal.subtle' : 'bg.subtle' }}
-            _disabled={{ cursor: 'not-allowed', opacity: 0.5 }}
-            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
-            onClick={() => {
-              onClose();
-              window.setTimeout(action.onSelect, 0);
-            }}
-          >
-            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
-            <Stack gap="0.5" minW="0">
-              <Text textStyle="sm" fontWeight="semibold">
-                {action.label}
-              </Text>
-              <Text textStyle="xs" color="fg.muted">
-                {action.description}
-              </Text>
-            </Stack>
-          </chakra.button>
-        ))}
+        <Stack gap="1">
+          {actions.map((action) => {
+            const isActive = activeActionKey === action.key;
+            const actionColor =
+              action.tone === 'destructive'
+                ? 'fg.error'
+                : action.tone === 'success'
+                  ? 'fg.success'
+                  : 'fg';
+
+            return (
+              <chakra.button
+                key={action.key}
+                type="button"
+                role="menuitem"
+                data-active={isActive ? 'true' : undefined}
+                disabled={action.disabled}
+                display="flex"
+                w="full"
+                alignItems="flex-start"
+                gap="2.5"
+                rounded="md"
+                borderWidth="1px"
+                borderColor={isActive ? 'teal.muted' : 'transparent'}
+                bg={isActive ? 'teal.subtle' : 'transparent'}
+                px="3"
+                py="2.5"
+                textAlign="left"
+                color={actionColor}
+                transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+                _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted' }}
+                _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted' }}
+                _disabled={{ cursor: 'not-allowed', opacity: 0.5 }}
+                _focusVisible={{
+                  outline: '2px solid',
+                  outlineColor: 'teal.solid',
+                  outlineOffset: '2px',
+                }}
+                onPointerEnter={() => setActiveActionKey(action.key)}
+                onPointerLeave={() =>
+                  setActiveActionKey(current => (current === action.key ? null : current))
+                }
+                onFocus={() => setActiveActionKey(action.key)}
+                onBlur={() =>
+                  setActiveActionKey(current => (current === action.key ? null : current))
+                }
+                onClick={() => {
+                  onClose();
+                  window.setTimeout(action.onSelect, 0);
+                }}
+              >
+                <Flex h="5" w="4" shrink="0" align="center" justify="center">
+                  <ActionMenuItemIcon
+                    icon={action.icon}
+                    tone={action.tone === 'destructive' ? 'destructive' : 'default'}
+                  />
+                </Flex>
+                <Stack gap="0.5" minW="0">
+                  <Text textStyle="sm" fontWeight="semibold" color={actionColor}>
+                    {action.label}
+                  </Text>
+                  <Text textStyle="xs" color="fg.muted">
+                    {action.description}
+                  </Text>
+                </Stack>
+              </chakra.button>
+            );
+          })}
+        </Stack>
       </Box>
     </Portal>
   );
@@ -308,7 +369,6 @@ export function AdminUsersPage() {
         label: 'Access',
         description: 'Edit roles, permissions and vault access',
         icon: UserRound,
-        tone: 'success',
         onSelect: () => void navigate({ to: ROUTES.adminUserAccess(user.id) }),
       },
       {

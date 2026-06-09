@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AbsoluteCenter, Menu as ChakraMenu, Portal } from '@chakra-ui/react';
+import { Box, Menu as ChakraMenu, Portal } from '@chakra-ui/react';
 import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -272,6 +272,7 @@ export function DropdownMenuCheckboxItem({
       display="flex"
       alignItems="center"
       gap="3"
+      position="relative"
       minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
       rounded="md"
       py="var(--arkivra-menuItemPaddingY, 0.5rem)"
@@ -283,19 +284,31 @@ export function DropdownMenuCheckboxItem({
       outline="none"
       transition="background-color 120ms ease, color 120ms ease"
       _checked={{ bg: 'teal.subtle', color: 'fg' }}
-      _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+      _highlighted={{ bg: checked ? 'teal.subtle' : 'bg.subtle', color: 'fg' }}
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       checked={checked}
       closeOnSelect={closeOnSelect}
       onClick={() => onSelect?.({ preventDefault: () => {} })}
       {...props}
     >
-      <AbsoluteCenter axis="horizontal" insetStart="3">
+      <span style={{ minWidth: 0, flex: '1 1 auto', paddingRight: '1rem' }}>
+        {children}
+      </span>
+      <Box
+        position="absolute"
+        right="2.5"
+        top="50%"
+        display="flex"
+        boxSize="5"
+        alignItems="center"
+        justifyContent="center"
+        color="teal.solid"
+        transform="translateY(-50%)"
+      >
         <ChakraMenu.ItemIndicator>
-          <Check className="size-4" />
+          <Check className="size-4 stroke-[2.5]" />
         </ChakraMenu.ItemIndicator>
-      </AbsoluteCenter>
-      {children}
+      </Box>
     </ChakraMenu.CheckboxItem>
   );
 }
@@ -319,10 +332,12 @@ export function DropdownMenuRadioItem({
       display="flex"
       alignItems="center"
       gap="3"
+      position="relative"
       minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
       rounded="md"
       py="var(--arkivra-menuItemPaddingY, 0.5rem)"
-      px="3"
+      ps="3"
+      pe="10"
       minW="0"
       fontSize="sm"
       fontWeight="medium"
@@ -332,22 +347,31 @@ export function DropdownMenuRadioItem({
       _checked={{ bg: 'teal.subtle', color: 'fg' }}
       _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
+      css={{
+        '&[data-highlighted][data-state=checked]': {
+          background: 'var(--chakra-colors-teal-subtle)',
+        },
+      }}
       {...props}
     >
       <span style={{ minWidth: 0, flex: '1 1 auto', paddingRight: '1rem' }}>
         {children}
       </span>
-      <ChakraMenu.ItemIndicator
-        display="inline-flex"
+      <Box
+        position="absolute"
+        right="2.5"
+        top="50%"
+        display="flex"
+        boxSize="5"
         alignItems="center"
         justifyContent="center"
-        width="1rem"
-        marginStart="auto"
-        flexShrink="0"
-        color="teal.fg"
+        color="teal.solid"
+        transform="translateY(-50%)"
       >
-        <Check className="size-4 stroke-[2.5]" />
-      </ChakraMenu.ItemIndicator>
+        <ChakraMenu.ItemIndicator>
+          <Check className="size-4 stroke-[2.5]" />
+        </ChakraMenu.ItemIndicator>
+      </Box>
     </ChakraMenu.RadioItem>
   );
 }

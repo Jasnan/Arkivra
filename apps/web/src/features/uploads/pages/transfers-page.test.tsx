@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TransfersPage } from '@/features/uploads/pages/transfers-page';
 import { renderWithProviders } from '@/test/utils';
 import { uploadManager } from '../upload-manager';
+import { UPLOAD_ACCEPT_ATTRIBUTE } from '../upload-file-rules';
 
 interface MockFileEntry {
   isDirectory: false;
@@ -89,6 +90,22 @@ describe('transfers page', () => {
         ],
       });
     });
+  });
+
+  it('renders the folder picker as a directory input', async () => {
+    const { container } = await renderWithProviders(<TransfersPage />, {
+      initialEntries: ['/transfers'],
+      routePath: '/transfers',
+    });
+
+    const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+    const fileInput = inputs.find(input => input.getAttribute('accept') === UPLOAD_ACCEPT_ATTRIBUTE);
+    const folderInput = inputs.find(input => input.hasAttribute('webkitdirectory'));
+
+    expect(fileInput).toBeDefined();
+    expect(folderInput).toBeDefined();
+    expect(folderInput).toHaveAttribute('directory');
+    expect(folderInput).not.toHaveAttribute('accept');
   });
 });
 

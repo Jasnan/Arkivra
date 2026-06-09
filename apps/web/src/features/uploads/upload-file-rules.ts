@@ -1,33 +1,45 @@
 import type { UploadFileInput } from './uploads.types';
 
-const ALLOWED_EXTENSIONS = new Set([
-  'bmp',
+const ALLOWED_UPLOAD_EXTENSIONS = [
   'csv',
   'doc',
   'docx',
   'gif',
-  'heic',
-  'heif',
   'jpeg',
   'jpg',
   'json',
   'md',
   'pdf',
   'png',
-  'rtf',
-  'tif',
-  'tiff',
   'txt',
   'webp',
-]);
+  'xls',
+  'xlsx',
+] as const;
 
-const ALLOWED_MIME_TYPES = new Set([
+const ALLOWED_UPLOAD_MIME_TYPES = [
+  'application/csv',
   'application/json',
   'application/msword',
   'application/pdf',
-  'application/rtf',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'text/csv',
+  'text/markdown',
+  'text/plain',
+] as const;
+
+const ALLOWED_EXTENSIONS = new Set<string>(ALLOWED_UPLOAD_EXTENSIONS);
+const ALLOWED_MIME_TYPES = new Set<string>(ALLOWED_UPLOAD_MIME_TYPES);
+export const UPLOAD_ACCEPT_ATTRIBUTE = [
+  ...ALLOWED_UPLOAD_EXTENSIONS.map(extension => `.${extension}`),
+  ...ALLOWED_UPLOAD_MIME_TYPES,
+].join(',');
 const PATH_SEPARATOR_PATTERN = /[\\/]+/;
 
 function getPathParts(input: UploadFileInput) {
@@ -56,7 +68,7 @@ export function isAllowedUploadFile(input: UploadFileInput) {
   }
 
   const mimeType = input.file.type.toLocaleLowerCase();
-  if (mimeType.startsWith('image/') || mimeType.startsWith('text/') || ALLOWED_MIME_TYPES.has(mimeType)) {
+  if (ALLOWED_MIME_TYPES.has(mimeType)) {
     return true;
   }
 

@@ -6,6 +6,7 @@ import type { WorkspaceHeaderConfig } from '@/components/layout/workspace-contex
 import { WorkspaceLayoutContext } from '@/components/layout/workspace-context';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
+import { UPLOAD_ACCEPT_ATTRIBUTE } from '@/features/uploads/upload-file-rules';
 import { renderWithProviders } from '@/test/utils';
 
 function jsonResponse(body: unknown) {
@@ -94,7 +95,7 @@ describe('documents page', () => {
       throw new Error(`Unhandled request ${url}`);
     }));
 
-    await renderWithProviders(<DocumentsPage />, {
+    const { container } = await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1'],
       routePath: '/vaults/:vaultId',
     });
@@ -106,6 +107,14 @@ describe('documents page', () => {
     expect(screen.queryByRole('tab', { name: /chat/i })).not.toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /sort folder items/i })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: /vault file tree/i, hidden: true })).not.toBeInTheDocument();
+
+    const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+    const fileInput = inputs.find(input => input.getAttribute('accept') === UPLOAD_ACCEPT_ATTRIBUTE);
+    const directoryInput = inputs.find(input => input.hasAttribute('webkitdirectory'));
+    expect(fileInput).toBeDefined();
+    expect(directoryInput).toBeDefined();
+    expect(directoryInput).toHaveAttribute('directory');
+    expect(directoryInput).not.toHaveAttribute('accept');
   });
 
   it('publishes the contents sort menu into the workspace header actions', async () => {

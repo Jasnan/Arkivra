@@ -58,7 +58,7 @@ import { useFileBrowserMutations } from '@/features/documents/hooks/use-file-bro
 import { useFolderNavigation } from '@/features/documents/hooks/use-folder-navigation';
 import { useVaultBrowserHeader } from '@/features/documents/hooks/use-vault-browser-header';
 import { filesToDroppedFiles } from '@/features/uploads/dropped-files';
-import { filterAllowedUploadFiles } from '@/features/uploads/upload-file-rules';
+import { filterAllowedUploadFiles, UPLOAD_ACCEPT_ATTRIBUTE } from '@/features/uploads/upload-file-rules';
 import { uploadManager } from '@/features/uploads/upload-manager';
 import {
   BrowserContextMenu,
@@ -108,6 +108,11 @@ import type { AiAccessLevel, VaultDetail, VaultRole } from '@/features/vaults/va
 
 export type VaultSection = 'contents' | 'members' | 'activity' | 'settings';
 type VaultManagementSection = Exclude<VaultSection, 'contents'>;
+
+const DIRECTORY_PICKER_ATTRIBUTES = {
+  directory: '',
+  webkitdirectory: '',
+};
 
 const vaultManagementTabs: Array<{
   value: VaultManagementSection;
@@ -624,11 +629,6 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       window.localStorage?.setItem?.(FILE_BROWSER_SORT_STORAGE_KEY, browserSort);
     } catch {}
   }, [browserSort]);
-
-  useEffect(() => {
-    directoryInputRef.current?.setAttribute('webkitdirectory', '');
-    directoryInputRef.current?.setAttribute('directory', '');
-  }, []);
 
   function uploadSelectedFiles(fileList: FileList | null) {
     const files = filterAllowedUploadFiles(filesToDroppedFiles(Array.from(fileList ?? [])));
@@ -1221,13 +1221,14 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
           </Box>
         </Flex>
       ) : null}
-      <input ref={fileInputRef} type="file" multiple hidden onChange={handleUploadInputChange} />
+      <input ref={fileInputRef} type="file" accept={UPLOAD_ACCEPT_ATTRIBUTE} multiple hidden onChange={handleUploadInputChange} />
       <input
         ref={directoryInputRef}
         type="file"
         multiple
         hidden
         onChange={handleUploadInputChange}
+        {...DIRECTORY_PICKER_ATTRIBUTES}
       />
 
       {browserHeader.contentsToolbar}

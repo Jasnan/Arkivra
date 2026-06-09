@@ -1,8 +1,18 @@
-import { boolean, index, integer, pgTable, primaryKey, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  foreignKey,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+} from 'drizzle-orm/pg-core';
 import { createCreatedAtField, createPrimaryKeyField, createTimestampColumns } from './helpers.js';
 import { aiProviderConfigsTable } from './ai-provider-configs.table.js';
 import { documentChunksTable } from './document-chunks.table.js';
-import { documentsTable } from './documents.table.js';
+import { documentsTable, documentVersionsTable } from './documents.table.js';
 import { vaultsTable } from './vaults.table.js';
 
 export type EmbeddingIndexStatus =
@@ -43,9 +53,7 @@ export const embeddingIndexesTable = pgTable(
     activatedAt: timestamp('activated_at', { mode: 'date' }),
     ...createTimestampColumns(),
   },
-  (table) => [
-    index('embedding_indexes_provider_config_idx').on(table.providerConfigId),
-  ],
+  (table) => [index('embedding_indexes_provider_config_idx').on(table.providerConfigId)],
 );
 
 // The pgvector `embedding` column is managed by SQL migrations. Drizzle
@@ -63,6 +71,9 @@ export const documentChunkEmbeddingsTable = pgTable(
     documentId: text('document_id')
       .notNull()
       .references(() => documentsTable.id, { onDelete: 'cascade' }),
+    documentVersionId: text('document_version_id')
+      .notNull()
+      .references(() => documentVersionsTable.id, { onDelete: 'cascade' }),
     vaultId: text('vault_id')
       .notNull()
       .references(() => vaultsTable.id, { onDelete: 'cascade' }),
@@ -70,9 +81,30 @@ export const documentChunkEmbeddingsTable = pgTable(
     ...createCreatedAtField(),
   },
   (table) => [
-    unique('document_chunk_embeddings_index_chunk_unique').on(table.embeddingIndexId, table.chunkId),
+    unique('document_chunk_embeddings_index_chunk_unique').on(
+      table.embeddingIndexId,
+      table.chunkId,
+    ),
     index('document_chunk_embeddings_index_doc_idx').on(table.embeddingIndexId, table.documentId),
+    index('document_chunk_embeddings_index_version_idx').on(
+      table.embeddingIndexId,
+      table.documentVersionId,
+    ),
+    index('document_chunk_embeddings_index_doc_version_idx').on(
+      table.embeddingIndexId,
+      table.documentId,
+      table.documentVersionId,
+    ),
     index('document_chunk_embeddings_index_vault_idx').on(table.embeddingIndexId, table.vaultId),
+    foreignKey({
+      name: 'document_chunk_embeddings_version_document_vault_fkey',
+      columns: [table.documentVersionId, table.documentId, table.vaultId],
+      foreignColumns: [
+        documentVersionsTable.id,
+        documentVersionsTable.documentId,
+        documentVersionsTable.vaultId,
+      ],
+    }).onDelete('cascade'),
   ],
 );
 
@@ -85,6 +117,9 @@ export const documentEmbeddingIndexStatusTable = pgTable(
     documentId: text('document_id')
       .notNull()
       .references(() => documentsTable.id, { onDelete: 'cascade' }),
+    documentVersionId: text('document_version_id')
+      .notNull()
+      .references(() => documentVersionsTable.id, { onDelete: 'cascade' }),
     vaultId: text('vault_id')
       .notNull()
       .references(() => vaultsTable.id, { onDelete: 'cascade' }),
@@ -97,7 +132,21 @@ export const documentEmbeddingIndexStatusTable = pgTable(
     ...createTimestampColumns(),
   },
   (table) => [
-    primaryKey({ columns: [table.embeddingIndexId, table.documentId] }),
+    primaryKey({ columns: [table.embeddingIndexId, table.documentVersionId] }),
     index('document_embedding_index_status_vault_idx').on(table.embeddingIndexId, table.vaultId),
+    index('document_embedding_index_status_doc_version_idx').on(
+      table.embeddingIndexId,
+      table.documentId,
+      table.documentVersionId,
+    ),
+    foreignKey({
+      name: 'document_embedding_index_status_version_document_vault_fkey',
+      columns: [table.documentVersionId, table.documentId, table.vaultId],
+      foreignColumns: [
+        documentVersionsTable.id,
+        documentVersionsTable.documentId,
+        documentVersionsTable.vaultId,
+      ],
+    }).onDelete('cascade'),
   ],
 );

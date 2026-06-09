@@ -3,6 +3,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { parseConfig } from '../config/config.js';
 import { setupDatabase } from '../database/database.js';
 import {
+  chatConversationDocumentVersionsTable,
+  chatConversationsTable,
+  documentChunkAssetsTable,
+  documentChunksTable,
+  documentVersionsTable,
   documentsTable,
   usersTable,
   vaultFoldersTable,
@@ -165,6 +170,125 @@ describe.sequential('document restore folder hierarchy', () => {
     };
   }
 
+  async function createVersionedFixture({
+    testName,
+    isDeleted = false,
+    deletedVersionId,
+  }: {
+    testName: string;
+    isDeleted?: boolean;
+    deletedVersionId?: 'v1' | 'v2';
+  }) {
+    if (database === null) {
+      throw new Error('Database not initialized');
+    }
+
+    const db = database.db;
+    const userId = `usr_${uniquePrefix}_${testName}`;
+    const vaultId = `vlt_${uniquePrefix}_${testName}`;
+    const otherVaultId = `vlt_${uniquePrefix}_${testName}_other`;
+    const documentId = `doc_${uniquePrefix}_${testName}`;
+    const version1Id = `dvr_${uniquePrefix}_${testName}_v1`;
+    const version2Id = `dvr_${uniquePrefix}_${testName}_v2`;
+    const deletedAt = new Date('2026-01-02T00:00:00.000Z');
+
+    createdUserIds.push(userId);
+
+    await db.insert(usersTable).values({
+      id: userId,
+      email: `${uniquePrefix}-${testName}@example.com`,
+      name: 'Version Tester',
+    });
+    await db.insert(vaultsTable).values([
+      {
+        id: vaultId,
+        name: `Version ${testName}`,
+        createdBy: userId,
+      },
+      {
+        id: otherVaultId,
+        name: `Version ${testName} Other`,
+        createdBy: userId,
+      },
+    ]);
+    await db.insert(documentsTable).values({
+      id: documentId,
+      vaultId,
+      folderId: null,
+      createdBy: userId,
+      originalName: 'report-v2.pdf',
+      originalSize: 200,
+      originalStorageKey: `${vaultId}/${documentId}`,
+      originalSha256Hash: `${testName}-hash-v2`,
+      name: 'report.pdf',
+      mimeType: 'application/pdf',
+      processingStatus: 'completed',
+      isDeleted,
+      deletedAt: isDeleted ? deletedAt : null,
+      deletedBy: isDeleted ? userId : null,
+    });
+    await db.insert(documentVersionsTable).values([
+      {
+        id: version1Id,
+        documentId,
+        vaultId,
+        versionNumber: 1,
+        uploadedBy: userId,
+        originalName: 'report-v1.pdf',
+        originalSize: 100,
+        originalStorageKey: `${vaultId}/${version1Id}`,
+        originalSha256Hash: `${testName}-hash-v1`,
+        mimeType: 'application/pdf',
+        processingStatus: 'completed',
+        deletedAt: deletedVersionId === 'v1' ? deletedAt : null,
+        deletedBy: deletedVersionId === 'v1' ? userId : null,
+      },
+      {
+        id: version2Id,
+        documentId,
+        vaultId,
+        versionNumber: 2,
+        uploadedBy: userId,
+        originalName: 'report-v2.pdf',
+        originalSize: 200,
+        originalStorageKey: `${vaultId}/${version2Id}`,
+        originalSha256Hash: `${testName}-hash-v2`,
+        mimeType: 'application/pdf',
+        processingStatus: 'completed',
+        deletedAt: deletedVersionId === 'v2' ? deletedAt : null,
+        deletedBy: deletedVersionId === 'v2' ? userId : null,
+      },
+    ]);
+    await db
+      .update(documentsTable)
+      .set({ currentVersionId: version2Id })
+      .where(eq(documentsTable.id, documentId));
+
+    const services = createDocumentsServices({
+      db,
+      storage: {
+        read: async () => Buffer.from(''),
+        write: async () => undefined,
+        remove: async () => undefined,
+        exists: async () => true,
+      },
+      encryption: createEncryptionServices({ kekKeysRaw: undefined }),
+    });
+
+    return {
+      db,
+      services,
+      ids: {
+        userId,
+        vaultId,
+        otherVaultId,
+        documentId,
+        version1Id,
+        version2Id,
+      },
+    };
+  }
+
   async function getDocument(documentId: string) {
     if (database === null) {
       throw new Error('Database not initialized');
@@ -201,6 +325,638 @@ describe.sequential('document restore folder hierarchy', () => {
 
     return folder;
   }
+
+  test('resolves latest and explicit document versions within the vault scope', async () => {
+    const { services, ids } = await createVersionedFixture({ testName: 'version_resolution' });
+
+    const latest = await services.resolveLatestDocumentVersion({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+    });
+
+    expect(latest).toMatchObject({
+      id: ids.version2Id,
+      documentId: ids.documentId,
+      vaultId: ids.vaultId,
+      versionNumber: 2,
+      isCurrent: true,
+      originalName: 'report-v2.pdf',
+      originalStorageKey: `${ids.vaultId}/${ids.version2Id}`,
+      processingStatus: 'completed',
+      document: {
+        id: ids.documentId,
+        vaultId: ids.vaultId,
+        name: 'report.pdf',
+        isDeleted: false,
+      },
+    });
+
+    const historical = await services.resolveDocumentVersion({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+    });
+
+    expect(historical).toMatchObject({
+      id: ids.version1Id,
+      versionNumber: 1,
+      isCurrent: false,
+      originalName: 'report-v1.pdf',
+    });
+
+    const versions = await services.listDocumentVersions({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+    });
+
+    expect(versions?.map(version => version.id)).toEqual([ids.version2Id, ids.version1Id]);
+
+    await expect(
+      services.resolveDocumentVersion({
+        vaultId: ids.otherVaultId,
+        documentId: ids.documentId,
+        documentVersionId: ids.version1Id,
+      }),
+    ).resolves.toBeNull();
+  });
+
+  test('creates a logical document with v1 and appends a new current version', async () => {
+    if (database === null) {
+      throw new Error('Database not initialized');
+    }
+
+    const db = database.db;
+    const testName = 'version_create_contract';
+    const userId = `usr_${uniquePrefix}_${testName}`;
+    const vaultId = `vlt_${uniquePrefix}_${testName}`;
+    createdUserIds.push(userId);
+
+    await db.insert(usersTable).values({
+      id: userId,
+      email: `${uniquePrefix}-${testName}@example.com`,
+      name: 'Version Creator',
+    });
+    await db.insert(vaultsTable).values({
+      id: vaultId,
+      name: 'Version Create Contract',
+      createdBy: userId,
+    });
+
+    const services = createDocumentsServices({
+      db,
+      storage: {
+        read: async () => Buffer.from(''),
+        write: async () => undefined,
+        remove: async () => undefined,
+        exists: async () => true,
+      },
+      encryption: createEncryptionServices({ kekKeysRaw: undefined }),
+    });
+
+    const initial = await services.createLogicalDocumentWithInitialVersion({
+      vaultId,
+      uploadedBy: userId,
+      originalName: 'contract-v1.pdf',
+      originalSize: 100,
+      originalStorageKey: `${vaultId}/dvr_initial`,
+      originalSha256Hash: `${testName}-hash-v1`,
+      mimeType: 'application/pdf',
+      processingStatus: 'pending',
+    });
+
+    expect(initial.version).toMatchObject({
+      documentId: initial.document.id,
+      vaultId,
+      versionNumber: 1,
+      isCurrent: true,
+      originalName: 'contract-v1.pdf',
+    });
+
+    const next = await services.createDocumentVersion({
+      vaultId,
+      documentId: initial.document.id,
+      uploadedBy: userId,
+      originalName: 'contract-v2.pdf',
+      originalSize: 200,
+      originalStorageKey: `${vaultId}/dvr_next`,
+      originalSha256Hash: `${testName}-hash-v2`,
+      mimeType: 'application/pdf',
+      processingStatus: 'queued',
+    });
+
+    expect(next).toMatchObject({
+      documentId: initial.document.id,
+      vaultId,
+      versionNumber: 2,
+      isCurrent: true,
+      originalName: 'contract-v2.pdf',
+      processingStatus: 'queued',
+    });
+
+    await expect(
+      services.resolveLatestDocumentVersion({
+        vaultId,
+        documentId: initial.document.id,
+      }),
+    ).resolves.toMatchObject({
+      id: next?.id,
+      versionNumber: 2,
+      originalStorageKey: `${vaultId}/dvr_next`,
+    });
+  });
+
+  test('applies document and version deletion filters during version resolution', async () => {
+    const deletedDocumentFixture = await createVersionedFixture({
+      testName: 'version_deleted_document',
+      isDeleted: true,
+    });
+    const deletedVersionFixture = await createVersionedFixture({
+      testName: 'version_deleted_version',
+      deletedVersionId: 'v1',
+    });
+
+    await expect(
+      deletedDocumentFixture.services.resolveLatestDocumentVersion({
+        vaultId: deletedDocumentFixture.ids.vaultId,
+        documentId: deletedDocumentFixture.ids.documentId,
+      }),
+    ).resolves.toBeNull();
+
+    await expect(
+      deletedDocumentFixture.services.resolveLatestDocumentVersion({
+        vaultId: deletedDocumentFixture.ids.vaultId,
+        documentId: deletedDocumentFixture.ids.documentId,
+        includeDeletedDocument: true,
+      }),
+    ).resolves.toMatchObject({
+      id: deletedDocumentFixture.ids.version2Id,
+      document: {
+        isDeleted: true,
+      },
+    });
+
+    await expect(
+      deletedVersionFixture.services.resolveDocumentVersion({
+        vaultId: deletedVersionFixture.ids.vaultId,
+        documentId: deletedVersionFixture.ids.documentId,
+        documentVersionId: deletedVersionFixture.ids.version1Id,
+      }),
+    ).resolves.toBeNull();
+
+    await expect(
+      deletedVersionFixture.services.resolveDocumentVersion({
+        vaultId: deletedVersionFixture.ids.vaultId,
+        documentId: deletedVersionFixture.ids.documentId,
+        documentVersionId: deletedVersionFixture.ids.version1Id,
+        includeDeletedVersion: true,
+      }),
+    ).resolves.toMatchObject({
+      id: deletedVersionFixture.ids.version1Id,
+      deletedAt: expect.any(Date),
+    });
+  });
+
+  test('plans purge cleanup across version-owned source files, previews, and assets', async () => {
+    const { db, services, ids } = await createVersionedFixture({ testName: 'version_purge_plan' });
+    const chunk1Id = `chk_${uniquePrefix}_version_purge_plan_v1`;
+    const chunk2Id = `chk_${uniquePrefix}_version_purge_plan_v2`;
+
+    await db.insert(documentChunksTable).values([
+      {
+        id: chunk1Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version1Id,
+        vaultId: ids.vaultId,
+        chunkIndex: 0,
+        chunkKey: 'chunk-0',
+        content: 'version one',
+      },
+      {
+        id: chunk2Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version2Id,
+        vaultId: ids.vaultId,
+        chunkIndex: 0,
+        chunkKey: 'chunk-0',
+        content: 'version two',
+      },
+    ]);
+    await db.insert(documentChunkAssetsTable).values([
+      {
+        id: `cas_${uniquePrefix}_version_purge_plan_1`,
+        chunkId: chunk1Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version1Id,
+        vaultId: ids.vaultId,
+        assetType: 'image',
+        storageKey: `chunks/${ids.version1Id}/chunk-0/image-0.png`,
+      },
+      {
+        id: `cas_${uniquePrefix}_version_purge_plan_2`,
+        chunkId: chunk2Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version2Id,
+        vaultId: ids.vaultId,
+        assetType: 'table',
+        storageKey: null,
+        inlinePayload: '<table></table>',
+      },
+      {
+        id: `cas_${uniquePrefix}_version_purge_plan_3`,
+        chunkId: chunk2Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version2Id,
+        vaultId: ids.vaultId,
+        assetType: 'image',
+        storageKey: `chunks/${ids.version2Id}/chunk-0/image-0.png`,
+      },
+    ]);
+
+    const plan = await services.planDocumentPurge({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+    });
+
+    expect(plan).toEqual({
+      documentId: ids.documentId,
+      vaultId: ids.vaultId,
+      versionIds: [ids.version1Id, ids.version2Id],
+      sourceStorageKeys: [
+        `${ids.vaultId}/${ids.documentId}`,
+        `${ids.vaultId}/${ids.version1Id}`,
+        `${ids.vaultId}/${ids.version2Id}`,
+      ],
+      previewStoragePrefixes: [
+        `previews/${ids.documentId}`,
+        `previews/${ids.version1Id}`,
+        `previews/${ids.version2Id}`,
+      ],
+      chunkAssetStorageKeys: [
+        `chunks/${ids.version1Id}/chunk-0/image-0.png`,
+        `chunks/${ids.version2Id}/chunk-0/image-0.png`,
+      ],
+    });
+
+    await expect(
+      services.planDocumentPurge({
+        vaultId: ids.otherVaultId,
+        documentId: ids.documentId,
+      }),
+    ).resolves.toBeNull();
+  });
+
+  test('lists and serves only current-version chunks and assets by default', async () => {
+    const { db, services, ids } = await createVersionedFixture({ testName: 'current_chunks' });
+    const chunk1Id = `chk_${uniquePrefix}_current_chunks_v1`;
+    const chunk2Id = `chk_${uniquePrefix}_current_chunks_v2`;
+    const asset1Id = `cas_${uniquePrefix}_current_chunks_v1`;
+    const asset2Id = `cas_${uniquePrefix}_current_chunks_v2`;
+
+    await db.insert(documentChunksTable).values([
+      {
+        id: chunk1Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version1Id,
+        vaultId: ids.vaultId,
+        chunkIndex: 0,
+        chunkKey: 'chunk-0',
+        content: 'superseded confidential text',
+      },
+      {
+        id: chunk2Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version2Id,
+        vaultId: ids.vaultId,
+        chunkIndex: 0,
+        chunkKey: 'chunk-0',
+        content: 'current public text',
+      },
+    ]);
+
+    await db.insert(documentChunkAssetsTable).values([
+      {
+        id: asset1Id,
+        chunkId: chunk1Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version1Id,
+        vaultId: ids.vaultId,
+        assetType: 'table',
+        inlinePayload: '<table><tr><td>old</td></tr></table>',
+      },
+      {
+        id: asset2Id,
+        chunkId: chunk2Id,
+        documentId: ids.documentId,
+        documentVersionId: ids.version2Id,
+        vaultId: ids.vaultId,
+        assetType: 'table',
+        inlinePayload: '<table><tr><td>current</td></tr></table>',
+      },
+    ]);
+
+    await expect(
+      services.listDocumentChunks({
+        vaultId: ids.vaultId,
+        documentId: ids.documentId,
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: chunk2Id,
+        content: 'current public text',
+      },
+    ]);
+
+    await expect(
+      services.getChunkAsset({
+        vaultId: ids.vaultId,
+        chunkId: chunk1Id,
+        assetId: asset1Id,
+        documentVersionId: ids.version1Id,
+      }),
+    ).resolves.toMatchObject({
+      assetType: 'table',
+      inlinePayload: '<table><tr><td>old</td></tr></table>',
+    });
+
+    await expect(
+      services.getChunkAsset({
+        vaultId: ids.vaultId,
+        chunkId: chunk1Id,
+        assetId: asset1Id,
+      }),
+    ).resolves.toBeNull();
+
+    await expect(
+      services.getChunkAsset({
+        vaultId: ids.vaultId,
+        chunkId: chunk2Id,
+        assetId: asset2Id,
+      }),
+    ).resolves.toMatchObject({
+      assetType: 'table',
+      inlinePayload: '<table><tr><td>current</td></tr></table>',
+    });
+  });
+
+  test('clears denormalized parser fields when creating a pending current version', async () => {
+    const { db, services, ids } = await createVersionedFixture({ testName: 'current_pending_clear' });
+
+    await db
+      .update(documentsTable)
+      .set({
+        content: 'old extracted text',
+        rawText: 'old raw text',
+        rawMarkdown: 'old markdown',
+        parserStructuredOutput: { old: true },
+        language: {
+          code: 'en',
+          name: 'English',
+          source: 'heuristic',
+        },
+        parserEngine: 'docling',
+        parserEngineVersion: 'old',
+        parserWarnings: ['old warning'],
+      })
+      .where(eq(documentsTable.id, ids.documentId));
+
+    const version = await services.createDocumentVersion({
+      documentId: ids.documentId,
+      vaultId: ids.vaultId,
+      uploadedBy: ids.userId,
+      originalName: 'report-v3.pdf',
+      originalSize: 300,
+      originalStorageKey: `${ids.vaultId}/pending-v3`,
+      originalSha256Hash: 'pending-v3-hash',
+      mimeType: 'application/pdf',
+      processingStatus: 'pending',
+      makeCurrent: true,
+    });
+
+    expect(version).not.toBeNull();
+
+    const [document] = await db
+      .select({
+        currentVersionId: documentsTable.currentVersionId,
+        content: documentsTable.content,
+        rawText: documentsTable.rawText,
+        rawMarkdown: documentsTable.rawMarkdown,
+        parserStructuredOutput: documentsTable.parserStructuredOutput,
+        language: documentsTable.language,
+        parserEngine: documentsTable.parserEngine,
+        parserEngineVersion: documentsTable.parserEngineVersion,
+        parserWarnings: documentsTable.parserWarnings,
+      })
+      .from(documentsTable)
+      .where(eq(documentsTable.id, ids.documentId))
+      .limit(1);
+
+    expect(document).toMatchObject({
+      currentVersionId: version?.id,
+      content: '',
+      rawText: '',
+      rawMarkdown: '',
+      parserStructuredOutput: null,
+      language: null,
+      parserEngine: null,
+      parserEngineVersion: null,
+      parserWarnings: null,
+    });
+  });
+
+  test('restores a completed historical version as a new current version with copied chunks and assets', async () => {
+    const { db, services, ids } = await createVersionedFixture({ testName: 'restore_version' });
+    const sourceChunkId = `chk_${uniquePrefix}_restore_version_v1`;
+    const sourceAssetId = `cas_${uniquePrefix}_restore_version_v1`;
+
+    await db
+      .update(documentVersionsTable)
+      .set({
+        content: 'version one content',
+        rawText: 'version one raw',
+        rawMarkdown: '# Version one',
+        parserStructuredOutput: { document: 'v1' },
+        parserEngine: 'docling',
+        parserEngineVersion: '1.0.0',
+        parserWarnings: ['warn'],
+      })
+      .where(eq(documentVersionsTable.id, ids.version1Id));
+    await db.insert(documentChunksTable).values({
+      id: sourceChunkId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      vaultId: ids.vaultId,
+      chunkIndex: 0,
+      chunkKey: 'chunk-0',
+      content: 'version one chunk',
+      contentSha256: 'chunk-hash-v1',
+      citationPrecision: 'page',
+      pageStart: 1,
+      pageEnd: 1,
+    });
+    await db.insert(documentChunkAssetsTable).values({
+      id: sourceAssetId,
+      chunkId: sourceChunkId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      vaultId: ids.vaultId,
+      assetType: 'table',
+      inlinePayload: '<table><tr><td>v1</td></tr></table>',
+    });
+
+    const result = await services.restoreDocumentVersion({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      restoredBy: ids.userId,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      return;
+    }
+    expect(result.documentVersion).toMatchObject({
+      documentId: ids.documentId,
+      vaultId: ids.vaultId,
+      versionNumber: 3,
+      restoredFromVersionId: ids.version1Id,
+      isCurrent: true,
+      content: 'version one content',
+      rawMarkdown: '# Version one',
+      parserStructuredOutput: { document: 'v1' },
+    });
+
+    const restoredChunks = await db
+      .select()
+      .from(documentChunksTable)
+      .where(eq(documentChunksTable.documentVersionId, result.documentVersion.id));
+    expect(restoredChunks).toHaveLength(1);
+    expect(restoredChunks[0]).toMatchObject({
+      documentId: ids.documentId,
+      vaultId: ids.vaultId,
+      chunkIndex: 0,
+      content: 'version one chunk',
+      contentSha256: 'chunk-hash-v1',
+    });
+    expect(restoredChunks[0]?.id).not.toBe(sourceChunkId);
+
+    const restoredAssets = await db
+      .select()
+      .from(documentChunkAssetsTable)
+      .where(eq(documentChunkAssetsTable.documentVersionId, result.documentVersion.id));
+    expect(restoredAssets).toHaveLength(1);
+    expect(restoredAssets[0]).toMatchObject({
+      chunkId: restoredChunks[0]?.id,
+      inlinePayload: '<table><tr><td>v1</td></tr></table>',
+    });
+
+    await expect(
+      services.resolveLatestDocumentVersion({
+        vaultId: ids.vaultId,
+        documentId: ids.documentId,
+      }),
+    ).resolves.toMatchObject({ id: result.documentVersion.id, versionNumber: 3 });
+  });
+
+  test('deletes only unreferenced historical versions and clears source-derived rows', async () => {
+    const { db, services, ids } = await createVersionedFixture({ testName: 'delete_version' });
+    const sourceChunkId = `chk_${uniquePrefix}_delete_version_v1`;
+    const sourceAssetId = `cas_${uniquePrefix}_delete_version_v1`;
+
+    await db.insert(documentChunksTable).values({
+      id: sourceChunkId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      vaultId: ids.vaultId,
+      chunkIndex: 0,
+      chunkKey: 'chunk-0',
+      content: 'historical chunk',
+    });
+    await db.insert(documentChunkAssetsTable).values({
+      id: sourceAssetId,
+      chunkId: sourceChunkId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      vaultId: ids.vaultId,
+      assetType: 'table',
+      inlinePayload: '<table><tr><td>old</td></tr></table>',
+    });
+
+    const current = await services.deleteDocumentVersion({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version2Id,
+      deletedBy: ids.userId,
+    });
+    expect(current).toEqual({ success: false, reason: 'current_version' });
+
+    const result = await services.deleteDocumentVersion({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      deletedBy: ids.userId,
+    });
+    expect(result.success).toBe(true);
+
+    const [version] = await db
+      .select()
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.id, ids.version1Id));
+    expect(version).toMatchObject({
+      content: '',
+      rawText: '',
+      rawMarkdown: '',
+      parserStructuredOutput: null,
+      deletedBy: ids.userId,
+    });
+    expect(version?.deletedAt).toBeInstanceOf(Date);
+
+    await expect(
+      db.select().from(documentChunksTable).where(eq(documentChunksTable.documentVersionId, ids.version1Id)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      db.select().from(documentChunkAssetsTable).where(eq(documentChunkAssetsTable.documentVersionId, ids.version1Id)),
+    ).resolves.toHaveLength(0);
+  });
+
+  test('blocks individual historical version deletion when chat manifests reference it', async () => {
+    const { db, services, ids } = await createVersionedFixture({ testName: 'delete_version_referenced' });
+    const conversationId = `cht_${uniquePrefix}_delete_version_referenced`;
+
+    await db.insert(chatConversationsTable).values({
+      id: conversationId,
+      vaultId: ids.vaultId,
+      userId: ids.userId,
+      scope: 'document',
+      documentId: ids.documentId,
+      contextSnapshot: {
+        type: 'document',
+        vaultId: ids.vaultId,
+        documentId: ids.documentId,
+      },
+      contextFrozenAt: new Date(),
+      title: 'Referenced version chat',
+    });
+    await db.insert(chatConversationDocumentVersionsTable).values({
+      conversationId,
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      includedBy: 'document',
+    });
+
+    await expect(
+      services.deleteDocumentVersion({
+        vaultId: ids.vaultId,
+        documentId: ids.documentId,
+        documentVersionId: ids.version1Id,
+        deletedBy: ids.userId,
+      }),
+    ).resolves.toEqual({
+      success: false,
+      reason: 'referenced',
+      referenceCount: 1,
+    });
+  });
 
   test('restores into an existing hierarchy', async () => {
     const { services, ids } = await createFixture({
@@ -368,5 +1124,226 @@ describe.sequential('document restore folder hierarchy', () => {
     await expect(getFolder(ids.projectsId)).resolves.toMatchObject({ isDeleted: true });
     await expect(getFolder(ids.yearId)).resolves.toMatchObject({ isDeleted: true });
     await expect(getFolder(ids.contractsId)).resolves.toMatchObject({ isDeleted: true });
+  });
+
+  test('creates initial upload versions and reports same-name conflicts', async () => {
+    if (database === null) {
+      throw new Error('Database not initialized');
+    }
+
+    const db = database.db;
+    const userId = `usr_${uniquePrefix}_upload_conflict`;
+    const vaultId = `vlt_${uniquePrefix}_upload_conflict`;
+    createdUserIds.push(userId);
+
+    await db.insert(usersTable).values({
+      id: userId,
+      email: `${uniquePrefix}-upload-conflict@example.com`,
+      name: 'Upload Conflict Tester',
+    });
+    await db.insert(vaultsTable).values({
+      id: vaultId,
+      name: 'Upload Conflict',
+      createdBy: userId,
+    });
+
+    const storageWrites = new Map<string, Buffer>();
+    const services = createDocumentsServices({
+      db,
+      storage: {
+        read: async key => storageWrites.get(key) ?? Buffer.from(''),
+        write: async (key, data) => {
+          storageWrites.set(key, data);
+        },
+        remove: async key => {
+          storageWrites.delete(key);
+        },
+        exists: async key => storageWrites.has(key),
+      },
+      encryption: createEncryptionServices({ kekKeysRaw: undefined }),
+    });
+
+    const first = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('first-version'),
+    });
+
+    expect(first).toMatchObject({
+      duplicate: false,
+      skipped: false,
+      documentVersion: {
+        versionNumber: 1,
+        originalName: 'report.pdf',
+      },
+    });
+    expect(first.document?.currentVersionId).toBe(first.documentVersion?.id);
+    expect(first.documentVersion?.originalStorageKey).toBe(`${vaultId}/${first.documentVersion?.id}`);
+    expect(storageWrites.has(first.documentVersion?.originalStorageKey ?? '')).toBe(true);
+
+    const conflict = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('second-version'),
+    });
+
+    expect(conflict).toMatchObject({
+      duplicate: true,
+      existingId: first.document?.id,
+      duplicateScope: 'active',
+      conflictType: 'name',
+    });
+
+    const hashConflict = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'duplicate-name.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('first-version'),
+    });
+
+    expect(hashConflict).toMatchObject({
+      duplicate: true,
+      existingId: first.document?.id,
+      duplicateScope: 'active',
+      conflictType: 'hash',
+    });
+
+    const skippedHash = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'duplicate-name.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('first-version'),
+      conflictStrategy: 'skip',
+    });
+
+    expect(skippedHash).toMatchObject({
+      duplicate: false,
+      skipped: true,
+      existingId: first.document?.id,
+      conflictType: 'hash',
+    });
+  });
+
+  test('resolves upload conflicts with skip, keep_both, and new_version', async () => {
+    if (database === null) {
+      throw new Error('Database not initialized');
+    }
+
+    const db = database.db;
+    const userId = `usr_${uniquePrefix}_upload_strategy`;
+    const vaultId = `vlt_${uniquePrefix}_upload_strategy`;
+    createdUserIds.push(userId);
+
+    await db.insert(usersTable).values({
+      id: userId,
+      email: `${uniquePrefix}-upload-strategy@example.com`,
+      name: 'Upload Strategy Tester',
+    });
+    await db.insert(vaultsTable).values({
+      id: vaultId,
+      name: 'Upload Strategy',
+      createdBy: userId,
+    });
+
+    const storageWrites = new Map<string, Buffer>();
+    const services = createDocumentsServices({
+      db,
+      storage: {
+        read: async key => storageWrites.get(key) ?? Buffer.from(''),
+        write: async (key, data) => {
+          storageWrites.set(key, data);
+        },
+        remove: async key => {
+          storageWrites.delete(key);
+        },
+        exists: async key => storageWrites.has(key),
+      },
+      encryption: createEncryptionServices({ kekKeysRaw: undefined }),
+    });
+
+    const first = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('first-version'),
+    });
+    const firstDocumentId = first.document?.id;
+    expect(firstDocumentId).toBeTruthy();
+
+    const skipped = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('skip-version'),
+      conflictStrategy: 'skip',
+    });
+
+    expect(skipped).toMatchObject({
+      duplicate: false,
+      skipped: true,
+      existingId: firstDocumentId,
+      conflictType: 'name',
+    });
+
+    const keepBoth = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('keep-both-version'),
+      conflictStrategy: 'keep_both',
+    });
+
+    expect(keepBoth).toMatchObject({
+      duplicate: false,
+      skipped: false,
+      document: {
+        originalName: 'report (1).pdf',
+        name: 'report (1).pdf',
+      },
+      documentVersion: {
+        versionNumber: 1,
+        originalName: 'report.pdf',
+      },
+    });
+    expect(keepBoth.document?.id).not.toBe(firstDocumentId);
+
+    const newVersion = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('new-version'),
+      conflictStrategy: 'new_version',
+    });
+
+    expect(newVersion).toMatchObject({
+      duplicate: false,
+      skipped: false,
+      document: {
+        id: firstDocumentId,
+        currentVersionId: newVersion.documentVersion?.id,
+      },
+      documentVersion: {
+        documentId: firstDocumentId,
+        versionNumber: 2,
+        originalName: 'report.pdf',
+      },
+    });
+
+    const versions = await db
+      .select()
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.documentId, firstDocumentId!));
+
+    expect(versions).toHaveLength(2);
   });
 });

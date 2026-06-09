@@ -41,6 +41,45 @@ export interface DocumentDetail extends DocumentSummary {
   language: DocumentLanguageMetadata | null;
 }
 
+export interface DocumentVersionSummary {
+  id: string;
+  documentId: string;
+  vaultId: string;
+  versionNumber: number;
+  isCurrent: boolean;
+  uploadedBy: string | null;
+  uploadedAt: string;
+  originalName: string;
+  originalSize: number;
+  originalSha256Hash: string;
+  mimeType: string;
+  language: DocumentLanguageMetadata | null;
+  parserEngine: string | null;
+  parserEngineVersion: string | null;
+  parserWarnings: string[] | null;
+  processingStatus: DocumentSummary['processingStatus'];
+  restoredFromVersionId: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  document: {
+    id: string;
+    vaultId: string;
+    name: string;
+    folderId: string | null;
+    currentVersionId: string | null;
+    isDeleted: boolean;
+    deletedAt: string | null;
+  };
+}
+
+export interface DocumentVersionDetail extends DocumentVersionSummary {
+  content: string;
+  rawText: string;
+  rawMarkdown: string;
+  parserStructuredOutput: Record<string, unknown> | null;
+}
+
 export interface DocumentChunkSummary {
   id: string;
   chunkIndex: number;

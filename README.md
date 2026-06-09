@@ -36,7 +36,7 @@ The core platform is already usable, but deployment, documentation, and operatio
 
 - Organize documents into vaults
 - Vault members, roles, and permission management
-- Upload, preview, download, restore, and trash workflows
+- Upload, preview, download, document version history, restore, and trash workflows
 - Full-text search by default, with semantic search when an embedding index is enabled
 - Optional chat with documents, vaults, or your entire library using the configured Ollama-compatible chat endpoint
 - Docling-based document parsing and ingestion without an AI dependency
@@ -75,7 +75,7 @@ Local URLs:
 - Web: http://localhost:5173
 - API: http://localhost:1221
 
-PostgreSQL and Docling are enough for uploads, parsing, document management, and keyword search. Ollama is optional; configure it from the admin AI settings when you want local chat, translation, or semantic indexing.
+PostgreSQL and Docling are enough for uploads, parsing, document management, document version history, and keyword search. Ollama is optional; configure it from the admin AI settings when you want local chat, translation, or semantic indexing.
 
 ---
 
@@ -113,7 +113,7 @@ The repository is organized around these public surfaces:
 
 Arkivra encrypts uploaded files and extracted assets at rest.
 
-Search and chat features require derived data to be stored in PostgreSQL, including extracted text, chunks, chat history, and related metadata. Embeddings and vectors are stored only when AI indexing is configured and run.
+Search and chat features require derived data to be stored in PostgreSQL, including document version metadata, extracted text, chunks, chat history, version-pinned chat manifests, citations, and related metadata. Embeddings and vectors are stored only when AI indexing is configured and run.
 
 Arkivra is not designed as a zero-knowledge or end-to-end encrypted vault.
 

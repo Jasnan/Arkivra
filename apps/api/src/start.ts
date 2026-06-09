@@ -159,6 +159,7 @@ export async function startApp() {
     const embeddingIndexWorker = createEmbeddingIndexWorker({
       db,
       appInstance: config.app.instance,
+      adminAiServices,
       embeddingProviders: {
         ollama: createOllamaEmbeddingProvider({
           batchSize: config.ollama.embeddingBatchSize,

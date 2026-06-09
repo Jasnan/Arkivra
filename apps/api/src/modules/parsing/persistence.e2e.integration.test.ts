@@ -13,6 +13,7 @@ import * as schema from '../database/schema/index.js';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
+  documentVersionsTable,
   documentsTable,
   usersTable,
   vaultsTable,
@@ -107,6 +108,8 @@ describe.sequential('persistParsedDocument integration', () => {
     const userId = `usr_${Math.random().toString(36).slice(2, 10)}`;
     const vaultId = `vlt_${Math.random().toString(36).slice(2, 10)}`;
     const documentId = `doc_${Math.random().toString(36).slice(2, 10)}`;
+    const version1Id = `dvr_${Math.random().toString(36).slice(2, 10)}`;
+    const version2Id = `dvr_${Math.random().toString(36).slice(2, 10)}`;
 
     await db.insert(usersTable).values({
       id: userId,
@@ -131,6 +134,25 @@ describe.sequential('persistParsedDocument integration', () => {
       name: 'paper.pdf',
       mimeType: 'application/pdf',
     });
+
+    await db.insert(documentVersionsTable).values({
+      id: version1Id,
+      documentId,
+      vaultId,
+      versionNumber: 1,
+      uploadedBy: userId,
+      originalName: 'paper.pdf',
+      originalSize: 0,
+      originalStorageKey: `${vaultId}/${version1Id}`,
+      originalSha256Hash: 'sha-test',
+      mimeType: 'application/pdf',
+      processingStatus: 'queued',
+    });
+
+    await db
+      .update(documentsTable)
+      .set({ currentVersionId: version1Id })
+      .where(eq(documentsTable.id, documentId));
 
     const tableHtml = '<table><tr><th>BLEU</th><th>EN-DE</th></tr><tr><td>28.4</td><td>0.05</td></tr></table>';
     const imageBytes = Buffer.from('original-image-bytes');
@@ -216,6 +238,7 @@ describe.sequential('persistParsedDocument integration', () => {
       storage,
       encryption,
       documentId,
+      documentVersionId: version1Id,
       vaultId,
       parsed,
     });
@@ -228,9 +251,17 @@ describe.sequential('persistParsedDocument integration', () => {
       .select()
       .from(documentsTable)
       .where(eq(documentsTable.id, documentId));
+    const versionRows = await db
+      .select()
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.id, version1Id));
 
     expect(chunkRows).toHaveLength(1);
     expect(documentRows).toHaveLength(1);
+    expect(versionRows).toHaveLength(1);
+    expect(versionRows[0]?.rawText).toBe('BLEU 28.4 on EN-DE.');
+    expect(versionRows[0]?.rawMarkdown).toBe('# Results\n\nBLEU 28.4 on EN-DE.');
+    expect(versionRows[0]?.processingStatus).toBe('completed');
     expect(documentRows[0]?.rawText).toBe('BLEU 28.4 on EN-DE.');
     expect(documentRows[0]?.rawMarkdown).toBe('# Results\n\nBLEU 28.4 on EN-DE.');
     expect(documentRows[0]?.parserStructuredOutput).toEqual({
@@ -239,6 +270,8 @@ describe.sequential('persistParsedDocument integration', () => {
     });
     expect(documentRows[0]?.language).toEqual(parsed.language);
     const chunkRow = chunkRows[0]!;
+    expect(chunkRow.documentVersionId).toBe(version1Id);
+    expect(chunkRow.contentSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(chunkRow.section).toBe('Results');
     expect(chunkRow.sectionPath).toEqual(['Financial Statements', 'Results']);
     expect(chunkRow.pageStart).toBe(2);
@@ -275,10 +308,12 @@ describe.sequential('persistParsedDocument integration', () => {
       throw new Error('expected an image asset row');
     }
     expect(imageRow.chunkId).toBe(chunkRow.id);
+    expect(imageRow.documentVersionId).toBe(version1Id);
     expect(imageRow.vaultId).toBe(vaultId);
     expect(imageRow.mimeType).toBe('image/png');
     expect(imageRow.byteSize).toBe(imageBytes.length);
     expect(imageRow.storageKey).not.toBeNull();
+    expect(imageRow.storageKey).toContain(`chunks/${version1Id}/`);
     expect(imageRow.inlinePayload).toBeNull();
     expect(imageRow.sourceElementId).toBe('el-4');
     expect(imageRow.fileEncryptionKeyWrapped).not.toBeNull();
@@ -316,6 +351,7 @@ describe.sequential('persistParsedDocument integration', () => {
       storage,
       encryption,
       documentId,
+      documentVersionId: version1Id,
       vaultId,
       parsed,
     });
@@ -331,6 +367,63 @@ describe.sequential('persistParsedDocument integration', () => {
 
     expect(reChunks).toHaveLength(1);
     expect(reAssets).toHaveLength(3);
+
+    await db.insert(documentVersionsTable).values({
+      id: version2Id,
+      documentId,
+      vaultId,
+      versionNumber: 2,
+      uploadedBy: userId,
+      originalName: 'paper-v2.pdf',
+      originalSize: 0,
+      originalStorageKey: `${vaultId}/${version2Id}`,
+      originalSha256Hash: 'sha-test-v2',
+      mimeType: 'application/pdf',
+      processingStatus: 'queued',
+    });
+
+    await db
+      .update(documentsTable)
+      .set({ currentVersionId: version2Id })
+      .where(eq(documentsTable.id, documentId));
+
+    await persistParsedDocument({
+      db,
+      storage,
+      encryption,
+      documentId,
+      documentVersionId: version2Id,
+      vaultId,
+      parsed: {
+        ...parsed,
+        text: 'Version two text.',
+        rawText: 'Version two raw text.',
+        chunks: [
+          {
+            ...parsed.chunks[0]!,
+            id: `${documentId}:v2:0`,
+            text: 'Version two text.',
+            originalText: 'Version two text.',
+            images: [],
+            tablesHtml: [],
+          },
+        ],
+      },
+    });
+
+    const v1Chunks = await db
+      .select()
+      .from(documentChunksTable)
+      .where(eq(documentChunksTable.documentVersionId, version1Id));
+    const v2Chunks = await db
+      .select()
+      .from(documentChunksTable)
+      .where(eq(documentChunksTable.documentVersionId, version2Id));
+
+    expect(v1Chunks).toHaveLength(1);
+    expect(v1Chunks[0]?.content).toBe('BLEU 28.4 on EN-DE.');
+    expect(v2Chunks).toHaveLength(1);
+    expect(v2Chunks[0]?.content).toBe('Version two text.');
   });
 
 });

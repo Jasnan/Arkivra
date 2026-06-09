@@ -13,22 +13,43 @@ const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
 const PUBLIC_TABLES_IN_RESTORE_ORDER = [
   'users',
+  'instance_settings',
+  'user_ui_preferences',
   'system_capabilities',
+  'auth_sessions',
+  'auth_accounts',
+  'auth_verifications',
+  'auth_two_factor',
   'vaults',
   'vault_members',
+  'vault_folders',
   'ai_provider_configs',
   'embedding_indexes',
   'permission_requests',
   'email_invitations',
   'documents',
+  'document_versions',
+  'upload_sessions',
   'document_chunks',
+  'document_chunk_assets',
   'document_chunk_embeddings',
   'document_embedding_index_status',
   'tags',
   'document_tags',
-  'auth_accounts',
-  'auth_two_factor',
+  'chat_conversations',
+  'chat_messages',
+  'chat_conversation_document_versions',
+  'chat_message_citations',
+  'audit_events',
+  'activity_events',
+  'background_jobs',
 ] as const;
+
+const DEFERRED_RESTORE_COLUMNS: Record<string, string[]> = {
+  documents: ['current_version_id'],
+  document_versions: ['restored_from_version_id'],
+  vault_folders: ['parent_id'],
+};
 
 type BackupWorkerDeps = {
   backupDirectory: string;
@@ -107,6 +128,7 @@ async function dumpDatabaseSql({ pool }: { pool: Pool }) {
   let sqlText = 'BEGIN;\n';
   sqlText += 'CREATE EXTENSION IF NOT EXISTS vector;\n';
   sqlText += `TRUNCATE ${PUBLIC_TABLES_IN_RESTORE_ORDER.map(sqlIdentifier).join(', ')} RESTART IDENTITY CASCADE;\n`;
+  const deferredUpdates: string[] = [];
 
   for (const tableName of PUBLIC_TABLES_IN_RESTORE_ORDER) {
     const columnResult = await pool.query(
@@ -122,8 +144,10 @@ async function dumpDatabaseSql({ pool }: { pool: Pool }) {
     );
 
     const columns = columnResult.rows.map((row) => row.column_name as string);
+    const deferredColumns = DEFERRED_RESTORE_COLUMNS[tableName] ?? [];
+    const insertColumns = columns.filter(column => !deferredColumns.includes(column));
 
-    if (columns.length === 0) {
+    if (insertColumns.length === 0) {
       continue;
     }
 
@@ -135,14 +159,29 @@ async function dumpDatabaseSql({ pool }: { pool: Pool }) {
       continue;
     }
 
-    const columnList = columns.map(sqlIdentifier).join(', ');
+    const columnList = insertColumns.map(sqlIdentifier).join(', ');
 
     for (const row of result.rows) {
-      const values = columns
+      const values = insertColumns
         .map((column) => sqlLiteral((row as Record<string, unknown>)[column]))
         .join(', ');
       sqlText += `INSERT INTO ${sqlIdentifier(tableName)} (${columnList}) VALUES (${values});\n`;
+
+      const rowValues = row as Record<string, unknown>;
+      const deferredAssignments = deferredColumns
+        .filter(column => rowValues[column] !== null && rowValues[column] !== undefined)
+        .map(column => `${sqlIdentifier(column)} = ${sqlLiteral(rowValues[column])}`);
+
+      if (deferredAssignments.length > 0 && typeof rowValues.id === 'string') {
+        deferredUpdates.push(
+          `UPDATE ${sqlIdentifier(tableName)} SET ${deferredAssignments.join(', ')} WHERE "id" = ${sqlLiteral(rowValues.id)};`,
+        );
+      }
     }
+  }
+
+  if (deferredUpdates.length > 0) {
+    sqlText += `${deferredUpdates.join('\n')}\n`;
   }
 
   sqlText += 'COMMIT;\n';
@@ -156,10 +195,18 @@ async function verifyRestoredFiles({
   pool: Pool;
   storageBasePath: string;
 }) {
-  const result = await pool.query('SELECT original_storage_key FROM documents');
+  const result = await pool.query(`
+    SELECT original_storage_key AS storage_key
+    FROM document_versions
+    WHERE original_storage_key IS NOT NULL
+    UNION
+    SELECT storage_key
+    FROM document_chunk_assets
+    WHERE storage_key IS NOT NULL
+  `);
 
   for (const row of result.rows) {
-    const key = row.original_storage_key as string;
+    const key = row.storage_key as string;
     await readFile(join(storageBasePath, key));
   }
 }

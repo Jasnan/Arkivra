@@ -24,9 +24,11 @@ Use this checklist for security reviews, PR review, and release audits. Prioriti
 
 - [ ] Documents are listed only from vaults the caller can access.
 - [ ] Preview, download, restore, trash, and permanent-delete actions enforce vault access.
+- [ ] Document version list, detail, download, preview, restore, and delete routes enforce the logical document's vault boundary.
 - [ ] Folder and tag operations enforce vault access.
 - [ ] Search filters enforce vault access.
 - [ ] Chat/RAG context is built only from authorized vault/document scope.
+- [ ] Chat/RAG context remains pinned to authorized document versions after the first accepted user message.
 - [ ] Admin views do not leak document contents unless explicitly authorized.
 - [ ] Tests cover negative access cases.
 
@@ -38,7 +40,7 @@ Use this checklist for security reviews, PR review, and release audits. Prioriti
 - [ ] Paths cannot escape staging or storage roots.
 - [ ] MIME type, extension, size, and content assumptions are validated or documented.
 - [ ] Failed uploads clean up staging files.
-- [ ] Duplicate and restore behavior cannot overwrite unauthorized content.
+- [ ] Duplicate, new-version, and restore behavior cannot overwrite unauthorized content.
 
 ## File Storage and Encryption-at-Rest Claims
 
@@ -64,6 +66,8 @@ Use this checklist for security reviews, PR review, and release audits. Prioriti
 - [ ] Chat uses permission-aware document/search services.
 - [ ] Context selection cannot cross unauthorized vault boundaries.
 - [ ] Semantic search respects the same filters as full-text search.
+- [ ] Current-version search does not leak historical chunks by default.
+- [ ] Explicit version-pinned retrieval cannot cross vault boundaries through supplied document version IDs.
 - [ ] Chat history ownership is enforced.
 - [ ] Prompt/context logs do not expose sensitive document contents unless deliberately enabled and redacted.
 - [ ] Tests cover inaccessible vaults/documents in RAG.
@@ -125,6 +129,7 @@ Use this checklist for security reviews, PR review, and release audits. Prioriti
 - [ ] Security-relevant actions emit audit events.
 - [ ] User-facing activity is not treated as a security audit substitute.
 - [ ] Audit metadata is redacted.
+- [ ] Version lifecycle audit metadata excludes extracted text, snippets, embeddings, provider payloads, and encryption keys.
 - [ ] Logs do not contain secrets, tokens, provider keys, or raw document contents.
 - [ ] Failed sensitive actions are recorded where appropriate.
 

@@ -11,7 +11,13 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createAuth } from '../../auth/auth.services.js';
 import { parseConfig } from '../../config/config.js';
 import { setupDatabase } from '../../database/database.js';
-import { documentChunksTable, documentsTable, usersTable, vaultsTable } from '../../database/schema/index.js';
+import {
+  documentChunksTable,
+  documentVersionsTable,
+  documentsTable,
+  usersTable,
+  vaultsTable,
+} from '../../database/schema/index.js';
 import { createEncryptionServices } from '../../encryption/encryption.services.js';
 import { createServer } from '../../server/server.js';
 import { createStorageDriver } from '../../storage/storage.services.js';
@@ -197,8 +203,9 @@ describe.sequential('backups e2e', () => {
     const createVaultBody = await createVaultResponse.json() as { vault: { id: string } };
     vaultId = createVaultBody.vault.id;
     documentId = `doc_backup_${uniqueSuffix}`;
+    const documentVersionId = `dvr_backup_${uniqueSuffix}`;
 
-    const storageKey = `${vaultId}/${documentId}`;
+    const storageKey = `${vaultId}/${documentVersionId}`;
     await mkdir(join(storagePath, vaultId), { recursive: true });
     await writeFile(join(storagePath, storageKey), Buffer.from('backup-file'));
 
@@ -215,8 +222,29 @@ describe.sequential('backups e2e', () => {
       content: 'Backed up content',
     });
 
+    await db.insert(documentVersionsTable).values({
+      id: documentVersionId,
+      documentId,
+      vaultId,
+      versionNumber: 1,
+      uploadedBy: userId,
+      originalName: 'backup.pdf',
+      originalSize: 11,
+      originalStorageKey: storageKey,
+      originalSha256Hash: `sha-${uniqueSuffix}`,
+      mimeType: 'application/pdf',
+      content: 'Backed up content',
+      processingStatus: 'completed',
+    });
+
+    await db
+      .update(documentsTable)
+      .set({ currentVersionId: documentVersionId })
+      .where(eq(documentsTable.id, documentId));
+
     await db.insert(documentChunksTable).values({
       documentId,
+      documentVersionId,
       vaultId,
       chunkIndex: 0,
       chunkKey: `${documentId}:0`,
@@ -315,13 +343,50 @@ describe.sequential('backups e2e', () => {
     }
 
     const [restoredDocument] = await db
-      .select({ id: documentsTable.id, content: documentsTable.content })
+      .select({
+        id: documentsTable.id,
+        content: documentsTable.content,
+        currentVersionId: documentsTable.currentVersionId,
+      })
       .from(documentsTable)
       .where(eq(documentsTable.id, documentId))
       .limit(1);
 
+    const [restoredVersion] = await db
+      .select({
+        id: documentVersionsTable.id,
+        documentId: documentVersionsTable.documentId,
+        content: documentVersionsTable.content,
+        processingStatus: documentVersionsTable.processingStatus,
+      })
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.id, documentVersionId))
+      .limit(1);
+
+    const [restoredChunk] = await db
+      .select({
+        documentId: documentChunksTable.documentId,
+        documentVersionId: documentChunksTable.documentVersionId,
+        content: documentChunksTable.content,
+      })
+      .from(documentChunksTable)
+      .where(eq(documentChunksTable.documentVersionId, documentVersionId))
+      .limit(1);
+
     expect(restoredDocument?.id).toBe(documentId);
     expect(restoredDocument?.content).toBe('Backed up content');
+    expect(restoredDocument?.currentVersionId).toBe(documentVersionId);
+    expect(restoredVersion).toMatchObject({
+      id: documentVersionId,
+      documentId,
+      content: 'Backed up content',
+      processingStatus: 'completed',
+    });
+    expect(restoredChunk).toMatchObject({
+      documentId,
+      documentVersionId,
+      content: 'Backed up chunk',
+    });
     expect(await readFile(join(storagePath, storageKey), 'utf8')).toBe('backup-file');
   }, 30_000);
 });

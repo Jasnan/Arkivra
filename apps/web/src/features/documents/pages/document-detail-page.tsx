@@ -48,13 +48,16 @@ import { DocumentPreviewSection } from '@/features/documents/components/detail/d
 import type { DocumentPreviewKind } from '@/features/documents/components/detail/document-preview-section';
 import { DocumentViewHeader } from '@/features/documents/components/detail/document-view-header';
 import {
+  deleteDocumentVersion,
   getDocumentInlineFileUrl,
+  getDocumentVersionDownloadUrl,
   renameDocument,
   restoreDocument,
+  restoreDocumentVersion,
   softDeleteDocument,
   updateDocumentLanguage,
 } from '@/features/documents/documents.api';
-import type { DocumentLanguageMetadata } from '@/features/documents/documents.types';
+import type { DocumentLanguageMetadata, DocumentVersionSummary } from '@/features/documents/documents.types';
 import {
   documentQueryKeys,
   useDeletedDocumentsQuery,
@@ -62,6 +65,9 @@ import {
   useDocumentFileTextQuery,
   useDocumentQuery,
   useDocumentTagsQuery,
+  useDocumentVersionChunksQuery,
+  useDocumentVersionQuery,
+  useDocumentVersionsQuery,
 } from '@/features/documents/documents.queries';
 import {
   getDocumentProcessingStageDescription,
@@ -73,6 +79,7 @@ import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 import { DocumentActivityPanel } from '@/features/audit/components/document-activity-panel';
+import { DocumentVersionsDialog } from '@/features/documents/components/detail/document-versions-dialog';
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
 import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
@@ -232,6 +239,15 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [isLanguageEditing, setIsLanguageEditing] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
+  const documentVersionSelectionKey = `${vaultId}:${documentId}`;
+  const [selectedVersionState, setSelectedVersionState] = useState<{
+    key: string;
+    versionId: string | null;
+  }>({ key: documentVersionSelectionKey, versionId: null });
+  const selectedVersionId = selectedVersionState.key === documentVersionSelectionKey
+    ? selectedVersionState.versionId
+    : null;
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState('');
   const [isCreateTagDialogOpen, setIsCreateTagDialogOpen] = useState(false);
@@ -242,11 +258,35 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const canShowExtractedTextTab = showExtractedTextTab && !isTrashDocumentRoute;
   const detailActiveSection =
     section === 'content' && !canShowExtractedTextTab ? 'preview' : section;
+  const documentVersionsQuery = useDocumentVersionsQuery({
+    vaultId,
+    documentId,
+    enabled: !isTrashDocumentRoute,
+  });
+  const selectedDocumentVersionQuery = useDocumentVersionQuery({
+    vaultId,
+    documentId,
+    versionId: selectedVersionId ?? '',
+    enabled: selectedVersionId !== null && !isTrashDocumentRoute,
+  });
   const documentChunksQuery = useDocumentChunksQuery({
     vaultId,
     documentId,
     enabled:
-      detailActiveSection === 'content' && documentContentTab === 'chunks' && !isTrashDocumentRoute,
+      selectedVersionId === null &&
+      detailActiveSection === 'content' &&
+      documentContentTab === 'chunks' &&
+      !isTrashDocumentRoute,
+  });
+  const documentVersionChunksQuery = useDocumentVersionChunksQuery({
+    vaultId,
+    documentId,
+    versionId: selectedVersionId ?? '',
+    enabled:
+      selectedVersionId !== null &&
+      detailActiveSection === 'content' &&
+      documentContentTab === 'chunks' &&
+      !isTrashDocumentRoute,
   });
 
   const documentBreadcrumbFolders = useMemo(() => {
@@ -428,6 +468,32 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     },
   });
 
+  const restoreVersionMutation = useMutation({
+    mutationFn: restoreDocumentVersion,
+    onSuccess: async () => {
+      toast.success('Version restored as latest.');
+      setSelectedVersionState({ key: documentVersionSelectionKey, versionId: null });
+      await invalidateDocument();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not restore version.');
+    },
+  });
+
+  const deleteVersionMutation = useMutation({
+    mutationFn: deleteDocumentVersion,
+    onSuccess: async (_result, variables) => {
+      toast.success('Version deleted.');
+      if (selectedVersionId === variables.versionId) {
+        setSelectedVersionState({ key: documentVersionSelectionKey, versionId: null });
+      }
+      await invalidateDocument();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not delete version.');
+    },
+  });
+
   const assignTagMutation = useMutation({
     mutationFn: assignTagToDocument,
     onSuccess: async () => {
@@ -488,6 +554,33 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   }
 
   const document = documentQuery.data.document;
+  const selectedVersionSummary = selectedVersionId === null
+    ? null
+    : documentVersionsQuery.data?.versions.find((version) => version.id === selectedVersionId) ?? null;
+  const selectedVersionDetail = selectedDocumentVersionQuery.data?.version ?? null;
+  const selectedVersion = selectedVersionDetail ?? selectedVersionSummary;
+  const isHistoricalVersionSelected = selectedVersionId !== null;
+  const activeDocument = isHistoricalVersionSelected && selectedVersionDetail !== null
+    ? {
+        ...document,
+        originalName: selectedVersionDetail.originalName,
+        originalSize: selectedVersionDetail.originalSize,
+        originalSha256Hash: selectedVersionDetail.originalSha256Hash,
+        mimeType: selectedVersionDetail.mimeType,
+        processingStatus: selectedVersionDetail.processingStatus,
+        language: selectedVersionDetail.language,
+        content: selectedVersionDetail.content,
+        displayContent: selectedVersionDetail.rawMarkdown || selectedVersionDetail.content,
+        updatedAt: selectedVersionDetail.updatedAt,
+        isDeleted: document.isDeleted || selectedVersionDetail.deletedAt !== null,
+        deletedAt: document.deletedAt ?? selectedVersionDetail.deletedAt,
+      }
+    : document;
+  const activePreviewKind = getPreviewKind(
+    activeDocument.mimeType,
+    activeDocument.name,
+    activeDocument.originalName,
+  );
   const assignedTags = documentTagsQuery.data?.tags ?? [];
   const availableTags = (tagsQuery.data?.tags ?? []).filter(
     (tag) => !assignedTags.some((assigned) => assigned.id === tag.id),
@@ -520,8 +613,11 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     documentId,
     includeDeleted: isTrashDocumentRoute,
   });
-  const canPreview = (!document.isDeleted || isTrashDocumentRoute) && previewKind !== 'unsupported';
-  const canPrint = !document.isDeleted && canPreview && previewKind !== 'markdown';
+  const historicalDownloadUrl = selectedVersionId
+    ? getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: selectedVersionId })
+    : undefined;
+  const canPreview = (!activeDocument.isDeleted || isTrashDocumentRoute) && activePreviewKind !== 'unsupported';
+  const canPrint = !isHistoricalVersionSelected && !document.isDeleted && canPreview && activePreviewKind !== 'markdown';
   const currentName = renameValue ?? document.name;
   const currentLanguage = languageValue ?? document.language?.code ?? 'unknown';
   const hasNameChanged = currentName.trim() !== document.name;
@@ -539,22 +635,23 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     normalizedCreateTagName.length === 0 ||
     createTagMutation.isPending ||
     assignTagMutation.isPending;
-  const displayContent = document.displayContent ?? document.content;
+  const displayContent = activeDocument.displayContent ?? activeDocument.content;
   const fallbackMarkdownContent = displayContent;
   const extractionStageLabel = getDocumentProcessingStageLabel(
-    document.processingStatus,
+    activeDocument.processingStatus,
     displayContent,
   );
   const extractedTextMessage = getDocumentProcessingStageDescription(
-    document.processingStatus,
+    activeDocument.processingStatus,
     displayContent,
   );
   const extractionStatusDescription = getDocumentProcessingStageDescription(
-    document.processingStatus,
+    activeDocument.processingStatus,
     '',
   );
-  const isExtractionActive = isDocumentProcessingActive(document.processingStatus);
-  const showExtractionStatus = isExtractionActive || document.processingStatus === 'failed';
+  const isExtractionActive = isDocumentProcessingActive(activeDocument.processingStatus);
+  const showExtractionStatus = isExtractionActive || activeDocument.processingStatus === 'failed';
+  const activeChunksQuery = isHistoricalVersionSelected ? documentVersionChunksQuery : documentChunksQuery;
   const documentSectionSearch = routeSearch;
   const documentSectionMenuItems = !isTrashDocumentRoute
     ? [
@@ -756,6 +853,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
       isDeletePending={deleteMutation.isPending}
       onNavigateToSection={(route) => navigate({ to: route, search: documentSectionSearch })}
       onPrint={handlePrintClick}
+      onOpenVersionsDialog={() => setIsVersionsDialogOpen(true)}
       onRestore={() => {
         restoreMutation.mutate({ vaultId, documentId });
       }}
@@ -765,6 +863,24 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
 
   const documentTagControls = (
     <Flex flexWrap="wrap" align="center" gap="2" minW="0">
+      {isHistoricalVersionSelected ? (
+        <Flex
+          align="center"
+          rounded="full"
+          borderWidth="1px"
+          borderColor="orange.muted"
+          bg="orange.subtle"
+          px="3"
+          py="1"
+          fontSize="xs"
+          fontWeight="semibold"
+          color="orange.fg"
+        >
+          {selectedVersion
+            ? `Read-only historical v${selectedVersion.versionNumber}`
+            : 'Loading historical version'}
+        </Flex>
+      ) : null}
       {assignedTags.map((tag) => (
         <TagBadge
           key={tag.id}
@@ -958,7 +1074,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
       <DocumentViewHeader
         title={getDocumentTitle(document.name)}
         subtitle={documentTagControls}
-        mimeType={document.mimeType}
+        mimeType={activeDocument.mimeType}
         actions={documentActionMenu}
         onClose={closeDocumentDetail}
       />
@@ -966,10 +1082,10 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
       <Box flex="1" h="full" minH="0" pt={detailActiveSection === 'content' ? '3' : '6'}>
         {detailActiveSection === 'preview' ? (
           <DocumentPreviewSection
-            previewKind={previewKind}
+            previewKind={activePreviewKind}
             canPreview={canPreview}
             inlineFileUrl={inlineFileUrl}
-            document={document}
+            document={activeDocument}
             vaultId={vaultId}
             documentId={documentId}
             isTrashDocumentRoute={isTrashDocumentRoute}
@@ -978,22 +1094,24 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
             isMarkdownLoading={markdownSourceQuery.isLoading}
             isMarkdownError={markdownSourceQuery.isError}
             fallbackMarkdownContent={fallbackMarkdownContent}
+            isHistoricalVersion={isHistoricalVersionSelected}
+            historicalDownloadUrl={historicalDownloadUrl}
             onPrint={handlePrintClick}
           />
         ) : null}
 
         {detailActiveSection === 'content' ? (
           <DocumentContentSection
-            processingStatus={document.processingStatus}
+            processingStatus={activeDocument.processingStatus}
             showExtractionStatus={showExtractionStatus}
             extractionStageLabel={extractionStageLabel}
             extractionStatusDescription={extractionStatusDescription}
             extractedTextMessage={extractedTextMessage}
             documentContentTab={documentContentTab}
             onDocumentContentTabChange={setDocumentContentTab}
-            chunks={documentChunksQuery.data?.chunks ?? []}
-            isChunksLoading={documentChunksQuery.isLoading}
-            isChunksError={documentChunksQuery.isError}
+            chunks={activeChunksQuery.data?.chunks ?? []}
+            isChunksLoading={activeChunksQuery.isLoading}
+            isChunksError={activeChunksQuery.isError}
           />
         ) : null}
 
@@ -1076,6 +1194,29 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
           </ChakraDialog.Positioner>
         </Portal>
       </ChakraDialog.Root>
+
+      <DocumentVersionsDialog
+        open={isVersionsDialogOpen}
+        onOpenChange={setIsVersionsDialogOpen}
+        vaultId={vaultId}
+        documentId={documentId}
+        versions={documentVersionsQuery.data?.versions ?? []}
+        isLoading={documentVersionsQuery.isLoading}
+        isError={documentVersionsQuery.isError}
+        selectedVersionId={selectedVersionId}
+        isRestorePending={restoreVersionMutation.isPending}
+        isDeletePending={deleteVersionMutation.isPending}
+        onSelectVersion={(versionId) => {
+          setSelectedVersionState({ key: documentVersionSelectionKey, versionId });
+          setIsVersionsDialogOpen(false);
+        }}
+        onRestoreVersion={async (version: DocumentVersionSummary) => {
+          await restoreVersionMutation.mutateAsync({ vaultId, documentId, versionId: version.id });
+        }}
+        onDeleteVersion={async (version: DocumentVersionSummary) => {
+          await deleteVersionMutation.mutateAsync({ vaultId, documentId, versionId: version.id });
+        }}
+      />
 
       <TagDialog
         isOpen={isCreateTagDialogOpen}

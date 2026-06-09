@@ -21,6 +21,7 @@ type EmbeddingProviderRegistry = Partial<Record<EmbeddingProviderKind, Embedding
 
 type ChunkRow = {
   document_id: string;
+  document_version_id: string;
   vault_id: string;
   chunk_id: string | null;
   content: string | null;
@@ -40,6 +41,9 @@ type EmbeddedCountRow = {
 export type EmbeddingIndexWorkerDeps = {
   db: Database;
   embeddingProviders: EmbeddingProviderRegistry;
+  adminAiServices?: {
+    getSettings: () => Promise<{ aiFeaturesEnabled: boolean }>;
+  };
   appInstance?: string;
   concurrency?: number;
   startPolling?: boolean;
@@ -47,22 +51,28 @@ export type EmbeddingIndexWorkerDeps = {
 
 async function loadDocumentChunks({
   db,
-  documentId,
+  documentVersionId,
 }: {
   db: Database;
-  documentId: string;
+  documentVersionId: string;
 }) {
   const result = await db.execute<ChunkRow>(sql`
     SELECT
       d.id AS document_id,
-      d.vault_id,
+      dv.id AS document_version_id,
+      dv.vault_id,
       dc.id AS chunk_id,
       dc.content,
       dc.chunk_index
-    FROM documents AS d
-    LEFT JOIN document_chunks AS dc ON dc.document_id = d.id
-    WHERE d.id = ${documentId}
-      AND d.processing_status = 'completed'
+    FROM document_versions AS dv
+    INNER JOIN documents AS d ON d.id = dv.document_id
+      AND d.vault_id = dv.vault_id
+    LEFT JOIN document_chunks AS dc ON dc.document_version_id = dv.id
+      AND dc.document_id = d.id
+      AND dc.vault_id = dv.vault_id
+    WHERE dv.id = ${documentVersionId}
+      AND dv.processing_status = 'completed'
+      AND dv.deleted_at IS NULL
       AND d.is_deleted = false
     ORDER BY dc.chunk_index ASC, dc.id ASC
   `);
@@ -79,6 +89,7 @@ function toIndexableChunks(rows: ChunkRow[]) {
     return [{
       chunkId: row.chunk_id,
       documentId: row.document_id,
+      documentVersionId: row.document_version_id,
       vaultId: row.vault_id,
       content: row.content,
       contentSha256: hashEmbeddingContent(row.content),
@@ -110,18 +121,31 @@ function assertEmbeddingsMatchConfig({
 export async function indexDocumentForEmbedding({
   db,
   embeddingProviders,
+  adminAiServices,
   embeddingIndexId,
-  documentId,
+  documentVersionId,
 }: {
   db: Database;
   embeddingProviders: EmbeddingProviderRegistry;
+  adminAiServices?: {
+    getSettings: () => Promise<{ aiFeaturesEnabled: boolean }>;
+  };
   embeddingIndexId: string;
-  documentId: string;
+  documentVersionId: string;
 }) {
   const services = createEmbeddingIndexServices({ db });
   const config = await services.getEmbeddingIndexConfig({ embeddingIndexId });
   if (config === null || !['active', 'building'].includes(config.status)) {
     return { status: 'skipped' as const, reason: 'index_not_writable' };
+  }
+  if (!config.isEnabled) {
+    return { status: 'skipped' as const, reason: 'provider_config_disabled' };
+  }
+  if (adminAiServices !== undefined) {
+    const settings = await adminAiServices.getSettings();
+    if (!settings.aiFeaturesEnabled) {
+      return { status: 'skipped' as const, reason: 'ai_disabled' };
+    }
   }
 
   const provider = embeddingProviders[config.provider];
@@ -129,7 +153,7 @@ export async function indexDocumentForEmbedding({
     throw new Error(`No embedding provider is registered for ${config.provider}.`);
   }
 
-  const rows = await loadDocumentChunks({ db, documentId });
+  const rows = await loadDocumentChunks({ db, documentVersionId });
   if (rows.length === 0) {
     return { status: 'skipped' as const, reason: 'document_not_indexable' };
   }
@@ -143,7 +167,8 @@ export async function indexDocumentForEmbedding({
   if (chunks.length === 0) {
     await services.setDocumentIndexStatus({
       embeddingIndexId,
-      documentId,
+      documentId: firstRow.document_id,
+      documentVersionId,
       vaultId: firstRow.vault_id,
       status: 'skipped',
       expectedChunkCount: 0,
@@ -156,7 +181,8 @@ export async function indexDocumentForEmbedding({
 
   await services.setDocumentIndexStatus({
     embeddingIndexId,
-    documentId,
+    documentId: firstRow.document_id,
+    documentVersionId,
     vaultId: firstRow.vault_id,
     status: 'indexing',
     expectedChunkCount: chunks.length,
@@ -175,7 +201,7 @@ export async function indexDocumentForEmbedding({
     dimensions: config.dimensions,
   });
 
-  const latestChunks = toIndexableChunks(await loadDocumentChunks({ db, documentId }));
+  const latestChunks = toIndexableChunks(await loadDocumentChunks({ db, documentVersionId }));
   const latestHashes = new Map(latestChunks.map(chunk => [chunk.chunkId, chunk.contentSha256]));
   const chunksChanged = chunks.some(chunk => latestHashes.get(chunk.chunkId) !== chunk.contentSha256)
     || latestChunks.length !== chunks.length;
@@ -183,7 +209,8 @@ export async function indexDocumentForEmbedding({
   if (chunksChanged) {
     await services.setDocumentIndexStatus({
       embeddingIndexId,
-      documentId,
+      documentId: firstRow.document_id,
+      documentVersionId,
       vaultId: firstRow.vault_id,
       status: 'stale',
       expectedChunkCount: latestChunks.length,
@@ -204,6 +231,7 @@ export async function indexDocumentForEmbedding({
     chunks: chunks.map((chunk, index) => ({
       chunkId: chunk.chunkId,
       documentId: chunk.documentId,
+      documentVersionId: chunk.documentVersionId,
       vaultId: chunk.vaultId,
       content: chunk.content,
       embedding: embeddings[index]!,
@@ -212,7 +240,8 @@ export async function indexDocumentForEmbedding({
 
   await services.setDocumentIndexStatus({
     embeddingIndexId,
-    documentId,
+    documentId: firstRow.document_id,
+    documentVersionId,
     vaultId: firstRow.vault_id,
     status: 'ready',
     expectedChunkCount: chunks.length,
@@ -315,6 +344,7 @@ export async function finalizeEmbeddingIndex({
 export function createEmbeddingIndexWorker({
   db,
   embeddingProviders,
+  adminAiServices,
   appInstance,
   concurrency = 1,
   startPolling = true,
@@ -348,6 +378,16 @@ export function createEmbeddingIndexWorker({
     const services = createEmbeddingIndexServices({ db });
 
     if (job.name === EMBEDDING_INDEX_ORCHESTRATE_JOB) {
+      if (adminAiServices !== undefined) {
+        const settings = await adminAiServices.getSettings();
+        if (!settings.aiFeaturesEnabled) {
+          return {
+            skipped: true,
+            reason: 'ai_disabled',
+          };
+        }
+      }
+
       const config = await services.getEmbeddingIndexConfig({
         embeddingIndexId: job.data.embeddingIndexId,
       });
@@ -366,7 +406,7 @@ export function createEmbeddingIndexWorker({
       for (const [index, document] of documents.entries()) {
         await embeddingIndexQueue.enqueueDocumentIndexing({
           embeddingIndexId: job.data.embeddingIndexId,
-          documentId: document.documentId,
+          documentVersionId: document.documentVersionId,
         });
         await job.updateProgress(documents.length === 0 ? 50 : Math.round(((index + 1) / documents.length) * 80));
       }
@@ -384,8 +424,8 @@ export function createEmbeddingIndexWorker({
     }
 
     if (job.name === EMBEDDING_INDEX_DOCUMENT_JOB) {
-      if (job.data.documentId === undefined) {
-        throw new Error('Document indexing job is missing documentId.');
+      if (job.data.documentVersionId === undefined) {
+        throw new Error('Document indexing job is missing documentVersionId.');
       }
 
       let result: Awaited<ReturnType<typeof indexDocumentForEmbedding>>;
@@ -394,15 +434,16 @@ export function createEmbeddingIndexWorker({
         result = await indexDocumentForEmbedding({
           db,
           embeddingProviders,
+          adminAiServices,
           embeddingIndexId: job.data.embeddingIndexId,
-          documentId: job.data.documentId,
+          documentVersionId: job.data.documentVersionId,
         });
       } catch (error) {
         if (job.attempts >= job.maxAttempts) {
           const failureMessage = error instanceof Error ? error.message : 'Unknown embedding indexing failure.';
           await services.markDocumentIndexFailed({
             embeddingIndexId: job.data.embeddingIndexId,
-            documentId: job.data.documentId,
+            documentVersionId: job.data.documentVersionId,
             failureMessage,
           });
           await services.refreshEmbeddingIndexCounts({
@@ -427,6 +468,16 @@ export function createEmbeddingIndexWorker({
     }
 
     if (job.name === EMBEDDING_INDEX_FINALIZE_JOB) {
+      if (adminAiServices !== undefined) {
+        const settings = await adminAiServices.getSettings();
+        if (!settings.aiFeaturesEnabled) {
+          return {
+            skipped: true,
+            reason: 'ai_disabled',
+          };
+        }
+      }
+
       return finalizeEmbeddingIndex({
         db,
         embeddingIndexQueue,

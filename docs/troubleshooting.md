@@ -51,6 +51,8 @@ Confirm the document processing status is complete. Full-text search depends on 
 
 If parsed text is empty for a scanned document, inspect Docling logs and the document processing state.
 
+Normal search uses the current completed version of each active document. If you expect historical content to appear, use a version-specific view or an explicit historical search surface when available.
+
 ## Semantic Search Is Missing Or Falls Back
 
 Confirm:
@@ -82,6 +84,8 @@ Check that:
 - PostgreSQL is reachable
 - document storage is writable
 - `ARKIVRA_ENCRYPTION_KEYS` includes keys needed by encrypted files
+
+This backup restore path is separate from document-version restore. If restoring a historical document version fails, check that the selected version is not current, is not deleted, has completed processing, and the user has permission to mutate documents in the vault.
 
 ## OAuth Redirects Fail
 

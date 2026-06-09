@@ -45,6 +45,32 @@ describe('document search services', () => {
     expect(queryText).toContain('d.created_at');
   });
 
+  it('scopes browse search to current completed versions by default', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ results_count: 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    await searchServices.searchDocuments({
+      vaultId: 'vlt_1',
+      query: '',
+      pageIndex: 0,
+      pageSize: 20,
+    });
+
+    const combinedQueryText = (execute.mock.calls as unknown as any[][])
+      .map(call => flattenSqlChunks(call[0]?.queryChunks ?? []))
+      .join('\n');
+
+    expect(combinedQueryText).toContain('INNER JOIN document_versions AS dv');
+    expect(combinedQueryText).toContain('dv.id = d.current_version_id');
+    expect(combinedQueryText).toContain("dv.processing_status = 'completed'");
+    expect(combinedQueryText).toContain('dv.deleted_at IS NULL');
+  });
+
   it('includes document title fields in search matching', async () => {
     const execute = vi
       .fn()
@@ -69,8 +95,29 @@ describe('document search services', () => {
     ].join('\n');
 
     expect(combinedQueryText).toContain('d.name ILIKE');
-    expect(combinedQueryText).toContain('d.original_name ILIKE');
+    expect(combinedQueryText).toContain('dv.original_name ILIKE');
     expect(combinedQueryText).toContain('ORDER BY title_match DESC NULLS LAST');
+  });
+
+  it('returns one result per version in historical keyword mode', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ results_count: 0 }] });
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    await searchServices.searchDocuments({
+      vaultId: 'vlt_1',
+      query: 'contract',
+      pageIndex: 0,
+      pageSize: 20,
+      includeVersions: 'historical',
+    });
+
+    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    expect(queryText).toContain('SELECT DISTINCT document_id, document_version_id');
+    expect(queryText).not.toContain('dv.id = d.current_version_id');
   });
 
   it('uses hybrid retrieval for document-shaped search results', async () => {
@@ -80,6 +127,8 @@ describe('document search services', () => {
           vault_id: 'vlt_1',
           vault_name: 'Finance',
           document_id: 'doc_1',
+          document_version_id: 'dvr_2',
+          version_number: 2,
           name: 'April invoice.pdf',
           original_name: 'April invoice.pdf',
           original_size: 42000,
@@ -133,6 +182,8 @@ describe('document search services', () => {
     expect(embed).toHaveBeenCalledWith(['bills']);
     expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
     expect(queryText).toContain('document_chunk_embeddings AS dce');
+    expect(queryText).toContain('sd.document_version_id = dc.document_version_id');
+    expect(queryText).toContain('dce.document_version_id = sd.document_version_id');
     expect(queryText).toContain('dce.embedding_index_id');
     expect(queryText).toContain('AND vec_ranked.similarity >=');
     expect(result.resultsCount).toBe(1);
@@ -146,6 +197,8 @@ describe('document search services', () => {
         {
           chunk_id: 'chk_1',
           document_id: 'doc_1',
+          document_version_id: 'dvr_1',
+          version_number: 1,
           vault_id: 'vlt_1',
           vault_name: 'Finance',
           document_name: 'Quarterly Report',
@@ -210,11 +263,15 @@ describe('document search services', () => {
     const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
     expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
     expect(queryText).toContain('document_chunk_embeddings AS dce');
+    expect(queryText).toContain('dc.document_version_id = d.current_version_id');
+    expect(queryText).toContain('dce.document_version_id = dc.document_version_id');
     expect(result.mode).toBe('hybrid');
     expect(result.citations).toEqual([
       {
         chunkId: 'chk_1',
         documentId: 'doc_1',
+        documentVersionId: 'dvr_1',
+        versionNumber: 1,
         vaultId: 'vlt_1',
         vaultName: 'Finance',
         documentName: 'Quarterly Report',
@@ -283,6 +340,25 @@ describe('document search services', () => {
     expect(queryText).not.toContain('FULL OUTER JOIN vec_ranked');
     expect(result.mode).toBe('fts');
     expect(result.citations).toEqual([]);
+  });
+
+  it('filters hybrid citations by explicit document version ids', async () => {
+    const execute = vi.fn(async () => ({ rows: [] }));
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    await searchServices.searchHybrid({
+      vaultId: 'vlt_1',
+      documentVersionIds: ['dvr_1'],
+      query: 'contract',
+      limit: 10,
+      mode: 'fts',
+    });
+
+    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    expect(queryText).toContain('dc.document_version_id IN (');
+    expect(queryText).not.toContain('dc.document_version_id = d.current_version_id');
   });
 
   it('falls back to keyword document search when no active embedding index exists', async () => {

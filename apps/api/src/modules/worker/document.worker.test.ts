@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const persistParsedDocument = vi.fn();
 const updateDocumentProcessingStatus = vi.fn();
+const updateDocumentVersionProcessingStatus = vi.fn();
 const getActiveEmbeddingIndex = vi.fn();
 
 vi.mock('../documents/documents.services.js', () => ({
   createDocumentsServices: () => ({
     updateDocumentProcessingStatus,
+    updateDocumentVersionProcessingStatus,
   }),
 }));
 
@@ -84,12 +86,14 @@ function createDb(docOverrides: Partial<{
     rawMarkdown: '# Stored raw markdown',
     parserStructuredOutput: { schema_name: 'DoclingDocument', texts: [] } as Record<string, unknown> | null,
     parserWarnings: [] as string[] | null,
+    versionId: 'dvr_1',
     ...docOverrides,
   };
 
   const selectLimit = vi.fn(async () => [docRow]);
   const selectWhere = vi.fn(() => ({ limit: selectLimit }));
-  const selectFrom = vi.fn(() => ({ where: selectWhere }));
+  const selectInnerJoin = vi.fn(() => ({ where: selectWhere }));
+  const selectFrom = vi.fn(() => ({ innerJoin: selectInnerJoin, where: selectWhere }));
   const select = vi.fn(() => ({ from: selectFrom }));
 
   const uploadSessionWhere = vi.fn(async () => []);
@@ -155,7 +159,7 @@ function createDeps({
     ),
   };
   const job = {
-    data: { documentId: 'doc_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
+    data: { documentId: 'doc_1', documentVersionId: 'dvr_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
     updateProgress: vi.fn(async () => undefined),
   };
   const adminAiServices = {
@@ -180,6 +184,7 @@ describe('document worker', () => {
   beforeEach(() => {
     persistParsedDocument.mockReset();
     updateDocumentProcessingStatus.mockReset();
+    updateDocumentVersionProcessingStatus.mockReset();
     getActiveEmbeddingIndex.mockReset();
     persistParsedDocument.mockResolvedValue(undefined);
     getActiveEmbeddingIndex.mockResolvedValue({ id: 'eix_active' });
@@ -199,12 +204,19 @@ describe('document worker', () => {
 
     await worker.processDocument(deps.job as never);
 
-    expect(updateDocumentProcessingStatus.mock.calls.map(call => call[0]?.processingStatus)).toEqual([
+    expect(updateDocumentVersionProcessingStatus.mock.calls.map(call => call[0]?.processingStatus)).toEqual([
       'partitioning',
       'chunking',
       'summarising',
       'completed',
     ]);
+    expect(persistParsedDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc_1',
+        documentVersionId: 'dvr_1',
+        vaultId: 'vlt_1',
+      }),
+    );
     const progressValues = deps.job.updateProgress.mock.calls
       .map(call => call.at(0));
 
@@ -236,7 +248,11 @@ describe('document worker', () => {
       kekVersion: '1',
     });
     expect(deps.parsePipeline.run).toHaveBeenCalledWith(
-      expect.objectContaining({ fileData: Buffer.from('decrypted-file') }),
+      expect.objectContaining({
+        documentId: 'doc_1',
+        documentVersionId: 'dvr_1',
+        fileData: Buffer.from('decrypted-file'),
+      }),
       expect.any(Object),
     );
   });
@@ -258,7 +274,7 @@ describe('document worker', () => {
     });
 
     await expect(worker.processDocument(deps.job as never)).rejects.toThrow('parse failed');
-    expect(updateDocumentProcessingStatus.mock.calls.at(-1)?.[0]?.processingStatus).toBe('failed');
+    expect(updateDocumentVersionProcessingStatus.mock.calls.at(-1)?.[0]?.processingStatus).toBe('failed');
   });
 
   test('enqueues semantic indexing for completed documents when AI is enabled', async () => {
@@ -279,7 +295,7 @@ describe('document worker', () => {
 
     expect(deps.embeddingIndexQueue.enqueueDocumentIndexing).toHaveBeenCalledWith({
       embeddingIndexId: 'eix_active',
-      documentId: 'doc_1',
+      documentVersionId: 'dvr_1',
     });
   });
 

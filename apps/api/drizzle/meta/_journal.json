@@ -211,6 +211,20 @@
       "when": 1780790400000,
       "tag": "0029_vault_authorization_approval_model",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1781019774401,
+      "tag": "0030_document_versioning_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1781020800000,
+      "tag": "0031_upload_conflict_hash_policy",
+      "breakpoints": true
     }
   ]
 }

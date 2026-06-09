@@ -3,165 +3,24 @@
 This backlog organizes the repository review findings into release-oriented priorities.
 It is scoped to repository quality, maintainability, and public confidence.
 
-## P0 - Required Before Making The Repository Public
+## P0 - Required Before Making The Repository Public [ALL IMPLEMENTED]
 
 ### 1. Add Repository CI Gates
-
-- **Problem statement:** The repository has strong local scripts, but no visible CI workflow was found to run lint, typecheck, tests, builds, or website checks automatically.
-- **Why it matters:** A public repository needs a visible quality gate so contributors and users can trust that basic checks run consistently.
-- **Expected impact:** Higher confidence in merges, easier contribution review, and fewer broken public commits.
-- **Estimated effort:** M
-- **Dependencies:** Existing package scripts for root, API, dashboard, and website.
-- **Acceptance criteria:**
-  - CI runs `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`.
-  - CI runs the website structural check.
-  - CI status is visible for pull requests or pushed branches.
-
 ### 2. Preserve Structured API Error Codes In The Dashboard
-
-- **Problem statement:** The dashboard API helper preserves only message and status, dropping backend `error.code`.
-- **Why it matters:** Arkivra already uses stable backend error codes. Losing them in the client reduces maintainability and weakens consistent error handling.
-- **Expected impact:** More reliable UI states, better testability, and cleaner handling of auth, permissions, maintenance mode, and validation failures.
-- **Estimated effort:** S
-- **Dependencies:** Existing API error response shape.
-- **Acceptance criteria:**
-  - `ApiError` includes the backend error code when present.
-  - Existing API client tests cover status, message, and code.
-  - Callers can branch on structured error codes without parsing messages.
-
 ### 3. Remove Production Debug Route Logging
-
-- **Problem statement:** `RouterDebugProbe` logs route state to the browser console and is imported by the app shell.
-- **Why it matters:** Debug-only instrumentation in a public repo reduces polish and can leak unnecessary navigation context.
-- **Expected impact:** Cleaner production behavior and stronger confidence in release discipline.
-- **Estimated effort:** S
-- **Dependencies:** None.
-- **Acceptance criteria:**
-  - Debug route logging is removed or gated behind an explicit development-only flag.
-  - Production builds do not import debug probes.
-  - Relevant tests or lint checks still pass.
-
 ### 4. Reconcile Public AI Provider Claims With Current Architecture
-
-- **Problem statement:** Public copy describes provider-neutral local or cloud AI, while server wiring still has direct Ollama-specific provider construction and model filtering.
-- **Why it matters:** Public repository claims must match the implementation, especially for AI data exposure and provider behavior.
-- **Expected impact:** More accurate public positioning and fewer misunderstandings from self-hosters.
-- **Estimated effort:** M
-- **Dependencies:** Current AI settings, provider adapters, README, website copy, and dashboard admin AI surfaces.
-- **Acceptance criteria:**
-  - Public copy accurately describes implemented provider support.
-  - Ollama-specific behavior is clearly named where it remains implementation-specific.
-  - No docs or UI copy overstates provider neutrality.
-
 ### 5. Close Public Documentation Gaps
 
-- **Problem statement:** README still points to documentation and self-hosting docs as coming soon.
-- **Why it matters:** A public self-hosted project needs enough setup, configuration, security, and operations documentation for technical users to evaluate it.
-- **Expected impact:** Higher public confidence and fewer avoidable support questions.
-- **Estimated effort:** L
-- **Dependencies:** Existing README, release checklists, Docker Compose setup, `.env.example`, and docs planning notes.
-- **Acceptance criteria:**
-  - Public docs cover getting started, Docker Compose, configuration, first admin flow, storage/encryption caveats, backups, search, optional AI, and troubleshooting.
-  - README links point to real documentation or clearly bounded local docs.
-  - Privacy, encryption, and AI caveats match implementation.
-
-## P1 - Strongly Recommended Before First User Release
+## P1 - Strongly Recommended Before First User Release [ALL IMPLEMENTED]
 
 ### 6. Split The Document Detail Page
-
-- **Problem statement:** The document detail page is a very large file that mixes PDF rendering, translation capture, document actions, breadcrumbs, mutations, tabs, and UI state.
-- **Why it matters:** This surface is central to the product and currently has high review and regression risk.
-- **Expected impact:** Easier feature work, more focused tests, and better ownership of document workflows.
-- **Estimated effort:** L
-- **Dependencies:** Existing document queries, document API helpers, PDF preview logic, translation capture helpers, and workspace header behavior.
-- **Acceptance criteria:**
-  - Preview, metadata, activity, translation, actions, and PDF-specific behavior are separated into focused modules or components.
-  - Existing user-visible behavior is preserved.
-  - Focused tests cover extracted behavior where practical.
-
 ### 7. Split The Admin Page By Surface
-
-- **Problem statement:** The admin page combines users, backups, AI, audit, access control, and UI primitives in one large file.
-- **Why it matters:** Admin workflows are security-sensitive and operationally important. Large mixed files make authorization and state regressions harder to review.
-- **Expected impact:** Better maintainability of admin flows and clearer test boundaries.
-- **Estimated effort:** L
-- **Dependencies:** Existing admin API, queries, settings UI components, audit components, and route structure.
-- **Acceptance criteria:**
-  - Admin users, access, AI, backups, audit, and overview surfaces are split into focused modules.
-  - Shared admin UI primitives are extracted only where reused.
-  - Existing admin tests continue to cover the same flows.
-
 ### 8. Split The App Shell Into Focused Components
-
-- **Problem statement:** The app shell owns navigation, quick search, uploads, account UI, layout state, and debug wiring.
-- **Why it matters:** The shell is loaded across the dashboard. Complexity here affects every feature and makes global regressions more likely.
-- **Expected impact:** Cleaner global layout ownership and easier changes to navigation, search, and transfers.
-- **Estimated effort:** M
-- **Dependencies:** Existing layout context, upload manager, search queries, navigation routes, and account state.
-- **Acceptance criteria:**
-  - Quick search, navigation, account menu, and transfers drawer are separated into focused components or hooks.
-  - Global layout behavior remains unchanged.
-  - Existing app shell tests are updated or extended.
-
 ### 9. Replace Router `as any` Search Casts With Typed Search Validation
-
-- **Problem statement:** Several frontend routes and navigations cast search params instead of validating them through TanStack Router schemas.
-- **Why it matters:** Search params are shared state. Untyped casts weaken route correctness and make refactors risky.
-- **Expected impact:** Safer navigation, clearer route contracts, and fewer hidden runtime edge cases.
-- **Estimated effort:** M
-- **Dependencies:** Existing router definitions and route constants.
-- **Acceptance criteria:**
-  - Search params for document, search, chat, and upload routes are typed and validated.
-  - `as any` route/search casts are removed from the reviewed navigation paths.
-  - Tests cover representative valid and invalid search states.
-
 ### 10. Standardize API Request Validation
-
-- **Problem statement:** Some API routes use Zod schemas while others use hand-rolled validators.
-- **Why it matters:** Inconsistent validation increases route drift and makes behavior harder to audit.
-- **Expected impact:** More predictable API behavior and easier route review.
-- **Estimated effort:** M
-- **Dependencies:** Current route modules and existing Zod usage.
-- **Acceptance criteria:**
-  - Route input validation follows a consistent pattern.
-  - Existing stable error codes are preserved.
-  - Tests cover success and validation failure cases for migrated routes.
-
 ### 11. Add API Error Response Helpers
-
-- **Problem statement:** Route files repeat structured JSON error response construction.
-- **Why it matters:** Repetition increases the chance of inconsistent error codes, messages, and statuses.
-- **Expected impact:** Smaller route handlers and more consistent API responses.
-- **Estimated effort:** S
-- **Dependencies:** Existing route response shape and validation approach.
-- **Acceptance criteria:**
-  - Common helpers cover standard auth, forbidden, validation, not found, and operational errors.
-  - Existing response codes and payload shapes remain stable.
-  - Route tests continue to pass after adoption in targeted modules.
-
 ### 12. Add Dependency Audit And Update Workflow
-
-- **Problem statement:** The review found no visible dependency audit or update workflow for sensitive packages.
-- **Why it matters:** Arkivra depends on parser, PDF, auth, AI, and web rendering packages where dependency risk matters.
-- **Expected impact:** Better release hygiene and a clearer vulnerability response process.
-- **Estimated effort:** M
-- **Dependencies:** Package manager scripts, CI, and lockfile.
-- **Acceptance criteria:**
-  - Dependency audit command or workflow is documented.
-  - Critical and high vulnerabilities have a documented response path.
-  - Parser, PDF, auth, and AI dependencies are explicitly included in release review.
-
 ### 13. Add Schema And Migration Drift Checks
-
-- **Problem statement:** Migration e2e coverage is strong, but there is no explicit drift check between Drizzle schema and migrations.
-- **Why it matters:** Self-hosted deployments depend on reliable migration history.
-- **Expected impact:** Earlier detection of schema/migration mismatches before release.
-- **Estimated effort:** M
-- **Dependencies:** Drizzle schema, migration files, migration e2e tests, CI.
-- **Acceptance criteria:**
-  - A repeatable check detects ungenerated schema changes.
-  - The check is documented and included in CI or release workflow.
-  - Migration e2e tests remain part of release validation.
 
 ## P2 - Technical Debt
 

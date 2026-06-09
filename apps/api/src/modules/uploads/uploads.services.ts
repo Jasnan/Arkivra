@@ -2,11 +2,12 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
-import type { DocumentsServices } from '../documents/documents.services.js';
+import type { DocumentsServices, UploadConflictStrategy } from '../documents/documents.services.js';
 import { uploadSessionsTable } from '../database/schema/index.js';
 import { normalizeDocumentFileName } from '../documents/documents.services.js';
 import { generateId } from '../database/schema/helpers.js';
 import { createFoldersServices } from '../folders/folders.services.js';
+import { getUploadConflictError } from './upload-conflict-response.js';
 
 export type UploadSessionStatus =
   | 'initialized'
@@ -44,6 +45,7 @@ function toPublicUploadSession(row: UploadSessionRow) {
     vaultId: row.vaultId,
     userId: row.userId,
     documentId: row.documentId,
+    documentVersionId: row.documentVersionId,
     folderId: row.folderId,
     relativePath: row.relativePath,
     fileName: row.fileName,
@@ -61,14 +63,6 @@ function toPublicUploadSession(row: UploadSessionRow) {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
-}
-
-function getDuplicateDocumentMessage(scope: string | null | undefined) {
-  if (scope === 'trash') {
-    return 'This file already exists in the vault trash';
-  }
-
-  return 'This file already exists in this vault';
 }
 
 export function createUploadsServices({
@@ -319,10 +313,12 @@ export function createUploadsServices({
     uploadId,
     vaultId,
     userId,
+    conflictStrategy,
   }: {
     uploadId: string;
     vaultId: string;
     userId: string;
+    conflictStrategy?: UploadConflictStrategy;
   }) {
     const row = await loadOwnedUploadSession({ uploadId, vaultId, userId });
 
@@ -348,24 +344,33 @@ export function createUploadsServices({
       mimeType: row.mimeType,
       fileData,
       folderId: row.folderId,
+      conflictStrategy,
     });
+    const conflictError = result.duplicate
+      ? getUploadConflictError({
+          existingId: result.existingId,
+          duplicateScope: result.duplicateScope,
+          conflictType: result.conflictType,
+        })
+      : null;
 
     const [updatedRow] = await db
       .update(uploadSessionsTable)
       .set({
         documentId: result.existingId ?? result.document?.id ?? null,
+        documentVersionId: result.documentVersion?.id ?? null,
         status: result.duplicate ? 'failed' : 'completed',
-        errorCode: result.duplicate ? 'document.duplicate' : null,
-        errorMessage: result.duplicate
-          ? getDuplicateDocumentMessage(result.duplicateScope)
-          : null,
+        errorCode: conflictError?.code ?? null,
+        errorMessage: conflictError?.message ?? null,
         completedAt: result.duplicate ? null : new Date(),
         updatedAt: new Date(),
       })
       .where(eq(uploadSessionsTable.id, uploadId))
       .returning();
 
-    await rm(join(stagingPath, row.stagingKey), { recursive: true, force: true });
+    if (!result.duplicate) {
+      await rm(join(stagingPath, row.stagingKey), { recursive: true, force: true });
+    }
 
     if (updatedRow === undefined) {
       throw new Error('Failed to finalize upload session');
@@ -376,7 +381,10 @@ export function createUploadsServices({
       duplicate: result.duplicate,
       existingId: result.existingId,
       duplicateScope: result.duplicateScope,
+      conflictType: result.conflictType,
+      skipped: result.skipped,
       document: result.document,
+      documentVersion: result.documentVersion,
     };
   }
 

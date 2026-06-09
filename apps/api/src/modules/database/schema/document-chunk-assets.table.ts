@@ -1,8 +1,8 @@
-import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { foreignKey, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { createPrimaryKeyField } from './helpers.js';
 import type { ChunkBoundingBox } from './document-chunks.table.js';
 import { documentChunksTable } from './document-chunks.table.js';
-import { documentsTable } from './documents.table.js';
+import { documentsTable, documentVersionsTable } from './documents.table.js';
 import { vaultsTable } from './vaults.table.js';
 
 // Image / table assets referenced from a chunk. Mirrors
@@ -25,6 +25,10 @@ export const documentChunkAssetsTable = pgTable(
     documentId: text('document_id')
       .notNull()
       .references(() => documentsTable.id, { onDelete: 'cascade' }),
+
+    documentVersionId: text('document_version_id')
+      .notNull()
+      .references(() => documentVersionsTable.id, { onDelete: 'cascade' }),
 
     vaultId: text('vault_id')
       .notNull()
@@ -51,5 +55,15 @@ export const documentChunkAssetsTable = pgTable(
   (table) => [
     index('document_chunk_assets_chunk_idx').on(table.chunkId),
     index('document_chunk_assets_vault_doc_idx').on(table.vaultId, table.documentId),
+    index('document_chunk_assets_vault_version_idx').on(table.vaultId, table.documentVersionId),
+    foreignKey({
+      name: 'document_chunk_assets_version_document_vault_fkey',
+      columns: [table.documentVersionId, table.documentId, table.vaultId],
+      foreignColumns: [
+        documentVersionsTable.id,
+        documentVersionsTable.documentId,
+        documentVersionsTable.vaultId,
+      ],
+    }).onDelete('cascade'),
   ],
 );

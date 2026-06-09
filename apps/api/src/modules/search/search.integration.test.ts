@@ -10,7 +10,7 @@ import { registerSearchRoutes } from './search.routes.js';
 function createMockSearchServices() {
   return {
     name: 'test-search',
-    searchDocuments: vi.fn(async ({ vaultId, vaultIds, query, pageIndex, pageSize, tagId, tagIds, dateFrom, dateTo, sortBy }) => ({
+    searchDocuments: vi.fn(async ({ vaultId, vaultIds, query, pageIndex, pageSize, tagId, tagIds, dateFrom, dateTo, sortBy, includeVersions }) => ({
       query,
       pageIndex,
       pageSize,
@@ -22,12 +22,15 @@ function createMockSearchServices() {
         dateFrom: dateFrom?.toISOString() ?? null,
         dateTo: dateTo?.toISOString() ?? null,
         sortBy: sortBy ?? 'created_desc',
+        includeVersions: includeVersions ?? 'latest',
       },
       results: [
         {
           vaultId: vaultId ?? vaultIds?.[0] ?? 'vlt_1',
           vaultName: 'Test Vault',
           documentId: 'doc_1',
+          documentVersionId: 'dvr_1',
+          versionNumber: 1,
           name: 'arkivra-e2e.pdf',
           originalName: 'arkivra-e2e.pdf',
           originalSize: 42000,
@@ -56,6 +59,8 @@ function createMockSearchServices() {
         {
           chunkId: 'chk_1',
           documentId: 'doc_1',
+          documentVersionId: 'dvr_1',
+          versionNumber: 1,
           vaultId: 'vlt_1',
           vaultName: 'Test Vault',
           documentName: 'arkivra-e2e.pdf',
@@ -209,6 +214,7 @@ describe('search integration', () => {
       dateFrom: undefined,
       dateTo: undefined,
       sortBy: 'created_desc',
+      includeVersions: 'latest',
     });
   });
 
@@ -263,6 +269,7 @@ describe('search integration', () => {
         query: 'arkivra',
         limit: 5,
         mode: 'hybrid',
+        documentVersionIds: ['dvr_1'],
       }),
     });
 
@@ -273,10 +280,69 @@ describe('search integration', () => {
     expect(body.citations[0].chunkId).toBe('chk_1');
     expect((searchServices as any).searchHybrid).toHaveBeenCalledWith({
       vaultId: 'vlt_1',
+      documentVersionIds: ['dvr_1'],
       query: 'arkivra',
       limit: 5,
       mode: 'hybrid',
     });
+  });
+
+  test('returns 401 for unauthenticated hybrid search', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: 'arkivra' }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  test('returns 403 for hybrid search without vault access', async () => {
+    const searchServices = createMockSearchServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => null);
+    const app = createTestApp({ searchServices, vaultServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({ query: 'arkivra' }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  test('returns 403 for hybrid search without semantic retrieval access', async () => {
+    const searchServices = createMockSearchServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Test',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: 'viewer',
+      aiAccessLevel: 'none',
+      isAdmin: false,
+    }));
+    const app = createTestApp({ searchServices, vaultServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({ query: 'arkivra' }),
+    });
+
+    expect(response.status).toBe(403);
   });
 
   test('returns 400 for invalid hybrid search payload', async () => {
@@ -300,6 +366,56 @@ describe('search integration', () => {
       error: {
         code: 'search.invalid_query',
         message: 'query must be a non-empty string',
+      },
+    });
+  });
+
+  test('returns 400 for invalid hybrid document version ids', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({
+        query: 'arkivra',
+        documentVersionIds: ['dvr_1', 42],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'search.invalid_document_version_ids',
+        message: 'documentVersionIds must be an array of at most 100 strings',
+      },
+    });
+  });
+
+  test('returns 400 for oversized hybrid document version id lists', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({
+        query: 'arkivra',
+        documentVersionIds: Array.from({ length: 101 }, (_, index) => `dvr_${index}`),
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'search.invalid_document_version_ids',
+        message: 'documentVersionIds must be an array of at most 100 strings',
       },
     });
   });
@@ -332,6 +448,7 @@ describe('search integration', () => {
       dateFrom: undefined,
       dateTo: undefined,
       sortBy: 'created_desc',
+      includeVersions: 'latest',
     });
   });
 
@@ -358,6 +475,33 @@ describe('search integration', () => {
       dateTo: undefined,
       sortBy: 'created_desc',
       searchMode: 'hybrid',
+      includeVersions: 'latest',
+    });
+  });
+
+  test('passes historical version mode to vault search services', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request(
+      '/api/vaults/vlt_1/search?q=arkivra&includeVersions=historical',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect((searchServices as any).searchDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      query: 'arkivra',
+      pageIndex: 0,
+      pageSize: 20,
+      tagId: undefined,
+      tagIds: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      sortBy: 'created_desc',
+      includeVersions: 'historical',
     });
   });
 
@@ -383,6 +527,7 @@ describe('search integration', () => {
       dateFrom: new Date('2026-04-01'),
       dateTo: new Date('2026-04-30'),
       sortBy: 'name_asc',
+      includeVersions: 'latest',
     });
   });
 
@@ -423,6 +568,7 @@ describe('search integration', () => {
       dateFrom: undefined,
       dateTo: undefined,
       sortBy: 'created_desc',
+      includeVersions: 'latest',
     });
   });
 
@@ -457,6 +603,7 @@ describe('search integration', () => {
       dateTo: undefined,
       sortBy: 'created_desc',
       searchMode: 'hybrid',
+      includeVersions: 'latest',
     });
   });
 
@@ -479,5 +626,23 @@ describe('search integration', () => {
     });
 
     expect(response.status).toBe(403);
+  });
+
+  test('returns 403 for requested global vault filters when the user has no readable vaults', async () => {
+    const searchServices = createMockSearchServices();
+    const vaultServices = createMockVaultsServices();
+    (vaultServices as any).listUserVaults = vi.fn(async () => []);
+
+    const app = createTestApp({ searchServices, vaultServices });
+    const singleResponse = await app.request('/api/search?q=arkivra&vaultId=vlt_forbidden', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+    const multiResponse = await app.request('/api/search?q=arkivra&vaultIds=vlt_forbidden,vlt_other', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(singleResponse.status).toBe(403);
+    expect(multiResponse.status).toBe(403);
+    expect((searchServices as any).searchDocuments).not.toHaveBeenCalled();
   });
 });

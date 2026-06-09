@@ -8,6 +8,7 @@ import { setupDatabase } from '../database/database.js';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
+  documentVersionsTable,
   documentsTable,
   usersTable,
   vaultMembersTable,
@@ -29,6 +30,7 @@ describe.sequential('background jobs e2e', () => {
   let documentId: string | null = null;
   let vaultId: string | null = null;
   let userId: string | null = null;
+  let documentVersionId: string | null = null;
   let storageKey: string | null = null;
   let assetStorageKey: string | null = null;
   let previewStorageKey: string | null = null;
@@ -62,9 +64,10 @@ describe.sequential('background jobs e2e', () => {
     userId = `usr_bg_${uniqueSuffix}`;
     vaultId = `vlt_bg_${uniqueSuffix}`;
     documentId = `doc_bg_${uniqueSuffix}`;
-    storageKey = `${vaultId}/${documentId}`;
-    assetStorageKey = `assets/${documentId}/image-1.png`;
-    previewStorageKey = `previews/${documentId}/pages/1.png`;
+    documentVersionId = `dvr_bg_${uniqueSuffix}`;
+    storageKey = `${vaultId}/${documentVersionId}`;
+    assetStorageKey = `chunks/${documentVersionId}/chunk-0/image-1.png`;
+    previewStorageKey = `previews/${documentVersionId}/pages/1.png`;
 
     await db.insert(usersTable).values({
       id: userId,
@@ -102,9 +105,29 @@ describe.sequential('background jobs e2e', () => {
       deletedBy: userId,
     });
 
+    await db.insert(documentVersionsTable).values({
+      id: documentVersionId,
+      documentId,
+      vaultId,
+      versionNumber: 1,
+      uploadedBy: userId,
+      originalName: 'expired.pdf',
+      originalSize: 24,
+      originalStorageKey: storageKey,
+      originalSha256Hash: `hash-${uniqueSuffix}`,
+      mimeType: 'application/pdf',
+      processingStatus: 'completed',
+    });
+
+    await db
+      .update(documentsTable)
+      .set({ currentVersionId: documentVersionId })
+      .where(eq(documentsTable.id, documentId));
+
     await db.insert(documentChunksTable).values({
       id: `chk_bg_${uniqueSuffix}`,
       documentId,
+      documentVersionId,
       vaultId,
       chunkIndex: 0,
       chunkKey: 'chunk-0',
@@ -116,6 +139,7 @@ describe.sequential('background jobs e2e', () => {
       id: `cas_bg_${uniqueSuffix}`,
       chunkId: `chk_bg_${uniqueSuffix}`,
       documentId,
+      documentVersionId,
       vaultId,
       assetType: 'image',
       mimeType: 'image/png',

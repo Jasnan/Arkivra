@@ -15,6 +15,21 @@ const rawSqlManagedColumns = new Set([
   'document_chunks.tsv',
 ]);
 
+const rawSqlManagedForeignKeys = new Set([
+  [
+    'documents(current_version_id,id,vault_id)',
+    'document_versions(id,document_id,vault_id)',
+    'delete:no action',
+    'update:no action',
+  ].join(' -> '),
+  [
+    'document_versions(document_id,vault_id)',
+    'documents(id,vault_id)',
+    'delete:cascade',
+    'update:no action',
+  ].join(' -> '),
+]);
+
 const columnTypeByDrizzleType: Record<string, string> = {
   PgBoolean: 'boolean',
   PgInteger: 'integer',
@@ -302,27 +317,50 @@ async function readDatabaseCatalog(databaseUrl: string): Promise<{
     const { rows: foreignKeyRows } = await pool.query<ForeignKeyRow>(
       `
         SELECT
-          tc.table_name,
-          rc.update_rule,
-          rc.delete_rule,
-          ccu.table_name AS foreign_table_name,
-          array_agg(kcu.column_name::text ORDER BY kcu.ordinal_position) AS column_names,
-          array_agg(ccu.column_name::text ORDER BY kcu.ordinal_position) AS foreign_column_names
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON kcu.constraint_schema = tc.constraint_schema
-          AND kcu.constraint_name = tc.constraint_name
-          AND kcu.table_name = tc.table_name
-        JOIN information_schema.referential_constraints rc
-          ON rc.constraint_schema = tc.constraint_schema
-          AND rc.constraint_name = tc.constraint_name
-        JOIN information_schema.constraint_column_usage ccu
-          ON ccu.constraint_schema = rc.unique_constraint_schema
-          AND ccu.constraint_name = rc.unique_constraint_name
-        WHERE tc.table_schema = 'public'
-          AND tc.constraint_type = 'FOREIGN KEY'
-        GROUP BY tc.table_name, tc.constraint_name, rc.update_rule, rc.delete_rule, ccu.table_name
-        ORDER BY tc.table_name, tc.constraint_name
+          source_table.relname AS table_name,
+          target_table.relname AS foreign_table_name,
+          CASE constraint_row.confdeltype
+            WHEN 'a' THEN 'NO ACTION'
+            WHEN 'r' THEN 'RESTRICT'
+            WHEN 'c' THEN 'CASCADE'
+            WHEN 'n' THEN 'SET NULL'
+            WHEN 'd' THEN 'SET DEFAULT'
+          END AS delete_rule,
+          CASE constraint_row.confupdtype
+            WHEN 'a' THEN 'NO ACTION'
+            WHEN 'r' THEN 'RESTRICT'
+            WHEN 'c' THEN 'CASCADE'
+            WHEN 'n' THEN 'SET NULL'
+            WHEN 'd' THEN 'SET DEFAULT'
+          END AS update_rule,
+          array_agg(source_column.attname::text ORDER BY source_key.ordinality) AS column_names,
+          array_agg(target_column.attname::text ORDER BY source_key.ordinality) AS foreign_column_names
+        FROM pg_constraint AS constraint_row
+        JOIN pg_class AS source_table
+          ON source_table.oid = constraint_row.conrelid
+        JOIN pg_namespace AS source_namespace
+          ON source_namespace.oid = source_table.relnamespace
+        JOIN pg_class AS target_table
+          ON target_table.oid = constraint_row.confrelid
+        JOIN LATERAL unnest(constraint_row.conkey) WITH ORDINALITY AS source_key(attnum, ordinality)
+          ON true
+        JOIN LATERAL unnest(constraint_row.confkey) WITH ORDINALITY AS target_key(attnum, ordinality)
+          ON target_key.ordinality = source_key.ordinality
+        JOIN pg_attribute AS source_column
+          ON source_column.attrelid = constraint_row.conrelid
+          AND source_column.attnum = source_key.attnum
+        JOIN pg_attribute AS target_column
+          ON target_column.attrelid = constraint_row.confrelid
+          AND target_column.attnum = target_key.attnum
+        WHERE source_namespace.nspname = 'public'
+          AND constraint_row.contype = 'f'
+        GROUP BY
+          constraint_row.oid,
+          source_table.relname,
+          target_table.relname,
+          constraint_row.confdeltype,
+          constraint_row.confupdtype
+        ORDER BY source_table.relname, constraint_row.conname
       `,
     );
 
@@ -472,7 +510,7 @@ function compareCatalogs(
     }
 
     for (const foreignKey of sortedValues(databaseForeignKeys)) {
-      if (!table.foreignKeys.has(foreignKey)) {
+      if (!table.foreignKeys.has(foreignKey) && !rawSqlManagedForeignKeys.has(foreignKey)) {
         issues.push(`Migrated foreign key is not present in Drizzle schema: ${foreignKey}`);
       }
     }

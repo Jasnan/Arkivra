@@ -14,6 +14,8 @@ export interface CitationBoundingBox {
 export interface Citation {
   chunkId: string;
   documentId: string;
+  documentVersionId?: string;
+  versionNumber?: number;
   vaultId: string;
   vaultName: string;
   documentName: string;
@@ -64,6 +66,8 @@ export interface ChatContextVaultRef {
 export interface ChatContextDocumentRef {
   vaultId: string;
   documentId: string;
+  documentVersionId?: string;
+  versionNumber?: number;
   name?: string;
   vaultName?: string;
   path?: string;

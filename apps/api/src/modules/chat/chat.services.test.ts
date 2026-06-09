@@ -3,17 +3,24 @@ import type { Citation } from '../search/search.types.js';
 import { buildAssistantMessage } from './chat-message.utils.js';
 import {
   buildAnswerPrompt,
+  buildChatMessageCitationRows,
   buildCitationContext,
   buildExpandedCitationForChat,
+  buildManifestHybridSearchArgs,
   buildGlobalIntentSystemPrompt,
+  getFrozenManifestContextAvailability,
   formatFollowUpAssistantMessage,
   normalizeChatGenerationError,
   rankCitationsForQuestion,
+  sanitizeCitationsForMessagePersistence,
+  shouldMaterializeConversationManifest,
 } from './chat.services.js';
 
 const citation: Citation = {
   chunkId: 'chk_1',
   documentId: 'doc_1',
+  documentVersionId: 'dvr_1',
+  versionNumber: 1,
   vaultId: 'vlt_1',
   vaultName: 'Operations',
   documentName: 'Policy.pdf',
@@ -176,6 +183,123 @@ describe('chat service helpers', () => {
       parts: [
         { type: 'data-status', data: { label: 'generation' } },
       ],
+    });
+  });
+
+  test('maps citations to bounded normalized citation rows', () => {
+    const rows = buildChatMessageCitationRows({
+      conversationId: 'cht_1',
+      messageId: 'msg_1',
+      citations: [{
+        ...citation,
+        snippet: 'A'.repeat(900),
+      }],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: expect.stringMatching(/^cmc_/),
+      conversationId: 'cht_1',
+      messageId: 'msg_1',
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      documentVersionId: 'dvr_1',
+      chunkId: 'chk_1',
+      versionNumber: 1,
+      pageStart: 2,
+      pageEnd: 3,
+      citationPrecision: 'page',
+      locatorJson: {
+        section: 'Retention',
+        sectionPath: ['Records', 'Retention'],
+        sourceElementIds: ['el_chunk_1', 'el_chunk_2'],
+        tableSourceElementIds: ['el_table_1'],
+        imageAssetIds: ['cas_1'],
+        imageAssets: [{
+          assetId: 'cas_1',
+          sourceElementId: 'el_image_1',
+          caption: 'Figure 1. Records retention timeline',
+          pageNumber: 3,
+        }],
+        boundingBoxes: [],
+        assetType: 'table',
+      },
+    });
+    expect(rows[0]?.snippet.length).toBeLessThanOrEqual(620);
+  });
+
+  test('bounds citations persisted into chat message JSON', () => {
+    const [persisted] = sanitizeCitationsForMessagePersistence([{
+      ...citation,
+      snippet: 'B'.repeat(900),
+      tablesHtml: ['<table><tr><td>source content</td></tr></table>'],
+    }]);
+
+    expect(persisted?.snippet.length).toBeLessThanOrEqual(620);
+    expect(persisted?.tablesHtml).toEqual([]);
+  });
+
+  test('builds hybrid retrieval arguments from pinned manifest versions', () => {
+    expect(buildManifestHybridSearchArgs({
+      manifestRows: [
+        {
+          vaultId: 'vlt_1',
+          documentId: 'doc_1',
+          documentVersionId: 'dvr_1',
+          includedBy: 'document',
+        },
+        {
+          vaultId: 'vlt_1',
+          documentId: 'doc_1',
+          documentVersionId: 'dvr_1',
+          includedBy: 'document',
+        },
+        {
+          vaultId: 'vlt_2',
+          documentId: 'doc_2',
+          documentVersionId: 'dvr_2',
+          includedBy: 'vault',
+        },
+        {
+          vaultId: 'vlt_3',
+          documentId: 'doc_deleted',
+          documentVersionId: null,
+          includedBy: 'selection',
+        },
+      ],
+      query: 'retention',
+      limit: 8,
+    })).toEqual({
+      vaultIds: ['vlt_1', 'vlt_2'],
+      documentVersionIds: ['dvr_1', 'dvr_2'],
+      query: 'retention',
+      limit: 8,
+      mode: 'hybrid',
+    });
+
+    expect(buildManifestHybridSearchArgs({
+      manifestRows: [{
+        vaultId: 'vlt_3',
+        documentId: 'doc_deleted',
+        documentVersionId: null,
+        includedBy: 'selection',
+      }],
+      query: 'retention',
+      limit: 8,
+    })).toBeNull();
+  });
+
+  test('does not rematerialize already frozen empty manifests', () => {
+    expect(shouldMaterializeConversationManifest({ contextFrozenAt: null })).toBe(true);
+    expect(shouldMaterializeConversationManifest({
+      contextFrozenAt: new Date('2026-05-05T10:00:00.000Z'),
+    })).toBe(false);
+    expect(getFrozenManifestContextAvailability({
+      totalCount: 0,
+      unavailableCount: 0,
+    })).toMatchObject({
+      status: 'source_document_deleted',
+      readOnly: true,
     });
   });
 });

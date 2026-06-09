@@ -57,11 +57,12 @@ describe('embedding index worker', () => {
         };
       }
 
-      if (text.includes('FROM documents AS d') && text.includes('LEFT JOIN document_chunks AS dc')) {
+      if (text.includes('FROM document_versions AS dv') && text.includes('LEFT JOIN document_chunks AS dc')) {
         return {
           rows: [
             {
               document_id: 'doc_1',
+              document_version_id: 'dvr_1',
               vault_id: 'vlt_1',
               chunk_id: 'chk_1',
               content: 'First persisted chunk',
@@ -69,6 +70,7 @@ describe('embedding index worker', () => {
             },
             {
               document_id: 'doc_1',
+              document_version_id: 'dvr_1',
               vault_id: 'vlt_1',
               chunk_id: 'chk_2',
               content: 'Second persisted chunk',
@@ -98,7 +100,7 @@ describe('embedding index worker', () => {
         },
       },
       embeddingIndexId: 'eix_active',
-      documentId: 'doc_1',
+      documentVersionId: 'dvr_1',
     });
 
     expect(result).toEqual({ status: 'ready', embeddedChunkCount: 2 });
@@ -106,10 +108,220 @@ describe('embedding index worker', () => {
     expect(doclingParser).not.toHaveBeenCalled();
 
     const combinedSql = execute.mock.calls.map(call => queryText(call[0])).join('\n');
-    expect(combinedSql).toContain('FROM documents AS d');
+    expect(combinedSql).toContain('FROM document_versions AS dv');
     expect(combinedSql).toContain('LEFT JOIN document_chunks AS dc');
+    expect(combinedSql).toContain('dc.document_version_id = dv.id');
     expect(combinedSql).toContain('INSERT INTO document_chunk_embeddings');
+    expect(combinedSql).toContain('document_version_id');
     expect(combinedSql).not.toContain('docling');
+  });
+
+  it('keeps two versions of one logical document isolated while indexing', async () => {
+    const embed = vi.fn(async (texts: string[]) =>
+      texts[0]?.includes('Version two') ? [[0.7, 0.8, 0.9]] : [[0.1, 0.2, 0.3]],
+    );
+    const execute = vi.fn(async (query: unknown) => {
+      const text = queryText(query);
+
+      if (text.includes('FROM embedding_indexes AS ei')) {
+        return {
+          rows: [{
+            id: 'eix_active',
+            provider_config_id: 'aip_embedding',
+            provider: 'ollama',
+            model: 'bge-m3',
+            dimensions: 3,
+            distance_metric: 'cosine',
+            status: 'building',
+            name: 'Local embeddings',
+            base_url: 'http://ollama.local',
+            api_key_secret_ref: null,
+            config: {},
+            is_enabled: true,
+          }],
+        };
+      }
+
+      if (text.includes('FROM document_versions AS dv') && text.includes('LEFT JOIN document_chunks AS dc')) {
+        const isVersionTwo = execute.mock.calls.length > 0
+          && JSON.stringify(query).includes('dvr_2');
+
+        return {
+          rows: [{
+            document_id: 'doc_1',
+            document_version_id: isVersionTwo ? 'dvr_2' : 'dvr_1',
+            vault_id: 'vlt_1',
+            chunk_id: isVersionTwo ? 'chk_v2_1' : 'chk_v1_1',
+            content: isVersionTwo ? 'Version two chunk' : 'Version one chunk',
+            chunk_index: 0,
+          }],
+        };
+      }
+
+      if (text.includes('sum(expected_chunk_count)')) {
+        return { rows: [{ expected_chunk_count: 1, failed_chunk_count: 0 }] };
+      }
+
+      if (text.includes('count(*)::int AS embedded_chunk_count')) {
+        return { rows: [{ embedded_chunk_count: 1 }] };
+      }
+
+      return { rows: [] };
+    });
+
+    await indexDocumentForEmbedding({
+      db: { execute } as any,
+      embeddingProviders: {
+        ollama: {
+          kind: 'ollama',
+          embed: async ({ texts }) => embed(texts),
+        },
+      },
+      embeddingIndexId: 'eix_active',
+      documentVersionId: 'dvr_1',
+    });
+    await indexDocumentForEmbedding({
+      db: { execute } as any,
+      embeddingProviders: {
+        ollama: {
+          kind: 'ollama',
+          embed: async ({ texts }) => embed(texts),
+        },
+      },
+      embeddingIndexId: 'eix_active',
+      documentVersionId: 'dvr_2',
+    });
+
+    expect(embed).toHaveBeenNthCalledWith(1, ['Version one chunk']);
+    expect(embed).toHaveBeenNthCalledWith(2, ['Version two chunk']);
+    const combinedSql = execute.mock.calls.map(call => queryText(call[0])).join('\n');
+    expect(combinedSql).toContain('WHERE dv.id =');
+    expect(combinedSql).toContain('ON CONFLICT (embedding_index_id, document_version_id)');
+    expect(combinedSql).toContain('document_version_id');
+  });
+
+  it('does not load chunks or call providers when AI features are disabled after enqueue', async () => {
+    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
+    const execute = vi.fn(async (query: unknown) => {
+      const text = queryText(query);
+
+      if (text.includes('FROM embedding_indexes AS ei')) {
+        return {
+          rows: [{
+            id: 'eix_active',
+            provider_config_id: 'aip_embedding',
+            provider: 'ollama',
+            model: 'bge-m3',
+            dimensions: 3,
+            distance_metric: 'cosine',
+            status: 'building',
+            name: 'Local embeddings',
+            base_url: 'http://ollama.local',
+            api_key_secret_ref: null,
+            config: {},
+            is_enabled: true,
+          }],
+        };
+      }
+
+      return { rows: [] };
+    });
+
+    const result = await indexDocumentForEmbedding({
+      db: { execute } as any,
+      embeddingProviders: {
+        ollama: {
+          kind: 'ollama',
+          embed: async ({ texts }) => embed(texts),
+        },
+      },
+      adminAiServices: {
+        getSettings: async () => ({ aiFeaturesEnabled: false }),
+      },
+      embeddingIndexId: 'eix_active',
+      documentVersionId: 'dvr_1',
+    });
+
+    expect(result).toEqual({ status: 'skipped', reason: 'ai_disabled' });
+    expect(embed).not.toHaveBeenCalled();
+    const combinedSql = execute.mock.calls.map(call => queryText(call[0])).join('\n');
+    expect(combinedSql).not.toContain('FROM document_versions AS dv');
+  });
+
+  it('does not load chunks or call providers when the embedding provider config is disabled', async () => {
+    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
+    const execute = vi.fn(async (query: unknown) => {
+      const text = queryText(query);
+
+      if (text.includes('FROM embedding_indexes AS ei')) {
+        return {
+          rows: [{
+            id: 'eix_active',
+            provider_config_id: 'aip_embedding',
+            provider: 'ollama',
+            model: 'bge-m3',
+            dimensions: 3,
+            distance_metric: 'cosine',
+            status: 'building',
+            name: 'Local embeddings',
+            base_url: 'http://ollama.local',
+            api_key_secret_ref: null,
+            config: {},
+            is_enabled: false,
+          }],
+        };
+      }
+
+      return { rows: [] };
+    });
+
+    const result = await indexDocumentForEmbedding({
+      db: { execute } as any,
+      embeddingProviders: {
+        ollama: {
+          kind: 'ollama',
+          embed: async ({ texts }) => embed(texts),
+        },
+      },
+      embeddingIndexId: 'eix_active',
+      documentVersionId: 'dvr_1',
+    });
+
+    expect(result).toEqual({ status: 'skipped', reason: 'provider_config_disabled' });
+    expect(embed).not.toHaveBeenCalled();
+    const combinedSql = execute.mock.calls.map(call => queryText(call[0])).join('\n');
+    expect(combinedSql).not.toContain('FROM document_versions AS dv');
+  });
+
+  it('skips queued orchestration and finalization when AI features are disabled', async () => {
+    const worker = createEmbeddingIndexWorker({
+      db: { execute: vi.fn(async () => ({ rows: [] })) } as any,
+      embeddingProviders: {},
+      adminAiServices: {
+        getSettings: async () => ({ aiFeaturesEnabled: false }),
+      },
+      startPolling: false,
+    });
+
+    await expect(worker.processEmbeddingIndexJob({
+      id: 'job_orchestrate',
+      name: 'embedding-index-orchestrate',
+      data: { embeddingIndexId: 'eix_active' },
+      attempts: 1,
+      maxAttempts: 3,
+      updateProgress: async () => undefined,
+    } as any)).resolves.toEqual({ skipped: true, reason: 'ai_disabled' });
+
+    await expect(worker.processEmbeddingIndexJob({
+      id: 'job_finalize',
+      name: 'embedding-index-finalize',
+      data: { embeddingIndexId: 'eix_active' },
+      attempts: 1,
+      maxAttempts: 3,
+      updateProgress: async () => undefined,
+    } as any)).resolves.toEqual({ skipped: true, reason: 'ai_disabled' });
+
+    await worker.close();
   });
 
   it('finalizes a complete candidate by building HNSW, activating it, and scheduling old-index cleanup', async () => {
@@ -204,10 +416,11 @@ describe('embedding index worker', () => {
         };
       }
 
-      if (text.includes('FROM documents AS d') && text.includes('LEFT JOIN document_chunks AS dc')) {
+      if (text.includes('FROM document_versions AS dv') && text.includes('LEFT JOIN document_chunks AS dc')) {
         return {
           rows: [{
             document_id: 'doc_1',
+            document_version_id: 'dvr_1',
             vault_id: 'vlt_1',
             chunk_id: 'chk_1',
             content: 'Persisted chunk',
@@ -244,7 +457,7 @@ describe('embedding index worker', () => {
       name: 'embedding-index-document',
       data: {
         embeddingIndexId: 'eix_failed',
-        documentId: 'doc_1',
+        documentVersionId: 'dvr_1',
       },
       attempts: 3,
       maxAttempts: 3,

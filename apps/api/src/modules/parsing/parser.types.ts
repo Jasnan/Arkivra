@@ -4,6 +4,7 @@ export type ParserEngine = 'docling';
 
 export type ParseInput = {
   documentId: string;
+  documentVersionId?: string;
   fileName: string;
   mimeType: string;
   fileData: Buffer;

@@ -80,7 +80,7 @@ describe('backup worker helpers', () => {
       query: vi
         .fn()
         .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [{ original_storage_key: extractedStorageKey }] }),
+        .mockResolvedValueOnce({ rows: [{ storage_key: extractedStorageKey }] }),
     } as never;
 
     const createPool = {

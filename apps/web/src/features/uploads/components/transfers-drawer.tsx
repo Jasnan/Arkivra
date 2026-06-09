@@ -40,6 +40,19 @@ function statusLabel(status: DisplayTransferStatus) {
   }
 }
 
+function conflictStrategyLabel(strategy: string) {
+  switch (strategy) {
+    case 'skip':
+      return 'Skip';
+    case 'keep_both':
+      return 'Keep both';
+    case 'new_version':
+      return 'New version';
+    default:
+      return strategy;
+  }
+}
+
 function isClearableStatus(status: DisplayTransferStatus) {
   return status === 'completed' || status === 'failed' || status === 'canceled' || status === 'paused';
 }
@@ -139,6 +152,23 @@ function TransferRow({ item }: { item: DisplayTransfer }) {
             <Text mt="2" fontSize="xs" color="fg.error">
               {item.error}
             </Text>
+          ) : null}
+          {item.conflict ? (
+            <Flex mt="2.5" flexWrap="wrap" gap="2">
+              {item.conflict.availableStrategies.map((strategy) => (
+                <Button
+                  key={strategy}
+                  type="button"
+                  size="sm"
+                  variant={strategy === 'new_version' ? 'default' : 'outline'}
+                  onClick={() => {
+                    void uploadManager.resolveConflict(item.key, strategy);
+                  }}
+                >
+                  {conflictStrategyLabel(strategy)}
+                </Button>
+              ))}
+            </Flex>
           ) : null}
         </Box>
       </Flex>

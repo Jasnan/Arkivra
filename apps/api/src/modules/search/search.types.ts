@@ -9,6 +9,8 @@ export type SearchSortBy = (typeof SEARCH_SORT_VALUES)[number];
 
 export type DocumentSearchMode = 'keyword' | 'hybrid';
 
+export type SearchVersionMode = 'latest' | 'historical';
+
 export type SearchResultMatchType = 'keyword' | 'semantic' | 'title';
 
 export type SearchResultTag = {
@@ -21,6 +23,8 @@ export type SearchResultItem = {
   vaultId: string;
   vaultName: string;
   documentId: string;
+  documentVersionId: string;
+  versionNumber: number;
   name: string;
   originalName: string;
   originalSize: number;
@@ -53,6 +57,7 @@ export type SearchResultPage = {
     dateFrom: string | null;
     dateTo: string | null;
     sortBy: SearchSortBy;
+    includeVersions: SearchVersionMode;
   };
 };
 
@@ -79,6 +84,8 @@ export type CitationImageAsset = {
 export type Citation = {
   chunkId: string;
   documentId: string;
+  documentVersionId: string;
+  versionNumber: number;
   vaultId: string;
   vaultName: string;
   documentName: string;
@@ -121,11 +128,13 @@ export type DocumentSearchServices = {
     dateTo?: Date | null;
     sortBy?: SearchSortBy;
     searchMode?: DocumentSearchMode;
+    includeVersions?: SearchVersionMode;
   }) => Promise<SearchResultPage>;
   searchHybrid: (args: {
     vaultId?: string;
     vaultIds?: string[];
     documentId?: string;
+    documentVersionIds?: string[];
     query: string;
     limit: number;
     mode?: HybridSearchMode;

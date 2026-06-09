@@ -49,12 +49,14 @@ These features work without Ollama or an embedding index:
 
 - Account registration and login
 - Vault creation and vault membership
-- Upload, parsing, preview, download, trash, and restore
+- Upload, parsing, preview, download, document versions, trash, and restore
 - Folder, tag, and metadata workflows
 - Full-text search
 - Backups from the admin UI when the worker is running
 
 Optional AI chat, translation, and semantic search require additional setup. See [Search and optional AI](./search-and-ai.md).
+
+For upload conflict choices, historical version restore, and version deletion behavior, see [Document versioning](./document-versioning.md).
 
 ## Local Development
 

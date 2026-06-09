@@ -247,12 +247,19 @@ export function createAdminAiServices({
       ? []
       : (await db.execute<DocumentStatusCountRow>(sql`
           SELECT
-            embedding_index_id,
-            status,
+            deis.embedding_index_id,
+            deis.status,
             count(*)::int AS count
-          FROM document_embedding_index_status
-          WHERE embedding_index_id IN (${sql.join(indexIds.map(id => sql`${id}`), sql`, `)})
-          GROUP BY embedding_index_id, status
+          FROM document_embedding_index_status AS deis
+          INNER JOIN document_versions AS dv ON dv.id = deis.document_version_id
+          INNER JOIN documents AS d ON d.id = dv.document_id
+            AND d.vault_id = dv.vault_id
+            AND d.current_version_id = dv.id
+          WHERE deis.embedding_index_id IN (${sql.join(indexIds.map(id => sql`${id}`), sql`, `)})
+            AND dv.processing_status = 'completed'
+            AND dv.deleted_at IS NULL
+            AND d.is_deleted = false
+          GROUP BY deis.embedding_index_id, deis.status
         `)).rows;
     const currentEmbeddedCounts = indexIds.length === 0
       ? []
@@ -261,10 +268,13 @@ export function createAdminAiServices({
             dce.embedding_index_id,
             count(dce.chunk_id)::int AS embedded_chunk_count
           FROM document_chunk_embeddings AS dce
-          INNER JOIN document_chunks AS dc ON dc.id = dce.chunk_id
-          INNER JOIN documents AS d ON d.id = dc.document_id
+          INNER JOIN document_versions AS dv ON dv.id = dce.document_version_id
+          INNER JOIN documents AS d ON d.id = dv.document_id
+            AND d.vault_id = dv.vault_id
+            AND d.current_version_id = dv.id
           WHERE dce.embedding_index_id IN (${sql.join(indexIds.map(id => sql`${id}`), sql`, `)})
-            AND d.processing_status = 'completed'
+            AND dv.processing_status = 'completed'
+            AND dv.deleted_at IS NULL
             AND d.is_deleted = false
           GROUP BY dce.embedding_index_id
         `)).rows;
@@ -335,9 +345,13 @@ export function createAdminAiServices({
   async function getCorpusChunkCount() {
     const result = await db.execute<CorpusChunkCountRow>(sql`
       SELECT count(dc.id)::int AS chunk_count
-      FROM documents AS d
-      INNER JOIN document_chunks AS dc ON dc.document_id = d.id
-      WHERE d.processing_status = 'completed'
+      FROM document_versions AS dv
+      INNER JOIN documents AS d ON d.id = dv.document_id
+        AND d.vault_id = dv.vault_id
+        AND d.current_version_id = dv.id
+      INNER JOIN document_chunks AS dc ON dc.document_version_id = dv.id
+      WHERE dv.processing_status = 'completed'
+        AND dv.deleted_at IS NULL
         AND d.is_deleted = false
     `);
 
@@ -378,10 +392,14 @@ export function createAdminAiServices({
         FROM embedding_indexes AS ei
         INNER JOIN ai_provider_configs AS apc ON apc.id = ei.provider_config_id
         LEFT JOIN document_chunk_embeddings AS dce ON dce.embedding_index_id = ei.id
-        LEFT JOIN document_chunks AS dc ON dc.id = dce.chunk_id
+        LEFT JOIN document_versions AS dv
+          ON dv.id = dce.document_version_id
+          AND dv.processing_status = 'completed'
+          AND dv.deleted_at IS NULL
         LEFT JOIN documents AS d
-          ON d.id = dc.document_id
-          AND d.processing_status = 'completed'
+          ON d.id = dv.document_id
+          AND d.vault_id = dv.vault_id
+          AND d.current_version_id = dv.id
           AND d.is_deleted = false
         WHERE ei.provider = ${settings.embedding.provider}
           AND ei.model = ${settings.embedding.model}

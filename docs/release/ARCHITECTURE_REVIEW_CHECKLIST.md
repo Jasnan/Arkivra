@@ -7,6 +7,7 @@ Use this checklist when reviewing architecture, planning refactors, or validatin
 - [ ] Core document management works without AI.
 - [ ] Vaults are the central ownership and authorization boundary.
 - [ ] Document, vault, folder, tag, upload, search, chat, audit, activity, backup, and admin domains remain clear.
+- [ ] Logical document metadata and immutable document-version content stay separated.
 - [ ] Activity and audit concepts are separate.
 - [ ] Provider-specific concerns do not leak into core domain services.
 - [ ] Shared utilities are introduced only when they remove real duplication or clarify boundaries.
@@ -33,6 +34,7 @@ Use this checklist when reviewing architecture, planning refactors, or validatin
 - [ ] Drizzle schema is the source of truth.
 - [ ] Table names, foreign keys, indexes, and uniqueness constraints match domain rules.
 - [ ] Soft-delete, restore, and retention behavior are represented consistently.
+- [ ] Current-version pointers, historical version tombstones, and logical document purge semantics are represented consistently.
 - [ ] Authorization tables support system roles, capabilities, vault roles, memberships, and AI access levels.
 - [ ] Search, chunk, embedding, and metadata tables support non-AI and AI-enabled operation.
 - [ ] Audit and activity schemas support their separate purposes.
@@ -51,6 +53,8 @@ Use this checklist when reviewing architecture, planning refactors, or validatin
 - [ ] Full-text search works without AI.
 - [ ] Semantic search depends on active embedding index state.
 - [ ] Search services apply authorization filters for every retrieval mode.
+- [ ] Search defaults to current completed versions and requires explicit historical mode for older versions.
+- [ ] Chat retrieval uses frozen document-version manifests after the first accepted user message.
 - [ ] Embedding index lifecycle is explicit and observable.
 - [ ] Indexing failures do not break core document management.
 - [ ] Search ranking and fallback behavior are predictable and documented.

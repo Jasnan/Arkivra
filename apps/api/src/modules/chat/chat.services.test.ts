@@ -139,7 +139,7 @@ describe('chat service helpers', () => {
     );
   });
 
-  test('prefers table representations for table-oriented questions', () => {
+  test('keeps retrieval score ahead of representation type when ranking citations', () => {
     const pageCitation: Citation = {
       ...citation,
       chunkId: 'chk_page',
@@ -163,17 +163,27 @@ describe('chat service helpers', () => {
         question: 'What is the invoice total in the table?',
         citations: [pageCitation, tableCitation],
       }).map(item => item.chunkId),
-    ).toEqual(['chk_table', 'chk_page']);
+    ).toEqual(['chk_page', 'chk_table']);
   });
 
-  test('does not duplicate context chunks from the same source element', () => {
+  test('does not duplicate context chunks from the same source element after relevance ranking', () => {
     const expanded = buildExpandedCitationForChat({
       citations: [
         {
           ...citation,
+          chunkId: 'ctx_table',
           retrievalRepresentation: 'table',
           sourceElementIds: ['el_table_1'],
           snippet: 'Row 1: Total=42.00',
+          score: 0.2,
+        },
+        {
+          ...citation,
+          chunkId: 'ctx_page',
+          retrievalRepresentation: 'page',
+          sourceElementIds: ['el_table_1'],
+          snippet: 'The page repeats Row 1: Total=42.00 with surrounding text.',
+          score: 0.9,
         },
       ],
       contextChunks: [
@@ -186,6 +196,8 @@ describe('chat service helpers', () => {
           section: 'Invoice',
           sourceElementIds: ['el_table_1'],
           snippet: 'The page repeats Row 1: Total=42.00 with surrounding text.',
+          retrievalScore: 0.9,
+          retrievalRank: 0,
         },
         {
           chunkId: 'ctx_table',
@@ -196,12 +208,16 @@ describe('chat service helpers', () => {
           section: 'Invoice',
           sourceElementIds: ['el_table_1'],
           snippet: 'Row 1: Total=42.00',
+          retrievalScore: 0.2,
+          retrievalRank: 1,
         },
       ],
     });
 
-    expect(expanded?.snippet).toContain('Page 2 - Invoice: Row 1: Total=42.00');
-    expect(expanded?.snippet).not.toContain('surrounding text');
+    expect(expanded?.snippet).toContain(
+      'Page 2 - Invoice: The page repeats Row 1: Total=42.00 with surrounding text.',
+    );
+    expect(expanded?.snippet).not.toContain('Page 2 - Invoice: Row 1: Total=42.00');
   });
 
   test('prioritizes citations that match explicit year constraints', () => {
@@ -228,7 +244,7 @@ describe('chat service helpers', () => {
     ).toEqual(['doc_2018', 'doc_2019']);
   });
 
-  test('prioritizes concrete query terms in document names after broad retrieval', () => {
+  test('keeps retrieval relevance ahead of concrete query terms after broad retrieval', () => {
     const broadMatch: Citation = {
       ...citation,
       chunkId: 'chk_application',
@@ -259,7 +275,107 @@ describe('chat service helpers', () => {
         question: 'Give me passport ids and expiry dates for Jasnan',
         citations: [broadMatch, otherIdentityDocument, exactPersonPassport],
       }).map((item) => item.documentId),
-    ).toEqual(['doc_person_passport', 'doc_application', 'doc_other_identity']);
+    ).toEqual(['doc_application', 'doc_other_identity', 'doc_person_passport']);
+  });
+
+  test('preserves top-ranked expanded chunks through prompt construction', () => {
+    const tableCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_table',
+      retrievalRepresentation: 'table',
+      assetType: 'table',
+      pageStart: 1,
+      pageEnd: 1,
+      section: 'Metadata',
+      snippet: 'Miscellaneous metadata',
+      tablesHtml: [],
+      score: 0.2,
+    };
+    const hybridCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_hybrid',
+      retrievalRepresentation: 'docling_hybrid',
+      assetType: 'text',
+      pageStart: 1,
+      pageEnd: 1,
+      section: 'Partial extraction',
+      snippet: 'Partial extraction',
+      tablesHtml: [],
+      score: 0.4,
+    };
+    const pageCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_page',
+      retrievalRepresentation: 'page',
+      assetType: 'text',
+      pageStart: 1,
+      pageEnd: 1,
+      section: 'Page 1',
+      snippet: 'Passport Number: X1234567 Name: Jane Doe Expiry Date: 01 Jan 2035',
+      tablesHtml: [],
+      score: 0.95,
+    };
+    const expanded = buildExpandedCitationForChat({
+      citations: [tableCitation, hybridCitation, pageCitation],
+      contextChunks: [
+        {
+          chunkId: 'chk_table',
+          chunkIndex: 1,
+          retrievalRepresentation: 'table',
+          pageStart: 1,
+          pageEnd: 1,
+          section: 'Metadata',
+          snippet: 'Miscellaneous metadata',
+          retrievalScore: 0.2,
+          retrievalRank: 0,
+        },
+        {
+          chunkId: 'chk_hybrid',
+          chunkIndex: 2,
+          retrievalRepresentation: 'docling_hybrid',
+          pageStart: 1,
+          pageEnd: 1,
+          section: 'Partial extraction',
+          snippet: 'Partial extraction',
+          retrievalScore: 0.4,
+          retrievalRank: 1,
+        },
+        {
+          chunkId: 'chk_page',
+          chunkIndex: 3,
+          retrievalRepresentation: 'page',
+          pageStart: 1,
+          pageEnd: 1,
+          section: 'Page 1',
+          snippet: 'Passport Number: X1234567 Name: Jane Doe Expiry Date: 01 Jan 2035',
+          retrievalScore: 0.95,
+          retrievalRank: 2,
+        },
+      ],
+    });
+
+    expect(expanded?.contextChunks?.map((chunk) => chunk.chunkId)).toEqual([
+      'chk_page',
+      'chk_hybrid',
+      'chk_table',
+    ]);
+
+    const prompt = buildAnswerPrompt({
+      question: 'What is the passport number and expiry date? And whose passport is this?',
+      citations: expanded === null ? [] : [expanded],
+      includeInlineCitations: false,
+    });
+    const pageIndex = prompt.indexOf('Passport Number: X1234567');
+    const tableIndex = prompt.indexOf('Miscellaneous metadata');
+
+    expect(prompt).toContain('Passport Number: X1234567');
+    expect(prompt).toContain('Name: Jane Doe');
+    expect(prompt).toContain('Expiry Date: 01 Jan 2035');
+    expect(prompt).toContain('Page: page 1');
+    expect(prompt).toContain('Representation: page');
+    expect(pageIndex).toBeGreaterThan(-1);
+    expect(tableIndex).toBeGreaterThan(-1);
+    expect(pageIndex).toBeLessThan(tableIndex);
   });
 
   test('builds compare intent system prompts for guided follow-ups', () => {

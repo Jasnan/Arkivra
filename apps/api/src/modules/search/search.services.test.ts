@@ -361,7 +361,7 @@ describe('document search services', () => {
     expect(result.citations).toEqual([]);
   });
 
-  it('diversifies duplicate table/page representations from the same source region', async () => {
+  it('diversifies duplicate table/page representations from the same source region by score first', async () => {
     const execute = vi.fn(async () => ({
       rows: [
         {
@@ -450,9 +450,9 @@ describe('document search services', () => {
     });
 
     expect(result.mode).toBe('fts');
-    expect(result.citations.map(citation => citation.chunkId)).toEqual(['chk_table', 'chk_other']);
+    expect(result.citations.map(citation => citation.chunkId)).toEqual(['chk_page', 'chk_other']);
     expect(result.citations[0]).toMatchObject({
-      retrievalRepresentation: 'table',
+      retrievalRepresentation: 'page',
       tableSourceElementIds: ['#/tables/0'],
     });
   });

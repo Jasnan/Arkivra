@@ -16,14 +16,15 @@ export type DoclingChunker = 'hybrid' | 'hierarchical';
 export type DoclingConvertOptions = {
   toFormats: string[];
   doOcr: boolean;
-  ocrPreset: string;
+  ocrEngine: string;
+  ocrPreset?: string;
   ocrLang?: string[];
 };
 
 export const DEFAULT_DOCLING_CONVERT_OPTIONS: DoclingConvertOptions = {
   toFormats: ['json', 'md'],
   doOcr: true,
-  ocrPreset: 'easyocr',
+  ocrEngine: 'ocrmac',
 };
 
 export type DoclingChunkOptions = {
@@ -237,7 +238,7 @@ export function createDoclingClient({
     formData.append('include_images', 'true');
     formData.append('image_export_mode', 'embedded');
     formData.append('do_ocr', String(effectiveConvertOptions.doOcr));
-    formData.append('ocr_preset', effectiveConvertOptions.ocrPreset);
+    formData.append('ocr_engine', effectiveConvertOptions.ocrEngine);
 
     for (const language of effectiveConvertOptions.ocrLang ?? []) {
       formData.append('ocr_lang', language);
@@ -409,7 +410,7 @@ export function createDoclingClient({
       formData.append('convert_include_images', 'true');
       formData.append('convert_image_export_mode', 'embedded');
       formData.append('convert_do_ocr', String(effectiveChunkConvertOptions.doOcr));
-      formData.append('convert_ocr_preset', effectiveConvertOptions.ocrPreset);
+      formData.append('convert_ocr_engine', effectiveConvertOptions.ocrEngine);
 
       for (const language of effectiveConvertOptions.ocrLang ?? []) {
         formData.append('convert_ocr_lang', language);

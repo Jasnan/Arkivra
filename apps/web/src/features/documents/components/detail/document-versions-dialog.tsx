@@ -1,5 +1,5 @@
 import { Box, Flex, HStack, Spinner, Stack, Text } from '@chakra-ui/react';
-import { AlertCircle, CheckCircle2, Download, RotateCcw, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,9 +12,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DeleteButton } from '@/components/ui/action-buttons';
-import type { DocumentVersionSummary } from '@/features/documents/documents.types';
+import type {
+  DeletionImpactPreview,
+  DocumentVersionSummary,
+} from '@/features/documents/documents.types';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
-import { getDocumentVersionDownloadUrl } from '@/features/documents/documents.api';
+import {
+  getDocumentVersionDeletionImpact,
+  getDocumentVersionDownloadUrl,
+} from '@/features/documents/documents.api';
 import { useState } from 'react';
 
 function versionStatusLabel(version: DocumentVersionSummary) {
@@ -26,11 +32,46 @@ function versionStatusLabel(version: DocumentVersionSummary) {
 }
 
 function isRestorable(version: DocumentVersionSummary) {
-  return !version.isCurrent && version.deletedAt === null && version.processingStatus === 'completed';
+  return (
+    !version.isCurrent && version.deletedAt === null && version.processingStatus === 'completed'
+  );
 }
 
 function isDeletable(version: DocumentVersionSummary) {
   return !version.isCurrent && version.deletedAt === null;
+}
+
+function AffectedConversationsList({ impact }: { impact: DeletionImpactPreview }) {
+  const shownCount = impact.affectedConversations.length;
+  const hasMore = impact.affectedConversationCount > shownCount;
+
+  return (
+    <Stack gap="3" color="fg.muted" fontSize="sm" lineHeight="1.55">
+      <Text>
+        This version is referenced by {impact.affectedConversationCount}{' '}
+        {impact.affectedConversationCount === 1 ? 'conversation' : 'conversations'}.
+      </Text>
+      <Text>Deleting it will:</Text>
+      <Stack as="ul" gap="1" m="0" ps="5">
+        <Text as="li">preserve conversation history</Text>
+        <Text as="li">remove source content</Text>
+        <Text as="li">make the affected conversations read-only</Text>
+      </Stack>
+      <Text>Affected conversations{hasMore ? ` (${impact.affectedConversationCount})` : ''}:</Text>
+      <Stack as="ul" gap="1" m="0" ps="5">
+        {impact.affectedConversations.map((conversation) => (
+          <Text as="li" key={conversation.id} overflowWrap="anywhere">
+            {conversation.title}
+          </Text>
+        ))}
+      </Stack>
+      {hasMore ? (
+        <Text>
+          Showing {shownCount} of {impact.affectedConversationCount} conversations.
+        </Text>
+      ) : null}
+    </Stack>
+  );
 }
 
 export function DocumentVersionsDialog({
@@ -62,9 +103,47 @@ export function DocumentVersionsDialog({
   onRestoreVersion: (version: DocumentVersionSummary) => Promise<void>;
   onDeleteVersion: (version: DocumentVersionSummary) => Promise<void>;
 }) {
-  const [versionPendingRestore, setVersionPendingRestore] = useState<DocumentVersionSummary | null>(null);
-  const [versionPendingDelete, setVersionPendingDelete] = useState<DocumentVersionSummary | null>(null);
+  const [versionPendingRestore, setVersionPendingRestore] = useState<DocumentVersionSummary | null>(
+    null,
+  );
+  const [versionPendingDelete, setVersionPendingDelete] = useState<DocumentVersionSummary | null>(
+    null,
+  );
+  const [deleteImpact, setDeleteImpact] = useState<DeletionImpactPreview | null>(null);
+  const [isDeleteImpactLoading, setIsDeleteImpactLoading] = useState(false);
+  const [deleteImpactError, setDeleteImpactError] = useState<string | null>(null);
   const isMutating = isRestorePending || isDeletePending;
+
+  function closeDeleteDialog() {
+    setVersionPendingDelete(null);
+    setDeleteImpact(null);
+    setDeleteImpactError(null);
+    setIsDeleteImpactLoading(false);
+  }
+
+  function openDeleteDialog(version: DocumentVersionSummary) {
+    setVersionPendingDelete(version);
+    setDeleteImpact(null);
+    setDeleteImpactError(null);
+    setIsDeleteImpactLoading(true);
+    void getDocumentVersionDeletionImpact({
+      vaultId,
+      documentId,
+      versionId: version.id,
+      limit: 5,
+    })
+      .then(({ impact }) => {
+        setDeleteImpact(impact);
+      })
+      .catch((error) => {
+        setDeleteImpactError(
+          error instanceof Error ? error.message : 'Could not check affected conversations.',
+        );
+      })
+      .finally(() => {
+        setIsDeleteImpactLoading(false);
+      });
+  }
 
   return (
     <>
@@ -94,7 +173,8 @@ export function DocumentVersionsDialog({
               <Stack gap="2">
                 {versions.map((version) => {
                   const isSelected =
-                    selectedVersionId === version.id || (selectedVersionId === null && version.isCurrent);
+                    selectedVersionId === version.id ||
+                    (selectedVersionId === null && version.isCurrent);
 
                   return (
                     <Box
@@ -118,12 +198,16 @@ export function DocumentVersionsDialog({
                               v{version.versionNumber}
                             </Text>
                             {version.isCurrent ? (
-                              <Badge variant="secondary" colorPalette="teal">Current</Badge>
+                              <Badge variant="secondary" colorPalette="teal">
+                                Current
+                              </Badge>
                             ) : (
                               <Badge variant="outline">Historical</Badge>
                             )}
                             {version.restoredFromVersionId ? (
-                              <Badge variant="outline" colorPalette="purple">Restored</Badge>
+                              <Badge variant="outline" colorPalette="purple">
+                                Restored
+                              </Badge>
                             ) : null}
                             {isSelected ? (
                               <Badge variant="secondary" colorPalette="green">
@@ -136,13 +220,18 @@ export function DocumentVersionsDialog({
                             {version.originalName}
                           </Text>
                           <Text mt="1" fontSize="xs" color="fg.muted">
-                            Uploaded {formatDate(version.uploadedAt)} · {formatBytes(version.originalSize)} · {versionStatusLabel(version)}
+                            Uploaded {formatDate(version.uploadedAt)} ·{' '}
+                            {formatBytes(version.originalSize)} · {versionStatusLabel(version)}
                           </Text>
                           <Text mt="1" fontSize="xs" color="fg.muted" truncate>
                             SHA-256 {version.originalSha256Hash}
                           </Text>
                         </Box>
-                        <Flex flexWrap="wrap" gap="2" justify={{ base: 'flex-start', lg: 'flex-end' }}>
+                        <Flex
+                          flexWrap="wrap"
+                          gap="2"
+                          justify={{ base: 'flex-start', lg: 'flex-end' }}
+                        >
                           <Button
                             type="button"
                             size="sm"
@@ -153,7 +242,13 @@ export function DocumentVersionsDialog({
                           >
                             View
                           </Button>
-                          <a href={getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: version.id })}>
+                          <a
+                            href={getDocumentVersionDownloadUrl({
+                              vaultId,
+                              documentId,
+                              versionId: version.id,
+                            })}
+                          >
                             <Button as="span" size="sm" variant="outline">
                               <Download size={15} />
                               Download
@@ -173,9 +268,8 @@ export function DocumentVersionsDialog({
                             type="button"
                             size="sm"
                             disabled={!isDeletable(version) || isMutating}
-                            onClick={() => setVersionPendingDelete(version)}
+                            onClick={() => openDeleteDialog(version)}
                           >
-                            <Trash2 size={15} />
                             Delete
                           </DeleteButton>
                         </Flex>
@@ -201,11 +295,13 @@ export function DocumentVersionsDialog({
         <DialogContent maxW="lg">
           <DialogHeader pr="10">
             <DialogTitle>
-              {versionPendingRestore ? `Restore v${versionPendingRestore.versionNumber}?` : 'Restore version?'}
+              {versionPendingRestore
+                ? `Restore v${versionPendingRestore.versionNumber}?`
+                : 'Restore version?'}
             </DialogTitle>
             <DialogDescription>
-              Restoring creates a new latest version. The historical version remains in the
-              version list.
+              Restoring creates a new latest version. The historical version remains in the version
+              list.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -222,7 +318,9 @@ export function DocumentVersionsDialog({
               disabled={versionPendingRestore === null || isRestorePending}
               onClick={() => {
                 if (versionPendingRestore === null) return;
-                void onRestoreVersion(versionPendingRestore).then(() => setVersionPendingRestore(null));
+                void onRestoreVersion(versionPendingRestore).then(() =>
+                  setVersionPendingRestore(null),
+                );
               }}
             >
               {isRestorePending ? 'Restoring...' : 'Restore'}
@@ -235,36 +333,61 @@ export function DocumentVersionsDialog({
         open={versionPendingDelete !== null}
         onOpenChange={(nextOpen) => {
           if (!nextOpen && !isDeletePending) {
-            setVersionPendingDelete(null);
+            closeDeleteDialog();
           }
         }}
-        closeOnEscape={!isDeletePending}
+        closeOnEscape={!isDeletePending && !isDeleteImpactLoading}
       >
         <DialogContent maxW="lg">
           <DialogHeader pr="10">
             <DialogTitle>
-              {versionPendingDelete ? `Delete v${versionPendingDelete.versionNumber}?` : 'Delete version?'}
+              {versionPendingDelete
+                ? `Delete v${versionPendingDelete.versionNumber}?`
+                : 'Delete version?'}
             </DialogTitle>
-            <DialogDescription>
-              This removes source-derived data for this historical version. Versions used by chat
-              history may be rejected by the API.
-            </DialogDescription>
           </DialogHeader>
+          <DialogBody px={{ base: '4', md: '6' }}>
+            {isDeleteImpactLoading ? (
+              <Flex align="center" gap="3" color="fg.muted">
+                <Spinner size="sm" color="teal.solid" />
+                <Text fontSize="sm">Checking affected conversations...</Text>
+              </Flex>
+            ) : deleteImpactError !== null ? (
+              <Flex align="center" gap="3" color="fg.error">
+                <AlertCircle size={18} />
+                <Text fontSize="sm" fontWeight="semibold">
+                  {deleteImpactError}
+                </Text>
+              </Flex>
+            ) : deleteImpact !== null && deleteImpact.affectedConversationCount > 0 ? (
+              <AffectedConversationsList impact={deleteImpact} />
+            ) : (
+              <DialogDescription>
+                This removes this older version from the version history. The current file stays
+                unchanged.
+              </DialogDescription>
+            )}
+          </DialogBody>
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              disabled={isDeletePending}
-              onClick={() => setVersionPendingDelete(null)}
+              disabled={isDeletePending || isDeleteImpactLoading}
+              onClick={closeDeleteDialog}
             >
               Cancel
             </Button>
             <DeleteButton
               type="button"
-              disabled={versionPendingDelete === null || isDeletePending}
+              disabled={
+                versionPendingDelete === null ||
+                isDeletePending ||
+                isDeleteImpactLoading ||
+                deleteImpactError !== null
+              }
               onClick={() => {
                 if (versionPendingDelete === null) return;
-                void onDeleteVersion(versionPendingDelete).then(() => setVersionPendingDelete(null));
+                void onDeleteVersion(versionPendingDelete).then(closeDeleteDialog);
               }}
             >
               {isDeletePending ? 'Deleting...' : 'Delete version'}

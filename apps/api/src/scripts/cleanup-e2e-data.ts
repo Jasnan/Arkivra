@@ -23,6 +23,7 @@ const testEmailPatterns = [
   'e2e-%@example.com',
   'docling-fixture-%@example.com',
   'restore-%@example.com',
+  'versioning-smoke-%@example.com',
   'auth-admin-%@example.com',
   'auth-owner-%@example.com',
   'auth-member-%@example.com',
@@ -41,6 +42,7 @@ const testVaultNames = [
   'Restore failure',
   'Restore full',
   'Restore partial',
+  'Versioning Smoke Vault',
 ];
 
 const testDocumentNames = [
@@ -52,6 +54,7 @@ const testDocumentNames = [
   'docling-fixture.pdf',
   'expired.pdf',
   'invoice.pdf',
+  'smoke.txt',
 ];
 
 const tempDirectoryPrefixes = [
@@ -153,7 +156,9 @@ function parseEnvLine(line: string) {
     return null;
   }
 
-  const normalized = trimmed.startsWith('export ') ? trimmed.slice('export '.length).trim() : trimmed;
+  const normalized = trimmed.startsWith('export ')
+    ? trimmed.slice('export '.length).trim()
+    : trimmed;
   const separatorIndex = normalized.indexOf('=');
 
   if (separatorIndex <= 0) {
@@ -165,7 +170,7 @@ function parseEnvLine(line: string) {
 
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith('\'') && value.endsWith('\''))
+    (value.startsWith("'") && value.endsWith("'"))
   ) {
     value = value.slice(1, -1);
   }
@@ -194,9 +199,16 @@ async function loadLocalEnvFiles() {
   await loadEnvFileIfExists(resolve(scriptDirectory, '../../.env'));
 }
 
-async function runQuery(pool: Pool, label: string, sql: string, dryRun: boolean): Promise<CleanupResult> {
+async function runQuery(
+  pool: Pool,
+  label: string,
+  sql: string,
+  dryRun: boolean,
+): Promise<CleanupResult> {
   if (dryRun) {
-    const result = await pool.query<{ count: string }>(`WITH affected AS (${sql}) SELECT count(*)::int FROM affected`);
+    const result = await pool.query<{ count: string }>(
+      `WITH affected AS (${sql}) SELECT count(*)::int FROM affected`,
+    );
     return { label, count: Number(result.rows[0]?.count ?? 0) };
   }
 
@@ -229,7 +241,9 @@ async function cleanSharedDatabase(pool: Pool, dryRun: boolean) {
   try {
     await pool.query('CREATE TEMP TABLE e2e_cleanup_users (id text PRIMARY KEY) ON COMMIT DROP');
     await pool.query('CREATE TEMP TABLE e2e_cleanup_vaults (id text PRIMARY KEY) ON COMMIT DROP');
-    await pool.query('CREATE TEMP TABLE e2e_cleanup_documents (id text PRIMARY KEY) ON COMMIT DROP');
+    await pool.query(
+      'CREATE TEMP TABLE e2e_cleanup_documents (id text PRIMARY KEY) ON COMMIT DROP',
+    );
     await pool.query('CREATE TEMP TABLE e2e_cleanup_tags (id text PRIMARY KEY) ON COMMIT DROP');
 
     await pool.query(
@@ -254,6 +268,7 @@ async function cleanSharedDatabase(pool: Pool, dryRun: boolean) {
         FROM vaults
         WHERE id LIKE 'vlt_bg_%'
            OR id LIKE 'vlt_restore-%'
+           OR id LIKE 'vlt_versioning-smoke-%'
            OR name = ANY($1)
         ON CONFLICT DO NOTHING
       `,
@@ -269,6 +284,7 @@ async function cleanSharedDatabase(pool: Pool, dryRun: boolean) {
            OR created_by IN (SELECT id FROM e2e_cleanup_users)
            OR id LIKE 'doc_bg_%'
            OR id LIKE 'doc_restore-%'
+           OR id LIKE 'doc_versioning-smoke-%'
            OR original_name = ANY($1)
            OR name = ANY($1)
         ON CONFLICT DO NOTHING
@@ -313,10 +329,11 @@ async function cleanSharedDatabase(pool: Pool, dryRun: boolean) {
 
     const results: CleanupResult[] = [];
 
-    results.push(await runQuery(
-      pool,
-      'background jobs',
-      `
+    results.push(
+      await runQuery(
+        pool,
+        'background jobs',
+        `
         DELETE FROM background_jobs
         WHERE id IN (
           SELECT id
@@ -328,13 +345,15 @@ async function cleanSharedDatabase(pool: Pool, dryRun: boolean) {
         )
         RETURNING id
       `,
-      dryRun,
-    ));
+        dryRun,
+      ),
+    );
 
-    results.push(await runQuery(
-      pool,
-      'upload sessions',
-      `
+    results.push(
+      await runQuery(
+        pool,
+        'upload sessions',
+        `
         DELETE FROM upload_sessions
         WHERE id IN (
           SELECT id
@@ -345,58 +364,68 @@ async function cleanSharedDatabase(pool: Pool, dryRun: boolean) {
         )
         RETURNING id
       `,
-      dryRun,
-    ));
+        dryRun,
+      ),
+    );
 
-    results.push(await runQuery(
-      pool,
-      'documents',
-      `
+    results.push(
+      await runQuery(
+        pool,
+        'documents',
+        `
         DELETE FROM documents
         WHERE id IN (SELECT id FROM e2e_cleanup_documents)
         RETURNING id
       `,
-      dryRun,
-    ));
+        dryRun,
+      ),
+    );
 
-    results.push(await runQuery(
-      pool,
-      'vaults',
-      `
+    results.push(
+      await runQuery(
+        pool,
+        'vaults',
+        `
         DELETE FROM vaults
         WHERE id IN (SELECT id FROM e2e_cleanup_vaults)
         RETURNING id
       `,
-      dryRun,
-    ));
+        dryRun,
+      ),
+    );
 
-    results.push(await runQuery(
-      pool,
-      'users',
-      `
+    results.push(
+      await runQuery(
+        pool,
+        'users',
+        `
         DELETE FROM users
         WHERE id IN (SELECT id FROM e2e_cleanup_users)
         RETURNING id
       `,
-      dryRun,
-    ));
+        dryRun,
+      ),
+    );
 
-    results.push(await runQueryWithParams(
-      pool,
-      'auth verifications',
-      `
+    results.push(
+      await runQueryWithParams(
+        pool,
+        'auth verifications',
+        `
         DELETE FROM auth_verifications
         WHERE ${testEmailPatterns.map((_, index) => `identifier LIKE $${index + 1}`).join(' OR ')}
         RETURNING id
       `,
-      testEmailPatterns,
-      dryRun,
-    ));
+        testEmailPatterns,
+        dryRun,
+      ),
+    );
 
-    results.push(await runQuery(
-      pool,
-      'tags',
-      `
+    results.push(
+      await runQuery(
+        pool,
+        'tags',
+        `
         DELETE FROM tags
         WHERE id IN (SELECT id FROM e2e_cleanup_tags)
           AND NOT EXISTS (
@@ -406,8 +435,9 @@ async function cleanSharedDatabase(pool: Pool, dryRun: boolean) {
           )
         RETURNING id
       `,
-      dryRun,
-    ));
+        dryRun,
+      ),
+    );
 
     if (dryRun) {
       await pool.query('ROLLBACK');
@@ -455,13 +485,15 @@ async function cleanIsolatedDatabases(adminPool: Pool, dryRun: boolean) {
 async function cleanTempDirectories(dryRun: boolean) {
   const entries = await readdir(tmpdir(), { withFileTypes: true });
   const directories = entries
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
-    .filter(name => tempDirectoryPrefixes.some(prefix => name.startsWith(prefix)));
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => tempDirectoryPrefixes.some((prefix) => name.startsWith(prefix)));
 
   if (!dryRun) {
     await Promise.all(
-      directories.map(directory => rm(join(tmpdir(), directory), { recursive: true, force: true })),
+      directories.map((directory) =>
+        rm(join(tmpdir(), directory), { recursive: true, force: true }),
+      ),
     );
   }
 

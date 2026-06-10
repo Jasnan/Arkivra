@@ -157,7 +157,8 @@ describe('chat routes', () => {
         contextAvailability: {
           status: 'source_document_deleted' as const,
           readOnly: true as const,
-          message: 'One or more source documents were deleted. This conversation is available as read-only history.',
+          message:
+            'One or more source documents were deleted. This conversation is available as read-only history.',
         },
         userId: 'usr_1',
         title: 'Frozen chat',
@@ -204,6 +205,56 @@ describe('chat routes', () => {
     expect(services.createMessageStream).not.toHaveBeenCalled();
   });
 
+  test('returns context unavailable for read-only document chats whose source was purged', async () => {
+    const services = createMockChatServices({
+      getConversation: vi.fn(async () => ({
+        id: 'cht_1',
+        vaultId: 'vlt_1',
+        documentId: 'doc_deleted',
+        scope: 'document' as const,
+        contextSnapshot: {
+          type: 'document' as const,
+          vaultId: 'vlt_1',
+          documentId: 'doc_deleted',
+          vaultName: 'Finance',
+          documentName: 'Deleted source.pdf',
+        },
+        contextAvailability: {
+          status: 'source_document_deleted' as const,
+          readOnly: true as const,
+          message:
+            'One or more source documents were deleted. This conversation is available as read-only history.',
+        },
+        userId: 'usr_1',
+        title: 'Purged source chat',
+        createdAt: '2026-05-05T10:00:00.000Z',
+        updatedAt: '2026-05-05T10:05:00.000Z',
+        messages: [],
+      })),
+    });
+    const { app } = createTestApp({ db: createMockDb([]), services });
+
+    const response = await app.request('/api/chats/cht_1/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        messages: [
+          { id: 'msg_1', role: 'user', parts: [{ type: 'text', text: 'Can we continue?' }] },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'chat.context_unavailable',
+        message:
+          'One or more source documents were deleted. This conversation is available as read-only history.',
+      },
+    });
+    expect(services.createMessageStream).not.toHaveBeenCalled();
+  });
+
   test('rejects streams for frozen conversations with unavailable manifest sources', async () => {
     const services = createMockChatServices({
       getConversation: vi.fn(async () => ({
@@ -215,7 +266,8 @@ describe('chat routes', () => {
         contextAvailability: {
           status: 'source_document_deleted' as const,
           readOnly: true as const,
-          message: 'One or more source documents were deleted. This conversation is available as read-only history.',
+          message:
+            'One or more source documents were deleted. This conversation is available as read-only history.',
         },
         userId: 'usr_1',
         title: 'Frozen chat',
@@ -236,7 +288,8 @@ describe('chat routes', () => {
     await expect(response.json()).resolves.toEqual({
       error: {
         code: 'chat.context_unavailable',
-        message: 'One or more source documents were deleted. This conversation is available as read-only history.',
+        message:
+          'One or more source documents were deleted. This conversation is available as read-only history.',
       },
     });
     expect(services.createMessageStream).not.toHaveBeenCalled();
@@ -253,7 +306,8 @@ describe('chat routes', () => {
         contextAvailability: {
           status: 'source_document_deleted' as const,
           readOnly: true as const,
-          message: 'One or more source documents were deleted. This conversation is available as read-only history.',
+          message:
+            'One or more source documents were deleted. This conversation is available as read-only history.',
         },
         userId: 'usr_1',
         title: 'Frozen chat',

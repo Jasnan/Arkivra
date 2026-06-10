@@ -3,7 +3,10 @@ import type { SearchSortBy } from '@/features/search/search.types';
 import type {
   DocumentChunkSummary,
   DeletedDocumentSummary,
+  DeletionImpactPreview,
+  BulkDocumentDeletionImpactPreview,
   DocumentDetail,
+  DocumentDeletionImpactPreview,
   DocumentLanguageMetadata,
   DocumentSummary,
   DocumentVersionDetail,
@@ -78,6 +81,18 @@ interface DocumentVersionResponse {
   version: DocumentVersionDetail;
 }
 
+interface VersionDeletionImpactResponse {
+  impact: DeletionImpactPreview;
+}
+
+interface DocumentDeletionImpactResponse {
+  impact: DocumentDeletionImpactPreview;
+}
+
+interface BulkDocumentDeletionImpactResponse {
+  impact: BulkDocumentDeletionImpactPreview;
+}
+
 export async function listDocuments({
   vaultId,
   includeDeleted = false,
@@ -115,16 +130,36 @@ export async function listDocuments({
   return fetchJson<DocumentsResponse>(`/api/vaults/${vaultId}/documents${suffix}`);
 }
 
-export async function getDocument({ vaultId, documentId }: { vaultId: string; documentId: string }) {
+export async function getDocument({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string;
+  documentId: string;
+}) {
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents/${documentId}`);
 }
 
-export async function listDocumentChunks({ vaultId, documentId }: { vaultId: string; documentId: string }) {
+export async function listDocumentChunks({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string;
+  documentId: string;
+}) {
   return fetchJson<DocumentChunksResponse>(`/api/vaults/${vaultId}/documents/${documentId}/chunks`);
 }
 
-export async function listDocumentVersions({ vaultId, documentId }: { vaultId: string; documentId: string }) {
-  return fetchJson<DocumentVersionsResponse>(`/api/vaults/${vaultId}/documents/${documentId}/versions`);
+export async function listDocumentVersions({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string;
+  documentId: string;
+}) {
+  return fetchJson<DocumentVersionsResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions`,
+  );
 }
 
 export async function getDocumentVersion({
@@ -136,7 +171,9 @@ export async function getDocumentVersion({
   documentId: string;
   versionId: string;
 }) {
-  return fetchJson<DocumentVersionResponse>(`/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}`);
+  return fetchJson<DocumentVersionResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}`,
+  );
 }
 
 export async function listDocumentVersionChunks({
@@ -148,7 +185,9 @@ export async function listDocumentVersionChunks({
   documentId: string;
   versionId: string;
 }) {
-  return fetchJson<DocumentChunksResponse>(`/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/chunks`);
+  return fetchJson<DocumentChunksResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/chunks`,
+  );
 }
 
 export async function listDeletedDocuments({ vaultId }: { vaultId?: string } = {}) {
@@ -251,14 +290,13 @@ export async function updateDocumentLanguage({
   documentId: string;
   language: string | null;
 }) {
-  return fetchJson<{ document: { id: string; language: DocumentLanguageMetadata | null; updatedAt: string } }>(
-    `/api/vaults/${vaultId}/documents/${documentId}`,
-    {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ language }),
-    },
-  );
+  return fetchJson<{
+    document: { id: string; language: DocumentLanguageMetadata | null; updatedAt: string };
+  }>(`/api/vaults/${vaultId}/documents/${documentId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ language }),
+  });
 }
 
 export async function softDeleteDocument({
@@ -331,7 +369,76 @@ export async function deleteDocumentVersion({
   });
 }
 
-export function getDocumentDownloadUrl({ vaultId, documentId }: { vaultId: string; documentId: string }) {
+export async function getDocumentVersionDeletionImpact({
+  vaultId,
+  documentId,
+  versionId,
+  limit,
+}: {
+  vaultId: string;
+  documentId: string;
+  versionId: string;
+  limit?: number;
+}) {
+  const params = new URLSearchParams();
+  if (limit !== undefined) {
+    params.set('limit', String(limit));
+  }
+
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : '';
+
+  return fetchJson<VersionDeletionImpactResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/deletion-impact${suffix}`,
+  );
+}
+
+export async function getDocumentDeletionImpact({
+  vaultId,
+  documentId,
+  includeDeleted = false,
+  limit,
+}: {
+  vaultId: string;
+  documentId: string;
+  includeDeleted?: boolean;
+  limit?: number;
+}) {
+  const params = new URLSearchParams();
+  if (includeDeleted) {
+    params.set('includeDeleted', 'true');
+  }
+  if (limit !== undefined) {
+    params.set('limit', String(limit));
+  }
+
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : '';
+
+  return fetchJson<DocumentDeletionImpactResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/deletion-impact${suffix}`,
+  );
+}
+
+export async function getBulkDocumentDeletionImpact({
+  documents,
+  includeDeleted = false,
+}: {
+  documents: Array<{ vaultId: string; documentId: string }>;
+  includeDeleted?: boolean;
+}) {
+  return fetchJson<BulkDocumentDeletionImpactResponse>('/api/documents/deletion-impact', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ documents, includeDeleted }),
+  });
+}
+
+export function getDocumentDownloadUrl({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string;
+  documentId: string;
+}) {
   return `/api/vaults/${vaultId}/documents/${documentId}/download`;
 }
 

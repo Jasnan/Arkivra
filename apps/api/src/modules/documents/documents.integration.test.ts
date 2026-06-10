@@ -144,6 +144,57 @@ function createMockDocumentsServices() {
     })),
     resolveDocumentVersion: vi.fn(async () => documentVersion),
     listDocumentVersions: vi.fn(async () => [documentVersion]),
+    getDocumentVersionDeletionImpact: vi.fn(async () => ({
+      success: true,
+      impact: {
+        affectedConversationCount: 2,
+        affectedConversations: [
+          {
+            id: 'cht_1',
+            title: 'HR Policy Review',
+            createdAt: new Date('2025-01-02T00:00:00.000Z'),
+            updatedAt: new Date('2025-01-03T00:00:00.000Z'),
+          },
+          {
+            id: 'cht_2',
+            title: 'Employee Benefits',
+            createdAt: new Date('2025-01-04T00:00:00.000Z'),
+            updatedAt: new Date('2025-01-05T00:00:00.000Z'),
+          },
+        ],
+        limit: 5,
+      },
+    })),
+    getDocumentDeletionImpact: vi.fn(async () => ({
+      success: true,
+      impact: {
+        affectedConversationCount: 2,
+        affectedConversations: [
+          {
+            id: 'cht_1',
+            title: 'HR Policy Review',
+            createdAt: new Date('2025-01-02T00:00:00.000Z'),
+            updatedAt: new Date('2025-01-03T00:00:00.000Z'),
+          },
+          {
+            id: 'cht_2',
+            title: 'Employee Benefits',
+            createdAt: new Date('2025-01-04T00:00:00.000Z'),
+            updatedAt: new Date('2025-01-05T00:00:00.000Z'),
+          },
+        ],
+        limit: 5,
+        versionCount: 4,
+      },
+    })),
+    getBulkDocumentDeletionImpact: vi.fn(async () => ({
+      success: true,
+      impact: {
+        documentCount: 500,
+        versionCount: 914,
+        affectedConversationCount: 124,
+      },
+    })),
     downloadDocumentVersion: vi.fn(async () => ({
       fileData: Buffer.from('version-file-content'),
       fileName: 'report.pdf',
@@ -240,10 +291,18 @@ function createMockDocumentsServices() {
     restoreDocumentVersion: vi.fn(async () => ({
       success: true,
       sourceVersion: { ...documentVersion, id: 'dvr_source_1', versionNumber: 1, isCurrent: false },
-      documentVersion: { ...documentVersion, id: 'dvr_restored_1', versionNumber: 3, restoredFromVersionId: 'dvr_source_1' },
+      documentVersion: {
+        ...documentVersion,
+        id: 'dvr_restored_1',
+        versionNumber: 3,
+        restoredFromVersionId: 'dvr_source_1',
+      },
       copiedEmbeddingIndexIds: [],
     })),
-    deleteDocumentVersion: vi.fn(async () => ({ success: true, documentVersion: { ...documentVersion, isCurrent: false } })),
+    deleteDocumentVersion: vi.fn(async () => ({
+      success: true,
+      documentVersion: { ...documentVersion, isCurrent: false },
+    })),
     updateDocumentProcessingStatus: vi.fn(async () => undefined),
     updateDocumentVersionProcessingStatus: vi.fn(async () => undefined),
   };
@@ -423,7 +482,7 @@ function createMockAuditServices() {
 
 function createMockActivityServices() {
   return {
-    emitActivityEvent: vi.fn(async input => ({
+    emitActivityEvent: vi.fn(async (input) => ({
       id: 'act_emit',
       createdAt: new Date(),
       occurredAt: input.occurredAt ?? new Date(),
@@ -520,7 +579,7 @@ function createTestApp({
     await next();
   });
 
-  const mockDb = db ?? {} as Database;
+  const mockDb = db ?? ({} as Database);
   const vs = vaultServices ?? createMockVaultsServices();
 
   registerVaultRoutes({ app, db: mockDb, services: vs, auditServices, activityServices });
@@ -798,18 +857,20 @@ describe('documents integration', () => {
     expect(body.documentVersion.id).toBe('dvr_test_1');
     expect(body.skipped).toBe(false);
     expect(docServices.uploadDocument).toHaveBeenCalledTimes(1);
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.uploaded',
-      eventCategory: 'document',
-      outcome: 'success',
-      vaultId: 'vlt_1',
-      documentId: 'doc_test_1',
-      metadata: {
-        file_name: 'test.txt',
-        file_size: 100,
-        mime_type: 'text/plain',
-      },
-    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.uploaded',
+        eventCategory: 'document',
+        outcome: 'success',
+        vaultId: 'vlt_1',
+        documentId: 'doc_test_1',
+        metadata: {
+          file_name: 'test.txt',
+          file_size: 100,
+          mime_type: 'text/plain',
+        },
+      }),
+    );
   });
 
   test('passes keep_both conflict strategy for direct upload', async () => {
@@ -827,9 +888,11 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(docServices.uploadDocument).toHaveBeenCalledWith(expect.objectContaining({
-      conflictStrategy: 'keep_both',
-    }));
+    expect(docServices.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conflictStrategy: 'keep_both',
+      }),
+    );
   });
 
   test('returns 400 for invalid direct upload conflict strategy', async () => {
@@ -1004,12 +1067,14 @@ describe('documents integration', () => {
     const body = (await response.json()) as any;
     expect(body.document.id).toBe('doc_1');
     expect(docServices.getDocument).toHaveBeenCalledWith({ documentId: 'doc_1', vaultId: 'vlt_1' });
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.viewed',
-      vaultId: 'vlt_1',
-      documentId: 'doc_1',
-      metadata: { file_name: 'report.pdf', access_method: 'open' },
-    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.viewed',
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        metadata: { file_name: 'report.pdf', access_method: 'open' },
+      }),
+    );
   });
 
   test('returns 404 for non-existent document', async () => {
@@ -1117,9 +1182,12 @@ describe('documents integration', () => {
     const auditServices = createMockAuditServices();
     const app = createTestApp({ docServices, auditServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/download', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/download',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(200);
     await expect(response.text()).resolves.toBe('version-file-content');
@@ -1128,11 +1196,16 @@ describe('documents integration', () => {
       documentId: 'doc_1',
       documentVersionId: 'dvr_1',
     });
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.downloaded',
-      target: expect.objectContaining({ type: 'document_version', id: 'dvr_1' }),
-      metadata: expect.objectContaining({ document_version_id: 'dvr_1', access_method: 'download' }),
-    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.downloaded',
+        target: expect.objectContaining({ type: 'document_version', id: 'dvr_1' }),
+        metadata: expect.objectContaining({
+          document_version_id: 'dvr_1',
+          access_method: 'download',
+        }),
+      }),
+    );
   });
 
   test('lists chunks for an explicit document version', async () => {
@@ -1162,9 +1235,12 @@ describe('documents integration', () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/pages/2/preview', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/pages/2/preview',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('etag')).toBe('"version-page-2"');
@@ -1212,9 +1288,12 @@ describe('documents integration', () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/pages/0/preview', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/pages/0/preview',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
@@ -1264,9 +1343,12 @@ describe('documents integration', () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_deleted_1/file?includeDeleted=true', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_deleted_1/file?includeDeleted=true',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('application/pdf');
@@ -1315,9 +1397,12 @@ describe('documents integration', () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_deleted_1/page/2.png?includeDeleted=true', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_deleted_1/page/2.png?includeDeleted=true',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('image/png');
@@ -1649,16 +1734,18 @@ describe('documents integration', () => {
       vaultId: 'vlt_1',
       deletedBy: 'usr_1',
     });
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.deleted',
-      vaultId: 'vlt_1',
-      documentId: 'doc_1',
-      metadata: {
-        document_name: 'report.pdf',
-        file_name: 'report.pdf',
-        deletion_type: 'soft',
-      },
-    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.deleted',
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        metadata: {
+          document_name: 'report.pdf',
+          file_name: 'report.pdf',
+          deletion_type: 'soft',
+        },
+      }),
+    );
   });
 
   test('audits denied document delete attempts', async () => {
@@ -1685,13 +1772,15 @@ describe('documents integration', () => {
     });
 
     expect(response.status).toBe(403);
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.access_denied',
-      outcome: 'denied',
-      vaultId: 'vlt_1',
-      documentId: 'doc_1',
-      metadata: { action: 'delete' },
-    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.access_denied',
+        outcome: 'denied',
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        metadata: { action: 'delete' },
+      }),
+    );
   });
 
   test('returns document activity without exposing privileged denied events to regular members', async () => {
@@ -1770,9 +1859,12 @@ describe('documents integration', () => {
     }));
     const app = createTestApp({ docServices, vaultServices, auditServices });
 
-    const response = await app.request('/api/vaults/vlt_1/audit-events?eventType=document.deleted', {
-      headers: { 'x-test-user-id': 'usr_owner' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/audit-events?eventType=document.deleted',
+      {
+        headers: { 'x-test-user-id': 'usr_owner' },
+      },
+    );
 
     expect(response.status).toBe(200);
     expect(auditServices.emitAuditEvent).not.toHaveBeenCalled();
@@ -1829,19 +1921,21 @@ describe('documents integration', () => {
     const adminAiServices = createMockAdminAiServices();
     const db = {
       execute: vi.fn(async () => ({
-        rows: [{
-          id: 'eix_active',
-          provider_config_id: 'aip_embedding',
-          provider: 'ollama',
-          model: 'bge-m3',
-          dimensions: 1024,
-          distance_metric: 'cosine',
-          name: 'Local embeddings',
-          base_url: 'http://127.0.0.1:11434',
-          api_key_secret_ref: null,
-          config: {},
-          is_enabled: true,
-        }],
+        rows: [
+          {
+            id: 'eix_active',
+            provider_config_id: 'aip_embedding',
+            provider: 'ollama',
+            model: 'bge-m3',
+            dimensions: 1024,
+            distance_metric: 'cosine',
+            name: 'Local embeddings',
+            base_url: 'http://127.0.0.1:11434',
+            api_key_secret_ref: null,
+            config: {},
+            is_enabled: true,
+          },
+        ],
       })),
     } as unknown as Database;
     const app = createTestApp({
@@ -1873,10 +1967,13 @@ describe('documents integration', () => {
     const activityServices = createMockActivityServices();
     const app = createTestApp({ docServices, auditServices, activityServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_source_1/restore', {
-      method: 'POST',
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_1/versions/dvr_source_1/restore',
+      {
+        method: 'POST',
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
     expect(response.status).toBe(201);
     const body = (await response.json()) as any;
@@ -1891,17 +1988,21 @@ describe('documents integration', () => {
       documentVersionId: 'dvr_source_1',
       restoredBy: 'usr_1',
     });
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.version_restored',
-      metadata: expect.objectContaining({
-        document_version_id: 'dvr_restored_1',
-        source_document_version_id: 'dvr_source_1',
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.version_restored',
+        metadata: expect.objectContaining({
+          document_version_id: 'dvr_restored_1',
+          source_document_version_id: 'dvr_source_1',
+        }),
       }),
-    }));
-    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(expect.objectContaining({
-      activityType: 'document.version_restored',
-      auditEventId: 'aud_1',
-    }));
+    );
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityType: 'document.version_restored',
+        auditEventId: 'aud_1',
+      }),
+    );
   });
 
   test.each([
@@ -1923,24 +2024,30 @@ describe('documents integration', () => {
       code: 'document.version_not_restorable',
       message: 'Only completed historical versions can be restored',
     },
-  ])('returns a structured error when version restore fails with $reason', async ({ reason, status, code, message }) => {
-    const docServices = createMockDocumentsServices();
-    (docServices as any).restoreDocumentVersion = vi.fn(async () => ({
-      success: false,
-      reason,
-    }));
-    const app = createTestApp({ docServices });
+  ])(
+    'returns a structured error when version restore fails with $reason',
+    async ({ reason, status, code, message }) => {
+      const docServices = createMockDocumentsServices();
+      (docServices as any).restoreDocumentVersion = vi.fn(async () => ({
+        success: false,
+        reason,
+      }));
+      const app = createTestApp({ docServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/restore', {
-      method: 'POST',
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+      const response = await app.request(
+        '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/restore',
+        {
+          method: 'POST',
+          headers: { 'x-test-user-id': 'usr_1' },
+        },
+      );
 
-    expect(response.status).toBe(status);
-    await expect(response.json()).resolves.toEqual({
-      error: { code, message },
-    });
-  });
+      expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toEqual({
+        error: { code, message },
+      });
+    },
+  );
 
   test.each([
     {
@@ -1953,59 +2060,148 @@ describe('documents integration', () => {
       path: '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1',
       serviceMethod: 'deleteDocumentVersion',
     },
-  ])('forbids viewer access to version mutation route $path', async ({ method, path, serviceMethod }) => {
+  ])(
+    'forbids viewer access to version mutation route $path',
+    async ({ method, path, serviceMethod }) => {
+      const docServices = createMockDocumentsServices();
+      const vaultServices = createMockVaultsServices();
+      (vaultServices as any).getVaultForUser = vi.fn(async () => ({
+        id: 'vlt_1',
+        name: 'Test',
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+        deletedAt: null,
+        role: 'viewer',
+        aiAccessLevel: 'none',
+        isAdmin: false,
+      }));
+      const app = createTestApp({ docServices, vaultServices });
+
+      const response = await app.request(path, {
+        method,
+        headers: { 'x-test-user-id': 'usr_1' },
+      });
+
+      expect(response.status).toBe(403);
+      expect((docServices as any)[serviceMethod]).not.toHaveBeenCalled();
+    },
+  );
+
+  test('returns citation-only impact for document version deletion warnings', async () => {
     const docServices = createMockDocumentsServices();
-    const vaultServices = createMockVaultsServices();
-    (vaultServices as any).getVaultForUser = vi.fn(async () => ({
-      id: 'vlt_1',
-      name: 'Test',
-      createdAt: new Date('2025-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
-      deletedAt: null,
-      role: 'viewer',
-      aiAccessLevel: 'none',
-      isAdmin: false,
-    }));
-    const app = createTestApp({ docServices, vaultServices });
+    const app = createTestApp({ docServices });
 
-    const response = await app.request(path, {
-      method,
-      headers: { 'x-test-user-id': 'usr_1' },
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/deletion-impact?limit=5',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      impact: {
+        affectedConversationCount: 2,
+        affectedConversations: [
+          {
+            id: 'cht_1',
+            title: 'HR Policy Review',
+            createdAt: '2025-01-02T00:00:00.000Z',
+            updatedAt: '2025-01-03T00:00:00.000Z',
+          },
+          {
+            id: 'cht_2',
+            title: 'Employee Benefits',
+            createdAt: '2025-01-04T00:00:00.000Z',
+            updatedAt: '2025-01-05T00:00:00.000Z',
+          },
+        ],
+        limit: 5,
+      },
     });
-
-    expect(response.status).toBe(403);
-    expect((docServices as any)[serviceMethod]).not.toHaveBeenCalled();
+    expect(docServices.getDocumentVersionDeletionImpact).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      documentVersionId: 'dvr_1',
+      limit: 5,
+    });
   });
 
-  test('rejects deleting a referenced document version and audits the failed attempt', async () => {
+  test('returns citation-only impact for logical document deletion warnings', async () => {
     const docServices = createMockDocumentsServices();
-    (docServices as any).deleteDocumentVersion = vi.fn(async () => ({
-      success: false,
-      reason: 'referenced',
-      referenceCount: 2,
-    }));
-    const auditServices = createMockAuditServices();
-    const app = createTestApp({ docServices, auditServices });
+    const app = createTestApp({ docServices });
 
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1', {
-      method: 'DELETE',
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
+    const response = await app.request(
+      '/api/vaults/vlt_1/documents/doc_1/deletion-impact?includeDeleted=true&limit=5',
+      {
+        headers: { 'x-test-user-id': 'usr_1' },
+      },
+    );
 
-    expect(response.status).toBe(409);
-    const body = (await response.json()) as any;
-    expect(body.error).toMatchObject({
-      code: 'document.version_referenced',
-      referenceCount: 2,
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      impact: {
+        affectedConversationCount: 2,
+        affectedConversations: [
+          {
+            id: 'cht_1',
+            title: 'HR Policy Review',
+            createdAt: '2025-01-02T00:00:00.000Z',
+            updatedAt: '2025-01-03T00:00:00.000Z',
+          },
+          {
+            id: 'cht_2',
+            title: 'Employee Benefits',
+            createdAt: '2025-01-04T00:00:00.000Z',
+            updatedAt: '2025-01-05T00:00:00.000Z',
+          },
+        ],
+        limit: 5,
+        versionCount: 4,
+      },
     });
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.version_delete_failed',
-      metadata: expect.objectContaining({
-        document_version_id: 'dvr_1',
-        reason: 'referenced',
-        reference_count: 2,
+    expect(docServices.getDocumentDeletionImpact).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      limit: 5,
+      includeDeletedDocument: true,
+    });
+  });
+
+  test('returns count-only impact for bulk document deletion warnings', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/documents/deletion-impact', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({
+        includeDeleted: true,
+        documents: [
+          { vaultId: 'vlt_1', documentId: 'doc_1' },
+          { vaultId: 'vlt_1', documentId: 'doc_2' },
+        ],
       }),
-    }));
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      impact: {
+        documentCount: 500,
+        versionCount: 914,
+        affectedConversationCount: 124,
+      },
+    });
+    expect(docServices.getBulkDocumentDeletionImpact).toHaveBeenCalledWith({
+      targets: [
+        { vaultId: 'vlt_1', documentId: 'doc_1' },
+        { vaultId: 'vlt_1', documentId: 'doc_2' },
+      ],
+      includeDeletedDocument: true,
+    });
   });
 
   test.each([
@@ -2014,48 +2210,43 @@ describe('documents integration', () => {
       status: 404,
       code: 'document.version_not_found',
       message: 'Document version not found',
-      referenceCount: undefined,
     },
     {
       reason: 'current_version',
       status: 409,
       code: 'document.version_current',
       message: 'Current version cannot be deleted',
-      referenceCount: undefined,
     },
-  ])('returns a structured error when version delete fails with $reason', async ({
-    reason,
-    status,
-    code,
-    message,
-    referenceCount,
-  }) => {
-    const docServices = createMockDocumentsServices();
-    (docServices as any).deleteDocumentVersion = vi.fn(async () => ({
-      success: false,
-      reason,
-      referenceCount,
-    }));
-    const auditServices = createMockAuditServices();
-    const app = createTestApp({ docServices, auditServices });
-
-    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1', {
-      method: 'DELETE',
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
-
-    expect(response.status).toBe(status);
-    const body = (await response.json()) as any;
-    expect(body.error).toMatchObject({ code, message });
-    expect(body.error.referenceCount).toBe(referenceCount);
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.version_delete_failed',
-      metadata: expect.objectContaining({
-        document_version_id: 'dvr_1',
+  ])(
+    'returns a structured error when version delete fails with $reason',
+    async ({ reason, status, code, message }) => {
+      const docServices = createMockDocumentsServices();
+      (docServices as any).deleteDocumentVersion = vi.fn(async () => ({
+        success: false,
         reason,
-      }),
-    }));
-  });
+      }));
+      const auditServices = createMockAuditServices();
+      const app = createTestApp({ docServices, auditServices });
+
+      const response = await app.request('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1', {
+        method: 'DELETE',
+        headers: { 'x-test-user-id': 'usr_1' },
+      });
+
+      expect(response.status).toBe(status);
+      const body = (await response.json()) as any;
+      expect(body.error).toMatchObject({ code, message });
+      expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'document.version_delete_failed',
+          metadata: expect.objectContaining({
+            document_version_id: 'dvr_1',
+            reason,
+          }),
+        }),
+      );
+    },
+  );
 
   test('deletes an unreferenced historical document version and emits audit and activity events', async () => {
     const docServices = createMockDocumentsServices();
@@ -2075,17 +2266,21 @@ describe('documents integration', () => {
       documentVersionId: 'dvr_1',
       deletedBy: 'usr_1',
     });
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.version_deleted',
-      metadata: expect.objectContaining({
-        document_version_id: 'dvr_1',
-        deletion_type: 'version',
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.version_deleted',
+        metadata: expect.objectContaining({
+          document_version_id: 'dvr_1',
+          deletion_type: 'version',
+        }),
       }),
-    }));
-    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(expect.objectContaining({
-      activityType: 'document.version_deleted',
-      auditEventId: 'aud_1',
-    }));
+    );
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityType: 'document.version_deleted',
+        auditEventId: 'aud_1',
+      }),
+    );
   });
 
   test('returns 409 when restoring a document that duplicates an active document', async () => {
@@ -2137,15 +2332,19 @@ describe('documents integration', () => {
       documentId: 'doc_1',
       vaultId: 'vlt_1',
     });
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'document.deleted',
-      metadata: expect.objectContaining({ deletion_type: 'permanent' }),
-    }));
-    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(expect.objectContaining({
-      activityType: 'document.deleted',
-      auditEventId: 'aud_1',
-      metadata: expect.objectContaining({ deletion_type: 'permanent' }),
-    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.deleted',
+        metadata: expect.objectContaining({ deletion_type: 'permanent' }),
+      }),
+    );
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityType: 'document.deleted',
+        auditEventId: 'aud_1',
+        metadata: expect.objectContaining({ deletion_type: 'permanent' }),
+      }),
+    );
   });
 
   test('forbids hard delete for member role', async () => {

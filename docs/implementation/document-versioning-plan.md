@@ -274,8 +274,8 @@ Scope:
 
 - Restore historical version to new latest version.
 - Copy source bytes, parser output, chunks, assets, previews on demand, and embeddings where safe.
-- Block individual deletion of current or referenced historical versions.
-- Allow individual deletion of unreferenced historical versions.
+- Block individual deletion of current versions.
+- Allow individual deletion of historical versions. Manifest references do not block deletion; citation references produce a warning preview only.
 - Logical purge removes all versions and version-owned artifacts.
 - Conversations remain and become read-only/unresolved when source is gone.
 
@@ -923,7 +923,7 @@ Includes:
 Review focus:
 
 - Storage and DB cleanup.
-- Delete blockers for referenced historical versions.
+- Delete impact warnings for citation-referenced historical versions.
 - No blockers for logical purge.
 - Redacted audit metadata.
 - Route-level authorization and cross-vault `documentId`/`versionId` mismatch handling.
@@ -934,7 +934,7 @@ Summary:
 
 - Added version read APIs for list, detail, download, chunks, and page preview under the existing vault/document route boundary.
 - Added append-only historical version restore: restoring a completed non-current version creates a new latest `document_versions` row, copies source bytes, parser fields, chunks, chunk assets, and safe embedding rows, and enqueues active-index embedding work when vectors cannot be copied.
-- Added individual historical version deletion with blockers for current versions and versions referenced by frozen chat manifests or normalized citation rows.
+- Added individual historical version deletion with a blocker for current versions only. Frozen chat manifests do not block deletion; normalized citation rows produce warning previews.
 - Version deletion now clears source-derived parser/chunk/vector rows, tombstones the version row, removes version source/preview storage, and removes the whole `chunks/{documentVersionId}` prefix so stale reprocess assets are covered.
 - Logical document permanent purge now deletes DB ownership before storage cleanup, removes version-owned chunk asset prefixes, and emits audit/activity records without blocking on chat/citation history.
 - Added version lifecycle audit/activity events for version create, restore, delete, and delete failure, plus audit coverage for logical document restore and permanent purge.
@@ -960,7 +960,7 @@ Tests added:
 
 - Added DB-backed service coverage for restoring a historical version to a new current version with copied chunks/assets.
 - Added DB-backed service coverage for deleting an unreferenced historical version and clearing source-derived rows.
-- Added DB-backed service coverage for blocking current-version deletion and chat-referenced historical version deletion.
+- Added DB-backed service coverage for blocking current-version deletion, allowing manifest-only referenced historical version deletion, allowing citation-referenced historical version deletion, and returning citation-only deletion impact previews.
 - Added route coverage for version list/detail/download/chunks/preview endpoints.
 - Added route coverage for version restore/delete audit and activity events, referenced-version delete rejection, and permanent purge audit/activity.
 
@@ -1186,6 +1186,28 @@ Risks:
 - Backup SQL still uses application-generated INSERT statements rather than native `pg_dump`/`pg_restore`; this keeps current behavior but means future schema changes must keep the restore table list and deferred-reference list current.
 - Backup restore now preserves `background_jobs`; operators may still need operational guidance for stale queued jobs after restoring an old deployment state.
 - Documentation describes the implemented backend behavior and dashboard surfaces, but the full manual browser smoke scenario from Phase 13 was not run in this batch.
+
+### Batch 12: Release Stabilization Audit
+
+Status: implemented on branch `document-versioning-stabilization`.
+
+Findings and classification:
+
+- `documents` parser/content/status fields: documentation only. Investigation found these fields are denormalized current-version projections. `persistParsedDocument`, processing-status updates, upload version creation, and restore all write authoritative state to `document_versions` first, then mirror to `documents` only when the affected version is `documents.current_version_id`. Runtime retrieval, search, chat manifests, version routes, restore, purge, and chunks use version-owned rows for source identity.
+- Processing E2E regression: fixed. Direct upload and chunked upload processing coverage now carries `documentVersionId` through upload response, worker invocation, wait conditions, and chunk assertions.
+- Purged-chat stream behavior: fixed. Stream requests for read-only frozen conversations whose logical source was purged now return `409 chat.context_unavailable` after vault/AI authorization checks.
+- Scripted versioning smoke: fixed by converting the scenario into committed integration coverage.
+- Backup SQL table maintenance: accepted risk. Existing application-generated SQL behavior remains unchanged; future schema changes must keep restore table ordering and deferred references current.
+- Operational stale jobs after backup restore: deferred. This needs operator documentation and possibly restore-time job reconciliation outside the versioning stabilization scope.
+- Manual browser smoke gap: deferred. Backend regression coverage now protects the release blockers; full browser smoke remains a release checklist item.
+
+Checks run:
+
+- `pnpm --dir apps/api exec vitest run src/modules/chat/chat.routes.test.ts src/modules/parsing/persistence.e2e.integration.test.ts src/modules/documents/document-versioning-smoke.integration.test.ts src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/api exec vitest run src/modules/documents/documents.restore.integration.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.services.test.ts src/modules/search/search.services.test.ts` passed.
+- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/api exec eslint src/modules/chat/chat.routes.ts src/modules/chat/chat.routes.test.ts src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts src/modules/documents/document-versioning-smoke.integration.test.ts src/modules/parsing/persistence.e2e.integration.test.ts` passed.
+- `pnpm exec prettier --check docs/document-versioning.md docs/architecture/document-versioning.md docs/implementation/document-versioning-plan.md apps/api/src/modules/chat/chat.routes.ts apps/api/src/modules/chat/chat.routes.test.ts apps/api/src/modules/documents/documents.e2e.integration.test.ts apps/api/src/modules/documents/docling-fixture.e2e.integration.test.ts apps/api/src/modules/documents/document-versioning-smoke.integration.test.ts apps/api/src/modules/parsing/persistence.e2e.integration.test.ts` passed.
 
 ## 3. Schema Change Plan
 
@@ -1743,7 +1765,7 @@ Checklist:
 Checklist:
 
 - Individual version delete disabled for current/latest.
-- Individual version delete disabled for referenced historical versions.
+- Individual version delete shows a warning when citation references exist.
 - Logical document trash/purge remains document-level.
 - Purge confirmation clearly states all versions and source content will be removed and chats will become read-only history.
 - Do not expose hidden chat identifiers in disabled delete explanations.
@@ -1817,7 +1839,7 @@ Specific scenarios:
 - Cross-vault version ID access returns forbidden/not found without leakage.
 - Same-name single upload returns conflict.
 - Bulk upload reports mixed outcomes.
-- `DELETE /versions/:versionId` rejects referenced historical version.
+- `DELETE /versions/:versionId` deletes referenced historical versions after user confirmation; citation references are surfaced through deletion-impact preview APIs.
 - `DELETE /documents/:documentId/permanent` purges despite chat references.
 
 ### End-to-End Test Plan

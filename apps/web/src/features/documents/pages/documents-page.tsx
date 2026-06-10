@@ -51,14 +51,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { documentQueryKeys } from '@/features/documents/documents.queries';
+import {
+  documentQueryKeys,
+  useDocumentVersionsQuery,
+} from '@/features/documents/documents.queries';
 import { useBrowserDragDrop } from '@/features/documents/hooks/use-browser-drag-drop';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
 import { useFileBrowserMutations } from '@/features/documents/hooks/use-file-browser-mutations';
 import { useFolderNavigation } from '@/features/documents/hooks/use-folder-navigation';
 import { useVaultBrowserHeader } from '@/features/documents/hooks/use-vault-browser-header';
 import { filesToDroppedFiles } from '@/features/uploads/dropped-files';
-import { filterAllowedUploadFiles, UPLOAD_ACCEPT_ATTRIBUTE } from '@/features/uploads/upload-file-rules';
+import {
+  filterAllowedUploadFiles,
+  UPLOAD_ACCEPT_ATTRIBUTE,
+} from '@/features/uploads/upload-file-rules';
 import { uploadManager } from '@/features/uploads/upload-manager';
 import {
   BrowserContextMenu,
@@ -92,6 +98,9 @@ import {
   useFolderItemsQuery,
   useFolderTreeQuery,
 } from '@/features/file-browser/file-browser.queries';
+import { DocumentVersionsDialog } from '@/features/documents/components/detail/document-versions-dialog';
+import { deleteDocumentVersion, restoreDocumentVersion } from '@/features/documents/documents.api';
+import type { DocumentVersionSummary } from '@/features/documents/documents.types';
 import { VaultMembersPanel } from '@/features/vaults/components/vault-members-panel';
 import { VaultSettingsPanel } from '@/features/vaults/components/vault-settings-panel';
 import { VaultActivityPanel } from '@/features/audit/components/vault-activity-panel';
@@ -431,6 +440,11 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   const [moveTargets, setMoveTargets] = useState<BrowserItem[]>([]);
   const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null);
   const [infoTarget, setInfoTarget] = useState<InfoDialogTarget>(null);
+  const [versionsTarget, setVersionsTarget] = useState<Extract<
+    BrowserItem,
+    { type: 'document' }
+  > | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [pendingTrashItems, setPendingTrashItems] = useState<BrowserItem[]>([]);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
@@ -450,6 +464,12 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   const folderTreeQuery = useFolderTreeQuery({
     vaultId,
     enabled: isContentsSection && !isRestrictedAdminOverview && vaultQuery.isSuccess,
+  });
+  const versionsDocumentId = versionsTarget?.document.id ?? '';
+  const documentVersionsQuery = useDocumentVersionsQuery({
+    vaultId,
+    documentId: versionsDocumentId,
+    enabled: versionsTarget !== null,
   });
 
   const browserItems = useMemo<BrowserItem[]>(
@@ -532,6 +552,38 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Could not join vault.');
+    },
+  });
+  const restoreVersionMutation = useMutation({
+    mutationFn: restoreDocumentVersion,
+    onSuccess: async () => {
+      toast.success('Version restored as latest.');
+      setSelectedVersionId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not restore version.');
+    },
+  });
+  const deleteVersionMutation = useMutation({
+    mutationFn: deleteDocumentVersion,
+    onSuccess: async (_result, variables) => {
+      toast.success('Version deleted.');
+      if (selectedVersionId === variables.versionId) {
+        setSelectedVersionId(null);
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not delete version.');
     },
   });
   const isJoinVaultFormDirty = joinRole !== 'owner' || joinAiAccessLevel !== 'full';
@@ -685,6 +737,12 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   function openInfoDialog(item: BrowserContextItem) {
     setContextMenu(null);
     setInfoTarget(item);
+  }
+
+  function openVersionsDialog(item: Extract<BrowserItem, { type: 'document' }>) {
+    setContextMenu(null);
+    setVersionsTarget(item);
+    setSelectedVersionId(null);
   }
 
   function openDeleteConfirm(items: BrowserItem[]) {
@@ -906,6 +964,12 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
         icon: Download,
         disabled: !canDownloadItems,
         onSelect: () => downloadDocuments([{ vaultId, documentId: item.document.id }]),
+      },
+      {
+        key: 'versions',
+        label: 'Versions',
+        icon: History,
+        onSelect: () => openVersionsDialog(item),
       },
       {
         key: 'rename',
@@ -1221,7 +1285,14 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
           </Box>
         </Flex>
       ) : null}
-      <input ref={fileInputRef} type="file" accept={UPLOAD_ACCEPT_ATTRIBUTE} multiple hidden onChange={handleUploadInputChange} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={UPLOAD_ACCEPT_ATTRIBUTE}
+        multiple
+        hidden
+        onChange={handleUploadInputChange}
+      />
       <input
         ref={directoryInputRef}
         type="file"
@@ -1488,6 +1559,39 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
         target={infoTarget}
         folderPath={infoFolderPath}
         onClose={() => setInfoTarget(null)}
+      />
+
+      <DocumentVersionsDialog
+        open={versionsTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setVersionsTarget(null);
+            setSelectedVersionId(null);
+          }
+        }}
+        vaultId={vaultId}
+        documentId={versionsDocumentId}
+        versions={documentVersionsQuery.data?.versions ?? []}
+        isLoading={documentVersionsQuery.isLoading}
+        isError={documentVersionsQuery.isError}
+        selectedVersionId={selectedVersionId}
+        isRestorePending={restoreVersionMutation.isPending}
+        isDeletePending={deleteVersionMutation.isPending}
+        onSelectVersion={setSelectedVersionId}
+        onRestoreVersion={async (version: DocumentVersionSummary) => {
+          await restoreVersionMutation.mutateAsync({
+            vaultId,
+            documentId: versionsDocumentId,
+            versionId: version.id,
+          });
+        }}
+        onDeleteVersion={async (version: DocumentVersionSummary) => {
+          await deleteVersionMutation.mutateAsync({
+            vaultId,
+            documentId: versionsDocumentId,
+            versionId: version.id,
+          });
+        }}
       />
 
       <DeleteItemsConfirmDialog

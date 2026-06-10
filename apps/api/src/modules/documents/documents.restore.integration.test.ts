@@ -5,6 +5,8 @@ import { setupDatabase } from '../database/database.js';
 import {
   chatConversationDocumentVersionsTable,
   chatConversationsTable,
+  chatMessageCitationsTable,
+  chatMessagesTable,
   documentChunkAssetsTable,
   documentChunksTable,
   documentVersionsTable,
@@ -369,7 +371,7 @@ describe.sequential('document restore folder hierarchy', () => {
       documentId: ids.documentId,
     });
 
-    expect(versions?.map(version => version.id)).toEqual([ids.version2Id, ids.version1Id]);
+    expect(versions?.map((version) => version.id)).toEqual([ids.version2Id, ids.version1Id]);
 
     await expect(
       services.resolveDocumentVersion({
@@ -699,7 +701,9 @@ describe.sequential('document restore folder hierarchy', () => {
   });
 
   test('clears denormalized parser fields when creating a pending current version', async () => {
-    const { db, services, ids } = await createVersionedFixture({ testName: 'current_pending_clear' });
+    const { db, services, ids } = await createVersionedFixture({
+      testName: 'current_pending_clear',
+    });
 
     await db
       .update(documentsTable)
@@ -911,16 +915,24 @@ describe.sequential('document restore folder hierarchy', () => {
     expect(version?.deletedAt).toBeInstanceOf(Date);
 
     await expect(
-      db.select().from(documentChunksTable).where(eq(documentChunksTable.documentVersionId, ids.version1Id)),
+      db
+        .select()
+        .from(documentChunksTable)
+        .where(eq(documentChunksTable.documentVersionId, ids.version1Id)),
     ).resolves.toHaveLength(0);
     await expect(
-      db.select().from(documentChunkAssetsTable).where(eq(documentChunkAssetsTable.documentVersionId, ids.version1Id)),
+      db
+        .select()
+        .from(documentChunkAssetsTable)
+        .where(eq(documentChunkAssetsTable.documentVersionId, ids.version1Id)),
     ).resolves.toHaveLength(0);
   });
 
-  test('blocks individual historical version deletion when chat manifests reference it', async () => {
-    const { db, services, ids } = await createVersionedFixture({ testName: 'delete_version_referenced' });
-    const conversationId = `cht_${uniquePrefix}_delete_version_referenced`;
+  test('allows historical version deletion when only chat manifests reference it', async () => {
+    const { db, services, ids } = await createVersionedFixture({
+      testName: 'delete_version_manifest',
+    });
+    const conversationId = `cht_${uniquePrefix}_delete_version_manifest`;
 
     await db.insert(chatConversationsTable).values({
       id: conversationId,
@@ -944,18 +956,139 @@ describe.sequential('document restore folder hierarchy', () => {
       includedBy: 'document',
     });
 
-    await expect(
-      services.deleteDocumentVersion({
+    const impact = await services.getDocumentVersionDeletionImpact({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+    });
+    expect(impact).toEqual({
+      success: true,
+      impact: {
+        affectedConversationCount: 0,
+        affectedConversations: [],
+        limit: 5,
+      },
+    });
+
+    const result = await services.deleteDocumentVersion({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      deletedBy: ids.userId,
+    });
+    expect(result.success).toBe(true);
+
+    const [version] = await db
+      .select({ deletedAt: documentVersionsTable.deletedAt })
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.id, ids.version1Id));
+    expect(version?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  test('allows historical version deletion when chat citations reference it and returns citation impact', async () => {
+    const { db, services, ids } = await createVersionedFixture({
+      testName: 'delete_version_citation',
+    });
+    const conversationIds = [
+      `cht_${uniquePrefix}_delete_version_citation_1`,
+      `cht_${uniquePrefix}_delete_version_citation_2`,
+      `cht_${uniquePrefix}_delete_version_citation_3`,
+    ];
+
+    await db.insert(chatConversationsTable).values(
+      conversationIds.map((conversationId, index) => ({
+        id: conversationId,
+        vaultId: ids.vaultId,
+        userId: ids.userId,
+        scope: 'document' as const,
+        documentId: ids.documentId,
+        contextSnapshot: {
+          type: 'document' as const,
+          vaultId: ids.vaultId,
+          documentId: ids.documentId,
+        },
+        contextFrozenAt: new Date(),
+        title: ['HR Policy Review', 'Employee Benefits', 'Payroll Questions'][index]!,
+        createdAt: new Date(`2026-01-0${index + 1}T00:00:00.000Z`),
+        updatedAt: new Date(`2026-01-0${index + 1}T01:00:00.000Z`),
+      })),
+    );
+    await db.insert(chatMessagesTable).values(
+      conversationIds.map((conversationId, index) => ({
+        id: `msg_${uniquePrefix}_delete_version_citation_${index}`,
+        conversationId,
+        vaultId: ids.vaultId,
+        userId: ids.userId,
+        scope: 'document' as const,
+        documentId: ids.documentId,
+        message: {
+          id: `msg_${uniquePrefix}_delete_version_citation_${index}`,
+          role: 'assistant' as const,
+          parts: [{ type: 'text' as const, text: `answer ${index}` }],
+        },
+      })),
+    );
+    await db.insert(chatMessageCitationsTable).values(
+      conversationIds.map((conversationId, index) => ({
+        id: `cmc_${uniquePrefix}_delete_version_citation_${index}`,
+        conversationId,
+        messageId: `msg_${uniquePrefix}_delete_version_citation_${index}`,
         vaultId: ids.vaultId,
         documentId: ids.documentId,
         documentVersionId: ids.version1Id,
-        deletedBy: ids.userId,
-      }),
-    ).resolves.toEqual({
-      success: false,
-      reason: 'referenced',
-      referenceCount: 1,
+        versionNumber: 1,
+      })),
+    );
+
+    const impact = await services.getDocumentVersionDeletionImpact({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      limit: 2,
     });
+    expect(impact.success).toBe(true);
+    if (!impact.success) {
+      return;
+    }
+    expect(impact.impact.affectedConversationCount).toBe(3);
+    expect(impact.impact.affectedConversations).toHaveLength(2);
+    expect(impact.impact.affectedConversations.map((conversation) => conversation.title)).toEqual([
+      'Payroll Questions',
+      'Employee Benefits',
+    ]);
+
+    const documentImpact = await services.getDocumentDeletionImpact({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      limit: 2,
+    });
+    expect(documentImpact.success).toBe(true);
+    if (!documentImpact.success) {
+      return;
+    }
+    expect(documentImpact.impact).toMatchObject({
+      affectedConversationCount: 3,
+      versionCount: 2,
+      limit: 2,
+    });
+
+    const result = await services.deleteDocumentVersion({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      documentVersionId: ids.version1Id,
+      deletedBy: ids.userId,
+    });
+    expect(result.success).toBe(true);
+
+    const citations = await db
+      .select({
+        conversationId: chatMessageCitationsTable.conversationId,
+        documentVersionId: chatMessageCitationsTable.documentVersionId,
+      })
+      .from(chatMessageCitationsTable)
+      .where(eq(chatMessageCitationsTable.documentId, ids.documentId));
+    expect(citations).toHaveLength(3);
+    expect(citations.every((citation) => citation.documentVersionId === ids.version1Id)).toBe(true);
   });
 
   test('restores into an existing hierarchy', async () => {
@@ -1151,14 +1284,14 @@ describe.sequential('document restore folder hierarchy', () => {
     const services = createDocumentsServices({
       db,
       storage: {
-        read: async key => storageWrites.get(key) ?? Buffer.from(''),
+        read: async (key) => storageWrites.get(key) ?? Buffer.from(''),
         write: async (key, data) => {
           storageWrites.set(key, data);
         },
-        remove: async key => {
+        remove: async (key) => {
           storageWrites.delete(key);
         },
-        exists: async key => storageWrites.has(key),
+        exists: async (key) => storageWrites.has(key),
       },
       encryption: createEncryptionServices({ kekKeysRaw: undefined }),
     });
@@ -1180,7 +1313,9 @@ describe.sequential('document restore folder hierarchy', () => {
       },
     });
     expect(first.document?.currentVersionId).toBe(first.documentVersion?.id);
-    expect(first.documentVersion?.originalStorageKey).toBe(`${vaultId}/${first.documentVersion?.id}`);
+    expect(first.documentVersion?.originalStorageKey).toBe(
+      `${vaultId}/${first.documentVersion?.id}`,
+    );
     expect(storageWrites.has(first.documentVersion?.originalStorageKey ?? '')).toBe(true);
 
     const conflict = await services.finalizeUploadedDocument({
@@ -1255,14 +1390,14 @@ describe.sequential('document restore folder hierarchy', () => {
     const services = createDocumentsServices({
       db,
       storage: {
-        read: async key => storageWrites.get(key) ?? Buffer.from(''),
+        read: async (key) => storageWrites.get(key) ?? Buffer.from(''),
         write: async (key, data) => {
           storageWrites.set(key, data);
         },
-        remove: async key => {
+        remove: async (key) => {
           storageWrites.delete(key);
         },
-        exists: async key => storageWrites.has(key),
+        exists: async (key) => storageWrites.has(key),
       },
       encryption: createEncryptionServices({ kekKeysRaw: undefined }),
     });

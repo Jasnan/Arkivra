@@ -5,7 +5,12 @@ import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { ProcessDocumentJobData } from '../worker/worker.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
-import type { DocumentsServices, DocumentVersionSummary, UploadConflictStrategy } from './documents.services.js';
+import type {
+  DeletionImpactPreview,
+  DocumentsServices,
+  DocumentVersionSummary,
+  UploadConflictStrategy,
+} from './documents.services.js';
 import type { createAuditServices } from '../audit/audit.services.js';
 import type { createActivityServices } from '../activity/activity.services.js';
 import type { AdminAiServices } from '../admin/ai/ai.services.js';
@@ -54,7 +59,9 @@ function parseSortBy(value: string | undefined) {
     return 'created_desc' as const;
   }
 
-  return SEARCH_SORT_VALUES.includes(value as any) ? value as (typeof SEARCH_SORT_VALUES)[number] : null;
+  return SEARCH_SORT_VALUES.includes(value as any)
+    ? (value as (typeof SEARCH_SORT_VALUES)[number])
+    : null;
 }
 
 function parseNullableFolderId(value: unknown) {
@@ -105,6 +112,15 @@ function parsePageNumber(value: string | undefined) {
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
 }
 
+function parseImpactLimit(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? Math.min(parsed, 25) : null;
+}
+
 function matchesEtag(ifNoneMatch: string | null | undefined, etag: string) {
   if (ifNoneMatch === null || ifNoneMatch === undefined) {
     return false;
@@ -112,7 +128,7 @@ function matchesEtag(ifNoneMatch: string | null | undefined, etag: string) {
 
   return ifNoneMatch
     .split(',')
-    .map(value => value.trim())
+    .map((value) => value.trim())
     .includes(etag);
 }
 
@@ -121,7 +137,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function parseJsonObject(context: Context<ServerContext>) {
-  const body = await context.req.json().catch(() => null) as unknown;
+  const body = (await context.req.json().catch(() => null)) as unknown;
 
   if (!isRecord(body)) {
     return null;
@@ -130,7 +146,10 @@ async function parseJsonObject(context: Context<ServerContext>) {
   return body;
 }
 
-function serializeDocumentVersion(version: DocumentVersionSummary, { includeContent = false } = {}) {
+function serializeDocumentVersion(
+  version: DocumentVersionSummary,
+  { includeContent = false } = {},
+) {
   return {
     id: version.id,
     documentId: version.documentId,
@@ -164,7 +183,23 @@ function serializeDocumentVersion(version: DocumentVersionSummary, { includeCont
   };
 }
 
-function getDocumentVersionAuditMetadata(version: DocumentVersionSummary, extra: Record<string, unknown> = {}) {
+function serializeDeletionImpact(impact: DeletionImpactPreview) {
+  return {
+    affectedConversationCount: impact.affectedConversationCount,
+    affectedConversations: impact.affectedConversations.map((conversation) => ({
+      id: conversation.id,
+      title: conversation.title,
+      createdAt: conversation.createdAt.toISOString(),
+      updatedAt: conversation.updatedAt.toISOString(),
+    })),
+    limit: impact.limit,
+  };
+}
+
+function getDocumentVersionAuditMetadata(
+  version: DocumentVersionSummary,
+  extra: Record<string, unknown> = {},
+) {
   return {
     document_version_id: version.id,
     version_number: version.versionNumber,
@@ -198,7 +233,7 @@ async function getFolderPathLabel({
     })
     .from(vaultFoldersTable)
     .where(and(eq(vaultFoldersTable.vaultId, vaultId), eq(vaultFoldersTable.isDeleted, false)));
-  const byId = new Map(folders.map(folder => [folder.id, folder]));
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
   const path: string[] = [];
   const seen = new Set<string>();
   let current = byId.get(folderId) ?? null;
@@ -206,7 +241,7 @@ async function getFolderPathLabel({
   while (current !== null && !seen.has(current.id)) {
     seen.add(current.id);
     path.unshift(current.name);
-    current = current.parentId === null ? null : byId.get(current.parentId) ?? null;
+    current = current.parentId === null ? null : (byId.get(current.parentId) ?? null);
   }
 
   return path.length > 0 ? path.join(' / ') : 'Unknown location';
@@ -250,16 +285,15 @@ export function registerDocumentRoutes({
     const userId = context.get('userId');
 
     if (userId === null) {
-      return context.json(
-        { error: { code: 'auth.unauthorized', message: 'Unauthorized' } },
-        401,
-      );
+      return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
     }
 
     const vaults = await vaultsServices.listUserVaults({ userId });
     const readableVaultIds = vaults
-      .filter(vault => vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer')
-      .map(vault => vault.id);
+      .filter(
+        (vault) => vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer',
+      )
+      .map((vault) => vault.id);
     const requestedVaultId = context.req.query('vaultId')?.trim() || undefined;
 
     if (requestedVaultId !== undefined && !readableVaultIds.includes(requestedVaultId)) {
@@ -275,6 +309,91 @@ export function registerDocumentRoutes({
 
   app.get('/api/trash', getTrashResponse);
   app.get('/api/documents/trash', getTrashResponse);
+
+  app.post('/api/documents/deletion-impact', requireAuthentication(), async (context) => {
+    const userId = context.get('userId');
+
+    if (userId === null) {
+      return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
+    }
+
+    const body = await parseJsonObject(context);
+    const rawDocuments = body?.documents;
+
+    if (!Array.isArray(rawDocuments)) {
+      return context.json(
+        {
+          error: {
+            code: 'document.invalid_deletion_impact',
+            message: 'documents must be an array',
+          },
+        },
+        400,
+      );
+    }
+
+    if (rawDocuments.length > 1000) {
+      return context.json(
+        {
+          error: {
+            code: 'document.deletion_impact_too_large',
+            message: 'At most 1000 documents can be checked at once',
+          },
+        },
+        400,
+      );
+    }
+
+    const targets = rawDocuments.map((item) => {
+      if (
+        !isRecord(item) ||
+        typeof item.vaultId !== 'string' ||
+        typeof item.documentId !== 'string'
+      ) {
+        return null;
+      }
+
+      return {
+        vaultId: item.vaultId.trim(),
+        documentId: item.documentId.trim(),
+      };
+    });
+
+    if (
+      targets.some(
+        (target) =>
+          target === null || target.vaultId.length === 0 || target.documentId.length === 0,
+      )
+    ) {
+      return context.json(
+        {
+          error: {
+            code: 'document.invalid_deletion_impact',
+            message: 'Each document must include vaultId and documentId',
+          },
+        },
+        400,
+      );
+    }
+
+    const validTargets = targets as Array<{ vaultId: string; documentId: string }>;
+    const vaultIds = [...new Set(validTargets.map((target) => target.vaultId))];
+
+    for (const vaultId of vaultIds) {
+      const vault = await vaultsServices.getVaultForUser({ vaultId, userId });
+
+      if (vault === null || (vault.role !== 'owner' && vault.role !== 'editor')) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+    }
+
+    const result = await documentsServices.getBulkDocumentDeletionImpact({
+      targets: validTargets,
+      includeDeletedDocument: body?.includeDeleted === true,
+    });
+
+    return context.json({ impact: result.impact });
+  });
 
   // List documents in vault
   app.get(
@@ -360,9 +479,10 @@ export function registerDocumentRoutes({
       const mimeType = file.type || 'application/octet-stream';
       const parsedFolderId = parseNullableFolderId(formData.get('folderId'));
       const relativePathField = formData.get('relativePath');
-      const relativePath = typeof relativePathField === 'string' && relativePathField.trim().length > 0
-        ? relativePathField
-        : null;
+      const relativePath =
+        typeof relativePathField === 'string' && relativePathField.trim().length > 0
+          ? relativePathField
+          : null;
       const parsedConflictStrategy = parseUploadConflictStrategy(formData.get('conflictStrategy'));
 
       if (!parsedFolderId.valid || parsedFolderId.folderId === undefined) {
@@ -374,20 +494,26 @@ export function registerDocumentRoutes({
 
       if (!parsedConflictStrategy.valid) {
         return context.json(
-          { error: { code: 'upload.invalid_conflict_strategy', message: 'Invalid upload conflict strategy' } },
+          {
+            error: {
+              code: 'upload.invalid_conflict_strategy',
+              message: 'Invalid upload conflict strategy',
+            },
+          },
           400,
         );
       }
 
-      const destination = parsedFolderId.folderId === null && relativePath === null
-        ? { success: true as const, folderId: null, relativePath: null }
-        : await foldersServices.resolveUploadDestination({
-            vaultId,
-            parentId: parsedFolderId.folderId,
-            relativePath,
-            fileName,
-            createdBy: userId,
-          });
+      const destination =
+        parsedFolderId.folderId === null && relativePath === null
+          ? { success: true as const, folderId: null, relativePath: null }
+          : await foldersServices.resolveUploadDestination({
+              vaultId,
+              parentId: parsedFolderId.folderId,
+              relativePath,
+              fileName,
+              createdBy: userId,
+            });
 
       if (!destination.success) {
         const response = getFolderDestinationErrorResponse(destination.reason);
@@ -409,14 +535,17 @@ export function registerDocumentRoutes({
       }
 
       if (result.skipped) {
-        return context.json({
-          document: null,
-          documentVersion: null,
-          documentVersionId: null,
-          skipped: true,
-          existingId: result.existingId,
-          conflictType: result.conflictType,
-        }, 200);
+        return context.json(
+          {
+            document: null,
+            documentVersion: null,
+            documentVersionId: null,
+            skipped: true,
+            existingId: result.existingId,
+            conflictType: result.conflictType,
+          },
+          200,
+        );
       }
 
       if (result.document !== null) {
@@ -493,9 +622,9 @@ export function registerDocumentRoutes({
 
       // Enqueue document processing job
       if (
-        documentQueue !== undefined
-        && result.document !== null
-        && result.documentVersion !== null
+        documentQueue !== undefined &&
+        result.document !== null &&
+        result.documentVersion !== null
       ) {
         await documentQueue.enqueueProcessDocument({
           documentId: result.document.id,
@@ -521,12 +650,15 @@ export function registerDocumentRoutes({
         });
       }
 
-      return context.json({
-        document: result.document,
-        documentVersion: result.documentVersion,
-        documentVersionId: result.documentVersion?.id ?? null,
-        skipped: false,
-      }, 201);
+      return context.json(
+        {
+          document: result.document,
+          documentVersion: result.documentVersion,
+          documentVersionId: result.documentVersion?.id ?? null,
+          skipped: false,
+        },
+        201,
+      );
     },
   );
 
@@ -668,7 +800,12 @@ export function registerDocumentRoutes({
       const pageNumber = parsePageNumber(context.req.param('pageRef'));
       if (pageNumber === null) {
         return context.json(
-          { error: { code: 'document.invalid_page_number', message: 'Page number must be an integer >= 1' } },
+          {
+            error: {
+              code: 'document.invalid_page_number',
+              message: 'Page number must be an integer >= 1',
+            },
+          },
           400,
         );
       }
@@ -693,12 +830,14 @@ export function registerDocumentRoutes({
         return context.json(
           {
             error: {
-              code: result.error === 'invalid_page_number'
-                ? 'document.invalid_page_number'
-                : 'document.page_not_available',
-              message: result.error === 'invalid_page_number'
-                ? 'Page number must be an integer >= 1'
-                : 'Page preview is not available for this document or page',
+              code:
+                result.error === 'invalid_page_number'
+                  ? 'document.invalid_page_number'
+                  : 'document.page_not_available',
+              message:
+                result.error === 'invalid_page_number'
+                  ? 'Page number must be an integer >= 1'
+                  : 'Page preview is not available for this document or page',
             },
           },
           result.error === 'invalid_page_number' ? 400 : 404,
@@ -750,7 +889,7 @@ export function registerDocumentRoutes({
       }
 
       return context.json({
-        chunks: chunks.map(chunk => ({
+        chunks: chunks.map((chunk) => ({
           ...chunk,
           createdAt: chunk.createdAt.toISOString(),
         })),
@@ -847,7 +986,9 @@ export function registerDocumentRoutes({
         );
       }
 
-      return context.json({ versions: versions.map(version => serializeDocumentVersion(version)) });
+      return context.json({
+        versions: versions.map((version) => serializeDocumentVersion(version)),
+      });
     },
   );
 
@@ -909,7 +1050,11 @@ export function registerDocumentRoutes({
         actor: getAuditActorFromContext(context),
         vaultId,
         documentId,
-        target: { type: 'document_version', id: result.documentVersion.id, displayName: result.fileName },
+        target: {
+          type: 'document_version',
+          id: result.documentVersion.id,
+          displayName: result.fileName,
+        },
         source: 'web',
         requestContext: getAuditRequestContext(context),
         metadata: getDocumentVersionAuditMetadata(result.documentVersion, {
@@ -952,7 +1097,7 @@ export function registerDocumentRoutes({
       }
 
       return context.json({
-        chunks: chunks.map(chunk => ({
+        chunks: chunks.map((chunk) => ({
           ...chunk,
           createdAt: chunk.createdAt.toISOString(),
         })),
@@ -973,7 +1118,12 @@ export function registerDocumentRoutes({
       const pageNumber = parsePageNumber(context.req.param('pageRef'));
       if (pageNumber === null) {
         return context.json(
-          { error: { code: 'document.invalid_page_number', message: 'Page number must be an integer >= 1' } },
+          {
+            error: {
+              code: 'document.invalid_page_number',
+              message: 'Page number must be an integer >= 1',
+            },
+          },
           400,
         );
       }
@@ -996,12 +1146,14 @@ export function registerDocumentRoutes({
         return context.json(
           {
             error: {
-              code: result.error === 'invalid_page_number'
-                ? 'document.invalid_page_number'
-                : 'document.page_not_available',
-              message: result.error === 'invalid_page_number'
-                ? 'Page number must be an integer >= 1'
-                : 'Page preview is not available for this document version or page',
+              code:
+                result.error === 'invalid_page_number'
+                  ? 'document.invalid_page_number'
+                  : 'document.page_not_available',
+              message:
+                result.error === 'invalid_page_number'
+                  ? 'Page number must be an integer >= 1'
+                  : 'Page preview is not available for this document version or page',
             },
           },
           result.error === 'invalid_page_number' ? 400 : 404,
@@ -1051,16 +1203,18 @@ export function registerDocumentRoutes({
 
       if (!result.success) {
         const status = result.reason === 'not_found' ? 404 : 409;
-        const code = result.reason === 'current_version'
-          ? 'document.version_current'
-          : result.reason === 'invalid_status'
-            ? 'document.version_not_restorable'
-            : 'document.version_not_found';
-        const message = result.reason === 'current_version'
-          ? 'Current version cannot be restored'
-          : result.reason === 'invalid_status'
-            ? 'Only completed historical versions can be restored'
-            : 'Document version not found';
+        const code =
+          result.reason === 'current_version'
+            ? 'document.version_current'
+            : result.reason === 'invalid_status'
+              ? 'document.version_not_restorable'
+              : 'document.version_not_found';
+        const message =
+          result.reason === 'current_version'
+            ? 'Current version cannot be restored'
+            : result.reason === 'invalid_status'
+              ? 'Only completed historical versions can be restored'
+              : 'Document version not found';
 
         return context.json({ error: { code, message } }, status as any);
       }
@@ -1069,11 +1223,10 @@ export function registerDocumentRoutes({
         try {
           const settings = await adminAiServices.getSettings();
           if (settings.aiFeaturesEnabled) {
-            const activeIndex = await createEmbeddingIndexServices({ db }).getActiveEmbeddingIndex();
-            if (
-              activeIndex !== null
-              && !result.copiedEmbeddingIndexIds.includes(activeIndex.id)
-            ) {
+            const activeIndex = await createEmbeddingIndexServices({
+              db,
+            }).getActiveEmbeddingIndex();
+            if (activeIndex !== null && !result.copiedEmbeddingIndexIds.includes(activeIndex.id)) {
               await embeddingIndexQueue.enqueueDocumentIndexing({
                 embeddingIndexId: activeIndex.id,
                 documentVersionId: result.documentVersion.id,
@@ -1128,10 +1281,50 @@ export function registerDocumentRoutes({
         }),
       });
 
-      return context.json({
-        version: serializeDocumentVersion(result.documentVersion, { includeContent: true }),
-        restoredFromVersionId: result.sourceVersion.id,
-      }, 201);
+      return context.json(
+        {
+          version: serializeDocumentVersion(result.documentVersion, { includeContent: true }),
+          restoredFromVersionId: result.sourceVersion.id,
+        },
+        201,
+      );
+    },
+  );
+
+  app.get(
+    '/api/vaults/:vaultId/documents/:documentId/versions/:versionId/deletion-impact',
+    requireCanMutateVaultDocuments({ auditServices }),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const limit = parseImpactLimit(context.req.query('limit'));
+      if (limit === null) {
+        return context.json(
+          { error: { code: 'document.invalid_limit', message: 'limit must be an integer >= 0' } },
+          400,
+        );
+      }
+
+      const documentId = context.req.param('documentId');
+      const result = await documentsServices.getDocumentVersionDeletionImpact({
+        vaultId,
+        documentId,
+        documentVersionId: context.req.param('versionId'),
+        limit,
+      });
+
+      if (!result.success) {
+        return context.json(
+          { error: { code: 'document.version_not_found', message: 'Document version not found' } },
+          404,
+        );
+      }
+
+      return context.json({ impact: serializeDeletionImpact(result.impact) });
     },
   );
 
@@ -1170,13 +1363,14 @@ export function registerDocumentRoutes({
             document_version_id: documentVersionId,
             deletion_type: 'version',
             reason: result.reason,
-            reference_count: result.referenceCount,
           },
         });
 
         if (result.reason === 'not_found') {
           return context.json(
-            { error: { code: 'document.version_not_found', message: 'Document version not found' } },
+            {
+              error: { code: 'document.version_not_found', message: 'Document version not found' },
+            },
             404,
           );
         }
@@ -1184,13 +1378,8 @@ export function registerDocumentRoutes({
         return context.json(
           {
             error: {
-              code: result.reason === 'current_version'
-                ? 'document.version_current'
-                : 'document.version_referenced',
-              message: result.reason === 'current_version'
-                ? 'Current version cannot be deleted'
-                : 'Referenced historical versions cannot be deleted',
-              referenceCount: result.referenceCount,
+              code: 'document.version_current',
+              message: 'Current version cannot be deleted',
             },
           },
           409,
@@ -1313,13 +1502,14 @@ export function registerDocumentRoutes({
 
       if (body.language !== undefined) {
         const languageInput = body.language;
-        const languageCode = languageInput === null
-          ? null
-          : typeof languageInput === 'string'
-            ? languageInput
-            : isRecord(languageInput) && typeof languageInput.code === 'string'
-              ? languageInput.code
-              : undefined;
+        const languageCode =
+          languageInput === null
+            ? null
+            : typeof languageInput === 'string'
+              ? languageInput
+              : isRecord(languageInput) && typeof languageInput.code === 'string'
+                ? languageInput.code
+                : undefined;
 
         if (languageCode === undefined) {
           return context.json(
@@ -1331,7 +1521,12 @@ export function registerDocumentRoutes({
         const language = buildUserDocumentLanguageMetadata(languageCode);
         if (languageCode !== null && language === null) {
           return context.json(
-            { error: { code: 'document.unsupported_language', message: 'Unsupported document language' } },
+            {
+              error: {
+                code: 'document.unsupported_language',
+                message: 'Unsupported document language',
+              },
+            },
             400,
           );
         }
@@ -1437,12 +1632,14 @@ export function registerDocumentRoutes({
         );
       }
 
-      const fromPath = activityServices === undefined
-        ? null
-        : await getFolderPathLabel({ db, vaultId, folderId: before?.folderId ?? null });
-      const toPath = activityServices === undefined
-        ? null
-        : await getFolderPathLabel({ db, vaultId, folderId: result.document.folderId });
+      const fromPath =
+        activityServices === undefined
+          ? null
+          : await getFolderPathLabel({ db, vaultId, folderId: before?.folderId ?? null });
+      const toPath =
+        activityServices === undefined
+          ? null
+          : await getFolderPathLabel({ db, vaultId, folderId: result.document.folderId });
       await activityServices?.emitActivityEvent({
         activityType: ACTIVITY_EVENT_TYPES.documentMoved,
         entityType: 'document',
@@ -1532,11 +1729,55 @@ export function registerDocumentRoutes({
         metadata: { processing_status: 'queued', reprocess: true },
       });
 
+      return context.json(
+        {
+          queued: true,
+          documentId,
+          mode: 'source_file',
+        },
+        202,
+      );
+    },
+  );
+
+  app.get(
+    '/api/vaults/:vaultId/documents/:documentId/deletion-impact',
+    requireCanMutateVaultDocuments({ auditServices }),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      const limit = parseImpactLimit(context.req.query('limit'));
+      if (limit === null) {
+        return context.json(
+          { error: { code: 'document.invalid_limit', message: 'limit must be an integer >= 0' } },
+          400,
+        );
+      }
+
+      const result = await documentsServices.getDocumentDeletionImpact({
+        vaultId,
+        documentId: context.req.param('documentId'),
+        limit,
+        includeDeletedDocument: context.req.query('includeDeleted') === 'true',
+      });
+
+      if (!result.success) {
+        return context.json(
+          { error: { code: 'document.not_found', message: 'Document not found' } },
+          404,
+        );
+      }
+
       return context.json({
-        queued: true,
-        documentId,
-        mode: 'source_file',
-      }, 202);
+        impact: {
+          ...serializeDeletionImpact(result.impact),
+          versionCount: result.impact.versionCount,
+        },
+      });
     },
   );
 
@@ -1658,7 +1899,9 @@ export function registerDocumentRoutes({
         try {
           const settings = await adminAiServices.getSettings();
           if (settings.aiFeaturesEnabled) {
-            const activeIndex = await createEmbeddingIndexServices({ db }).getActiveEmbeddingIndex();
+            const activeIndex = await createEmbeddingIndexServices({
+              db,
+            }).getActiveEmbeddingIndex();
             if (activeIndex !== null) {
               const version = await documentsServices.resolveLatestDocumentVersion({
                 documentId: doc.id,

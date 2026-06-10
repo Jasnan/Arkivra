@@ -32,6 +32,7 @@ type TestContext = {
   userId: string | null;
   vaultId: string | null;
   documentId: string | null;
+  documentVersionId: string | null;
 };
 
 const FIXTURE_IMAGE_BASE64 =
@@ -425,17 +426,14 @@ async function createFixturePdfBuffer() {
   });
 
   const page2 = pdfDoc.addPage([612, 792]);
-  page2.drawText(
-    'Revenue trend accelerated in the second quarter and remained stable into July.',
-    {
-      x: 72,
-      y: 684,
-      size: 12,
-      font: regular,
-      maxWidth: 440,
-      lineHeight: 16,
-    },
-  );
+  page2.drawText('Revenue trend accelerated in the second quarter and remained stable into July.', {
+    x: 72,
+    y: 684,
+    size: 12,
+    font: regular,
+    maxWidth: 440,
+    lineHeight: 16,
+  });
   page2.drawText('Figure 1. Revenue trend', {
     x: 72,
     y: 646,
@@ -484,6 +482,7 @@ describe.sequential('docling fixture worker e2e', () => {
     userId: null,
     vaultId: null,
     documentId: null,
+    documentVersionId: null,
   };
 
   let documentWorker: ReturnType<typeof createDocumentWorker> | null = null;
@@ -518,13 +517,15 @@ describe.sequential('docling fixture worker e2e', () => {
     const storage = createStorageDriver({ config });
 
     const parserRegistry = createParserRegistry({
-      parsers: [createDoclingParser({
-        doclingClient: {
-          convertFile: async () => buildDoclingFixtureResponse(),
-          chunkFile: async () => buildDoclingFixtureChunkResponse(),
-        },
-        engineVersion: config.docling.engineVersion,
-      })],
+      parsers: [
+        createDoclingParser({
+          doclingClient: {
+            convertFile: async () => buildDoclingFixtureResponse(),
+            chunkFile: async () => buildDoclingFixtureChunkResponse(),
+          },
+          engineVersion: config.docling.engineVersion,
+        }),
+      ],
       defaultEngine: 'docling',
     });
     const parsePipeline = createParsePipeline({
@@ -550,11 +551,17 @@ describe.sequential('docling fixture worker e2e', () => {
 
   afterAll(async () => {
     if (testContext.vaultId !== null && db !== null) {
-      await db.delete(vaultsTable).where(eq(vaultsTable.id, testContext.vaultId)).catch(() => undefined);
+      await db
+        .delete(vaultsTable)
+        .where(eq(vaultsTable.id, testContext.vaultId))
+        .catch(() => undefined);
     }
 
     if (testContext.userId !== null && db !== null) {
-      await db.delete(usersTable).where(eq(usersTable.id, testContext.userId)).catch(() => undefined);
+      await db
+        .delete(usersTable)
+        .where(eq(usersTable.id, testContext.userId))
+        .catch(() => undefined);
     }
 
     if (db !== null) {
@@ -615,7 +622,9 @@ describe.sequential('docling fixture worker e2e', () => {
     const formData = new FormData();
     formData.append(
       'file',
-      new File([await createFixturePdfBuffer()], 'docling-fixture.pdf', { type: 'application/pdf' }),
+      new File([await createFixturePdfBuffer()], 'docling-fixture.pdf', {
+        type: 'application/pdf',
+      }),
     );
 
     const uploadResponse = await app.request(`/api/vaults/${testContext.vaultId}/documents`, {
@@ -625,8 +634,15 @@ describe.sequential('docling fixture worker e2e', () => {
     });
 
     expect(uploadResponse.status).toBe(201);
-    const uploadBody = (await uploadResponse.json()) as { document: { id: string } };
+    const uploadBody = (await uploadResponse.json()) as {
+      document: { id: string; currentVersionId: string };
+      documentVersion: { id: string };
+      documentVersionId: string;
+    };
     testContext.documentId = uploadBody.document.id;
+    testContext.documentVersionId = uploadBody.documentVersion.id;
+    expect(uploadBody.documentVersionId).toBe(uploadBody.documentVersion.id);
+    expect(uploadBody.document.currentVersionId).toBe(uploadBody.documentVersion.id);
 
     if (documentWorker === null) {
       throw new Error('Document worker was not initialized');
@@ -635,6 +651,7 @@ describe.sequential('docling fixture worker e2e', () => {
     await documentWorker.processDocument({
       data: {
         documentId: testContext.documentId,
+        documentVersionId: testContext.documentVersionId,
         vaultId: testContext.vaultId,
       },
       updateProgress: async () => undefined,
@@ -689,9 +706,9 @@ describe.sequential('docling fixture worker e2e', () => {
       .orderBy(asc(documentChunksTable.chunkIndex));
 
     expect(chunks.length).toBeGreaterThanOrEqual(2);
-    const tableChunk = chunks.find(chunk => chunk.sourceElementIds?.includes('#/tables/0'));
-    const imageChunk = chunks.find(chunk => chunk.sourceElementIds?.includes('#/pictures/0'));
-    const appendixChunk = chunks.find(chunk => chunk.sourceElementIds?.includes('#/texts/5'));
+    const tableChunk = chunks.find((chunk) => chunk.sourceElementIds?.includes('#/tables/0'));
+    const imageChunk = chunks.find((chunk) => chunk.sourceElementIds?.includes('#/pictures/0'));
+    const appendixChunk = chunks.find((chunk) => chunk.sourceElementIds?.includes('#/texts/5'));
     expect(tableChunk).toBeDefined();
     expect(imageChunk).toBeDefined();
     expect(appendixChunk).toBeDefined();
@@ -744,8 +761,8 @@ describe.sequential('docling fixture worker e2e', () => {
       .orderBy(asc(documentChunkAssetsTable.createdAt));
 
     expect(assetRows.length).toBeGreaterThanOrEqual(1);
-    const tableAsset = assetRows.find(asset => asset.assetType === 'table');
-    const imageAsset = assetRows.find(asset => asset.assetType === 'image');
+    const tableAsset = assetRows.find((asset) => asset.assetType === 'table');
+    const imageAsset = assetRows.find((asset) => asset.assetType === 'image');
 
     if (tableAsset !== undefined) {
       expect(tableAsset).toMatchObject({
@@ -802,7 +819,7 @@ describe.sequential('docling fixture worker e2e', () => {
       }>;
     };
 
-    const tableCitation = hybridBody.citations.find(citation =>
+    const tableCitation = hybridBody.citations.find((citation) =>
       citation.tableSourceElementIds?.includes('#/tables/0'),
     );
     if (tableCitation !== undefined) {
@@ -818,11 +835,13 @@ describe.sequential('docling fixture worker e2e', () => {
       });
     }
     if (imageAsset !== undefined && hybridBody.citations.length > 0) {
-      const imageCitation = hybridBody.citations.find(citation =>
-        citation.imageAssets?.some(asset => asset.assetId === imageAsset.id),
+      const imageCitation = hybridBody.citations.find((citation) =>
+        citation.imageAssets?.some((asset) => asset.assetId === imageAsset.id),
       );
       expect(imageCitation).toBeDefined();
-      expect(imageCitation?.imageAssets?.some(asset => asset.assetId === imageAsset.id)).toBe(true);
+      expect(imageCitation?.imageAssets?.some((asset) => asset.assetId === imageAsset.id)).toBe(
+        true,
+      );
     }
 
     if (tableAsset !== undefined) {
@@ -852,9 +871,13 @@ describe.sequential('docling fixture worker e2e', () => {
       expect(imageAssetResponse.status).toBe(200);
       expect(imageAssetResponse.headers.get('content-type')).toBe('image/png');
       if (imageAsset.sourceElementId !== null) {
-        expect(imageAssetResponse.headers.get('x-arkivra-source-element-id')).toBe(imageAsset.sourceElementId);
+        expect(imageAssetResponse.headers.get('x-arkivra-source-element-id')).toBe(
+          imageAsset.sourceElementId,
+        );
       }
-      expect(Buffer.from(await imageAssetResponse.arrayBuffer()).equals(FIXTURE_IMAGE_BYTES)).toBe(true);
+      expect(Buffer.from(await imageAssetResponse.arrayBuffer()).equals(FIXTURE_IMAGE_BYTES)).toBe(
+        true,
+      );
     }
 
     const pageOnePreviewResponse = await app.request(

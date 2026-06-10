@@ -1,7 +1,11 @@
 import type { Database } from '../database/database.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
 import { serializeTableHtmlForRetrieval } from '../parsing/table-formatting.js';
-import type { Citation, CitationImageAsset, DocumentSearchServices } from '../search/search.types.js';
+import type {
+  Citation,
+  CitationImageAsset,
+  DocumentSearchServices,
+} from '../search/search.types.js';
 import type {
   ChatConversation,
   ChatConversationDetail,
@@ -61,7 +65,7 @@ const GLOBAL_CHAT_BASE_SYSTEM_PROMPT = [
   '- concise',
   '- structured',
   '- grounded in documents',
-  'If the user\'s request is incomplete, ask a short follow-up question before answering. Always provide 1–2 concrete examples in follow-ups. Never ask multiple questions at once.',
+  "If the user's request is incomplete, ask a short follow-up question before answering. Always provide 1–2 concrete examples in follow-ups. Never ask multiple questions at once.",
 ].join('\n');
 
 const GLOBAL_CHAT_INTENT_PROMPTS: Record<ChatIntent, string> = {
@@ -194,7 +198,6 @@ function toConversation(row: ChatConversationRow): ChatConversation {
   };
 }
 
-
 function isGlobalScope(scope: ChatScopeInput) {
   return scope.type === 'global' || scope.type === 'selection';
 }
@@ -224,7 +227,10 @@ function normalizeVaultRefs(vaults: ChatContextVaultRef[]) {
   return normalized;
 }
 
-function normalizeDocumentRefs(documents: ChatContextDocumentRef[], selectedVaultIds = new Set<string>()) {
+function normalizeDocumentRefs(
+  documents: ChatContextDocumentRef[],
+  selectedVaultIds = new Set<string>(),
+) {
   const seen = new Set<string>();
   const normalized: ChatContextDocumentRef[] = [];
 
@@ -232,7 +238,12 @@ function normalizeDocumentRefs(documents: ChatContextDocumentRef[], selectedVaul
     const vaultId = document.vaultId.trim();
     const documentId = document.documentId.trim();
     const key = `${vaultId}:${documentId}`;
-    if (vaultId.length === 0 || documentId.length === 0 || selectedVaultIds.has(vaultId) || seen.has(key)) {
+    if (
+      vaultId.length === 0 ||
+      documentId.length === 0 ||
+      selectedVaultIds.has(vaultId) ||
+      seen.has(key)
+    ) {
       continue;
     }
 
@@ -240,9 +251,15 @@ function normalizeDocumentRefs(documents: ChatContextDocumentRef[], selectedVaul
     normalized.push({
       vaultId,
       documentId,
-      ...(normalizeOptionalLabel(document.name) ? { name: normalizeOptionalLabel(document.name) } : {}),
-      ...(normalizeOptionalLabel(document.vaultName) ? { vaultName: normalizeOptionalLabel(document.vaultName) } : {}),
-      ...(normalizeOptionalLabel(document.path) ? { path: normalizeOptionalLabel(document.path) } : {}),
+      ...(normalizeOptionalLabel(document.name)
+        ? { name: normalizeOptionalLabel(document.name) }
+        : {}),
+      ...(normalizeOptionalLabel(document.vaultName)
+        ? { vaultName: normalizeOptionalLabel(document.vaultName) }
+        : {}),
+      ...(normalizeOptionalLabel(document.path)
+        ? { path: normalizeOptionalLabel(document.path) }
+        : {}),
     });
   }
 
@@ -253,7 +270,7 @@ function normalizeConversationContextSnapshot(row: ChatConversationRow): ChatCon
   if (row.contextSnapshot.type === 'global') {
     return {
       type: 'global',
-      vaultIds: [...new Set(row.contextSnapshot.vaultIds.filter(vaultId => vaultId.length > 0))],
+      vaultIds: [...new Set(row.contextSnapshot.vaultIds.filter((vaultId) => vaultId.length > 0))],
     };
   }
 
@@ -263,13 +280,15 @@ function normalizeConversationContextSnapshot(row: ChatConversationRow): ChatCon
       vaultId: row.contextSnapshot.vaultId,
       documentId: row.contextSnapshot.documentId,
       ...(row.contextSnapshot.vaultName ? { vaultName: row.contextSnapshot.vaultName } : {}),
-      ...(row.contextSnapshot.documentName ? { documentName: row.contextSnapshot.documentName } : {}),
+      ...(row.contextSnapshot.documentName
+        ? { documentName: row.contextSnapshot.documentName }
+        : {}),
     };
   }
 
   if (row.contextSnapshot.type === 'selection') {
     const vaults = normalizeVaultRefs(row.contextSnapshot.vaults);
-    const selectedVaultIds = new Set(vaults.map(vault => vault.vaultId));
+    const selectedVaultIds = new Set(vaults.map((vault) => vault.vaultId));
 
     return {
       type: 'selection',
@@ -314,9 +333,15 @@ function buildGuidedFollowUpUserPrompt({
   previousMessages: ChatMessage[];
   content: string;
 }) {
-  const transcript = previousMessages.length > 0
-    ? previousMessages.map(message => `${message.role === 'user' ? 'User' : 'Assistant'}: ${getMessageText(message)}`).join('\n')
-    : '(no prior messages)';
+  const transcript =
+    previousMessages.length > 0
+      ? previousMessages
+          .map(
+            (message) =>
+              `${message.role === 'user' ? 'User' : 'Assistant'}: ${getMessageText(message)}`,
+          )
+          .join('\n')
+      : '(no prior messages)';
 
   return [
     'Decide whether the latest user message is specific enough to continue.',
@@ -338,8 +363,8 @@ function buildGuidedFollowUpUserPrompt({
 function sanitizeFollowUpExamples(intent: ChatIntent, examples: string[] | undefined) {
   const fallback = DEFAULT_INTENT_EXAMPLES[intent];
   const sanitized = (examples ?? [])
-    .map(example => example.trim())
-    .filter(example => example.length > 0)
+    .map((example) => example.trim())
+    .filter((example) => example.length > 0)
     .filter((example, index, values) => values.indexOf(example) === index)
     .slice(0, MAX_FOLLOW_UP_EXAMPLES);
 
@@ -395,7 +420,9 @@ export type ChatContextExpansionChunk = {
   snippet: string;
 };
 
-function getCitationPageBounds(citation: Pick<Citation, 'pageStart' | 'pageEnd'>): PageBounds | null {
+function getCitationPageBounds(
+  citation: Pick<Citation, 'pageStart' | 'pageEnd'>,
+): PageBounds | null {
   const start = citation.pageStart ?? citation.pageEnd;
   const end = citation.pageEnd ?? citation.pageStart;
 
@@ -409,7 +436,9 @@ function getCitationPageBounds(citation: Pick<Citation, 'pageStart' | 'pageEnd'>
   };
 }
 
-function getChunkPageBounds(chunk: Pick<ChatContextExpansionChunk, 'pageStart' | 'pageEnd'>): PageBounds | null {
+function getChunkPageBounds(
+  chunk: Pick<ChatContextExpansionChunk, 'pageStart' | 'pageEnd'>,
+): PageBounds | null {
   const start = chunk.pageStart ?? chunk.pageEnd;
   const end = chunk.pageEnd ?? chunk.pageStart;
 
@@ -441,8 +470,8 @@ function mergePageBounds(bounds: Array<PageBounds | null>): PageBounds | null {
   }
 
   return {
-    start: Math.min(...presentBounds.map(item => item.start)),
-    end: Math.max(...presentBounds.map(item => item.end)),
+    start: Math.min(...presentBounds.map((item) => item.start)),
+    end: Math.max(...presentBounds.map((item) => item.end)),
   };
 }
 
@@ -460,13 +489,13 @@ function getExpandedPageWindow(citations: Citation[]): PageBounds | null {
 }
 
 function uniqueStrings(values: Array<string | null | undefined>) {
-  return [...new Set(values
-    .map(value => value?.trim() ?? '')
-    .filter(value => value.length > 0))];
+  return [
+    ...new Set(values.map((value) => value?.trim() ?? '').filter((value) => value.length > 0)),
+  ];
 }
 
 function uniqueTables(values: string[]) {
-  return [...new Set(values.map(value => value.trim()).filter(value => value.length > 0))];
+  return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
 }
 
 function mergeCitationImageAssets(citations: Citation[]): CitationImageAsset[] {
@@ -580,7 +609,7 @@ function getYearConstraintMatchCount(citation: Citation, years: string[]) {
     citation.snippet,
   ].join(' ');
 
-  return years.filter(year => searchableText.includes(year)).length;
+  return years.filter((year) => searchableText.includes(year)).length;
 }
 
 export function rankCitationsForQuestion({
@@ -602,11 +631,8 @@ export function rankCitationsForQuestion({
       index,
       yearMatchCount: getYearConstraintMatchCount(citation, years),
     }))
-    .sort((left, right) =>
-      right.yearMatchCount - left.yearMatchCount
-      || left.index - right.index,
-    )
-    .map(item => item.citation);
+    .sort((left, right) => right.yearMatchCount - left.yearMatchCount || left.index - right.index)
+    .map((item) => item.citation);
 }
 
 export function buildExpandedCitationForChat({
@@ -626,39 +652,42 @@ export function buildExpandedCitationForChat({
   const citationBounds = mergePageBounds(citations.map(getCitationPageBounds));
   const mergedBounds = contextBounds ?? citationBounds;
   const baseBounds = getCitationPageBounds(base);
-  const tablesHtml = uniqueTables(citations.flatMap(citation => citation.tablesHtml));
+  const tablesHtml = uniqueTables(citations.flatMap((citation) => citation.tablesHtml));
   const mergedImageAssets = mergeCitationImageAssets(citations);
-  const imageAssetIds = mergedImageAssets.length > 0
-    ? mergedImageAssets.map(asset => asset.assetId)
-    : uniqueStrings(citations.flatMap(citation => citation.imageAssetIds));
-  const citationPrecision = base.citationPrecision === 'box'
-    && mergedBounds !== null
-    && baseBounds !== null
-    && mergedBounds.start === baseBounds.start
-    && mergedBounds.end === baseBounds.end
+  const imageAssetIds =
+    mergedImageAssets.length > 0
+      ? mergedImageAssets.map((asset) => asset.assetId)
+      : uniqueStrings(citations.flatMap((citation) => citation.imageAssetIds));
+  const citationPrecision =
+    base.citationPrecision === 'box' &&
+    mergedBounds !== null &&
+    baseBounds !== null &&
+    mergedBounds.start === baseBounds.start &&
+    mergedBounds.end === baseBounds.end
       ? base.citationPrecision
       : mergedBounds !== null
-          ? 'page'
-          : base.citationPrecision;
+        ? 'page'
+        : base.citationPrecision;
 
   return {
     ...base,
     pageStart: mergedBounds?.start ?? base.pageStart,
     pageEnd: mergedBounds?.end ?? base.pageEnd,
     snippet: buildContextSnippet({ citations, contextChunks }),
-    sourceElementIds: uniqueStrings(citations.flatMap(citation => citation.sourceElementIds ?? [])),
-    tableSourceElementIds: uniqueStrings(citations.flatMap(citation => citation.tableSourceElementIds ?? [])),
+    sourceElementIds: uniqueStrings(
+      citations.flatMap((citation) => citation.sourceElementIds ?? []),
+    ),
+    tableSourceElementIds: uniqueStrings(
+      citations.flatMap((citation) => citation.tableSourceElementIds ?? []),
+    ),
     boundingBoxes: citationPrecision === 'box' ? base.boundingBoxes : [],
     citationPrecision,
-    assetType: imageAssetIds.length > 0
-      ? 'image'
-      : tablesHtml.length > 0
-          ? 'table'
-          : base.assetType,
+    assetType:
+      imageAssetIds.length > 0 ? 'image' : tablesHtml.length > 0 ? 'table' : base.assetType,
     tablesHtml,
     imageAssetIds,
     imageAssets: mergedImageAssets,
-    score: Math.max(...citations.map(citation => citation.score)),
+    score: Math.max(...citations.map((citation) => citation.score)),
   };
 }
 
@@ -710,14 +739,16 @@ async function loadContextChunksForCitationGroup({
       return [];
     }
 
-    return [{
-      chunkId: row.chunk_id,
-      chunkIndex: row.chunk_index,
-      pageStart: row.page_start,
-      pageEnd: row.page_end,
-      section: row.section,
-      snippet,
-    }];
+    return [
+      {
+        chunkId: row.chunk_id,
+        chunkIndex: row.chunk_index,
+        pageStart: row.page_start,
+        pageEnd: row.page_end,
+        section: row.section,
+        snippet,
+      },
+    ];
   });
 }
 
@@ -746,10 +777,7 @@ async function expandRetrievedCitationsForChat({
 export function normalizeChatGenerationError(error: unknown) {
   const message = error instanceof Error ? error.message : 'Chat generation failed';
 
-  if (
-    message.includes('Controller is already closed')
-    || message.includes('ERR_INVALID_STATE')
-  ) {
+  if (message.includes('Controller is already closed') || message.includes('ERR_INVALID_STATE')) {
     return 'The chat response was interrupted before it finished. Please try again.';
   }
 
@@ -794,8 +822,10 @@ function getConversationOwnershipConditions({
   );
 }
 
-function toManifestRows(rows: Array<typeof chatConversationDocumentVersionsTable.$inferSelect>): ChatManifestRow[] {
-  return rows.map(row => ({
+function toManifestRows(
+  rows: Array<typeof chatConversationDocumentVersionsTable.$inferSelect>,
+): ChatManifestRow[] {
+  return rows.map((row) => ({
     vaultId: row.vaultId,
     documentId: row.documentId,
     documentVersionId: row.documentVersionId,
@@ -808,16 +838,10 @@ function getLiveManifestRows(rows: ChatManifestRow[]): LiveChatManifestRow[] {
 }
 
 function uniqueVaultIdsForManifest(rows: ChatManifestRow[]) {
-  return [...new Set(rows.map(row => row.vaultId).filter(vaultId => vaultId.length > 0))];
+  return [...new Set(rows.map((row) => row.vaultId).filter((vaultId) => vaultId.length > 0))];
 }
 
-function createEmptyHybridResult({
-  query,
-  limit,
-}: {
-  query: string;
-  limit: number;
-}) {
+function createEmptyHybridResult({ query, limit }: { query: string; limit: number }) {
   return {
     query,
     limit,
@@ -845,9 +869,10 @@ export function getFrozenManifestContextAvailability({
     ? {
         status: 'source_document_deleted',
         readOnly: true,
-        message: totalCount === 0
-          ? 'No source document versions are available. This conversation is available as read-only history.'
-          : 'One or more source documents were deleted. This conversation is available as read-only history.',
+        message:
+          totalCount === 0
+            ? 'No source document versions are available. This conversation is available as read-only history.'
+            : 'One or more source documents were deleted. This conversation is available as read-only history.',
       }
     : AVAILABLE_CHAT_CONTEXT;
 }
@@ -886,25 +911,39 @@ async function resolveConversationContextAvailability({
   }
 
   const result = await db.execute<ManifestAvailabilityRow>(sql`
+    WITH source_refs AS (
+      SELECT
+        vault_id,
+        document_id,
+        document_version_id
+      FROM chat_conversation_document_versions
+      WHERE conversation_id = ${conversationId}
+      UNION ALL
+      SELECT
+        vault_id,
+        document_id,
+        document_version_id
+      FROM chat_message_citations
+      WHERE conversation_id = ${conversationId}
+    )
     SELECT
       count(*)::int AS total_count,
       count(*) FILTER (
-        WHERE ccdv.document_version_id IS NULL
+        WHERE source_refs.document_version_id IS NULL
           OR d.id IS NULL
           OR dv.id IS NULL
       )::int AS unavailable_count
-    FROM chat_conversation_document_versions AS ccdv
+    FROM source_refs
     LEFT JOIN documents AS d
-      ON d.id = ccdv.document_id
-      AND d.vault_id = ccdv.vault_id
+      ON d.id = source_refs.document_id
+      AND d.vault_id = source_refs.vault_id
       AND d.is_deleted = false
     LEFT JOIN document_versions AS dv
-      ON dv.id = ccdv.document_version_id
-      AND dv.document_id = ccdv.document_id
-      AND dv.vault_id = ccdv.vault_id
+      ON dv.id = source_refs.document_version_id
+      AND dv.document_id = source_refs.document_id
+      AND dv.vault_id = source_refs.vault_id
       AND dv.deleted_at IS NULL
       AND dv.processing_status = 'completed'
-    WHERE ccdv.conversation_id = ${conversationId}
   `);
   const row = result.rows[0];
   const totalCount = Number(row?.total_count ?? 0);
@@ -926,13 +965,18 @@ async function insertManifestForCompletedCurrentVersions({
   includedBy: ChatManifestIncludedBy;
   documentId?: string;
 }) {
-  const normalizedVaultIds = [...new Set(vaultIds.map(vaultId => vaultId.trim()).filter(Boolean))];
+  const normalizedVaultIds = [
+    ...new Set(vaultIds.map((vaultId) => vaultId.trim()).filter(Boolean)),
+  ];
 
   if (normalizedVaultIds.length === 0) {
     return [];
   }
 
-  const vaultIdList = sql.join(normalizedVaultIds.map(vaultId => sql`${vaultId}`), sql`, `);
+  const vaultIdList = sql.join(
+    normalizedVaultIds.map((vaultId) => sql`${vaultId}`),
+    sql`, `,
+  );
   const result = await db.execute<ManifestInsertRow>(sql`
     INSERT INTO chat_conversation_document_versions (
       conversation_id,
@@ -966,7 +1010,7 @@ async function insertManifestForCompletedCurrentVersions({
       included_by
   `);
 
-  return result.rows.map(row => ({
+  return result.rows.map((row) => ({
     vaultId: row.vault_id,
     documentId: row.document_id,
     documentVersionId: row.document_version_id,
@@ -1007,7 +1051,7 @@ async function materializeConversationManifest({
     });
   } else {
     const vaultRefs = normalizeVaultRefs(scope.vaults);
-    const selectedVaultIds = vaultRefs.map(vault => vault.vaultId);
+    const selectedVaultIds = vaultRefs.map((vault) => vault.vaultId);
     await insertManifestForCompletedCurrentVersions({
       db,
       conversationId,
@@ -1042,7 +1086,7 @@ export function buildManifestHybridSearchArgs({
 }): Parameters<DocumentSearchServices['searchHybrid']>[0] | null {
   const liveRows = getLiveManifestRows(manifestRows);
   const vaultIds = uniqueVaultIdsForManifest(liveRows);
-  const documentVersionIds = [...new Set(liveRows.map(row => row.documentVersionId))];
+  const documentVersionIds = [...new Set(liveRows.map((row) => row.documentVersionId))];
 
   if (vaultIds.length === 0 || documentVersionIds.length === 0) {
     return null;
@@ -1086,7 +1130,7 @@ export function buildChatMessageCitationRows({
   messageId: string;
   citations: Citation[];
 }) {
-  return citations.map(citation => ({
+  return citations.map((citation) => ({
     id: generateId({ prefix: 'cmc' }),
     conversationId,
     messageId,
@@ -1113,7 +1157,7 @@ export function buildChatMessageCitationRows({
 }
 
 export function sanitizeCitationsForMessagePersistence(citations: Citation[]): Citation[] {
-  return citations.map(citation => ({
+  return citations.map((citation) => ({
     ...citation,
     snippet: truncate(citation.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH),
     tablesHtml: [],
@@ -1166,7 +1210,11 @@ function formatPageRange(citation: Citation) {
     return 'document';
   }
 
-  if (citation.pageStart !== null && citation.pageEnd !== null && citation.pageEnd !== citation.pageStart) {
+  if (
+    citation.pageStart !== null &&
+    citation.pageEnd !== null &&
+    citation.pageEnd !== citation.pageStart
+  ) {
     return `pages ${citation.pageStart}-${citation.pageEnd}`;
   }
 
@@ -1174,9 +1222,10 @@ function formatPageRange(citation: Citation) {
 }
 
 function formatSectionPath(citation: Citation) {
-  const sectionPath = citation.sectionPath
-    ?.map(section => section.trim())
-    .filter(section => section.length > 0) ?? [];
+  const sectionPath =
+    citation.sectionPath
+      ?.map((section) => section.trim())
+      .filter((section) => section.length > 0) ?? [];
 
   if (sectionPath.length > 0) {
     return sectionPath.join(' > ');
@@ -1190,7 +1239,7 @@ function getCitationImageAssets(citation: Citation) {
     return citation.imageAssets;
   }
 
-  return citation.imageAssetIds.map(assetId => ({
+  return citation.imageAssetIds.map((assetId) => ({
     assetId,
     sourceElementId: null,
     caption: null,
@@ -1205,17 +1254,20 @@ function formatCitationFigures(citation: Citation) {
     return '(none)';
   }
 
-  return imageAssets.map((imageAsset, index) => {
-    const pageLabel = imageAsset.pageNumber !== null && imageAsset.pageNumber !== undefined
-      ? ` (page ${imageAsset.pageNumber})`
-      : '';
+  return imageAssets
+    .map((imageAsset, index) => {
+      const pageLabel =
+        imageAsset.pageNumber !== null && imageAsset.pageNumber !== undefined
+          ? ` (page ${imageAsset.pageNumber})`
+          : '';
 
-    if (typeof imageAsset.caption === 'string' && imageAsset.caption.trim().length > 0) {
-      return `Figure ${index + 1}${pageLabel}: ${imageAsset.caption.trim()}`;
-    }
+      if (typeof imageAsset.caption === 'string' && imageAsset.caption.trim().length > 0) {
+        return `Figure ${index + 1}${pageLabel}: ${imageAsset.caption.trim()}`;
+      }
 
-    return `Figure ${index + 1}${pageLabel}: image asset attached without a caption.`;
-  }).join('\n');
+      return `Figure ${index + 1}${pageLabel}: image asset attached without a caption.`;
+    })
+    .join('\n');
 }
 
 export function buildCitationContext(citations: Citation[]) {
@@ -1223,23 +1275,29 @@ export function buildCitationContext(citations: Citation[]) {
     return '(no retrieved context)';
   }
 
-  return citations.map((citation, index) => {
-    const tables = citation.tablesHtml.length > 0
-      ? citation.tablesHtml
-          .map((table, tableIndex) => `Table ${tableIndex + 1}:\n${serializeTableHtmlForRetrieval(table)}`)
-          .join('\n\n')
-      : '(none)';
+  return citations
+    .map((citation, index) => {
+      const tables =
+        citation.tablesHtml.length > 0
+          ? citation.tablesHtml
+              .map(
+                (table, tableIndex) =>
+                  `Table ${tableIndex + 1}:\n${serializeTableHtmlForRetrieval(table)}`,
+              )
+              .join('\n\n')
+          : '(none)';
 
-    return [
-      `Source ${index + 1}: ${citation.documentName}`,
-      `Vault: ${citation.vaultName}`,
-      `Location: ${formatPageRange(citation)}`,
-      `Section: ${formatSectionPath(citation)}`,
-      `Snippet:\n${citation.snippet}`,
-      `Tables:\n${tables}`,
-      `Figures:\n${formatCitationFigures(citation)}`,
-    ].join('\n');
-  }).join('\n\n---\n\n');
+      return [
+        `Source ${index + 1}: ${citation.documentName}`,
+        `Vault: ${citation.vaultName}`,
+        `Location: ${formatPageRange(citation)}`,
+        `Section: ${formatSectionPath(citation)}`,
+        `Snippet:\n${citation.snippet}`,
+        `Tables:\n${tables}`,
+        `Figures:\n${formatCitationFigures(citation)}`,
+      ].join('\n');
+    })
+    .join('\n\n---\n\n');
 }
 
 export function buildAnswerPrompt({
@@ -1310,10 +1368,10 @@ async function collectCitationImages({
       });
 
       if (
-        asset !== null
-        && 'fileData' in asset
-        && Buffer.isBuffer(asset.fileData)
-        && asset.mimeType.startsWith('image/')
+        asset !== null &&
+        'fileData' in asset &&
+        Buffer.isBuffer(asset.fileData) &&
+        asset.mimeType.startsWith('image/')
       ) {
         images.push({
           mediaType: asset.mimeType,
@@ -1388,15 +1446,18 @@ export function createChatServices({
     title?: string;
   }) {
     const scopeValues = getScopeValues(scope);
-    const [row] = await db.insert(chatConversationsTable).values({
-      vaultId: scopeValues.vaultId,
-      documentId: scopeValues.documentId,
-      scope: scopeValues.scope,
-      contextSnapshot: scope,
-      userId,
-      title: title && title.trim().length > 0 ? truncate(title, 96) : DEFAULT_CHAT_TITLE,
-      updatedAt: new Date(),
-    }).returning();
+    const [row] = await db
+      .insert(chatConversationsTable)
+      .values({
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        contextSnapshot: scope,
+        userId,
+        title: title && title.trim().length > 0 ? truncate(title, 96) : DEFAULT_CHAT_TITLE,
+        updatedAt: new Date(),
+      })
+      .returning();
 
     if (row === undefined) {
       throw new Error('Failed to create chat conversation');
@@ -1521,13 +1582,7 @@ export function createChatServices({
     };
   }
 
-  async function deleteConversation({
-    userId,
-    chatId,
-  }: {
-    userId: string;
-    chatId: string;
-  }) {
+  async function deleteConversation({ userId, chatId }: { userId: string; chatId: string }) {
     const [row] = await db
       .update(chatConversationsTable)
       .set({
@@ -1543,9 +1598,7 @@ export function createChatServices({
   async function getModelOptions(): Promise<ChatModelOptions> {
     const settings = await resolveAiSettings();
     const models = await listAvailableModels({ baseUrl: settings.baseUrl });
-    const uniqueModels = models.includes(settings.model)
-      ? models
-      : [settings.model, ...models];
+    const uniqueModels = models.includes(settings.model) ? models : [settings.model, ...models];
 
     return {
       defaultModel: settings.model,
@@ -1599,9 +1652,11 @@ export function createChatServices({
 
       let manifestRows = await loadConversationManifest({ db: txDb, conversationId: chatId });
 
-      if (shouldMaterializeConversationManifest({
-        contextFrozenAt: lockedConversation.contextFrozenAt,
-      })) {
+      if (
+        shouldMaterializeConversationManifest({
+          contextFrozenAt: lockedConversation.contextFrozenAt,
+        })
+      ) {
         manifestRows = await materializeConversationManifest({
           db: txDb,
           conversationId: chatId,
@@ -1627,15 +1682,18 @@ export function createChatServices({
           updatedAt: toIso(now),
         },
       });
-      const [userMessageRow] = await tx.insert(chatMessagesTable).values({
-        conversationId: chatId,
-        vaultId: scopeValues.vaultId,
-        documentId: scopeValues.documentId,
-        scope: scopeValues.scope,
-        userId,
-        message: userMessage,
-        updatedAt: now,
-      }).returning();
+      const [userMessageRow] = await tx
+        .insert(chatMessagesTable)
+        .values({
+          conversationId: chatId,
+          vaultId: scopeValues.vaultId,
+          documentId: scopeValues.documentId,
+          scope: scopeValues.scope,
+          userId,
+          message: userMessage,
+          updatedAt: now,
+        })
+        .returning();
 
       if (userMessageRow === undefined) {
         throw new Error('Failed to persist user message');
@@ -1747,20 +1805,20 @@ export function createChatServices({
         let firstTokenAtMs: number | null = null;
         const includeImages = responseMode === 'multimodal';
         const includeInlineCitations = responseMode === 'multimodal';
-        const citationLimit = responseMode === 'multimodal'
-          ? MAX_CONTEXT_CITATIONS
-          : TEXT_ONLY_CONTEXT_CITATIONS;
+        const citationLimit =
+          responseMode === 'multimodal' ? MAX_CONTEXT_CITATIONS : TEXT_ONLY_CONTEXT_CITATIONS;
 
         try {
           const settings = await resolveAiSettings();
           const requestedModel = model?.trim();
-          const effectiveModel = requestedModel && requestedModel.length > 0
-            ? requestedModel
-            : settings.model;
+          const effectiveModel =
+            requestedModel && requestedModel.length > 0 ? requestedModel : settings.model;
           if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
             const availableModels = await listAvailableModels({ baseUrl: settings.baseUrl });
             if (!availableModels.includes(requestedModel)) {
-              throw new Error(`Model "${requestedModel}" is not available from the configured chat provider.`);
+              throw new Error(
+                `Model "${requestedModel}" is not available from the configured chat provider.`,
+              );
             }
           }
 
@@ -1774,7 +1832,11 @@ export function createChatServices({
             userId,
           };
 
-          writer.write({ type: 'start', messageId: assistantMessageId, messageMetadata: assistantMetadata });
+          writer.write({
+            type: 'start',
+            messageId: assistantMessageId,
+            messageMetadata: assistantMetadata,
+          });
 
           if (isGlobalScope(scope) && intent) {
             writeStatus(writer, 'generation');
@@ -1813,7 +1875,11 @@ export function createChatServices({
                 citations: [],
                 metrics: null,
               });
-              writer.write({ type: 'finish', finishReason: 'stop', messageMetadata: assistantMetadata });
+              writer.write({
+                type: 'finish',
+                finishReason: 'stop',
+                messageMetadata: assistantMetadata,
+              });
               return;
             }
           }
@@ -1837,7 +1903,8 @@ export function createChatServices({
           writer.write({ type: 'text-start', id: textPartId });
 
           if (citations.length === 0) {
-            generatedContent = 'I do not have enough information in the retrieved vault context to answer that.';
+            generatedContent =
+              'I do not have enough information in the retrieved vault context to answer that.';
             writer.write({ type: 'text-delta', id: textPartId, delta: generatedContent });
           } else {
             const images = includeImages
@@ -1855,8 +1922,8 @@ export function createChatServices({
                   includeInlineCitations,
                 })
               : includeInlineCitations
-                  ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
-                  : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.';
+                ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
+                : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.';
             const modelMessages = await convertToModelMessages(
               [
                 ...previousMessages.map(omitMessageId),
@@ -1871,7 +1938,7 @@ export function createChatServices({
                         includeInlineCitations,
                       }),
                     },
-                    ...images.map(image => ({
+                    ...images.map((image) => ({
                       type: 'file' as const,
                       mediaType: image.mediaType,
                       url: image.url,
@@ -1901,9 +1968,10 @@ export function createChatServices({
             generationFinishedMs = Date.now();
             generationMetrics = buildChatGenerationMetrics({
               usage: await Promise.resolve(result.totalUsage).catch(() => null),
-              timeToFirstTokenMs: generationStartMs !== null && firstTokenAtMs !== null
-                ? firstTokenAtMs - generationStartMs
-                : null,
+              timeToFirstTokenMs:
+                generationStartMs !== null && firstTokenAtMs !== null
+                  ? firstTokenAtMs - generationStartMs
+                  : null,
               startedAtMs: generationStartMs,
               finishedAtMs: generationFinishedMs,
             });
@@ -1932,7 +2000,11 @@ export function createChatServices({
             citations: citationsForPersistence,
             metrics: generationMetrics,
           });
-          writer.write({ type: 'finish', finishReason: 'stop', messageMetadata: assistantMetadata });
+          writer.write({
+            type: 'finish',
+            finishReason: 'stop',
+            messageMetadata: assistantMetadata,
+          });
         } catch (error) {
           const message = normalizeChatGenerationError(error);
           const failedMetadata: ChatMessageMetadata = {
@@ -1979,22 +2051,26 @@ export function createChatServices({
       });
       await db.transaction(async (tx) => {
         const updatedAt = new Date();
-        const [assistantMessageRow] = await tx.insert(chatMessagesTable).values({
-          id,
-          conversationId: chatId,
-          vaultId: scopeValues.vaultId,
-          documentId: scopeValues.documentId,
-          scope: scopeValues.scope,
-          userId,
-          message: assistantMessage,
-          updatedAt,
-        }).onConflictDoUpdate({
-          target: chatMessagesTable.id,
-          set: {
+        const [assistantMessageRow] = await tx
+          .insert(chatMessagesTable)
+          .values({
+            id,
+            conversationId: chatId,
+            vaultId: scopeValues.vaultId,
+            documentId: scopeValues.documentId,
+            scope: scopeValues.scope,
+            userId,
             message: assistantMessage,
             updatedAt,
-          },
-        }).returning();
+          })
+          .onConflictDoUpdate({
+            target: chatMessagesTable.id,
+            set: {
+              message: assistantMessage,
+              updatedAt,
+            },
+          })
+          .returning();
 
         if (assistantMessageRow === undefined) {
           throw new Error('Failed to persist assistant message');

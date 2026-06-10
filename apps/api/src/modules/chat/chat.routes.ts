@@ -39,21 +39,28 @@ type ChatContextResolution =
 const SOURCE_DOCUMENT_DELETED_CONTEXT: ChatContextAvailability = {
   status: 'source_document_deleted',
   readOnly: true,
-  message: 'One or more source documents were deleted. This conversation is available as read-only history.',
+  message:
+    'One or more source documents were deleted. This conversation is available as read-only history.',
 };
 
 function routeError(
   context: Context<ServerContext>,
-  { code, message, status }: { code: ChatRouteErrorCode; message: string; status: 400 | 401 | 403 | 404 | 409 | 502 },
+  {
+    code,
+    message,
+    status,
+  }: { code: ChatRouteErrorCode; message: string; status: 400 | 401 | 403 | 404 | 409 | 502 },
 ) {
   return context.json({ error: { code, message } }, status);
 }
 
 function isDeletedSourceResolution(resolved: ChatContextResolution) {
-  return !resolved.ok
-    && resolved.status === 404
-    && resolved.code === 'chat.not_found'
-    && resolved.message === 'Document not found';
+  return (
+    !resolved.ok &&
+    resolved.status === 404 &&
+    resolved.code === 'chat.not_found' &&
+    resolved.message === 'Document not found'
+  );
 }
 
 function parseTitle(value: unknown) {
@@ -98,7 +105,7 @@ function parseIntent(value: unknown): ChatIntent | undefined | null {
 function getUiMessageText(message: ChatMessage) {
   return message.parts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map(part => part.text)
+    .map((part) => part.text)
     .join('\n')
     .trim();
 }
@@ -108,11 +115,12 @@ function parseMessages(value: unknown): ChatMessage[] {
     return [];
   }
 
-  return value.filter((item): item is ChatMessage =>
-    isRecord(item)
-    && typeof item.id === 'string'
-    && (item.role === 'system' || item.role === 'user' || item.role === 'assistant')
-    && Array.isArray(item.parts),
+  return value.filter(
+    (item): item is ChatMessage =>
+      isRecord(item) &&
+      typeof item.id === 'string' &&
+      (item.role === 'system' || item.role === 'user' || item.role === 'assistant') &&
+      Array.isArray(item.parts),
   );
 }
 
@@ -138,7 +146,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseStringArray(value: unknown) {
   return Array.isArray(value)
-    ? value.map(item => typeof item === 'string' ? item.trim() : '').filter(item => item.length > 0)
+    ? value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item) => item.length > 0)
     : [];
 }
 
@@ -171,7 +181,10 @@ function dedupeVaultRefs(vaults: ChatContextVaultRef[]) {
   return deduped;
 }
 
-function dedupeDocumentRefs(documents: ChatContextDocumentRef[], selectedVaultIds = new Set<string>()) {
+function dedupeDocumentRefs(
+  documents: ChatContextDocumentRef[],
+  selectedVaultIds = new Set<string>(),
+) {
   const seen = new Set<string>();
   const deduped: ChatContextDocumentRef[] = [];
 
@@ -179,7 +192,12 @@ function dedupeDocumentRefs(documents: ChatContextDocumentRef[], selectedVaultId
     const vaultId = document.vaultId.trim();
     const documentId = document.documentId.trim();
     const key = `${vaultId}:${documentId}`;
-    if (vaultId.length === 0 || documentId.length === 0 || selectedVaultIds.has(vaultId) || seen.has(key)) {
+    if (
+      vaultId.length === 0 ||
+      documentId.length === 0 ||
+      selectedVaultIds.has(vaultId) ||
+      seen.has(key)
+    ) {
       continue;
     }
 
@@ -201,20 +219,22 @@ function parseVaultRefs(value: unknown) {
     return [];
   }
 
-  return dedupeVaultRefs(value.map((item) => {
-    if (typeof item === 'string') {
-      return { vaultId: item.trim() };
-    }
+  return dedupeVaultRefs(
+    value.map((item) => {
+      if (typeof item === 'string') {
+        return { vaultId: item.trim() };
+      }
 
-    if (!isRecord(item)) {
-      return { vaultId: '' };
-    }
+      if (!isRecord(item)) {
+        return { vaultId: '' };
+      }
 
-    return {
-      vaultId: typeof item.vaultId === 'string' ? item.vaultId.trim() : '',
-      name: parseOptionalString(item.name),
-    };
-  }));
+      return {
+        vaultId: typeof item.vaultId === 'string' ? item.vaultId.trim() : '',
+        name: parseOptionalString(item.name),
+      };
+    }),
+  );
 }
 
 function parseDocumentRefs(value: unknown) {
@@ -222,19 +242,21 @@ function parseDocumentRefs(value: unknown) {
     return [];
   }
 
-  return dedupeDocumentRefs(value.map((item) => {
-    if (!isRecord(item)) {
-      return { vaultId: '', documentId: '' };
-    }
+  return dedupeDocumentRefs(
+    value.map((item) => {
+      if (!isRecord(item)) {
+        return { vaultId: '', documentId: '' };
+      }
 
-    return {
-      vaultId: typeof item.vaultId === 'string' ? item.vaultId.trim() : '',
-      documentId: typeof item.documentId === 'string' ? item.documentId.trim() : '',
-      name: parseOptionalString(item.name),
-      vaultName: parseOptionalString(item.vaultName),
-      path: parseOptionalString(item.path),
-    };
-  }));
+      return {
+        vaultId: typeof item.vaultId === 'string' ? item.vaultId.trim() : '',
+        documentId: typeof item.documentId === 'string' ? item.documentId.trim() : '',
+        name: parseOptionalString(item.name),
+        vaultName: parseOptionalString(item.vaultName),
+        path: parseOptionalString(item.path),
+      };
+    }),
+  );
 }
 
 function canReadVault(vault: VaultAccess) {
@@ -272,18 +294,19 @@ function hasUnsupportedDocumentVersionContext(body: Record<string, unknown>) {
     return false;
   }
 
-  return rawContext.documents.some(item =>
-    isRecord(item)
-    && (hasOwnField(item, 'documentVersionId') || hasOwnField(item, 'versionNumber')),
+  return rawContext.documents.some(
+    (item) =>
+      isRecord(item) &&
+      (hasOwnField(item, 'documentVersionId') || hasOwnField(item, 'versionNumber')),
   );
 }
 
 function parseRequestedContext(body: Record<string, unknown>): ChatContextSnapshot {
   const rawContext = getRawRequestedContext(body);
   const rawVaultRefs = parseVaultRefs(rawContext.vaults);
-  const rawVaultIdRefs = parseStringArray(rawContext.vaultIds).map(vaultId => ({ vaultId }));
+  const rawVaultIdRefs = parseStringArray(rawContext.vaultIds).map((vaultId) => ({ vaultId }));
   const vaults = dedupeVaultRefs([...rawVaultRefs, ...rawVaultIdRefs]);
-  const selectedVaultIds = new Set(vaults.map(vault => vault.vaultId));
+  const selectedVaultIds = new Set(vaults.map((vault) => vault.vaultId));
   const rawDocumentRefs = parseDocumentRefs(rawContext.documents);
 
   if (rawContext.type === 'selection' || rawVaultRefs.length > 0 || rawDocumentRefs.length > 0) {
@@ -330,11 +353,13 @@ async function getDocumentContext({
   const [document] = await db
     .select({ id: documentsTable.id, name: documentsTable.name })
     .from(documentsTable)
-    .where(and(
-      eq(documentsTable.id, documentId),
-      eq(documentsTable.vaultId, vaultId),
-      eq(documentsTable.isDeleted, false),
-    ))
+    .where(
+      and(
+        eq(documentsTable.id, documentId),
+        eq(documentsTable.vaultId, vaultId),
+        eq(documentsTable.isDeleted, false),
+      ),
+    )
     .limit(1);
 
   return document ?? null;
@@ -360,8 +385,8 @@ async function resolveCreatableContext({
   if (requestedContext.type === 'global') {
     const vaults = await vaultServices.listUserVaults({ userId });
     const vaultIds = vaults
-      .filter(vault => vault.aiAccessLevel === 'full')
-      .map(vault => vault.id);
+      .filter((vault) => vault.aiAccessLevel === 'full')
+      .map((vault) => vault.id);
 
     if (vaultIds.length === 0) {
       return {
@@ -380,7 +405,10 @@ async function resolveCreatableContext({
     const documents: ChatContextDocumentRef[] = [];
 
     for (const requestedVault of dedupeVaultRefs(requestedContext.vaults)) {
-      const vault = await vaultServices.getVaultForUser({ vaultId: requestedVault.vaultId, userId });
+      const vault = await vaultServices.getVaultForUser({
+        vaultId: requestedVault.vaultId,
+        userId,
+      });
 
       if (vault === null) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
@@ -398,10 +426,16 @@ async function resolveCreatableContext({
       vaults.push({ vaultId: vault.id, name: vault.name });
     }
 
-    const selectedVaultIds = new Set(vaults.map(vault => vault.vaultId));
+    const selectedVaultIds = new Set(vaults.map((vault) => vault.vaultId));
 
-    for (const requestedDocument of dedupeDocumentRefs(requestedContext.documents, selectedVaultIds)) {
-      const vault = await vaultServices.getVaultForUser({ vaultId: requestedDocument.vaultId, userId });
+    for (const requestedDocument of dedupeDocumentRefs(
+      requestedContext.documents,
+      selectedVaultIds,
+    )) {
+      const vault = await vaultServices.getVaultForUser({
+        vaultId: requestedDocument.vaultId,
+        userId,
+      });
 
       if (vault === null) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
@@ -436,7 +470,12 @@ async function resolveCreatableContext({
     }
 
     if (vaults.length === 0 && documents.length === 0) {
-      return { ok: false, status: 400, code: 'chat.invalid_context', message: 'Context selection is empty' };
+      return {
+        ok: false,
+        status: 400,
+        code: 'chat.invalid_context',
+        message: 'Context selection is empty',
+      };
     }
 
     return { ok: true, scope: { type: 'selection', vaults, documents } };
@@ -464,7 +503,12 @@ async function resolveCreatableContext({
   }
 
   if (requestedContext.documentId.length === 0) {
-    return { ok: false, status: 400, code: 'chat.invalid_context', message: 'documentId is required' };
+    return {
+      ok: false,
+      status: 400,
+      code: 'chat.invalid_context',
+      message: 'documentId is required',
+    };
   }
 
   if (!canUseDocumentChat(vault)) {
@@ -548,7 +592,9 @@ async function resolveUsableContext({
       }
     }
 
-    const selectedVaultIds = new Set(dedupeVaultRefs(snapshot.vaults).map(vault => vault.vaultId));
+    const selectedVaultIds = new Set(
+      dedupeVaultRefs(snapshot.vaults).map((vault) => vault.vaultId),
+    );
 
     for (const documentRef of dedupeDocumentRefs(snapshot.documents, selectedVaultIds)) {
       const vault = await vaultServices.getVaultForUser({ vaultId: documentRef.vaultId, userId });
@@ -579,14 +625,28 @@ async function resolveUsableContext({
   if (snapshot.type === 'vault') {
     return canUseVaultChat(vault)
       ? { ok: true, scope: snapshot }
-      : { ok: false, status: 403, code: 'authorization.ai_access_required', message: 'AI access required' };
+      : {
+          ok: false,
+          status: 403,
+          code: 'authorization.ai_access_required',
+          message: 'AI access required',
+        };
   }
 
   if (!canUseDocumentChat(vault)) {
-    return { ok: false, status: 403, code: 'authorization.ai_access_required', message: 'AI access required' };
+    return {
+      ok: false,
+      status: 403,
+      code: 'authorization.ai_access_required',
+      message: 'AI access required',
+    };
   }
 
-  const document = await getDocumentContext({ db, vaultId: snapshot.vaultId, documentId: snapshot.documentId });
+  const document = await getDocumentContext({
+    db,
+    vaultId: snapshot.vaultId,
+    documentId: snapshot.documentId,
+  });
   return document !== null
     ? { ok: true, scope: snapshot }
     : { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
@@ -610,7 +670,11 @@ export function registerChatRoutes({
   app.get('/api/chats', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
-      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
     }
 
     return context.json(await services.listConversations({ userId }));
@@ -619,7 +683,11 @@ export function registerChatRoutes({
   app.get('/api/chats/options', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
-      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
     }
 
     try {
@@ -637,14 +705,22 @@ export function registerChatRoutes({
   app.post('/api/chats', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
-      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
     }
 
-    const body = await context.req.json().catch(() => ({})) as Record<string, unknown>;
+    const body = (await context.req.json().catch(() => ({}))) as Record<string, unknown>;
     const title = parseTitle(body.title);
 
     if (title === null) {
-      return routeError(context, { status: 400, code: 'chat.invalid_title', message: 'title must be a string' });
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_title',
+        message: 'title must be a string',
+      });
     }
 
     if (hasUnsupportedDocumentVersionContext(body)) {
@@ -666,13 +742,20 @@ export function registerChatRoutes({
       return routeError(context, resolved);
     }
 
-    return context.json(await services.createConversation({ scope: resolved.scope, userId, title }), 201);
+    return context.json(
+      await services.createConversation({ scope: resolved.scope, userId, title }),
+      201,
+    );
   });
 
   app.get('/api/chats/:chatId', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
-      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
     }
 
     const conversation = await services.getConversation({
@@ -681,7 +764,11 @@ export function registerChatRoutes({
     });
 
     if (conversation === null) {
-      return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
     }
 
     const resolved = await resolveUsableContext({
@@ -710,10 +797,14 @@ export function registerChatRoutes({
   app.patch('/api/chats/:chatId/context', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
-      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
     }
 
-    const body = await context.req.json().catch(() => ({})) as Record<string, unknown>;
+    const body = (await context.req.json().catch(() => ({}))) as Record<string, unknown>;
     if (hasUnsupportedDocumentVersionContext(body)) {
       return routeError(context, {
         status: 400,
@@ -740,7 +831,11 @@ export function registerChatRoutes({
     });
 
     if (result.status === 'not_found') {
-      return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
     }
 
     if (result.status === 'not_pristine') {
@@ -757,7 +852,11 @@ export function registerChatRoutes({
   app.delete('/api/chats/:chatId', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
-      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
     }
 
     const conversation = await services.getConversation({
@@ -766,7 +865,11 @@ export function registerChatRoutes({
     });
 
     if (conversation === null) {
-      return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
     }
 
     const deleted = await services.deleteConversation({
@@ -775,7 +878,11 @@ export function registerChatRoutes({
     });
 
     if (!deleted) {
-      return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
     }
 
     return new Response(null, { status: 204 });
@@ -784,7 +891,11 @@ export function registerChatRoutes({
   app.post('/api/chats/:chatId/messages/stream', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
-      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
     }
 
     const conversation = await services.getConversation({
@@ -793,7 +904,11 @@ export function registerChatRoutes({
     });
 
     if (conversation === null) {
-      return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
     }
 
     const resolved = await resolveUsableContext({
@@ -803,19 +918,29 @@ export function registerChatRoutes({
       vaultServices: vaultsServices,
     });
 
+    const contextAvailability = conversation.contextAvailability;
+
     if (!resolved.ok) {
+      if (contextAvailability.readOnly && isDeletedSourceResolution(resolved)) {
+        return routeError(context, {
+          status: 409,
+          code: 'chat.context_unavailable',
+          message: contextAvailability.message,
+        });
+      }
+
       return routeError(context, resolved);
     }
 
-    if (conversation.contextAvailability.readOnly) {
+    if (contextAvailability.readOnly) {
       return routeError(context, {
         status: 409,
         code: 'chat.context_unavailable',
-        message: conversation.contextAvailability.message,
+        message: contextAvailability.message,
       });
     }
 
-    const body = await context.req.json().catch(() => null) as {
+    const body = (await context.req.json().catch(() => null)) as {
       messages?: unknown;
       intent?: unknown;
       responseMode?: unknown;
@@ -828,7 +953,11 @@ export function registerChatRoutes({
     const model = parseModel(body?.model);
 
     if (messages.length === 0 || content.length === 0) {
-      return routeError(context, { status: 400, code: 'chat.invalid_content', message: 'messages must include a non-empty user text message' });
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_content',
+        message: 'messages must include a non-empty user text message',
+      });
     }
 
     if (responseMode === null) {
@@ -848,7 +977,11 @@ export function registerChatRoutes({
     }
 
     if (model === null) {
-      return routeError(context, { status: 400, code: 'chat.invalid_model', message: 'model must be a non-empty string' });
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_model',
+        message: 'model must be a non-empty string',
+      });
     }
 
     const stream = await services.createMessageStream({
@@ -861,7 +994,11 @@ export function registerChatRoutes({
     });
 
     if (stream === null) {
-      return routeError(context, { status: 404, code: 'chat.not_found', message: 'Chat not found' });
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
     }
 
     return stream;

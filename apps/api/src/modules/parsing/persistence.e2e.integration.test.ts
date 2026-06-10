@@ -55,10 +55,9 @@ describe.sequential('persistParsedDocument integration', () => {
     adminUrl.pathname = '/postgres';
 
     isolatedDatabaseName = `arkivra_persist_e2e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    isolatedDatabaseUrl = new URL(baseDatabaseUrl).toString().replace(
-      /\/[^/?]+(\?.*)?$/,
-      `/${isolatedDatabaseName}$1`,
-    );
+    isolatedDatabaseUrl = new URL(baseDatabaseUrl)
+      .toString()
+      .replace(/\/[^/?]+(\?.*)?$/, `/${isolatedDatabaseName}$1`);
 
     adminPool = new Pool({ connectionString: adminUrl.toString() });
     await adminPool.query(`CREATE DATABASE "${isolatedDatabaseName}"`);
@@ -154,7 +153,8 @@ describe.sequential('persistParsedDocument integration', () => {
       .set({ currentVersionId: version1Id })
       .where(eq(documentsTable.id, documentId));
 
-    const tableHtml = '<table><tr><th>BLEU</th><th>EN-DE</th></tr><tr><td>28.4</td><td>0.05</td></tr></table>';
+    const tableHtml =
+      '<table><tr><th>BLEU</th><th>EN-DE</th></tr><tr><td>28.4</td><td>0.05</td></tr></table>';
     const imageBytes = Buffer.from('original-image-bytes');
     const tinyTableHtml = '<table><tr><td>x</td></tr></table>';
 
@@ -301,8 +301,8 @@ describe.sequential('persistParsedDocument integration', () => {
 
     expect(assetRows).toHaveLength(3);
 
-    const imageRow = assetRows.find(row => row.assetType === 'image');
-    const tableRows = assetRows.filter(row => row.assetType === 'table');
+    const imageRow = assetRows.find((row) => row.assetType === 'image');
+    const tableRows = assetRows.filter((row) => row.assetType === 'table');
 
     if (imageRow === undefined) {
       throw new Error('expected an image asset row');
@@ -339,7 +339,7 @@ describe.sequential('persistParsedDocument integration', () => {
       expect(row.storageKey).toBeNull();
       expect(row.fileEncryptionKeyWrapped).toBeNull();
     }
-    expect(new Set(tableRows.map(row => row.inlinePayload))).toEqual(
+    expect(new Set(tableRows.map((row) => row.inlinePayload))).toEqual(
       new Set([tableHtml, tinyTableHtml]),
     );
 
@@ -424,6 +424,52 @@ describe.sequential('persistParsedDocument integration', () => {
     expect(v1Chunks[0]?.content).toBe('BLEU 28.4 on EN-DE.');
     expect(v2Chunks).toHaveLength(1);
     expect(v2Chunks[0]?.content).toBe('Version two text.');
-  });
 
+    await persistParsedDocument({
+      db,
+      storage,
+      encryption,
+      documentId,
+      documentVersionId: version1Id,
+      vaultId,
+      parsed: {
+        ...parsed,
+        text: 'Version one repaired text.',
+        rawText: 'Version one repaired raw text.',
+        rawMarkdown: 'Version one repaired markdown.',
+        chunks: [
+          {
+            ...parsed.chunks[0]!,
+            id: `${documentId}:v1-repair:0`,
+            text: 'Version one repaired text.',
+            originalText: 'Version one repaired text.',
+            images: [],
+            tablesHtml: [],
+          },
+        ],
+      },
+    });
+
+    const [repairedVersion1] = await db
+      .select({
+        content: documentVersionsTable.content,
+        rawText: documentVersionsTable.rawText,
+      })
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.id, version1Id));
+    const [currentDocumentProjection] = await db
+      .select({
+        currentVersionId: documentsTable.currentVersionId,
+        content: documentsTable.content,
+        rawText: documentsTable.rawText,
+      })
+      .from(documentsTable)
+      .where(eq(documentsTable.id, documentId));
+
+    expect(repairedVersion1?.content).toBe('Version one repaired text.');
+    expect(repairedVersion1?.rawText).toBe('Version one repaired raw text.');
+    expect(currentDocumentProjection?.currentVersionId).toBe(version2Id);
+    expect(currentDocumentProjection?.content).toBe('Version two text.');
+    expect(currentDocumentProjection?.rawText).toBe('Version two raw text.');
+  });
 });

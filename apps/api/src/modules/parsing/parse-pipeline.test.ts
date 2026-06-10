@@ -91,7 +91,7 @@ describe('parse pipeline', () => {
     expect(parsed.text.includes('  ')).toBe(false);
   });
 
-  test('uses parser-provided chunks directly', async () => {
+  test('uses parser-provided chunks with file name metadata', async () => {
     const chunk = makeChunk({
       text: 'Docling hybrid chunk',
       originalText: 'Docling hybrid chunk',
@@ -111,7 +111,28 @@ describe('parse pipeline', () => {
 
     const parsed = await pipeline.run(input);
 
-    expect(parsed.chunks).toEqual([chunk]);
+    expect(parsed.chunks).toEqual([
+      {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          fileName: 'file.pdf',
+        },
+      },
+    ]);
+  });
+
+  test('stores only the basename as chunk file metadata', async () => {
+    const { pipeline } = makePipeline({
+      chunks: [makeChunk()],
+    });
+
+    const parsed = await pipeline.run({
+      ...input,
+      fileName: 'C:\\uploads\\nested\\source.pdf',
+    });
+
+    expect(parsed.chunks[0]?.metadata.fileName).toBe('source.pdf');
   });
 
   test('requires parser-provided chunks', async () => {

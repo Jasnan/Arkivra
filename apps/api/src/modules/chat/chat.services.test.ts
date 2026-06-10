@@ -11,6 +11,7 @@ import {
   getFrozenManifestContextAvailability,
   formatFollowUpAssistantMessage,
   isEmptyGeneratedChatContent,
+  isLikelyTruncatedSingleTokenAnswer,
   normalizeChatGenerationError,
   rankCitationsForQuestion,
   sanitizeCitationsForMessagePersistence,
@@ -67,6 +68,31 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('If the retrieved context is insufficient');
   });
 
+  test('caps answer prompt retrieval context so generation has room to answer', () => {
+    const citations = Array.from({ length: 8 }, (_, index) => ({
+      ...citation,
+      chunkId: `chk_large_${index}`,
+      documentId: `doc_large_${index}`,
+      documentVersionId: `dvr_large_${index}`,
+      documentName: `Large Source ${index + 1}.pdf`,
+      snippet: `Relevant identifier detail ${index + 1}. ${'A'.repeat(2400)}`,
+      assetType: 'text' as const,
+      tablesHtml: [],
+      imageAssetIds: [],
+      imageAssets: [],
+    }));
+
+    const prompt = buildAnswerPrompt({
+      question: 'Extract identifiers for these people.',
+      citations,
+      includeInlineCitations: false,
+    });
+
+    expect(prompt.length).toBeLessThan(12_000);
+    expect(prompt).toContain('Source 8: Large Source 8.pdf');
+    expect(prompt).toContain('Relevant identifier detail 8.');
+  });
+
   test('merges same-document hits into expanded page context for chat answers', () => {
     const expanded = buildExpandedCitationForChat({
       citations: [
@@ -113,6 +139,71 @@ describe('chat service helpers', () => {
     );
   });
 
+  test('prefers table representations for table-oriented questions', () => {
+    const pageCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_page',
+      retrievalRepresentation: 'page',
+      assetType: 'text',
+      tablesHtml: [],
+      snippet: 'Page text mentions invoice totals.',
+      score: 0.9,
+    };
+    const tableCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_table',
+      retrievalRepresentation: 'table',
+      assetType: 'table',
+      snippet: 'Row 1: Invoice total=42.00',
+      score: 0.2,
+    };
+
+    expect(
+      rankCitationsForQuestion({
+        question: 'What is the invoice total in the table?',
+        citations: [pageCitation, tableCitation],
+      }).map(item => item.chunkId),
+    ).toEqual(['chk_table', 'chk_page']);
+  });
+
+  test('does not duplicate context chunks from the same source element', () => {
+    const expanded = buildExpandedCitationForChat({
+      citations: [
+        {
+          ...citation,
+          retrievalRepresentation: 'table',
+          sourceElementIds: ['el_table_1'],
+          snippet: 'Row 1: Total=42.00',
+        },
+      ],
+      contextChunks: [
+        {
+          chunkId: 'ctx_page',
+          chunkIndex: 2,
+          retrievalRepresentation: 'page',
+          pageStart: 2,
+          pageEnd: 2,
+          section: 'Invoice',
+          sourceElementIds: ['el_table_1'],
+          snippet: 'The page repeats Row 1: Total=42.00 with surrounding text.',
+        },
+        {
+          chunkId: 'ctx_table',
+          chunkIndex: 3,
+          retrievalRepresentation: 'table',
+          pageStart: 2,
+          pageEnd: 2,
+          section: 'Invoice',
+          sourceElementIds: ['el_table_1'],
+          snippet: 'Row 1: Total=42.00',
+        },
+      ],
+    });
+
+    expect(expanded?.snippet).toContain('Page 2 - Invoice: Row 1: Total=42.00');
+    expect(expanded?.snippet).not.toContain('surrounding text');
+  });
+
   test('prioritizes citations that match explicit year constraints', () => {
     const citation2019: Citation = {
       ...citation,
@@ -135,6 +226,40 @@ describe('chat service helpers', () => {
         citations: [citation2019, citation2018],
       }).map((item) => item.documentId),
     ).toEqual(['doc_2018', 'doc_2019']);
+  });
+
+  test('prioritizes concrete query terms in document names after broad retrieval', () => {
+    const broadMatch: Citation = {
+      ...citation,
+      chunkId: 'chk_application',
+      documentId: 'doc_application',
+      documentName: 'APPLICATION_PASSPORT_ARN.pdf',
+      snippet: 'Passport application instructions and family details.',
+      score: 0.9,
+    };
+    const exactPersonPassport: Citation = {
+      ...citation,
+      chunkId: 'chk_person_passport',
+      documentId: 'doc_person_passport',
+      documentName: 'jasnan_passport.pdf',
+      snippet: 'Passport details for the requested person.',
+      score: 0.4,
+    };
+    const otherIdentityDocument: Citation = {
+      ...citation,
+      chunkId: 'chk_other_identity',
+      documentId: 'doc_other_identity',
+      documentName: 'aadhaar.pdf',
+      snippet: 'Identity document details.',
+      score: 0.8,
+    };
+
+    expect(
+      rankCitationsForQuestion({
+        question: 'Give me passport ids and expiry dates for Jasnan',
+        citations: [broadMatch, otherIdentityDocument, exactPersonPassport],
+      }).map((item) => item.documentId),
+    ).toEqual(['doc_person_passport', 'doc_application', 'doc_other_identity']);
   });
 
   test('builds compare intent system prompts for guided follow-ups', () => {
@@ -172,6 +297,28 @@ describe('chat service helpers', () => {
     expect(isEmptyGeneratedChatContent('')).toBe(true);
     expect(isEmptyGeneratedChatContent('  \n\t  ')).toBe(true);
     expect(isEmptyGeneratedChatContent('Answer')).toBe(false);
+  });
+
+  test('detects likely one-token truncated model output', () => {
+    const metrics = {
+      promptEvalCount: 4095,
+      promptEvalDurationMs: null,
+      evalCount: 1,
+      evalDurationMs: null,
+      totalDurationMs: 486,
+      loadDurationMs: null,
+      tokensPerSecond: 2.1,
+      timeToFirstTokenMs: 451,
+    };
+
+    expect(isLikelyTruncatedSingleTokenAnswer({ content: 'Based', metrics })).toBe(true);
+    expect(isLikelyTruncatedSingleTokenAnswer({ content: 'No', metrics: null })).toBe(false);
+    expect(
+      isLikelyTruncatedSingleTokenAnswer({
+        content: 'No matching passport document was found.',
+        metrics,
+      }),
+    ).toBe(false);
   });
 
   test('builds pending assistant messages with a status part for persisted refresh state', () => {
@@ -289,12 +436,14 @@ describe('chat service helpers', () => {
         ],
         query: 'retention',
         limit: 8,
+        candidateLimit: 120,
       }),
     ).toEqual({
       vaultIds: ['vlt_1', 'vlt_2'],
       documentVersionIds: ['dvr_1', 'dvr_2'],
       query: 'retention',
       limit: 8,
+      candidateLimit: 120,
       mode: 'hybrid',
     });
 

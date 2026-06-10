@@ -1,9 +1,4 @@
-export const SEARCH_SORT_VALUES = [
-  'created_desc',
-  'created_asc',
-  'name_asc',
-  'name_desc',
-] as const;
+export const SEARCH_SORT_VALUES = ['created_desc', 'created_asc', 'name_asc', 'name_desc'] as const;
 
 export type SearchSortBy = (typeof SEARCH_SORT_VALUES)[number];
 
@@ -83,6 +78,7 @@ export type CitationImageAsset = {
 
 export type Citation = {
   chunkId: string;
+  retrievalRepresentation?: string | null;
   documentId: string;
   documentVersionId: string;
   versionNumber: number;
@@ -137,6 +133,7 @@ export type DocumentSearchServices = {
     documentVersionIds?: string[];
     query: string;
     limit: number;
+    candidateLimit?: number;
     mode?: HybridSearchMode;
   }) => Promise<HybridSearchResult>;
 };

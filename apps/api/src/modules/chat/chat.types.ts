@@ -4,7 +4,13 @@ import type { Citation } from '../search/search.types.js';
 export type ChatContextSnapshot =
   | { type: 'global'; vaultIds: string[] }
   | { type: 'vault'; vaultId: string; vaultName?: string }
-  | { type: 'document'; vaultId: string; documentId: string; vaultName?: string; documentName?: string }
+  | {
+      type: 'document';
+      vaultId: string;
+      documentId: string;
+      vaultName?: string;
+      documentName?: string;
+    }
   | { type: 'selection'; vaults: ChatContextVaultRef[]; documents: ChatContextDocumentRef[] };
 
 export type ChatContextVaultRef = {
@@ -59,6 +65,26 @@ export type ChatGenerationMetrics = {
   timeToFirstTokenMs: number | null;
 };
 
+export type ChatRetrievalDiagnostics = {
+  mode: 'hybrid' | 'fts';
+  requestedContextLimit: number;
+  retrievalLimit: number;
+  candidatePoolLimit: number;
+  retrievedChunkCount: number;
+  expandedDocumentCount: number;
+  finalContextCount: number;
+  candidates: Array<{
+    rank: number;
+    chunkId: string;
+    documentId: string;
+    documentVersionId: string;
+    versionNumber: number;
+    vaultId: string;
+    score: number;
+    decision: 'included' | 'discarded';
+  }>;
+};
+
 export type ChatStreamStatus = 'retrieval' | 'generation' | 'saving';
 
 export type ChatMessageMetadata = {
@@ -68,6 +94,7 @@ export type ChatMessageMetadata = {
   followUpQuestion?: boolean;
   citations?: Citation[];
   generationMetrics?: ChatGenerationMetrics | null;
+  retrievalDiagnostics?: ChatRetrievalDiagnostics;
   generationStatus?: ChatGenerationStatus;
   generationError?: string | null;
   createdAt?: string;

@@ -10,7 +10,7 @@ function flattenSqlChunks(chunks: unknown[]): string {
 
       if (typeof chunk === 'object' && chunk !== null) {
         if (Array.isArray((chunk as { value?: unknown }).value)) {
-          return ((chunk as { value: unknown[] }).value).join('');
+          return (chunk as { value: unknown[] }).value.join('');
         }
 
         if (Array.isArray((chunk as { queryChunks?: unknown[] }).queryChunks)) {
@@ -62,7 +62,7 @@ describe('document search services', () => {
     });
 
     const combinedQueryText = (execute.mock.calls as unknown as any[][])
-      .map(call => flattenSqlChunks(call[0]?.queryChunks ?? []))
+      .map((call) => flattenSqlChunks(call[0]?.queryChunks ?? []))
       .join('\n');
 
     expect(combinedQueryText).toContain('INNER JOIN document_versions AS dv');
@@ -100,9 +100,7 @@ describe('document search services', () => {
   });
 
   it('returns one result per version in historical keyword mode', async () => {
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ results_count: 0 }] });
+    const execute = vi.fn().mockResolvedValueOnce({ rows: [{ results_count: 0 }] });
     const searchServices = createDocumentSearchServices({
       db: { execute } as any,
     });
@@ -115,7 +113,9 @@ describe('document search services', () => {
       includeVersions: 'historical',
     });
 
-    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    const queryText = flattenSqlChunks(
+      (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
+    );
     expect(queryText).toContain('SELECT DISTINCT document_id, document_version_id');
     expect(queryText).not.toContain('dv.id = d.current_version_id');
   });
@@ -178,7 +178,9 @@ describe('document search services', () => {
       searchMode: 'hybrid',
     });
 
-    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    const queryText = flattenSqlChunks(
+      (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
+    );
     expect(embed).toHaveBeenCalledWith(['bills']);
     expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
     expect(queryText).toContain('document_chunk_embeddings AS dce');
@@ -196,6 +198,7 @@ describe('document search services', () => {
       rows: [
         {
           chunk_id: 'chk_1',
+          retrieval_representation: 'table',
           document_id: 'doc_1',
           document_version_id: 'dvr_1',
           version_number: 1,
@@ -225,11 +228,13 @@ describe('document search services', () => {
           tables_html: ['<table><tr><td>42</td></tr></table>'],
           image_asset_ids: ['cas_1'],
           image_assets: [{ assetId: 'cas_1', sourceElementId: 'el_image_1' }],
-          image_provenance: [{
-            elementId: 'el_image_1',
-            caption: 'Figure 1. Revenue trend by quarter',
-            pageNumber: 3,
-          }],
+          image_provenance: [
+            {
+              elementId: 'el_image_1',
+              caption: 'Figure 1. Revenue trend by quarter',
+              pageNumber: 3,
+            },
+          ],
           score: 0.032,
         },
       ],
@@ -260,15 +265,25 @@ describe('document search services', () => {
     });
 
     expect(embed).toHaveBeenCalledWith(['revenue']);
-    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    const queryText = flattenSqlChunks(
+      (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
+    );
     expect(queryText).toContain('FULL OUTER JOIN vec_ranked');
+    expect(queryText).toContain('lexical_query');
+    expect(queryText).toContain('regexp_split_to_table');
+    expect(queryText).toContain('OR dc.tsv @@ lexical_query.query');
     expect(queryText).toContain('document_chunk_embeddings AS dce');
     expect(queryText).toContain('dc.document_version_id = d.current_version_id');
     expect(queryText).toContain('dce.document_version_id = dc.document_version_id');
+    const combinedQueryText = (execute.mock.calls as unknown as any[][])
+      .map((call) => flattenSqlChunks(call[0]?.queryChunks ?? []))
+      .join('\n');
+    expect(combinedQueryText).toContain('title_first_chunks');
     expect(result.mode).toBe('hybrid');
     expect(result.citations).toEqual([
       {
         chunkId: 'chk_1',
+        retrievalRepresentation: 'table',
         documentId: 'doc_1',
         documentVersionId: 'dvr_1',
         versionNumber: 1,
@@ -298,12 +313,14 @@ describe('document search services', () => {
         assetType: 'image',
         tablesHtml: ['<table><tr><td>42</td></tr></table>'],
         imageAssetIds: ['cas_1'],
-        imageAssets: [{
-          assetId: 'cas_1',
-          sourceElementId: 'el_image_1',
-          caption: 'Figure 1. Revenue trend by quarter',
-          pageNumber: 3,
-        }],
+        imageAssets: [
+          {
+            assetId: 'cas_1',
+            sourceElementId: 'el_image_1',
+            caption: 'Figure 1. Revenue trend by quarter',
+            pageNumber: 3,
+          },
+        ],
         score: 0.032,
       },
     ]);
@@ -336,10 +353,284 @@ describe('document search services', () => {
       limit: 10,
     });
 
-    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    const queryText = flattenSqlChunks(
+      (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
+    );
     expect(queryText).not.toContain('FULL OUTER JOIN vec_ranked');
     expect(result.mode).toBe('fts');
     expect(result.citations).toEqual([]);
+  });
+
+  it('diversifies duplicate table/page representations from the same source region', async () => {
+    const execute = vi.fn(async () => ({
+      rows: [
+        {
+          chunk_id: 'chk_page',
+          retrieval_representation: 'page',
+          document_id: 'doc_1',
+          document_version_id: 'dvr_1',
+          version_number: 1,
+          vault_id: 'vlt_1',
+          vault_name: 'Finance',
+          document_name: 'bank-statement.pdf',
+          page_start: 1,
+          page_end: 1,
+          section: 'Statement',
+          section_path: ['Statement'],
+          source_element_ids: ['#/tables/0'],
+          table_source_element_ids: [{ elementId: '#/tables/0' }],
+          snippet: 'Page text with account table',
+          bounding_boxes: [],
+          citation_precision: 'page',
+          tables_html: ['<table><tr><td>Total</td><td>42</td></tr></table>'],
+          image_asset_ids: [],
+          image_assets: [],
+          image_provenance: [],
+          score: 0.04,
+        },
+        {
+          chunk_id: 'chk_table',
+          retrieval_representation: 'table',
+          document_id: 'doc_1',
+          document_version_id: 'dvr_1',
+          version_number: 1,
+          vault_id: 'vlt_1',
+          vault_name: 'Finance',
+          document_name: 'bank-statement.pdf',
+          page_start: 1,
+          page_end: 1,
+          section: 'Statement',
+          section_path: ['Statement'],
+          source_element_ids: ['#/tables/0'],
+          table_source_element_ids: [{ elementId: '#/tables/0' }],
+          snippet: 'Structured table row Total=42',
+          bounding_boxes: [],
+          citation_precision: 'box',
+          tables_html: ['<table><tr><td>Total</td><td>42</td></tr></table>'],
+          image_asset_ids: [],
+          image_assets: [],
+          image_provenance: [],
+          score: 0.02,
+        },
+        {
+          chunk_id: 'chk_other',
+          retrieval_representation: 'docling_hybrid',
+          document_id: 'doc_1',
+          document_version_id: 'dvr_1',
+          version_number: 1,
+          vault_id: 'vlt_1',
+          vault_name: 'Finance',
+          document_name: 'bank-statement.pdf',
+          page_start: 2,
+          page_end: 2,
+          section: 'Summary',
+          section_path: ['Summary'],
+          source_element_ids: ['#/texts/9'],
+          table_source_element_ids: [],
+          snippet: 'Narrative account summary',
+          bounding_boxes: [],
+          citation_precision: 'page',
+          tables_html: [],
+          image_asset_ids: [],
+          image_assets: [],
+          image_provenance: [],
+          score: 0.01,
+        },
+      ],
+    }));
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    const result = await searchServices.searchHybrid({
+      vaultId: 'vlt_1',
+      query: 'statement total',
+      limit: 2,
+      mode: 'fts',
+    });
+
+    expect(result.mode).toBe('fts');
+    expect(result.citations.map(citation => citation.chunkId)).toEqual(['chk_table', 'chk_other']);
+    expect(result.citations[0]).toMatchObject({
+      retrievalRepresentation: 'table',
+      tableSourceElementIds: ['#/tables/0'],
+    });
+  });
+
+  it('does not collapse legacy document-level chunks with unknown source locations', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            chunk_id: 'chk_legacy_1',
+            retrieval_representation: null,
+            document_id: 'doc_legacy',
+            document_version_id: 'dvr_legacy',
+            version_number: 1,
+            vault_id: 'vlt_1',
+            vault_name: 'Archive',
+            document_name: 'legacy-contract.pdf',
+            page_start: null,
+            page_end: null,
+            section: null,
+            section_path: [],
+            source_element_ids: [],
+            table_source_element_ids: [],
+            snippet: 'Legacy paragraph one contains the governing law.',
+            bounding_boxes: [],
+            citation_precision: 'document',
+            tables_html: [],
+            image_asset_ids: [],
+            image_assets: [],
+            image_provenance: [],
+            score: 0.05,
+          },
+          {
+            chunk_id: 'chk_legacy_2',
+            retrieval_representation: null,
+            document_id: 'doc_legacy',
+            document_version_id: 'dvr_legacy',
+            version_number: 1,
+            vault_id: 'vlt_1',
+            vault_name: 'Archive',
+            document_name: 'legacy-contract.pdf',
+            page_start: null,
+            page_end: null,
+            section: null,
+            section_path: [],
+            source_element_ids: [],
+            table_source_element_ids: [],
+            snippet: 'Legacy paragraph two contains the liability cap.',
+            bounding_boxes: [],
+            citation_precision: 'document',
+            tables_html: [],
+            image_asset_ids: [],
+            image_assets: [],
+            image_provenance: [],
+            score: 0.04,
+          },
+          {
+            chunk_id: 'chk_page_1',
+            retrieval_representation: 'page',
+            document_id: 'doc_current',
+            document_version_id: 'dvr_current',
+            version_number: 1,
+            vault_id: 'vlt_1',
+            vault_name: 'Archive',
+            document_name: 'current-contract.pdf',
+            page_start: 1,
+            page_end: 1,
+            section: null,
+            section_path: [],
+            source_element_ids: [],
+            table_source_element_ids: [],
+            snippet: 'Current page one mentions the same topic.',
+            bounding_boxes: [],
+            citation_precision: 'page',
+            tables_html: [],
+            image_asset_ids: [],
+            image_assets: [],
+            image_provenance: [],
+            score: 0.03,
+          },
+          {
+            chunk_id: 'chk_page_2',
+            retrieval_representation: 'page',
+            document_id: 'doc_current',
+            document_version_id: 'dvr_current',
+            version_number: 1,
+            vault_id: 'vlt_1',
+            vault_name: 'Archive',
+            document_name: 'current-contract.pdf',
+            page_start: 2,
+            page_end: 2,
+            section: null,
+            section_path: [],
+            source_element_ids: [],
+            table_source_element_ids: [],
+            snippet: 'Current page two mentions a related topic.',
+            bounding_boxes: [],
+            citation_precision: 'page',
+            tables_html: [],
+            image_asset_ids: [],
+            image_assets: [],
+            image_provenance: [],
+            score: 0.02,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    const result = await searchServices.searchHybrid({
+      vaultId: 'vlt_1',
+      query: 'legacy contract',
+      limit: 3,
+      mode: 'fts',
+    });
+
+    expect(result.citations.map(citation => citation.chunkId)).toEqual([
+      'chk_legacy_1',
+      'chk_legacy_2',
+      'chk_page_1',
+    ]);
+  });
+
+  it('returns page retrieval chunks through fts without embeddings', async () => {
+    const execute = vi.fn(async () => ({
+      rows: [
+        {
+          chunk_id: 'chk_page',
+          document_id: 'doc_1',
+          document_version_id: 'dvr_1',
+          version_number: 1,
+          vault_id: 'vlt_1',
+          vault_name: 'Identity',
+          document_name: 'passport.pdf',
+          page_start: 1,
+          page_end: 1,
+          section: null,
+          section_path: [],
+          source_element_ids: ['#/texts/4'],
+          table_source_element_ids: [],
+          snippet: 'RABEEBA passport number and expiry date',
+          bounding_boxes: [],
+          citation_precision: 'page',
+          tables_html: [],
+          image_asset_ids: [],
+          image_assets: [],
+          image_provenance: [],
+          score: 0.016,
+        },
+      ],
+    }));
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    const result = await searchServices.searchHybrid({
+      vaultId: 'vlt_1',
+      query: 'RABEEBA expiry',
+      limit: 5,
+      mode: 'fts',
+    });
+
+    const queryText = flattenSqlChunks(
+      (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
+    );
+    expect(queryText).toContain('FROM document_chunks AS dc');
+    expect(queryText).toContain('dc.tsv @@ search_query.query');
+    expect(queryText).not.toContain('document_chunk_embeddings');
+    expect(result.mode).toBe('fts');
+    expect(result.citations[0]).toMatchObject({
+      chunkId: 'chk_page',
+      snippet: 'RABEEBA passport number and expiry date',
+      citationPrecision: 'page',
+      sourceElementIds: ['#/texts/4'],
+    });
   });
 
   it('filters hybrid citations by explicit document version ids', async () => {
@@ -353,18 +644,20 @@ describe('document search services', () => {
       documentVersionIds: ['dvr_1'],
       query: 'contract',
       limit: 10,
+      candidateLimit: 120,
       mode: 'fts',
     });
 
-    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    const queryText = flattenSqlChunks(
+      (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
+    );
     expect(queryText).toContain('dc.document_version_id IN (');
     expect(queryText).not.toContain('dc.document_version_id = d.current_version_id');
+    expect(queryText).toContain('lexical_query');
   });
 
   it('falls back to keyword document search when no active embedding index exists', async () => {
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ results_count: 0 }] });
+    const execute = vi.fn().mockResolvedValueOnce({ rows: [{ results_count: 0 }] });
     const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
     const searchServices = createDocumentSearchServices({
       db: { execute } as any,
@@ -383,7 +676,9 @@ describe('document search services', () => {
       searchMode: 'hybrid',
     });
 
-    const queryText = flattenSqlChunks(((execute.mock.calls as unknown as any[][])[0]?.[0])?.queryChunks ?? []);
+    const queryText = flattenSqlChunks(
+      (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
+    );
     expect(embed).not.toHaveBeenCalled();
     expect(queryText).not.toContain('document_chunk_embeddings');
     expect(queryText).toContain('websearch_to_tsquery');

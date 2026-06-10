@@ -51,9 +51,54 @@ type CountRow = {
 const HYBRID_DOCUMENT_CANDIDATE_LIMIT = 80;
 const HYBRID_DOCUMENT_EXCERPT_LENGTH = 260;
 const HYBRID_DOCUMENT_MIN_SEMANTIC_SIMILARITY = 0.45;
+const HYBRID_CITATION_DEFAULT_CANDIDATE_LIMIT = 50;
+const HYBRID_CITATION_MAX_CANDIDATE_LIMIT = 200;
+const HYBRID_CITATION_MAX_TERMS = 24;
+const HYBRID_TITLE_MATCH_BASE_SCORE = 0.03;
+const HYBRID_TITLE_MATCH_TERM_SCORE = 0.004;
+const HYBRID_TITLE_TERM_STOP_WORDS = new Set([
+  'about',
+  'after',
+  'also',
+  'and',
+  'are',
+  'can',
+  'could',
+  'date',
+  'dates',
+  'for',
+  'following',
+  'from',
+  'give',
+  'has',
+  'have',
+  'into',
+  'its',
+  'list',
+  'me',
+  'need',
+  'person',
+  'persons',
+  'please',
+  'show',
+  'that',
+  'the',
+  'their',
+  'these',
+  'this',
+  'was',
+  'were',
+  'what',
+  'when',
+  'which',
+  'with',
+  'you',
+  'your',
+]);
 
 type HybridSearchRow = {
   chunk_id: string;
+  retrieval_representation: string | null;
   document_id: string;
   document_version_id: string;
   version_number: number;
@@ -90,17 +135,19 @@ function parseTagsJson(value: string | null | undefined): SearchResultTag[] {
 
     return parsed.flatMap((item) => {
       if (
-        typeof item === 'object'
-        && item !== null
-        && typeof item.id === 'string'
-        && typeof item.name === 'string'
-        && (typeof item.color === 'string' || item.color === null)
+        typeof item === 'object' &&
+        item !== null &&
+        typeof item.id === 'string' &&
+        typeof item.name === 'string' &&
+        (typeof item.color === 'string' || item.color === null)
       ) {
-        return [{
-          id: item.id,
-          name: item.name,
-          color: item.color,
-        }];
+        return [
+          {
+            id: item.id,
+            name: item.name,
+            color: item.color,
+          },
+        ];
       }
 
       return [];
@@ -135,10 +182,13 @@ function toSqlDateBoundary(value: Date | null | undefined, boundary: 'start' | '
 }
 
 function normalizeTagIds(tagId: string | undefined, tagIds: string[] | undefined) {
-  return [...new Set([
-    ...(tagIds ?? []).map(item => item.trim()),
-    ...(tagId ? [tagId.trim()] : []),
-  ].filter(Boolean))];
+  return [
+    ...new Set(
+      [...(tagIds ?? []).map((item) => item.trim()), ...(tagId ? [tagId.trim()] : [])].filter(
+        Boolean,
+      ),
+    ),
+  ];
 }
 
 function getBrowseOrderSql(sortBy: SearchSortBy) {
@@ -186,7 +236,9 @@ function getHybridSearchOrderSql(sortBy: SearchSortBy) {
   }
 }
 
-function parseSearchResultMatchType(value: SearchResultMatchType | string | null | undefined): SearchResultMatchType {
+function parseSearchResultMatchType(
+  value: SearchResultMatchType | string | null | undefined,
+): SearchResultMatchType {
   return value === 'semantic' || value === 'title' || value === 'keyword' ? value : 'keyword';
 }
 
@@ -206,7 +258,10 @@ function mapSearchRow(row: SearchRow): SearchResultItem {
     tags: parseTagsJson(row.tags_json),
     matchedChunksCount: row.matched_chunks_count,
     bestChunk:
-      row.chunk_index === null || row.chunk_content === null || row.snippet === null || row.score === null
+      row.chunk_index === null ||
+      row.chunk_content === null ||
+      row.snippet === null ||
+      row.score === null
         ? null
         : {
             chunkIndex: row.chunk_index,
@@ -264,7 +319,7 @@ function parseStringArray(value: unknown): string[] {
     return [];
   }
 
-  return value.flatMap((item) => typeof item === 'string' ? [item] : []);
+  return value.flatMap((item) => (typeof item === 'string' ? [item] : []));
 }
 
 function parseBoundingBoxes(value: unknown): CitationBoundingBox[] {
@@ -274,16 +329,16 @@ function parseBoundingBoxes(value: unknown): CitationBoundingBox[] {
 
   return value.flatMap((item) => {
     if (
-      typeof item !== 'object'
-      || item === null
-      || typeof (item as { pageNumber?: unknown }).pageNumber !== 'number'
-      || typeof (item as { x0?: unknown }).x0 !== 'number'
-      || typeof (item as { y0?: unknown }).y0 !== 'number'
-      || typeof (item as { x1?: unknown }).x1 !== 'number'
-      || typeof (item as { y1?: unknown }).y1 !== 'number'
-      || typeof (item as { layoutWidth?: unknown }).layoutWidth !== 'number'
-      || typeof (item as { layoutHeight?: unknown }).layoutHeight !== 'number'
-      || typeof (item as { system?: unknown }).system !== 'string'
+      typeof item !== 'object' ||
+      item === null ||
+      typeof (item as { pageNumber?: unknown }).pageNumber !== 'number' ||
+      typeof (item as { x0?: unknown }).x0 !== 'number' ||
+      typeof (item as { y0?: unknown }).y0 !== 'number' ||
+      typeof (item as { x1?: unknown }).x1 !== 'number' ||
+      typeof (item as { y1?: unknown }).y1 !== 'number' ||
+      typeof (item as { layoutWidth?: unknown }).layoutWidth !== 'number' ||
+      typeof (item as { layoutHeight?: unknown }).layoutHeight !== 'number' ||
+      typeof (item as { system?: unknown }).system !== 'string'
     ) {
       return [];
     }
@@ -299,23 +354,23 @@ function parseImageAssets(value: unknown): CitationImageAsset[] {
 
   return value.flatMap((item) => {
     if (
-      typeof item !== 'object'
-      || item === null
-      || typeof (item as { assetId?: unknown }).assetId !== 'string'
-      || (
-        (item as { sourceElementId?: unknown }).sourceElementId !== null
-        && typeof (item as { sourceElementId?: unknown }).sourceElementId !== 'string'
-      )
+      typeof item !== 'object' ||
+      item === null ||
+      typeof (item as { assetId?: unknown }).assetId !== 'string' ||
+      ((item as { sourceElementId?: unknown }).sourceElementId !== null &&
+        typeof (item as { sourceElementId?: unknown }).sourceElementId !== 'string')
     ) {
       return [];
     }
 
-    return [{
-      assetId: (item as { assetId: string }).assetId,
-      sourceElementId: (item as { sourceElementId: string | null }).sourceElementId,
-      caption: null,
-      pageNumber: null,
-    }];
+    return [
+      {
+        assetId: (item as { assetId: string }).assetId,
+        sourceElementId: (item as { sourceElementId: string | null }).sourceElementId,
+        caption: null,
+        pageNumber: null,
+      },
+    ];
   });
 }
 
@@ -340,18 +395,22 @@ function parseImageProvenance(value: unknown): CitationImageProvenance[] {
     const pageNumber = (item as { pageNumber?: unknown }).pageNumber;
 
     if (
-      (sourceElementId !== null && sourceElementId !== undefined && typeof sourceElementId !== 'string')
-      || (caption !== null && caption !== undefined && typeof caption !== 'string')
-      || (pageNumber !== null && pageNumber !== undefined && typeof pageNumber !== 'number')
+      (sourceElementId !== null &&
+        sourceElementId !== undefined &&
+        typeof sourceElementId !== 'string') ||
+      (caption !== null && caption !== undefined && typeof caption !== 'string') ||
+      (pageNumber !== null && pageNumber !== undefined && typeof pageNumber !== 'number')
     ) {
       return [];
     }
 
-    return [{
-      sourceElementId: typeof sourceElementId === 'string' ? sourceElementId : null,
-      caption: typeof caption === 'string' && caption.trim().length > 0 ? caption.trim() : null,
-      pageNumber: typeof pageNumber === 'number' ? pageNumber : null,
-    }];
+    return [
+      {
+        sourceElementId: typeof sourceElementId === 'string' ? sourceElementId : null,
+        caption: typeof caption === 'string' && caption.trim().length > 0 ? caption.trim() : null,
+        pageNumber: typeof pageNumber === 'number' ? pageNumber : null,
+      },
+    ];
   });
 }
 
@@ -362,9 +421,9 @@ function parseAssetSourceElementIds(value: unknown): string[] {
 
   return value.flatMap((item) => {
     if (
-      typeof item === 'object'
-      && item !== null
-      && typeof (item as { elementId?: unknown }).elementId === 'string'
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as { elementId?: unknown }).elementId === 'string'
     ) {
       return [(item as { elementId: string }).elementId];
     }
@@ -379,6 +438,132 @@ function parseCitationPrecision(value: string): Citation['citationPrecision'] {
 
 function buildVectorLiteral(vector: number[]) {
   return `[${vector.join(',')}]`;
+}
+
+function extractHybridTitleTerms(query: string) {
+  return [
+    ...new Set(
+      query
+        .toLowerCase()
+        .split(/[^a-z0-9]+/i)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 3)
+        .filter((term) => !HYBRID_TITLE_TERM_STOP_WORDS.has(term))
+        .slice(0, HYBRID_CITATION_MAX_TERMS),
+    ),
+  ];
+}
+
+function mergeHybridSearchRows(
+  rows: HybridSearchRow[],
+  titleRows: HybridSearchRow[],
+  limit: number,
+) {
+  const rowsByChunkId = new Map<string, HybridSearchRow>();
+
+  for (const row of [...rows, ...titleRows]) {
+    const existing = rowsByChunkId.get(row.chunk_id);
+    const existingScore =
+      typeof existing?.score === 'number' ? existing.score : Number(existing?.score ?? 0);
+    const rowScore = typeof row.score === 'number' ? row.score : Number(row.score ?? 0);
+
+    if (existing === undefined || rowScore > existingScore) {
+      rowsByChunkId.set(row.chunk_id, row);
+    }
+  }
+
+  return [...rowsByChunkId.values()]
+    .sort((left, right) => {
+      const leftScore = typeof left.score === 'number' ? left.score : Number(left.score ?? 0);
+      const rightScore = typeof right.score === 'number' ? right.score : Number(right.score ?? 0);
+
+      return rightScore - leftScore || left.chunk_id.localeCompare(right.chunk_id);
+    })
+    .slice(0, limit);
+}
+
+function getRepresentationPriority(row: Pick<HybridSearchRow, 'retrieval_representation' | 'tables_html' | 'citation_precision'>) {
+  const representation = row.retrieval_representation;
+  if (representation === 'table') {
+    return 4;
+  }
+  if (parseStringArray(row.tables_html).length > 0) {
+    return 3;
+  }
+  if (representation === 'page') {
+    return 2;
+  }
+  if (representation === 'docling_hybrid') {
+    return 1;
+  }
+  return 0;
+}
+
+function getDiversificationKey(row: HybridSearchRow) {
+  const sourceElementIds = parseStringArray(row.source_element_ids).sort();
+  const tableSourceElementIds = parseAssetSourceElementIds(row.table_source_element_ids).sort();
+  const sourceKey = [...new Set([...sourceElementIds, ...tableSourceElementIds])].join('|');
+  if (sourceKey.length > 0) {
+    return `${row.document_version_id}:source:${sourceKey}`;
+  }
+
+  if (row.page_start === null && row.page_end === null) {
+    return `${row.document_version_id}:chunk:${row.chunk_id}`;
+  }
+
+  const pageStart = row.page_start ?? 'document';
+  const pageEnd = row.page_end ?? pageStart;
+  return `${row.document_version_id}:page:${pageStart}-${pageEnd}`;
+}
+
+function diversifyHybridSearchRows(rows: HybridSearchRow[], limit: number) {
+  const rowsByRegion = new Map<string, HybridSearchRow>();
+  const overflowRows: HybridSearchRow[] = [];
+
+  for (const row of rows) {
+    const key = getDiversificationKey(row);
+    const existing = rowsByRegion.get(key);
+
+    if (existing === undefined) {
+      rowsByRegion.set(key, row);
+      continue;
+    }
+
+    const existingScore =
+      typeof existing.score === 'number' ? existing.score : Number(existing.score ?? 0);
+    const rowScore = typeof row.score === 'number' ? row.score : Number(row.score ?? 0);
+    const existingPriority = getRepresentationPriority(existing);
+    const rowPriority = getRepresentationPriority(row);
+
+    if (rowPriority > existingPriority || (rowPriority === existingPriority && rowScore > existingScore)) {
+      overflowRows.push(existing);
+      rowsByRegion.set(key, row);
+    } else {
+      overflowRows.push(row);
+    }
+  }
+
+  const diversified = [...rowsByRegion.values()];
+  const seenChunkIds = new Set(diversified.map(row => row.chunk_id));
+  for (const row of overflowRows) {
+    if (diversified.length >= limit) {
+      break;
+    }
+    if (seenChunkIds.has(row.chunk_id)) {
+      continue;
+    }
+    seenChunkIds.add(row.chunk_id);
+    diversified.push(row);
+  }
+
+  return diversified
+    .sort((left, right) => {
+      const leftScore = typeof left.score === 'number' ? left.score : Number(left.score ?? 0);
+      const rightScore = typeof right.score === 'number' ? right.score : Number(right.score ?? 0);
+
+      return rightScore - leftScore || left.chunk_id.localeCompare(right.chunk_id);
+    })
+    .slice(0, limit);
 }
 
 function inferAssetType({
@@ -408,18 +593,20 @@ function mergeImageAssetsWithProvenance({
   imageAssetIds: string[];
   imageProvenance: CitationImageProvenance[];
 }) {
-  const assets = imageAssets.length > 0
-    ? imageAssets
-    : imageAssetIds.map(assetId => ({
-      assetId,
-      sourceElementId: null,
-      caption: null,
-      pageNumber: null,
-    }));
+  const assets =
+    imageAssets.length > 0
+      ? imageAssets
+      : imageAssetIds.map((assetId) => ({
+          assetId,
+          sourceElementId: null,
+          caption: null,
+          pageNumber: null,
+        }));
 
   return assets.map((asset, index) => {
     const provenance = asset.sourceElementId
-      ? imageProvenance.find(entry => entry.sourceElementId === asset.sourceElementId) ?? imageProvenance[index]
+      ? (imageProvenance.find((entry) => entry.sourceElementId === asset.sourceElementId) ??
+        imageProvenance[index])
       : imageProvenance[index];
 
     return {
@@ -446,9 +633,8 @@ export function createDocumentSearchServices({
     }
 
     try {
-      const config = resolveActiveEmbeddingIndex !== undefined
-        ? await resolveActiveEmbeddingIndex()
-        : null;
+      const config =
+        resolveActiveEmbeddingIndex !== undefined ? await resolveActiveEmbeddingIndex() : null;
       if (config === null) {
         return null;
       }
@@ -493,7 +679,8 @@ export function createDocumentSearchServices({
     includeVersions?: SearchVersionMode;
   }) {
     const trimmedQuery = query.trim();
-    const effectiveVaultIds: string[] = vaultIds && vaultIds.length > 0 ? vaultIds : vaultId ? [vaultId] : [];
+    const effectiveVaultIds: string[] =
+      vaultIds && vaultIds.length > 0 ? vaultIds : vaultId ? [vaultId] : [];
     const normalizedTagIds = normalizeTagIds(tagId, tagIds);
     const normalizedDateFrom = toSqlDateBoundary(dateFrom ?? null, 'start');
     const normalizedDateTo = toSqlDateBoundary(dateTo ?? null, 'end');
@@ -513,10 +700,16 @@ export function createDocumentSearchServices({
     }
 
     const offset = pageIndex * pageSize;
-    const vaultIdListSql = sql.join(effectiveVaultIds.map(id => sql`${id}`), sql`, `);
+    const vaultIdListSql = sql.join(
+      effectiveVaultIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
     const tagIdListSql =
       normalizedTagIds.length > 0
-        ? sql.join(normalizedTagIds.map(id => sql`${id}`), sql`, `)
+        ? sql.join(
+            normalizedTagIds.map((id) => sql`${id}`),
+            sql`, `,
+          )
         : null;
     const tagFilterSql =
       normalizedTagIds.length > 0
@@ -529,9 +722,7 @@ export function createDocumentSearchServices({
         : sql`TRUE`;
     const effectiveCreatedAtSql = sql.raw('d.created_at');
     const versionScopeFilterSql =
-      includeVersions === 'historical'
-        ? sql`TRUE`
-        : sql`dv.id = d.current_version_id`;
+      includeVersions === 'historical' ? sql`TRUE` : sql`dv.id = d.current_version_id`;
 
     if (trimmedQuery.length === 0) {
       const countResult = await db.execute<CountRow>(sql`
@@ -1020,10 +1211,16 @@ export function createDocumentSearchServices({
     const ilikePattern = `%${trimmedQuery}%`;
     const headlineOptions =
       'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20, MinWords=5';
-    const vaultIdListSql = sql.join(effectiveVaultIds.map(id => sql`${id}`), sql`, `);
+    const vaultIdListSql = sql.join(
+      effectiveVaultIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
     const tagIdListSql =
       normalizedTagIds.length > 0
-        ? sql.join(normalizedTagIds.map(id => sql`${id}`), sql`, `)
+        ? sql.join(
+            normalizedTagIds.map((id) => sql`${id}`),
+            sql`, `,
+          )
         : null;
     const tagFilterSql =
       normalizedTagIds.length > 0
@@ -1036,9 +1233,7 @@ export function createDocumentSearchServices({
         : sql`TRUE`;
     const effectiveCreatedAtSql = sql.raw('d.created_at');
     const versionScopeFilterSql =
-      includeVersions === 'historical'
-        ? sql`TRUE`
-        : sql`dv.id = d.current_version_id`;
+      includeVersions === 'historical' ? sql`TRUE` : sql`dv.id = d.current_version_id`;
 
     const searchResult = await db.execute<SearchRow>(sql`
       WITH search_query AS (
@@ -1403,6 +1598,7 @@ export function createDocumentSearchServices({
     documentVersionIds,
     query,
     limit,
+    candidateLimit,
     mode = 'hybrid',
   }: {
     vaultId?: string;
@@ -1411,23 +1607,35 @@ export function createDocumentSearchServices({
     documentVersionIds?: string[];
     query: string;
     limit: number;
+    candidateLimit?: number;
     mode?: HybridSearchMode;
   }) {
     const trimmedQuery = query.trim();
     const normalizedLimit = Math.min(Math.max(limit, 1), 50);
+    const normalizedCandidateLimit = Math.min(
+      Math.max(candidateLimit ?? HYBRID_CITATION_DEFAULT_CANDIDATE_LIMIT, normalizedLimit, 1),
+      HYBRID_CITATION_MAX_CANDIDATE_LIMIT,
+    );
     const scopedVaultIds = [
-      ...new Set([
-        ...(vaultId ? [vaultId] : []),
-        ...(vaultIds ?? []),
-      ].map(item => item.trim()).filter(Boolean)),
+      ...new Set(
+        [...(vaultId ? [vaultId] : []), ...(vaultIds ?? [])]
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
     ];
     const scopedDocumentVersionIds = [
-      ...new Set((documentVersionIds ?? []).map(item => item.trim()).filter(Boolean)),
+      ...new Set((documentVersionIds ?? []).map((item) => item.trim()).filter(Boolean)),
     ];
-    const scopedVaultIdList = sql.join(scopedVaultIds.map(id => sql`${id}`), sql`, `);
+    const scopedVaultIdList = sql.join(
+      scopedVaultIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
     const scopedDocumentVersionIdList =
       scopedDocumentVersionIds.length > 0
-        ? sql.join(scopedDocumentVersionIds.map(id => sql`${id}`), sql`, `)
+        ? sql.join(
+            scopedDocumentVersionIds.map((id) => sql`${id}`),
+            sql`, `,
+          )
         : null;
     const hybridVersionScopeSql =
       scopedDocumentVersionIds.length > 0
@@ -1460,14 +1668,39 @@ export function createDocumentSearchServices({
             WITH search_query AS (
               SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
             ),
+            lexical_terms AS (
+              SELECT term
+              FROM (
+                SELECT DISTINCT lower(term) AS term
+                FROM regexp_split_to_table(${trimmedQuery}, '[^[:alnum:]]+') AS split(term)
+                WHERE char_length(term) >= 3
+              ) AS terms
+              ORDER BY term ASC
+              LIMIT ${HYBRID_CITATION_MAX_TERMS}
+            ),
+            lexical_query AS (
+              SELECT websearch_to_tsquery(
+                'english',
+                COALESCE(string_agg(term, ' OR ' ORDER BY term ASC), '')
+              ) AS query
+              FROM lexical_terms
+            ),
             fts_ranked AS (
               SELECT
                 dc.id,
                 row_number() OVER (
-                  ORDER BY ts_rank_cd(dc.tsv, search_query.query) DESC, dc.chunk_index ASC, dc.id ASC
+                  ORDER BY
+                    GREATEST(
+                      ts_rank_cd(dc.tsv, search_query.query),
+                      ts_rank_cd(dc.tsv, lexical_query.query) * 0.35
+                    ) DESC,
+                    (dc.tsv @@ search_query.query) DESC,
+                    dc.chunk_index ASC,
+                    dc.id ASC
                 )::int AS fts_rank
               FROM document_chunks AS dc
               CROSS JOIN search_query
+              CROSS JOIN lexical_query
               INNER JOIN documents AS d ON d.id = dc.document_id
               INNER JOIN document_versions AS dv
                 ON dv.id = dc.document_version_id
@@ -1480,12 +1713,23 @@ export function createDocumentSearchServices({
                 AND dv.processing_status = 'completed'
                 AND ${hybridVersionScopeSql}
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
-                AND dc.tsv @@ search_query.query
-              ORDER BY ts_rank_cd(dc.tsv, search_query.query) DESC, dc.chunk_index ASC, dc.id ASC
-              LIMIT 50
+                AND (
+                  dc.tsv @@ search_query.query
+                  OR dc.tsv @@ lexical_query.query
+                )
+              ORDER BY
+                GREATEST(
+                  ts_rank_cd(dc.tsv, search_query.query),
+                  ts_rank_cd(dc.tsv, lexical_query.query) * 0.35
+                ) DESC,
+                (dc.tsv @@ search_query.query) DESC,
+                dc.chunk_index ASC,
+                dc.id ASC
+              LIMIT ${normalizedCandidateLimit}
             )
             SELECT
               dc.id AS chunk_id,
+              dc.metadata->>'retrievalRepresentation' AS retrieval_representation,
               dc.document_id,
               dc.document_version_id,
               dv.version_number,
@@ -1535,18 +1779,41 @@ export function createDocumentSearchServices({
                 AND dca.document_version_id = dc.document_version_id
             ) AS assets ON true
             ORDER BY score DESC, dc.chunk_index ASC, dc.id ASC
-            LIMIT ${normalizedLimit}
+            LIMIT ${normalizedCandidateLimit}
           `)
         : await db.execute<HybridSearchRow>(sql`
             WITH search_query AS (
               SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
             ),
+            lexical_terms AS (
+              SELECT term
+              FROM (
+                SELECT DISTINCT lower(term) AS term
+                FROM regexp_split_to_table(${trimmedQuery}, '[^[:alnum:]]+') AS split(term)
+                WHERE char_length(term) >= 3
+              ) AS terms
+              ORDER BY term ASC
+              LIMIT ${HYBRID_CITATION_MAX_TERMS}
+            ),
+            lexical_query AS (
+              SELECT websearch_to_tsquery(
+                'english',
+                COALESCE(string_agg(term, ' OR ' ORDER BY term ASC), '')
+              ) AS query
+              FROM lexical_terms
+            ),
             fts_candidates AS (
               SELECT
                 dc.id,
-                ts_rank_cd(dc.tsv, search_query.query) AS rank
+                GREATEST(
+                  ts_rank_cd(dc.tsv, search_query.query),
+                  ts_rank_cd(dc.tsv, lexical_query.query) * 0.35
+                ) AS rank,
+                dc.tsv @@ search_query.query AS strict_match,
+                dc.chunk_index
               FROM document_chunks AS dc
               CROSS JOIN search_query
+              CROSS JOIN lexical_query
               INNER JOIN documents AS d ON d.id = dc.document_id
               INNER JOIN document_versions AS dv
                 ON dv.id = dc.document_version_id
@@ -1559,14 +1826,19 @@ export function createDocumentSearchServices({
                 AND dv.processing_status = 'completed'
                 AND ${hybridVersionScopeSql}
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
-                AND dc.tsv @@ search_query.query
-              ORDER BY rank DESC, dc.chunk_index ASC, dc.id ASC
-              LIMIT 50
+                AND (
+                  dc.tsv @@ search_query.query
+                  OR dc.tsv @@ lexical_query.query
+                )
+              ORDER BY rank DESC, strict_match DESC, dc.chunk_index ASC, dc.id ASC
+              LIMIT ${normalizedCandidateLimit}
             ),
             fts_ranked AS (
               SELECT
                 id,
-                row_number() OVER (ORDER BY rank DESC, id ASC)::int AS fts_rank
+                row_number() OVER (
+                  ORDER BY rank DESC, strict_match DESC, chunk_index ASC, id ASC
+                )::int AS fts_rank
               FROM fts_candidates
             ),
             vec_candidates AS (
@@ -1590,7 +1862,7 @@ export function createDocumentSearchServices({
                 AND ${hybridVersionScopeSql}
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
               ORDER BY dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector ASC, dc.chunk_index ASC, dc.id ASC
-              LIMIT 50
+              LIMIT ${normalizedCandidateLimit}
             ),
             vec_ranked AS (
               SELECT
@@ -1608,6 +1880,7 @@ export function createDocumentSearchServices({
             )
             SELECT
               dc.id AS chunk_id,
+              dc.metadata->>'retrievalRepresentation' AS retrieval_representation,
               dc.document_id,
               dc.document_version_id,
               dv.version_number,
@@ -1657,15 +1930,130 @@ export function createDocumentSearchServices({
                 AND dca.document_version_id = dc.document_version_id
             ) AS assets ON true
             ORDER BY ranked.score DESC, dc.chunk_index ASC, dc.id ASC
-            LIMIT ${normalizedLimit}
+            LIMIT ${normalizedCandidateLimit}
           `);
 
-    const citations: Citation[] = result.rows.map((row) => {
+    const titleTerms = extractHybridTitleTerms(trimmedQuery);
+    const titleMatchCountSql = () =>
+      sql.join(
+        titleTerms.map(
+          (term) =>
+            sql`CASE WHEN lower(concat_ws(' ', d.name, dv.original_name)) LIKE ${`%${term}%`} THEN 1 ELSE 0 END`,
+        ),
+        sql` + `,
+      );
+    const titleRows =
+      titleTerms.length === 0
+        ? []
+        : (
+            await db.execute<HybridSearchRow>(sql`
+              WITH title_scored AS (
+                SELECT
+                  dc.id AS chunk_id,
+                  dc.document_id,
+                  dc.document_version_id,
+                  dc.vault_id,
+                  dc.chunk_index,
+                  (${titleMatchCountSql()})::int AS title_match_count
+                FROM document_chunks AS dc
+                INNER JOIN documents AS d ON d.id = dc.document_id
+                INNER JOIN document_versions AS dv
+                  ON dv.id = dc.document_version_id
+                  AND dv.document_id = d.id
+                  AND dv.vault_id = d.vault_id
+                WHERE dc.vault_id IN (${scopedVaultIdList})
+                  AND d.vault_id IN (${scopedVaultIdList})
+                  AND d.is_deleted = false
+                  AND dv.deleted_at IS NULL
+                  AND dv.processing_status = 'completed'
+                  AND ${hybridVersionScopeSql}
+                  AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
+                  AND (${titleMatchCountSql()}) > 0
+              ),
+              title_first_chunks AS (
+                SELECT DISTINCT ON (document_id, document_version_id)
+                  chunk_id,
+                  title_match_count
+                FROM title_scored
+                ORDER BY
+                  document_id,
+                  document_version_id,
+                  title_match_count DESC,
+                  chunk_index ASC,
+                  chunk_id ASC
+              )
+              SELECT
+                dc.id AS chunk_id,
+                dc.metadata->>'retrievalRepresentation' AS retrieval_representation,
+                dc.document_id,
+                dc.document_version_id,
+                dv.version_number,
+                dc.vault_id,
+                v.name AS vault_name,
+                d.name AS document_name,
+                dc.page_start,
+                dc.page_end,
+                dc.section,
+                COALESCE(dc.section_path, '[]'::jsonb) AS section_path,
+                COALESCE(dc.source_element_ids, '[]'::jsonb) AS source_element_ids,
+                COALESCE(dc.metadata->'tableProvenance', '[]'::jsonb) AS table_source_element_ids,
+                COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
+                COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
+                dc.citation_precision,
+                COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
+                COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
+                COALESCE(assets.image_assets, '[]'::json) AS image_assets,
+                COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
+                (
+                  ${HYBRID_TITLE_MATCH_BASE_SCORE}::float8
+                  + title_first_chunks.title_match_count::float8
+                    * ${HYBRID_TITLE_MATCH_TERM_SCORE}::float8
+                )::float8 AS score
+              FROM title_first_chunks
+              INNER JOIN document_chunks AS dc ON dc.id = title_first_chunks.chunk_id
+              INNER JOIN documents AS d ON d.id = dc.document_id
+              INNER JOIN document_versions AS dv
+                ON dv.id = dc.document_version_id
+                AND dv.document_id = d.id
+                AND dv.vault_id = d.vault_id
+              INNER JOIN vaults AS v ON v.id = dc.vault_id
+              LEFT JOIN LATERAL (
+                SELECT COALESCE(
+                  json_agg(dca.id ORDER BY dca.created_at ASC) FILTER (WHERE dca.asset_type = 'image'),
+                  '[]'::json
+                ) AS image_asset_ids,
+                COALESCE(
+                  json_agg(
+                    json_build_object(
+                      'assetId', dca.id,
+                      'sourceElementId', dca.source_element_id
+                    )
+                    ORDER BY dca.created_at ASC
+                  ) FILTER (WHERE dca.asset_type = 'image'),
+                  '[]'::json
+                ) AS image_assets
+                FROM document_chunk_assets AS dca
+                WHERE dca.chunk_id = dc.id
+                  AND dca.vault_id = dc.vault_id
+                  AND dca.document_version_id = dc.document_version_id
+              ) AS assets ON true
+              ORDER BY score DESC, dc.chunk_index ASC, dc.id ASC
+              LIMIT ${normalizedCandidateLimit}
+            `)
+          ).rows;
+
+    const mergedRows = diversifyHybridSearchRows(
+      mergeHybridSearchRows(result.rows, titleRows, normalizedCandidateLimit),
+      normalizedLimit,
+    );
+
+    const citations: Citation[] = mergedRows.map((row) => {
       const tablesHtml = parseStringArray(row.tables_html);
       const parsedImageAssets = parseImageAssets(row.image_assets);
-      const imageAssetIds = parsedImageAssets.length > 0
-        ? parsedImageAssets.map(asset => asset.assetId)
-        : parseStringArray(row.image_asset_ids);
+      const imageAssetIds =
+        parsedImageAssets.length > 0
+          ? parsedImageAssets.map((asset) => asset.assetId)
+          : parseStringArray(row.image_asset_ids);
       const imageAssets = mergeImageAssetsWithProvenance({
         imageAssets: parsedImageAssets,
         imageAssetIds,
@@ -1674,6 +2062,7 @@ export function createDocumentSearchServices({
 
       return {
         chunkId: row.chunk_id,
+        retrievalRepresentation: row.retrieval_representation,
         documentId: row.document_id,
         documentVersionId: row.document_version_id,
         versionNumber: row.version_number,
@@ -1687,9 +2076,10 @@ export function createDocumentSearchServices({
         sourceElementIds: parseStringArray(row.source_element_ids),
         tableSourceElementIds: parseAssetSourceElementIds(row.table_source_element_ids),
         snippet: row.snippet ?? '',
-        boundingBoxes: parseCitationPrecision(row.citation_precision) === 'box'
-          ? parseBoundingBoxes(row.bounding_boxes)
-          : [],
+        boundingBoxes:
+          parseCitationPrecision(row.citation_precision) === 'box'
+            ? parseBoundingBoxes(row.bounding_boxes)
+            : [],
         citationPrecision: parseCitationPrecision(row.citation_precision),
         assetType: inferAssetType({ tablesHtml, imageAssetIds }),
         tablesHtml,

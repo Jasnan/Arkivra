@@ -80,6 +80,29 @@ export interface DocumentVersionDetail extends DocumentVersionSummary {
   parserStructuredOutput: Record<string, unknown> | null;
 }
 
+export interface DeletionImpactConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeletionImpactPreview {
+  affectedConversationCount: number;
+  affectedConversations: DeletionImpactConversation[];
+  limit: number;
+}
+
+export interface DocumentDeletionImpactPreview extends DeletionImpactPreview {
+  versionCount: number;
+}
+
+export interface BulkDocumentDeletionImpactPreview {
+  documentCount: number;
+  versionCount: number;
+  affectedConversationCount: number;
+}
+
 export interface DocumentChunkSummary {
   id: string;
   chunkIndex: number;

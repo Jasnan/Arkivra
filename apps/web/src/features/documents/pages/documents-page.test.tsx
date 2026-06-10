@@ -24,76 +24,79 @@ describe('documents page', () => {
   });
 
   it('renders vault contents without section tabs', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
 
-      if (url === '/api/vaults/vlt_1') {
-        return jsonResponse({
-          vault: {
-            id: 'vlt_1',
-            name: 'MyDocs',
-            description: null,
-            fileCount: 2,
-            totalSize: 3072,
-            role: 'owner',
-            aiAccessLevel: 'full',
-            isAdmin: false,
-            isMember: true,
-            accessMode: 'member',
-          },
-        });
-      }
-
-      if (url === '/api/vaults/vlt_1/folders/items?folderId=root') {
-        return jsonResponse({
-          folder: null,
-          breadcrumbs: [],
-          folders: [
-            {
-              id: 'fld_1',
-              vaultId: 'vlt_1',
-              parentId: null,
-              name: 'Insurance',
-              createdBy: 'usr_1',
-              isDeleted: false,
-              deletedAt: null,
-              deletedBy: null,
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z',
+        if (url === '/api/vaults/vlt_1') {
+          return jsonResponse({
+            vault: {
+              id: 'vlt_1',
+              name: 'MyDocs',
+              description: null,
+              fileCount: 2,
+              totalSize: 3072,
+              role: 'owner',
+              aiAccessLevel: 'full',
+              isAdmin: false,
+              isMember: true,
+              accessMode: 'member',
             },
-          ],
-          documents: [],
-          items: [],
-        });
-      }
+          });
+        }
 
-      if (url === '/api/vaults/vlt_1/folders/tree') {
-        return jsonResponse({
-          folders: [
-            { id: 'fld_1', parentId: null, name: 'Insurance', path: 'Insurance', depth: 0 },
-          ],
-          documents: [
-            {
-              id: 'doc_1',
-              name: 'Policy.pdf',
-              originalName: 'Policy.pdf',
-              folderId: 'fld_1',
-              originalSize: 2048,
-              mimeType: 'application/pdf',
-              processingStatus: 'completed',
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z',
-              isDeleted: false,
-              deletedAt: null,
-              path: 'Insurance/Policy.pdf',
-              depth: 1,
-            },
-          ],
-        });
-      }
+        if (url === '/api/vaults/vlt_1/folders/items?folderId=root') {
+          return jsonResponse({
+            folder: null,
+            breadcrumbs: [],
+            folders: [
+              {
+                id: 'fld_1',
+                vaultId: 'vlt_1',
+                parentId: null,
+                name: 'Insurance',
+                createdBy: 'usr_1',
+                isDeleted: false,
+                deletedAt: null,
+                deletedBy: null,
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+            documents: [],
+            items: [],
+          });
+        }
 
-      throw new Error(`Unhandled request ${url}`);
-    }));
+        if (url === '/api/vaults/vlt_1/folders/tree') {
+          return jsonResponse({
+            folders: [
+              { id: 'fld_1', parentId: null, name: 'Insurance', path: 'Insurance', depth: 0 },
+            ],
+            documents: [
+              {
+                id: 'doc_1',
+                name: 'Policy.pdf',
+                originalName: 'Policy.pdf',
+                folderId: 'fld_1',
+                originalSize: 2048,
+                mimeType: 'application/pdf',
+                processingStatus: 'completed',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                isDeleted: false,
+                deletedAt: null,
+                path: 'Insurance/Policy.pdf',
+                depth: 1,
+              },
+            ],
+          });
+        }
+
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
 
     const { container } = await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1'],
@@ -106,11 +109,15 @@ describe('documents page', () => {
     expect(screen.queryByRole('tab', { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /chat/i })).not.toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /sort folder items/i })).toBeInTheDocument();
-    expect(screen.queryByRole('complementary', { name: /vault file tree/i, hidden: true })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('complementary', { name: /vault file tree/i, hidden: true }),
+    ).not.toBeInTheDocument();
 
     const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
-    const fileInput = inputs.find(input => input.getAttribute('accept') === UPLOAD_ACCEPT_ATTRIBUTE);
-    const directoryInput = inputs.find(input => input.hasAttribute('webkitdirectory'));
+    const fileInput = inputs.find(
+      (input) => input.getAttribute('accept') === UPLOAD_ACCEPT_ATTRIBUTE,
+    );
+    const directoryInput = inputs.find((input) => input.hasAttribute('webkitdirectory'));
     expect(fileInput).toBeDefined();
     expect(directoryInput).toBeDefined();
     expect(directoryInput).toHaveAttribute('directory');
@@ -126,7 +133,9 @@ describe('documents page', () => {
     });
 
     const header = screen.getByRole('banner');
-    expect(await within(header).findByRole('button', { name: /sort folder items/i })).toHaveTextContent(/a → z/i);
+    expect(
+      await within(header).findByRole('button', { name: /sort folder items/i }),
+    ).toHaveTextContent(/a → z/i);
   });
 
   it('shows the vault background context menu with workspace actions for owners with chat access', async () => {
@@ -141,7 +150,11 @@ describe('documents page', () => {
 
     const menu = await screen.findByRole('menu', { name: /actions for vault root/i });
     expect(within(menu).getByText('MyDocs')).toBeInTheDocument();
-    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent?.trim()),
+    ).toEqual([
       'New folder',
       'Upload files',
       'Upload folder',
@@ -152,16 +165,53 @@ describe('documents page', () => {
     ]);
   });
 
+  it('includes document versions in the vault contents context menu', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', installVaultContentsFetchMock());
+
+    await renderWithProviders(<DocumentsPage />, {
+      initialEntries: ['/vaults/vlt_1'],
+      routePath: '/vaults/:vaultId',
+    });
+
+    fireEvent.contextMenu(await screen.findByText('Policy'));
+
+    const menu = await screen.findByRole('menu', { name: /actions for policy\.pdf/i });
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent?.trim()),
+    ).toEqual([
+      'Preview/open',
+      'Download',
+      'Versions',
+      'Rename',
+      'Move to',
+      'Tags',
+      'Info',
+      'Trash',
+    ]);
+
+    await user.click(within(menu).getByRole('menuitem', { name: /^versions$/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /^versions$/i });
+    expect(within(dialog).getByText('v1')).toBeInTheDocument();
+    expect(within(dialog).getByText('Current')).toBeInTheDocument();
+  });
+
   it('gates vault background workspace actions by admin and chat permissions', async () => {
-    vi.stubGlobal('fetch', installVaultContentsFetchMock({
-      items: [],
-      vault: {
-        role: 'editor',
-        aiAccessLevel: 'none',
-        isAdmin: false,
-        accessMode: 'member',
-      },
-    }));
+    vi.stubGlobal(
+      'fetch',
+      installVaultContentsFetchMock({
+        items: [],
+        vault: {
+          role: 'editor',
+          aiAccessLevel: 'none',
+          isAdmin: false,
+          accessMode: 'member',
+        },
+      }),
+    );
 
     await renderWithProviders(<DocumentsPage />, {
       initialEntries: ['/vaults/vlt_1'],
@@ -171,11 +221,11 @@ describe('documents page', () => {
     fireEvent.contextMenu(await screen.findByText(/this vault is empty/i));
 
     const menu = await screen.findByRole('menu', { name: /actions for vault root/i });
-    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
-      'New folder',
-      'Upload files',
-      'Upload folder',
-    ]);
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent?.trim()),
+    ).toEqual(['New folder', 'Upload files', 'Upload folder']);
     expect(within(menu).queryByRole('menuitem', { name: /^members$/i })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /^activity$/i })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /^settings$/i })).not.toBeInTheDocument();
@@ -200,7 +250,9 @@ describe('documents page', () => {
     });
 
     expect(await screen.findByText(/vault management is restricted/i)).toBeInTheDocument();
-    expect(screen.getByText(/only vault owners and admins can view members and settings/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/only vault owners and admins can view members and settings/i),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /members/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
@@ -208,51 +260,56 @@ describe('documents page', () => {
   });
 
   it('keeps vault activity visible to regular members without exposing management tabs', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
 
-      if (url === '/api/me') {
-        return jsonResponse({
-          userId: 'usr_1',
-          sessionId: 'ses_1',
-          systemRole: 'member',
-          systemCapabilities: ['system.create_vaults'],
-          isAdmin: false,
-          canCreateVault: true,
-          aiFeaturesEnabled: true,
-        });
-      }
-
-      if (url === '/api/vaults/vlt_1') {
-        return jsonResponse({
-          vault: {
-            id: 'vlt_1',
-            name: 'MyDocs',
-            description: null,
-            fileCount: 2,
-            totalSize: 3072,
-            role: 'viewer',
-            aiAccessLevel: 'none',
+        if (url === '/api/me') {
+          return jsonResponse({
+            userId: 'usr_1',
+            sessionId: 'ses_1',
+            systemRole: 'member',
+            systemCapabilities: ['system.create_vaults'],
             isAdmin: false,
-            isMember: true,
-            accessMode: 'member',
-          },
-        });
-      }
+            canCreateVault: true,
+            aiFeaturesEnabled: true,
+          });
+        }
 
-      if (url === '/api/vaults/vlt_1/activity?limit=50') {
-        return jsonResponse({ activity: [], nextCursor: null });
-      }
+        if (url === '/api/vaults/vlt_1') {
+          return jsonResponse({
+            vault: {
+              id: 'vlt_1',
+              name: 'MyDocs',
+              description: null,
+              fileCount: 2,
+              totalSize: 3072,
+              role: 'viewer',
+              aiAccessLevel: 'none',
+              isAdmin: false,
+              isMember: true,
+              accessMode: 'member',
+            },
+          });
+        }
 
-      throw new Error(`Unhandled request ${url}`);
-    }));
+        if (url === '/api/vaults/vlt_1/activity?limit=50') {
+          return jsonResponse({ activity: [], nextCursor: null });
+        }
+
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
 
     await renderWithProviders(<DocumentsPage section="activity" />, {
       initialEntries: ['/vaults/vlt_1/activity'],
       routePath: '/vaults/:vaultId/activity',
     });
 
-    expect((await screen.findAllByRole('tab')).map(tab => tab.textContent?.trim())).toEqual(['Activity']);
+    expect((await screen.findAllByRole('tab')).map((tab) => tab.textContent?.trim())).toEqual([
+      'Activity',
+    ]);
     expect(await screen.findByText(/no vault activity yet/i)).toBeInTheDocument();
   });
 
@@ -320,16 +377,19 @@ describe('documents page', () => {
 
   it('shows the text and chunks document action when enabled in preferences', async () => {
     const user = userEvent.setup();
-    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
-      themeMode: 'system',
-      accentColor: 'teal',
-      density: 'comfortable',
-      fontFamily: 'inter',
-      fontSize: 'md',
-      radius: 'md',
-      language: 'en',
-      showExtractedTextTab: true,
-    }));
+    window.localStorage.setItem(
+      'arkivra.uiPreferences',
+      JSON.stringify({
+        themeMode: 'system',
+        accentColor: 'teal',
+        density: 'comfortable',
+        fontFamily: 'inter',
+        fontSize: 'md',
+        radius: 'md',
+        language: 'en',
+        showExtractedTextTab: true,
+      }),
+    );
     installDocumentDetailFetchMock();
 
     await renderWithProviders(<DocumentDetailPage />, {
@@ -343,35 +403,40 @@ describe('documents page', () => {
 
   it('shows stored chunks in the document content view', async () => {
     const user = userEvent.setup();
-    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
-      themeMode: 'system',
-      accentColor: 'teal',
-      density: 'comfortable',
-      fontFamily: 'inter',
-      fontSize: 'md',
-      radius: 'md',
-      language: 'en',
-      showExtractedTextTab: true,
-    }));
+    window.localStorage.setItem(
+      'arkivra.uiPreferences',
+      JSON.stringify({
+        themeMode: 'system',
+        accentColor: 'teal',
+        density: 'comfortable',
+        fontFamily: 'inter',
+        fontSize: 'md',
+        radius: 'md',
+        language: 'en',
+        showExtractedTextTab: true,
+      }),
+    );
     installDocumentDetailFetchMock({
-      chunks: [{
-        id: 'chk_1',
-        chunkIndex: 0,
-        content: 'Stored chunk content',
-        originalText: 'Stored chunk content',
-        section: 'Policy scope',
-        sectionPath: ['Policy scope'],
-        pageNumber: null,
-        pageStart: null,
-        pageEnd: null,
-        chunkType: 'paragraph',
-        tokenCount: 12,
-        parserEngine: 'docling',
-        citationPrecision: 'document',
-        sourceElementIds: ['#/texts/1'],
-        metadata: { doclingFilename: 'Policy.txt' },
-        createdAt: '2026-01-01T00:00:00.000Z',
-      }],
+      chunks: [
+        {
+          id: 'chk_1',
+          chunkIndex: 0,
+          content: 'Stored chunk content',
+          originalText: 'Stored chunk content',
+          section: 'Policy scope',
+          sectionPath: ['Policy scope'],
+          pageNumber: null,
+          pageStart: null,
+          pageEnd: null,
+          chunkType: 'paragraph',
+          tokenCount: 12,
+          parserEngine: 'docling',
+          citationPrecision: 'document',
+          sourceElementIds: ['#/texts/1'],
+          metadata: { doclingFilename: 'Policy.txt' },
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
     });
 
     await renderWithProviders(<DocumentDetailPage section="content" />, {
@@ -382,7 +447,9 @@ describe('documents page', () => {
     expect(await screen.findByText('Extracted policy text')).toBeInTheDocument();
     expect(screen.queryByText(/^Processed$/i)).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/extracted text and retrieval chunks appear here after processing completes/i),
+      screen.queryByText(
+        /extracted text and retrieval chunks appear here after processing completes/i,
+      ),
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: /^chunks$/i }));
     expect(await screen.findByText('Stored chunk content')).toBeInTheDocument();
@@ -391,17 +458,20 @@ describe('documents page', () => {
 
   it('uses and updates the shared default vault browser view', async () => {
     const user = userEvent.setup();
-    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
-      themeMode: 'system',
-      accentColor: 'teal',
-      density: 'comfortable',
-      fontFamily: 'inter',
-      fontSize: 'md',
-      radius: 'md',
-      language: 'en',
-      showExtractedTextTab: false,
-      defaultFileBrowserView: 'grid',
-    }));
+    window.localStorage.setItem(
+      'arkivra.uiPreferences',
+      JSON.stringify({
+        themeMode: 'system',
+        accentColor: 'teal',
+        density: 'comfortable',
+        fontFamily: 'inter',
+        fontSize: 'md',
+        radius: 'md',
+        language: 'en',
+        showExtractedTextTab: false,
+        defaultFileBrowserView: 'grid',
+      }),
+    );
     vi.stubGlobal('fetch', installVaultContentsFetchMock());
 
     await renderWithProviders(<DocumentsPage />, {
@@ -409,21 +479,33 @@ describe('documents page', () => {
       routePath: '/vaults/:vaultId',
     });
 
-    expect(await screen.findByRole('button', { name: /grid view/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('button', { name: /grid view/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
 
     await user.click(screen.getByRole('button', { name: /list view/i }));
 
-    expect(screen.getByRole('button', { name: /list view/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').defaultFileBrowserView).toBe('list');
+    expect(screen.getByRole('button', { name: /list view/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')
+        .defaultFileBrowserView,
+    ).toBe('list');
   });
 });
 
 function DocumentsPageWithWorkspaceHeader() {
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
-  const contextValue = useMemo(() => ({
-    setHeaderConfig,
-    setSecondaryContent: () => {},
-  }), []);
+  const contextValue = useMemo(
+    () => ({
+      setHeaderConfig,
+      setSecondaryContent: () => {},
+    }),
+    [],
+  );
   const page = useMemo(() => <DocumentsPage />, []);
 
   return (
@@ -436,10 +518,13 @@ function DocumentsPageWithWorkspaceHeader() {
 
 function DocumentDetailPageWithWorkspaceHeader() {
   const [headerConfig, setHeaderConfig] = useState<WorkspaceHeaderConfig | null>(null);
-  const contextValue = useMemo(() => ({
-    setHeaderConfig,
-    setSecondaryContent: () => {},
-  }), []);
+  const contextValue = useMemo(
+    () => ({
+      setHeaderConfig,
+      setSecondaryContent: () => {},
+    }),
+    [],
+  );
   const page = useMemo(() => <DocumentDetailPage />, []);
 
   return (
@@ -523,6 +608,44 @@ function installVaultContentsFetchMock({
       return jsonResponse({ folders: [], documents: [] });
     }
 
+    if (url === '/api/vaults/vlt_1/documents/doc_1/versions') {
+      return jsonResponse({
+        versions: [
+          {
+            id: 'dvr_1',
+            documentId: 'doc_1',
+            vaultId: 'vlt_1',
+            versionNumber: 1,
+            isCurrent: true,
+            uploadedBy: 'usr_1',
+            uploadedAt: '2026-01-01T00:00:00.000Z',
+            originalName: 'Policy.pdf',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'application/pdf',
+            language: null,
+            parserEngine: 'docling',
+            parserEngineVersion: 'test',
+            parserWarnings: [],
+            processingStatus: 'completed',
+            restoredFromVersionId: null,
+            deletedAt: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            document: {
+              id: 'doc_1',
+              vaultId: 'vlt_1',
+              name: 'Policy.pdf',
+              folderId: null,
+              currentVersionId: 'dvr_1',
+              isDeleted: false,
+              deletedAt: null,
+            },
+          },
+        ],
+      });
+    }
+
     throw new Error(`Unhandled request ${url}`);
   });
 }
@@ -534,79 +657,82 @@ function installDocumentDetailFetchMock({
   documentName?: string;
   chunks?: unknown[];
 } = {}) {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
 
-    if (url === '/api/me') {
-      return jsonResponse({
-        userId: 'usr_1',
-        sessionId: 'ses_1',
-        systemRole: 'member',
-        systemCapabilities: ['system.create_vaults'],
-        isAdmin: false,
-        canCreateVault: true,
-        aiFeaturesEnabled: true,
-      });
-    }
-
-    if (url === '/api/vaults/vlt_1/documents/doc_1') {
-      return jsonResponse({
-        document: {
-          id: 'doc_1',
-          name: documentName,
-          originalName: documentName,
-          folderId: null,
-          originalSize: 2048,
-          originalSha256Hash: 'abc123',
-          mimeType: 'text/plain',
-          processingStatus: 'completed',
-          language: null,
-          content: 'Extracted policy text',
-          displayContent: 'Extracted policy text',
-          createdBy: 'usr_1',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-          isDeleted: false,
-          deletedAt: null,
-        },
-      });
-    }
-
-    if (url === '/api/vaults/vlt_1/documents/doc_1/tags') {
-      return jsonResponse({ tags: [] });
-    }
-
-    if (url === '/api/vaults/vlt_1/documents/doc_1/chunks') {
-      return jsonResponse({ chunks });
-    }
-
-    if (url === '/api/tags') {
-      return jsonResponse({ tags: [] });
-    }
-
-    if (url === '/api/vaults/vlt_1') {
-      return jsonResponse({
-        vault: {
-          id: 'vlt_1',
-          name: 'MyDocs',
-          description: null,
-          fileCount: 1,
-          totalSize: 2048,
-          role: 'owner',
-          aiAccessLevel: 'full',
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
           isAdmin: false,
-          isMember: true,
-          accessMode: 'member',
-        },
-      });
-    }
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
 
-    if (url === '/api/vaults/vlt_1/folders/tree') {
-      return jsonResponse({ folders: [], documents: [] });
-    }
+      if (url === '/api/vaults/vlt_1/documents/doc_1') {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: documentName,
+            originalName: documentName,
+            folderId: null,
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'text/plain',
+            processingStatus: 'completed',
+            language: null,
+            content: 'Extracted policy text',
+            displayContent: 'Extracted policy text',
+            createdBy: 'usr_1',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+          },
+        });
+      }
 
-    throw new Error(`Unhandled request ${url}`);
-  }));
+      if (url === '/api/vaults/vlt_1/documents/doc_1/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url === '/api/vaults/vlt_1/documents/doc_1/chunks') {
+        return jsonResponse({ chunks });
+      }
+
+      if (url === '/api/tags') {
+        return jsonResponse({ tags: [] });
+      }
+
+      if (url === '/api/vaults/vlt_1') {
+        return jsonResponse({
+          vault: {
+            id: 'vlt_1',
+            name: 'MyDocs',
+            description: null,
+            fileCount: 1,
+            totalSize: 2048,
+            role: 'owner',
+            aiAccessLevel: 'full',
+            isAdmin: false,
+            isMember: true,
+            accessMode: 'member',
+          },
+        });
+      }
+
+      if (url === '/api/vaults/vlt_1/folders/tree') {
+        return jsonResponse({ folders: [], documents: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    }),
+  );
 }
 
 function installLocalStorageMock() {

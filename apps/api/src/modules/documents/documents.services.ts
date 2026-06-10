@@ -4,7 +4,7 @@ import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
 import { and, asc, desc, eq, exists, inArray, isNull, ne, sql } from 'drizzle-orm';
 import {
-  chatConversationDocumentVersionsTable,
+  chatConversationsTable,
   chatMessageCitationsTable,
   documentChunkAssetsTable,
   documentChunkEmbeddingsTable,
@@ -46,31 +46,66 @@ export type HardDeleteDocumentResult =
 
 export type RestoreDocumentResult =
   | {
-    success: true;
-    id: string;
-    hierarchyRecreated: boolean;
-    originalName: string;
-    folderId: string | null;
-  }
+      success: true;
+      id: string;
+      hierarchyRecreated: boolean;
+      originalName: string;
+      folderId: string | null;
+    }
   | { success: false; reason: 'not_found' }
   | { success: false; reason: 'duplicate'; existingId: string };
 
 export type RestoreDocumentVersionResult =
   | {
-    success: true;
-    documentVersion: DocumentVersionSummary;
-    sourceVersion: DocumentVersionSummary;
-    copiedEmbeddingIndexIds: string[];
-  }
+      success: true;
+      documentVersion: DocumentVersionSummary;
+      sourceVersion: DocumentVersionSummary;
+      copiedEmbeddingIndexIds: string[];
+    }
   | { success: false; reason: 'not_found' | 'current_version' | 'invalid_status' };
 
 export type DeleteDocumentVersionResult =
   | { success: true; documentVersion: DocumentVersionSummary }
   | {
-    success: false;
-    reason: 'not_found' | 'current_version' | 'referenced';
-    referenceCount?: number;
-  };
+      success: false;
+      reason: 'not_found' | 'current_version';
+    };
+
+export type DeletionImpactConversation = {
+  id: string;
+  title: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type DeletionImpactPreview = {
+  affectedConversationCount: number;
+  affectedConversations: DeletionImpactConversation[];
+  limit: number;
+};
+
+export type DocumentDeletionImpactPreview = DeletionImpactPreview & {
+  versionCount: number;
+};
+
+export type BulkDocumentDeletionImpactPreview = {
+  documentCount: number;
+  versionCount: number;
+  affectedConversationCount: number;
+};
+
+export type VersionDeletionImpactResult =
+  | { success: true; impact: DeletionImpactPreview }
+  | { success: false; reason: 'not_found' };
+
+export type DocumentDeletionImpactResult =
+  | { success: true; impact: DocumentDeletionImpactPreview }
+  | { success: false; reason: 'not_found' };
+
+export type BulkDocumentDeletionImpactResult = {
+  success: true;
+  impact: BulkDocumentDeletionImpactPreview;
+};
 
 export type RenameDocumentResult =
   | { success: true; document: { id: string; name: string; updatedAt: Date } }
@@ -78,7 +113,11 @@ export type RenameDocumentResult =
 
 export type MoveDocumentResult =
   | { success: true; document: { id: string; folderId: string | null; updatedAt: Date } }
-  | { success: false; reason: 'not_found' | 'folder_not_found' | 'duplicate_name'; existingId?: string };
+  | {
+      success: false;
+      reason: 'not_found' | 'folder_not_found' | 'duplicate_name';
+      existingId?: string;
+    };
 
 export type DuplicateDocumentScope = 'active' | 'trash';
 export type UploadConflictStrategy = 'skip' | 'keep_both' | 'new_version';
@@ -270,7 +309,9 @@ export function createDocumentsServices({
   }
 
   function getFolderCondition(folderId: string | null) {
-    return folderId === null ? isNull(documentsTable.folderId) : eq(documentsTable.folderId, folderId);
+    return folderId === null
+      ? isNull(documentsTable.folderId)
+      : eq(documentsTable.folderId, folderId);
   }
 
   async function getActiveFolderInVault({
@@ -370,7 +411,7 @@ export function createDocumentsServices({
     folders: FolderRestoreNode[];
     folderId: string;
   }) {
-    const byId = new Map(folders.map(folder => [folder.id, folder]));
+    const byId = new Map(folders.map((folder) => [folder.id, folder]));
     const chain: FolderRestoreNode[] = [];
     const seen = new Set<string>();
     let current = byId.get(folderId) ?? null;
@@ -382,7 +423,7 @@ export function createDocumentsServices({
 
       seen.add(current.id);
       chain.unshift(current);
-      current = current.parentId === null ? null : byId.get(current.parentId) ?? null;
+      current = current.parentId === null ? null : (byId.get(current.parentId) ?? null);
     }
 
     return chain;
@@ -399,11 +440,14 @@ export function createDocumentsServices({
   }) {
     const normalizedName = name.trim().toLocaleLowerCase();
 
-    return folders.find(folder =>
-      !folder.isDeleted
-      && (folder.parentId ?? null) === parentId
-      && folder.name.trim().toLocaleLowerCase() === normalizedName,
-    ) ?? null;
+    return (
+      folders.find(
+        (folder) =>
+          !folder.isDeleted &&
+          (folder.parentId ?? null) === parentId &&
+          folder.name.trim().toLocaleLowerCase() === normalizedName,
+      ) ?? null
+    );
   }
 
   function buildRestoredFileName(fileName: string, attempt: number) {
@@ -425,10 +469,7 @@ export function createDocumentsServices({
     vaultId: string;
     includeDeleted?: boolean;
   }): Promise<ActiveDocumentRecord | null> {
-    const conditions = [
-      eq(documentsTable.id, documentId),
-      eq(documentsTable.vaultId, vaultId),
-    ];
+    const conditions = [eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)];
 
     if (!includeDeleted) {
       conditions.push(eq(documentsTable.isDeleted, false));
@@ -840,12 +881,7 @@ export function createDocumentsServices({
             fileEncryptionAlgorithm,
             updatedAt: now,
           })
-          .where(
-            and(
-              eq(documentsTable.id, documentId),
-              eq(documentsTable.vaultId, vaultId),
-            ),
-          );
+          .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)));
       }
 
       const [row] = await tx
@@ -951,12 +987,7 @@ export function createDocumentsServices({
           currentVersionId: version.id,
           updatedAt: now,
         })
-        .where(
-          and(
-            eq(documentsTable.id, document.id),
-            eq(documentsTable.vaultId, vaultId),
-          ),
-        );
+        .where(and(eq(documentsTable.id, document.id), eq(documentsTable.vaultId, vaultId)));
 
       const [row] = await tx
         .select(documentVersionSelectFields())
@@ -1053,7 +1084,7 @@ export function createDocumentsServices({
     return {
       documentId: document.id,
       vaultId,
-      versionIds: versions.map(version => version.id),
+      versionIds: versions.map((version) => version.id),
       sourceStorageKeys: [...sourceStorageKeys],
       previewStoragePrefixes: [...previewStoragePrefixes],
       chunkAssetStorageKeys: [...chunkAssetStorageKeys],
@@ -1146,18 +1177,15 @@ export function createDocumentsServices({
       })
       .from(documentsTable)
       .where(
-        and(
-          eq(documentsTable.vaultId, vaultId),
-          eq(documentsTable.originalSha256Hash, sha256Hash),
-        ),
+        and(eq(documentsTable.vaultId, vaultId), eq(documentsTable.originalSha256Hash, sha256Hash)),
       )
       .orderBy(asc(documentsTable.isDeleted), desc(documentsTable.updatedAt))
       .limit(1);
 
     if (
-      existingHash !== undefined
-      && (existingName === null || existingHash.id !== existingName.id)
-      && conflictStrategy === 'skip'
+      existingHash !== undefined &&
+      (existingName === null || existingHash.id !== existingName.id) &&
+      conflictStrategy === 'skip'
     ) {
       return {
         document: null,
@@ -1165,15 +1193,15 @@ export function createDocumentsServices({
         duplicate: false,
         skipped: true,
         existingId: existingHash.id,
-        duplicateScope: existingHash.isDeleted ? 'trash' as const : 'active' as const,
+        duplicateScope: existingHash.isDeleted ? ('trash' as const) : ('active' as const),
         conflictType: 'hash' as const,
       };
     }
 
     if (
-      existingHash !== undefined
-      && (existingName === null || existingHash.id !== existingName.id)
-      && conflictStrategy !== 'keep_both'
+      existingHash !== undefined &&
+      (existingName === null || existingHash.id !== existingName.id) &&
+      conflictStrategy !== 'keep_both'
     ) {
       return {
         document: null,
@@ -1181,7 +1209,7 @@ export function createDocumentsServices({
         duplicate: true,
         skipped: false,
         existingId: existingHash.id,
-        duplicateScope: existingHash.isDeleted ? 'trash' as const : 'active' as const,
+        duplicateScope: existingHash.isDeleted ? ('trash' as const) : ('active' as const),
         conflictType: 'hash' as const,
       };
     }
@@ -1202,9 +1230,10 @@ export function createDocumentsServices({
     const docId = shouldCreateNewVersion ? existingName.id : generateId({ prefix: 'doc' });
     const versionId = generateId({ prefix: 'dvr' });
     const storageKey = documentVersionSourceStorageKey({ vaultId, documentVersionId: versionId });
-    const logicalName = existingName !== null && conflictStrategy === 'keep_both'
-      ? await buildAvailableKeepBothFileName({ vaultId, folderId, fileName: normalizedFileName })
-      : normalizedFileName;
+    const logicalName =
+      existingName !== null && conflictStrategy === 'keep_both'
+        ? await buildAvailableKeepBothFileName({ vaultId, folderId, fileName: normalizedFileName })
+        : normalizedFileName;
 
     let wrappedDek: string | null = null;
     let kekVersion: string | null = null;
@@ -1533,7 +1562,7 @@ export function createDocumentsServices({
     assetId: string;
     documentVersionId?: string;
   }) {
-    const [asset] = await db
+    const [asset] = (await db
       .select({
         id: documentChunkAssetsTable.id,
         chunkId: documentChunkAssetsTable.chunkId,
@@ -1566,15 +1595,14 @@ export function createDocumentsServices({
           eq(documentsTable.isDeleted, false),
         ),
       )
-      .limit(1) as ChunkAssetRecord[];
+      .limit(1)) as ChunkAssetRecord[];
 
     if (asset === undefined) {
       return null;
     }
 
-    const etag = asset.sha256Hash !== null
-      ? `"chunk-asset-${asset.sha256Hash}"`
-      : `"chunk-asset-${asset.id}"`;
+    const etag =
+      asset.sha256Hash !== null ? `"chunk-asset-${asset.sha256Hash}"` : `"chunk-asset-${asset.id}"`;
 
     if (asset.inlinePayload !== null) {
       return {
@@ -1845,12 +1873,7 @@ export function createDocumentsServices({
       })
       .from(documentsTable)
       .innerJoin(vaultsTable, eq(documentsTable.vaultId, vaultsTable.id))
-      .where(
-        and(
-          inArray(documentsTable.vaultId, vaultIds),
-          eq(documentsTable.isDeleted, true),
-        ),
-      )
+      .where(and(inArray(documentsTable.vaultId, vaultIds), eq(documentsTable.isDeleted, true)))
       .orderBy(desc(documentsTable.deletedAt), desc(documentsTable.updatedAt));
   }
 
@@ -1927,7 +1950,7 @@ export function createDocumentsServices({
     vaultId: string;
     folderId: string | null;
   }): Promise<MoveDocumentResult> {
-    if (await getActiveFolderInVault({ vaultId, folderId }) === null) {
+    if ((await getActiveFolderInVault({ vaultId, folderId })) === null) {
       return { success: false, reason: 'folder_not_found' };
     }
 
@@ -2121,7 +2144,11 @@ export function createDocumentsServices({
           });
 
           if (activeSibling !== null) {
-            if (activeSibling.id !== folder.id || folder.isDeleted || folder.parentId !== currentParentId) {
+            if (
+              activeSibling.id !== folder.id ||
+              folder.isDeleted ||
+              folder.parentId !== currentParentId
+            ) {
               hierarchyRecreated = true;
             }
 
@@ -2142,12 +2169,7 @@ export function createDocumentsServices({
               deletedBy: null,
               updatedAt: now,
             })
-            .where(
-              and(
-                eq(vaultFoldersTable.id, folder.id),
-                eq(vaultFoldersTable.vaultId, vaultId),
-              ),
-            )
+            .where(and(eq(vaultFoldersTable.id, folder.id), eq(vaultFoldersTable.vaultId, vaultId)))
             .returning({
               id: vaultFoldersTable.id,
               parentId: vaultFoldersTable.parentId,
@@ -2160,7 +2182,7 @@ export function createDocumentsServices({
             return { success: false, reason: 'not_found' };
           }
 
-          const folderIndex = folders.findIndex(item => item.id === folder.id);
+          const folderIndex = folders.findIndex((item) => item.id === folder.id);
           if (folderIndex >= 0) {
             folders[folderIndex] = restoredFolder;
           }
@@ -2193,20 +2215,22 @@ export function createDocumentsServices({
       const normalizedOriginalName = normalizeDocumentFileName(deletedDocument.originalName);
       let restoredOriginalName = normalizedOriginalName;
 
-      if (await findRestoreNameCollision(restoredOriginalName) !== null) {
+      if ((await findRestoreNameCollision(restoredOriginalName)) !== null) {
         restoredOriginalName = '';
 
         for (let attempt = 1; attempt <= 1000; attempt += 1) {
           const candidate = buildRestoredFileName(normalizedOriginalName, attempt);
 
-          if (await findRestoreNameCollision(candidate) === null) {
+          if ((await findRestoreNameCollision(candidate)) === null) {
             restoredOriginalName = candidate;
             break;
           }
         }
 
         if (restoredOriginalName.length === 0) {
-          throw new Error(`Could not resolve a restore filename for document ${deletedDocument.id}`);
+          throw new Error(
+            `Could not resolve a restore filename for document ${deletedDocument.id}`,
+          );
         }
       }
       const shouldUpdateDisplayName = deletedDocument.name === deletedDocument.originalName;
@@ -2281,8 +2305,8 @@ export function createDocumentsServices({
     }
 
     if (
-      deletedBeforeOrAt !== undefined
-      && (doc.deletedAt === null || doc.deletedAt > deletedBeforeOrAt)
+      deletedBeforeOrAt !== undefined &&
+      (doc.deletedAt === null || doc.deletedAt > deletedBeforeOrAt)
     ) {
       return { success: false, reason: 'retention_window_active' };
     }
@@ -2312,6 +2336,252 @@ export function createDocumentsServices({
     }
 
     return { success: true, id: doc.id };
+  }
+
+  async function getCitationConversationImpact({
+    vaultId,
+    documentId,
+    documentVersionId,
+    limit = 5,
+  }: {
+    vaultId: string;
+    documentId: string;
+    documentVersionId?: string;
+    limit?: number;
+  }): Promise<DeletionImpactPreview> {
+    const normalizedLimit = Math.max(0, Math.min(limit, 25));
+    const versionCondition =
+      documentVersionId === undefined
+        ? sql`TRUE`
+        : sql`${chatMessageCitationsTable.documentVersionId} = ${documentVersionId}`;
+
+    const [countRow] = await db
+      .select({
+        count: sql<number>`count(DISTINCT ${chatMessageCitationsTable.conversationId})::int`,
+      })
+      .from(chatMessageCitationsTable)
+      .innerJoin(
+        chatConversationsTable,
+        eq(chatMessageCitationsTable.conversationId, chatConversationsTable.id),
+      )
+      .where(
+        and(
+          eq(chatMessageCitationsTable.vaultId, vaultId),
+          eq(chatMessageCitationsTable.documentId, documentId),
+          isNull(chatConversationsTable.deletedAt),
+          versionCondition,
+        ),
+      );
+
+    const rows =
+      normalizedLimit === 0
+        ? []
+        : await db
+            .select({
+              id: chatConversationsTable.id,
+              title: chatConversationsTable.title,
+              createdAt: chatConversationsTable.createdAt,
+              updatedAt: chatConversationsTable.updatedAt,
+            })
+            .from(chatMessageCitationsTable)
+            .innerJoin(
+              chatConversationsTable,
+              eq(chatMessageCitationsTable.conversationId, chatConversationsTable.id),
+            )
+            .where(
+              and(
+                eq(chatMessageCitationsTable.vaultId, vaultId),
+                eq(chatMessageCitationsTable.documentId, documentId),
+                isNull(chatConversationsTable.deletedAt),
+                versionCondition,
+              ),
+            )
+            .groupBy(
+              chatConversationsTable.id,
+              chatConversationsTable.title,
+              chatConversationsTable.createdAt,
+              chatConversationsTable.updatedAt,
+            )
+            .orderBy(desc(chatConversationsTable.updatedAt), desc(chatConversationsTable.createdAt))
+            .limit(normalizedLimit);
+
+    return {
+      affectedConversationCount: countRow?.count ?? 0,
+      affectedConversations: rows,
+      limit: normalizedLimit,
+    };
+  }
+
+  async function getDocumentVersionDeletionImpact({
+    vaultId,
+    documentId,
+    documentVersionId,
+    limit,
+  }: {
+    vaultId: string;
+    documentId: string;
+    documentVersionId: string;
+    limit?: number;
+  }): Promise<VersionDeletionImpactResult> {
+    const version = await resolveDocumentVersion({
+      documentId,
+      documentVersionId,
+      vaultId,
+    });
+
+    if (version === null) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    return {
+      success: true,
+      impact: await getCitationConversationImpact({
+        vaultId,
+        documentId,
+        documentVersionId,
+        limit,
+      }),
+    };
+  }
+
+  async function getDocumentDeletionImpact({
+    vaultId,
+    documentId,
+    limit,
+    includeDeletedDocument = false,
+  }: {
+    vaultId: string;
+    documentId: string;
+    limit?: number;
+    includeDeletedDocument?: boolean;
+  }): Promise<DocumentDeletionImpactResult> {
+    const documentConditions = [
+      eq(documentsTable.id, documentId),
+      eq(documentsTable.vaultId, vaultId),
+    ];
+
+    if (!includeDeletedDocument) {
+      documentConditions.push(eq(documentsTable.isDeleted, false));
+    }
+
+    const [document] = await db
+      .select({ id: documentsTable.id })
+      .from(documentsTable)
+      .where(and(...documentConditions))
+      .limit(1);
+
+    if (document === undefined) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    const [versionCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(documentVersionsTable)
+      .where(
+        and(
+          eq(documentVersionsTable.documentId, documentId),
+          eq(documentVersionsTable.vaultId, vaultId),
+          isNull(documentVersionsTable.deletedAt),
+        ),
+      );
+
+    return {
+      success: true,
+      impact: {
+        ...(await getCitationConversationImpact({ vaultId, documentId, limit })),
+        versionCount: versionCount?.count ?? 0,
+      },
+    };
+  }
+
+  async function getBulkDocumentDeletionImpact({
+    targets,
+    includeDeletedDocument = false,
+  }: {
+    targets: Array<{ vaultId: string; documentId: string }>;
+    includeDeletedDocument?: boolean;
+  }): Promise<BulkDocumentDeletionImpactResult> {
+    const uniqueTargets = [
+      ...new Map(
+        targets
+          .map((target) => ({
+            vaultId: target.vaultId.trim(),
+            documentId: target.documentId.trim(),
+          }))
+          .filter((target) => target.vaultId.length > 0 && target.documentId.length > 0)
+          .map((target) => [`${target.vaultId}:${target.documentId}`, target]),
+      ).values(),
+    ];
+
+    if (uniqueTargets.length === 0) {
+      return {
+        success: true,
+        impact: {
+          documentCount: 0,
+          versionCount: 0,
+          affectedConversationCount: 0,
+        },
+      };
+    }
+
+    const targetValues = sql.join(
+      uniqueTargets.map((target) => sql`(${target.vaultId}, ${target.documentId})`),
+      sql`, `,
+    );
+    const deletedCondition = includeDeletedDocument ? sql`TRUE` : sql`d.is_deleted = false`;
+
+    const [row] = await db
+      .execute<{
+        document_count: number;
+        version_count: number;
+        affected_conversation_count: number;
+      }>(
+        sql`
+      WITH requested(vault_id, document_id) AS (
+        VALUES ${targetValues}
+      ),
+      matched_documents AS (
+        SELECT d.vault_id, d.id AS document_id
+        FROM requested AS r
+        INNER JOIN documents AS d
+          ON d.vault_id = r.vault_id
+          AND d.id = r.document_id
+          AND ${deletedCondition}
+      ),
+      version_counts AS (
+        SELECT count(*)::int AS version_count
+        FROM document_versions AS dv
+        INNER JOIN matched_documents AS md
+          ON md.vault_id = dv.vault_id
+          AND md.document_id = dv.document_id
+        WHERE dv.deleted_at IS NULL
+      ),
+      conversation_counts AS (
+        SELECT count(DISTINCT cmc.conversation_id)::int AS affected_conversation_count
+        FROM chat_message_citations AS cmc
+        INNER JOIN matched_documents AS md
+          ON md.vault_id = cmc.vault_id
+          AND md.document_id = cmc.document_id
+        INNER JOIN chat_conversations AS cc
+          ON cc.id = cmc.conversation_id
+          AND cc.deleted_at IS NULL
+      )
+      SELECT
+        (SELECT count(*)::int FROM matched_documents) AS document_count,
+        (SELECT version_count FROM version_counts) AS version_count,
+        (SELECT affected_conversation_count FROM conversation_counts) AS affected_conversation_count
+    `,
+      )
+      .then((result) => result.rows);
+
+    return {
+      success: true,
+      impact: {
+        documentCount: Number(row?.document_count ?? 0),
+        versionCount: Number(row?.version_count ?? 0),
+        affectedConversationCount: Number(row?.affected_conversation_count ?? 0),
+      },
+    };
   }
 
   async function refreshEmbeddingCountsAfterVersionRemoval(documentVersionId: string) {
@@ -2447,14 +2717,15 @@ export function createDocumentsServices({
     const assetCopies: Array<{ sourceStorageKey: string; targetStorageKey: string }> = [];
     const targetAssets = sourceAssets.map((asset) => {
       const targetAssetId = generateId({ prefix: 'cas' });
-      const targetStorageKey = asset.storageKey === null
-        ? null
-        : restoredAssetStorageKey({
-            sourceStorageKey: asset.storageKey,
-            sourceDocumentVersionId: documentVersionId,
-            targetDocumentVersionId,
-            targetAssetId,
-          });
+      const targetStorageKey =
+        asset.storageKey === null
+          ? null
+          : restoredAssetStorageKey({
+              sourceStorageKey: asset.storageKey,
+              sourceDocumentVersionId: documentVersionId,
+              targetDocumentVersionId,
+              targetAssetId,
+            });
 
       if (asset.storageKey !== null && targetStorageKey !== null) {
         assetCopies.push({ sourceStorageKey: asset.storageKey, targetStorageKey });
@@ -2530,7 +2801,7 @@ export function createDocumentsServices({
 
         if (sourceChunks.length > 0) {
           await tx.insert(documentChunksTable).values(
-            sourceChunks.map(chunk => ({
+            sourceChunks.map((chunk) => ({
               id: chunkIdBySourceId.get(chunk.id) ?? generateId({ prefix: 'chk' }),
               documentId,
               documentVersionId: targetDocumentVersionId,
@@ -2560,7 +2831,7 @@ export function createDocumentsServices({
 
         if (targetAssets.length > 0) {
           await tx.insert(documentChunkAssetsTable).values(
-            targetAssets.map(asset => ({
+            targetAssets.map((asset) => ({
               id: asset.id,
               chunkId: asset.chunkId,
               documentId,
@@ -2632,7 +2903,7 @@ export function createDocumentsServices({
         return toDocumentVersionSummary(row);
       });
     } catch (error) {
-      await Promise.allSettled(restoredStorageKeys.map(storageKey => storage.remove(storageKey)));
+      await Promise.allSettled(restoredStorageKeys.map((storageKey) => storage.remove(storageKey)));
       throw error;
     }
 
@@ -2672,20 +2943,6 @@ export function createDocumentsServices({
 
     if (version.isCurrent) {
       return { success: false, reason: 'current_version' };
-    }
-
-    const [manifestRefs] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(chatConversationDocumentVersionsTable)
-      .where(eq(chatConversationDocumentVersionsTable.documentVersionId, documentVersionId));
-    const [citationRefs] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(chatMessageCitationsTable)
-      .where(eq(chatMessageCitationsTable.documentVersionId, documentVersionId));
-    const referenceCount = (manifestRefs?.count ?? 0) + (citationRefs?.count ?? 0);
-
-    if (referenceCount > 0) {
-      return { success: false, reason: 'referenced', referenceCount };
     }
 
     const assetRows = await db
@@ -2856,6 +3113,9 @@ export function createDocumentsServices({
     downloadDocument,
     downloadDocumentVersion,
     finalizeUploadedDocument,
+    getBulkDocumentDeletionImpact,
+    getDocumentDeletionImpact,
+    getDocumentVersionDeletionImpact,
     getDocument,
     getChunkAsset,
     hardDeleteDocument,

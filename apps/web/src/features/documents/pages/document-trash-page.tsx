@@ -7,12 +7,13 @@ import {
   Dialog as ChakraDialog,
   Flex,
   Portal,
+  Spinner,
   Stack,
   Text,
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { RotateCcw, Trash2 } from 'lucide-react';
+import { AlertCircle, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { validateTrashSearch } from '@/app/search-params';
@@ -25,13 +26,23 @@ import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { chatQueryKeys } from '@/features/chat/chat.queries';
 import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
-import { permanentlyDeleteDocument, restoreDocument } from '@/features/documents/documents.api';
+import {
+  getBulkDocumentDeletionImpact,
+  getDocumentDeletionImpact,
+  permanentlyDeleteDocument,
+  restoreDocument,
+} from '@/features/documents/documents.api';
 import {
   documentQueryKeys,
   useDeletedDocumentsQuery,
 } from '@/features/documents/documents.queries';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
-import type { DeletedDocumentSummary, DocumentSummary } from '@/features/documents/documents.types';
+import type {
+  BulkDocumentDeletionImpactPreview,
+  DeletedDocumentSummary,
+  DocumentDeletionImpactPreview,
+  DocumentSummary,
+} from '@/features/documents/documents.types';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
 import {
   BrowserContextMenu,
@@ -102,10 +113,13 @@ function compareTrashDocuments(
   return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
 }
 
-function TrashConfirmDialog({
+export function TrashConfirmDialog({
   open,
   title,
   description,
+  impact,
+  isImpactLoading = false,
+  impactError = null,
   confirmLabel,
   pendingLabel,
   isPending,
@@ -115,6 +129,9 @@ function TrashConfirmDialog({
   open: boolean;
   title: string;
   description: string;
+  impact?: DocumentDeletionImpactPreview | BulkDocumentDeletionImpactPreview | null;
+  isImpactLoading?: boolean;
+  impactError?: string | null;
   confirmLabel: string;
   pendingLabel: string;
   isPending: boolean;
@@ -138,15 +155,46 @@ function TrashConfirmDialog({
               <CloseButton size="sm" disabled={isPending} onClick={onClose} />
             </ChakraDialog.Header>
             <ChakraDialog.Body>
-              <Text color="fg.muted" fontSize="sm">
-                {description}
-              </Text>
+              {isImpactLoading ? (
+                <Flex align="center" gap="3" color="fg.muted">
+                  <Spinner size="sm" color="teal.solid" />
+                  <Text fontSize="sm">Checking affected conversations...</Text>
+                </Flex>
+              ) : impactError !== null ? (
+                <Flex align="center" gap="3" color="fg.error">
+                  <AlertCircle size={18} />
+                  <Text fontSize="sm" fontWeight="semibold">
+                    {impactError}
+                  </Text>
+                </Flex>
+              ) : impact !== null &&
+                impact !== undefined &&
+                impact.affectedConversationCount > 0 ? (
+                'affectedConversations' in impact ? (
+                  <DocumentDeletionImpactWarning impact={impact} />
+                ) : (
+                  <BulkDocumentDeletionImpactWarning impact={impact} />
+                )
+              ) : (
+                <Text color="fg.muted" fontSize="sm">
+                  {description}
+                </Text>
+              )}
             </ChakraDialog.Body>
             <ChakraDialog.Footer>
-              <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending || isImpactLoading}
+                onClick={onClose}
+              >
                 Cancel
               </Button>
-              <DeleteButton type="button" disabled={isPending} onClick={onConfirm}>
+              <DeleteButton
+                type="button"
+                disabled={isPending || isImpactLoading || impactError !== null}
+                onClick={onConfirm}
+              >
                 {isPending ? pendingLabel : confirmLabel}
               </DeleteButton>
             </ChakraDialog.Footer>
@@ -154,6 +202,60 @@ function TrashConfirmDialog({
         </ChakraDialog.Positioner>
       </Portal>
     </ChakraDialog.Root>
+  );
+}
+
+function BulkDocumentDeletionImpactWarning({
+  impact,
+}: {
+  impact: BulkDocumentDeletionImpactPreview;
+}) {
+  return (
+    <Stack gap="3" color="fg.muted" fontSize="sm" lineHeight="1.55">
+      <Text>These documents are referenced by conversations.</Text>
+      <Text>This may affect existing conversations.</Text>
+      <Text>{`Affected conversations: ${impact.affectedConversationCount}`}</Text>
+      <Text>Deleting these documents will:</Text>
+      <Stack as="ul" gap="1" m="0" ps="5">
+        <Text as="li">permanently remove all versions</Text>
+        <Text as="li">preserve conversation history</Text>
+        <Text as="li">make affected conversations read-only</Text>
+      </Stack>
+    </Stack>
+  );
+}
+
+function DocumentDeletionImpactWarning({ impact }: { impact: DocumentDeletionImpactPreview }) {
+  const shownCount = impact.affectedConversations.length;
+  const hasMore = impact.affectedConversationCount > shownCount;
+
+  return (
+    <Stack gap="3" color="fg.muted" fontSize="sm" lineHeight="1.55">
+      <Text>{`This document contains ${impact.versionCount} versions.`}</Text>
+      <Text>
+        Some versions are referenced by {impact.affectedConversationCount}{' '}
+        {impact.affectedConversationCount === 1 ? 'conversation' : 'conversations'}.
+      </Text>
+      <Text>Deleting this document will:</Text>
+      <Stack as="ul" gap="1" m="0" ps="5">
+        <Text as="li">permanently remove all versions</Text>
+        <Text as="li">preserve conversation history</Text>
+        <Text as="li">make the affected conversations read-only</Text>
+      </Stack>
+      <Text>Affected conversations{hasMore ? ` (${impact.affectedConversationCount})` : ''}:</Text>
+      <Stack as="ul" gap="1" m="0" ps="5">
+        {impact.affectedConversations.map((conversation) => (
+          <Text as="li" key={conversation.id} overflowWrap="anywhere">
+            {conversation.title}
+          </Text>
+        ))}
+      </Stack>
+      {hasMore ? (
+        <Text>
+          Showing {shownCount} of {impact.affectedConversationCount} conversations.
+        </Text>
+      ) : null}
+    </Stack>
   );
 }
 
@@ -176,6 +278,88 @@ export function DocumentTrashPage() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [pendingPermanentDelete, setPendingPermanentDelete] = useState<DeletedDocumentSummary[]>(
     [],
+  );
+  const [deleteImpact, setDeleteImpact] = useState<
+    DocumentDeletionImpactPreview | BulkDocumentDeletionImpactPreview | null
+  >(null);
+  const [isDeleteImpactLoading, setIsDeleteImpactLoading] = useState(false);
+  const [deleteImpactError, setDeleteImpactError] = useState<string | null>(null);
+
+  const closePermanentDeleteDialog = useCallback(() => {
+    setPendingPermanentDelete([]);
+    setDeleteImpact(null);
+    setDeleteImpactError(null);
+    setIsDeleteImpactLoading(false);
+  }, []);
+
+  const openPermanentDeleteDialog = useCallback(
+    (documents: DeletedDocumentSummary[]) => {
+      setPendingPermanentDelete(documents);
+      setDeleteImpact(null);
+      setDeleteImpactError(null);
+
+      if (documents.length !== 1) {
+        const targets = documents
+          .map((document) => ({
+            vaultId: getResolvedVaultId(document, queryVaultId),
+            documentId: document.id,
+          }))
+          .filter((target) => target.vaultId.length > 0);
+
+        if (targets.length !== documents.length) {
+          setIsDeleteImpactLoading(false);
+          setDeleteImpactError('Could not check affected conversations.');
+          return;
+        }
+
+        setIsDeleteImpactLoading(true);
+        void getBulkDocumentDeletionImpact({
+          documents: targets,
+          includeDeleted: true,
+        })
+          .then(({ impact }) => {
+            setDeleteImpact(impact);
+          })
+          .catch((error) => {
+            setDeleteImpactError(
+              error instanceof Error ? error.message : 'Could not check affected conversations.',
+            );
+          })
+          .finally(() => {
+            setIsDeleteImpactLoading(false);
+          });
+        return;
+      }
+
+      const document = documents[0]!;
+      const vaultId = getResolvedVaultId(document, queryVaultId);
+
+      if (!vaultId) {
+        setIsDeleteImpactLoading(false);
+        setDeleteImpactError('Could not check affected conversations.');
+        return;
+      }
+
+      setIsDeleteImpactLoading(true);
+      void getDocumentDeletionImpact({
+        vaultId,
+        documentId: document.id,
+        includeDeleted: true,
+        limit: 5,
+      })
+        .then(({ impact }) => {
+          setDeleteImpact(impact);
+        })
+        .catch((error) => {
+          setDeleteImpactError(
+            error instanceof Error ? error.message : 'Could not check affected conversations.',
+          );
+        })
+        .finally(() => {
+          setIsDeleteImpactLoading(false);
+        });
+    },
+    [queryVaultId],
   );
 
   const deletedDocuments = useMemo(
@@ -270,7 +454,7 @@ export function DocumentTrashPage() {
       );
       clearSelection();
       setContextMenu(null);
-      setPendingPermanentDelete([]);
+      closePermanentDeleteDialog();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
         queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
@@ -344,7 +528,7 @@ export function DocumentTrashPage() {
         icon: Trash2,
         tone: 'destructive',
         disabled: itemMutationPending,
-        onSelect: () => setPendingPermanentDelete([document]),
+        onSelect: () => openPermanentDeleteDialog([document]),
       },
     ];
   }
@@ -417,7 +601,7 @@ export function DocumentTrashPage() {
             px="3"
             shadow="none"
             disabled={browserItems.length === 0 || itemMutationPending}
-            onClick={() => setPendingPermanentDelete(visibleDocuments)}
+            onClick={() => openPermanentDeleteDialog(visibleDocuments)}
           >
             Empty trash
           </DeleteButton>
@@ -431,6 +615,7 @@ export function DocumentTrashPage() {
       browserView,
       clearSelection,
       itemMutationPending,
+      openPermanentDeleteDialog,
       selectedCount,
       selectedVaultIds,
       selectedVaultsLabel,
@@ -632,11 +817,9 @@ export function DocumentTrashPage() {
         title={
           pendingPermanentDelete.length === 0
             ? 'Delete?'
-            : pendingPermanentDelete.length === browserItems.length
-              ? 'Empty trash?'
-              : pendingPermanentDelete.length === 1
-                ? `Delete "${pendingPermanentDelete[0]?.name}" permanently?`
-                : `Delete ${pendingPermanentDelete.length} documents permanently?`
+            : pendingPermanentDelete.length === 1
+              ? `Delete ${pendingPermanentDelete[0]?.name}?`
+              : `Delete ${pendingPermanentDelete.length} documents?`
         }
         description={
           pendingPermanentDelete.length === browserItems.length && pendingPermanentDelete.length > 0
@@ -644,13 +827,16 @@ export function DocumentTrashPage() {
             : 'This permanently deletes the selected document data from Arkivra. This action cannot be undone.'
         }
         confirmLabel={
-          pendingPermanentDelete.length === browserItems.length && pendingPermanentDelete.length > 0
-            ? 'Empty trash'
-            : 'Delete'
+          pendingPermanentDelete.length === 1
+            ? 'Delete document'
+            : `Delete ${pendingPermanentDelete.length} documents`
         }
         pendingLabel="Deleting..."
         isPending={permanentDeleteMutation.isPending}
-        onClose={() => setPendingPermanentDelete([])}
+        impact={pendingPermanentDelete.length === 1 ? deleteImpact : null}
+        isImpactLoading={pendingPermanentDelete.length === 1 && isDeleteImpactLoading}
+        impactError={pendingPermanentDelete.length === 1 ? deleteImpactError : null}
+        onClose={closePermanentDeleteDialog}
         onConfirm={() => {
           if (pendingPermanentDelete.length > 0) {
             permanentDeleteMutation.mutate(pendingPermanentDelete);
@@ -679,7 +865,7 @@ export function DocumentTrashPage() {
                 variant="outline"
                 colorPalette="red"
                 disabled={itemMutationPending}
-                onClick={() => setPendingPermanentDelete(selectedDocuments)}
+                onClick={() => openPermanentDeleteDialog(selectedDocuments)}
               >
                 Delete
               </Button>

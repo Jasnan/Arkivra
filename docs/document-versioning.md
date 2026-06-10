@@ -2,6 +2,8 @@
 
 Arkivra stores each document as a logical record with one or more immutable content versions. The logical document keeps the vault, folder, display name, tags, trash state, and current-version pointer. Each version owns the uploaded source file, parser output, extracted text, chunks, extracted assets, page previews, embedding rows, and processing status.
 
+For compatibility with current document list/detail APIs, the `documents` row also stores parser/content/status fields for the current version. Treat those fields as denormalized current-version projections. The authoritative parser output, source metadata, chunks, assets, embeddings, and processing status live on `document_versions` and version-owned child rows.
+
 This means a new upload can create either a new document or a new version of an existing document, depending on the selected upload conflict strategy.
 
 ## Upload Conflicts
@@ -31,10 +33,10 @@ For example, restoring v1 while v3 is current creates v4, marks v4 current, and 
 Arkivra distinguishes three deletion paths:
 
 - Logical document trash: hides the document from normal browsing, search, and new chat context, while keeping its versions available for restore until permanent purge.
-- Individual historical version deletion: allowed only for non-current versions that are not referenced by frozen chat manifests or normalized citation rows.
+- Individual historical version deletion: allowed for non-current versions. Frozen chat manifests do not block deletion. Normalized citation rows produce a warning before deletion, but do not create a retention lock.
 - Permanent logical document purge: removes the logical document, all version rows, version-owned source files, parser output, chunks, extracted assets, previews, embeddings, and indexing state.
 
-Current versions cannot be deleted individually. Referenced historical versions cannot be deleted individually while the logical document exists because old chats and citations depend on stable source identity.
+Current versions cannot be deleted individually. Historical versions can be deleted even when chats or citations reference them. Arkivra preserves chat history and citation metadata, removes the source content and derived artifacts, and exposes affected conversations as read-only history when their source context is unavailable.
 
 Permanent purge is intentionally stronger than individual version deletion. It removes retained source content and derived source data for all versions. Existing conversations and citation metadata can remain as read-only history, but source previews or retrieval for purged versions become unavailable.
 

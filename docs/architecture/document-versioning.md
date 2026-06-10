@@ -60,7 +60,7 @@ This proposal applies the `arkivra-architect`, `arkivra-security-auditor`, `arki
 
    Soft delete currently removes a document from embedding indexes, and hard delete removes DB rows plus source/chunk asset storage while chat history remains. Versioning should preserve that user-facing deletion model instead of retaining hidden source content indefinitely.
 
-   Recommendation: protect referenced historical versions from individual deletion while their logical document exists, but allow logical document purge to remove all versions and derived content. Conversations remain as read-only history with unresolved source references.
+   Recommendation: allow documents and versions to own their lifecycle. Frozen chat manifests do not block deletion, and citation references produce a warning rather than a retention lock. Conversations remain as read-only history with unresolved source references when source content is deleted or purged.
 
 ## External Product Research
 
@@ -137,7 +137,9 @@ Recommended constraints and indexes:
 - `document_versions(vault_id, processing_status, uploaded_at)`
 - `document_versions(vault_id, original_sha256_hash)`
 
-Do not keep parser output on `documents`. It belongs on `document_versions`.
+Do not make parser output on `documents` authoritative. Parser output belongs on `document_versions`.
+
+Implementation note: the current backend keeps parser/content/status columns on `documents` as denormalized projections for compatibility with document list/detail APIs. Writers mirror those fields only for `documents.current_version_id`; version-owned rows remain the source of truth for processing, retrieval, historical views, restore, purge, and tests.
 
 ## Chunk, Asset, and Preview Strategy
 
@@ -413,8 +415,9 @@ Separate three operations:
 Version delete rules:
 
 - Current/latest version cannot be deleted from the versions dialog. Use logical document trash instead.
-- Historical versions referenced by `chat_conversation_document_versions` or `chat_message_citations` cannot be individually deleted while their logical document exists.
-- Unreferenced historical versions may be individually hard-deleted: remove chunks, chunk assets, embeddings, status rows, previews, source file storage, then tombstone/audit the version event.
+- Historical versions referenced only by `chat_conversation_document_versions` may be individually deleted.
+- Historical versions referenced by `chat_message_citations` may be individually deleted after a warning preview. The warning uses citation rows only and lists affected conversations without exposing message-level implementation details.
+- Historical version deletion removes chunks, chunk assets, embeddings, status rows, previews, source file storage, then tombstones/audits the version event.
 - Deleting a version must never renumber remaining versions.
 
 Logical document purge rules:
@@ -524,7 +527,7 @@ Actions:
 
 - View: available for latest and historical versions that are not deleted and still retained.
 - Restore: available for historical versions when the user can mutate vault documents. Disabled for latest/current, deleted, failed, or unavailable versions.
-- Delete: available for historical unreferenced versions when the user can mutate vault documents. Disabled for latest/current and referenced historical versions. The disabled state should identify that the version is referenced by chat or citation history without exposing hidden chat details.
+- Delete: available for historical versions when the user can mutate vault documents. Disabled for latest/current versions. Citation references require a warning confirmation that identifies affected conversations without exposing message-level implementation details.
 
 Historical view should be read-only and version-labeled. It should not make the historical version "current" unless Restore is chosen.
 
@@ -602,7 +605,7 @@ Update backup restore table ordering to include:
 
 Storage verification must check `document_versions.original_storage_key`, not `documents.original_storage_key`.
 
-Maintenance hard-delete should distinguish individual historical version deletion from logical document purge. Individual version deletion must skip referenced historical versions. Logical document purge removes all versions and version-owned storage, regardless of chat/citation references, while leaving conversation and citation metadata as unresolved history.
+Maintenance hard-delete should distinguish individual historical version deletion from logical document purge. Individual version deletion and logical document purge remove version-owned storage regardless of chat manifest or citation references, while leaving conversation and citation metadata as unresolved history.
 
 ## Implementation Plan
 
@@ -639,8 +642,9 @@ Phase 2 should be approved before coding.
 
 5. Restore/delete/audit
    - Implement append-only restore.
-   - Prevent individual deletion of current/referenced historical versions while the logical document exists.
-   - Hard-delete unreferenced historical versions.
+   - Prevent individual deletion of current versions while the logical document exists.
+   - Warn, but do not block, when citation rows reference a historical version.
+   - Hard-delete historical versions.
    - Purge all versions and version-owned artifacts when the logical document is permanently purged.
    - Mark conversations referencing purged versions as read-only/unavailable through context availability checks.
    - Emit audit/activity events.
@@ -663,8 +667,8 @@ Implementation should not start until the following decisions are approved:
 - `documents` becomes logical entity and `document_versions` owns content.
 - Restore creates a new latest version.
 - Chat conversations lazily materialize version IDs on the first accepted message.
-- normalized citation rows are added for historical display and individual-version deletion protection.
-- Referenced historical versions cannot be individually deleted while the logical document exists.
+- normalized citation rows are added for historical display and deletion impact warnings.
+- Referenced historical versions can be individually deleted while the logical document exists. Manifest references are ignored for deletion impact; citation references produce warnings only.
 - Logical document purge deletes all versions and version-owned artifacts without being blocked by chat/citation history.
 
 ## Open Questions Before Implementation

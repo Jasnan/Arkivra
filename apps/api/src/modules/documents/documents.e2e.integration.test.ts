@@ -9,6 +9,7 @@ import { setupDatabase } from '../database/database.js';
 import {
   authVerificationsTable,
   documentChunksTable,
+  documentVersionsTable,
   documentsTable,
   systemCapabilitiesTable,
   usersTable,
@@ -32,6 +33,7 @@ type TestContext = {
   userId: string | null;
   vaultId: string | null;
   documentId: string | null;
+  documentVersionId: string | null;
   tagId: string | null;
 };
 
@@ -91,11 +93,13 @@ function getSessionCookie(response: Response) {
 async function waitForProcessing({
   db,
   documentId,
+  documentVersionId,
   vaultId,
   timeoutMs = 30_000,
 }: {
   db: ReturnType<typeof setupDatabase>['db'];
   documentId: string;
+  documentVersionId: string;
   vaultId: string;
   timeoutMs?: number;
 }) {
@@ -104,13 +108,20 @@ async function waitForProcessing({
   while (Date.now() - startedAt < timeoutMs) {
     const [document] = await db
       .select({
-        content: documentsTable.content,
+        content: documentVersionsTable.content,
+        processingStatus: documentVersionsTable.processingStatus,
       })
-      .from(documentsTable)
-      .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
+      .from(documentVersionsTable)
+      .where(
+        and(
+          eq(documentVersionsTable.id, documentVersionId),
+          eq(documentVersionsTable.documentId, documentId),
+          eq(documentVersionsTable.vaultId, vaultId),
+        ),
+      )
       .limit(1);
 
-    if ((document?.content.length ?? 0) > 0) {
+    if (document?.processingStatus === 'completed' && document.content.length > 0) {
       return;
     }
 
@@ -129,6 +140,7 @@ describe.sequential('document upload processing e2e', () => {
     userId: null,
     vaultId: null,
     documentId: null,
+    documentVersionId: null,
     tagId: null,
   };
 
@@ -171,10 +183,12 @@ describe.sequential('document upload processing e2e', () => {
       baseUrl: config.docling.url,
     });
     const parserRegistry = createParserRegistry({
-      parsers: [createDoclingParser({
-        doclingClient,
-        engineVersion: config.docling.engineVersion,
-      })],
+      parsers: [
+        createDoclingParser({
+          doclingClient,
+          engineVersion: config.docling.engineVersion,
+        }),
+      ],
       defaultEngine: 'docling',
     });
     const parsePipeline = createParsePipeline({
@@ -201,7 +215,12 @@ describe.sequential('document upload processing e2e', () => {
 
   afterAll(async () => {
     if (testContext.documentId !== null && documentQueue !== null) {
-      const job = await documentQueue.queue.getJob(`process-doc-${testContext.documentId}`);
+      const job =
+        testContext.documentVersionId === null
+          ? undefined
+          : await documentQueue.queue.getJob(
+              `process-doc-version-${testContext.documentVersionId}`,
+            );
       await job?.remove().catch(() => undefined);
     }
 
@@ -298,12 +317,18 @@ describe.sequential('document upload processing e2e', () => {
     expect(uploadResponse.status).toBe(201);
 
     const uploadBody = (await uploadResponse.json()) as {
-      document: { id: string; content: string };
+      document: { id: string; content: string; currentVersionId: string };
+      documentVersion: { id: string; processingStatus: string };
+      documentVersionId: string;
     };
 
     expect(uploadBody.document.content).toBe('');
+    expect(uploadBody.documentVersionId).toBe(uploadBody.documentVersion.id);
+    expect(uploadBody.document.currentVersionId).toBe(uploadBody.documentVersion.id);
+    expect(uploadBody.documentVersion.processingStatus).toBe('pending');
 
     testContext.documentId = uploadBody.document.id;
+    testContext.documentVersionId = uploadBody.documentVersion.id;
 
     if (documentWorker === null) {
       throw new Error('Document worker was not initialized');
@@ -312,6 +337,7 @@ describe.sequential('document upload processing e2e', () => {
     await documentWorker.processDocument({
       data: {
         documentId: testContext.documentId,
+        documentVersionId: testContext.documentVersionId,
         vaultId: testContext.vaultId,
       },
       updateProgress: async () => undefined,
@@ -320,11 +346,13 @@ describe.sequential('document upload processing e2e', () => {
     await waitForProcessing({
       db,
       documentId: testContext.documentId,
+      documentVersionId: testContext.documentVersionId,
       vaultId: testContext.vaultId,
     });
 
-    const [document] = await db
+    const [documentProjection] = await db
       .select({
+        currentVersionId: documentsTable.currentVersionId,
         content: documentsTable.content,
         parserEngine: documentsTable.parserEngine,
         parserEngineVersion: documentsTable.parserEngineVersion,
@@ -333,25 +361,44 @@ describe.sequential('document upload processing e2e', () => {
       .where(eq(documentsTable.id, testContext.documentId))
       .limit(1);
 
+    const [version] = await db
+      .select({
+        id: documentVersionsTable.id,
+        content: documentVersionsTable.content,
+        parserEngine: documentVersionsTable.parserEngine,
+        parserEngineVersion: documentVersionsTable.parserEngineVersion,
+        processingStatus: documentVersionsTable.processingStatus,
+      })
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.id, testContext.documentVersionId))
+      .limit(1);
+
     const chunks = await db
       .select({
         chunkIndex: documentChunksTable.chunkIndex,
         chunkKey: documentChunksTable.chunkKey,
+        documentVersionId: documentChunksTable.documentVersionId,
         chunkType: documentChunksTable.chunkType,
         section: documentChunksTable.section,
         parserEngine: documentChunksTable.parserEngine,
         content: documentChunksTable.content,
       })
       .from(documentChunksTable)
-      .where(eq(documentChunksTable.documentId, testContext.documentId))
+      .where(eq(documentChunksTable.documentVersionId, testContext.documentVersionId))
       .orderBy(documentChunksTable.chunkIndex);
 
-    expect(document).toBeDefined();
-    expect(document!.content).toContain('Arkivra Docling E2E Test PDF');
-    expect(document!.parserEngine).toBe('docling');
-    expect(document!.parserEngineVersion).toBeTruthy();
+    expect(version).toBeDefined();
+    expect(version!.content).toContain('Arkivra Docling E2E Test PDF');
+    expect(version!.processingStatus).toBe('completed');
+    expect(version!.parserEngine).toBe('docling');
+    expect(version!.parserEngineVersion).toBeTruthy();
+    expect(documentProjection).toBeDefined();
+    expect(documentProjection!.currentVersionId).toBe(version!.id);
+    expect(documentProjection!.content).toBe(version!.content);
+    expect(documentProjection!.parserEngine).toBe(version!.parserEngine);
+    expect(documentProjection!.parserEngineVersion).toBe(version!.parserEngineVersion);
     if (chunks.length > 0) {
-      expect(chunks[0]?.chunkKey).toBe(`${testContext.documentId}:0`);
+      expect(chunks[0]?.documentVersionId).toBe(testContext.documentVersionId);
       expect(chunks[0]?.parserEngine).toBe('docling');
       expect(['heading', 'paragraph', 'table', 'list', 'other']).toContain(
         chunks[0]?.chunkType ?? 'other',
@@ -557,12 +604,18 @@ describe.sequential('document upload processing e2e', () => {
 
     expect(completeResponse.status).toBe(201);
     const completeBody = (await completeResponse.json()) as {
-      document: { id: string };
-      upload: { status: string; documentId: string };
+      document: { id: string; currentVersionId: string };
+      documentVersion: { id: string; processingStatus: string };
+      documentVersionId: string;
+      upload: { status: string; documentId: string; documentVersionId: string };
     };
 
     expect(completeBody.upload.status).toBe('completed');
     expect(completeBody.upload.documentId).toBe(completeBody.document.id);
+    expect(completeBody.upload.documentVersionId).toBe(completeBody.documentVersion.id);
+    expect(completeBody.documentVersionId).toBe(completeBody.documentVersion.id);
+    expect(completeBody.document.currentVersionId).toBe(completeBody.documentVersion.id);
+    expect(completeBody.documentVersion.processingStatus).toBe('pending');
 
     if (documentWorker === null) {
       throw new Error('Document worker was not initialized');
@@ -571,6 +624,7 @@ describe.sequential('document upload processing e2e', () => {
     await documentWorker.processDocument({
       data: {
         documentId: completeBody.document.id,
+        documentVersionId: completeBody.documentVersion.id,
         vaultId: testContext.vaultId,
       },
       updateProgress: async () => undefined,
@@ -579,20 +633,36 @@ describe.sequential('document upload processing e2e', () => {
     await waitForProcessing({
       db,
       documentId: completeBody.document.id,
+      documentVersionId: completeBody.documentVersion.id,
       vaultId: testContext.vaultId,
     });
 
-    const [document] = await db
+    const [version] = await db
       .select({
-        processingStatus: documentsTable.processingStatus,
-        content: documentsTable.content,
+        processingStatus: documentVersionsTable.processingStatus,
+        content: documentVersionsTable.content,
       })
-      .from(documentsTable)
-      .where(eq(documentsTable.id, completeBody.document.id))
+      .from(documentVersionsTable)
+      .where(eq(documentVersionsTable.id, completeBody.documentVersion.id))
       .limit(1);
 
-    expect(document?.processingStatus).toBe('completed');
-    expect(document?.content).toContain('Arkivra Docling E2E Test PDF');
+    const chunks = await db
+      .select({
+        documentVersionId: documentChunksTable.documentVersionId,
+        content: documentChunksTable.content,
+      })
+      .from(documentChunksTable)
+      .where(eq(documentChunksTable.documentVersionId, completeBody.documentVersion.id));
+
+    expect(version?.processingStatus).toBe('completed');
+    expect(version?.content).toContain('Arkivra Docling E2E Test PDF');
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(
+      chunks.every((chunk) => chunk.documentVersionId === completeBody.documentVersion.id),
+    ).toBe(true);
+    expect(chunks.some((chunk) => chunk.content.includes('Arkivra Docling E2E Test PDF'))).toBe(
+      true,
+    );
   }, 60_000);
 
   test('blocks re-uploading the same file when the original is in trash', async () => {

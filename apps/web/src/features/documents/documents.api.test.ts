@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteDocumentVersion,
+  getBulkDocumentDeletionImpact,
+  getDocumentDeletionImpact,
   getDocumentVersion,
+  getDocumentVersionDeletionImpact,
   getDocumentVersionDownloadUrl,
   listDocumentVersionChunks,
   listDocumentVersions,
@@ -161,6 +164,25 @@ describe('documents api helpers', () => {
     await getDocumentVersion({ vaultId: 'vlt_1', documentId: 'doc_1', versionId: 'dvr_1' });
     await listDocumentVersionChunks({ vaultId: 'vlt_1', documentId: 'doc_1', versionId: 'dvr_1' });
     await restoreDocumentVersion({ vaultId: 'vlt_1', documentId: 'doc_1', versionId: 'dvr_1' });
+    await getDocumentVersionDeletionImpact({
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      versionId: 'dvr_1',
+      limit: 5,
+    });
+    await getDocumentDeletionImpact({
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      includeDeleted: true,
+      limit: 5,
+    });
+    await getBulkDocumentDeletionImpact({
+      documents: [
+        { vaultId: 'vlt_1', documentId: 'doc_1' },
+        { vaultId: 'vlt_1', documentId: 'doc_2' },
+      ],
+      includeDeleted: true,
+    });
     await deleteDocumentVersion({ vaultId: 'vlt_1', documentId: 'doc_1', versionId: 'dvr_1' });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -180,10 +202,33 @@ describe('documents api helpers', () => {
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
+      '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/deletion-impact?limit=5',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/vaults/vlt_1/documents/doc_1/deletion-impact?includeDeleted=true&limit=5',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/documents/deletion-impact',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({
+          documents: [
+            { vaultId: 'vlt_1', documentId: 'doc_1' },
+            { vaultId: 'vlt_1', documentId: 'doc_2' },
+          ],
+          includeDeleted: true,
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
       '/api/vaults/vlt_1/documents/doc_1/versions/dvr_1',
       expect.objectContaining({ method: 'DELETE', credentials: 'include' }),
     );
-    expect(getDocumentVersionDownloadUrl({ vaultId: 'vlt_1', documentId: 'doc_1', versionId: 'dvr_1' }))
-      .toBe('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/download');
+    expect(
+      getDocumentVersionDownloadUrl({ vaultId: 'vlt_1', documentId: 'doc_1', versionId: 'dvr_1' }),
+    ).toBe('/api/vaults/vlt_1/documents/doc_1/versions/dvr_1/download');
   });
 });

@@ -10,6 +10,7 @@ import {
   buildGlobalIntentSystemPrompt,
   getFrozenManifestContextAvailability,
   formatFollowUpAssistantMessage,
+  isEmptyGeneratedChatContent,
   normalizeChatGenerationError,
   rankCitationsForQuestion,
   sanitizeCitationsForMessagePersistence,
@@ -36,12 +37,14 @@ const citation: Citation = {
   assetType: 'table',
   tablesHtml: ['<table><tr><td>Retention</td><td>7 years</td></tr></table>'],
   imageAssetIds: ['cas_1'],
-  imageAssets: [{
-    assetId: 'cas_1',
-    sourceElementId: 'el_image_1',
-    caption: 'Figure 1. Records retention timeline',
-    pageNumber: 3,
-  }],
+  imageAssets: [
+    {
+      assetId: 'cas_1',
+      sourceElementId: 'el_image_1',
+      caption: 'Figure 1. Records retention timeline',
+      pageNumber: 3,
+    },
+  ],
   score: 0.81,
 };
 
@@ -105,7 +108,9 @@ describe('chat service helpers', () => {
     expect(expanded?.score).toBe(0.9);
     expect(expanded?.sourceElementIds).toEqual(['el_chunk_1', 'el_chunk_2', 'el_chunk_3']);
     expect(expanded?.snippet).toContain('Page 2 - Assessment: The notice is for tax year 2018.');
-    expect(expanded?.snippet).toContain('Page 3 - Refund: A refund of 3,133.65 is returned to the account.');
+    expect(expanded?.snippet).toContain(
+      'Page 3 - Refund: A refund of 3,133.65 is returned to the account.',
+    );
   });
 
   test('prioritizes citations that match explicit year constraints', () => {
@@ -124,10 +129,12 @@ describe('chat service helpers', () => {
       snippet: 'The 2018 notice shows a refund to the account.',
     };
 
-    expect(rankCitationsForQuestion({
-      question: 'Is there a tax refund for 2018?',
-      citations: [citation2019, citation2018],
-    }).map(item => item.documentId)).toEqual(['doc_2018', 'doc_2019']);
+    expect(
+      rankCitationsForQuestion({
+        question: 'Is there a tax refund for 2018?',
+        citations: [citation2019, citation2018],
+      }).map((item) => item.documentId),
+    ).toEqual(['doc_2018', 'doc_2019']);
   });
 
   test('builds compare intent system prompts for guided follow-ups', () => {
@@ -139,11 +146,13 @@ describe('chat service helpers', () => {
   });
 
   test('formats follow-up assistant questions as two short lines with examples', () => {
-    expect(formatFollowUpAssistantMessage({
-      intent: 'extract',
-      question: 'What kind of information should I extract?',
-      examples: ['tax IDs', 'invoice numbers'],
-    })).toBe('What kind of information should I extract?\nExamples: tax IDs or invoice numbers');
+    expect(
+      formatFollowUpAssistantMessage({
+        intent: 'extract',
+        question: 'What kind of information should I extract?',
+        examples: ['tax IDs', 'invoice numbers'],
+      }),
+    ).toBe('What kind of information should I extract?\nExamples: tax IDs or invoice numbers');
   });
 
   test('renders an explicit empty retrieval context', () => {
@@ -152,11 +161,17 @@ describe('chat service helpers', () => {
 
   test('normalizes invalid stream-controller errors to a user-friendly retry message', () => {
     expect(
-      normalizeChatGenerationError(new Error("Invalid state: Controller is already closed")),
+      normalizeChatGenerationError(new Error('Invalid state: Controller is already closed')),
     ).toBe('The chat response was interrupted before it finished. Please try again.');
-    expect(
-      normalizeChatGenerationError(new TypeError('ERR_INVALID_STATE')),
-    ).toBe('The chat response was interrupted before it finished. Please try again.');
+    expect(normalizeChatGenerationError(new TypeError('ERR_INVALID_STATE'))).toBe(
+      'The chat response was interrupted before it finished. Please try again.',
+    );
+  });
+
+  test('detects whitespace-only model output as empty generated content', () => {
+    expect(isEmptyGeneratedChatContent('')).toBe(true);
+    expect(isEmptyGeneratedChatContent('  \n\t  ')).toBe(true);
+    expect(isEmptyGeneratedChatContent('Answer')).toBe(false);
   });
 
   test('builds pending assistant messages with a status part for persisted refresh state', () => {
@@ -180,9 +195,7 @@ describe('chat service helpers', () => {
         generationStatus: 'pending',
         generationError: null,
       },
-      parts: [
-        { type: 'data-status', data: { label: 'generation' } },
-      ],
+      parts: [{ type: 'data-status', data: { label: 'generation' } }],
     });
   });
 
@@ -190,10 +203,12 @@ describe('chat service helpers', () => {
     const rows = buildChatMessageCitationRows({
       conversationId: 'cht_1',
       messageId: 'msg_1',
-      citations: [{
-        ...citation,
-        snippet: 'A'.repeat(900),
-      }],
+      citations: [
+        {
+          ...citation,
+          snippet: 'A'.repeat(900),
+        },
+      ],
     });
 
     expect(rows).toHaveLength(1);
@@ -215,12 +230,14 @@ describe('chat service helpers', () => {
         sourceElementIds: ['el_chunk_1', 'el_chunk_2'],
         tableSourceElementIds: ['el_table_1'],
         imageAssetIds: ['cas_1'],
-        imageAssets: [{
-          assetId: 'cas_1',
-          sourceElementId: 'el_image_1',
-          caption: 'Figure 1. Records retention timeline',
-          pageNumber: 3,
-        }],
+        imageAssets: [
+          {
+            assetId: 'cas_1',
+            sourceElementId: 'el_image_1',
+            caption: 'Figure 1. Records retention timeline',
+            pageNumber: 3,
+          },
+        ],
         boundingBoxes: [],
         assetType: 'table',
       },
@@ -229,47 +246,51 @@ describe('chat service helpers', () => {
   });
 
   test('bounds citations persisted into chat message JSON', () => {
-    const [persisted] = sanitizeCitationsForMessagePersistence([{
-      ...citation,
-      snippet: 'B'.repeat(900),
-      tablesHtml: ['<table><tr><td>source content</td></tr></table>'],
-    }]);
+    const [persisted] = sanitizeCitationsForMessagePersistence([
+      {
+        ...citation,
+        snippet: 'B'.repeat(900),
+        tablesHtml: ['<table><tr><td>source content</td></tr></table>'],
+      },
+    ]);
 
     expect(persisted?.snippet.length).toBeLessThanOrEqual(620);
     expect(persisted?.tablesHtml).toEqual([]);
   });
 
   test('builds hybrid retrieval arguments from pinned manifest versions', () => {
-    expect(buildManifestHybridSearchArgs({
-      manifestRows: [
-        {
-          vaultId: 'vlt_1',
-          documentId: 'doc_1',
-          documentVersionId: 'dvr_1',
-          includedBy: 'document',
-        },
-        {
-          vaultId: 'vlt_1',
-          documentId: 'doc_1',
-          documentVersionId: 'dvr_1',
-          includedBy: 'document',
-        },
-        {
-          vaultId: 'vlt_2',
-          documentId: 'doc_2',
-          documentVersionId: 'dvr_2',
-          includedBy: 'vault',
-        },
-        {
-          vaultId: 'vlt_3',
-          documentId: 'doc_deleted',
-          documentVersionId: null,
-          includedBy: 'selection',
-        },
-      ],
-      query: 'retention',
-      limit: 8,
-    })).toEqual({
+    expect(
+      buildManifestHybridSearchArgs({
+        manifestRows: [
+          {
+            vaultId: 'vlt_1',
+            documentId: 'doc_1',
+            documentVersionId: 'dvr_1',
+            includedBy: 'document',
+          },
+          {
+            vaultId: 'vlt_1',
+            documentId: 'doc_1',
+            documentVersionId: 'dvr_1',
+            includedBy: 'document',
+          },
+          {
+            vaultId: 'vlt_2',
+            documentId: 'doc_2',
+            documentVersionId: 'dvr_2',
+            includedBy: 'vault',
+          },
+          {
+            vaultId: 'vlt_3',
+            documentId: 'doc_deleted',
+            documentVersionId: null,
+            includedBy: 'selection',
+          },
+        ],
+        query: 'retention',
+        limit: 8,
+      }),
+    ).toEqual({
       vaultIds: ['vlt_1', 'vlt_2'],
       documentVersionIds: ['dvr_1', 'dvr_2'],
       query: 'retention',
@@ -277,27 +298,35 @@ describe('chat service helpers', () => {
       mode: 'hybrid',
     });
 
-    expect(buildManifestHybridSearchArgs({
-      manifestRows: [{
-        vaultId: 'vlt_3',
-        documentId: 'doc_deleted',
-        documentVersionId: null,
-        includedBy: 'selection',
-      }],
-      query: 'retention',
-      limit: 8,
-    })).toBeNull();
+    expect(
+      buildManifestHybridSearchArgs({
+        manifestRows: [
+          {
+            vaultId: 'vlt_3',
+            documentId: 'doc_deleted',
+            documentVersionId: null,
+            includedBy: 'selection',
+          },
+        ],
+        query: 'retention',
+        limit: 8,
+      }),
+    ).toBeNull();
   });
 
   test('does not rematerialize already frozen empty manifests', () => {
     expect(shouldMaterializeConversationManifest({ contextFrozenAt: null })).toBe(true);
-    expect(shouldMaterializeConversationManifest({
-      contextFrozenAt: new Date('2026-05-05T10:00:00.000Z'),
-    })).toBe(false);
-    expect(getFrozenManifestContextAvailability({
-      totalCount: 0,
-      unavailableCount: 0,
-    })).toMatchObject({
+    expect(
+      shouldMaterializeConversationManifest({
+        contextFrozenAt: new Date('2026-05-05T10:00:00.000Z'),
+      }),
+    ).toBe(false);
+    expect(
+      getFrozenManifestContextAvailability({
+        totalCount: 0,
+        unavailableCount: 0,
+      }),
+    ).toMatchObject({
       status: 'source_document_deleted',
       readOnly: true,
     });

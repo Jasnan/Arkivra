@@ -1,13 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
-import {
-  CalendarDays,
-  FileText,
-  Search,
-  Sparkles,
-} from 'lucide-react';
+import { CalendarDays, FileText, Search, Sparkles } from 'lucide-react';
 import { formatShortDate, formatShortDateTime } from '@/lib/localization';
 import type { ChatApiScope } from '../chat.api';
-import type { ChatGenerationMetrics, ChatMessage, ChatMessageMetadata, ChatStreamStatus, Citation } from '../chat.types';
+import type {
+  ChatGenerationMetrics,
+  ChatMessage,
+  ChatMessageMetadata,
+  ChatStreamStatus,
+  Citation,
+} from '../chat.types';
 
 export interface ChatWorkspaceProps {
   scope: ChatApiScope;
@@ -23,6 +24,24 @@ export interface ChatWorkspaceProps {
 export interface LocalMessage extends ChatMessage {}
 
 export type ChatMetricsByMessageId = Record<string, ChatGenerationMetrics | undefined>;
+
+export function emptyAssistantResponseMessage({
+  generationStatus,
+  generationError,
+}: {
+  generationStatus: ChatMessageMetadata['generationStatus'];
+  generationError: string | null;
+}) {
+  if (generationStatus === 'failed') {
+    return generationError ?? 'The model did not return an answer.';
+  }
+
+  if (generationStatus === 'completed') {
+    return 'The model returned an empty answer.';
+  }
+
+  return null;
+}
 
 export interface ChatExperienceConfig {
   contextLabel: string;
@@ -84,7 +103,9 @@ export function renderMetricsSummary(metrics: ChatGenerationMetrics | null | und
 
   const parts = [
     metrics.tokensPerSecond !== null ? `${metrics.tokensPerSecond} tok/s` : null,
-    metrics.timeToFirstTokenMs !== null ? `TTFT ${formatDurationMs(metrics.timeToFirstTokenMs)}` : null,
+    metrics.timeToFirstTokenMs !== null
+      ? `TTFT ${formatDurationMs(metrics.timeToFirstTokenMs)}`
+      : null,
     metrics.totalDurationMs !== null ? `Total ${formatDurationMs(metrics.totalDurationMs)}` : null,
   ].filter(Boolean);
 
@@ -94,7 +115,7 @@ export function renderMetricsSummary(metrics: ChatGenerationMetrics | null | und
 export function getMessageText(message: ChatMessage) {
   return message.parts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map(part => part.text)
+    .map((part) => part.text)
     .join('\n')
     .trim();
 }
@@ -104,15 +125,16 @@ export function getMessageMetadata(message: ChatMessage): ChatMessageMetadata {
 }
 
 export function getMessageCitations(message: ChatMessage): Citation[] {
-  const citationsPart = message.parts.find((part): part is { type: 'data-citations'; data: Citation[] } =>
-    part.type === 'data-citations',
+  const citationsPart = message.parts.find(
+    (part): part is { type: 'data-citations'; data: Citation[] } => part.type === 'data-citations',
   );
   return citationsPart?.data ?? getMessageMetadata(message).citations ?? [];
 }
 
 export function getMessageMetrics(message: ChatMessage): ChatGenerationMetrics | null {
-  const metricsPart = message.parts.find((part): part is { type: 'data-metrics'; data: ChatGenerationMetrics } =>
-    part.type === 'data-metrics',
+  const metricsPart = message.parts.find(
+    (part): part is { type: 'data-metrics'; data: ChatGenerationMetrics } =>
+      part.type === 'data-metrics',
   );
   return metricsPart?.data ?? getMessageMetadata(message).generationMetrics ?? null;
 }
@@ -121,11 +143,13 @@ export function getMessageActiveStatus(message: ChatMessage): ChatStreamStatus |
   for (let index = message.parts.length - 1; index >= 0; index -= 1) {
     const part = message.parts[index];
     if (
-      part?.type === 'data-status'
-      && typeof part.data === 'object'
-      && part.data !== null
-      && 'label' in part.data
-      && (part.data.label === 'retrieval' || part.data.label === 'generation' || part.data.label === 'saving')
+      part?.type === 'data-status' &&
+      typeof part.data === 'object' &&
+      part.data !== null &&
+      'label' in part.data &&
+      (part.data.label === 'retrieval' ||
+        part.data.label === 'generation' ||
+        part.data.label === 'saving')
     ) {
       return part.data.label;
     }
@@ -148,7 +172,11 @@ export function getMessageGenerationError(message: ChatMessage) {
 
 export function pageRange(citation: Citation) {
   if (citation.pageStart === null && citation.pageEnd === null) return 'Document';
-  if (citation.pageStart !== null && citation.pageEnd !== null && citation.pageStart !== citation.pageEnd)
+  if (
+    citation.pageStart !== null &&
+    citation.pageEnd !== null &&
+    citation.pageStart !== citation.pageEnd
+  )
     return `Pages ${citation.pageStart}-${citation.pageEnd}`;
   return `Page ${citation.pageStart ?? citation.pageEnd}`;
 }
@@ -195,7 +223,11 @@ export function citationFigureEvidence(citation: Citation) {
 }
 
 export function uniqueNonEmptyStrings(values: Array<string | null | undefined>) {
-  return [...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0))];
+  return [
+    ...new Set(
+      values.filter((value): value is string => typeof value === 'string' && value.length > 0),
+    ),
+  ];
 }
 
 export function scopeLabel(scope: ChatApiScope) {
@@ -231,8 +263,7 @@ export function getChatExperienceConfig({
       contextBadge: 'Locked',
       contextDescription: 'You are chatting with this document:',
       emptyTitle: 'Ask about this document',
-      emptyDescription:
-        'Arkivra searches this document for answers with exact references.',
+      emptyDescription: 'Arkivra searches this document for answers with exact references.',
       promptSuggestions: DOCUMENT_PROMPT_SUGGESTIONS,
     };
   }

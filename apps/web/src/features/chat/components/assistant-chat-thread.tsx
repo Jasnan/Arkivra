@@ -7,6 +7,7 @@ import type { ChatApiScope } from '../chat.api';
 import type { ChatMessage, ChatMessageMetadata, Citation } from '../chat.types';
 import {
   formatDate,
+  emptyAssistantResponseMessage,
   getMessageActiveStatus,
   getMessageCitations,
   getMessageCreatedAt,
@@ -40,25 +41,31 @@ interface AssistantChatThreadContextValue {
 const AssistantChatThreadContext = createContext<AssistantChatThreadContextValue | null>(null);
 
 function useArkivraMessageFromRuntime(): ChatMessage {
-  const id = useMessage(message => message.id);
-  const role = useMessage(message => message.role);
-  const metadata = useMessage(message => message.metadata as ChatMessageMetadata);
-  const content = useMessage(message => message.content);
+  const id = useMessage((message) => message.id);
+  const role = useMessage((message) => message.role);
+  const metadata = useMessage((message) => message.metadata as ChatMessageMetadata);
+  const content = useMessage((message) => message.content);
 
-  return useMemo(() => ({
-    id,
-    role,
-    metadata,
-    parts: content.map((part) => {
-      if (part.type === 'text') {
-        return { type: 'text' as const, text: part.text };
-      }
-      if (part.type === 'data') {
-        return { type: `data-${part.name}` as `data-${string}`, data: part.data };
-      }
-      return { type: 'text' as const, text: '' };
-    }).filter((part) => part.type !== 'text' || part.text.length > 0),
-  } as ChatMessage), [content, id, metadata, role]);
+  return useMemo(
+    () =>
+      ({
+        id,
+        role,
+        metadata,
+        parts: content
+          .map((part) => {
+            if (part.type === 'text') {
+              return { type: 'text' as const, text: part.text };
+            }
+            if (part.type === 'data') {
+              return { type: `data-${part.name}` as `data-${string}`, data: part.data };
+            }
+            return { type: 'text' as const, text: '' };
+          })
+          .filter((part) => part.type !== 'text' || part.text.length > 0),
+      }) as ChatMessage,
+    [content, id, metadata, role],
+  );
 }
 
 function useAssistantChatThreadContext() {
@@ -157,7 +164,16 @@ function AssistantUserMessage() {
       <Flex gap="4" minW="0" w="full" maxW="100%" overflow="hidden" justify="flex-end">
         <Box minW="0" maxW="min(38rem, calc(100% - 3rem))">
           <Flex direction="column" align="flex-end" w="100%">
-            <Box rounded="xl" bg="teal.solid" px="4" py="3" textStyle="chat" color="fg.inverted" maxW="min(38rem, 100%)" shadow="sm">
+            <Box
+              rounded="xl"
+              bg="teal.solid"
+              px="4"
+              py="3"
+              textStyle="chat"
+              color="fg.inverted"
+              maxW="min(38rem, 100%)"
+              shadow="sm"
+            >
               <Text whiteSpace="pre-wrap" overflowWrap="anywhere">
                 {normalizeChatDisplayContent(getMessageText(message))}
               </Text>
@@ -201,13 +217,11 @@ function AssistantResponseMessage() {
   const isStreamingPlaceholder = custom.isOptimistic === true;
   const metrics = getMessageMetrics(message) ?? undefined;
   const metricsSummary = renderMetricsSummary(metrics);
-  const responseFooter = [
-    metadata.model ?? null,
-    metricsSummary,
-  ].filter(Boolean).join(' • ');
+  const responseFooter = [metadata.model ?? null, metricsSummary].filter(Boolean).join(' • ');
   const generationStatus = getMessageGenerationStatus(message);
   const generationError = getMessageGenerationError(message);
   const createdAt = getMessageCreatedAt(message);
+  const emptyResponseMessage = emptyAssistantResponseMessage({ generationStatus, generationError });
 
   return (
     <MessagePrimitive.Root>
@@ -227,7 +241,18 @@ function AssistantResponseMessage() {
         </Flex>
 
         <Box minW="0" w="100%" maxW="min(56rem, calc(100% - 3.75rem))">
-          <Box minW="0" w="100%" maxW="full" overflow="hidden" rounded="xl" bg="bg.surface" color="fg" borderWidth="1px" borderColor="border.surface" shadow="sm">
+          <Box
+            minW="0"
+            w="100%"
+            maxW="full"
+            overflow="hidden"
+            rounded="xl"
+            bg="bg.surface"
+            color="fg"
+            borderWidth="1px"
+            borderColor="border.surface"
+            shadow="sm"
+          >
             <Box px={{ base: '5', md: '7' }} py={{ base: '4', md: '5' }} textStyle="chat">
               {displayContent.length > 0 ? (
                 <MarkdownMessage
@@ -235,6 +260,10 @@ function AssistantResponseMessage() {
                   citations={citations}
                   onCitationClick={(citation) => setSelectedCitation(citation)}
                 />
+              ) : emptyResponseMessage ? (
+                <Text color={generationStatus === 'failed' ? 'fg.error' : 'fg.muted'}>
+                  {emptyResponseMessage}
+                </Text>
               ) : (
                 <StreamingAnswerSkeleton label={statusLabel(activeStatus, scope)} />
               )}
@@ -248,7 +277,12 @@ function AssistantResponseMessage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    style={{ height: 'auto', borderRadius: '9999px', padding: '0.375rem 0.75rem', fontSize: 'var(--arkivra-font-size-label)' }}
+                    style={{
+                      height: 'auto',
+                      borderRadius: '9999px',
+                      padding: '0.375rem 0.75rem',
+                      fontSize: 'var(--arkivra-font-size-label)',
+                    }}
                     onClick={() => onQuickReplySelect(reply)}
                   >
                     {reply}
@@ -258,7 +292,13 @@ function AssistantResponseMessage() {
             ) : null}
 
             {responseFooter || citations.length > 0 ? (
-              <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.subtle" px={{ base: '5', md: '7' }} py="3">
+              <Box
+                borderTopWidth="1px"
+                borderColor="border.surface"
+                bg="bg.subtle"
+                px={{ base: '5', md: '7' }}
+                py="3"
+              >
                 {responseFooter ? (
                   <Text fontSize="xs" color="fg.muted">
                     {responseFooter}
@@ -273,7 +313,9 @@ function AssistantResponseMessage() {
             <Text mt="1" fontSize="xs" color="fg.muted">
               {metadata.createdAt ? formatDate(createdAt) : statusLabel(activeStatus, scope)}
               {generationStatus === 'failed' && generationError ? (
-                <Text as="span" ml="2" color="fg.error">{generationError}</Text>
+                <Text as="span" ml="2" color="fg.error">
+                  {generationError}
+                </Text>
               ) : null}
             </Text>
           ) : null}

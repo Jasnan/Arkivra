@@ -784,6 +784,10 @@ export function normalizeChatGenerationError(error: unknown) {
   return message;
 }
 
+export function isEmptyGeneratedChatContent(content: string) {
+  return content.trim().length === 0;
+}
+
 function getScopeValues(scope: ChatScopeInput) {
   if (scope.type === 'global' || scope.type === 'selection') {
     return {
@@ -1978,6 +1982,9 @@ export function createChatServices({
           }
 
           writer.write({ type: 'text-end', id: textPartId });
+          if (isEmptyGeneratedChatContent(generatedContent)) {
+            throw new Error('The model returned an empty answer. Please try again.');
+          }
           writeStatus(writer, 'saving');
           if (citationsForPersistence.length > 0) {
             writer.write({ type: 'data-citations', data: citationsForPersistence });

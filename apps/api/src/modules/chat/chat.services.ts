@@ -3,6 +3,7 @@ import type { DocumentsServices } from '../documents/documents.services.js';
 import { serializeTableHtmlForRetrieval } from '../parsing/table-formatting.js';
 import type {
   Citation,
+  CitationContextChunk,
   CitationImageAsset,
   DocumentSearchServices,
 } from '../search/search.types.js';
@@ -59,7 +60,12 @@ const MAX_EXPANDED_CONTEXT_CHUNKS = 18;
 const MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH = 3600;
 const MAX_CONTEXT_CHUNK_SNIPPET_LENGTH = 620;
 const MAX_ANSWER_PROMPT_CONTEXT_LENGTH = 9_000;
-const MAX_ANSWER_PROMPT_SOURCE_SNIPPET_LENGTH = 700;
+const SINGLE_DOCUMENT_CONTEXT_CHUNK_LENGTH = 1200;
+const SMALL_CONTEXT_CHUNK_LENGTH = 900;
+const LARGE_CONTEXT_CHUNK_LENGTH = 650;
+const SINGLE_DOCUMENT_CONTEXT_CHUNKS = 6;
+const SMALL_CONTEXT_CHUNKS_PER_SOURCE = 4;
+const LARGE_CONTEXT_CHUNKS_PER_SOURCE = 2;
 const MAX_ANSWER_PROMPT_TABLE_LENGTH = 300;
 const MAX_ANSWER_PROMPT_FIGURES_LENGTH = 160;
 const MAX_RECENT_MESSAGES = 8;
@@ -468,6 +474,8 @@ export type ChatContextExpansionChunk = {
   section: string | null;
   sourceElementIds?: string[];
   snippet: string;
+  retrievalScore?: number;
+  retrievalRank?: number;
 };
 
 function getCitationPageBounds(
@@ -599,14 +607,22 @@ function formatContextChunkLabel(chunk: ChatContextExpansionChunk) {
   return [pageLabel, section].filter(Boolean).join(' - ');
 }
 
-function buildContextSnippet({
-  citations,
-  contextChunks,
-}: {
-  citations: Citation[];
-  contextChunks: ChatContextExpansionChunk[];
-}) {
-  const fallbackChunks = citations.map((citation, index) => ({
+function getCitationRetrievalRankMap(citations: Citation[]) {
+  const ranks = new Map<string, { score: number; rank: number }>();
+
+  for (const [index, citation] of citations.entries()) {
+    const existing = ranks.get(citation.chunkId);
+
+    if (existing === undefined || citation.score > existing.score) {
+      ranks.set(citation.chunkId, { score: citation.score, rank: index });
+    }
+  }
+
+  return ranks;
+}
+
+function toFallbackContextChunk(citation: Citation, index: number): ChatContextExpansionChunk {
+  return {
     chunkId: citation.chunkId,
     chunkIndex: index,
     retrievalRepresentation: citation.retrievalRepresentation ?? null,
@@ -615,27 +631,77 @@ function buildContextSnippet({
     section: citation.section,
     sourceElementIds: citation.sourceElementIds ?? [],
     snippet: citation.snippet,
-  }));
-  const chunks = (contextChunks.length > 0 ? contextChunks : fallbackChunks)
-    .sort((left, right) =>
-      getContextRepresentationPriority(right.retrievalRepresentation)
-      - getContextRepresentationPriority(left.retrievalRepresentation)
-      || left.chunkIndex - right.chunkIndex,
+    retrievalScore: citation.score,
+    retrievalRank: index,
+  };
+}
+
+function scoreContextChunk(chunk: ChatContextExpansionChunk) {
+  return (chunk.retrievalScore ?? 0) + getContextRepresentationBonus(chunk.retrievalRepresentation);
+}
+
+function rankContextChunks({
+  citations,
+  contextChunks,
+}: {
+  citations: Citation[];
+  contextChunks: ChatContextExpansionChunk[];
+}) {
+  const citationRanks = getCitationRetrievalRankMap(citations);
+  const chunksById = new Map<string, ChatContextExpansionChunk>();
+  const sourceChunks = contextChunks.length > 0
+    ? contextChunks
+    : citations.map(toFallbackContextChunk);
+
+  for (const chunk of sourceChunks) {
+    const retrieval = citationRanks.get(chunk.chunkId);
+    chunksById.set(chunk.chunkId, {
+      ...chunk,
+      retrievalScore: chunk.retrievalScore ?? retrieval?.score ?? 0,
+      retrievalRank: chunk.retrievalRank ?? retrieval?.rank,
+    });
+  }
+
+  for (const [index, citation] of citations.entries()) {
+    if (chunksById.has(citation.chunkId)) {
+      continue;
+    }
+
+    chunksById.set(citation.chunkId, toFallbackContextChunk(citation, index));
+  }
+
+  return [...chunksById.values()].sort((left, right) => {
+    const leftRetrieved = left.retrievalRank !== undefined;
+    const rightRetrieved = right.retrievalRank !== undefined;
+
+    return (
+      scoreContextChunk(right) - scoreContextChunk(left) ||
+      Number(rightRetrieved) - Number(leftRetrieved) ||
+      (left.retrievalRank ?? Number.MAX_SAFE_INTEGER) -
+        (right.retrievalRank ?? Number.MAX_SAFE_INTEGER) ||
+      left.chunkIndex - right.chunkIndex ||
+      left.chunkId.localeCompare(right.chunkId)
     );
+  });
+}
+
+function dedupeContextChunks(chunks: ChatContextExpansionChunk[]) {
   const seen = new Set<string>();
   const seenSourceElementIds = new Set<string>();
-  const parts: string[] = [];
+  const deduped: ChatContextExpansionChunk[] = [];
 
   for (const chunk of chunks) {
-    const snippet = truncate(chunk.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH);
-    const sourceElementIds = (chunk.sourceElementIds ?? []).filter(sourceElementId => sourceElementId.length > 0);
+    const snippet = compactWhitespace(chunk.snippet);
+    const sourceElementIds = (chunk.sourceElementIds ?? []).filter(
+      sourceElementId => sourceElementId.length > 0,
+    );
 
     if (snippet.length === 0 || seen.has(snippet)) {
       continue;
     }
     if (
-      sourceElementIds.length > 0
-      && sourceElementIds.every(sourceElementId => seenSourceElementIds.has(sourceElementId))
+      sourceElementIds.length > 0 &&
+      sourceElementIds.every(sourceElementId => seenSourceElementIds.has(sourceElementId))
     ) {
       continue;
     }
@@ -643,6 +709,51 @@ function buildContextSnippet({
     seen.add(snippet);
     for (const sourceElementId of sourceElementIds) {
       seenSourceElementIds.add(sourceElementId);
+    }
+    deduped.push({
+      ...chunk,
+      snippet,
+      sourceElementIds,
+    });
+  }
+
+  return deduped;
+}
+
+function buildCitationContextChunks({
+  citations,
+  contextChunks,
+}: {
+  citations: Citation[];
+  contextChunks: ChatContextExpansionChunk[];
+}): CitationContextChunk[] {
+  return dedupeContextChunks(rankContextChunks({ citations, contextChunks })).map((chunk) => ({
+    chunkId: chunk.chunkId,
+    retrievalRepresentation: chunk.retrievalRepresentation ?? null,
+    pageStart: chunk.pageStart,
+    pageEnd: chunk.pageEnd,
+    section: chunk.section,
+    sourceElementIds: chunk.sourceElementIds ?? [],
+    snippet: chunk.snippet,
+    score: chunk.retrievalScore ?? 0,
+  }));
+}
+
+function buildContextSnippet({
+  citations,
+  contextChunks,
+}: {
+  citations: Citation[];
+  contextChunks: ChatContextExpansionChunk[];
+}) {
+  const chunks = dedupeContextChunks(rankContextChunks({ citations, contextChunks }));
+  const parts: string[] = [];
+
+  for (const chunk of chunks) {
+    const snippet = truncate(chunk.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH);
+
+    if (snippet.length === 0) {
+      continue;
     }
     const label = formatContextChunkLabel(chunk);
     parts.push(label.length > 0 ? `${label}: ${snippet}` : snippet);
@@ -720,40 +831,16 @@ function getQueryTermMatchScore(citation: Citation, terms: string[]) {
   return titleScore + structureScore + snippetScore;
 }
 
-function getContextRepresentationPriority(representation: string | null | undefined) {
-  if (representation === 'table') return 4;
-  if (representation === 'docling_hybrid') return 3;
-  if (representation === 'contextual') return 2;
-  if (representation === 'page') return 1;
+function getContextRepresentationBonus(representation: string | null | undefined) {
+  if (representation === 'page') return 0.00005;
+  if (representation === 'docling_hybrid') return 0.00003;
+  if (representation === 'contextual') return 0.00002;
+  if (representation === 'table') return 0.00001;
   return 0;
 }
 
-function getQuestionRepresentationScore(question: string, citation: Citation) {
-  const lowerQuestion = question.toLowerCase();
-  const representation = citation.retrievalRepresentation;
-  const tableQuestion =
-    /\b(?:table|row|column|line item|subtotal|total|amount|balance|statement|invoice)\b/i.test(lowerQuestion);
-  const pageGroundingQuestion =
-    /\b(?:page|scan|scanned|passport|identity| id |expiry|expiration|document number|mrz)\b/i.test(` ${lowerQuestion} `);
-  const narrativeQuestion =
-    /\b(?:policy|contract|clause|section|paragraph|explain|summarize|agreement|coverage)\b/i.test(lowerQuestion);
-
-  if ((representation === 'table' || citation.assetType === 'table') && tableQuestion) {
-    return 6;
-  }
-  if (representation === 'page' && pageGroundingQuestion) {
-    return 5;
-  }
-  if (representation === 'docling_hybrid' && narrativeQuestion) {
-    return 4;
-  }
-  if (representation === 'table') {
-    return 2;
-  }
-  if (representation === 'page') {
-    return 1;
-  }
-  return 0;
+function getCitationRankingScore(citation: Pick<Citation, 'score' | 'retrievalRepresentation'>) {
+  return citation.score + getContextRepresentationBonus(citation.retrievalRepresentation);
 }
 
 export function rankCitationsForQuestion({
@@ -766,24 +853,19 @@ export function rankCitationsForQuestion({
   const years = extractYearConstraints(question);
   const queryTerms = extractRetrievalQueryTerms(question);
 
-  if (years.length === 0 && queryTerms.length === 0) {
-    return citations;
-  }
-
   return citations
     .map((citation, index) => ({
       citation,
       index,
       yearMatchCount: getYearConstraintMatchCount(citation, years),
       queryTermMatchScore: getQueryTermMatchScore(citation, queryTerms),
-      representationScore: getQuestionRepresentationScore(question, citation),
+      rankingScore: getCitationRankingScore(citation),
     }))
     .sort(
       (left, right) =>
+        right.rankingScore - left.rankingScore ||
         right.yearMatchCount - left.yearMatchCount ||
-        right.representationScore - left.representationScore ||
         right.queryTermMatchScore - left.queryTermMatchScore ||
-        right.citation.score - left.citation.score ||
         left.index - right.index,
     )
     .map((item) => item.citation);
@@ -796,7 +878,8 @@ export function buildExpandedCitationForChat({
   citations: Citation[];
   contextChunks: ChatContextExpansionChunk[];
 }): Citation | null {
-  const base = citations[0];
+  const rankedCitations = rankCitationsForQuestion({ question: '', citations });
+  const base = rankedCitations[0];
 
   if (base === undefined) {
     return null;
@@ -828,6 +911,7 @@ export function buildExpandedCitationForChat({
     pageStart: mergedBounds?.start ?? base.pageStart,
     pageEnd: mergedBounds?.end ?? base.pageEnd,
     snippet: buildContextSnippet({ citations, contextChunks }),
+    contextChunks: buildCitationContextChunks({ citations, contextChunks }),
     sourceElementIds: uniqueStrings(
       citations.flatMap((citation) => citation.sourceElementIds ?? []),
     ),
@@ -859,6 +943,7 @@ async function loadContextChunksForCitationGroup({
     return [];
   }
 
+  const retrievalRanks = getCitationRetrievalRankMap(citations);
   const result = await db.execute<ChatContextChunkRow>(sql`
     SELECT
       dc.id AS chunk_id,
@@ -890,6 +975,7 @@ async function loadContextChunksForCitationGroup({
 
   return result.rows.flatMap((row) => {
     const snippet = compactWhitespace(row.snippet ?? '');
+    const retrieval = retrievalRanks.get(row.chunk_id);
 
     if (snippet.length === 0) {
       return [];
@@ -905,6 +991,8 @@ async function loadContextChunksForCitationGroup({
         section: row.section,
         sourceElementIds: parseStringArray(row.source_element_ids),
         snippet,
+        retrievalScore: retrieval?.score,
+        retrievalRank: retrieval?.rank,
       },
     ];
   });
@@ -1447,6 +1535,19 @@ function formatPageRange(citation: Citation) {
   return `page ${citation.pageStart ?? citation.pageEnd}`;
 }
 
+function formatChunkPageRange(chunk: Pick<CitationContextChunk, 'pageStart' | 'pageEnd'>) {
+  const bounds = getChunkPageBounds({
+    pageStart: chunk.pageStart,
+    pageEnd: chunk.pageEnd,
+  });
+
+  if (bounds === null) {
+    return 'document';
+  }
+
+  return bounds.start === bounds.end ? `page ${bounds.start}` : `pages ${bounds.start}-${bounds.end}`;
+}
+
 function formatSectionPath(citation: Citation) {
   const sectionPath =
     citation.sectionPath
@@ -1510,30 +1611,117 @@ function formatCitationTables(citation: Citation, maxLength: number | null = nul
   return maxLength === null || tables.length <= maxLength ? tables : truncate(tables, maxLength);
 }
 
+function getPromptContextChunks(citation: Citation): CitationContextChunk[] {
+  if (citation.contextChunks !== undefined && citation.contextChunks.length > 0) {
+    return citation.contextChunks;
+  }
+
+  return [
+    {
+      chunkId: citation.chunkId,
+      retrievalRepresentation: citation.retrievalRepresentation ?? null,
+      pageStart: citation.pageStart,
+      pageEnd: citation.pageEnd,
+      section: citation.section,
+      sourceElementIds: citation.sourceElementIds ?? [],
+      snippet: citation.snippet,
+      score: citation.score,
+    },
+  ];
+}
+
+function getAdaptiveContextBudget(citations: Citation[], options: {
+  maxTotalLength?: number;
+  maxSnippetLength?: number;
+}) {
+  const documentCount = citations.length;
+  const chunkCount = citations.reduce(
+    (total, citation) => total + Math.max(1, getPromptContextChunks(citation).length),
+    0,
+  );
+
+  if (documentCount <= 1) {
+    return {
+      maxTotalLength: options.maxTotalLength ?? MAX_ANSWER_PROMPT_CONTEXT_LENGTH,
+      maxChunkLength: options.maxSnippetLength ?? SINGLE_DOCUMENT_CONTEXT_CHUNK_LENGTH,
+      maxChunksPerSource: Math.min(SINGLE_DOCUMENT_CONTEXT_CHUNKS, Math.max(3, chunkCount)),
+    };
+  }
+
+  if (documentCount <= 5) {
+    return {
+      maxTotalLength: options.maxTotalLength ?? MAX_ANSWER_PROMPT_CONTEXT_LENGTH,
+      maxChunkLength: options.maxSnippetLength ?? SMALL_CONTEXT_CHUNK_LENGTH,
+      maxChunksPerSource: SMALL_CONTEXT_CHUNKS_PER_SOURCE,
+    };
+  }
+
+  return {
+    maxTotalLength: options.maxTotalLength ?? MAX_ANSWER_PROMPT_CONTEXT_LENGTH,
+    maxChunkLength: options.maxSnippetLength ?? LARGE_CONTEXT_CHUNK_LENGTH,
+    maxChunksPerSource: LARGE_CONTEXT_CHUNKS_PER_SOURCE,
+  };
+}
+
+function formatPromptContextChunk({
+  citation,
+  chunk,
+  index,
+  maxSnippetLength,
+}: {
+  citation: Citation;
+  chunk: CitationContextChunk;
+  index: number;
+  maxSnippetLength: number;
+}) {
+  const representation = chunk.retrievalRepresentation?.trim() || 'text';
+  const section = chunk.section?.trim() || formatSectionPath(citation);
+
+  return [
+    `Chunk ${index + 1}:`,
+    `Source: ${citation.documentName}`,
+    `Page: ${formatChunkPageRange(chunk)}`,
+    `Representation: ${representation}`,
+    `Section: ${section}`,
+    `Content:\n${truncate(chunk.snippet, maxSnippetLength)}`,
+  ].join('\n');
+}
+
 function buildCitationContextBlock({
   citation,
   index,
   maxSnippetLength,
+  maxChunksPerSource,
   maxTablesLength,
   maxFiguresLength,
 }: {
   citation: Citation;
   index: number;
-  maxSnippetLength: number | null;
+  maxSnippetLength: number;
+  maxChunksPerSource: number;
   maxTablesLength: number | null;
   maxFiguresLength: number | null;
 }) {
-  const snippet =
-    maxSnippetLength === null ? citation.snippet : truncate(citation.snippet, maxSnippetLength);
   const tables = formatCitationTables(citation, maxTablesLength);
   const figures = formatCitationFigures(citation);
+  const chunks = getPromptContextChunks(citation)
+    .slice(0, maxChunksPerSource)
+    .map((chunk, chunkIndex) =>
+      formatPromptContextChunk({
+        citation,
+        chunk,
+        index: chunkIndex,
+        maxSnippetLength,
+      }),
+    )
+    .join('\n\n');
 
   return [
     `Source ${index + 1}: ${citation.documentName}`,
     `Vault: ${citation.vaultName}`,
     `Location: ${formatPageRange(citation)}`,
     `Section: ${formatSectionPath(citation)}`,
-    `Snippet:\n${snippet}`,
+    `Retrieved chunks:\n${chunks}`,
     `Tables:\n${tables}`,
     `Figures:\n${maxFiguresLength === null ? figures : truncate(figures, maxFiguresLength)}`,
   ].join('\n');
@@ -1552,7 +1740,8 @@ export function buildCitationContext(
     return '(no retrieved context)';
   }
 
-  const maxTotalLength = options.maxTotalLength ?? null;
+  const budget = getAdaptiveContextBudget(citations, options);
+  const maxTotalLength = budget.maxTotalLength;
   const blocks: string[] = [];
   let outputLength = 0;
 
@@ -1561,7 +1750,8 @@ export function buildCitationContext(
     const block = buildCitationContextBlock({
       citation,
       index,
-      maxSnippetLength: options.maxSnippetLength ?? null,
+      maxSnippetLength: budget.maxChunkLength,
+      maxChunksPerSource: budget.maxChunksPerSource,
       maxTablesLength: options.maxTablesLength ?? null,
       maxFiguresLength: options.maxFiguresLength ?? null,
     });
@@ -1619,7 +1809,6 @@ export function buildAnswerPrompt({
     '',
     `Retrieved context:\n${buildCitationContext(citations, {
       maxTotalLength: MAX_ANSWER_PROMPT_CONTEXT_LENGTH,
-      maxSnippetLength: MAX_ANSWER_PROMPT_SOURCE_SNIPPET_LENGTH,
       maxTablesLength: MAX_ANSWER_PROMPT_TABLE_LENGTH,
       maxFiguresLength: MAX_ANSWER_PROMPT_FIGURES_LENGTH,
     })}`,

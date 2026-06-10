@@ -482,21 +482,29 @@ function mergeHybridSearchRows(
     .slice(0, limit);
 }
 
-function getRepresentationPriority(row: Pick<HybridSearchRow, 'retrieval_representation' | 'tables_html' | 'citation_precision'>) {
+function getRowScore(row: Pick<HybridSearchRow, 'score'>) {
+  return typeof row.score === 'number' ? row.score : Number(row.score ?? 0);
+}
+
+function getRepresentationBonus(row: Pick<HybridSearchRow, 'retrieval_representation' | 'tables_html' | 'citation_precision'>) {
   const representation = row.retrieval_representation;
-  if (representation === 'table') {
-    return 4;
-  }
-  if (parseStringArray(row.tables_html).length > 0) {
-    return 3;
-  }
   if (representation === 'page') {
-    return 2;
+    return 0.00005;
   }
   if (representation === 'docling_hybrid') {
-    return 1;
+    return 0.00003;
+  }
+  if (representation === 'contextual') {
+    return 0.00002;
+  }
+  if (representation === 'table' || parseStringArray(row.tables_html).length > 0) {
+    return 0.00001;
   }
   return 0;
+}
+
+function getRowRankingScore(row: HybridSearchRow) {
+  return getRowScore(row) + getRepresentationBonus(row);
 }
 
 function getDiversificationKey(row: HybridSearchRow) {
@@ -529,13 +537,10 @@ function diversifyHybridSearchRows(rows: HybridSearchRow[], limit: number) {
       continue;
     }
 
-    const existingScore =
-      typeof existing.score === 'number' ? existing.score : Number(existing.score ?? 0);
-    const rowScore = typeof row.score === 'number' ? row.score : Number(row.score ?? 0);
-    const existingPriority = getRepresentationPriority(existing);
-    const rowPriority = getRepresentationPriority(row);
+    const existingRankingScore = getRowRankingScore(existing);
+    const rowRankingScore = getRowRankingScore(row);
 
-    if (rowPriority > existingPriority || (rowPriority === existingPriority && rowScore > existingScore)) {
+    if (rowRankingScore > existingRankingScore) {
       overflowRows.push(existing);
       rowsByRegion.set(key, row);
     } else {

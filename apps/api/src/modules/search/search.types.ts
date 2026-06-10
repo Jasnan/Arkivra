@@ -99,6 +99,18 @@ export type Citation = {
   imageAssetIds: string[];
   imageAssets?: CitationImageAsset[];
   score: number;
+  contextChunks?: CitationContextChunk[];
+};
+
+export type CitationContextChunk = {
+  chunkId: string;
+  retrievalRepresentation?: string | null;
+  pageStart: number | null;
+  pageEnd: number | null;
+  section: string | null;
+  sourceElementIds?: string[];
+  snippet: string;
+  score: number;
 };
 
 export type HybridSearchMode = 'hybrid' | 'fts';

@@ -1,6 +1,7 @@
+import { basename } from 'node:path';
 import type { ParserRegistry } from './parser.registry.js';
 import type { ParseInput, ParserEngine } from './parser.types.js';
-import type { ParsedDocument, ParserOutput } from './parsed-document.schema.js';
+import type { ParsedChunk, ParsedDocument, ParserOutput } from './parsed-document.schema.js';
 import type { ChunkSummariser } from './ollama-chunk-summariser.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { ParserValidationError } from './parser.types.js';
@@ -40,6 +41,7 @@ export function createParsePipeline({
   async function buildParsedDocumentFromRawOutput(
     raw: ParserOutput,
     documentId: string,
+    fileName: string,
     persistedRaw?: {
       text: string;
       markdown: string;
@@ -62,7 +64,14 @@ export function createParsePipeline({
       );
     }
 
-    const chunks = parserChunks;
+    const chunkFileName = basename(fileName.replaceAll('\\', '/'));
+    const chunks: ParsedChunk[] = parserChunks.map((chunk): ParsedChunk => ({
+      ...chunk,
+      metadata: {
+        ...chunk.metadata,
+        fileName: chunkFileName,
+      },
+    }));
 
     const pipelineWarnings = [...raw.warnings];
     if (chunkSummariser !== undefined) {
@@ -125,6 +134,7 @@ export function createParsePipeline({
     return buildParsedDocumentFromRawOutput(
       raw,
       input.documentId,
+      input.fileName,
       {
         text: raw.text,
         markdown: raw.markdown,

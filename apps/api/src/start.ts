@@ -9,7 +9,6 @@ import { createServer } from './modules/server/server.js';
 import { createDocumentQueue } from './modules/worker/queue.js';
 import { createDoclingClient } from './modules/docling/docling.client.js';
 import { createDoclingParser } from './modules/parsing/adapters/docling.parser.js';
-import { createRuntimeConfiguredOllamaChunkSummariser } from './modules/parsing/ollama-chunk-summariser.js';
 import { createRuntimeConfiguredOllamaImageCaptioner } from './modules/parsing/image-captioner.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
@@ -113,22 +112,9 @@ export async function startApp() {
       config.parsers.textCleanup === 'deterministic'
         ? createDeterministicTextCleaner()
         : createNoopTextCleaner();
-    const chunkSummariser = createRuntimeConfiguredOllamaChunkSummariser({
-      resolveSettings: async () => {
-        const settings = await adminAiServices.getIngestionSettings();
-        return {
-          enabled: settings.summarisationEnabled,
-          host: settings.summarisationHost,
-          model: settings.summarisationModel,
-          maxImagesPerChunk: settings.summarisationMaxImagesPerChunk,
-          logRequests: config.ollama.logRequests,
-        };
-      },
-    });
     const parsePipeline = createParsePipeline({
       parserRegistry,
       cleaner: textCleaner,
-      chunkSummariser,
     });
     const documentWorker = createDocumentWorker({
       db,

@@ -34,7 +34,7 @@ function queryText(query: unknown) {
 describe('embedding index worker', () => {
   it('indexes existing document_chunks without invoking Docling', async () => {
     const doclingParser = vi.fn();
-    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]);
+    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]]);
     const execute = vi.fn(async (query: unknown) => {
       const text = queryText(query);
 
@@ -76,16 +76,24 @@ describe('embedding index worker', () => {
               content: 'Second persisted chunk',
               chunk_index: 1,
             },
+            {
+              document_id: 'doc_1',
+              document_version_id: 'dvr_1',
+              vault_id: 'vlt_1',
+              chunk_id: 'chk_table',
+              content: 'Chunk source: table\n\nHeaders: Field | Value\nRow 1: Total=42.00',
+              chunk_index: 2,
+            },
           ],
         };
       }
 
       if (text.includes('sum(expected_chunk_count)')) {
-        return { rows: [{ expected_chunk_count: 2, failed_chunk_count: 0 }] };
+        return { rows: [{ expected_chunk_count: 3, failed_chunk_count: 0 }] };
       }
 
       if (text.includes('count(*)::int AS embedded_chunk_count')) {
-        return { rows: [{ embedded_chunk_count: 2 }] };
+        return { rows: [{ embedded_chunk_count: 3 }] };
       }
 
       return { rows: [] };
@@ -103,8 +111,12 @@ describe('embedding index worker', () => {
       documentVersionId: 'dvr_1',
     });
 
-    expect(result).toEqual({ status: 'ready', embeddedChunkCount: 2 });
-    expect(embed).toHaveBeenCalledWith(['First persisted chunk', 'Second persisted chunk']);
+    expect(result).toEqual({ status: 'ready', embeddedChunkCount: 3 });
+    expect(embed).toHaveBeenCalledWith([
+      'First persisted chunk',
+      'Second persisted chunk',
+      'Chunk source: table\n\nHeaders: Field | Value\nRow 1: Total=42.00',
+    ]);
     expect(doclingParser).not.toHaveBeenCalled();
 
     const combinedSql = execute.mock.calls.map(call => queryText(call[0])).join('\n');

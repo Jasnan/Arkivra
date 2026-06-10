@@ -3,7 +3,6 @@ import type { DocumentParser, ParseInput, ParserCapabilities } from '../parser.t
 import type { ParsedChunk, ParserOutput } from '../parsed-document.schema.js';
 import type { ImageCaptioner } from '../image-captioner.js';
 import type { DoclingChunkResponse } from './docling.schema.js';
-import { DEFAULT_DOCLING_CHUNK_OPTIONS } from '../../docling/docling.client.js';
 import { PDFDocument } from 'pdf-lib';
 import { ParserValidationError } from '../parser.types.js';
 import { parserOutputSchema } from '../parsed-document.schema.js';
@@ -17,6 +16,7 @@ import {
 import { mergeEmbeddedImages } from './docling.mapper.js';
 import { extractDoclingStructuredContent } from './docling.structured.js';
 import { mapDoclingChunksToParsedChunks } from './docling.chunk-mapper.js';
+import { buildDoclingRetrievalRepresentations } from './docling.retrieval-representations.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -118,8 +118,8 @@ type DoclingParsedPart = {
   warnings: string[];
 };
 
-type DoclingParsedChunker = 'hybrid' | 'hierarchical';
-type DoclingChunkInput = 'original_file' | 'extracted_text';
+type DoclingParsedChunker = 'hybrid';
+type DoclingChunkInput = 'original_file';
 
 function isPdfMimeType(mimeType: string) {
   return mimeType.toLowerCase() === 'application/pdf';
@@ -132,13 +132,6 @@ function splitFileName(fileName: string, partIndex: number, partCount: number) {
   return dotIndex >= 0
     ? `${fileName.slice(0, dotIndex)}${suffix}.pdf`
     : `${fileName}${suffix}.pdf`;
-}
-
-function buildExtractedTextChunkFileName(fileName: string) {
-  const dotIndex = fileName.lastIndexOf('.');
-  const baseName = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
-
-  return `${baseName}.extracted.md`;
 }
 
 async function buildDoclingInputParts({
@@ -222,6 +215,52 @@ function offsetStructuredElements(
   }));
 }
 
+function offsetElementIdForPart(value: string, part: DoclingInputPart) {
+  return part.partCount === 1 ? value : `part-${part.partIndex + 1}:${value}`;
+}
+
+function offsetProvenanceForPart(value: unknown, part: DoclingInputPart) {
+  if (!Array.isArray(value) || part.partCount === 1) {
+    return value;
+  }
+
+  return value.map((entry) => {
+    if (
+      typeof entry !== 'object'
+      || entry === null
+      || Array.isArray(entry)
+      || typeof (entry as { elementId?: unknown }).elementId !== 'string'
+    ) {
+      return entry;
+    }
+
+    const pageNumber = (entry as { pageNumber?: unknown }).pageNumber;
+    const bbox = (entry as { bbox?: unknown }).bbox;
+    const offsetEntry: Record<string, unknown> = {
+      ...entry,
+      elementId: offsetElementIdForPart((entry as { elementId: string }).elementId, part),
+    };
+
+    if (typeof pageNumber === 'number') {
+      offsetEntry.pageNumber = pageNumber + part.pageOffset;
+    }
+
+    if (
+      typeof bbox === 'object'
+      && bbox !== null
+      && !Array.isArray(bbox)
+      && typeof (bbox as { pageNumber?: unknown }).pageNumber === 'number'
+    ) {
+      offsetEntry.bbox = {
+        ...(bbox as Record<string, unknown>),
+        pageNumber: (bbox as { pageNumber: number }).pageNumber + part.pageOffset,
+      };
+    }
+
+    return offsetEntry;
+  });
+}
+
 function offsetChunks({
   chunks,
   documentId,
@@ -237,6 +276,23 @@ function offsetChunks({
 }): ParsedChunk[] {
   return chunks.map((chunk, localIndex) => {
     const index = startIndex + localIndex;
+    const metadata: ParsedChunk['metadata'] = {
+      ...chunk.metadata,
+      index,
+      doclingSplitPart: part.partIndex + 1,
+      doclingSplitPartCount: part.partCount,
+      doclingSplitPageOffset: part.pageOffset,
+      doclingSplitPageCount: part.pageCount,
+    };
+    const tableProvenance = offsetProvenanceForPart(chunk.metadata.tableProvenance, part);
+    const imageProvenance = offsetProvenanceForPart(chunk.metadata.imageProvenance, part);
+
+    if (tableProvenance !== undefined) {
+      metadata.tableProvenance = tableProvenance;
+    }
+    if (imageProvenance !== undefined) {
+      metadata.imageProvenance = imageProvenance;
+    }
 
     return {
       ...chunk,
@@ -248,30 +304,15 @@ function offsetChunks({
         ...box,
         pageNumber: box.pageNumber + pageOffset,
       })),
-      metadata: {
-        ...chunk.metadata,
-        index,
-        doclingSplitPart: part.partIndex + 1,
-        doclingSplitPartCount: part.partCount,
-        doclingSplitPageOffset: part.pageOffset,
-        doclingSplitPageCount: part.pageCount,
-      },
+      sourceElementIds: chunk.sourceElementIds.map(sourceElementId =>
+        offsetElementIdForPart(sourceElementId, part),
+      ),
+      parentElementId: chunk.parentElementId === null
+        ? null
+        : offsetElementIdForPart(chunk.parentElementId, part),
+      metadata,
     };
   });
-}
-
-function normalizeCoverageText(value: string) {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-function hasIncompleteChunkCoverage(chunks: ParsedChunk[], text: string) {
-  const normalizedText = normalizeCoverageText(text);
-  if (normalizedText.length === 0) return false;
-  if (chunks.length === 0) return true;
-  if (chunks.some(chunk => chunk.images.length > 0 || chunk.tablesHtml.length > 0)) return false;
-
-  const normalizedChunkText = normalizeCoverageText(chunks.map(chunk => chunk.originalText || chunk.text).join('\n\n'));
-  return normalizedText.length >= 80 && normalizedChunkText.length < normalizedText.length * 0.5;
 }
 
 export function createDoclingParser({
@@ -361,25 +402,36 @@ export function createDoclingParser({
         doclingChunkInput: chunkInput,
       },
     }));
+    const offsetStructured = offsetStructuredElements(
+      structuredElements,
+      part.pageOffset,
+      part.partIndex,
+      part.partCount,
+    );
+    const offsetDoclingChunks = offsetChunks({
+      chunks,
+      documentId: input.documentId,
+      pageOffset: part.pageOffset,
+      part,
+      startIndex: chunkStartIndex,
+    });
+    const retrievalRepresentations = buildDoclingRetrievalRepresentations({
+      documentId: input.documentId,
+      fileName: input.fileName,
+      text,
+      structuredElements: offsetStructured,
+      doclingChunks: offsetDoclingChunks,
+      startIndex: chunkStartIndex,
+    });
+    warnings.push(...retrievalRepresentations.warnings);
 
     return {
       text,
       markdown,
       embeddedImages,
       rawStructuredOutput,
-      structuredElements: offsetStructuredElements(
-        structuredElements,
-        part.pageOffset,
-        part.partIndex,
-        part.partCount,
-      ),
-      chunks: offsetChunks({
-        chunks,
-        documentId: input.documentId,
-        pageOffset: part.pageOffset,
-        part,
-        startIndex: chunkStartIndex,
-      }),
+      structuredElements: offsetStructured,
+      chunks: retrievalRepresentations.chunks,
       warnings,
     };
   }
@@ -412,68 +464,13 @@ export function createDoclingParser({
         },
       });
 
-      let parsedPart = await parseDoclingResponse({
+      const parsedPart = await parseDoclingResponse({
         response: hybridResponse,
         input,
         part,
         chunkStartIndex,
         chunker: 'hybrid',
       });
-
-      if (hasIncompleteChunkCoverage(parsedPart.chunks, parsedPart.text)) {
-        const hierarchicalResponse = await doclingClient.chunkFile({
-          fileName: part.fileName,
-          mimeType: input.mimeType,
-          fileData: part.fileData,
-          chunker: 'hierarchical',
-          convertOptions: {
-            doOcr,
-          },
-        });
-        const hierarchicalPart = await parseDoclingResponse({
-          response: hierarchicalResponse,
-          input,
-          part,
-          chunkStartIndex,
-          chunker: 'hierarchical',
-        });
-        hierarchicalPart.warnings.unshift(
-          `docling.hybrid_chunk_coverage_incomplete:${hybridResponse.chunks.length}->${hierarchicalResponse.chunks.length}`,
-        );
-        if (hasIncompleteChunkCoverage(hierarchicalPart.chunks, hierarchicalPart.text)) {
-          hierarchicalPart.warnings.push(`docling.hierarchical_chunk_coverage_incomplete:${hierarchicalResponse.chunks.length}`);
-          const extractedText = hierarchicalPart.text.trim();
-          if (extractedText.length > 0) {
-            const extractedTextResponse = await doclingClient.chunkFile({
-              fileName: buildExtractedTextChunkFileName(part.fileName),
-              mimeType: 'text/markdown',
-              fileData: Buffer.from(extractedText),
-              chunker: 'hybrid',
-              chunkOptions: DEFAULT_DOCLING_CHUNK_OPTIONS,
-              convertOptions: {
-                doOcr: false,
-              },
-            });
-            const extractedTextPart = await parseDoclingResponse({
-              response: extractedTextResponse,
-              input,
-              part,
-              chunkStartIndex,
-              chunker: 'hybrid',
-              chunkInput: 'extracted_text',
-            });
-            hierarchicalPart.chunks = extractedTextPart.chunks;
-            hierarchicalPart.warnings.push(
-              `docling.extracted_text_hybrid_chunk_fallback:${hierarchicalResponse.chunks.length}->${extractedTextResponse.chunks.length}`,
-            );
-            hierarchicalPart.warnings.push(...extractedTextPart.warnings);
-            if (hasIncompleteChunkCoverage(extractedTextPart.chunks, extractedText)) {
-              hierarchicalPart.warnings.push(`docling.extracted_text_hybrid_chunk_coverage_incomplete:${extractedTextResponse.chunks.length}`);
-            }
-          }
-        }
-        parsedPart = hierarchicalPart;
-      }
 
       parsedParts.push(parsedPart);
       chunkStartIndex += parsedPart.chunks.length;

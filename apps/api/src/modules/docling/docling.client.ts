@@ -17,14 +17,13 @@ export type DoclingConvertOptions = {
   toFormats: string[];
   doOcr: boolean;
   ocrPreset: string;
-  ocrLang: string[];
+  ocrLang?: string[];
 };
 
 export const DEFAULT_DOCLING_CONVERT_OPTIONS: DoclingConvertOptions = {
   toFormats: ['json', 'md'],
   doOcr: true,
-  ocrPreset: 'auto',
-  ocrLang: ['deu', 'eng'],
+  ocrPreset: 'easyocr',
 };
 
 export type DoclingChunkOptions = {
@@ -240,7 +239,7 @@ export function createDoclingClient({
     formData.append('do_ocr', String(effectiveConvertOptions.doOcr));
     formData.append('ocr_preset', effectiveConvertOptions.ocrPreset);
 
-    for (const language of effectiveConvertOptions.ocrLang) {
+    for (const language of effectiveConvertOptions.ocrLang ?? []) {
       formData.append('ocr_lang', language);
     }
 
@@ -412,7 +411,7 @@ export function createDoclingClient({
       formData.append('convert_do_ocr', String(effectiveChunkConvertOptions.doOcr));
       formData.append('convert_ocr_preset', effectiveConvertOptions.ocrPreset);
 
-      for (const language of effectiveConvertOptions.ocrLang) {
+      for (const language of effectiveConvertOptions.ocrLang ?? []) {
         formData.append('convert_ocr_lang', language);
       }
 

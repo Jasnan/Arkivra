@@ -17,6 +17,7 @@ import type {
   ChatIntent,
   ChatMessage,
   ChatMessageMetadata,
+  ChatRetrievalDiagnostics,
 } from './chat.types.js';
 import {
   convertToModelMessages,
@@ -50,14 +51,59 @@ import {
 const DEFAULT_CHAT_TITLE = 'New chat';
 const AVAILABLE_CHAT_CONTEXT: ChatContextAvailability = { status: 'available', readOnly: false };
 const MAX_CONTEXT_CITATIONS = 8;
-const TEXT_ONLY_CONTEXT_CITATIONS = 4;
+const TEXT_ONLY_CONTEXT_CITATIONS = 8;
+const CHAT_RETRIEVAL_LIMIT = 32;
+const CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT = 120;
 const CHAT_CONTEXT_PAGE_RADIUS = 1;
 const MAX_EXPANDED_CONTEXT_CHUNKS = 18;
 const MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH = 3600;
 const MAX_CONTEXT_CHUNK_SNIPPET_LENGTH = 620;
+const MAX_ANSWER_PROMPT_CONTEXT_LENGTH = 9_000;
+const MAX_ANSWER_PROMPT_SOURCE_SNIPPET_LENGTH = 700;
+const MAX_ANSWER_PROMPT_TABLE_LENGTH = 300;
+const MAX_ANSWER_PROMPT_FIGURES_LENGTH = 160;
 const MAX_RECENT_MESSAGES = 8;
 const MAX_FOLLOW_UP_EXAMPLES = 2;
 const YEAR_CONSTRAINT_PATTERN = /\b(?:19|20)\d{2}\b/g;
+const RETRIEVAL_QUERY_STOP_WORDS = new Set([
+  'about',
+  'after',
+  'also',
+  'and',
+  'are',
+  'can',
+  'could',
+  'date',
+  'dates',
+  'for',
+  'following',
+  'from',
+  'give',
+  'has',
+  'have',
+  'into',
+  'its',
+  'list',
+  'me',
+  'need',
+  'person',
+  'persons',
+  'please',
+  'show',
+  'that',
+  'the',
+  'their',
+  'these',
+  'this',
+  'was',
+  'were',
+  'what',
+  'when',
+  'which',
+  'with',
+  'you',
+  'your',
+]);
 const GLOBAL_CHAT_BASE_SYSTEM_PROMPT = [
   'You are Arkivra, an AI assistant that helps users search, analyze, and extract insights from their documents.',
   'You operate over multiple documents and may combine information from different sources.',
@@ -405,18 +451,22 @@ type PageBounds = {
 type ChatContextChunkRow = {
   chunk_id: string;
   chunk_index: number;
+  retrieval_representation: string | null;
   page_start: number | null;
   page_end: number | null;
   section: string | null;
+  source_element_ids: unknown;
   snippet: string | null;
 };
 
 export type ChatContextExpansionChunk = {
   chunkId: string;
   chunkIndex: number;
+  retrievalRepresentation?: string | null;
   pageStart: number | null;
   pageEnd: number | null;
   section: string | null;
+  sourceElementIds?: string[];
   snippet: string;
 };
 
@@ -494,6 +544,14 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   ];
 }
 
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap(item => (typeof item === 'string' ? [item] : []));
+}
+
 function uniqueTables(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
 }
@@ -551,23 +609,41 @@ function buildContextSnippet({
   const fallbackChunks = citations.map((citation, index) => ({
     chunkId: citation.chunkId,
     chunkIndex: index,
+    retrievalRepresentation: citation.retrievalRepresentation ?? null,
     pageStart: citation.pageStart,
     pageEnd: citation.pageEnd,
     section: citation.section,
+    sourceElementIds: citation.sourceElementIds ?? [],
     snippet: citation.snippet,
   }));
-  const chunks = contextChunks.length > 0 ? contextChunks : fallbackChunks;
+  const chunks = (contextChunks.length > 0 ? contextChunks : fallbackChunks)
+    .sort((left, right) =>
+      getContextRepresentationPriority(right.retrievalRepresentation)
+      - getContextRepresentationPriority(left.retrievalRepresentation)
+      || left.chunkIndex - right.chunkIndex,
+    );
   const seen = new Set<string>();
+  const seenSourceElementIds = new Set<string>();
   const parts: string[] = [];
 
   for (const chunk of chunks) {
     const snippet = truncate(chunk.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH);
+    const sourceElementIds = (chunk.sourceElementIds ?? []).filter(sourceElementId => sourceElementId.length > 0);
 
     if (snippet.length === 0 || seen.has(snippet)) {
       continue;
     }
+    if (
+      sourceElementIds.length > 0
+      && sourceElementIds.every(sourceElementId => seenSourceElementIds.has(sourceElementId))
+    ) {
+      continue;
+    }
 
     seen.add(snippet);
+    for (const sourceElementId of sourceElementIds) {
+      seenSourceElementIds.add(sourceElementId);
+    }
     const label = formatContextChunkLabel(chunk);
     parts.push(label.length > 0 ? `${label}: ${snippet}` : snippet);
   }
@@ -597,6 +673,19 @@ function extractYearConstraints(question: string) {
   return [...new Set(question.match(YEAR_CONSTRAINT_PATTERN) ?? [])];
 }
 
+function extractRetrievalQueryTerms(question: string) {
+  return [
+    ...new Set(
+      question
+        .toLowerCase()
+        .split(/[^a-z0-9]+/i)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 3)
+        .filter((term) => !RETRIEVAL_QUERY_STOP_WORDS.has(term)),
+    ),
+  ];
+}
+
 function getYearConstraintMatchCount(citation: Citation, years: string[]) {
   if (years.length === 0) {
     return 0;
@@ -612,6 +701,61 @@ function getYearConstraintMatchCount(citation: Citation, years: string[]) {
   return years.filter((year) => searchableText.includes(year)).length;
 }
 
+function countTermMatches(value: string, terms: string[]) {
+  const lowerValue = value.toLowerCase();
+
+  return terms.filter((term) => lowerValue.includes(term)).length;
+}
+
+function getQueryTermMatchScore(citation: Citation, terms: string[]) {
+  if (terms.length === 0) {
+    return 0;
+  }
+
+  const titleScore = countTermMatches(citation.documentName, terms) * 4;
+  const structureScore =
+    countTermMatches([citation.section, citation.sectionPath?.join(' ')].join(' '), terms) * 2;
+  const snippetScore = countTermMatches(citation.snippet, terms);
+
+  return titleScore + structureScore + snippetScore;
+}
+
+function getContextRepresentationPriority(representation: string | null | undefined) {
+  if (representation === 'table') return 4;
+  if (representation === 'docling_hybrid') return 3;
+  if (representation === 'contextual') return 2;
+  if (representation === 'page') return 1;
+  return 0;
+}
+
+function getQuestionRepresentationScore(question: string, citation: Citation) {
+  const lowerQuestion = question.toLowerCase();
+  const representation = citation.retrievalRepresentation;
+  const tableQuestion =
+    /\b(?:table|row|column|line item|subtotal|total|amount|balance|statement|invoice)\b/i.test(lowerQuestion);
+  const pageGroundingQuestion =
+    /\b(?:page|scan|scanned|passport|identity| id |expiry|expiration|document number|mrz)\b/i.test(` ${lowerQuestion} `);
+  const narrativeQuestion =
+    /\b(?:policy|contract|clause|section|paragraph|explain|summarize|agreement|coverage)\b/i.test(lowerQuestion);
+
+  if ((representation === 'table' || citation.assetType === 'table') && tableQuestion) {
+    return 6;
+  }
+  if (representation === 'page' && pageGroundingQuestion) {
+    return 5;
+  }
+  if (representation === 'docling_hybrid' && narrativeQuestion) {
+    return 4;
+  }
+  if (representation === 'table') {
+    return 2;
+  }
+  if (representation === 'page') {
+    return 1;
+  }
+  return 0;
+}
+
 export function rankCitationsForQuestion({
   question,
   citations,
@@ -620,8 +764,9 @@ export function rankCitationsForQuestion({
   citations: Citation[];
 }) {
   const years = extractYearConstraints(question);
+  const queryTerms = extractRetrievalQueryTerms(question);
 
-  if (years.length === 0) {
+  if (years.length === 0 && queryTerms.length === 0) {
     return citations;
   }
 
@@ -630,8 +775,17 @@ export function rankCitationsForQuestion({
       citation,
       index,
       yearMatchCount: getYearConstraintMatchCount(citation, years),
+      queryTermMatchScore: getQueryTermMatchScore(citation, queryTerms),
+      representationScore: getQuestionRepresentationScore(question, citation),
     }))
-    .sort((left, right) => right.yearMatchCount - left.yearMatchCount || left.index - right.index)
+    .sort(
+      (left, right) =>
+        right.yearMatchCount - left.yearMatchCount ||
+        right.representationScore - left.representationScore ||
+        right.queryTermMatchScore - left.queryTermMatchScore ||
+        right.citation.score - left.citation.score ||
+        left.index - right.index,
+    )
     .map((item) => item.citation);
 }
 
@@ -709,9 +863,11 @@ async function loadContextChunksForCitationGroup({
     SELECT
       dc.id AS chunk_id,
       dc.chunk_index,
+      dc.metadata->>'retrievalRepresentation' AS retrieval_representation,
       COALESCE(dc.page_start, dc.page_number) AS page_start,
       COALESCE(dc.page_end, dc.page_start, dc.page_number) AS page_end,
       dc.section,
+      COALESCE(dc.source_element_ids, '[]'::jsonb) AS source_element_ids,
       COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet
     FROM document_chunks AS dc
     INNER JOIN documents AS d ON d.id = dc.document_id
@@ -743,9 +899,11 @@ async function loadContextChunksForCitationGroup({
       {
         chunkId: row.chunk_id,
         chunkIndex: row.chunk_index,
+        retrievalRepresentation: row.retrieval_representation,
         pageStart: row.page_start,
         pageEnd: row.page_end,
         section: row.section,
+        sourceElementIds: parseStringArray(row.source_element_ids),
         snippet,
       },
     ];
@@ -786,6 +944,20 @@ export function normalizeChatGenerationError(error: unknown) {
 
 export function isEmptyGeneratedChatContent(content: string) {
   return content.trim().length === 0;
+}
+
+export function isLikelyTruncatedSingleTokenAnswer({
+  content,
+  metrics,
+}: {
+  content: string;
+  metrics: ChatGenerationMetrics | null;
+}) {
+  const words = content.trim().split(/\s+/).filter(Boolean);
+
+  return words.length === 1 && metrics?.evalCount !== null && metrics?.evalCount !== undefined
+    ? metrics.evalCount <= 1
+    : false;
 }
 
 function getScopeValues(scope: ChatScopeInput) {
@@ -1083,10 +1255,12 @@ export function buildManifestHybridSearchArgs({
   manifestRows,
   query,
   limit,
+  candidateLimit,
 }: {
   manifestRows: ChatManifestRow[];
   query: string;
   limit: number;
+  candidateLimit?: number;
 }): Parameters<DocumentSearchServices['searchHybrid']>[0] | null {
   const liveRows = getLiveManifestRows(manifestRows);
   const vaultIds = uniqueVaultIdsForManifest(liveRows);
@@ -1101,6 +1275,7 @@ export function buildManifestHybridSearchArgs({
     documentVersionIds,
     query,
     limit,
+    ...(candidateLimit !== undefined ? { candidateLimit } : {}),
     mode: 'hybrid',
   };
 }
@@ -1110,19 +1285,65 @@ async function searchHybridForManifest({
   manifestRows,
   query,
   limit,
+  candidateLimit,
 }: {
   searchServices: DocumentSearchServices;
   manifestRows: ChatManifestRow[];
   query: string;
   limit: number;
+  candidateLimit?: number;
 }) {
-  const args = buildManifestHybridSearchArgs({ manifestRows, query, limit });
+  const args = buildManifestHybridSearchArgs({ manifestRows, query, limit, candidateLimit });
 
   if (args === null) {
     return createEmptyHybridResult({ query, limit });
   }
 
   return searchServices.searchHybrid(args);
+}
+
+function buildRetrievalDiagnostics({
+  mode,
+  retrievedCitations,
+  expandedCitations,
+  finalCitations,
+  requestedContextLimit,
+  retrievalLimit,
+  candidatePoolLimit,
+}: {
+  mode: 'hybrid' | 'fts';
+  retrievedCitations: Citation[];
+  expandedCitations: Citation[];
+  finalCitations: Citation[];
+  requestedContextLimit: number;
+  retrievalLimit: number;
+  candidatePoolLimit: number;
+}): ChatRetrievalDiagnostics {
+  const includedDocumentVersions = new Set(
+    finalCitations.map((citation) => getCitationGroupKey(citation)),
+  );
+
+  return {
+    mode,
+    requestedContextLimit,
+    retrievalLimit,
+    candidatePoolLimit,
+    retrievedChunkCount: retrievedCitations.length,
+    expandedDocumentCount: expandedCitations.length,
+    finalContextCount: finalCitations.length,
+    candidates: retrievedCitations.map((citation, index) => ({
+      rank: index + 1,
+      chunkId: citation.chunkId,
+      documentId: citation.documentId,
+      documentVersionId: citation.documentVersionId,
+      versionNumber: citation.versionNumber,
+      vaultId: citation.vaultId,
+      score: citation.score,
+      decision: includedDocumentVersions.has(getCitationGroupKey(citation))
+        ? 'included'
+        : 'discarded',
+    })),
+  };
 }
 
 export function buildChatMessageCitationRows({
@@ -1148,6 +1369,7 @@ export function buildChatMessageCitationRows({
     citationPrecision: citation.citationPrecision,
     snippet: truncate(citation.snippet, MAX_CONTEXT_CHUNK_SNIPPET_LENGTH),
     locatorJson: {
+      retrievalRepresentation: citation.retrievalRepresentation ?? null,
       section: citation.section,
       sectionPath: citation.sectionPath ?? [],
       sourceElementIds: citation.sourceElementIds ?? [],
@@ -1274,34 +1496,90 @@ function formatCitationFigures(citation: Citation) {
     .join('\n');
 }
 
-export function buildCitationContext(citations: Citation[]) {
+function formatCitationTables(citation: Citation, maxLength: number | null = null) {
+  if (citation.tablesHtml.length === 0) {
+    return '(none)';
+  }
+
+  const tables = citation.tablesHtml
+    .map(
+      (table, tableIndex) => `Table ${tableIndex + 1}:\n${serializeTableHtmlForRetrieval(table)}`,
+    )
+    .join('\n\n');
+
+  return maxLength === null || tables.length <= maxLength ? tables : truncate(tables, maxLength);
+}
+
+function buildCitationContextBlock({
+  citation,
+  index,
+  maxSnippetLength,
+  maxTablesLength,
+  maxFiguresLength,
+}: {
+  citation: Citation;
+  index: number;
+  maxSnippetLength: number | null;
+  maxTablesLength: number | null;
+  maxFiguresLength: number | null;
+}) {
+  const snippet =
+    maxSnippetLength === null ? citation.snippet : truncate(citation.snippet, maxSnippetLength);
+  const tables = formatCitationTables(citation, maxTablesLength);
+  const figures = formatCitationFigures(citation);
+
+  return [
+    `Source ${index + 1}: ${citation.documentName}`,
+    `Vault: ${citation.vaultName}`,
+    `Location: ${formatPageRange(citation)}`,
+    `Section: ${formatSectionPath(citation)}`,
+    `Snippet:\n${snippet}`,
+    `Tables:\n${tables}`,
+    `Figures:\n${maxFiguresLength === null ? figures : truncate(figures, maxFiguresLength)}`,
+  ].join('\n');
+}
+
+export function buildCitationContext(
+  citations: Citation[],
+  options: {
+    maxTotalLength?: number;
+    maxSnippetLength?: number;
+    maxTablesLength?: number;
+    maxFiguresLength?: number;
+  } = {},
+) {
   if (citations.length === 0) {
     return '(no retrieved context)';
   }
 
-  return citations
-    .map((citation, index) => {
-      const tables =
-        citation.tablesHtml.length > 0
-          ? citation.tablesHtml
-              .map(
-                (table, tableIndex) =>
-                  `Table ${tableIndex + 1}:\n${serializeTableHtmlForRetrieval(table)}`,
-              )
-              .join('\n\n')
-          : '(none)';
+  const maxTotalLength = options.maxTotalLength ?? null;
+  const blocks: string[] = [];
+  let outputLength = 0;
 
-      return [
-        `Source ${index + 1}: ${citation.documentName}`,
-        `Vault: ${citation.vaultName}`,
-        `Location: ${formatPageRange(citation)}`,
-        `Section: ${formatSectionPath(citation)}`,
-        `Snippet:\n${citation.snippet}`,
-        `Tables:\n${tables}`,
-        `Figures:\n${formatCitationFigures(citation)}`,
-      ].join('\n');
-    })
-    .join('\n\n---\n\n');
+  for (const [index, citation] of citations.entries()) {
+    const separator = blocks.length > 0 ? '\n\n---\n\n' : '';
+    const block = buildCitationContextBlock({
+      citation,
+      index,
+      maxSnippetLength: options.maxSnippetLength ?? null,
+      maxTablesLength: options.maxTablesLength ?? null,
+      maxFiguresLength: options.maxFiguresLength ?? null,
+    });
+    const nextLength = outputLength + separator.length + block.length;
+
+    if (maxTotalLength !== null && nextLength > maxTotalLength) {
+      if (blocks.length === 0) {
+        return truncate(block, maxTotalLength);
+      }
+
+      break;
+    }
+
+    blocks.push(block);
+    outputLength = nextLength;
+  }
+
+  return blocks.join('\n\n---\n\n');
 }
 
 export function buildAnswerPrompt({
@@ -1339,7 +1617,12 @@ export function buildAnswerPrompt({
     '',
     `Question:\n${question}`,
     '',
-    `Retrieved context:\n${buildCitationContext(citations)}`,
+    `Retrieved context:\n${buildCitationContext(citations, {
+      maxTotalLength: MAX_ANSWER_PROMPT_CONTEXT_LENGTH,
+      maxSnippetLength: MAX_ANSWER_PROMPT_SOURCE_SNIPPET_LENGTH,
+      maxTablesLength: MAX_ANSWER_PROMPT_TABLE_LENGTH,
+      maxFiguresLength: MAX_ANSWER_PROMPT_FIGURES_LENGTH,
+    })}`,
   ].join('\n');
 }
 
@@ -1804,6 +2087,7 @@ export function createChatServices({
         let generatedContent = '';
         let assistantMetadata: ChatMessageMetadata = {};
         let generationMetrics: ChatGenerationMetrics | null = null;
+        let retrievalDiagnostics: ChatRetrievalDiagnostics | null = null;
         let generationStartMs: number | null = null;
         let generationFinishedMs: number | null = null;
         let firstTokenAtMs: number | null = null;
@@ -1811,6 +2095,7 @@ export function createChatServices({
         const includeInlineCitations = responseMode === 'multimodal';
         const citationLimit =
           responseMode === 'multimodal' ? MAX_CONTEXT_CITATIONS : TEXT_ONLY_CONTEXT_CITATIONS;
+        const retrievalLimit = Math.min(50, Math.max(CHAT_RETRIEVAL_LIMIT, citationLimit));
 
         try {
           const settings = await resolveAiSettings();
@@ -1893,11 +2178,26 @@ export function createChatServices({
             searchServices,
             manifestRows,
             query: content,
-            limit: citationLimit,
+            limit: retrievalLimit,
+            candidateLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
           });
-          citations = rankCitationsForQuestion({
+          const expandedCitations = await expandRetrievedCitationsForChat({
+            db,
+            citations: result.citations,
+          });
+          const rankedCitations = rankCitationsForQuestion({
             question: content,
-            citations: await expandRetrievedCitationsForChat({ db, citations: result.citations }),
+            citations: expandedCitations,
+          });
+          citations = rankedCitations.slice(0, citationLimit);
+          retrievalDiagnostics = buildRetrievalDiagnostics({
+            mode: result.mode,
+            retrievedCitations: result.citations,
+            expandedCitations,
+            finalCitations: citations,
+            requestedContextLimit: citationLimit,
+            retrievalLimit,
+            candidatePoolLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
           });
           citationsForPersistence = includeInlineCitations
             ? sanitizeCitationsForMessagePersistence(citations)
@@ -1985,6 +2285,15 @@ export function createChatServices({
           if (isEmptyGeneratedChatContent(generatedContent)) {
             throw new Error('The model returned an empty answer. Please try again.');
           }
+          if (
+            isLikelyTruncatedSingleTokenAnswer({
+              content: generatedContent,
+              metrics: generationMetrics,
+            })
+          ) {
+            generatedContent = '';
+            throw new Error('The model stopped after a partial answer. Please try again.');
+          }
           writeStatus(writer, 'saving');
           if (citationsForPersistence.length > 0) {
             writer.write({ type: 'data-citations', data: citationsForPersistence });
@@ -1997,6 +2306,7 @@ export function createChatServices({
             ...assistantMetadata,
             citations: citationsForPersistence,
             generationMetrics,
+            ...(retrievalDiagnostics !== null ? { retrievalDiagnostics } : {}),
             generationStatus: 'completed',
             generationError: null,
           };
@@ -2018,6 +2328,7 @@ export function createChatServices({
             ...assistantMetadata,
             citations: citationsForPersistence,
             generationMetrics,
+            ...(retrievalDiagnostics !== null ? { retrievalDiagnostics } : {}),
             generationStatus: 'failed',
             generationError: message,
           };

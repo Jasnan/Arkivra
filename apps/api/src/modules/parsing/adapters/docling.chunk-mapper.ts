@@ -4,10 +4,22 @@ import type {
   CitationPrecision,
   ParsedChunk,
   ParsedChunkType,
+  StructuredElement,
 } from '../parsed-document.schema.js';
+import { serializeTableHtmlForRetrieval } from '../table-formatting.js';
+import { extractDoclingStructuredContent } from './docling.structured.js';
 
 type JsonObject = Record<string, unknown>;
 type EmbeddedImage = { mimeType: string; data: Buffer };
+type TableReference = {
+  html: string;
+  structuredText: string;
+  provenance: {
+    elementId: string;
+    pageNumber: number | null;
+    bbox: ChunkBoundingBox | null;
+  };
+};
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -126,6 +138,40 @@ function buildImageLookup(doclingDocument: JsonObject): Map<string, EmbeddedImag
   return lookup;
 }
 
+function buildTableLookup(doclingDocument: JsonObject): Map<string, TableReference> {
+  const lookup = new Map<string, TableReference>();
+
+  let elements: StructuredElement[] = [];
+  try {
+    elements = extractDoclingStructuredContent(doclingDocument).structuredElements;
+  } catch {
+    return lookup;
+  }
+
+  for (const element of elements) {
+    if (element.type !== 'table' || element.tableHtml === null) {
+      continue;
+    }
+
+    lookup.set(element.elementId, {
+      html: element.tableHtml,
+      structuredText: serializeTableHtmlForRetrieval(element.tableHtml),
+      provenance: {
+        elementId: element.elementId,
+        pageNumber: element.pageNumber,
+        bbox: element.pageNumber !== null && element.bbox !== null
+          ? {
+              pageNumber: element.pageNumber,
+              ...element.bbox,
+            }
+          : null,
+      },
+    });
+  }
+
+  return lookup;
+}
+
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -187,6 +233,9 @@ export function mapDoclingChunksToParsedChunks({
   const imageLookup = doclingDocument !== undefined
     ? buildImageLookup(doclingDocument)
     : new Map<string, EmbeddedImage>();
+  const tableLookup = doclingDocument !== undefined
+    ? buildTableLookup(doclingDocument)
+    : new Map<string, TableReference>();
 
   return response.chunks.map((chunk) => {
     const headings = chunk.headings ?? [];
@@ -196,10 +245,16 @@ export function mapDoclingChunksToParsedChunks({
     const boundingBoxes: ChunkBoundingBox[] = [];
     const images: EmbeddedImage[] = [];
     const captions: string[] = [];
+    const tables: TableReference[] = [];
     for (const ref of docItems) {
       const refBboxes = bboxLookup.get(ref);
       if (refBboxes !== undefined) {
         boundingBoxes.push(...refBboxes);
+      }
+
+      const refTable = tableLookup.get(ref);
+      if (refTable !== undefined) {
+        tables.push(refTable);
       }
 
       const refImage = imageLookup.get(ref);
@@ -220,12 +275,18 @@ export function mapDoclingChunksToParsedChunks({
     const parentElementId = null;
     const citationPrecision = deriveCitationPrecision(boundingBoxes, pageNumbers);
     const type = inferChunkType(docItems);
-    const tokenCount = chunk.num_tokens ?? estimateTokens(chunk.text);
 
     let text = chunk.text;
     if (captions.length > 0) {
       text = `${text}\n\n[Image descriptions: ${captions.join('; ')}]`;
     }
+    if (tables.length > 0) {
+      const tableText = tables
+        .map((table, index) => `Table ${index + 1}:\n${table.structuredText}`)
+        .join('\n\n');
+      text = `${text}\n\n[Structured tables]\n${tableText}`;
+    }
+    const tokenCount = estimateTokens(text);
 
     return {
       id: `${documentId}:${chunk.chunk_index}`,
@@ -239,7 +300,7 @@ export function mapDoclingChunksToParsedChunks({
       sourceElementIds,
       parentElementId,
       originalText: chunk.raw_text ?? chunk.text,
-      tablesHtml: [],
+      tablesHtml: tables.map(table => table.html),
       images,
       citationPrecision,
       enhancedContent: null,
@@ -252,6 +313,7 @@ export function mapDoclingChunksToParsedChunks({
         doclingCaptions: chunk.captions ?? [],
         doclingFilename: chunk.filename,
         imageCaptions: captions.length > 0 ? captions : undefined,
+        tableProvenance: tables.length > 0 ? tables.map(table => table.provenance) : undefined,
         ...chunk.metadata,
       },
     };

@@ -49,9 +49,9 @@ describe('docling client', () => {
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
     expect(submitBody.getAll('to_formats')).toEqual(['json', 'md']);
-    expect(submitBody.get('ocr_preset')).toBe('auto');
+    expect(submitBody.get('ocr_preset')).toBe('easyocr');
     expect(submitBody.has('ocr_engine')).toBe(false);
-    expect(submitBody.getAll('ocr_lang')).toEqual(['deu', 'eng']);
+    expect(submitBody.has('ocr_lang')).toBe(false);
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'http://docling.local/v1/status/poll/task_1',
@@ -91,7 +91,7 @@ describe('docling client', () => {
       pollIntervalMs: 1,
       maxWaitMs: 10_000,
       convertOptions: {
-        ocrLang: ['auto'],
+        ocrLang: ['en', 'de'],
       },
       fetchImpl: fetchMock as typeof fetch,
       sleepImpl: async () => undefined,
@@ -106,7 +106,7 @@ describe('docling client', () => {
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
     expect(submitBody.getAll('to_formats')).toEqual(['json', 'md']);
-    expect(submitBody.getAll('ocr_lang')).toEqual(['auto']);
+    expect(submitBody.getAll('ocr_lang')).toEqual(['en', 'de']);
   });
 
   test('allows overriding the OCR preset', async () => {
@@ -351,8 +351,8 @@ describe('docling client', () => {
     expect(submitBody.get('include_converted_doc')).toBe('true');
     expect(submitBody.get('target_type')).toBe('inbody');
     expect(submitBody.get('convert_do_ocr')).toBe('false');
-    expect(submitBody.get('convert_ocr_preset')).toBe('auto');
-    expect(submitBody.getAll('convert_ocr_lang')).toEqual(['deu', 'eng']);
+    expect(submitBody.get('convert_ocr_preset')).toBe('easyocr');
+    expect(submitBody.has('convert_ocr_lang')).toBe(false);
     expect(submitBody.get('convert_include_images')).toBe('true');
     expect(submitBody.get('convert_image_export_mode')).toBe('embedded');
     expect(submitBody.get('chunking_include_raw_text')).toBe('true');

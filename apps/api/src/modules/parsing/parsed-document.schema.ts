@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PARSED_CHUNK_TYPES = ['heading', 'paragraph', 'table', 'list', 'other'] as const;
+export const PARSED_CHUNK_TYPES = ['heading', 'paragraph', 'table', 'list', 'page', 'contextual', 'other'] as const;
 export type ParsedChunkType = (typeof PARSED_CHUNK_TYPES)[number];
 
 export const parserEmbeddedImageSchema = z.object({

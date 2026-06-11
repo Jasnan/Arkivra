@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Flex, Grid, HStack, SimpleGrid, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, CircleX, Clock3, Info, Package, Plus, Send } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleX, Clock3, Info, Languages, Package, Plus, Send } from 'lucide-react';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,12 @@ import { AdminAccessBoundary } from './admin-shared';
 const emptyAiSettings: AdminAiSettings = {
   aiFeaturesEnabled: false,
   chat: {
+    provider: 'ollama',
+    baseUrl: '',
+    apiKeySecretRef: null,
+    model: '',
+  },
+  translation: {
     provider: 'ollama',
     baseUrl: '',
     apiKeySecretRef: null,
@@ -82,8 +88,9 @@ function getConnectionStatusLabel({
   return reachable && modelAvailable ? 'Healthy' : 'Error';
 }
 
-type AiSettingsDraftOverride = Partial<Omit<AdminAiSettings, 'chat' | 'embedding'>> & {
+type AiSettingsDraftOverride = Partial<Omit<AdminAiSettings, 'chat' | 'translation' | 'embedding'>> & {
   chat?: Partial<AdminAiProviderSettings>;
+  translation?: Partial<AdminAiProviderSettings>;
   embedding?: Partial<AdminAiSettings['embedding']>;
 };
 
@@ -380,6 +387,10 @@ export function AdminAiSettingsPage() {
       ...savedAiSettings.chat,
       ...(aiDraftOverride.chat ?? {}),
     },
+    translation: {
+      ...(savedAiSettings.translation ?? savedAiSettings.chat),
+      ...(aiDraftOverride.translation ?? {}),
+    },
     embedding: {
       ...savedAiSettings.embedding,
       ...(aiDraftOverride.embedding ?? {}),
@@ -387,6 +398,7 @@ export function AdminAiSettingsPage() {
   };
   aiDraft.ollamaHost = aiDraft.chat.baseUrl;
   aiDraft.model = aiDraft.chat.model;
+  aiDraft.translation.baseUrl = aiDraft.translation.baseUrl || aiDraft.chat.baseUrl;
   const aiStatus = aiStatusQuery.data?.status;
   const activeIndex = aiStatus?.embedding.activeIndex ?? null;
   const preparingIndex = aiStatus?.embedding.candidateIndexes.find(index => index.status === 'building' || index.status === 'ready') ?? null;
@@ -415,7 +427,19 @@ export function AdminAiSettingsPage() {
 
     return names;
   }, [aiDraft.chat.model, aiDraft.chat.provider, availableChatModelNames]);
+  const translationModelOptions = useMemo(() => {
+    const currentModel = aiDraft.translation.model.trim();
+    const names = availableChatModelNames.filter(model =>
+      !isCatalogEmbeddingModel(aiDraft.translation.provider, model) || model === currentModel,
+    );
+    if (currentModel.length > 0 && !names.includes(currentModel)) {
+      names.unshift(currentModel);
+    }
+
+    return names;
+  }, [aiDraft.translation.model, aiDraft.translation.provider, availableChatModelNames]);
   const effectiveDefaultChatModel = aiDraft.chat.model.trim() || (chatModelOptions[0] ?? '');
+  const effectiveTranslationModel = aiDraft.translation.model.trim() || effectiveDefaultChatModel;
   const effectiveAllowedChatModels = allowedChatModels.length === 0
     ? chatModelOptions
     : chatModelOptions.filter(model => allowedChatModels.includes(model) || model === effectiveDefaultChatModel);
@@ -425,15 +449,30 @@ export function AdminAiSettingsPage() {
     enabled: canListChatModels && effectiveDefaultChatModel.length > 0,
   });
   const chatAvailability = chatAvailabilityQuery.data?.availability;
+  const translationAvailabilityQuery = useAdminAiAvailabilityQuery({
+    host: aiDraft.translation.baseUrl || aiDraft.chat.baseUrl,
+    model: effectiveTranslationModel,
+    enabled: canListChatModels && effectiveTranslationModel.length > 0,
+  });
+  const translationAvailability = translationAvailabilityQuery.data?.availability;
   const chatConnectionStatus = getConnectionStatusLabel({
     enabled: aiDraft.chat.baseUrl.trim().length > 0 && effectiveDefaultChatModel.length > 0,
     isLoading: chatAvailabilityQuery.isFetching,
     reachable: chatAvailability?.reachable,
     modelAvailable: chatAvailability?.modelAvailable,
   });
+  const translationConnectionStatus = getConnectionStatusLabel({
+    enabled: (aiDraft.translation.baseUrl || aiDraft.chat.baseUrl).trim().length > 0 && effectiveTranslationModel.length > 0,
+    isLoading: translationAvailabilityQuery.isFetching,
+    reachable: translationAvailability?.reachable,
+    modelAvailable: translationAvailability?.modelAvailable,
+  });
   const isChatConfigValid =
     aiDraft.chat.baseUrl.trim().length > 0
     && effectiveDefaultChatModel.length > 0;
+  const isTranslationConfigValid =
+    (aiDraft.translation.baseUrl || aiDraft.chat.baseUrl).trim().length > 0
+    && effectiveTranslationModel.length > 0;
   const isEmbeddingConfigValid =
     aiDraft.embedding.baseUrl.trim().length > 0
     && aiDraft.embedding.model.trim().length > 0
@@ -457,6 +496,12 @@ export function AdminAiSettingsPage() {
       statusLabel: 'Selected',
       missingLabel: 'No default chat model selected',
       isMet: effectiveDefaultChatModel.length > 0,
+    },
+    {
+      label: 'Translation model',
+      statusLabel: 'Selected',
+      missingLabel: 'No translation model selected',
+      isMet: effectiveTranslationModel.length > 0,
     },
     {
       label: 'Embedding model',
@@ -498,7 +543,9 @@ export function AdminAiSettingsPage() {
   const chatStatus = chatConnectionStatus === 'Healthy'
     ? 'Ready'
     : isChatConfigValid ? chatConnectionStatus : 'Needs configuration';
-  const translationStatus = isChatConfigValid ? (chatConnectionStatus === 'Error' ? 'Provider error' : 'Ready') : 'Needs configuration';
+  const translationStatus = isTranslationConfigValid
+    ? (translationConnectionStatus === 'Error' ? 'Provider error' : 'Ready')
+    : 'Needs configuration';
   const indexedChunks = chunkCoverage.indexedChunkCount;
   const configuredEmbeddingModel = savedAiSettings.embedding.model || aiDraft.embedding.model;
   const configuredEmbeddingProvider = savedAiSettings.embedding.provider || aiDraft.embedding.provider;
@@ -576,6 +623,10 @@ export function AdminAiSettingsPage() {
         ...aiDraft.chat,
         ...(next.chat ?? {}),
       },
+      translation: {
+        ...aiDraft.translation,
+        ...(next.translation ?? {}),
+      },
       embedding: {
         ...aiDraft.embedding,
         ...(next.embedding ?? {}),
@@ -584,12 +635,15 @@ export function AdminAiSettingsPage() {
 
     merged.ollamaHost = merged.chat.baseUrl;
     merged.model = merged.chat.model;
+    merged.translation.baseUrl = merged.translation.baseUrl || merged.chat.baseUrl;
     return merged;
   }
 
   function normalizeAiSettingsForSave(settings: AdminAiSettings): AdminAiSettings {
     const chatBaseUrl = settings.chat.baseUrl.trim();
     const chatModel = settings.chat.model.trim() || effectiveDefaultChatModel.trim();
+    const translationBaseUrl = (settings.translation.baseUrl || chatBaseUrl).trim();
+    const translationModel = settings.translation.model.trim() || effectiveTranslationModel.trim() || chatModel;
     const embeddingBaseUrl = settings.embedding.baseUrl.trim() || chatBaseUrl;
     const embeddingModel = settings.embedding.model.trim() || savedAiSettings.embedding.model || emptyAiSettings.embedding.model;
     const embeddingDimensions = settings.embedding.dimensions > 0
@@ -602,6 +656,11 @@ export function AdminAiSettingsPage() {
         ...settings.chat,
         baseUrl: chatBaseUrl,
         model: chatModel,
+      },
+      translation: {
+        ...settings.translation,
+        baseUrl: translationBaseUrl,
+        model: translationModel,
       },
       embedding: {
         ...settings.embedding,
@@ -644,6 +703,10 @@ export function AdminAiSettingsPage() {
 
   function updateChatDraft(next: Partial<AdminAiProviderSettings>) {
     setAiDraftOverride(draft => ({ ...draft, chat: { ...(draft.chat ?? {}), ...next } }));
+  }
+
+  function updateTranslationDraft(next: Partial<AdminAiProviderSettings>) {
+    setAiDraftOverride(draft => ({ ...draft, translation: { ...(draft.translation ?? {}), ...next } }));
   }
 
   function updateEmbeddingDraft(next: Partial<AdminAiSettings['embedding']>) {
@@ -756,7 +819,7 @@ export function AdminAiSettingsPage() {
         >
           <Grid templateColumns={{ base: '1fr', xl: 'minmax(0, 1fr) minmax(13rem, 0.32fr)' }} gap="4" alignItems="stretch">
             <SimpleGrid
-              columns={{ base: 1, md: 2, xl: 4 }}
+              columns={{ base: 1, md: 2, xl: 5 }}
               gap="0"
               rounded="md"
               borderWidth="1px"
@@ -767,8 +830,8 @@ export function AdminAiSettingsPage() {
               {readinessChecks.map((check, index) => (
                 <Box
                   key={check.label}
-                  borderRightWidth={{ base: '0', md: index % 2 === 0 ? '1px' : '0', xl: index === readinessChecks.length - 1 ? '0' : '1px' }}
-                  borderBottomWidth={{ base: index === readinessChecks.length - 1 ? '0' : '1px', md: index < 2 ? '1px' : '0', xl: '0' }}
+                  borderRightWidth={{ base: '0', md: index % 2 === 0 && index !== readinessChecks.length - 1 ? '1px' : '0', xl: index === readinessChecks.length - 1 ? '0' : '1px' }}
+                  borderBottomWidth={{ base: index === readinessChecks.length - 1 ? '0' : '1px', md: index === readinessChecks.length - 1 ? '0' : '1px', xl: '0' }}
                   borderColor="border.surface"
                 >
                   <RequirementStatus label={check.label} statusLabel={check.statusLabel} missingLabel={check.missingLabel} isMet={check.isMet} />
@@ -825,7 +888,7 @@ export function AdminAiSettingsPage() {
               <Stack gap="1">
                 <CapabilityStatus label="Semantic Search" status={semanticStatus} tone={aiDraft.aiFeaturesEnabled && isEmbeddingConfigValid ? 'ready' : aiDraft.aiFeaturesEnabled ? 'warning' : 'disabled'} />
                 <CapabilityStatus label="AI Chat" status={aiDraft.aiFeaturesEnabled ? chatStatus : 'Paused'} tone={aiDraft.aiFeaturesEnabled && isChatConfigValid ? 'ready' : aiDraft.aiFeaturesEnabled ? 'warning' : 'disabled'} />
-                <CapabilityStatus label="Translation" status={aiDraft.aiFeaturesEnabled ? translationStatus : 'Paused'} tone={aiDraft.aiFeaturesEnabled && isChatConfigValid ? 'ready' : aiDraft.aiFeaturesEnabled ? 'warning' : 'disabled'} />
+                <CapabilityStatus label="Translation" status={aiDraft.aiFeaturesEnabled ? translationStatus : 'Paused'} tone={aiDraft.aiFeaturesEnabled && isTranslationConfigValid ? 'ready' : aiDraft.aiFeaturesEnabled ? 'warning' : 'disabled'} />
               </Stack>
             </Stack>
           </Grid>
@@ -890,7 +953,7 @@ export function AdminAiSettingsPage() {
           </Stack>
         </AiSettingsSection>
 
-        <SimpleGrid columns={{ base: 1, xl: 2 }} gap="3" alignItems="stretch">
+        <SimpleGrid columns={{ base: 1, xl: 3 }} gap="3" alignItems="stretch">
           <AiSettingsSection
             title="Embedding"
             description="Configure the model used to create vector embeddings for semantic search."
@@ -1053,6 +1116,87 @@ export function AdminAiSettingsPage() {
               >
                 Configure chat models
               </Button>
+            </Stack>
+          </AiSettingsSection>
+
+          <AiSettingsSection
+            title="Translation"
+            description="Configure the model used for document translation."
+            minH="19rem"
+          >
+            <Stack gap="4">
+              <Stack gap="2">
+                <Text textStyle="xs" fontWeight="semibold" color="fg.muted">Selected model</Text>
+                <Flex
+                  align="center"
+                  justify="space-between"
+                  gap="3"
+                  rounded="md"
+                  borderWidth="1px"
+                  borderColor="border.surface"
+                  bg="bg.surface"
+                  px="3"
+                  py="2"
+                >
+                  <HStack gap="2.5" minW="0">
+                    <Flex
+                      boxSize="7"
+                      align="center"
+                      justify="center"
+                      rounded="md"
+                      borderWidth="1px"
+                      borderColor="border.surface"
+                      bg="bg.subtle"
+                      color="fg.muted"
+                      flexShrink={0}
+                    >
+                      <Languages size={17} />
+                    </Flex>
+                    <Stack gap="0" minW="0">
+                      <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
+                        {effectiveTranslationModel || 'Not selected'}
+                      </Text>
+                      <Text textStyle="xs" color="fg.muted" truncate>
+                        {formatProvider(aiDraft.translation.provider)}
+                        {(aiDraft.translation.baseUrl || aiDraft.chat.baseUrl) ? ` · ${aiDraft.translation.baseUrl || aiDraft.chat.baseUrl}` : ''}
+                      </Text>
+                    </Stack>
+                  </HStack>
+                  <SettingsStatusBadge tone={effectiveTranslationModel ? 'enabled' : 'inactive'} density="compact">
+                    {effectiveTranslationModel ? 'Selected' : 'Not selected'}
+                  </SettingsStatusBadge>
+                </Flex>
+              </Stack>
+              <Stack gap="2">
+                <Text textStyle="xs" fontWeight="semibold" color="fg.muted">Translation model</Text>
+                <Select
+                  value={effectiveTranslationModel}
+                  disabled={translationModelOptions.length === 0 || aiSettingsMutation.isPending}
+                  onValueChange={(model) => {
+                    updateTranslationDraft({ model, baseUrl: aiDraft.chat.baseUrl });
+                    persistAiDraft({ translation: { model, baseUrl: aiDraft.chat.baseUrl } });
+                  }}
+                  positioning={{ sameWidth: true }}
+                >
+                  <SelectTrigger aria-label="Translation model" bg="bg.surface">
+                    <SelectValue placeholder="Select translation model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {translationModelOptions.map(model => (
+                      <SelectItem key={model} value={model}>{model}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Text textStyle="xs" color="fg.muted">
+                  Uses the configured Ollama chat endpoint. Choose a model that supports the document inputs you translate.
+                </Text>
+              </Stack>
+              <HStack gap="2" align="center">
+                <Text textStyle="xs" fontWeight="semibold" color="fg.muted">Status</Text>
+                <SettingsStatusBadge tone={translationConnectionStatus === 'Healthy' ? 'enabled' : translationConnectionStatus === 'Error' ? 'warning' : 'inactive'} density="compact">
+                  {translationConnectionStatus}
+                </SettingsStatusBadge>
+              </HStack>
             </Stack>
           </AiSettingsSection>
         </SimpleGrid>

@@ -93,6 +93,7 @@ export interface AdminAiProviderSettings {
 export interface AdminAiSettings {
   aiFeaturesEnabled: boolean;
   chat: AdminAiProviderSettings;
+  translation: AdminAiProviderSettings;
   embedding: AdminAiProviderSettings & {
     dimensions: number;
   };

@@ -59,6 +59,7 @@ export const AUDIT_EVENT_TYPES = {
   authSensitiveActionDenied: 'auth.sensitive_action_denied',
   aiFeaturesToggled: 'ai.features_toggled',
   aiChatModelChanged: 'ai.chat_model_changed',
+  aiTranslationModelChanged: 'ai.translation_model_changed',
   aiEmbeddingModelChanged: 'ai.embedding_model_changed',
 } as const;
 

@@ -19,6 +19,7 @@ const providerSettingsSchema = z.object({
 const aiSettingsSchema = z.object({
   aiFeaturesEnabled: z.boolean(),
   chat: providerSettingsSchema,
+  translation: providerSettingsSchema.optional(),
   embedding: providerSettingsSchema.extend({
     dimensions: z.number().int().min(1),
   }),
@@ -208,6 +209,36 @@ async function emitAiSettingsAuditEvents({
         provider: settings.chat.provider,
         baseUrl: settings.chat.baseUrl,
         model: settings.chat.model,
+      },
+    });
+  }
+
+  if (
+    previousSettings.translation.provider !== settings.translation.provider
+    || previousSettings.translation.baseUrl !== settings.translation.baseUrl
+    || previousSettings.translation.model !== settings.translation.model
+  ) {
+    await auditServices.emitAuditEvent({
+      eventType: AUDIT_EVENT_TYPES.aiTranslationModelChanged,
+      eventCategory: 'system',
+      severity: 'notice',
+      outcome: 'success',
+      actor,
+      target,
+      requestContext,
+      metadata: {
+        provider: settings.translation.provider,
+        model: settings.translation.model,
+      },
+      before: {
+        provider: previousSettings.translation.provider,
+        baseUrl: previousSettings.translation.baseUrl,
+        model: previousSettings.translation.model,
+      },
+      after: {
+        provider: settings.translation.provider,
+        baseUrl: settings.translation.baseUrl,
+        model: settings.translation.model,
       },
     });
   }

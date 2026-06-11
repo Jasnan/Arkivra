@@ -48,6 +48,7 @@ const auditEventTypeOptions = [
   { value: 'vault.access_denied', label: 'Vault Access Denied' },
   { value: 'ai.features_toggled', label: 'AI toggled' },
   { value: 'ai.chat_model_changed', label: 'AI chat model changed' },
+  { value: 'ai.translation_model_changed', label: 'AI translation model changed' },
   { value: 'ai.embedding_model_changed', label: 'AI embedding model changed' },
 ] as const;
 

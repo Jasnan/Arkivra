@@ -11,6 +11,7 @@ export type AdminAiProviderSettings = {
 export type AdminAiSettings = {
   aiFeaturesEnabled: boolean;
   chat: AdminAiProviderSettings;
+  translation: AdminAiProviderSettings;
   embedding: AdminAiProviderSettings & {
     dimensions: number;
   };

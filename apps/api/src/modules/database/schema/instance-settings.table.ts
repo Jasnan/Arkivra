@@ -14,6 +14,7 @@ export const instanceSettingsTable = pgTable('instance_settings', {
   ollamaSummarisationMaxImagesPerChunk: integer('ollama_summarisation_max_images_per_chunk')
     .notNull()
     .default(4),
+  ollamaTranslationModel: text('ollama_translation_model').notNull().default('gemma4:e4b'),
   ollamaEmbeddingEnabled: boolean('ollama_embedding_enabled').notNull().default(false),
   ollamaEmbeddingHost: text('ollama_embedding_host').notNull().default('http://127.0.0.1:11434'),
   ollamaEmbeddingModel: text('ollama_embedding_model').notNull().default('bge-m3'),

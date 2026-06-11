@@ -97,6 +97,12 @@ function createDefaultSettings(config: Config): AdminAiSettings {
       apiKeySecretRef: null,
       model,
     },
+    translation: {
+      provider: 'ollama',
+      baseUrl: ollamaHost,
+      apiKeySecretRef: null,
+      model,
+    },
     embedding: {
       provider: 'ollama',
       baseUrl: ollamaHost,
@@ -128,6 +134,8 @@ function createDefaultIngestionSettings(config: Config) {
 function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
   const chatBaseUrl = normalizeHost(input.chat?.baseUrl ?? input.ollamaHost);
   const chatModel = (input.chat?.model ?? input.model).trim();
+  const translationBaseUrl = normalizeHost(input.translation?.baseUrl ?? chatBaseUrl);
+  const translationModel = (input.translation?.model ?? chatModel).trim();
   const embeddingBaseUrl = normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);
   const embeddingModel = input.embedding.model.trim();
 
@@ -138,6 +146,12 @@ function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       baseUrl: chatBaseUrl,
       apiKeySecretRef: null,
       model: chatModel,
+    },
+    translation: {
+      provider: 'ollama',
+      baseUrl: translationBaseUrl,
+      apiKeySecretRef: null,
+      model: translationModel,
     },
     embedding: {
       provider: 'ollama',
@@ -201,6 +215,12 @@ export function createAdminAiServices({
         baseUrl: stored.ollamaHost,
         apiKeySecretRef: null,
         model: stored.ollamaModel,
+      },
+      translation: {
+        provider: 'ollama',
+        baseUrl: stored.ollamaHost,
+        apiKeySecretRef: null,
+        model: stored.ollamaTranslationModel ?? stored.ollamaModel,
       },
       embedding: {
         provider: 'ollama',
@@ -470,6 +490,7 @@ export function createAdminAiServices({
         ollamaHost: normalized.ollamaHost,
         ollamaModel: normalized.model,
         aiSummarisationEnabled: normalized.aiFeaturesEnabled,
+        ollamaTranslationModel: normalized.translation.model,
         ollamaEmbeddingEnabled: normalized.aiFeaturesEnabled,
         ollamaEmbeddingHost: normalized.embedding.baseUrl,
         ollamaEmbeddingModel: normalized.embedding.model,
@@ -483,6 +504,7 @@ export function createAdminAiServices({
           ollamaHost: normalized.ollamaHost,
           ollamaModel: normalized.model,
           aiSummarisationEnabled: normalized.aiFeaturesEnabled,
+          ollamaTranslationModel: normalized.translation.model,
           ollamaEmbeddingEnabled: normalized.aiFeaturesEnabled,
           ollamaEmbeddingHost: normalized.embedding.baseUrl,
           ollamaEmbeddingModel: normalized.embedding.model,

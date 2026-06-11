@@ -170,14 +170,11 @@ export function createServer({
   });
   const translationProvider = createRuntimeConfiguredOllamaTranslationProvider({
     resolveSettings: async () => {
-      const [settings, aiSettings] = await Promise.all([
-        aiServices.getIngestionSettings(),
-        aiServices.getSettings(),
-      ]);
+      const aiSettings = await aiServices.getSettings();
       return {
-        enabled: aiSettings.aiFeaturesEnabled && settings.summarisationEnabled,
-        host: settings.summarisationHost,
-        model: settings.summarisationModel,
+        enabled: aiSettings.aiFeaturesEnabled,
+        host: aiSettings.translation.baseUrl,
+        model: aiSettings.translation.model,
         logRequests: config.ollama.logRequests,
       };
     },

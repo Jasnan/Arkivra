@@ -14,6 +14,12 @@ function createMockAiServices() {
         apiKeySecretRef: null,
         model: 'gemma4:e4b',
       },
+      translation: {
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKeySecretRef: null,
+        model: 'gemma4:e4b',
+      },
       embedding: {
         provider: 'ollama',
         baseUrl: 'http://127.0.0.1:11434',
@@ -307,6 +313,12 @@ describe('admin ai routes integration', () => {
           apiKeySecretRef: null,
           model: 'qwen2.5:7b',
         },
+        translation: {
+          provider: 'ollama',
+          baseUrl: 'http://192.168.1.20:11434',
+          apiKeySecretRef: null,
+          model: 'qwen2.5:7b',
+        },
         embedding: {
           provider: 'ollama',
           baseUrl: 'http://127.0.0.1:11434',
@@ -323,6 +335,12 @@ describe('admin ai routes integration', () => {
     expect(aiServices.updateSettings).toHaveBeenCalledWith({
       aiFeaturesEnabled: true,
       chat: {
+        provider: 'ollama',
+        baseUrl: 'http://192.168.1.20:11434',
+        apiKeySecretRef: null,
+        model: 'qwen2.5:7b',
+      },
+      translation: {
         provider: 'ollama',
         baseUrl: 'http://192.168.1.20:11434',
         apiKeySecretRef: null,
@@ -345,6 +363,12 @@ describe('admin ai routes integration', () => {
     aiServices.getSettings = vi.fn(async () => ({
       aiFeaturesEnabled: false,
       chat: {
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKeySecretRef: null,
+        model: 'gemma4:e4b',
+      },
+      translation: {
         provider: 'ollama',
         baseUrl: 'http://127.0.0.1:11434',
         apiKeySecretRef: null,
@@ -385,6 +409,12 @@ describe('admin ai routes integration', () => {
           apiKeySecretRef: null,
           model: 'qwen3:5b',
         },
+        translation: {
+          provider: 'ollama',
+          baseUrl: 'http://127.0.0.1:11434',
+          apiKeySecretRef: null,
+          model: 'qwen3:5b',
+        },
         embedding: {
           provider: 'ollama',
           baseUrl: 'http://127.0.0.1:11434',
@@ -398,7 +428,7 @@ describe('admin ai routes integration', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(auditServices.emitAuditEvent).toHaveBeenCalledTimes(3);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledTimes(4);
     expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(1, expect.objectContaining({
       eventType: 'ai.features_toggled',
       eventCategory: 'system',
@@ -417,6 +447,16 @@ describe('admin ai routes integration', () => {
       after: expect.objectContaining({ model: 'qwen3:5b' }),
     }));
     expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      eventType: 'ai.translation_model_changed',
+      eventCategory: 'system',
+      metadata: {
+        provider: 'ollama',
+        model: 'qwen3:5b',
+      },
+      before: expect.objectContaining({ model: 'gemma4:e4b' }),
+      after: expect.objectContaining({ model: 'qwen3:5b' }),
+    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(4, expect.objectContaining({
       eventType: 'ai.embedding_model_changed',
       eventCategory: 'system',
       metadata: {
@@ -473,6 +513,12 @@ describe('admin ai routes integration', () => {
     await aiServices.updateSettings({
       aiFeaturesEnabled: false,
       chat: {
+        provider: 'ollama',
+        baseUrl: 'http://192.168.1.20:11434',
+        apiKeySecretRef: null,
+        model: 'qwen2.5:7b',
+      },
+      translation: {
         provider: 'ollama',
         baseUrl: 'http://192.168.1.20:11434',
         apiKeySecretRef: null,
@@ -539,6 +585,12 @@ describe('admin ai routes integration', () => {
     await aiServices.updateSettings({
       aiFeaturesEnabled: true,
       chat: {
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKeySecretRef: null,
+        model: 'gemma4:e4b',
+      },
+      translation: {
         provider: 'ollama',
         baseUrl: 'http://127.0.0.1:11434',
         apiKeySecretRef: null,
@@ -615,6 +667,12 @@ describe('admin ai routes integration', () => {
         apiKeySecretRef: null,
         model: 'gemma4:e4b',
       },
+      translation: {
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKeySecretRef: null,
+        model: 'gemma4:e4b',
+      },
       embedding: {
         provider: 'ollama',
         baseUrl: 'http://127.0.0.1:11434',
@@ -681,6 +739,12 @@ describe('admin ai routes integration', () => {
     const settings = await aiServices.updateSettings({
       aiFeaturesEnabled: true,
       chat: {
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKeySecretRef: null,
+        model: 'gemma4:e4b',
+      },
+      translation: {
         provider: 'ollama',
         baseUrl: 'http://127.0.0.1:11434',
         apiKeySecretRef: null,

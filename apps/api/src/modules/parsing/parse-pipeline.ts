@@ -27,6 +27,20 @@ export type ParsePipeline = {
   run: (input: ParseInput, hooks?: ParsePipelineRunHooks) => Promise<ParsedDocument>;
 };
 
+function prefersParserTextAsCanonical(rawStructuredOutput: ParserOutput['rawStructuredOutput']) {
+  const processing = rawStructuredOutput?.arkivra_processing;
+  if (typeof processing !== 'object' || processing === null || Array.isArray(processing)) {
+    return false;
+  }
+
+  const metadata = processing as {
+    canonical_text_source?: unknown;
+    processing_path?: unknown;
+  };
+
+  return metadata.canonical_text_source === 'docling' && metadata.processing_path === 'scan-heavy';
+}
+
 /**
  * Composes parser → text cleaner → chunker into a single pipeline that
  * yields a validated {@link ParsedDocument}. This is the sole code path
@@ -50,9 +64,11 @@ export function createParsePipeline({
     hooks?: ParsePipelineRunHooks,
   ): Promise<ParsedDocument> {
     const cleaned = await cleaner.clean({ text: raw.text, markdown: raw.markdown });
-    const cleanedText = cleaned.markdown.length > 0
-      ? markdownToPlainText(cleaned.markdown)
-      : cleaned.text;
+    const cleanedText = prefersParserTextAsCanonical(raw.rawStructuredOutput)
+      ? cleaned.text
+      : cleaned.markdown.length > 0
+        ? markdownToPlainText(cleaned.markdown)
+        : cleaned.text;
 
     await hooks?.onStageChange?.('chunking');
 

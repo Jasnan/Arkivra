@@ -25,6 +25,8 @@ Arkivra reads configuration from environment variables. The root `.env.example` 
 | `ARKIVRA_DOCLING_PORT`        | Host port used by Compose Docling    | `5001`                                              |
 | `ARKIVRA_PARSER_TEXT_CLEANUP` | `deterministic` or `none`            | `deterministic`                                     |
 
+Scan-heavy PDFs are routed through Docling OCR with `ocr_preset=auto`.
+
 ## Storage, Uploads, And Backups
 
 | Variable                                | Purpose                                                 | Default              |

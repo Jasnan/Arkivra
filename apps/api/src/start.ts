@@ -103,6 +103,13 @@ export async function startApp() {
       doclingClient,
       engineVersion: config.docling.engineVersion,
       imageCaptioner,
+      scanClassifier: {
+        maxSampledPages: config.parsers.pdfScanDetection.maxSampledPages,
+        minTextItemsPerDigitalPage: config.parsers.pdfScanDetection.minTextItemsPerDigitalPage,
+        minAlnumCharsPerDigitalPage: config.parsers.pdfScanDetection.minAlnumCharsPerDigitalPage,
+        scanHeavyScannedPageRatio: config.parsers.pdfScanDetection.scanHeavyScannedPageRatio,
+        mixedScannedPageRatio: config.parsers.pdfScanDetection.mixedScannedPageRatio,
+      },
     });
     const parserRegistry = createParserRegistry({
       parsers: [doclingParser],

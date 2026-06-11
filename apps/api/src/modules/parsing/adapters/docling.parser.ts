@@ -1,4 +1,4 @@
-import type { DoclingClient } from '../../docling/docling.client.js';
+import type { DoclingClient, DoclingConvertOptions } from '../../docling/docling.client.js';
 import type { DocumentParser, ParseInput, ParserCapabilities } from '../parser.types.js';
 import type { ParsedChunk, ParserOutput } from '../parsed-document.schema.js';
 import type { ImageCaptioner } from '../image-captioner.js';
@@ -6,7 +6,14 @@ import type { DoclingChunkResponse } from './docling.schema.js';
 import { PDFDocument } from 'pdf-lib';
 import { ParserValidationError } from '../parser.types.js';
 import { parserOutputSchema } from '../parsed-document.schema.js';
-import { decidePdfDoOcr } from '../pdf-ocr-decider.js';
+import type {
+  PdfScanClassifierConfig,
+  PdfScanClassification,
+} from '../pdf-ocr-decider.js';
+import {
+  classifyPdfForProcessing,
+  DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG,
+} from '../pdf-ocr-decider.js';
 import {
   deriveDoclingPlainText,
   extractDataUriImages,
@@ -93,10 +100,14 @@ const DOCLING_CAPABILITIES: ParserCapabilities = {
   supportedMimeTypes: 'any',
 };
 
+const DEFAULT_SCAN_HEAVY_OCR_PRESET = 'auto';
+
 export type DoclingParserOptions = {
   engineVersion?: string;
   splitPdfPageThreshold?: number;
   splitPdfChunkPages?: number;
+  scanClassifier?: Partial<PdfScanClassifierConfig>;
+  scanHeavyOcrPreset?: string;
 };
 
 type DoclingInputPart = {
@@ -116,10 +127,18 @@ type DoclingParsedPart = {
   structuredElements?: ParserOutput['structuredElements'];
   chunks: ParsedChunk[];
   warnings: string[];
+  processingContext: DoclingProcessingContext;
 };
 
 type DoclingParsedChunker = 'hybrid';
 type DoclingChunkInput = 'original_file';
+
+type DoclingProcessingContext = {
+  classification: PdfScanClassification;
+  doclingOcrEnabled?: boolean;
+  ocrPreset?: string;
+  fallbackReason?: string;
+};
 
 function isPdfMimeType(mimeType: string) {
   return mimeType.toLowerCase() === 'application/pdf';
@@ -315,22 +334,97 @@ function offsetChunks({
   });
 }
 
+function buildProcessingMetadata({
+  classification,
+  doclingOcrEnabled,
+  ocrPreset,
+  fallbackReason,
+}: DoclingProcessingContext) {
+  return {
+    processing_path: classification.path,
+    canonical_text_source: 'docling',
+    docling_ocr_enabled: doclingOcrEnabled ?? classification.doclingDoOcr,
+    docling_ocr_preset: ocrPreset ?? null,
+    fallback_reason: fallbackReason ?? null,
+    scan_classifier: {
+      is_pdf: classification.isPdf,
+      total_pages: classification.totalPages,
+      sampled_pages: classification.sampledPages,
+      digital_page_ratio: classification.digitalPageRatio,
+      scanned_page_ratio: classification.scannedPageRatio,
+      text_item_count: classification.textItemCount,
+      alphanumeric_char_count: classification.alphanumericCharCount,
+      image_object_count: classification.imageObjectCount,
+      reason: classification.reason,
+      thresholds: classification.thresholds,
+      pages: classification.pageStats.map(page => ({
+        page_number: page.pageNumber,
+        text_item_count: page.textItemCount,
+        alphanumeric_char_count: page.alphanumericCharCount,
+        image_object_count: page.imageObjectCount,
+        is_digital: page.isDigital,
+        is_scanned_like: page.isScannedLike,
+      })),
+    },
+  };
+}
+
+function augmentRawStructuredOutput({
+  rawStructuredOutput,
+  processingContext,
+}: {
+  rawStructuredOutput: ParserOutput['rawStructuredOutput'];
+  processingContext: DoclingProcessingContext;
+}): ParserOutput['rawStructuredOutput'] {
+  const base = rawStructuredOutput ?? {
+    schema_name: 'ArkivraDoclingProcessingDocument',
+  };
+
+  return {
+    ...base,
+    arkivra_processing: buildProcessingMetadata(processingContext),
+  };
+}
+
+function deriveTextFromDoclingChunks(response: DoclingChunkResponse) {
+  return response.chunks
+    .map(chunk => sanitizeDoclingText(chunk.raw_text ?? chunk.text))
+    .filter(text => text.length > 0)
+    .join('\n\n');
+}
+
 export function createDoclingParser({
   doclingClient,
   engineVersion = 'v1',
   imageCaptioner,
   splitPdfPageThreshold = 10,
   splitPdfChunkPages = 10,
+  scanClassifier = DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG,
+  scanHeavyOcrPreset = DEFAULT_SCAN_HEAVY_OCR_PRESET,
 }: {
   doclingClient: DoclingClient;
   imageCaptioner?: ImageCaptioner;
 } & DoclingParserOptions): DocumentParser {
+  function buildConvertOptions(classification: PdfScanClassification): Partial<DoclingConvertOptions> {
+    if (classification.path === 'scan-heavy') {
+      return {
+        doOcr: true,
+        ocrPreset: scanHeavyOcrPreset,
+      };
+    }
+
+    return {
+      doOcr: classification.doclingDoOcr,
+    };
+  }
+
   async function parseDoclingResponse({
     response,
     input,
     part,
     chunkStartIndex,
     chunker,
+    processingContext,
     chunkInput = 'original_file',
   }: {
     response: DoclingChunkResponse;
@@ -338,6 +432,7 @@ export function createDoclingParser({
     part: DoclingInputPart;
     chunkStartIndex: number;
     chunker: DoclingParsedChunker;
+    processingContext: DoclingProcessingContext;
     chunkInput?: DoclingChunkInput;
   }): Promise<DoclingParsedPart> {
     const docContent = response.documents[0]?.content;
@@ -372,7 +467,7 @@ export function createDoclingParser({
     const text = deriveDoclingPlainText({
       text: sanitizeDoclingText(rawText),
       markdown,
-    }) || structuredText;
+    }) || structuredText || deriveTextFromDoclingChunks(response);
 
     const docStatus = response.documents[0]?.status ?? '';
     if (docStatus.toLowerCase() === 'partial_success') {
@@ -400,6 +495,10 @@ export function createDoclingParser({
         ...chunk.metadata,
         doclingChunker: chunker,
         doclingChunkInput: chunkInput,
+        doclingOcrEnabled: processingContext.doclingOcrEnabled ?? processingContext.classification.doclingDoOcr,
+        doclingOcrPreset: processingContext.ocrPreset ?? null,
+        processingPath: processingContext.classification.path,
+        canonicalTextSource: 'docling',
       },
     }));
     const offsetStructured = offsetStructuredElements(
@@ -433,10 +532,24 @@ export function createDoclingParser({
       structuredElements: offsetStructured,
       chunks: retrievalRepresentations.chunks,
       warnings,
+      processingContext,
     };
   }
 
   async function parse(input: ParseInput): Promise<ParserOutput> {
+    const classification = await classifyPdfForProcessing(input, scanClassifier);
+    const preParseWarnings: string[] = [];
+    const convertOptions = buildConvertOptions(classification);
+
+    if (classification.path === 'scan-heavy') {
+      preParseWarnings.push(`docling.ocr_preset:${scanHeavyOcrPreset}`);
+    }
+
+    const processingContext: DoclingProcessingContext = {
+      classification,
+      doclingOcrEnabled: convertOptions.doOcr,
+      ocrPreset: convertOptions.ocrPreset,
+    };
     const parts = await buildDoclingInputParts({
       input,
       splitPdfPageThreshold,
@@ -451,7 +564,6 @@ export function createDoclingParser({
 
     const parsedParts: DoclingParsedPart[] = [];
     let chunkStartIndex = 0;
-    const doOcr = await decidePdfDoOcr(input);
 
     for (const part of parts) {
       const hybridResponse = await doclingClient.chunkFile({
@@ -459,9 +571,7 @@ export function createDoclingParser({
         mimeType: input.mimeType,
         fileData: part.fileData,
         chunker: 'hybrid',
-        convertOptions: {
-          doOcr,
-        },
+        convertOptions,
       });
 
       const parsedPart = await parseDoclingResponse({
@@ -470,6 +580,7 @@ export function createDoclingParser({
         part,
         chunkStartIndex,
         chunker: 'hybrid',
+        processingContext,
       });
 
       parsedParts.push(parsedPart);
@@ -482,7 +593,7 @@ export function createDoclingParser({
     const structuredElements = parsedParts.flatMap(part => part.structuredElements ?? []);
     const chunks = parsedParts.flatMap(part => part.chunks);
     const warnings = parsedParts.flatMap(part => part.warnings);
-    const rawStructuredOutput = parts.length === 1
+    const rawStructuredOutputBase = parts.length === 1
       ? parsedParts[0]?.rawStructuredOutput
       : {
           schema_name: 'ArkivraDoclingSplitDocument',
@@ -500,6 +611,21 @@ export function createDoclingParser({
             .map(part => part.rawStructuredOutput)
             .filter((value): value is Record<string, unknown> => value !== undefined),
         };
+    const effectiveProcessingContext = parsedParts.length === 1
+      ? parsedParts[0]?.processingContext ?? processingContext
+      : parsedParts.some(part => part.processingContext.fallbackReason !== undefined)
+        ? {
+            ...processingContext,
+            fallbackReason: parsedParts
+              .map(part => part.processingContext.fallbackReason)
+              .filter((reason): reason is string => reason !== undefined)
+              .join(';'),
+          }
+        : processingContext;
+    const rawStructuredOutput = augmentRawStructuredOutput({
+      rawStructuredOutput: rawStructuredOutputBase,
+      processingContext: effectiveProcessingContext,
+    });
 
     const output: ParserOutput = {
       engine: 'docling',
@@ -510,7 +636,7 @@ export function createDoclingParser({
       rawStructuredOutput,
       structuredElements: structuredElements.length > 0 ? structuredElements : undefined,
       chunks,
-      warnings,
+      warnings: [...preParseWarnings, ...warnings],
     };
 
     const validation = parserOutputSchema.safeParse(output);

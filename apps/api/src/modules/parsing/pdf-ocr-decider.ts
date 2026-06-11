@@ -1,14 +1,86 @@
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ParseInput } from './parser.types.js';
 
-const SMALL_PDF_PAGE_THRESHOLD = 25;
-const MAX_SAMPLED_PAGES = 8;
-const MIN_TEXT_ITEMS_PER_DIGITAL_PAGE = 20;
-const MIN_ALNUM_CHARS_PER_DIGITAL_PAGE = 120;
-const MIN_DIGITAL_SAMPLE_RATIO = 0.8;
+export type PdfProcessingPath = 'digital' | 'mixed' | 'scan-heavy' | 'unknown';
+
+export type PdfScanClassifierConfig = {
+  maxSampledPages: number;
+  minTextItemsPerDigitalPage: number;
+  minAlnumCharsPerDigitalPage: number;
+  scanHeavyScannedPageRatio: number;
+  mixedScannedPageRatio: number;
+};
+
+export const DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG: PdfScanClassifierConfig = {
+  maxSampledPages: 8,
+  minTextItemsPerDigitalPage: 20,
+  minAlnumCharsPerDigitalPage: 120,
+  scanHeavyScannedPageRatio: 0.7,
+  mixedScannedPageRatio: 0.2,
+};
+
+export type PdfScanPageStats = {
+  pageNumber: number;
+  textItemCount: number;
+  alphanumericCharCount: number;
+  imageObjectCount: number;
+  isDigital: boolean;
+  isScannedLike: boolean;
+};
+
+export type PdfScanClassification = {
+  isPdf: boolean;
+  path: PdfProcessingPath;
+  doclingDoOcr: boolean;
+  totalPages: number;
+  sampledPages: number[];
+  digitalPageRatio: number;
+  scannedPageRatio: number;
+  textItemCount: number;
+  alphanumericCharCount: number;
+  imageObjectCount: number;
+  pageStats: PdfScanPageStats[];
+  thresholds: PdfScanClassifierConfig;
+  reason: string;
+};
 
 function isPdfFile({ mimeType, fileName }: { mimeType: string; fileName: string }) {
   return mimeType.toLowerCase() === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+}
+
+function clampPositiveInteger(value: number, fallback: number) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.trunc(value));
+}
+
+function clampRatio(value: number, fallback: number) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.min(1, value));
+}
+
+function resolveConfig(config: Partial<PdfScanClassifierConfig> = {}): PdfScanClassifierConfig {
+  return {
+    maxSampledPages: clampPositiveInteger(
+      config.maxSampledPages ?? DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.maxSampledPages,
+      DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.maxSampledPages,
+    ),
+    minTextItemsPerDigitalPage: clampPositiveInteger(
+      config.minTextItemsPerDigitalPage ?? DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.minTextItemsPerDigitalPage,
+      DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.minTextItemsPerDigitalPage,
+    ),
+    minAlnumCharsPerDigitalPage: clampPositiveInteger(
+      config.minAlnumCharsPerDigitalPage ?? DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.minAlnumCharsPerDigitalPage,
+      DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.minAlnumCharsPerDigitalPage,
+    ),
+    scanHeavyScannedPageRatio: clampRatio(
+      config.scanHeavyScannedPageRatio ?? DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.scanHeavyScannedPageRatio,
+      DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.scanHeavyScannedPageRatio,
+    ),
+    mixedScannedPageRatio: clampRatio(
+      config.mixedScannedPageRatio ?? DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.mixedScannedPageRatio,
+      DEFAULT_PDF_SCAN_CLASSIFIER_CONFIG.mixedScannedPageRatio,
+    ),
+  };
 }
 
 function buildSamplePageNumbers(totalPages: number, sampleSize: number) {
@@ -32,8 +104,8 @@ function countAlphanumericChars(text: string) {
   return matches?.length ?? 0;
 }
 
-function isMeaningfullyDigitalPage(items: unknown[]) {
-  const textFragments = items
+function textFragmentsFromItems(items: unknown[]) {
+  return items
     .map((item) => {
       if (typeof item !== 'object' || item === null || !('str' in item)) {
         return '';
@@ -43,19 +115,60 @@ function isMeaningfullyDigitalPage(items: unknown[]) {
       return typeof value === 'string' ? value.trim() : '';
     })
     .filter(fragment => fragment.length > 0);
-
-  const textItemCount = textFragments.length;
-  const alphanumericCharCount = countAlphanumericChars(textFragments.join(' '));
-
-  return (
-    textItemCount >= MIN_TEXT_ITEMS_PER_DIGITAL_PAGE
-    || alphanumericCharCount >= MIN_ALNUM_CHARS_PER_DIGITAL_PAGE
-  );
 }
 
-export async function decidePdfDoOcr(input: ParseInput): Promise<boolean> {
+function countImageOperators(fnArray: unknown[]) {
+  return fnArray.filter(fn =>
+    fn === OPS.paintImageXObject
+    || fn === OPS.paintInlineImageXObject
+    || fn === OPS.paintImageMaskXObject,
+  ).length;
+}
+
+function emptyClassification({
+  isPdf,
+  path,
+  doclingDoOcr,
+  thresholds,
+  reason,
+}: {
+  isPdf: boolean;
+  path: PdfProcessingPath;
+  doclingDoOcr: boolean;
+  thresholds: PdfScanClassifierConfig;
+  reason: string;
+}): PdfScanClassification {
+  return {
+    isPdf,
+    path,
+    doclingDoOcr,
+    totalPages: 0,
+    sampledPages: [],
+    digitalPageRatio: 0,
+    scannedPageRatio: 0,
+    textItemCount: 0,
+    alphanumericCharCount: 0,
+    imageObjectCount: 0,
+    pageStats: [],
+    thresholds,
+    reason,
+  };
+}
+
+export async function classifyPdfForProcessing(
+  input: ParseInput,
+  config: Partial<PdfScanClassifierConfig> = {},
+): Promise<PdfScanClassification> {
+  const thresholds = resolveConfig(config);
+
   if (!isPdfFile(input)) {
-    return true;
+    return emptyClassification({
+      isPdf: false,
+      path: 'digital',
+      doclingDoOcr: true,
+      thresholds,
+      reason: 'not_pdf',
+    });
   }
 
   try {
@@ -65,35 +178,84 @@ export async function decidePdfDoOcr(input: ParseInput): Promise<boolean> {
     const document = await loadingTask.promise;
 
     try {
-      if (document.numPages <= SMALL_PDF_PAGE_THRESHOLD) {
-        return true;
-      }
-
       const sampledPages = buildSamplePageNumbers(
         document.numPages,
-        Math.min(MAX_SAMPLED_PAGES, document.numPages),
+        Math.min(thresholds.maxSampledPages, document.numPages),
       );
-
-      let digitalPageCount = 0;
+      const pageStats: PdfScanPageStats[] = [];
 
       for (const pageNumber of sampledPages) {
         const page = await document.getPage(pageNumber);
 
         try {
-          const textContent = await page.getTextContent();
-          if (isMeaningfullyDigitalPage(textContent.items)) {
-            digitalPageCount += 1;
-          }
+          const [textContent, operatorList] = await Promise.all([
+            page.getTextContent(),
+            page.getOperatorList(),
+          ]);
+          const textFragments = textFragmentsFromItems(textContent.items);
+          const textItemCount = textFragments.length;
+          const alphanumericCharCount = countAlphanumericChars(textFragments.join(' '));
+          const imageObjectCount = countImageOperators(operatorList.fnArray);
+          const isDigital = (
+            textItemCount >= thresholds.minTextItemsPerDigitalPage
+            || alphanumericCharCount >= thresholds.minAlnumCharsPerDigitalPage
+          );
+
+          pageStats.push({
+            pageNumber,
+            textItemCount,
+            alphanumericCharCount,
+            imageObjectCount,
+            isDigital,
+            isScannedLike: !isDigital,
+          });
         } finally {
           page.cleanup();
         }
       }
 
-      return digitalPageCount / sampledPages.length < MIN_DIGITAL_SAMPLE_RATIO;
+      const digitalPageCount = pageStats.filter(page => page.isDigital).length;
+      const scannedPageCount = pageStats.filter(page => page.isScannedLike).length;
+      const digitalPageRatio = pageStats.length === 0 ? 0 : digitalPageCount / pageStats.length;
+      const scannedPageRatio = pageStats.length === 0 ? 0 : scannedPageCount / pageStats.length;
+      const path: PdfProcessingPath = scannedPageRatio >= thresholds.scanHeavyScannedPageRatio
+        ? 'scan-heavy'
+        : scannedPageRatio >= thresholds.mixedScannedPageRatio
+          ? 'mixed'
+          : 'digital';
+
+      return {
+        isPdf: true,
+        path,
+        doclingDoOcr: path === 'mixed',
+        totalPages: document.numPages,
+        sampledPages,
+        digitalPageRatio,
+        scannedPageRatio,
+        textItemCount: pageStats.reduce((sum, page) => sum + page.textItemCount, 0),
+        alphanumericCharCount: pageStats.reduce((sum, page) => sum + page.alphanumericCharCount, 0),
+        imageObjectCount: pageStats.reduce((sum, page) => sum + page.imageObjectCount, 0),
+        pageStats,
+        thresholds,
+        reason: `sampled_pages:${sampledPages.length};scanned_ratio:${scannedPageRatio.toFixed(3)}`,
+      };
     } finally {
       await document.destroy();
     }
-  } catch {
-    return true;
+  } catch (error) {
+    return emptyClassification({
+      isPdf: true,
+      path: 'unknown',
+      doclingDoOcr: true,
+      thresholds,
+      reason: error instanceof Error ? `classification_failed:${error.message}` : 'classification_failed',
+    });
   }
+}
+
+export async function decidePdfDoOcr(
+  input: ParseInput,
+  config: Partial<PdfScanClassifierConfig> = {},
+): Promise<boolean> {
+  return (await classifyPdfForProcessing(input, config)).doclingDoOcr;
 }

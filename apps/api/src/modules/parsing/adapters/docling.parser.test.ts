@@ -226,6 +226,44 @@ const SCANNED_TEXT_JSON_FIXTURE = {
   groups: [],
 };
 
+function makeDenseScannedTextJsonFixture(textCount: number) {
+  return {
+    schema_name: 'DoclingDocument',
+    body: {
+      children: Array.from({ length: textCount }, (_, index) => ({ cref: `#/texts/${index}` })),
+    },
+    pages: {
+      1: {
+        size: { width: 612, height: 792 },
+      },
+    },
+    texts: Array.from({ length: textCount }, (_, index) => ({
+      self_ref: `#/texts/${index}`,
+      label: 'text',
+      text: index === 20
+        ? 'Passport No. With Date and Place of Issue'
+        : index === 21
+          ? 'H5536221'
+          : `Dense OCR text ${index}`,
+      parent: { cref: '#/body' },
+      children: [],
+      prov: [{
+        page_no: 1,
+        bbox: {
+          l: 40,
+          t: 40 + index * 10,
+          r: 240,
+          b: 48 + index * 10,
+          coord_origin: 'TOPLEFT',
+        },
+      }],
+    })),
+    tables: [],
+    pictures: [],
+    groups: [],
+  };
+}
+
 function makeChunkResponse(
   overrides: Partial<DoclingChunkResponse> = {},
 ): DoclingChunkResponse {
@@ -392,6 +430,52 @@ describe('docling parser adapter', () => {
     expect(elementChunks[0]?.text).toContain('Filename: back_page_passport.webp');
     expect(elementPairChunks[0]?.sourceElementIds).toHaveLength(2);
     expect(elementPairChunks[0]?.boundingBoxes).toHaveLength(2);
+  });
+
+  test('interleaves fine-grained pairs early enough for dense OCR page expansion', async () => {
+    const denseTextCount = 60;
+    const denseJson = makeDenseScannedTextJsonFixture(denseTextCount);
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        chunks: [{
+          filename: 'dense-passport.webp',
+          chunk_index: 0,
+          text: 'Dense OCR page with passport fields',
+          raw_text: 'Dense OCR page with passport fields',
+          doc_items: Array.from({ length: denseTextCount }, (_, index) => `#/texts/${index}`),
+          page_numbers: [1],
+        }],
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: 'Dense OCR page with passport fields',
+            json_content: denseJson,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+      })),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_dense_webp',
+      fileName: 'dense-passport.webp',
+      mimeType: 'image/webp',
+      fileData: Buffer.from('bytes'),
+    });
+    const targetPair = output.chunks?.find(chunk =>
+      chunk.metadata.retrievalRepresentation === 'docling_element_pair' &&
+      chunk.sourceElementIds.includes('#/texts/20') &&
+      chunk.sourceElementIds.includes('#/texts/21'),
+    );
+
+    expect(targetPair).toBeDefined();
+    expect(targetPair?.metadata.index).toBeLessThan(48);
+    expect(targetPair?.originalText).toContain('Passport No. With Date and Place of Issue');
+    expect(targetPair?.originalText).toContain('H5536221');
   });
 
   test('sends plain text files through Docling chunking', async () => {

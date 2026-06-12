@@ -202,11 +202,9 @@ function buildFineGrainedCitationChunks({
     nextIndex += 1;
   }
 
-  for (const element of elements) {
+  for (const [index, element] of elements.entries()) {
     addChunk({ elements: [element], representation: 'docling_element' });
-  }
 
-  for (let index = 0; index < elements.length - 1; index += 1) {
     const current = elements[index];
     const next = elements[index + 1];
     if (

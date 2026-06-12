@@ -1,0 +1,11 @@
+#!/bin/sh
+
+branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+if [ "$branch" = "main" ]; then
+  echo "Direct push to main is blocked locally."
+  echo "Create a branch and push that instead:"
+  echo "  git checkout -b fix/your-change"
+  echo "  git push -u origin fix/your-change"
+  exit 1
+fi

@@ -26,6 +26,7 @@ const citation: Citation = {
   vaultId: 'vlt_1',
   vaultName: 'Operations',
   documentName: 'Policy.pdf',
+  mimeType: 'application/pdf',
   pageStart: 2,
   pageEnd: 3,
   section: 'Retention',
@@ -218,6 +219,133 @@ describe('chat service helpers', () => {
       'Page 2 - Invoice: The page repeats Row 1: Total=42.00 with surrounding text.',
     );
     expect(expanded?.snippet).not.toContain('Page 2 - Invoice: Row 1: Total=42.00');
+  });
+
+  test('uses a query-matching fine Docling chunk as the displayed citation base', () => {
+    const broadHybrid: Citation = {
+      ...citation,
+      chunkId: 'chk_hybrid',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/11', '#/texts/12', '#/texts/13'],
+      snippet: 'PIN: 627114 Passport No. With Date and Place of Issue H5536221 29/04/2009',
+      boundingBoxes: [
+        {
+          pageNumber: 1,
+          x0: 10,
+          y0: 10,
+          x1: 100,
+          y1: 20,
+          layoutWidth: 600,
+          layoutHeight: 800,
+          system: 'PixelSpace',
+        },
+        {
+          pageNumber: 1,
+          x0: 10,
+          y0: 30,
+          x1: 220,
+          y1: 40,
+          layoutWidth: 600,
+          layoutHeight: 800,
+          system: 'PixelSpace',
+        },
+        {
+          pageNumber: 1,
+          x0: 10,
+          y0: 50,
+          x1: 100,
+          y1: 60,
+          layoutWidth: 600,
+          layoutHeight: 800,
+          system: 'PixelSpace',
+        },
+      ],
+      citationPrecision: 'box',
+      score: 0.95,
+    };
+    const labelBox = {
+      pageNumber: 1,
+      x0: 10,
+      y0: 30,
+      x1: 220,
+      y1: 40,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const pinBox = {
+      pageNumber: 1,
+      x0: 10,
+      y0: 10,
+      x1: 260,
+      y1: 20,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const valueBox = {
+      pageNumber: 1,
+      x0: 10,
+      y0: 50,
+      x1: 100,
+      y1: 60,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const expanded = buildExpandedCitationForChat({
+      question: 'what is the passport number?',
+      citations: [broadHybrid],
+      contextChunks: [
+        {
+          chunkId: 'chk_hybrid',
+          chunkIndex: 0,
+          retrievalRepresentation: 'docling_hybrid',
+          pageStart: 1,
+          pageEnd: 1,
+          sourceElementIds: broadHybrid.sourceElementIds,
+          boundingBoxes: broadHybrid.boundingBoxes,
+          citationPrecision: 'box',
+          section: null,
+          snippet: broadHybrid.snippet,
+          retrievalScore: 0.95,
+          retrievalRank: 0,
+        },
+        {
+          chunkId: 'chk_previous_pair',
+          chunkIndex: 28,
+          retrievalRepresentation: 'docling_element_pair',
+          pageStart: 1,
+          pageEnd: 1,
+          sourceElementIds: ['#/texts/11', '#/texts/12'],
+          boundingBoxes: [pinBox, labelBox],
+          citationPrecision: 'box',
+          section: null,
+          snippet: 'PIN: 627114 Passport No. With Date and Place of Issue',
+        },
+        {
+          chunkId: 'chk_passport_pair',
+          chunkIndex: 29,
+          retrievalRepresentation: 'docling_element_pair',
+          pageStart: 1,
+          pageEnd: 1,
+          sourceElementIds: ['#/texts/12', '#/texts/13'],
+          boundingBoxes: [labelBox, valueBox],
+          citationPrecision: 'box',
+          section: null,
+          snippet: 'Passport No. With Date and Place of Issue H5536221',
+        },
+      ],
+    });
+
+    expect(expanded?.chunkId).toBe('chk_passport_pair');
+    expect(expanded?.retrievalRepresentation).toBe('docling_element_pair');
+    expect(expanded?.citationPrecision).toBe('box');
+    expect(expanded?.sourceElementIds).toEqual(['#/texts/12', '#/texts/13']);
+    expect(expanded?.boundingBoxes).toEqual([labelBox, valueBox]);
+    expect(expanded?.snippet).toBe('Passport No. With Date and Place of Issue H5536221');
   });
 
   test('prioritizes citations that match explicit year constraints', () => {

@@ -37,6 +37,29 @@ type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
 };
 
+const browserPreviewImageMimeTypesByExtension = new Map([
+  ['gif', 'image/gif'],
+  ['jpeg', 'image/jpeg'],
+  ['jpg', 'image/jpeg'],
+  ['png', 'image/png'],
+  ['webp', 'image/webp'],
+]);
+
+function getDocumentFileExtension(fileName: string) {
+  const extension = fileName.split('.').pop()?.trim().toLowerCase();
+  return extension && extension !== fileName.trim().toLowerCase() ? extension : '';
+}
+
+function getBrowserPreviewMimeType(fileName: string, mimeType: string) {
+  const normalizedMimeType = mimeType.trim().toLowerCase() || 'application/octet-stream';
+
+  if (normalizedMimeType !== 'application/octet-stream' && normalizedMimeType.length > 0) {
+    return normalizedMimeType;
+  }
+
+  return browserPreviewImageMimeTypesByExtension.get(getDocumentFileExtension(fileName)) ?? normalizedMimeType;
+}
+
 function parseUploadConflictStrategy(value: unknown) {
   if (value === undefined || value === null || value === '') {
     return { valid: true as const, strategy: undefined };
@@ -476,7 +499,7 @@ export function registerDocumentRoutes({
       const arrayBuffer = await file.arrayBuffer();
       const fileData = Buffer.from(arrayBuffer);
       const fileName = normalizeDocumentFileName(file.name || 'untitled');
-      const mimeType = file.type || 'application/octet-stream';
+      const mimeType = getBrowserPreviewMimeType(fileName, file.type || 'application/octet-stream');
       const parsedFolderId = parseNullableFolderId(formData.get('folderId'));
       const relativePathField = formData.get('relativePath');
       const relativePath =
@@ -779,7 +802,7 @@ export function registerDocumentRoutes({
       return new Response(result.fileData, {
         status: 200,
         headers: {
-          'content-type': result.mimeType,
+          'content-type': getBrowserPreviewMimeType(result.fileName, result.mimeType),
           'content-length': String(result.fileData.length),
           'content-disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`,
         },

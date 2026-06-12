@@ -340,6 +340,60 @@ describe('docling parser adapter', () => {
     expect(output).not.toHaveProperty('documentId');
   });
 
+  test('adds fine-grained citation chunks for image OCR results', async () => {
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        chunks: [{
+          filename: 'back_page_passport.webp',
+          chunk_index: 0,
+          text: 'Passport OCR text with H5536221 and surrounding fields',
+          raw_text: 'Passport OCR text with H5536221 and surrounding fields',
+          doc_items: ['#/texts/0', '#/texts/1', '#/texts/2', '#/texts/3', '#/texts/4'],
+          page_numbers: [1],
+        }],
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: 'Passport OCR text with H5536221 and surrounding fields',
+            json_content: SCANNED_TEXT_JSON_FIXTURE,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+      })),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_webp',
+      fileName: 'back_page_passport.webp',
+      mimeType: 'image/webp',
+      fileData: Buffer.from('bytes'),
+    });
+    const hybridChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid') ?? [];
+    const elementChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element') ?? [];
+    const elementPairChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element_pair') ?? [];
+
+    expect(hybridChunks).toHaveLength(1);
+    expect(elementChunks).toHaveLength(5);
+    expect(elementPairChunks).toHaveLength(4);
+    expect(hybridChunks[0]?.sourceElementIds).toHaveLength(5);
+    expect(hybridChunks[0]?.boundingBoxes).toHaveLength(5);
+    expect(elementChunks[0]?.sourceElementIds).toHaveLength(1);
+    expect(elementChunks[0]?.boundingBoxes).toHaveLength(1);
+    expect(elementChunks[0]?.citationPrecision).toBe('box');
+    expect(elementChunks[0]?.metadata.canonicalTextSource).toBe('docling');
+    expect(elementChunks[0]?.metadata.processingPath).toBe('digital');
+    expect(elementChunks[0]?.text).toContain('Filename: back_page_passport.webp');
+    expect(elementPairChunks[0]?.sourceElementIds).toHaveLength(2);
+    expect(elementPairChunks[0]?.boundingBoxes).toHaveLength(2);
+  });
+
   test('sends plain text files through Docling chunking', async () => {
     const doclingClient = makeDoclingClient(makeChunkResponse());
     const parser = createDoclingParser({ doclingClient });
@@ -1214,7 +1268,7 @@ describe('docling parser adapter', () => {
       docling_ocr_preset: 'auto',
     });
     expect(output.rawStructuredOutput?.arkivra_processing).not.toHaveProperty('docling_pipeline');
-    expect(output.chunks?.every(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid')).toBe(true);
+    expect(output.chunks?.some(chunk => chunk.metadata.retrievalRepresentation === 'docling_element')).toBe(true);
     expect(output.chunks?.every(chunk => chunk.metadata.canonicalTextSource === 'docling')).toBe(true);
     expect(output.chunks?.every(chunk => chunk.metadata.doclingOcrPreset === 'auto')).toBe(true);
     expect(output.chunks?.every(chunk => !('doclingPipeline' in chunk.metadata))).toBe(true);
@@ -1279,12 +1333,19 @@ describe('docling parser adapter', () => {
       fallback_reason: null,
     });
     expect(output.rawStructuredOutput?.arkivra_processing).not.toHaveProperty('docling_pipeline');
-    expect(output.chunks?.map(chunk => chunk.metadata.retrievalRepresentation)).toEqual([
-      'docling_hybrid',
-    ]);
+    const hybridChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid') ?? [];
+    const elementChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element') ?? [];
+    const elementPairChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element_pair') ?? [];
+
+    expect(hybridChunks).toHaveLength(1);
+    expect(elementChunks).toHaveLength(5);
+    expect(elementPairChunks).toHaveLength(4);
     expect(output.chunks?.[0]?.metadata).not.toHaveProperty('doclingPipeline');
-    expect(output.chunks?.[0]?.metadata.doclingOcrEnabled).toBe(true);
-    expect(output.chunks?.[0]?.metadata.doclingOcrPreset).toBe('auto');
+    expect(output.chunks?.every(chunk => chunk.metadata.doclingOcrEnabled === true)).toBe(true);
+    expect(output.chunks?.every(chunk => chunk.metadata.doclingOcrPreset === 'auto')).toBe(true);
   });
 
   test('splits large PDFs before Docling and offsets merged page citations', async () => {
@@ -1361,7 +1422,7 @@ describe('docling parser adapter', () => {
 
     expect(new Set(output.chunks?.map(chunk => chunk.id)).size).toBe(output.chunks?.length);
     expect(hybridChunks).toHaveLength(5);
-    expect(hybridChunks.map(chunk => chunk.metadata.index)).toEqual([0, 1, 2, 3, 4]);
+    expect(hybridChunks.map(chunk => chunk.metadata.index)).toEqual([0, 1, 3, 4, 6]);
     expect(hybridChunks.map(chunk => chunk.pageStart)).toEqual([1, 2, 3, 4, 5]);
     expect(hybridChunks[2]?.boundingBoxes[0]?.pageNumber).toBe(3);
     expect(hybridChunks[0]?.sourceElementIds).toEqual(['part-1:#/texts/0', 'part-1:#/tables/0']);
@@ -1374,7 +1435,8 @@ describe('docling parser adapter', () => {
         bbox: expect.objectContaining({ pageNumber: 3 }),
       }),
     ]);
-    expect(output.chunks?.every(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid')).toBe(true);
+    expect(output.chunks?.some(chunk => chunk.metadata.retrievalRepresentation === 'docling_element')).toBe(true);
+    expect(output.chunks?.every(chunk => chunk.metadata.canonicalTextSource === 'docling')).toBe(true);
     expect(output.rawStructuredOutput?.schema_name).toBe('ArkivraDoclingSplitDocument');
   });
 

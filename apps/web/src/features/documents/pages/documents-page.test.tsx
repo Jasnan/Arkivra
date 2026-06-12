@@ -361,6 +361,24 @@ describe('documents page', () => {
     });
   });
 
+  it('renders browser image previews when the stored MIME type is generic', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'Scan.webp',
+      mimeType: 'application/octet-stream',
+    });
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    expect(await screen.findByRole('img', { name: 'Scan.webp' })).toHaveAttribute(
+      'src',
+      '/api/vaults/vlt_1/documents/doc_1/file',
+    );
+    expect(screen.queryByTitle(/text preview/i)).not.toBeInTheDocument();
+  });
+
   it('shows the full document filename in the workspace breadcrumb when space allows', async () => {
     const documentName = 'Home Insurance Renewal Documents 2026.pdf';
     installDocumentDetailFetchMock({ documentName });
@@ -652,9 +670,11 @@ function installVaultContentsFetchMock({
 
 function installDocumentDetailFetchMock({
   documentName = 'Policy.txt',
+  mimeType = 'text/plain',
   chunks = [],
 }: {
   documentName?: string;
+  mimeType?: string;
   chunks?: unknown[];
 } = {}) {
   vi.stubGlobal(
@@ -683,7 +703,7 @@ function installDocumentDetailFetchMock({
             folderId: null,
             originalSize: 2048,
             originalSha256Hash: 'abc123',
-            mimeType: 'text/plain',
+            mimeType,
             processingStatus: 'completed',
             language: null,
             content: 'Extracted policy text',

@@ -140,6 +140,28 @@ type DoclingProcessingContext = {
   fallbackReason?: string;
 };
 
+function shouldBuildFineGrainedCitationChunks({
+  input,
+  processingContext,
+}: {
+  input: ParseInput;
+  processingContext: DoclingProcessingContext;
+}) {
+  const normalizedMimeType = input.mimeType.toLowerCase();
+  const normalizedFileName = input.fileName.toLowerCase();
+  const isBrowserImage =
+    normalizedMimeType.startsWith('image/') ||
+    ['.gif', '.jpeg', '.jpg', '.png', '.webp'].some(extension =>
+      normalizedFileName.endsWith(extension),
+    );
+
+  return (
+    isBrowserImage ||
+    processingContext.classification.path === 'scan-heavy' ||
+    processingContext.classification.path === 'mixed'
+  );
+}
+
 function isPdfMimeType(mimeType: string) {
   return mimeType.toLowerCase() === 'application/pdf';
 }
@@ -521,8 +543,28 @@ export function createDoclingParser({
       structuredElements: offsetStructured,
       doclingChunks: offsetDoclingChunks,
       startIndex: chunkStartIndex,
+      fineGrainedCitationChunks: shouldBuildFineGrainedCitationChunks({
+        input,
+        processingContext,
+      }),
     });
     warnings.push(...retrievalRepresentations.warnings);
+    const chunksWithProcessingMetadata = retrievalRepresentations.chunks.map(chunk => ({
+      ...chunk,
+      metadata: {
+        ...chunk.metadata,
+        doclingChunker: chunker,
+        doclingChunkInput: chunkInput,
+        doclingOcrEnabled: processingContext.doclingOcrEnabled ?? processingContext.classification.doclingDoOcr,
+        doclingOcrPreset: processingContext.ocrPreset ?? null,
+        processingPath: processingContext.classification.path,
+        canonicalTextSource: 'docling',
+        doclingSplitPart: part.partIndex + 1,
+        doclingSplitPartCount: part.partCount,
+        doclingSplitPageOffset: part.pageOffset,
+        doclingSplitPageCount: part.pageCount,
+      },
+    }));
 
     return {
       text,
@@ -530,7 +572,7 @@ export function createDoclingParser({
       embeddedImages,
       rawStructuredOutput,
       structuredElements: offsetStructured,
-      chunks: retrievalRepresentations.chunks,
+      chunks: chunksWithProcessingMetadata,
       warnings,
       processingContext,
     };

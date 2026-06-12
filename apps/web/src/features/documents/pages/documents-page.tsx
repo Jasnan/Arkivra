@@ -39,6 +39,7 @@ import { ROUTES } from '@/app/routes';
 import { validateVaultWorkspaceSearch } from '@/app/search-params';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/ui/action-buttons';
+import { useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -315,6 +316,8 @@ function DeleteItemsConfirmDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  useDialogPageLockCleanup(items.length > 0);
+
   return (
     <ChakraDialog.Root
       open={items.length > 0}

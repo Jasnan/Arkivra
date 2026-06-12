@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import { Download, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,13 @@ export function DocumentPreviewSection({
   historicalDownloadUrl?: string;
   onPrint: () => void;
 }) {
+  const [imagePreviewFailure, setImagePreviewFailure] = useState<{
+    failed: boolean;
+    url: string;
+  } | null>(null);
+  const imagePreviewFailed =
+    imagePreviewFailure?.url === inlineFileUrl && imagePreviewFailure.failed;
+
   if (isHistoricalVersion) {
     if ((previewKind === 'markdown' || previewKind === 'text') && canPreview) {
       return (
@@ -136,14 +144,39 @@ export function DocumentPreviewSection({
         p="4"
       >
         <Flex h="full" align="center" justify="center" rounded="lg" bg="white" p="8">
-          <chakra.img
-            src={inlineFileUrl}
-            alt={document.name}
-            maxH="full"
-            w="auto"
-            maxW="full"
-            objectFit="contain"
-          />
+          {imagePreviewFailed ? (
+            <Flex
+              direction="column"
+              align="center"
+              justify="center"
+              gap="3"
+              color="fg.muted"
+              textAlign="center"
+            >
+              <ImageIcon size={40} />
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" color="fg">
+                  Image preview unavailable
+                </Text>
+                <Text maxW="lg" fontSize="sm" lineHeight="6">
+                  Arkivra could not render this image in the browser. Download the file to inspect it.
+                </Text>
+              </Box>
+            </Flex>
+          ) : (
+            <chakra.img
+              key={inlineFileUrl}
+              src={inlineFileUrl}
+              alt={document.name}
+              display="block"
+              maxH="full"
+              w="auto"
+              maxW="full"
+              objectFit="contain"
+              onLoad={() => setImagePreviewFailure({ failed: false, url: inlineFileUrl })}
+              onError={() => setImagePreviewFailure({ failed: true, url: inlineFileUrl })}
+            />
+          )}
         </Flex>
       </Box>
     );

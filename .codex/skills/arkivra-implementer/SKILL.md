@@ -32,6 +32,16 @@ Use this skill for scoped implementation work in Arkivra after the affected app,
 - Run lint/typecheck/build when the change affects app-level correctness.
 - Check docs/copy for privacy and AI overclaims when changing public text.
 
+## dashboard dialog lifecycle rule
+
+When implementing or modifying Chakra/Ark dialogs in `apps/web`:
+
+- Keep `Dialog.Root`/`ChakraDialog.Root` mounted through the close lifecycle. Do not gate the root with nullable target state such as `if (!target) return null`.
+- Use a dedicated boolean `open` state instead of deriving `open` only from a selected object.
+- Keep selected target/content data available while the dialog is open or closing. Clear it in `onExitComplete` or an equivalent after-close lifecycle hook.
+- Let the shared dialog wrapper and dialog lock helper release modal locks. Avoid component-specific page-lock cleanup unless updating the shared helper.
+- Add a regression test for risky dialog changes that closes via the visible close button and verifies the app is interactive afterward. Check for stale `data-inert`, native `inert`, `data-scroll-lock`, and `document.body.style.pointerEvents`.
+
 ## output format
 
 - Summary

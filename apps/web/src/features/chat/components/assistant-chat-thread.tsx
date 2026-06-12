@@ -207,6 +207,7 @@ function AssistantResponseMessage() {
   const message = useArkivraMessageFromRuntime();
   const custom = useMessage((state) => state.metadata as AssistantMessageCustom);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
+  const [isCitationPreviewOpen, setIsCitationPreviewOpen] = useState(false);
 
   if (!message) return null;
 
@@ -258,7 +259,10 @@ function AssistantResponseMessage() {
                 <MarkdownMessage
                   content={displayContent}
                   citations={citations}
-                  onCitationClick={(citation) => setSelectedCitation(citation)}
+                  onCitationClick={(citation) => {
+                    setSelectedCitation(citation);
+                    setIsCitationPreviewOpen(true);
+                  }}
                 />
               ) : emptyResponseMessage ? (
                 <Text color={generationStatus === 'failed' ? 'fg.error' : 'fg.muted'}>
@@ -322,10 +326,9 @@ function AssistantResponseMessage() {
 
           <CitationPreviewModal
             citation={selectedCitation}
-            open={selectedCitation !== null}
-            onOpenChange={(open) => {
-              if (!open) setSelectedCitation(null);
-            }}
+            open={isCitationPreviewOpen}
+            onOpenChange={setIsCitationPreviewOpen}
+            onExitComplete={() => setSelectedCitation(null)}
           />
         </Box>
       </Flex>

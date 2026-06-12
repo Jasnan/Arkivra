@@ -13,11 +13,13 @@ export function cleanupDialogPageLocks() {
   }
 
   document.body.removeAttribute('data-inert');
+  document.body.removeAttribute('inert');
   document.body.removeAttribute('data-scroll-lock');
   document.body.style.pointerEvents = '';
 
-  for (const element of document.querySelectorAll<HTMLElement>('[data-inert]')) {
+  for (const element of document.querySelectorAll<HTMLElement>('[data-inert], [inert]')) {
     element.removeAttribute('data-inert');
+    element.removeAttribute('inert');
   }
 }
 

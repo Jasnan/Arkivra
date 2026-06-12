@@ -24,6 +24,10 @@ The Compose file defines these persistent volumes:
 
 Do not treat the `backups` volume as a complete disaster recovery plan by itself. Backups do not preserve `.env` secrets or `ARKIVRA_ENCRYPTION_KEYS`; store those separately.
 
+## Scan-Heavy PDF Processing
+
+Scan-heavy PDFs are routed through Docling OCR with `ocr_preset=auto`. The Compose `docling` service uses the Docling Serve CPU image, so scan-heavy OCR workloads may be slower than digital PDFs.
+
 ## Important Environment Values
 
 Set these before production use:

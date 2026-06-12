@@ -19,6 +19,7 @@ export interface Citation {
   vaultId: string;
   vaultName: string;
   documentName: string;
+  mimeType?: string;
   pageStart: number | null;
   pageEnd: number | null;
   section: string | null;

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Dialog as ChakraDialog, Portal } from '@chakra-ui/react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { scheduleDialogPageLockCleanup, useDialogPageLockCleanup } from './dialog-page-locks';
 
 const DialogFocusContext = React.createContext<{
   setTriggerElement: (element: HTMLElement | null) => void;
@@ -19,9 +20,12 @@ export function Dialog({ onOpenChange, onEscapeKeyDown, closeOnEscape, open, ...
   const handleOpenChange = React.useCallback((open: boolean) => {
     onOpenChange?.(open);
     if (!open) {
+      scheduleDialogPageLockCleanup();
       window.setTimeout(() => triggerElementRef.current?.focus(), 0);
     }
   }, [onOpenChange]);
+
+  useDialogPageLockCleanup(open ?? false);
 
   React.useEffect(() => {
     if (!open || closeOnEscape === false) {

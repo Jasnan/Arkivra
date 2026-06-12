@@ -1,7 +1,7 @@
 import type { DoclingChunkResponse, DoclingClient } from '../../docling/docling.client.js';
 import type { DoclingConvertResponse } from './docling.schema.js';
 import type { ImageCaptioner } from '../image-captioner.js';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { describe, expect, test, vi } from 'vitest';
 import { createDoclingParser } from './docling.parser.js';
 
@@ -226,6 +226,44 @@ const SCANNED_TEXT_JSON_FIXTURE = {
   groups: [],
 };
 
+function makeDenseScannedTextJsonFixture(textCount: number) {
+  return {
+    schema_name: 'DoclingDocument',
+    body: {
+      children: Array.from({ length: textCount }, (_, index) => ({ cref: `#/texts/${index}` })),
+    },
+    pages: {
+      1: {
+        size: { width: 612, height: 792 },
+      },
+    },
+    texts: Array.from({ length: textCount }, (_, index) => ({
+      self_ref: `#/texts/${index}`,
+      label: 'text',
+      text: index === 20
+        ? 'Passport No. With Date and Place of Issue'
+        : index === 21
+          ? 'H5536221'
+          : `Dense OCR text ${index}`,
+      parent: { cref: '#/body' },
+      children: [],
+      prov: [{
+        page_no: 1,
+        bbox: {
+          l: 40,
+          t: 40 + index * 10,
+          r: 240,
+          b: 48 + index * 10,
+          coord_origin: 'TOPLEFT',
+        },
+      }],
+    })),
+    tables: [],
+    pictures: [],
+    groups: [],
+  };
+}
+
 function makeChunkResponse(
   overrides: Partial<DoclingChunkResponse> = {},
 ): DoclingChunkResponse {
@@ -274,10 +312,28 @@ function makeDoclingClient(response: DoclingChunkResponse): DoclingClient {
   } as unknown as DoclingClient;
 }
 
-async function createPdfBuffer(pageCount: number) {
+async function createPdfBuffer(pageCount: number, textPages: number[] = []) {
   const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const textPageSet = new Set(textPages);
+
   for (let index = 0; index < pageCount; index += 1) {
-    pdf.addPage([612, 792]);
+    const page = pdf.addPage([612, 792]);
+    const pageNumber = index + 1;
+
+    if (textPageSet.has(pageNumber)) {
+      for (let line = 0; line < 8; line += 1) {
+        page.drawText(
+          `Digital text page ${pageNumber} line ${line} with enough content for classification.`,
+          {
+            x: 72,
+            y: 720 - line * 24,
+            size: 12,
+            font,
+          },
+        );
+      }
+    }
   }
 
   return Buffer.from(await pdf.save());
@@ -300,41 +356,126 @@ describe('docling parser adapter', () => {
     expect(output.engineVersion).toBe('v1');
     expect(output.markdown).toContain('Title');
     expect(output.text).toContain('Paragraph one');
-    expect(output.rawStructuredOutput).toEqual(DOCILING_JSON_FIXTURE);
+    expect(output.rawStructuredOutput).toMatchObject(DOCILING_JSON_FIXTURE);
+    expect(output.rawStructuredOutput?.arkivra_processing).toMatchObject({
+      canonical_text_source: 'docling',
+    });
     expect(output.structuredElements).toBeDefined();
     expect(output.chunks).toBeDefined();
     expect(output.chunks?.map(chunk => chunk.metadata.retrievalRepresentation)).toEqual([
       'docling_hybrid',
       'docling_hybrid',
-      'page',
-      'page',
-      'table',
     ]);
     expect(output.chunks?.map(chunk => chunk.metadata.chunkingType)).toEqual([
       'docling_hybrid',
       'docling_hybrid',
-      'page_level',
-      'page_level',
-      'table',
     ]);
     expect(output.chunks?.[0]?.section).toBe('Title');
-    expect(output.chunks?.[0]?.text).toContain('Document title: Balance Sheet');
+    expect(output.chunks?.[0]?.text).not.toContain('Document title: Balance Sheet');
     expect(output.chunks?.[0]?.text).toContain('Filename: file.pdf');
-    expect(output.chunks?.[0]?.text).toContain('Chunk source: docling_hybrid');
-    const tableChunk = output.chunks?.find(chunk => chunk.metadata.retrievalRepresentation === 'table');
-    expect(tableChunk).toBeDefined();
-    expect(tableChunk?.text).toContain('Chunk source: table');
-    expect(tableChunk?.text).toContain('Table caption: Table 1. Asset breakdown');
-    expect(tableChunk?.text).toContain('Table headers:\nHeaders: Asset | Value');
-    expect(tableChunk?.text).toContain('Table rows:\nRow 1: Asset=Cash; Value=100');
-    expect(tableChunk?.tablesHtml[0]).toContain('<table>');
-    expect(tableChunk?.metadata.tableProvenance).toEqual([
-      expect.objectContaining({
-        elementId: '#/tables/0',
-        pageNumber: 1,
-      }),
-    ]);
+    expect(output.chunks?.[0]?.text).not.toContain('Chunk source: docling_hybrid');
+    expect(output.chunks?.every(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid')).toBe(true);
     expect(output).not.toHaveProperty('documentId');
+  });
+
+  test('adds fine-grained citation chunks for image OCR results', async () => {
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        chunks: [{
+          filename: 'back_page_passport.webp',
+          chunk_index: 0,
+          text: 'Passport OCR text with H5536221 and surrounding fields',
+          raw_text: 'Passport OCR text with H5536221 and surrounding fields',
+          doc_items: ['#/texts/0', '#/texts/1', '#/texts/2', '#/texts/3', '#/texts/4'],
+          page_numbers: [1],
+        }],
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: 'Passport OCR text with H5536221 and surrounding fields',
+            json_content: SCANNED_TEXT_JSON_FIXTURE,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+      })),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_webp',
+      fileName: 'back_page_passport.webp',
+      mimeType: 'image/webp',
+      fileData: Buffer.from('bytes'),
+    });
+    const hybridChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid') ?? [];
+    const elementChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element') ?? [];
+    const elementPairChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element_pair') ?? [];
+
+    expect(hybridChunks).toHaveLength(1);
+    expect(elementChunks).toHaveLength(5);
+    expect(elementPairChunks).toHaveLength(4);
+    expect(hybridChunks[0]?.sourceElementIds).toHaveLength(5);
+    expect(hybridChunks[0]?.boundingBoxes).toHaveLength(5);
+    expect(elementChunks[0]?.sourceElementIds).toHaveLength(1);
+    expect(elementChunks[0]?.boundingBoxes).toHaveLength(1);
+    expect(elementChunks[0]?.citationPrecision).toBe('box');
+    expect(elementChunks[0]?.metadata.canonicalTextSource).toBe('docling');
+    expect(elementChunks[0]?.metadata.processingPath).toBe('digital');
+    expect(elementChunks[0]?.text).toContain('Filename: back_page_passport.webp');
+    expect(elementPairChunks[0]?.sourceElementIds).toHaveLength(2);
+    expect(elementPairChunks[0]?.boundingBoxes).toHaveLength(2);
+  });
+
+  test('interleaves fine-grained pairs early enough for dense OCR page expansion', async () => {
+    const denseTextCount = 60;
+    const denseJson = makeDenseScannedTextJsonFixture(denseTextCount);
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(makeChunkResponse({
+        chunks: [{
+          filename: 'dense-passport.webp',
+          chunk_index: 0,
+          text: 'Dense OCR page with passport fields',
+          raw_text: 'Dense OCR page with passport fields',
+          doc_items: Array.from({ length: denseTextCount }, (_, index) => `#/texts/${index}`),
+          page_numbers: [1],
+        }],
+        documents: [{
+          kind: 'ExportResult' as const,
+          content: {
+            md_content: '',
+            text_content: 'Dense OCR page with passport fields',
+            json_content: denseJson,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+      })),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_dense_webp',
+      fileName: 'dense-passport.webp',
+      mimeType: 'image/webp',
+      fileData: Buffer.from('bytes'),
+    });
+    const targetPair = output.chunks?.find(chunk =>
+      chunk.metadata.retrievalRepresentation === 'docling_element_pair' &&
+      chunk.sourceElementIds.includes('#/texts/20') &&
+      chunk.sourceElementIds.includes('#/texts/21'),
+    );
+
+    expect(targetPair).toBeDefined();
+    expect(targetPair?.metadata.index).toBeLessThan(48);
+    expect(targetPair?.originalText).toContain('Passport No. With Date and Place of Issue');
+    expect(targetPair?.originalText).toContain('H5536221');
   });
 
   test('sends plain text files through Docling chunking', async () => {
@@ -422,20 +563,14 @@ describe('docling parser adapter', () => {
     expect(output.structuredElements?.[2]?.image?.mimeType).toBe('image/png');
     expect(output.structuredElements?.[2]?.image?.data.toString()).toBe('image-bytes');
     expect(output.embeddedImages).toHaveLength(1);
-    expect(output.rawStructuredOutput).toEqual(DOCILING_JSON_FIXTURE);
+    expect(output.rawStructuredOutput).toMatchObject(DOCILING_JSON_FIXTURE);
+    expect(output.rawStructuredOutput?.arkivra_processing).toMatchObject({
+      canonical_text_source: 'docling',
+    });
     expect(output.text).toContain('Balance Sheet');
     expect(output.text).toContain('Asset | Value');
 
-    const tableChunk = output.chunks?.find(chunk => chunk.metadata.retrievalRepresentation === 'table');
-    expect(tableChunk).toMatchObject({
-      type: 'table',
-      pageStart: 1,
-      pageEnd: 1,
-      sourceElementIds: ['#/tables/0'],
-      citationPrecision: 'box',
-      sectionPath: ['Balance Sheet'],
-    });
-    expect(tableChunk?.originalText).toContain('Row 1: Asset=Cash; Value=100');
+    expect(output.chunks?.every(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid')).toBe(true);
   });
 
   test('preserves table html and provenance on Docling hybrid chunks that reference tables', async () => {
@@ -555,7 +690,7 @@ describe('docling parser adapter', () => {
     expect(output.warnings).toContain('ocr warning');
   });
 
-  test('adds page-level retrieval chunks when Docling hybrid chunks omit structured content', async () => {
+  test('does not add page-level retrieval chunks when Docling hybrid chunks omit structured content', async () => {
     const convertedDocument = {
       kind: 'ExportResult' as const,
       content: {
@@ -601,27 +736,14 @@ describe('docling parser adapter', () => {
 
     expect(chunkFile).toHaveBeenNthCalledWith(1, expect.objectContaining({ chunker: 'hybrid' }));
     expect(chunkFile).toHaveBeenCalledTimes(1);
-    expect(output.warnings).toContain('docling.hybrid_structured_content_missing:4/5');
     expect(output.chunks?.map(chunk => chunk.metadata.retrievalRepresentation)).toEqual([
       'docling_hybrid',
-      'page',
     ]);
-    const pageChunk = output.chunks?.find(chunk => chunk.metadata.retrievalRepresentation === 'page');
-    expect(pageChunk?.text).toContain('Document title: passport.pdf');
-    expect(pageChunk?.text).toContain('Filename: passport.pdf');
-    expect(pageChunk?.text).toContain('Chunk source: page');
-    expect(pageChunk?.text).toContain('Passport No');
-    expect(pageChunk?.sourceElementIds).toEqual([
-      '#/texts/0',
-      '#/texts/1',
-      '#/texts/2',
-      '#/texts/3',
-      '#/texts/4',
-    ]);
-    expect(pageChunk?.citationPrecision).toBe('page');
+    expect(output.warnings.some(warning => warning.startsWith('docling.hybrid_structured_content_missing'))).toBe(false);
+    expect(output.text).toContain('Passport No');
   });
 
-  test('creates retrieval representations for scanned IDs, statements, invoices, and contracts', async () => {
+  test('uses Docling hybrid chunks only for scanned IDs, statements, invoices, and contracts', async () => {
     const tableDocument = (title: string, tableRef: string, rows: string[]) => ({
       schema_name: 'DoclingDocument',
       body: { children: [{ cref: '#/texts/0' }, { cref: tableRef }] },
@@ -796,19 +918,13 @@ describe('docling parser adapter', () => {
       });
       const representations = output.chunks?.map(chunk => chunk.metadata.retrievalRepresentation) ?? [];
 
-      expect(representations).toContain('docling_hybrid');
-      expect(representations).toContain('page');
-      expect(output.chunks?.some(chunk => chunk.originalText.includes(documentCase.expectedText))).toBe(true);
-      if (documentCase.expectsTable) {
-        const tableChunk = output.chunks?.find(chunk => chunk.metadata.retrievalRepresentation === 'table');
-        expect(tableChunk).toBeDefined();
-        expect(tableChunk?.tablesHtml[0]).toContain('<table>');
-        expect(tableChunk?.originalText).toContain('Headers: Field | Value');
-      }
+      expect(representations).toEqual(['docling_hybrid']);
+      expect(output.text).toContain(documentCase.expectedText);
+      expect(output.chunks?.every(chunk => chunk.metadata.chunkingType === 'docling_hybrid')).toBe(true);
     }
   });
 
-  test('adds contextual retrieval text from converted text when structured mapping is unavailable', async () => {
+  test('does not add contextual retrieval text when structured mapping is unavailable', async () => {
     const convertedDocument = {
       kind: 'ExportResult' as const,
       content: {
@@ -857,16 +973,12 @@ describe('docling parser adapter', () => {
       fileName: 'passport.pdf',
     }));
     expect(chunkFile).toHaveBeenCalledTimes(1);
-    expect(output.rawStructuredOutput).toBeUndefined();
-    expect(output.chunks).toHaveLength(2);
+    expect(output.rawStructuredOutput?.schema_name).toBe('ArkivraDoclingProcessingDocument');
+    expect(output.chunks).toHaveLength(1);
     expect(output.chunks?.[0]?.metadata.doclingChunker).toBe('hybrid');
     expect(output.chunks?.[0]?.metadata.doclingChunkInput).toBe('original_file');
-    const contextualChunk = output.chunks?.find(chunk => chunk.metadata.retrievalRepresentation === 'contextual');
-    expect(contextualChunk?.text).toContain('Chunk source: contextual');
-    expect(contextualChunk?.text).toContain('Filename: passport.pdf');
-    expect(contextualChunk?.text).toContain('Passport No');
-    expect(contextualChunk?.metadata.chunkingType).toBe('contextual');
-    expect(contextualChunk?.metadata.derivedFrom).toBe('converted_text');
+    expect(output.chunks?.[0]?.metadata.retrievalRepresentation).toBe('docling_hybrid');
+    expect(output.chunks?.[0]?.metadata.chunkingType).toBe('docling_hybrid');
   });
 
   test('tolerates Docling returning null for unrequested format fields', async () => {
@@ -934,6 +1046,49 @@ describe('docling parser adapter', () => {
 
     expect(output.markdown).toContain('# Title');
     expect(output.text).toBe('Title\n\nParagraph one.\n\nBullet item');
+  });
+
+  test('falls back to Docling hybrid chunk text when converted document text is empty', async () => {
+    const parser = createDoclingParser({
+      doclingClient: makeDoclingClient(
+        makeChunkResponse({
+          chunks: [
+            {
+              filename: 'scan.pdf',
+              chunk_index: 0,
+              text: 'Document title: Scan\n\nFallback contextual text',
+              raw_text: 'Fallback raw OCR text',
+              doc_items: ['#/texts/0'],
+              page_numbers: [1],
+            },
+          ],
+          documents: [{
+            kind: 'ExportResult' as const,
+            content: {
+              md_content: '',
+              text_content: '',
+              json_content: null,
+              html_content: '',
+              doctags_content: '',
+            },
+            status: 'success',
+            errors: [],
+          }],
+        }),
+      ),
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_chunk_text',
+      fileName: 'scan.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('x'),
+    });
+
+    expect(output.text).toBe('Fallback raw OCR text');
+    expect(output.chunks?.map(chunk => chunk.metadata.retrievalRepresentation)).toEqual([
+      'docling_hybrid',
+    ]);
   });
 
   test('falls back to markdown parsing and records a warning when structured mapping fails', async () => {
@@ -1089,6 +1244,194 @@ describe('docling parser adapter', () => {
     }));
   });
 
+  test('uses digital PDF path with Docling OCR disabled when sampled pages contain substantial text', async () => {
+    const doclingClient = makeDoclingClient(makeChunkResponse());
+    const parser = createDoclingParser({
+      doclingClient,
+      scanClassifier: {
+        maxSampledPages: 3,
+        scanHeavyScannedPageRatio: 0.7,
+        mixedScannedPageRatio: 0.2,
+      },
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_digital_pdf',
+      fileName: 'digital.pdf',
+      mimeType: 'application/pdf',
+      fileData: await createPdfBuffer(3, [1, 2, 3]),
+    });
+
+    expect(doclingClient.chunkFile).toHaveBeenCalledWith(expect.objectContaining({
+      convertOptions: {
+        doOcr: false,
+      },
+    }));
+    expect(output.rawStructuredOutput?.arkivra_processing).toMatchObject({
+      processing_path: 'digital',
+      canonical_text_source: 'docling',
+      docling_ocr_enabled: false,
+    });
+    expect(output.chunks?.every(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid')).toBe(true);
+  });
+
+  test('uses mixed PDF path with Docling OCR enabled', async () => {
+    const doclingClient = makeDoclingClient(makeChunkResponse());
+    const parser = createDoclingParser({
+      doclingClient,
+      scanClassifier: {
+        maxSampledPages: 4,
+        scanHeavyScannedPageRatio: 0.7,
+        mixedScannedPageRatio: 0.2,
+      },
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_mixed_pdf',
+      fileName: 'mixed.pdf',
+      mimeType: 'application/pdf',
+      fileData: await createPdfBuffer(4, [1, 2, 3]),
+    });
+
+    expect(doclingClient.chunkFile).toHaveBeenCalledWith(expect.objectContaining({
+      convertOptions: {
+        doOcr: true,
+      },
+    }));
+    expect(output.rawStructuredOutput?.arkivra_processing).toMatchObject({
+      processing_path: 'mixed',
+      canonical_text_source: 'docling',
+      docling_ocr_enabled: true,
+    });
+  });
+
+  test('uses Docling auto OCR for scan-heavy PDFs', async () => {
+    const doclingClient = makeDoclingClient(makeChunkResponse({
+      documents: [{
+        kind: 'ExportResult' as const,
+        content: {
+          md_content: '# Docling Layout',
+          text_content: 'Page one OCR text\n\nPage two OCR text',
+          json_content: DOCILING_JSON_FIXTURE,
+          html_content: '',
+          doctags_content: '',
+        },
+        status: 'success',
+        errors: [],
+      }],
+    }));
+    const parser = createDoclingParser({
+      doclingClient,
+      scanClassifier: {
+        maxSampledPages: 2,
+        scanHeavyScannedPageRatio: 0.7,
+        mixedScannedPageRatio: 0.2,
+      },
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_scan_pdf',
+      fileName: 'scan.pdf',
+      mimeType: 'application/pdf',
+      fileData: await createPdfBuffer(2),
+    });
+
+    expect(doclingClient.chunkFile).toHaveBeenCalledWith(expect.objectContaining({
+      convertOptions: {
+        doOcr: true,
+        ocrPreset: 'auto',
+      },
+    }));
+    expect(output.text).toBe('Page one OCR text\n\nPage two OCR text');
+    expect(output.markdown).toContain('Docling Layout');
+    expect(output.warnings).toContain('docling.ocr_preset:auto');
+    expect(output.rawStructuredOutput?.arkivra_processing).toMatchObject({
+      processing_path: 'scan-heavy',
+      canonical_text_source: 'docling',
+      docling_ocr_enabled: true,
+      docling_ocr_preset: 'auto',
+    });
+    expect(output.rawStructuredOutput?.arkivra_processing).not.toHaveProperty('docling_pipeline');
+    expect(output.chunks?.some(chunk => chunk.metadata.retrievalRepresentation === 'docling_element')).toBe(true);
+    expect(output.chunks?.every(chunk => chunk.metadata.canonicalTextSource === 'docling')).toBe(true);
+    expect(output.chunks?.every(chunk => chunk.metadata.doclingOcrPreset === 'auto')).toBe(true);
+    expect(output.chunks?.every(chunk => !('doclingPipeline' in chunk.metadata))).toBe(true);
+  });
+
+  test('does not retry scan-heavy PDFs through a second Docling path', async () => {
+    const standardOcrResponse = makeChunkResponse({
+      chunks: [{
+        filename: 'scan.pdf',
+        chunk_index: 0,
+        text: 'Passport OCR text',
+        raw_text: 'Passport OCR text',
+        doc_items: ['#/texts/0'],
+        page_numbers: [1],
+      }],
+      documents: [{
+        kind: 'ExportResult' as const,
+        content: {
+          md_content: '',
+          text_content: 'Passport OCR text',
+          json_content: SCANNED_TEXT_JSON_FIXTURE,
+          html_content: '',
+          doctags_content: '',
+        },
+        status: 'success',
+        errors: [],
+      }],
+    });
+    const chunkFile = vi.fn().mockResolvedValueOnce(standardOcrResponse);
+    const parser = createDoclingParser({
+      doclingClient: {
+        convertFile: vi.fn(),
+        chunkFile,
+      } as unknown as DoclingClient,
+      scanClassifier: {
+        maxSampledPages: 1,
+        scanHeavyScannedPageRatio: 0.7,
+        mixedScannedPageRatio: 0.2,
+      },
+    });
+
+    const output = await parser.parse({
+      documentId: 'doc_scan_retry',
+      fileName: 'scan.pdf',
+      mimeType: 'application/pdf',
+      fileData: await createPdfBuffer(1),
+    });
+
+    expect(chunkFile).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      convertOptions: {
+        doOcr: true,
+        ocrPreset: 'auto',
+      },
+    }));
+    expect(chunkFile).toHaveBeenCalledTimes(1);
+    expect(output.text).toBe('Passport OCR text');
+    expect(output.warnings).toContain('docling.ocr_preset:auto');
+    expect(output.rawStructuredOutput?.arkivra_processing).toMatchObject({
+      processing_path: 'scan-heavy',
+      docling_ocr_enabled: true,
+      docling_ocr_preset: 'auto',
+      fallback_reason: null,
+    });
+    expect(output.rawStructuredOutput?.arkivra_processing).not.toHaveProperty('docling_pipeline');
+    const hybridChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_hybrid') ?? [];
+    const elementChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element') ?? [];
+    const elementPairChunks = output.chunks
+      ?.filter(chunk => chunk.metadata.retrievalRepresentation === 'docling_element_pair') ?? [];
+
+    expect(hybridChunks).toHaveLength(1);
+    expect(elementChunks).toHaveLength(5);
+    expect(elementPairChunks).toHaveLength(4);
+    expect(output.chunks?.[0]?.metadata).not.toHaveProperty('doclingPipeline');
+    expect(output.chunks?.every(chunk => chunk.metadata.doclingOcrEnabled === true)).toBe(true);
+    expect(output.chunks?.every(chunk => chunk.metadata.doclingOcrPreset === 'auto')).toBe(true);
+  });
+
   test('splits large PDFs before Docling and offsets merged page citations', async () => {
     const chunkFile = vi.fn(async ({ fileName }: { fileName: string }) => {
       const isLastPart = fileName.includes('part-003');
@@ -1163,7 +1506,7 @@ describe('docling parser adapter', () => {
 
     expect(new Set(output.chunks?.map(chunk => chunk.id)).size).toBe(output.chunks?.length);
     expect(hybridChunks).toHaveLength(5);
-    expect(hybridChunks.map(chunk => chunk.metadata.index)).toEqual([0, 1, 5, 6, 10]);
+    expect(hybridChunks.map(chunk => chunk.metadata.index)).toEqual([0, 1, 3, 4, 6]);
     expect(hybridChunks.map(chunk => chunk.pageStart)).toEqual([1, 2, 3, 4, 5]);
     expect(hybridChunks[2]?.boundingBoxes[0]?.pageNumber).toBe(3);
     expect(hybridChunks[0]?.sourceElementIds).toEqual(['part-1:#/texts/0', 'part-1:#/tables/0']);
@@ -1176,12 +1519,8 @@ describe('docling parser adapter', () => {
         bbox: expect.objectContaining({ pageNumber: 3 }),
       }),
     ]);
-    const tableChunks = output.chunks?.filter(chunk => chunk.metadata.retrievalRepresentation === 'table') ?? [];
-    expect(tableChunks.map(chunk => chunk.sourceElementIds)).toEqual([
-      ['part-1:#/tables/0'],
-      ['part-2:#/tables/0'],
-      ['part-3:#/tables/0'],
-    ]);
+    expect(output.chunks?.some(chunk => chunk.metadata.retrievalRepresentation === 'docling_element')).toBe(true);
+    expect(output.chunks?.every(chunk => chunk.metadata.canonicalTextSource === 'docling')).toBe(true);
     expect(output.rawStructuredOutput?.schema_name).toBe('ArkivraDoclingSplitDocument');
   });
 

@@ -19,6 +19,7 @@ export function SourcesAccordion({
   citations: Citation[];
 }) {
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
+  const [isCitationPreviewOpen, setIsCitationPreviewOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   if (citations.length === 0) return null;
@@ -52,7 +53,10 @@ export function SourcesAccordion({
                   <chakra.button
                     key={citation.chunkId}
                     type="button"
-                    onClick={() => setSelectedCitation(citation)}
+                    onClick={() => {
+                      setSelectedCitation(citation);
+                      setIsCitationPreviewOpen(true);
+                    }}
                     display="flex"
                     w="100%"
                     minW="0"
@@ -114,9 +118,12 @@ export function SourcesAccordion({
 
       <CitationPreviewModal
         citation={selectedCitation}
-        open={selectedCitation !== null}
+        open={isCitationPreviewOpen}
         onOpenChange={(open) => {
-          if (!open) setSelectedCitation(null);
+          setIsCitationPreviewOpen(open);
+          if (!open) {
+            window.setTimeout(setSelectedCitation, 0, null);
+          }
         }}
       />
     </>

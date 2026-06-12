@@ -29,6 +29,7 @@ import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
+import { useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
 import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { chatQueryKeys } from '@/features/chat/chat.queries';
 import {
@@ -102,6 +103,7 @@ const searchReturnParamKeys = [
   'searchMode',
 ] as const;
 const documentFileExtensionPattern = /\.[^/.]+$/;
+const browserImagePreviewExtensions = new Set(['gif', 'jpeg', 'jpg', 'png', 'webp']);
 
 function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null | undefined) {
   if (language === null || language === undefined) {
@@ -175,12 +177,35 @@ function isMarkdownDocument({
   );
 }
 
+function getDocumentFileExtension(name: string) {
+  const extension = name.split('.').pop()?.trim().toLowerCase();
+  return extension && extension !== name.trim().toLowerCase() ? extension : '';
+}
+
+function isImageDocument({
+  mimeType,
+  name,
+  originalName,
+}: {
+  mimeType: string;
+  name: string;
+  originalName: string;
+}) {
+  if (mimeType.toLowerCase().startsWith('image/')) {
+    return true;
+  }
+
+  return [name, originalName].some((value) =>
+    browserImagePreviewExtensions.has(getDocumentFileExtension(value)),
+  );
+}
+
 function getPreviewKind(mimeType: string, name: string, originalName: string): PreviewKind {
   if (mimeType === 'application/pdf') {
     return 'pdf';
   }
 
-  if (mimeType.startsWith('image/')) {
+  if (isImageDocument({ mimeType, name, originalName })) {
     return 'image';
   }
 
@@ -250,6 +275,8 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     : null;
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState('');
+
+  useDialogPageLockCleanup(isDeleteDialogOpen);
   const [isCreateTagDialogOpen, setIsCreateTagDialogOpen] = useState(false);
   const [createTagNameValue, setCreateTagNameValue] = useState('');
   const [createTagColorValue, setCreateTagColorValue] = useState('#D8FF75');

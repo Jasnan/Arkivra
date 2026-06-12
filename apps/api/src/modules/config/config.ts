@@ -137,6 +137,38 @@ export const configDefinition = {
       default: 'deterministic' as const,
       env: 'ARKIVRA_PARSER_TEXT_CLEANUP',
     },
+    pdfScanDetection: {
+      maxSampledPages: {
+        doc: 'Maximum number of PDF pages sampled for digital/scanned classification.',
+        schema: z.coerce.number().int().min(1).max(64),
+        default: 8,
+        env: 'ARKIVRA_PDF_SCAN_DETECTION_MAX_SAMPLED_PAGES',
+      },
+      minTextItemsPerDigitalPage: {
+        doc: 'Minimum PDF text objects for a sampled page to count as digital.',
+        schema: z.coerce.number().int().min(1).max(1000),
+        default: 20,
+        env: 'ARKIVRA_PDF_SCAN_DETECTION_MIN_TEXT_ITEMS',
+      },
+      minAlnumCharsPerDigitalPage: {
+        doc: 'Minimum alphanumeric characters for a sampled page to count as digital.',
+        schema: z.coerce.number().int().min(1).max(10000),
+        default: 120,
+        env: 'ARKIVRA_PDF_SCAN_DETECTION_MIN_ALNUM_CHARS',
+      },
+      scanHeavyScannedPageRatio: {
+        doc: 'Sampled scanned-page ratio at or above which a PDF is routed through Docling OCR with RapidOCR.',
+        schema: z.coerce.number().min(0).max(1),
+        default: 0.7,
+        env: 'ARKIVRA_PDF_SCAN_DETECTION_SCAN_HEAVY_RATIO',
+      },
+      mixedScannedPageRatio: {
+        doc: 'Sampled scanned-page ratio at or above which a PDF is treated as mixed and Docling OCR remains enabled.',
+        schema: z.coerce.number().min(0).max(1),
+        default: 0.2,
+        env: 'ARKIVRA_PDF_SCAN_DETECTION_MIXED_RATIO',
+      },
+    },
   },
   ollama: {
     host: {

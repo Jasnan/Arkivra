@@ -36,6 +36,7 @@ export const doclingSubmitResponseSchema = z.object({
   task_position: z.number().int().nullable().optional(),
   task_meta: z.record(z.string(), z.unknown()).nullable().optional(),
   error_message: z.string().nullable().optional(),
+  failure: z.unknown().nullable().optional(),
   errors: doclingErrorsSchema.optional(),
 });
 export type DoclingSubmitResponse = z.infer<typeof doclingSubmitResponseSchema>;
@@ -47,6 +48,7 @@ export const doclingStatusResponseSchema = z.object({
   task_position: z.number().int().nullable().optional(),
   task_meta: z.record(z.string(), z.unknown()).nullable().optional(),
   error_message: z.string().nullable().optional(),
+  failure: z.unknown().nullable().optional(),
   errors: doclingErrorsSchema.optional(),
 });
 export type DoclingStatusResponse = z.infer<typeof doclingStatusResponseSchema>;

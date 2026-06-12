@@ -21,6 +21,7 @@ import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
+import { useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { adminQueryKeys } from '@/features/admin/admin.queries';
 import { chatQueryKeys } from '@/features/chat/chat.queries';
@@ -138,6 +139,8 @@ export function TrashConfirmDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  useDialogPageLockCleanup(open);
+
   return (
     <ChakraDialog.Root
       open={open}

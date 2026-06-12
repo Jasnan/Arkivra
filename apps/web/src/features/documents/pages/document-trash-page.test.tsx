@@ -1,9 +1,43 @@
-import { screen } from '@testing-library/react';
+import { useState } from 'react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '@/test/utils';
 import { TrashConfirmDialog } from './document-trash-page';
 
 describe('trash confirm dialog', () => {
+  it('clears stale page locks after closing', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(true);
+
+      return (
+        <TrashConfirmDialog
+          open={open}
+          title="Delete Employee Handbook?"
+          description="This permanently deletes the selected document data from Arkivra. This action cannot be undone."
+          confirmLabel="Delete document"
+          pendingLabel="Deleting..."
+          isPending={false}
+          onClose={() => setOpen(false)}
+          onConfirm={vi.fn()}
+        />
+      );
+    }
+
+    await renderWithProviders(<Harness />);
+
+    document.body.setAttribute('data-inert', '');
+    document.body.setAttribute('data-scroll-lock', '');
+    document.body.style.pointerEvents = 'none';
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(document.body).not.toHaveAttribute('data-inert');
+      expect(document.body).not.toHaveAttribute('data-scroll-lock');
+      expect(document.body.style.pointerEvents).toBe('');
+    });
+  });
+
   it('renders document deletion impact warning with a capped conversation list', async () => {
     await renderWithProviders(
       <TrashConfirmDialog

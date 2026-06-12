@@ -12,19 +12,20 @@ export type { DoclingChunkResponse, DoclingConvertResponse } from '../parsing/ad
 
 export type DoclingClient = ReturnType<typeof createDoclingClient>;
 export type DoclingChunker = 'hybrid' | 'hierarchical';
+export type DoclingProcessingPipeline = 'legacy' | 'standard' | 'vlm' | 'asr';
 
 export type DoclingConvertOptions = {
   toFormats: string[];
   doOcr: boolean;
-  ocrEngine: string;
   ocrPreset?: string;
   ocrLang?: string[];
+  pipeline?: DoclingProcessingPipeline;
 };
 
 export const DEFAULT_DOCLING_CONVERT_OPTIONS: DoclingConvertOptions = {
   toFormats: ['json', 'md'],
   doOcr: true,
-  ocrEngine: 'ocrmac',
+  ocrPreset: 'auto',
 };
 
 export type DoclingChunkOptions = {
@@ -62,6 +63,7 @@ function sleep(ms: number) {
 type DoclingTaskErrorPayload = {
   errors?: string[];
   error_message?: string | null;
+  failure?: unknown;
   task_meta?: Record<string, unknown> | null;
 };
 
@@ -72,7 +74,12 @@ function stringifyTaskError(value: unknown): string | null {
 
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    const message = record.message ?? record.error_message ?? record.detail ?? record.msg ?? record.code;
+    const message = record.message
+      ?? record.error_message
+      ?? record.exception_message
+      ?? record.detail
+      ?? record.msg
+      ?? record.code;
 
     if (typeof message === 'string' && message.trim().length > 0) {
       return message;
@@ -96,7 +103,9 @@ function collectTaskErrors(payload: DoclingTaskErrorPayload) {
   const directErrors = Array.isArray(payload.errors) ? payload.errors : [];
   const metaErrors = payload.task_meta?.errors;
   const directErrorMessage = stringifyTaskError(payload.error_message);
+  const failureMessage = stringifyTaskError(payload.failure);
   const metaErrorMessage = stringifyTaskError(payload.task_meta?.error_message);
+  const taskMetaMessage = stringifyTaskError(payload.task_meta);
   const taskMetaErrors = Array.isArray(metaErrors)
     ? metaErrors
         .map(stringifyTaskError)
@@ -106,8 +115,10 @@ function collectTaskErrors(payload: DoclingTaskErrorPayload) {
   return [
     directErrorMessage,
     ...directErrors,
+    failureMessage,
     metaErrorMessage,
     ...taskMetaErrors,
+    taskMetaMessage,
   ].filter((value): value is string => value !== null && value.trim().length > 0);
 }
 
@@ -238,8 +249,12 @@ export function createDoclingClient({
     formData.append('include_images', 'true');
     formData.append('image_export_mode', 'embedded');
     formData.append('do_ocr', String(effectiveConvertOptions.doOcr));
-    formData.append('ocr_engine', effectiveConvertOptions.ocrEngine);
-
+    if (effectiveConvertOptions.pipeline !== undefined) {
+      formData.append('pipeline', effectiveConvertOptions.pipeline);
+    }
+    if (effectiveConvertOptions.ocrPreset !== undefined) {
+      formData.append('ocr_preset', effectiveConvertOptions.ocrPreset);
+    }
     for (const language of effectiveConvertOptions.ocrLang ?? []) {
       formData.append('ocr_lang', language);
     }
@@ -272,6 +287,7 @@ export function createDoclingClient({
     let latestStatusPayload: DoclingTaskErrorPayload = {
       errors: submitParsed.data.errors,
       error_message: submitParsed.data.error_message,
+      failure: submitParsed.data.failure,
       task_meta: submitParsed.data.task_meta ?? null,
     };
     let latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
@@ -322,6 +338,7 @@ export function createDoclingClient({
       latestStatusPayload = {
         errors: statusParsed.data.errors,
         error_message: statusParsed.data.error_message,
+        failure: statusParsed.data.failure,
         task_meta: statusParsed.data.task_meta ?? null,
       };
       latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
@@ -387,7 +404,7 @@ export function createDoclingClient({
     fileData: Buffer;
     chunker?: DoclingChunker;
     chunkOptions?: Partial<DoclingChunkOptions>;
-    convertOptions?: Partial<Pick<DoclingConvertOptions, 'doOcr'>>;
+    convertOptions?: Partial<Pick<DoclingConvertOptions, 'doOcr' | 'ocrPreset' | 'pipeline'>>;
   }): Promise<DoclingChunkResponse> {
     const effectiveChunkOptions: DoclingChunkOptions = {
       ...DEFAULT_DOCLING_CHUNK_OPTIONS,
@@ -395,11 +412,13 @@ export function createDoclingClient({
     };
     const effectiveChunkConvertOptions = {
       doOcr: convertOptions?.doOcr ?? effectiveConvertOptions.doOcr,
+      ocrPreset: convertOptions?.ocrPreset ?? effectiveConvertOptions.ocrPreset,
+      pipeline: convertOptions?.pipeline ?? effectiveConvertOptions.pipeline,
     };
 
     async function submitAndAwaitChunkTask() {
       console.info(
-        `${logPrefix} submitting ${chunker} chunk task file="${fileName}" mime=${mimeType} bytes=${fileData.length} doOcr=${effectiveChunkConvertOptions.doOcr} maxTokens=${chunker === 'hybrid' ? effectiveChunkOptions.maxTokens : 'n/a'}`,
+        `${logPrefix} submitting ${chunker} chunk task file="${fileName}" mime=${mimeType} bytes=${fileData.length} doOcr=${effectiveChunkConvertOptions.doOcr} ocrPreset=${effectiveChunkConvertOptions.ocrPreset ?? 'none'} pipeline=${effectiveChunkConvertOptions.pipeline ?? 'default'} maxTokens=${chunker === 'hybrid' ? effectiveChunkOptions.maxTokens : 'n/a'}`,
       );
       const formData = new FormData();
       const blob = new Blob([fileData], { type: mimeType });
@@ -410,8 +429,12 @@ export function createDoclingClient({
       formData.append('convert_include_images', 'true');
       formData.append('convert_image_export_mode', 'embedded');
       formData.append('convert_do_ocr', String(effectiveChunkConvertOptions.doOcr));
-      formData.append('convert_ocr_engine', effectiveConvertOptions.ocrEngine);
-
+      if (effectiveChunkConvertOptions.pipeline !== undefined) {
+        formData.append('convert_pipeline', effectiveChunkConvertOptions.pipeline);
+      }
+      if (effectiveChunkConvertOptions.ocrPreset !== undefined) {
+        formData.append('convert_ocr_preset', effectiveChunkConvertOptions.ocrPreset);
+      }
       for (const language of effectiveConvertOptions.ocrLang ?? []) {
         formData.append('convert_ocr_lang', language);
       }
@@ -452,6 +475,7 @@ export function createDoclingClient({
       let latestStatusPayload: DoclingTaskErrorPayload = {
         errors: submitParsed.data.errors,
         error_message: submitParsed.data.error_message,
+        failure: submitParsed.data.failure,
         task_meta: submitParsed.data.task_meta ?? null,
       };
       let latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);
@@ -504,6 +528,7 @@ export function createDoclingClient({
         latestStatusPayload = {
           errors: statusParsed.data.errors,
           error_message: statusParsed.data.error_message,
+          failure: statusParsed.data.failure,
           task_meta: statusParsed.data.task_meta ?? null,
         };
         latestInternalStatus = normalizeDoclingTaskStatus(latestRawStatus);

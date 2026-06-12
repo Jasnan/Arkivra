@@ -49,7 +49,7 @@ describe('docling client', () => {
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
     expect(submitBody.getAll('to_formats')).toEqual(['json', 'md']);
-    expect(submitBody.get('ocr_preset')).toBe('easyocr');
+    expect(submitBody.get('ocr_preset')).toBe('auto');
     expect(submitBody.has('ocr_engine')).toBe(false);
     expect(submitBody.has('ocr_lang')).toBe(false);
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -106,46 +106,9 @@ describe('docling client', () => {
     const submitRequest = fetchMock.mock.calls[0]?.[1];
     const submitBody = submitRequest?.body as FormData;
     expect(submitBody.getAll('to_formats')).toEqual(['json', 'md']);
-    expect(submitBody.getAll('ocr_lang')).toEqual(['en', 'de']);
-  });
-
-  test('allows overriding the OCR preset', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_preset', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        document: {
-          md_content: '# Title',
-          text_content: 'Title',
-          json_content: {},
-          html_content: '',
-          doctags_content: '',
-        },
-        status: 'success',
-        processing_time: 1.2,
-        errors: [],
-      }));
-
-    const client = createDoclingClient({
-      baseUrl: 'http://docling.local',
-      pollIntervalMs: 1,
-      maxWaitMs: 10_000,
-      convertOptions: {
-        ocrPreset: 'easyocr',
-      },
-      fetchImpl: fetchMock as typeof fetch,
-      sleepImpl: async () => undefined,
-    });
-
-    await client.convertFile({
-      fileName: 'test.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('pdf-bytes'),
-    });
-
-    const submitRequest = fetchMock.mock.calls[0]?.[1];
-    const submitBody = submitRequest?.body as FormData;
-    expect(submitBody.get('ocr_preset')).toBe('easyocr');
+    expect(submitBody.get('ocr_preset')).toBe('auto');
     expect(submitBody.has('ocr_engine')).toBe(false);
+    expect(submitBody.getAll('ocr_lang')).toEqual(['en', 'de']);
   });
 
   test('throws when async status reaches failure', async () => {
@@ -221,6 +184,34 @@ describe('docling client', () => {
       mimeType: 'text/plain',
       fileData: Buffer.from('plain text'),
     })).rejects.toThrow(/File format not allowed: test\.txt/i);
+  });
+
+  test('includes task metadata when a failed async task has no error_message', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        task_id: 'task_failed_meta',
+        task_type: 'chunk',
+        task_status: 'failed',
+        task_position: 0,
+        task_meta: {
+          exception_type: 'RuntimeError',
+          exception_message: 'RapidOCR preset is unavailable',
+        },
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await expect(client.convertFile({
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    })).rejects.toThrow(/RapidOCR preset is unavailable/i);
   });
 
   test('accepts null values in optional format fields', async () => {
@@ -351,7 +342,9 @@ describe('docling client', () => {
     expect(submitBody.get('include_converted_doc')).toBe('true');
     expect(submitBody.get('target_type')).toBe('inbody');
     expect(submitBody.get('convert_do_ocr')).toBe('false');
-    expect(submitBody.get('convert_ocr_preset')).toBe('easyocr');
+    expect(submitBody.get('convert_ocr_preset')).toBe('auto');
+    expect(submitBody.has('convert_pipeline')).toBe(false);
+    expect(submitBody.has('convert_ocr_engine')).toBe(false);
     expect(submitBody.has('convert_ocr_lang')).toBe(false);
     expect(submitBody.get('convert_include_images')).toBe('true');
     expect(submitBody.get('convert_image_export_mode')).toBe('embedded');
@@ -363,6 +356,52 @@ describe('docling client', () => {
     expect(submitBody.has('ocr_lang')).toBe(false);
     expect(submitBody.has('max_tokens')).toBe(false);
     expect(submitBody.has('merge_peers')).toBe(false);
+  });
+
+  test('allows per-request OCR preset override for chunk requests', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_chunk', task_status: 'success' }))
+      .mockResolvedValueOnce(jsonResponse({
+        chunks: [],
+        documents: [{
+          kind: 'ExportResult',
+          content: {
+            md_content: '',
+            text_content: '',
+            json_content: null,
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          errors: [],
+        }],
+        processing_time: 0.1,
+      }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.chunkFile({
+      fileName: 'scan.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+      convertOptions: {
+        doOcr: true,
+        ocrPreset: 'rapidocr',
+        pipeline: 'standard',
+      },
+    });
+
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.get('convert_do_ocr')).toBe('true');
+    expect(submitBody.get('convert_ocr_preset')).toBe('rapidocr');
+    expect(submitBody.get('convert_pipeline')).toBe('standard');
   });
 
   test('submits hierarchical chunk requests to the documented endpoint', async () => {

@@ -105,6 +105,7 @@ type HybridSearchRow = {
   vault_id: string;
   vault_name: string;
   document_name: string;
+  mime_type: string;
   page_start: number | null;
   page_end: number | null;
   section: string | null;
@@ -488,6 +489,12 @@ function getRowScore(row: Pick<HybridSearchRow, 'score'>) {
 
 function getRepresentationBonus(row: Pick<HybridSearchRow, 'retrieval_representation' | 'tables_html' | 'citation_precision'>) {
   const representation = row.retrieval_representation;
+  if (representation === 'docling_element_pair') {
+    return 0.00008;
+  }
+  if (representation === 'docling_element') {
+    return 0.00007;
+  }
   if (representation === 'page') {
     return 0.00005;
   }
@@ -1741,6 +1748,7 @@ export function createDocumentSearchServices({
               dc.vault_id,
               v.name AS vault_name,
               d.name AS document_name,
+              dv.mime_type,
               dc.page_start,
               dc.page_end,
               dc.section,
@@ -1996,6 +2004,7 @@ export function createDocumentSearchServices({
                 dc.vault_id,
                 v.name AS vault_name,
                 d.name AS document_name,
+                dv.mime_type,
                 dc.page_start,
                 dc.page_end,
                 dc.section,
@@ -2074,6 +2083,7 @@ export function createDocumentSearchServices({
         vaultId: row.vault_id,
         vaultName: row.vault_name,
         documentName: row.document_name,
+        mimeType: row.mime_type,
         pageStart: row.page_start,
         pageEnd: row.page_end,
         section: row.section,

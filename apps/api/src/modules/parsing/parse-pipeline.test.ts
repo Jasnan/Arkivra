@@ -91,6 +91,26 @@ describe('parse pipeline', () => {
     expect(parsed.text.includes('  ')).toBe(false);
   });
 
+  test('keeps Docling OCR text canonical for scan-heavy output', async () => {
+    const { pipeline } = makePipeline({
+      text: 'OCR  canonical  text',
+      markdown: '# Docling markdown text',
+      rawStructuredOutput: {
+        schema_name: 'DoclingDocument',
+        arkivra_processing: {
+          processing_path: 'scan-heavy',
+          canonical_text_source: 'docling',
+        },
+      },
+    }, createDeterministicTextCleaner());
+
+    const parsed = await pipeline.run(input);
+
+    expect(parsed.text).toBe('OCR canonical text');
+    expect(parsed.rawMarkdown).toBe('# Docling markdown text');
+    expect(parsed.markdown).toBe('# Docling markdown text');
+  });
+
   test('uses parser-provided chunks with file name metadata', async () => {
     const chunk = makeChunk({
       text: 'Docling hybrid chunk',

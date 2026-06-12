@@ -857,6 +857,12 @@ describe('documents integration', () => {
     expect(body.documentVersion.id).toBe('dvr_test_1');
     expect(body.skipped).toBe(false);
     expect(docServices.uploadDocument).toHaveBeenCalledTimes(1);
+    expect(docServices.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'test.txt',
+        mimeType: 'text/plain',
+      }),
+    );
     expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'document.uploaded',
@@ -869,6 +875,28 @@ describe('documents integration', () => {
           file_size: 100,
           mime_type: 'text/plain',
         },
+      }),
+    );
+  });
+
+  test('infers known image MIME types during upload when the browser omits the file type', async () => {
+    const docServices = createMockDocumentsServices();
+    const app = createTestApp({ docServices });
+
+    const formData = new FormData();
+    formData.append('file', new File(['image'], 'scan.webp', { type: '' }));
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+      body: formData,
+    });
+
+    expect(response.status).toBe(201);
+    expect(docServices.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'scan.webp',
+        mimeType: 'image/webp',
       }),
     );
   });
@@ -1358,6 +1386,25 @@ describe('documents integration', () => {
       vaultId: 'vlt_1',
       includeDeleted: true,
     });
+  });
+
+  test('serves known image extensions with previewable inline content types', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).downloadDocument = vi.fn(async () => ({
+      fileData: Buffer.from('webp-content'),
+      fileName: 'scan.webp',
+      mimeType: 'application/octet-stream',
+      size: 12,
+    }));
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/file', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/webp');
+    expect(response.headers.get('content-disposition')).toContain('inline');
   });
 
   test('returns 404 when downloading non-existent document', async () => {

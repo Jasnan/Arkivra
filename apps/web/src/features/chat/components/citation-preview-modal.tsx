@@ -8,7 +8,11 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { getDocumentPagePreviewUrl } from '@/features/documents/documents.api';
+import { scheduleDialogPageLockCleanup, useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
+import {
+  getDocumentInlineFileUrl,
+  getDocumentPagePreviewUrl,
+} from '@/features/documents/documents.api';
 import type { Citation } from '../chat.types';
 import {
   citationSectionLabel,
@@ -22,6 +26,21 @@ interface CitationPreviewModalProps {
   citation: Citation | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+const browserImagePreviewExtensions = new Set(['gif', 'jpeg', 'jpg', 'png', 'webp']);
+
+function getDocumentFileExtension(name: string) {
+  const extension = name.split('.').pop()?.trim().toLowerCase();
+  return extension && extension !== name.trim().toLowerCase() ? extension : '';
+}
+
+function citationUsesOriginalImagePreview(citation: Citation) {
+  if (citation.mimeType?.toLowerCase().startsWith('image/')) {
+    return true;
+  }
+
+  return browserImagePreviewExtensions.has(getDocumentFileExtension(citation.documentName));
 }
 
 function groupBoundingBoxesByPage(citation: Citation) {
@@ -69,6 +88,8 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
     }
   }, [citation]);
 
+  useDialogPageLockCleanup(open);
+
   if (!citation) return null;
 
   const activePage = selectedPage ?? pages[0] ?? null;
@@ -83,15 +104,28 @@ export function CitationPreviewModal({ citation, open, onOpenChange }: CitationP
   const activePreviewUrl =
     activePage === null
       ? null
-      : getDocumentPagePreviewUrl({
-          vaultId: citation.vaultId,
-          documentId: citation.documentId,
-          pageNumber: activePage,
-        });
+      : citationUsesOriginalImagePreview(citation)
+        ? getDocumentInlineFileUrl({
+            vaultId: citation.vaultId,
+            documentId: citation.documentId,
+          })
+        : getDocumentPagePreviewUrl({
+            vaultId: citation.vaultId,
+            documentId: citation.documentId,
+            pageNumber: activePage,
+          });
   const canRenderOverlay = pageBoxes.length > 0 && imageSize !== null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        onOpenChange(nextOpen);
+        if (!nextOpen) {
+          scheduleDialogPageLockCleanup();
+        }
+      }}
+    >
       <DialogContent
         style={{ height: '90vh', maxHeight: '90vh', maxWidth: '72rem', overflow: 'hidden' }}
         p="0"

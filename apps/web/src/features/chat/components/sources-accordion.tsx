@@ -119,12 +119,8 @@ export function SourcesAccordion({
       <CitationPreviewModal
         citation={selectedCitation}
         open={isCitationPreviewOpen}
-        onOpenChange={(open) => {
-          setIsCitationPreviewOpen(open);
-          if (!open) {
-            window.setTimeout(setSelectedCitation, 0, null);
-          }
-        }}
+        onOpenChange={setIsCitationPreviewOpen}
+        onExitComplete={() => setSelectedCitation(null)}
       />
     </>
   );

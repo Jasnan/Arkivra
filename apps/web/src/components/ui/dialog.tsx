@@ -15,7 +15,14 @@ type DialogRootProps = Omit<
   onOpenChange?: (open: boolean) => void;
 };
 
-export function Dialog({ onOpenChange, onEscapeKeyDown, closeOnEscape, open, ...props }: DialogRootProps) {
+export function Dialog({
+  onOpenChange,
+  onEscapeKeyDown,
+  closeOnEscape,
+  onExitComplete,
+  open,
+  ...props
+}: DialogRootProps) {
   const triggerElementRef = React.useRef<HTMLElement | null>(null);
   const handleOpenChange = React.useCallback((open: boolean) => {
     onOpenChange?.(open);
@@ -65,6 +72,10 @@ export function Dialog({ onOpenChange, onEscapeKeyDown, closeOnEscape, open, ...
         }}
         onOpenChange={(event) => {
           handleOpenChange(event.open);
+        }}
+        onExitComplete={() => {
+          onExitComplete?.();
+          scheduleDialogPageLockCleanup();
         }}
         {...props}
       />

@@ -4,6 +4,7 @@ import { buildAssistantMessage } from './chat-message.utils.js';
 import {
   buildAnswerPrompt,
   buildChatMessageCitationRows,
+  buildChunkLevelCitationsForChat,
   buildCitationContext,
   buildExpandedCitationForChat,
   buildManifestHybridSearchArgs,
@@ -67,6 +68,8 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('Figure 1 (page 3): Figure 1. Records retention timeline');
     expect(prompt).toContain('Respect explicit constraints in the question');
     expect(prompt).toContain('If the retrieved context is insufficient');
+    expect(prompt).toContain('Evidence excerpt:');
+    expect(prompt).not.toContain('Chunk 1:');
   });
 
   test('caps answer prompt retrieval context so generation has room to answer', () => {
@@ -219,6 +222,107 @@ describe('chat service helpers', () => {
       'Page 2 - Invoice: The page repeats Row 1: Total=42.00 with surrounding text.',
     );
     expect(expanded?.snippet).not.toContain('Page 2 - Invoice: Row 1: Total=42.00');
+  });
+
+  test('builds separate citation previews for chunks from the same document', () => {
+    const taxdooBox = {
+      pageNumber: 1,
+      x0: 20,
+      y0: 100,
+      x1: 240,
+      y1: 120,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const hermesBox = {
+      pageNumber: 1,
+      x0: 20,
+      y0: 300,
+      x1: 260,
+      y1: 320,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const taxdooCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_taxdoo',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      section: 'Taxdoo, Hamburg - Senior Software Engineer',
+      sourceElementIds: ['#/texts/6'],
+      snippet: 'Dec 2019 - today Senior Software Engineer at Taxdoo.',
+      boundingBoxes: [taxdooBox],
+      citationPrecision: 'box',
+      score: 0.9,
+    };
+    const hermesCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_hermes',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      section: 'Hermes BorderGuru, Hamburg - Software Engineer',
+      sourceElementIds: ['#/texts/15'],
+      snippet: 'Dec 2017 - Nov 2019 Software Engineer at Hermes BorderGuru.',
+      boundingBoxes: [hermesBox],
+      citationPrecision: 'box',
+      score: 0.4,
+    };
+
+    const chunkLevelCitations = buildChunkLevelCitationsForChat({
+      question: 'what was the company previous to this one?',
+      citations: [taxdooCitation, hermesCitation],
+      contextChunks: [
+        {
+          chunkId: 'chk_taxdoo',
+          chunkIndex: 1,
+          retrievalRepresentation: 'docling_hybrid',
+          pageStart: 1,
+          pageEnd: 1,
+          section: taxdooCitation.section,
+          sourceElementIds: taxdooCitation.sourceElementIds,
+          boundingBoxes: [taxdooBox],
+          citationPrecision: 'box',
+          snippet: taxdooCitation.snippet,
+          retrievalScore: taxdooCitation.score,
+          retrievalRank: 0,
+        },
+        {
+          chunkId: 'chk_hermes',
+          chunkIndex: 2,
+          retrievalRepresentation: 'docling_hybrid',
+          pageStart: 1,
+          pageEnd: 1,
+          section: hermesCitation.section,
+          sourceElementIds: hermesCitation.sourceElementIds,
+          boundingBoxes: [hermesBox],
+          citationPrecision: 'box',
+          snippet: hermesCitation.snippet,
+          retrievalScore: hermesCitation.score,
+          retrievalRank: 1,
+        },
+      ],
+    });
+
+    expect(chunkLevelCitations.map((item) => item.chunkId)).toEqual([
+      'chk_taxdoo',
+      'chk_hermes',
+    ]);
+    expect(chunkLevelCitations[0]).toMatchObject({
+      section: 'Taxdoo, Hamburg - Senior Software Engineer',
+      boundingBoxes: [taxdooBox],
+      citationPrecision: 'box',
+    });
+    expect(chunkLevelCitations[1]).toMatchObject({
+      section: 'Hermes BorderGuru, Hamburg - Software Engineer',
+      boundingBoxes: [hermesBox],
+      citationPrecision: 'box',
+    });
+    expect(chunkLevelCitations[0]?.contextChunks).toBeUndefined();
+    expect(chunkLevelCitations[1]?.contextChunks).toBeUndefined();
   });
 
   test('uses a query-matching fine Docling chunk as the displayed citation base', () => {

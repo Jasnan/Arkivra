@@ -858,6 +858,103 @@ function buildCitationContextChunks({
   }));
 }
 
+function getBestCitationByChunkId(citations: Citation[]) {
+  const citationsByChunkId = new Map<string, Citation>();
+
+  for (const citation of citations) {
+    const existing = citationsByChunkId.get(citation.chunkId);
+    if (existing === undefined || citation.score > existing.score) {
+      citationsByChunkId.set(citation.chunkId, citation);
+    }
+  }
+
+  return citationsByChunkId;
+}
+
+function fallbackPrecisionForChunk(chunk: ChatContextExpansionChunk): Citation['citationPrecision'] {
+  return getChunkPageBounds(chunk) === null ? 'document' : 'page';
+}
+
+function toChunkLevelCitation({
+  base,
+  source,
+  chunk,
+}: {
+  base: Citation;
+  source: Citation | undefined;
+  chunk: ChatContextExpansionChunk;
+}): Citation {
+  const citationSource = source ?? base;
+  const sourceMatchesChunk = citationSource.chunkId === chunk.chunkId;
+  const rawPrecision = chunk.citationPrecision ?? citationSource.citationPrecision;
+  const rawBoundingBoxes =
+    rawPrecision === 'box'
+      ? (chunk.boundingBoxes?.length ?? 0) > 0
+        ? chunk.boundingBoxes ?? []
+        : sourceMatchesChunk
+          ? citationSource.boundingBoxes
+          : []
+      : [];
+  const sourceElementIds =
+    (chunk.sourceElementIds?.length ?? 0) > 0
+      ? chunk.sourceElementIds
+      : sourceMatchesChunk
+        ? citationSource.sourceElementIds
+        : [];
+  const citationPrecision =
+    rawPrecision === 'box' && rawBoundingBoxes.length === 0
+      ? fallbackPrecisionForChunk(chunk)
+      : rawPrecision;
+
+  return {
+    ...citationSource,
+    chunkId: chunk.chunkId,
+    retrievalRepresentation:
+      chunk.retrievalRepresentation ?? citationSource.retrievalRepresentation ?? null,
+    pageStart: chunk.pageStart ?? citationSource.pageStart,
+    pageEnd: chunk.pageEnd ?? citationSource.pageEnd,
+    section: chunk.section,
+    sourceElementIds,
+    tableSourceElementIds: sourceMatchesChunk ? citationSource.tableSourceElementIds : [],
+    snippet: chunk.snippet,
+    boundingBoxes: citationPrecision === 'box' ? rawBoundingBoxes : [],
+    citationPrecision,
+    assetType: sourceMatchesChunk ? citationSource.assetType : 'text',
+    tablesHtml: sourceMatchesChunk ? citationSource.tablesHtml : [],
+    imageAssetIds: sourceMatchesChunk ? citationSource.imageAssetIds : [],
+    imageAssets: sourceMatchesChunk ? citationSource.imageAssets : [],
+    score: source?.score ?? chunk.retrievalScore ?? citationSource.score,
+    contextChunks: undefined,
+  };
+}
+
+export function buildChunkLevelCitationsForChat({
+  question = '',
+  citations,
+  contextChunks,
+}: {
+  question?: string;
+  citations: Citation[];
+  contextChunks: ChatContextExpansionChunk[];
+}) {
+  const base = rankCitationsForQuestion({ question: '', citations })[0];
+
+  if (base === undefined) {
+    return [];
+  }
+
+  const queryTerms = extractRetrievalQueryTerms(question);
+  const chunks = dedupeContextChunks(rankContextChunks({ citations, contextChunks, queryTerms }));
+  const citationsByChunkId = getBestCitationByChunkId(citations);
+
+  return chunks.map((chunk) =>
+    toChunkLevelCitation({
+      base,
+      source: citationsByChunkId.get(chunk.chunkId),
+      chunk,
+    }));
+}
+
 function buildContextSnippet({
   citations,
   contextChunks,
@@ -1177,15 +1274,13 @@ async function expandRetrievedCitationsForChat({
 
   for (const group of groups) {
     const contextChunks = await loadContextChunksForCitationGroup({ db, citations: group });
-    const expandedCitation = buildExpandedCitationForChat({
+    const chunkLevelCitations = buildChunkLevelCitationsForChat({
       question,
       citations: group,
       contextChunks,
     });
 
-    if (expandedCitation !== null) {
-      expandedCitations.push(expandedCitation);
-    }
+    expandedCitations.push(...chunkLevelCitations);
   }
 
   return expandedCitations;
@@ -1837,19 +1932,17 @@ function getAdaptiveContextBudget(citations: Citation[], options: {
 function formatPromptContextChunk({
   citation,
   chunk,
-  index,
   maxSnippetLength,
 }: {
   citation: Citation;
   chunk: CitationContextChunk;
-  index: number;
   maxSnippetLength: number;
 }) {
   const representation = chunk.retrievalRepresentation?.trim() || 'text';
   const section = chunk.section?.trim() || formatSectionPath(citation);
 
   return [
-    `Chunk ${index + 1}:`,
+    'Evidence excerpt:',
     `Source: ${citation.documentName}`,
     `Page: ${formatChunkPageRange(chunk)}`,
     `Representation: ${representation}`,
@@ -1877,11 +1970,10 @@ function buildCitationContextBlock({
   const figures = formatCitationFigures(citation);
   const chunks = getPromptContextChunks(citation)
     .slice(0, maxChunksPerSource)
-    .map((chunk, chunkIndex) =>
+    .map((chunk) =>
       formatPromptContextChunk({
         citation,
         chunk,
-        index: chunkIndex,
         maxSnippetLength,
       }),
     )
@@ -1969,6 +2061,9 @@ export function buildAnswerPrompt({
     includeInlineCitations
       ? 'Only use citation numbers that exist in the retrieved context. Do not invent citation markers.'
       : 'Do not add a separate "Sources" section in the answer.',
+    includeInlineCitations
+      ? 'Citation markers must refer only to Source numbers, not evidence excerpt order, chunk order, page numbers, or dates.'
+      : 'Do not use bracketed numbers for excerpt order, chunk order, page numbers, or dates.',
     includeInlineCitations
       ? 'Do not add a separate "Sources" section in the answer; the UI renders the source list.'
       : 'Keep the answer concise and direct.',

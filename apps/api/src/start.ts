@@ -103,6 +103,8 @@ export async function startApp() {
       doclingClient,
       engineVersion: config.docling.engineVersion,
       imageCaptioner,
+      vlmEnabled: config.docling.vlmPipeline === 'enabled',
+      vlmPipelinePreset: config.docling.vlmModel,
       scanClassifier: {
         maxSampledPages: config.parsers.pdfScanDetection.maxSampledPages,
         minTextItemsPerDigitalPage: config.parsers.pdfScanDetection.minTextItemsPerDigitalPage,

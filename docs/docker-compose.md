@@ -26,7 +26,9 @@ Do not treat the `backups` volume as a complete disaster recovery plan by itself
 
 ## Scan-Heavy PDF Processing
 
-Scan-heavy PDFs are routed through Docling OCR with `ocr_preset=auto`. The Compose `docling` service uses the Docling Serve CPU image, so scan-heavy OCR workloads may be slower than digital PDFs.
+Scan-heavy PDFs are routed through Docling OCR with `ocr_preset=auto` by default. The Compose `docling` service uses the Docling Serve CPU image, so scan-heavy OCR workloads may be slower than digital PDFs.
+
+For a separate Docling Serve instance configured with a local VLM runtime, scan-heavy PDFs and image files can instead be routed through Docling's VLM pipeline by setting `ARKIVRA_DOCLING_VLM_PIPELINE=enabled`. Digital PDFs and ordinary documents stay on the default pipeline. Set `ARKIVRA_DOCLING_VLM_MODEL` only when the VLM pipeline is enabled and the Docling Serve deployment needs a preset other than `default`, for example `glm_ocr`. Keep this opt-in because VLM conversion may be slower and depends on the configured Docling runtime.
 
 ## Important Environment Values
 

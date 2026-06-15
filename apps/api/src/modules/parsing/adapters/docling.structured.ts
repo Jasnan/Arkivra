@@ -157,6 +157,9 @@ function bboxFromProv(value: unknown, context: DoclingContext): {
   const x1 = Math.max(left, right);
   const y0 = origin === 'BOTTOMLEFT' ? layoutHeight - Math.max(top, bottom) : Math.min(top, bottom);
   const y1 = origin === 'BOTTOMLEFT' ? layoutHeight - Math.min(top, bottom) : Math.max(top, bottom);
+  if (x1 <= x0 || y1 <= y0) {
+    return { pageNumber, bbox: null };
+  }
 
   return {
     pageNumber,

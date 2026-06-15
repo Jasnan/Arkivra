@@ -129,6 +129,22 @@ export const configDefinition = {
       default: 'v1',
       env: 'ARKIVRA_DOCLING_ENGINE_VERSION',
     },
+    vlmPipeline: {
+      doc: 'Whether scan-heavy PDFs and image files are routed through Docling VLM. `disabled` keeps ordinary/default Docling processing.',
+      schema: z.enum(['disabled', 'enabled']),
+      default: 'disabled' as const,
+      env: 'ARKIVRA_DOCLING_VLM_PIPELINE',
+    },
+    vlmModel: {
+      doc: 'Docling VLM model/preset. Only valid when ARKIVRA_DOCLING_VLM_PIPELINE=enabled.',
+      schema: z
+        .string()
+        .trim()
+        .transform((value) => (value.length > 0 ? value : undefined))
+        .optional(),
+      default: undefined,
+      env: 'ARKIVRA_DOCLING_VLM_MODEL',
+    },
   },
   parsers: {
     textCleanup: {
@@ -404,6 +420,12 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
   const { config } = defineConfig(configDefinition, {
     envSource: env,
   });
+
+  if (hasEnvValue(env, 'ARKIVRA_DOCLING_VLM_MODEL') && config.docling.vlmPipeline !== 'enabled') {
+    throw new Error(
+      'ARKIVRA_DOCLING_VLM_MODEL is only valid when ARKIVRA_DOCLING_VLM_PIPELINE=enabled.',
+    );
+  }
 
   const apiOrigin = localOrigin(config.server.port);
   const webOrigin = localOrigin(config.server.webPort);

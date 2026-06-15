@@ -63,4 +63,26 @@ describe('parseConfig', () => {
     expect(config.uploads.stagingPath).toBe('./custom-upload-staging');
     expect(config.backups.directory).toBe('./custom-backups');
   });
+
+  it('allows a Docling VLM model only when the VLM pipeline is enabled', () => {
+    const { config } = parseConfig({
+      env: {
+        ARKIVRA_DOCLING_VLM_PIPELINE: 'enabled',
+        ARKIVRA_DOCLING_VLM_MODEL: 'glm_ocr',
+      },
+    });
+
+    expect(config.docling.vlmPipeline).toBe('enabled');
+    expect(config.docling.vlmModel).toBe('glm_ocr');
+  });
+
+  it('rejects a Docling VLM model when the VLM pipeline is disabled', () => {
+    expect(() =>
+      parseConfig({
+        env: {
+          ARKIVRA_DOCLING_VLM_MODEL: 'glm_ocr',
+        },
+      }),
+    ).toThrow('ARKIVRA_DOCLING_VLM_MODEL is only valid');
+  });
 });

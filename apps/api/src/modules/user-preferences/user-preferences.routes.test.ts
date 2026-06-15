@@ -16,6 +16,7 @@ function createPreferences() {
     dateFormat: null,
     showExtractedTextTab: false,
     defaultFileBrowserView: 'list',
+    defaultChatAnswerMode: 'text',
     createdAt: '2026-05-15T00:00:00.000Z',
     updatedAt: '2026-05-15T00:00:00.000Z',
   } as const;
@@ -90,6 +91,7 @@ describe('user preferences routes', () => {
         language: 'de',
         dateFormat: 'DD.MM.YYYY',
         defaultFileBrowserView: 'grid',
+        defaultChatAnswerMode: 'multimodal',
         showExtractedTextTab: true,
       }),
     });
@@ -103,6 +105,7 @@ describe('user preferences routes', () => {
         language: 'de',
         dateFormat: 'DD.MM.YYYY',
         defaultFileBrowserView: 'grid',
+        defaultChatAnswerMode: 'multimodal',
         showExtractedTextTab: true,
       },
     });

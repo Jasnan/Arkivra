@@ -7,6 +7,7 @@ export type UiRadius = 'none' | 'sm' | 'md' | 'lg' | 'xl';
 export type UiLanguage = 'en' | 'de' | 'fr';
 export type UiDateFormat = 'DD.MM.YYYY' | 'DD/MM/YYYY' | 'DD-MM-YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'YYYY/MM/DD';
 export type UiFileBrowserView = 'list' | 'grid';
+export type UiChatAnswerMode = 'text' | 'multimodal';
 
 export interface UserUiPreferences {
   themeMode: UiThemeMode;
@@ -19,6 +20,7 @@ export interface UserUiPreferences {
   dateFormat: UiDateFormat | null;
   showExtractedTextTab: boolean;
   defaultFileBrowserView: UiFileBrowserView;
+  defaultChatAnswerMode: UiChatAnswerMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,7 @@ export type UserUiPreferencesUpdate = Partial<
     | 'fontSize'
     | 'language'
     | 'dateFormat'
+    | 'defaultChatAnswerMode'
     | 'radius'
     | 'showExtractedTextTab'
     | 'themeMode'

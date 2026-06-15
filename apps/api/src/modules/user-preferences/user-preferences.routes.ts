@@ -27,6 +27,7 @@ const userUiPreferencesUpdateSchema = z
     ]).nullable().optional(),
     showExtractedTextTab: z.boolean().optional(),
     defaultFileBrowserView: z.enum(['list', 'grid']).optional(),
+    defaultChatAnswerMode: z.enum(['text', 'multimodal']).optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0);

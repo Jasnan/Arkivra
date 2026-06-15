@@ -1334,6 +1334,56 @@ describe('settings, admin, and about pages', () => {
     expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').defaultFileBrowserView).toBe('grid');
   });
 
+  it('applies and persists the default chat answer mode preference', async () => {
+    const user = userEvent.setup();
+    let preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      showExtractedTextTab: false,
+      defaultFileBrowserView: 'list',
+      defaultChatAnswerMode: 'text',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me/preferences' && (!init || init.method === undefined)) {
+        return jsonResponse({ preferences });
+      }
+
+      if (url === '/api/me/preferences' && init?.method === 'PATCH') {
+        preferences = {
+          ...preferences,
+          ...JSON.parse(String(init.body)),
+          updatedAt: '2026-05-15T01:00:00.000Z',
+        };
+        return jsonResponse({ preferences });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<PreferencesSettingsPage />);
+
+    await user.click(screen.getByRole('button', { name: /select answer mode/i }));
+    await user.click(await screen.findByText(/cited answer/i));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        body: JSON.stringify({ defaultChatAnswerMode: 'multimodal' }),
+        method: 'PATCH',
+      }));
+    });
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}').defaultChatAnswerMode).toBe('multimodal');
+  });
+
   it('applies and persists the extracted text tab preference', async () => {
     const user = userEvent.setup();
     let preferences = {

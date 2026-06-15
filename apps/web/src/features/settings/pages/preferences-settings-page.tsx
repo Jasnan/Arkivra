@@ -5,7 +5,6 @@ import { AppearancePreferencesControls } from '@/components/navigation/theme-tog
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import type { PreferenceDateFormat } from '@/components/providers/accent-color-context';
 import { Switch } from '@/components/ui/switch';
-import type { ChatResponseMode } from '@/features/chat/chat.api';
 import { AnswerModePicker } from '@/features/chat/components/answer-mode-picker';
 import { formatBrowserTimeZone } from '@/lib/localization';
 import {
@@ -43,13 +42,14 @@ export function PreferencesSettingsPage() {
     language,
     dateFormat,
     defaultFileBrowserView,
+    defaultChatAnswerMode,
     setLanguage,
     setDateFormat,
     setDefaultFileBrowserView,
+    setDefaultChatAnswerMode,
     showExtractedTextTab,
     setShowExtractedTextTab,
   } = useAccentColor();
-  const [defaultChatAnswerMode, setDefaultChatAnswerMode] = useState<ChatResponseMode>('text');
   const [browserTimeZone] = useState(formatBrowserTimeZone);
 
   return (

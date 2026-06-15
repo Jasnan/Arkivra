@@ -13,6 +13,7 @@ import type {
   AppearanceFont,
   AppearanceFontSize,
   AppearanceRadius,
+  PreferenceChatAnswerMode,
   PreferenceDateFormat,
   PreferenceFileBrowserView,
   PreferenceLanguage,
@@ -37,6 +38,7 @@ const PREFERENCES_SYNC_DEBOUNCE_MS = 450;
 type UserUiPreferenceValues = Pick<
   UserUiPreferences,
   | 'accentColor'
+  | 'defaultChatAnswerMode'
   | 'defaultFileBrowserView'
   | 'density'
   | 'fontFamily'
@@ -66,6 +68,7 @@ const defaultUiPreferences: UserUiPreferenceValues = {
   dateFormat: null,
   showExtractedTextTab: false,
   defaultFileBrowserView: 'list',
+  defaultChatAnswerMode: 'text',
 };
 
 const fontSizeScales: Record<AppearanceFontSize, string> = {
@@ -400,6 +403,10 @@ function isPreferenceFileBrowserView(value: string | null): value is PreferenceF
   return value === 'list' || value === 'grid';
 }
 
+function isPreferenceChatAnswerMode(value: string | null): value is PreferenceChatAnswerMode {
+  return value === 'text' || value === 'multimodal';
+}
+
 function getStoredValue(key: string) {
   if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
     return null;
@@ -461,10 +468,15 @@ function normalizeCachedPreferences(value: unknown) {
     && isPreferenceFileBrowserView(candidate.defaultFileBrowserView)
     ? candidate.defaultFileBrowserView
     : defaultUiPreferences.defaultFileBrowserView;
+  const defaultChatAnswerMode = typeof candidate.defaultChatAnswerMode === 'string'
+    && isPreferenceChatAnswerMode(candidate.defaultChatAnswerMode)
+    ? candidate.defaultChatAnswerMode
+    : defaultUiPreferences.defaultChatAnswerMode;
 
   return {
     themeMode,
     accentColor,
+    defaultChatAnswerMode,
     density,
     fontFamily,
     fontSize,
@@ -592,6 +604,9 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   const [defaultFileBrowserView, setDefaultFileBrowserViewState] = useState<PreferenceFileBrowserView>(
     initialPreferences.preferences.defaultFileBrowserView,
   );
+  const [defaultChatAnswerMode, setDefaultChatAnswerModeState] = useState<PreferenceChatAnswerMode>(
+    initialPreferences.preferences.defaultChatAnswerMode,
+  );
   const [preferenceSource, setPreferenceSource] = useState<PreferenceSource>(initialPreferences.source);
   const [pendingServerPatch, setPendingServerPatch] = useState<UserUiPreferencesUpdate | null>(null);
   const currentPreferencesRef = useRef<UserUiPreferenceValues>(initialPreferences.preferences);
@@ -613,10 +628,12 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     radius,
     language,
     dateFormat,
+    defaultChatAnswerMode,
     defaultFileBrowserView,
     showExtractedTextTab,
   }), [
     accentColor,
+    defaultChatAnswerMode,
     defaultFileBrowserView,
     density,
     dateFormat,
@@ -642,6 +659,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     setDateFormatState(nextPreferences.dateFormat);
     setShowExtractedTextTabState(nextPreferences.showExtractedTextTab);
     setDefaultFileBrowserViewState(nextPreferences.defaultFileBrowserView);
+    setDefaultChatAnswerModeState(nextPreferences.defaultChatAnswerMode);
   }
 
   function queueServerPatch(patch: UserUiPreferencesUpdate) {
@@ -778,6 +796,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<AccentColorContextValue>(() => ({
     accentColor,
+    defaultChatAnswerMode,
     defaultFileBrowserView,
     density,
     fontFamily,
@@ -788,6 +807,9 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     showExtractedTextTab,
     themeMode,
     setAccentColor: (nextAccentColor) => updatePreferences({ accentColor: nextAccentColor }),
+    setDefaultChatAnswerMode: (nextDefaultChatAnswerMode) => updatePreferences({
+      defaultChatAnswerMode: nextDefaultChatAnswerMode,
+    }),
     setDefaultFileBrowserView: (nextDefaultFileBrowserView) => updatePreferences({
       defaultFileBrowserView: nextDefaultFileBrowserView,
     }),
@@ -803,6 +825,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     setThemeMode: (nextThemeMode) => updatePreferences({ themeMode: nextThemeMode }),
   }), [
     accentColor,
+    defaultChatAnswerMode,
     defaultFileBrowserView,
     density,
     dateFormat,

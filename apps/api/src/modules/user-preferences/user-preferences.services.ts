@@ -14,6 +14,7 @@ const defaultPreferences: Required<UserUiPreferencesUpdate> = {
   dateFormat: null,
   showExtractedTextTab: false,
   defaultFileBrowserView: 'list',
+  defaultChatAnswerMode: 'text',
 } satisfies Omit<UserUiPreferencesUpdate, never>;
 
 type UserUiPreferencesRow = typeof userUiPreferencesTable.$inferSelect;
@@ -36,6 +37,7 @@ function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
     dateFormat: row.dateFormat,
     showExtractedTextTab: row.showExtractedTextTab,
     defaultFileBrowserView: row.defaultFileBrowserView,
+    defaultChatAnswerMode: row.defaultChatAnswerMode,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

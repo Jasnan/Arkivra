@@ -22,4 +22,5 @@ export const userUiPreferencesTable = pgTable('user_ui_preferences', {
   }),
   showExtractedTextTab: boolean('show_extracted_text_tab').notNull().default(false),
   defaultFileBrowserView: text('default_file_browser_view', { enum: ['list', 'grid'] }).notNull().default('list'),
+  defaultChatAnswerMode: text('default_chat_answer_mode', { enum: ['text', 'multimodal'] }).notNull().default('text'),
 });

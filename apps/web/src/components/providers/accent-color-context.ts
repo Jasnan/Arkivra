@@ -26,9 +26,11 @@ export type PreferenceDateFormat =
   | 'YYYY-MM-DD'
   | 'YYYY/MM/DD';
 export type PreferenceFileBrowserView = 'list' | 'grid';
+export type PreferenceChatAnswerMode = 'text' | 'multimodal';
 
 export interface AccentColorContextValue {
   accentColor: AccentColor;
+  defaultChatAnswerMode: PreferenceChatAnswerMode;
   defaultFileBrowserView: PreferenceFileBrowserView;
   density: AppearanceDensity;
   fontFamily: AppearanceFont;
@@ -39,6 +41,7 @@ export interface AccentColorContextValue {
   showExtractedTextTab: boolean;
   themeMode: ThemeMode;
   setAccentColor: (accentColor: AccentColor) => void;
+  setDefaultChatAnswerMode: (defaultChatAnswerMode: PreferenceChatAnswerMode) => void;
   setDefaultFileBrowserView: (defaultFileBrowserView: PreferenceFileBrowserView) => void;
   setDensity: (density: AppearanceDensity) => void;
   setFontFamily: (fontFamily: AppearanceFont) => void;

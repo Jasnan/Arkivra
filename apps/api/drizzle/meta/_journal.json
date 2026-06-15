@@ -232,6 +232,13 @@
       "when": 1781136000000,
       "tag": "0032_translation_model_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781481600000,
+      "tag": "0033_default_chat_answer_mode_preference",
+      "breakpoints": true
     }
   ]
 }

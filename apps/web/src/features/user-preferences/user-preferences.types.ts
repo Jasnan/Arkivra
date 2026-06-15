@@ -6,6 +6,7 @@ import type {
   AppearanceRadius,
   PreferenceFileBrowserView,
   PreferenceDateFormat,
+  PreferenceChatAnswerMode,
   PreferenceLanguage,
   ThemeMode,
 } from '@/components/providers/accent-color-context';
@@ -21,6 +22,7 @@ export interface UserUiPreferences {
   dateFormat: PreferenceDateFormat | null;
   showExtractedTextTab: boolean;
   defaultFileBrowserView: PreferenceFileBrowserView;
+  defaultChatAnswerMode: PreferenceChatAnswerMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -29,6 +31,7 @@ export type UserUiPreferencesUpdate = Partial<
   Pick<
     UserUiPreferences,
     'accentColor'
+    | 'defaultChatAnswerMode'
     | 'defaultFileBrowserView'
     | 'density'
     | 'fontFamily'

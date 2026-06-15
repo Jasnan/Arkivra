@@ -19,6 +19,7 @@ import {
 import { toast } from '@/components/ui/toaster-store';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
+import { useAccentColor } from '@/components/providers/accent-color-context';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
 import type { ChatApiScope, ChatResponseMode } from '../chat.api';
 import {
@@ -264,6 +265,7 @@ export function ChatWorkspace({
   const isFullHeight = heightClassName === 'h-full';
   const { vaultId, documentId } = scope;
   const queryClient = useQueryClient();
+  const { defaultChatAnswerMode } = useAccentColor();
   const conversationsQuery = useChatConversationsQuery();
   const modelOptionsQuery = useChatModelOptionsQuery();
   const createConversation = useCreateChatConversationMutation();
@@ -281,7 +283,7 @@ export function ChatWorkspace({
     status: 'ready',
   });
   const [runtimeHandle, setRuntimeHandle] = useState<AssistantChatRuntimeHandle | null>(null);
-  const [responseMode, setResponseMode] = useState<ChatResponseMode>('text');
+  const [responseMode, setResponseMode] = useState<ChatResponseMode>(defaultChatAnswerMode);
   const [selectedModel, setSelectedModel] = useState('');
   const [composerValue, setComposerValue] = useState('');
   const [localRuntimeMessagesByChatId, setLocalRuntimeMessagesByChatId] = useState<Record<string, ChatMessage[]>>({});
@@ -292,6 +294,7 @@ export function ChatWorkspace({
   const [isForkDialogOpen, setIsForkDialogOpen] = useState(false);
   const [isContextWarningDismissed, setIsContextWarningDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hasManualResponseModeRef = useRef(false);
   const previousSelectedConversationIdRef = useRef(selectedConversationId);
   const activeRuntimeChatIdRef = useRef('');
   const isStreaming = runtimeState.status === 'submitted'
@@ -501,6 +504,16 @@ export function ChatWorkspace({
     setSelectedChatId(selectedConversationId ?? '');
     resetComposerState();
   }, [resetComposerState, selectedChatId, selectedConversationId]);
+
+  useEffect(() => {
+    if (hasManualResponseModeRef.current) return;
+    setResponseMode(defaultChatAnswerMode);
+  }, [defaultChatAnswerMode]);
+
+  const handleResponseModeChange = useCallback((nextResponseMode: ChatResponseMode) => {
+    hasManualResponseModeRef.current = true;
+    setResponseMode(nextResponseMode);
+  }, []);
 
   useEffect(() => {
     setIsContextWarningDismissed(false);
@@ -1023,7 +1036,7 @@ export function ChatWorkspace({
                 : null
             }
             onSelectedModelChange={setSelectedModel}
-            onResponseModeChange={setResponseMode}
+            onResponseModeChange={handleResponseModeChange}
             context={displayedContext}
             contextLocked={isContextLocked}
             onAddVaults={() => setIsVaultDialogOpen(true)}

@@ -11,7 +11,10 @@ const updateConversationContextMock = vi.hoisted(() => vi.fn());
 const deleteConversationMock = vi.hoisted(() => vi.fn());
 const runtimeSendTextMock = vi.hoisted(() => vi.fn());
 const runtimeSendBlocker = vi.hoisted(() => ({ promise: null as Promise<void> | null }));
-const assistantRuntimeState = vi.hoisted(() => ({ messages: [] as any[] }));
+const assistantRuntimeState = vi.hoisted(() => ({
+  messages: [] as any[],
+  responseMode: 'text' as 'text' | 'multimodal',
+}));
 const assistantRuntimeHandleState = vi.hoisted(() => ({ handle: null as any }));
 const createdConversationState = vi.hoisted(() => ({
   conversation: null as null | {
@@ -48,6 +51,7 @@ vi.mock('./assistant-chat-runtime', async () => {
     AssistantChatRuntimeProvider: ({
       messages,
       chatId,
+      responseMode,
       resolveChatId,
       onReady,
       onStateChange,
@@ -62,6 +66,10 @@ vi.mock('./assistant-chat-runtime', async () => {
       React.useEffect(() => {
         resolveChatIdRef.current = resolveChatId;
       }, [resolveChatId]);
+
+      React.useEffect(() => {
+        assistantRuntimeState.responseMode = responseMode;
+      }, [responseMode]);
 
       React.useEffect(() => {
         messagesRef.current = runtimeMessages;
@@ -745,6 +753,34 @@ describe('chat workspace new chat drafts', () => {
     runtimeSendTextMock.mockClear();
     runtimeSendBlocker.promise = null;
     assistantRuntimeState.messages = [];
+    assistantRuntimeState.responseMode = 'text';
+  });
+
+  it('uses the saved default chat answer mode for new chat runtime state', async () => {
+    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      dateFormat: null,
+      showExtractedTextTab: false,
+      defaultFileBrowserView: 'list',
+      defaultChatAnswerMode: 'multimodal',
+    }));
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(assistantRuntimeState.responseMode).toBe('multimodal');
+    });
   });
 
   it('opens mobile conversation history in a drawer', async () => {

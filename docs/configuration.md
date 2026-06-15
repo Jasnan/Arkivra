@@ -17,15 +17,17 @@ Arkivra reads configuration from environment variables. The root `.env.example` 
 
 ## Database And Parsing
 
-| Variable                      | Purpose                              | Default                                             |
-| ----------------------------- | ------------------------------------ | --------------------------------------------------- |
-| `ARKIVRA_DATABASE_URL`        | PostgreSQL connection URL            | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
-| `ARKIVRA_POSTGRES_PORT`       | Host port used by Compose PostgreSQL | `5432`                                              |
-| `ARKIVRA_DOCLING_URL`         | Docling HTTP API URL                 | `http://localhost:5001`                             |
-| `ARKIVRA_DOCLING_PORT`        | Host port used by Compose Docling    | `5001`                                              |
-| `ARKIVRA_PARSER_TEXT_CLEANUP` | `deterministic` or `none`            | `deterministic`                                     |
+| Variable                                                | Purpose                                                            | Default                                             |
+| ------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------- |
+| `ARKIVRA_DATABASE_URL`                                  | PostgreSQL connection URL                                          | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
+| `ARKIVRA_POSTGRES_PORT`                                 | Host port used by Compose PostgreSQL                               | `5432`                                              |
+| `ARKIVRA_DOCLING_URL`                                   | Docling HTTP API URL                                               | `http://localhost:5001`                             |
+| `ARKIVRA_DOCLING_PORT`                                  | Host port used by Compose Docling                                  | `5001`                                              |
+| `ARKIVRA_DOCLING_VLM_PIPELINE`                          | `enabled` routes scan-heavy PDFs and image files through VLM       | `disabled`                                          |
+| `ARKIVRA_DOCLING_VLM_MODEL`                             | Docling VLM model/preset. Only valid when VLM pipeline is enabled  | Docling `default` when VLM pipeline is enabled      |
+| `ARKIVRA_PARSER_TEXT_CLEANUP`                           | `deterministic` or `none`                                          | `deterministic`                                     |
 
-Scan-heavy PDFs are routed through Docling OCR with `ocr_preset=auto`.
+All files use the default Docling pipeline by default. Set `ARKIVRA_DOCLING_VLM_PIPELINE=enabled` only when the configured Docling Serve instance has an approved VLM runtime available. When enabled, Arkivra uses VLM only for scan-heavy PDFs and image files; digital PDFs and ordinary documents stay on the default pipeline. `ARKIVRA_DOCLING_VLM_MODEL` selects the Docling VLM preset sent to Docling Serve, but it is rejected unless the VLM pipeline is enabled. When omitted, Arkivra sends Docling Serve's `default` VLM preset for VLM-routed files.
 
 ## Storage, Uploads, And Backups
 

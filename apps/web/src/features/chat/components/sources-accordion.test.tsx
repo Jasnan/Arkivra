@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { renderWithProviders } from '@/test/utils';
@@ -114,6 +114,88 @@ describe('sources accordion', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByRole('button', { name: /^page 1$/i })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: /^page 2$/i })).not.toBeInTheDocument();
+  });
+
+  it('renders citation bounding boxes after the preview image loads', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <SourcesAccordion
+        currentVaultId="vlt_1"
+        citations={[
+          citation({
+            boundingBoxes: [
+              {
+                pageNumber: 1,
+                x0: 10,
+                y0: 20,
+                x1: 30,
+                y1: 50,
+                layoutWidth: 100,
+                layoutHeight: 100,
+                system: 'PixelSpace',
+              },
+            ],
+            citationPrecision: 'box',
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /page 1/i }));
+
+    const image = await screen.findByRole('img', { name: /policy\.pdf page 1/i });
+    Object.defineProperty(image, 'clientWidth', { configurable: true, value: 500 });
+    Object.defineProperty(image, 'clientHeight', { configurable: true, value: 700 });
+    fireEvent.load(image);
+
+    expect(await screen.findByTestId('citation-bounding-box')).toHaveStyle({
+      left: '50px',
+      top: '140px',
+      width: '100px',
+      height: '210px',
+    });
+  });
+
+  it('does not render a page-wide outline for legacy zero-area citation boxes', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <SourcesAccordion
+        currentVaultId="vlt_1"
+        citations={[
+          citation({
+            boundingBoxes: [
+              {
+                pageNumber: 1,
+                x0: 0,
+                y0: 0,
+                x1: 0,
+                y1: 0,
+                layoutWidth: 595,
+                layoutHeight: 842,
+                system: 'PixelSpace',
+              },
+            ],
+            citationPrecision: 'box',
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /page 1/i }));
+
+    const image = await screen.findByRole('img', { name: /policy\.pdf page 1/i });
+    Object.defineProperty(image, 'clientWidth', { configurable: true, value: 500 });
+    Object.defineProperty(image, 'clientHeight', { configurable: true, value: 700 });
+    fireEvent.load(image);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('citation-page-outline')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('citation-bounding-box')).not.toBeInTheDocument();
   });
 
   it('uses the original file endpoint for legacy WebP citations without MIME metadata', async () => {

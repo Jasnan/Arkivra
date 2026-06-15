@@ -21,6 +21,22 @@ interface CitationPreviewModalProps {
 
 const browserImagePreviewExtensions = new Set(['gif', 'jpeg', 'jpg', 'png', 'webp']);
 
+function isRenderableBoundingBox(boundingBox: Citation['boundingBoxes'][number]) {
+  return (
+    Number.isFinite(boundingBox.pageNumber) &&
+    Number.isFinite(boundingBox.x0) &&
+    Number.isFinite(boundingBox.y0) &&
+    Number.isFinite(boundingBox.x1) &&
+    Number.isFinite(boundingBox.y1) &&
+    Number.isFinite(boundingBox.layoutWidth) &&
+    Number.isFinite(boundingBox.layoutHeight) &&
+    boundingBox.layoutWidth > 0 &&
+    boundingBox.layoutHeight > 0 &&
+    boundingBox.x1 > boundingBox.x0 &&
+    boundingBox.y1 > boundingBox.y0
+  );
+}
+
 function getDocumentFileExtension(name: string) {
   const extension = name.split('.').pop()?.trim().toLowerCase();
   return extension && extension !== name.trim().toLowerCase() ? extension : '';
@@ -37,6 +53,10 @@ function citationUsesOriginalImagePreview(citation: Citation) {
 function groupBoundingBoxesByPage(citation: Citation) {
   const grouped = new Map<number, Citation['boundingBoxes']>();
   for (const boundingBox of citation.boundingBoxes) {
+    if (!isRenderableBoundingBox(boundingBox)) {
+      continue;
+    }
+
     const current = grouped.get(boundingBox.pageNumber) ?? [];
     current.push(boundingBox);
     grouped.set(boundingBox.pageNumber, current);
@@ -171,6 +191,7 @@ export function CitationPreviewModal({
                               return (
                                 <Box
                                   key={`${boundingBox.pageNumber}-${boundingBox.x0}-${boundingBox.y0}-${boundingBox.x1}-${boundingBox.y1}`}
+                                  data-testid="citation-bounding-box"
                                   position="absolute"
                                   rounded="md"
                                   borderWidth="2px"

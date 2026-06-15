@@ -78,6 +78,7 @@ function buildBboxLookup(doclingDocument: JsonObject): Map<string, ChunkBounding
       const x1 = Math.max(l, r);
       const y0 = origin === 'BOTTOMLEFT' ? layoutHeight - Math.max(t, b) : Math.min(t, b);
       const y1 = origin === 'BOTTOMLEFT' ? layoutHeight - Math.min(t, b) : Math.max(t, b);
+      if (x1 <= x0 || y1 <= y0) continue;
 
       bboxes.push({
         pageNumber,

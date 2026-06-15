@@ -10,22 +10,25 @@ function jsonResponse(body: unknown, status = 200) {
 
 describe('docling client', () => {
   test('submits async conversion, polls status, and fetches result', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_1', task_status: 'queued' }))
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_1', task_status: 'processing' }))
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_1', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        document: {
-          md_content: '# Title',
-          text_content: 'Title',
-          json_content: {},
-          html_content: '',
-          doctags_content: '',
-        },
-        status: 'success',
-        processing_time: 1.2,
-        errors: [],
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          document: {
+            md_content: '# Title',
+            text_content: 'Title',
+            json_content: {},
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          processing_time: 1.2,
+          errors: [],
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -71,20 +74,23 @@ describe('docling client', () => {
   });
 
   test('allows overriding OCR languages', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_cfg', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        document: {
-          md_content: '# Title',
-          text_content: 'Title',
-          json_content: {},
-          html_content: '',
-          doctags_content: '',
-        },
-        status: 'success',
-        processing_time: 1.2,
-        errors: [],
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          document: {
+            md_content: '# Title',
+            text_content: 'Title',
+            json_content: {},
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          processing_time: 1.2,
+          errors: [],
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -111,14 +117,66 @@ describe('docling client', () => {
     expect(submitBody.getAll('ocr_lang')).toEqual(['en', 'de']);
   });
 
+  test('allows VLM pipeline options for conversion requests', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_vlm', task_status: 'success' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          document: {
+            md_content: '# Title',
+            text_content: 'Title',
+            json_content: {},
+            html_content: '',
+            doctags_content: '',
+          },
+          status: 'success',
+          processing_time: 1.2,
+          errors: [],
+        }),
+      );
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      convertOptions: {
+        doOcr: false,
+        pipeline: 'vlm',
+        vlmPipelinePreset: 'granite_docling',
+        vlmPipelineCustomConfig: '{"engine_options":{"engine_type":"api_ollama"}}',
+      },
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.convertFile({
+      fileName: 'scan.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+    });
+
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.get('do_ocr')).toBe('false');
+    expect(submitBody.get('pipeline')).toBe('vlm');
+    expect(submitBody.get('vlm_pipeline_preset')).toBe('granite_docling');
+    expect(submitBody.get('vlm_pipeline_custom_config')).toBe(
+      '{"engine_options":{"engine_type":"api_ollama"}}',
+    );
+  });
+
   test('throws when async status reaches failure', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_2', task_status: 'queued' }))
-      .mockResolvedValueOnce(jsonResponse({
-        task_id: 'task_2',
-        task_status: 'failure',
-        errors: ['OCR failed'],
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          task_id: 'task_2',
+          task_status: 'failure',
+          errors: ['OCR failed'],
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -128,15 +186,18 @@ describe('docling client', () => {
       sleepImpl: async () => undefined,
     });
 
-    await expect(client.convertFile({
-      fileName: 'test.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('pdf-bytes'),
-    })).rejects.toThrow(/Docling async conversion failed.*OCR failed/i);
+    await expect(
+      client.convertFile({
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(/Docling async conversion failed.*OCR failed/i);
   });
 
   test('fails fast when Docling returns an unknown task_status', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_u', task_status: 'queued' }))
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_u', task_status: 'warp_drive' }));
 
@@ -148,16 +209,18 @@ describe('docling client', () => {
       sleepImpl: async () => undefined,
     });
 
-    await expect(client.convertFile({
-      fileName: 'test.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('pdf-bytes'),
-    })).rejects.toThrow(/unknown task_status "warp_drive"/);
+    await expect(
+      client.convertFile({
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(/unknown task_status "warp_drive"/);
   });
 
   test('includes documented async task error_message when submit returns a failed task', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
         task_id: 'task_failed',
         task_type: 'convert',
         task_status: 'failed',
@@ -169,7 +232,8 @@ describe('docling client', () => {
           num_failed: 1,
         },
         error_message: 'File format not allowed: test.txt',
-      }));
+      }),
+    );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -179,16 +243,18 @@ describe('docling client', () => {
       sleepImpl: async () => undefined,
     });
 
-    await expect(client.convertFile({
-      fileName: 'test.txt',
-      mimeType: 'text/plain',
-      fileData: Buffer.from('plain text'),
-    })).rejects.toThrow(/File format not allowed: test\.txt/i);
+    await expect(
+      client.convertFile({
+        fileName: 'test.txt',
+        mimeType: 'text/plain',
+        fileData: Buffer.from('plain text'),
+      }),
+    ).rejects.toThrow(/File format not allowed: test\.txt/i);
   });
 
   test('includes task metadata when a failed async task has no error_message', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
         task_id: 'task_failed_meta',
         task_type: 'chunk',
         task_status: 'failed',
@@ -197,7 +263,8 @@ describe('docling client', () => {
           exception_type: 'RuntimeError',
           exception_message: 'RapidOCR preset is unavailable',
         },
-      }));
+      }),
+    );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -207,29 +274,34 @@ describe('docling client', () => {
       sleepImpl: async () => undefined,
     });
 
-    await expect(client.convertFile({
-      fileName: 'test.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('pdf-bytes'),
-    })).rejects.toThrow(/RapidOCR preset is unavailable/i);
+    await expect(
+      client.convertFile({
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(/RapidOCR preset is unavailable/i);
   });
 
   test('accepts null values in optional format fields', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_n', task_status: 'queued' }))
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_n', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        document: {
-          md_content: null,
-          text_content: 'Hello world',
-          json_content: null,
-          html_content: null,
-          doctags_content: null,
-        },
-        status: 'success',
-        processing_time: 0.42,
-        errors: [],
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          document: {
+            md_content: null,
+            text_content: 'Hello world',
+            json_content: null,
+            html_content: null,
+            doctags_content: null,
+          },
+          status: 'success',
+          processing_time: 0.42,
+          errors: [],
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -262,15 +334,18 @@ describe('docling client', () => {
       sleepImpl: async () => undefined,
     });
 
-    await expect(client.convertFile({
-      fileName: 'test.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('pdf-bytes'),
-    })).rejects.toThrow(/unrecognized payload/);
+    await expect(
+      client.convertFile({
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(/unrecognized payload/);
   });
 
   test('throws when async conversion exceeds Arkivra wait limit', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_3', task_status: 'queued' }))
       .mockResolvedValue(jsonResponse({ task_id: 'task_3', task_status: 'processing' }));
 
@@ -288,34 +363,41 @@ describe('docling client', () => {
       sleepImpl: async () => undefined,
     });
 
-    await expect(client.convertFile({
-      fileName: 'test.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('pdf-bytes'),
-    })).rejects.toThrow(/exceeded Arkivra max wait/i);
+    await expect(
+      client.convertFile({
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(/exceeded Arkivra max wait/i);
 
     dateNowSpy.mockRestore();
   });
 
   test('allows chunk requests to override OCR per document', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_chunk', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        chunks: [],
-        documents: [{
-          kind: 'ExportResult',
-          content: {
-            md_content: '',
-            text_content: '',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
-          status: 'success',
-          errors: [],
-        }],
-        processing_time: 0.1,
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -359,24 +441,29 @@ describe('docling client', () => {
   });
 
   test('allows per-request OCR preset override for chunk requests', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_chunk', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        chunks: [],
-        documents: [{
-          kind: 'ExportResult',
-          content: {
-            md_content: '',
-            text_content: '',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
-          status: 'success',
-          errors: [],
-        }],
-        processing_time: 0.1,
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -404,25 +491,85 @@ describe('docling client', () => {
     expect(submitBody.get('convert_pipeline')).toBe('standard');
   });
 
+  test('allows per-request VLM pipeline options for chunk requests', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_chunk_vlm', task_status: 'success' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await client.chunkFile({
+      fileName: 'scan.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('pdf-bytes'),
+      convertOptions: {
+        doOcr: false,
+        pipeline: 'vlm',
+        vlmPipelinePreset: 'granite_docling',
+        vlmPipelineCustomConfig: '{"engine_options":{"engine_type":"api_ollama"}}',
+      },
+    });
+
+    const submitRequest = fetchMock.mock.calls[0]?.[1];
+    const submitBody = submitRequest?.body as FormData;
+    expect(submitBody.get('convert_do_ocr')).toBe('false');
+    expect(submitBody.get('convert_pipeline')).toBe('vlm');
+    expect(submitBody.get('convert_vlm_pipeline_preset')).toBe('granite_docling');
+    expect(submitBody.get('convert_vlm_pipeline_custom_config')).toBe(
+      '{"engine_options":{"engine_type":"api_ollama"}}',
+    );
+  });
+
   test('submits hierarchical chunk requests to the documented endpoint', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_hierarchical', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        chunks: [],
-        documents: [{
-          kind: 'ExportResult',
-          content: {
-            md_content: '',
-            text_content: '',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
-          status: 'success',
-          errors: [],
-        }],
-        processing_time: 0.1,
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -455,35 +602,42 @@ describe('docling client', () => {
   });
 
   test('normalizes structured Docling chunk document errors', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_text', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        chunks: [{
-          filename: 'test.txt',
-          chunk_index: 0,
-          text: 'Plain text content',
-          raw_text: 'Plain text content',
-          num_tokens: 3,
-          headings: null,
-          captions: null,
-          doc_items: [],
-          page_numbers: null,
-          metadata: null,
-        }],
-        documents: [{
-          kind: 'ExportResult',
-          content: {
-            md_content: 'Plain text content',
-            text_content: 'Plain text content',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
-          status: 'success',
-          errors: [{ message: 'Unsupported image block skipped' }],
-        }],
-        processing_time: 0.1,
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [
+            {
+              filename: 'test.txt',
+              chunk_index: 0,
+              text: 'Plain text content',
+              raw_text: 'Plain text content',
+              num_tokens: 3,
+              headings: null,
+              captions: null,
+              doc_items: [],
+              page_numbers: null,
+              metadata: null,
+            },
+          ],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: 'Plain text content',
+                text_content: 'Plain text content',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [{ message: 'Unsupported image block skipped' }],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -504,26 +658,31 @@ describe('docling client', () => {
   });
 
   test('retries transient chunk submit fetch failures before succeeding', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockRejectedValueOnce(new Error('fetch failed'))
       .mockRejectedValueOnce(new Error('fetch failed'))
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_retry', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        chunks: [],
-        documents: [{
-          kind: 'ExportResult',
-          content: {
-            md_content: '',
-            text_content: '',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
-          status: 'success',
-          errors: [],
-        }],
-        processing_time: 0.1,
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
     const sleepMock = vi.fn(async () => undefined);
 
     const client = createDoclingClient({
@@ -558,38 +717,47 @@ describe('docling client', () => {
       sleepImpl: async () => undefined,
     });
 
-    await expect(client.chunkFile({
-      fileName: 'retry.pdf',
-      mimeType: 'application/pdf',
-      fileData: Buffer.from('pdf-bytes'),
-    })).rejects.toThrow(/Docling chunk async submit failed .*fetch failed/i);
+    await expect(
+      client.chunkFile({
+        fileName: 'retry.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(/Docling chunk async submit failed .*fetch failed/i);
   });
 
   test('resubmits chunking when a polled task disappears after Docling restarts', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_lost', task_status: 'queued' }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'Task not found.' }), {
-        status: 404,
-        statusText: 'Not Found',
-        headers: { 'content-type': 'application/json' },
-      }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: 'Task not found.' }), {
+          status: 404,
+          statusText: 'Not Found',
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
       .mockResolvedValueOnce(jsonResponse({ task_id: 'task_recovered', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        chunks: [],
-        documents: [{
-          kind: 'ExportResult',
-          content: {
-            md_content: '',
-            text_content: '',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
-          status: 'success',
-          errors: [],
-        }],
-        processing_time: 0.1,
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',
@@ -614,28 +782,37 @@ describe('docling client', () => {
   });
 
   test('keeps polling the same chunk task after transient poll fetch failures', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_poll_fetch_failed', task_status: 'queued' }))
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ task_id: 'task_poll_fetch_failed', task_status: 'queued' }),
+      )
       .mockRejectedValueOnce(new Error('fetch failed'))
       .mockRejectedValueOnce(new Error('fetch failed'))
       .mockRejectedValueOnce(new Error('fetch failed'))
-      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_poll_fetch_failed', task_status: 'success' }))
-      .mockResolvedValueOnce(jsonResponse({
-        chunks: [],
-        documents: [{
-          kind: 'ExportResult',
-          content: {
-            md_content: '',
-            text_content: '',
-            json_content: null,
-            html_content: '',
-            doctags_content: '',
-          },
-          status: 'success',
-          errors: [],
-        }],
-        processing_time: 0.1,
-      }));
+      .mockResolvedValueOnce(
+        jsonResponse({ task_id: 'task_poll_fetch_failed', task_status: 'success' }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
 
     const client = createDoclingClient({
       baseUrl: 'http://docling.local',

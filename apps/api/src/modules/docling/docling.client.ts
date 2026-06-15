@@ -1,4 +1,7 @@
-import type { DoclingChunkResponse, DoclingConvertResponse } from '../parsing/adapters/docling.schema.js';
+import type {
+  DoclingChunkResponse,
+  DoclingConvertResponse,
+} from '../parsing/adapters/docling.schema.js';
 import {
   doclingChunkResponseSchema,
   doclingConvertResponseSchema,
@@ -8,7 +11,10 @@ import {
   normalizeDoclingTaskStatus,
 } from '../parsing/adapters/docling.schema.js';
 
-export type { DoclingChunkResponse, DoclingConvertResponse } from '../parsing/adapters/docling.schema.js';
+export type {
+  DoclingChunkResponse,
+  DoclingConvertResponse,
+} from '../parsing/adapters/docling.schema.js';
 
 export type DoclingClient = ReturnType<typeof createDoclingClient>;
 export type DoclingChunker = 'hybrid' | 'hierarchical';
@@ -20,6 +26,8 @@ export type DoclingConvertOptions = {
   ocrPreset?: string;
   ocrLang?: string[];
   pipeline?: DoclingProcessingPipeline;
+  vlmPipelinePreset?: string;
+  vlmPipelineCustomConfig?: string;
 };
 
 export const DEFAULT_DOCLING_CONVERT_OPTIONS: DoclingConvertOptions = {
@@ -49,15 +57,15 @@ export type DoclingRoutes = {
 };
 
 export const DEFAULT_DOCLING_ROUTES: DoclingRoutes = {
-  submitAsync: baseUrl => `${baseUrl}/v1/convert/file/async`,
+  submitAsync: (baseUrl) => `${baseUrl}/v1/convert/file/async`,
   pollStatus: (baseUrl, taskId) => `${baseUrl}/v1/status/poll/${taskId}`,
   fetchResult: (baseUrl, taskId) => `${baseUrl}/v1/result/${taskId}`,
-  hybridChunkSubmitAsync: baseUrl => `${baseUrl}/v1/chunk/hybrid/file/async`,
-  hierarchicalChunkSubmitAsync: baseUrl => `${baseUrl}/v1/chunk/hierarchical/file/async`,
+  hybridChunkSubmitAsync: (baseUrl) => `${baseUrl}/v1/chunk/hybrid/file/async`,
+  hierarchicalChunkSubmitAsync: (baseUrl) => `${baseUrl}/v1/chunk/hierarchical/file/async`,
 };
 
 function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 type DoclingTaskErrorPayload = {
@@ -74,12 +82,13 @@ function stringifyTaskError(value: unknown): string | null {
 
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    const message = record.message
-      ?? record.error_message
-      ?? record.exception_message
-      ?? record.detail
-      ?? record.msg
-      ?? record.code;
+    const message =
+      record.message ??
+      record.error_message ??
+      record.exception_message ??
+      record.detail ??
+      record.msg ??
+      record.code;
 
     if (typeof message === 'string' && message.trim().length > 0) {
       return message;
@@ -107,9 +116,7 @@ function collectTaskErrors(payload: DoclingTaskErrorPayload) {
   const metaErrorMessage = stringifyTaskError(payload.task_meta?.error_message);
   const taskMetaMessage = stringifyTaskError(payload.task_meta);
   const taskMetaErrors = Array.isArray(metaErrors)
-    ? metaErrors
-        .map(stringifyTaskError)
-        .filter((value): value is string => value !== null)
+    ? metaErrors.map(stringifyTaskError).filter((value): value is string => value !== null)
     : [];
 
   return [
@@ -158,7 +165,9 @@ export function createDoclingClient({
   }
 
   function isRecoverableChunkTaskLoss(error: Error) {
-    return /Docling chunk async status poll error .*404 Not Found .*Task not found/i.test(error.message);
+    return /Docling chunk async status poll error .*404 Not Found .*Task not found/i.test(
+      error.message,
+    );
   }
 
   async function fetchWithRetry(
@@ -252,6 +261,15 @@ export function createDoclingClient({
     if (effectiveConvertOptions.pipeline !== undefined) {
       formData.append('pipeline', effectiveConvertOptions.pipeline);
     }
+    if (effectiveConvertOptions.vlmPipelinePreset !== undefined) {
+      formData.append('vlm_pipeline_preset', effectiveConvertOptions.vlmPipelinePreset);
+    }
+    if (effectiveConvertOptions.vlmPipelineCustomConfig !== undefined) {
+      formData.append(
+        'vlm_pipeline_custom_config',
+        effectiveConvertOptions.vlmPipelineCustomConfig,
+      );
+    }
     if (effectiveConvertOptions.ocrPreset !== undefined) {
       formData.append('ocr_preset', effectiveConvertOptions.ocrPreset);
     }
@@ -271,7 +289,9 @@ export function createDoclingClient({
 
     if (!submitResponse.ok) {
       const text = await readErrorText(submitResponse);
-      throw new Error(`Docling async submit error: ${submitResponse.status} ${submitResponse.statusText} - ${text}`);
+      throw new Error(
+        `Docling async submit error: ${submitResponse.status} ${submitResponse.statusText} - ${text}`,
+      );
     }
 
     const submitJson = await submitResponse.json().catch(() => null);
@@ -404,7 +424,12 @@ export function createDoclingClient({
     fileData: Buffer;
     chunker?: DoclingChunker;
     chunkOptions?: Partial<DoclingChunkOptions>;
-    convertOptions?: Partial<Pick<DoclingConvertOptions, 'doOcr' | 'ocrPreset' | 'pipeline'>>;
+    convertOptions?: Partial<
+      Pick<
+        DoclingConvertOptions,
+        'doOcr' | 'ocrPreset' | 'pipeline' | 'vlmPipelinePreset' | 'vlmPipelineCustomConfig'
+      >
+    >;
   }): Promise<DoclingChunkResponse> {
     const effectiveChunkOptions: DoclingChunkOptions = {
       ...DEFAULT_DOCLING_CHUNK_OPTIONS,
@@ -414,6 +439,10 @@ export function createDoclingClient({
       doOcr: convertOptions?.doOcr ?? effectiveConvertOptions.doOcr,
       ocrPreset: convertOptions?.ocrPreset ?? effectiveConvertOptions.ocrPreset,
       pipeline: convertOptions?.pipeline ?? effectiveConvertOptions.pipeline,
+      vlmPipelinePreset:
+        convertOptions?.vlmPipelinePreset ?? effectiveConvertOptions.vlmPipelinePreset,
+      vlmPipelineCustomConfig:
+        convertOptions?.vlmPipelineCustomConfig ?? effectiveConvertOptions.vlmPipelineCustomConfig,
     };
 
     async function submitAndAwaitChunkTask() {
@@ -432,6 +461,18 @@ export function createDoclingClient({
       if (effectiveChunkConvertOptions.pipeline !== undefined) {
         formData.append('convert_pipeline', effectiveChunkConvertOptions.pipeline);
       }
+      if (effectiveChunkConvertOptions.vlmPipelinePreset !== undefined) {
+        formData.append(
+          'convert_vlm_pipeline_preset',
+          effectiveChunkConvertOptions.vlmPipelinePreset,
+        );
+      }
+      if (effectiveChunkConvertOptions.vlmPipelineCustomConfig !== undefined) {
+        formData.append(
+          'convert_vlm_pipeline_custom_config',
+          effectiveChunkConvertOptions.vlmPipelineCustomConfig,
+        );
+      }
       if (effectiveChunkConvertOptions.ocrPreset !== undefined) {
         formData.append('convert_ocr_preset', effectiveChunkConvertOptions.ocrPreset);
       }
@@ -445,9 +486,10 @@ export function createDoclingClient({
         formData.append('chunking_merge_peers', String(effectiveChunkOptions.mergePeers));
       }
 
-      const submitUrl = chunker === 'hybrid'
-        ? routes.hybridChunkSubmitAsync(baseUrl)
-        : routes.hierarchicalChunkSubmitAsync(baseUrl);
+      const submitUrl =
+        chunker === 'hybrid'
+          ? routes.hybridChunkSubmitAsync(baseUrl)
+          : routes.hierarchicalChunkSubmitAsync(baseUrl);
       const submitResponse = await fetchWithRetry(
         submitUrl,
         {
@@ -459,7 +501,9 @@ export function createDoclingClient({
 
       if (!submitResponse.ok) {
         const text = await readErrorText(submitResponse);
-        throw new Error(`Docling chunk async submit error: ${submitResponse.status} ${submitResponse.statusText} - ${text}`);
+        throw new Error(
+          `Docling chunk async submit error: ${submitResponse.status} ${submitResponse.statusText} - ${text}`,
+        );
       }
 
       const submitJson = await submitResponse.json().catch(() => null);
@@ -485,7 +529,9 @@ export function createDoclingClient({
           `Docling chunk async submit returned unknown task_status "${latestRawStatus}" for task ${taskId}`,
         );
       }
-      console.info(`${logPrefix} ${chunker} chunk task accepted taskId=${taskId} status=${latestRawStatus}`);
+      console.info(
+        `${logPrefix} ${chunker} chunk task accepted taskId=${taskId} status=${latestRawStatus}`,
+      );
 
       const startedAt = Date.now();
       let pollCount = 0;
@@ -540,7 +586,11 @@ export function createDoclingClient({
         }
 
         pollCount += 1;
-        if (pollCount === 1 || pollCount % 10 === 0 || isTerminalInternalStatus(latestInternalStatus)) {
+        if (
+          pollCount === 1 ||
+          pollCount % 10 === 0 ||
+          isTerminalInternalStatus(latestInternalStatus)
+        ) {
           console.info(
             `${logPrefix} ${chunker} chunk task poll taskId=${taskId} status=${latestRawStatus} elapsedMs=${Date.now() - startedAt}`,
           );
@@ -598,7 +648,11 @@ export function createDoclingClient({
       try {
         return await submitAndAwaitChunkTask();
       } catch (error) {
-        if (!(error instanceof Error) || !isRecoverableChunkTaskLoss(error) || recoveryAttempt >= chunkTaskRecoveryAttempts) {
+        if (
+          !(error instanceof Error) ||
+          !isRecoverableChunkTaskLoss(error) ||
+          recoveryAttempt >= chunkTaskRecoveryAttempts
+        ) {
           throw error;
         }
 

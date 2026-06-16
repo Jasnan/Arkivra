@@ -1259,6 +1259,43 @@ describe.sequential('document restore folder hierarchy', () => {
     await expect(getFolder(ids.contractsId)).resolves.toMatchObject({ isDeleted: true });
   });
 
+  test('restores duplicate active document when keep_both strategy is selected', async () => {
+    const { db, services, ids } = await createFixture({
+      testName: 'duplicate_keep_both',
+      folderStates: { projects: false, year: false, contracts: false },
+      hash: 'duplicate-keep-both-hash',
+    });
+
+    await db.insert(documentsTable).values({
+      id: `doc_${uniquePrefix}_duplicate_keep_both_active`,
+      vaultId: ids.vaultId,
+      folderId: ids.contractsId,
+      createdBy: ids.userId,
+      originalName: 'invoice.pdf',
+      originalSize: 512,
+      originalStorageKey: `${ids.vaultId}/duplicate-keep-both-active`,
+      originalSha256Hash: 'duplicate-keep-both-hash',
+      name: 'invoice.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    const result = await services.restoreDocument({
+      vaultId: ids.vaultId,
+      documentId: ids.documentId,
+      conflictStrategy: 'keep_both',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      originalName: 'invoice (restored).pdf',
+    });
+    await expect(getDocument(ids.documentId)).resolves.toMatchObject({
+      originalName: 'invoice (restored).pdf',
+      name: 'invoice (restored).pdf',
+      isDeleted: false,
+    });
+  });
+
   test('creates initial upload versions and reports same-name conflicts', async () => {
     if (database === null) {
       throw new Error('Database not initialized');
@@ -1363,6 +1400,33 @@ describe.sequential('document restore folder hierarchy', () => {
       existingId: first.document?.id,
       conflictType: 'hash',
     });
+
+    await db
+      .update(documentsTable)
+      .set({
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId,
+      })
+      .where(eq(documentsTable.id, first.document?.id ?? ''));
+
+    const reuploaded = await services.finalizeUploadedDocument({
+      vaultId,
+      userId,
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('first-version'),
+    });
+
+    expect(reuploaded).toMatchObject({
+      duplicate: false,
+      skipped: false,
+      documentVersion: {
+        versionNumber: 1,
+        originalName: 'report.pdf',
+      },
+    });
+    expect(reuploaded.document?.id).not.toBe(first.document?.id);
   });
 
   test('resolves upload conflicts with skip, keep_both, and new_version', async () => {

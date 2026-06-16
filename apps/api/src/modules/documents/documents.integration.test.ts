@@ -2349,6 +2349,44 @@ describe('documents integration', () => {
     const body = (await response.json()) as any;
     expect(body.error.code).toBe('document.duplicate');
     expect(body.error.existingId).toBe('doc_existing_1');
+    expect(body.error.duplicateScope).toBe('active');
+    expect(body.error.conflictType).toBe('hash');
+    expect(body.error.availableStrategies).toEqual(['skip', 'keep_both']);
+    expect(docServices.restoreDocument).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      conflictStrategy: undefined,
+    });
+  });
+
+  test('passes restore conflict strategy through to document services', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).restoreDocument = vi.fn(async () => ({
+      success: false,
+      reason: 'skipped',
+      existingId: 'doc_existing_1',
+    }));
+
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/restore', {
+      method: 'POST',
+      headers: {
+        'x-test-user-id': 'usr_1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ conflictStrategy: 'skip' }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.skipped).toBe(true);
+    expect(body.existingId).toBe('doc_existing_1');
+    expect(docServices.restoreDocument).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+      conflictStrategy: 'skip',
+    });
   });
 
   test('hard deletes a soft-deleted document (owner)', async () => {

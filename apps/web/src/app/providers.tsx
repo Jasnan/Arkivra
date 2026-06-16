@@ -2,11 +2,9 @@ import type { PropsWithChildren } from 'react';
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
-import { adminQueryKeys } from '@/features/admin/admin.queries';
-import { documentQueryKeys } from '@/features/documents/documents.queries';
-import { searchQueryKeys } from '@/features/search/search.queries';
 import { AccentColorProvider } from '@/components/providers/accent-color-provider';
 import { ThemeProvider } from '@/components/providers/theme-provider';
+import { invalidateDocumentCollectionCaches } from '@/features/documents/document-cache-updates';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,11 +19,7 @@ const queryClient = new QueryClient({
 function UploadCompletionInvalidation() {
   useEffect(() => {
     async function handleUploadCompleted() {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
-        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
-        queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
-      ]);
+      await invalidateDocumentCollectionCaches(queryClient);
     }
 
     window.addEventListener('arkivra:uploads-completed', handleUploadCompleted);
@@ -39,7 +33,13 @@ function UploadCompletionInvalidation() {
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
-    <ThemeProvider attribute="class" storageKey="arkivra.themeMode" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider
+      attribute="class"
+      storageKey="arkivra.themeMode"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
       <QueryClientProvider client={queryClient}>
         <AccentColorProvider>
           <UploadCompletionInvalidation />

@@ -16,6 +16,13 @@ import type {
 
 export type UploadConflictStrategy = 'skip' | 'keep_both' | 'new_version';
 
+export interface DocumentDuplicateConflict {
+  message: string;
+  existingId: string | null;
+  conflictType: string;
+  availableStrategies: UploadConflictStrategy[];
+}
+
 export type DocumentTranslationLanguage = 'de' | 'en';
 
 export type DocumentTranslationSource =
@@ -314,16 +321,53 @@ export async function softDeleteDocument({
 export async function restoreDocument({
   vaultId,
   documentId,
+  conflictStrategy,
 }: {
   vaultId: string;
   documentId: string;
+  conflictStrategy?: UploadConflictStrategy;
 }) {
   return fetchJson<{
-    document: { id: string; folderId: string | null; originalName: string };
-    message: string;
+    document: { id: string; folderId: string | null; originalName: string } | null;
+    message?: string;
+    skipped?: boolean;
+    existingId?: string | null;
+    conflictType?: string;
   }>(`/api/vaults/${vaultId}/documents/${documentId}/restore`, {
     method: 'POST',
+    ...(conflictStrategy === undefined
+      ? {}
+      : {
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ conflictStrategy }),
+        }),
   });
+}
+
+function isUploadConflictStrategy(value: unknown): value is UploadConflictStrategy {
+  return value === 'skip' || value === 'keep_both' || value === 'new_version';
+}
+
+export function getDocumentDuplicateConflict(error: unknown): DocumentDuplicateConflict | null {
+  if (!(error instanceof ApiError) || error.status !== 409) {
+    return null;
+  }
+
+  if (error.code !== 'document.duplicate' && error.code !== 'document.name_conflict') {
+    return null;
+  }
+
+  const details = error.details ?? {};
+  const availableStrategies = Array.isArray(details.availableStrategies)
+    ? details.availableStrategies.filter(isUploadConflictStrategy)
+    : [];
+
+  return {
+    message: error.message,
+    existingId: typeof details.existingId === 'string' ? details.existingId : null,
+    conflictType: typeof details.conflictType === 'string' ? details.conflictType : 'hash',
+    availableStrategies,
+  };
 }
 
 export async function permanentlyDeleteDocument({

@@ -57,7 +57,10 @@ function getBrowserPreviewMimeType(fileName: string, mimeType: string) {
     return normalizedMimeType;
   }
 
-  return browserPreviewImageMimeTypesByExtension.get(getDocumentFileExtension(fileName)) ?? normalizedMimeType;
+  return (
+    browserPreviewImageMimeTypesByExtension.get(getDocumentFileExtension(fileName)) ??
+    normalizedMimeType
+  );
 }
 
 function parseUploadConflictStrategy(value: unknown) {
@@ -1896,19 +1899,62 @@ export function registerDocumentRoutes({
       }
 
       const documentId = context.req.param('documentId');
-      const doc = await documentsServices.restoreDocument({ documentId, vaultId });
+      let parsedConflictStrategy: ReturnType<typeof parseUploadConflictStrategy> = {
+        valid: true,
+        strategy: undefined,
+      };
+
+      if ((context.req.header('content-type') ?? '').includes('application/json')) {
+        const body = await context.req.json().catch(() => null);
+
+        if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+          return context.json(
+            { error: { code: 'document.invalid_payload', message: 'Expected JSON object' } },
+            400,
+          );
+        }
+
+        parsedConflictStrategy = parseUploadConflictStrategy(
+          (body as { conflictStrategy?: unknown }).conflictStrategy,
+        );
+
+        if (!parsedConflictStrategy.valid) {
+          return context.json(
+            {
+              error: {
+                code: 'upload.invalid_conflict_strategy',
+                message: 'Invalid upload conflict strategy',
+              },
+            },
+            400,
+          );
+        }
+      }
+
+      const doc = await documentsServices.restoreDocument({
+        documentId,
+        vaultId,
+        conflictStrategy: parsedConflictStrategy.strategy,
+      });
 
       if (!doc.success && doc.reason === 'duplicate') {
         return context.json(
-          {
-            error: {
-              code: 'document.duplicate',
-              message: 'A document with this file already exists in this vault',
-              existingId: doc.existingId,
-            },
-          },
+          getUploadConflictResponse({
+            existingId: doc.existingId,
+            duplicateScope: 'active',
+            conflictType: 'hash',
+          }),
           409,
         );
+      }
+
+      if (!doc.success && doc.reason === 'skipped') {
+        return context.json({
+          document: null,
+          skipped: true,
+          existingId: doc.existingId,
+          conflictType: 'hash',
+        });
       }
 
       if (!doc.success) {

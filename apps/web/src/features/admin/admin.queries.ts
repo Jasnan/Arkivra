@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  checkOllamaModelAvailability,
+  checkAiModelAvailability,
   getAdminAiSettings,
   getAdminAiStatus,
   listPermissionRequests,
   listAdminUsers,
   listAdminVaults,
   listBackups,
-  listOllamaModels,
+  listAiChatModels,
 } from './admin.api';
 import type { AdminAiStatus, PermissionRequestStatus } from './admin.types';
 
@@ -24,9 +24,9 @@ export const adminQueryKeys = {
   ai: () => [...adminQueryKeys.all, 'ai'] as const,
   aiSettings: () => [...adminQueryKeys.ai(), 'settings'] as const,
   aiStatus: () => [...adminQueryKeys.ai(), 'status'] as const,
-  aiModels: (host: string) => [...adminQueryKeys.ai(), 'models', host] as const,
-  aiAvailability: (host: string, model: string) =>
-    [...adminQueryKeys.ai(), 'availability', host, model] as const,
+  aiModels: (provider: string, host: string) => [...adminQueryKeys.ai(), 'models', provider, host] as const,
+  aiAvailability: (provider: string, host: string, model: string, apiKeySecretRef: string | null | undefined) =>
+    [...adminQueryKeys.ai(), 'availability', provider, host, model, apiKeySecretRef ?? ''] as const,
 };
 
 export function useAdminUsersQuery({ enabled = true }: { enabled?: boolean } = {}) {
@@ -106,14 +106,16 @@ export function useAdminAiStatusQuery({ enabled = true }: { enabled?: boolean } 
 
 export function useAdminOllamaModelsQuery({
   host,
+  provider = 'ollama',
   enabled = true,
 }: {
   host: string;
+  provider?: 'ollama' | 'gemini';
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: adminQueryKeys.aiModels(host),
-    queryFn: () => listOllamaModels({ host }),
+    queryKey: adminQueryKeys.aiModels(provider, host),
+    queryFn: () => listAiChatModels({ host, provider }),
     enabled,
   });
 }
@@ -121,15 +123,19 @@ export function useAdminOllamaModelsQuery({
 export function useAdminAiAvailabilityQuery({
   host,
   model,
+  provider = 'ollama',
+  apiKeySecretRef,
   enabled = true,
 }: {
   host: string;
   model: string;
+  provider?: 'ollama' | 'gemini';
+  apiKeySecretRef?: string | null;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: adminQueryKeys.aiAvailability(host, model),
-    queryFn: () => checkOllamaModelAvailability({ host, model }),
+    queryKey: adminQueryKeys.aiAvailability(provider, host, model, apiKeySecretRef),
+    queryFn: () => checkAiModelAvailability({ host, model, provider, apiKeySecretRef }),
     enabled,
   });
 }

@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { serve } from '@hono/node-server';
 import { parseConfig } from './modules/config/config.js';
+import { loadApiEnvFiles } from './modules/config/env-loader.js';
 import { createAuth } from './modules/auth/auth.services.js';
 import { createEncryptionServices } from './modules/encryption/encryption.services.js';
 import { createStorageDriver } from './modules/storage/storage.services.js';
@@ -32,6 +33,7 @@ import {
 import { createOllamaEmbeddingProvider } from './modules/ai/providers/index.js';
 
 export async function startApp() {
+  loadApiEnvFiles();
   const { config } = parseConfig({ env: process.env });
 
   const processMode = config.processMode;

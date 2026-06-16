@@ -81,7 +81,7 @@ export interface AdminVault {
   memberCount: number;
 }
 
-export type AdminAiProviderKind = 'ollama';
+export type AdminAiProviderKind = 'ollama' | 'gemini';
 
 export interface AdminAiProviderSettings {
   provider: AdminAiProviderKind;
@@ -90,12 +90,22 @@ export interface AdminAiProviderSettings {
   model: string;
 }
 
+export interface AdminAiChatProviderSettings extends AdminAiProviderSettings {
+  allowedModels?: string[];
+}
+
 export interface AdminAiSettings {
   aiFeaturesEnabled: boolean;
-  chat: AdminAiProviderSettings;
+  chat: AdminAiChatProviderSettings;
   translation: AdminAiProviderSettings;
   embedding: AdminAiProviderSettings & {
     dimensions: number;
+  };
+  providers?: {
+    gemini?: {
+      baseUrl: string;
+      apiKeySecretRef: string | null;
+    };
   };
   ollamaHost: string;
   model: string;
@@ -105,6 +115,7 @@ export interface AdminAiChatSettings {
   provider: 'ollama' | 'openrouter' | 'gemini' | 'custom';
   baseUrl: string | null;
   model: string;
+  allowedModels: string[];
 }
 
 export interface AdminAiModel {

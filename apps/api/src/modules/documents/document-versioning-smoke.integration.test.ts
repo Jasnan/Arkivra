@@ -144,8 +144,10 @@ describe.sequential('document versioning smoke regression', () => {
       searchServices,
       documentsServices,
       resolveAiSettings: async () => ({
+        provider: 'ollama',
         baseUrl: 'http://127.0.0.1:11434',
         model: 'llama3.2',
+        allowedModels: ['llama3.2'],
         maxImagesPerRequest: 0,
       }),
       listAvailableModels: async () => ['llama3.2'],

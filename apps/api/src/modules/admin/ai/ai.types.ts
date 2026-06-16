@@ -1,4 +1,5 @@
-export type AdminAiProviderKind = 'ollama';
+export type AdminAiChatProviderKind = 'ollama' | 'gemini';
+export type AdminAiProviderKind = AdminAiChatProviderKind;
 
 export type AdminAiProviderSettings = {
   provider: AdminAiProviderKind;
@@ -8,12 +9,23 @@ export type AdminAiProviderSettings = {
   dimensions?: number;
 };
 
+export type AdminAiChatProviderSettings = AdminAiProviderSettings & {
+  provider: AdminAiChatProviderKind;
+  allowedModels?: string[];
+};
+
 export type AdminAiSettings = {
   aiFeaturesEnabled: boolean;
-  chat: AdminAiProviderSettings;
+  chat: AdminAiChatProviderSettings;
   translation: AdminAiProviderSettings;
   embedding: AdminAiProviderSettings & {
     dimensions: number;
+  };
+  providers?: {
+    gemini?: {
+      baseUrl: string;
+      apiKeySecretRef: string | null;
+    };
   };
   // Legacy fields retained for runtime callers during the provider split.
   ollamaHost: string;
@@ -24,6 +36,7 @@ export type AdminAiChatSettings = {
   provider: 'ollama' | 'openrouter' | 'gemini' | 'custom';
   baseUrl: string | null;
   model: string;
+  allowedModels: string[];
 };
 
 export type AdminAiModel = {

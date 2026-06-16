@@ -48,6 +48,7 @@ import {
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { createDocumentSearchServices } from '../search/search.services.js';
 import { createChatServices } from '../chat/chat.services.js';
+import { resolveChatProviderApiKey } from '../chat/chat-ai-sdk.js';
 import { registerChatRoutes } from '../chat/chat.routes.js';
 import {
   createDocumentTranslationServices,
@@ -60,26 +61,6 @@ import { createAuditServices } from '../audit/audit.services.js';
 import { registerAuditRoutes } from '../audit/audit.routes.js';
 import { createActivityServices } from '../activity/activity.services.js';
 import { registerActivityRoutes } from '../activity/activity.routes.js';
-
-const OLLAMA_EMBEDDING_MODEL_PATTERNS = [
-  /^bge[-:]/i,
-  /^e5[-:]/i,
-  /^gte[-:]/i,
-  /^mxbai[-:]/i,
-  /^nomic-embed/i,
-  /^snowflake-arctic-embed/i,
-  /^all-minilm/i,
-  /^jina-embeddings/i,
-  /^qwen\d+(?:\.\d+)?-embedding/i,
-  /^granite-embedding/i,
-  /^embeddinggemma/i,
-  /(?:^|[-:])embed(?:$|[-:])/i,
-  /(?:^|[-:])embedding(?:$|[-:])/i,
-] as const;
-
-function isLikelyEmbeddingModelName(modelName: string) {
-  return OLLAMA_EMBEDDING_MODEL_PATTERNS.some(pattern => pattern.test(modelName));
-}
 
 export function createServer({
   config,
@@ -150,22 +131,29 @@ export function createServer({
       }
 
       return {
+        provider: settings.chat.provider,
         baseUrl: settings.chat.baseUrl,
+        apiKey: resolveChatProviderApiKey({
+          provider: settings.chat.provider,
+          apiKeySecretRef: settings.chat.apiKeySecretRef,
+          providerApiKeySecretRef: settings.providers?.gemini?.apiKeySecretRef,
+        }),
         model: settings.chat.model,
+        allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
         maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
       };
     },
-    listAvailableModels: async ({ baseUrl }) => {
-      const [models, ingestionSettings] = await Promise.all([
-        aiServices.listModels({ host: baseUrl }),
-        aiServices.getIngestionSettings(),
-      ]);
-      return models
-        .map(model => model.name)
-        .filter(modelName =>
-          modelName !== ingestionSettings.embeddingModel
-          && !isLikelyEmbeddingModelName(modelName),
-        );
+    listAvailableModels: async () => {
+      const settings = await aiServices.getSettings();
+      const allowedModels = settings.chat.allowedModels ?? [settings.chat.model];
+      const availableModels = (await aiServices.listChatModels({
+        provider: settings.chat.provider,
+        baseUrl: settings.chat.baseUrl,
+      })).map(model => model.name);
+
+      return allowedModels.length > 0
+        ? availableModels.filter(model => allowedModels.includes(model))
+        : availableModels;
     },
   });
   const translationProvider = createRuntimeConfiguredOllamaTranslationProvider({

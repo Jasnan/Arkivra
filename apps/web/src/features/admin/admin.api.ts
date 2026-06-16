@@ -156,24 +156,34 @@ export async function updateAdminAiSettings(settings: AdminAiSettings) {
   });
 }
 
-export async function listOllamaModels({ host }: { host: string }) {
+export async function listAiChatModels({
+  host,
+  provider,
+}: {
+  host: string;
+  provider?: AdminAiSettings['chat']['provider'];
+}) {
   return fetchJson<{ models: AdminAiModel[] }>('/api/admin/ai/models', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ host }),
+    body: JSON.stringify({ host, provider }),
   });
 }
 
-export async function checkOllamaModelAvailability({
+export async function checkAiModelAvailability({
   host,
   model,
+  provider,
+  apiKeySecretRef,
 }: {
   host: string;
   model: string;
+  provider?: AdminAiSettings['chat']['provider'];
+  apiKeySecretRef?: string | null;
 }) {
   return fetchJson<{ availability: AdminAiAvailability }>('/api/admin/ai/availability', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ host, model }),
+    body: JSON.stringify({ host, model, provider, apiKeySecretRef }),
   });
 }

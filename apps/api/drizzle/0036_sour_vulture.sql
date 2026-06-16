@@ -1,0 +1,1 @@
+ALTER TABLE "instance_settings" ADD COLUMN "gemini_api_key_secret_ref" text;

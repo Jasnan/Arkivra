@@ -9,7 +9,15 @@ import { requireAdmin } from '../../authorization/authorization.middleware.js';
 import { getAuditActorFromContext, getAuditRequestContext } from '../../audit/audit.http.js';
 import { AUDIT_EVENT_TYPES } from '../../audit/audit.types.js';
 
-const providerSettingsSchema = z.object({
+const chatProviderSettingsSchema = z.object({
+  provider: z.enum(['ollama', 'gemini']),
+  baseUrl: z.string().url(),
+  apiKeySecretRef: z.string().min(1).nullable().optional(),
+  model: z.string().min(1),
+  allowedModels: z.array(z.string().min(1)).optional(),
+});
+
+const ollamaProviderSettingsSchema = z.object({
   provider: z.literal('ollama'),
   baseUrl: z.string().url(),
   apiKeySecretRef: z.string().min(1).nullable().optional(),
@@ -18,22 +26,31 @@ const providerSettingsSchema = z.object({
 
 const aiSettingsSchema = z.object({
   aiFeaturesEnabled: z.boolean(),
-  chat: providerSettingsSchema,
-  translation: providerSettingsSchema.optional(),
-  embedding: providerSettingsSchema.extend({
+  chat: chatProviderSettingsSchema,
+  translation: ollamaProviderSettingsSchema.optional(),
+  embedding: ollamaProviderSettingsSchema.extend({
     dimensions: z.number().int().min(1),
   }),
+  providers: z.object({
+    gemini: z.object({
+      baseUrl: z.string().url(),
+      apiKeySecretRef: z.string().min(1).nullable().optional(),
+    }).optional(),
+  }).optional(),
   ollamaHost: z.string().url().optional(),
   model: z.string().min(1).optional(),
 });
 
 const aiHostSchema = z.object({
   host: z.string().url(),
+  provider: z.enum(['ollama', 'gemini']).optional(),
 });
 
 const aiAvailabilitySchema = z.object({
   host: z.string().url(),
   model: z.string().min(1),
+  provider: z.enum(['ollama', 'gemini']).optional(),
+  apiKeySecretRef: z.string().min(1).nullable().optional(),
 });
 
 export function registerAdminAiRoutes({
@@ -103,14 +120,17 @@ export function registerAdminAiRoutes({
     }
 
     try {
-      const models = await aiServices.listModels({ host: parsed.data.host });
+      const models = await aiServices.listChatModels({
+        provider: parsed.data.provider,
+        baseUrl: parsed.data.host,
+      });
       return context.json({ models });
     } catch (error) {
       return context.json(
         {
           error: {
-            code: 'admin.ollama_unreachable',
-            message: error instanceof Error ? error.message : 'Could not reach Ollama.',
+            code: 'admin.ai_models_unavailable',
+            message: error instanceof Error ? error.message : 'Could not list chat models.',
           },
         },
         502,
@@ -127,15 +147,27 @@ export function registerAdminAiRoutes({
         {
           error: {
             code: 'admin.invalid_ai_availability_payload',
-            message: 'A valid Ollama host and model are required.',
+            message: 'A valid AI provider host and model are required.',
           },
         },
         400,
       );
     }
 
-    const availability = await aiServices.checkModelAvailability(parsed.data);
-    return context.json({ availability });
+    try {
+      const availability = await aiServices.checkModelAvailability(parsed.data);
+      return context.json({ availability });
+    } catch (error) {
+      return context.json(
+        {
+          error: {
+            code: 'admin.ai_availability_check_failed',
+            message: error instanceof Error ? error.message : 'Could not check AI provider availability.',
+          },
+        },
+        502,
+      );
+    }
   });
 }
 

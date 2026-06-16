@@ -16,6 +16,38 @@ import { createOllamaProvider, normalizeOllamaHost } from '../../ai/providers/in
 import { instanceSettingsTable } from '../../database/schema/index.js';
 
 const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
+const DEFAULT_GEMINI_API_KEY_SECRET_REF = 'GEMINI_API_KEY';
+const RAW_GOOGLE_API_KEY_PATTERN = /^AIza[\w-]{20,}$/;
+export const GEMINI_OPENAI_COMPATIBLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+export const CURATED_GEMINI_CHAT_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-3.1-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+] as const;
+
+const OLLAMA_EMBEDDING_MODEL_PATTERNS = [
+  /^bge[-:]/i,
+  /^e5[-:]/i,
+  /^gte[-:]/i,
+  /^mxbai[-:]/i,
+  /^nomic-embed/i,
+  /^snowflake-arctic-embed/i,
+  /^all-minilm/i,
+  /^jina-embeddings/i,
+  /^qwen\d+(?:\.\d+)?-embedding/i,
+  /^granite-embedding/i,
+  /^embeddinggemma/i,
+  /(?:^|[-:])embed(?:$|[-:])/i,
+  /(?:^|[-:])embedding(?:$|[-:])/i,
+] as const;
+
+function isLikelyEmbeddingModelName(modelName: string) {
+  return OLLAMA_EMBEDDING_MODEL_PATTERNS.some(pattern => pattern.test(modelName));
+}
 
 type EmbeddingIndexSummaryRow = {
   id: string;
@@ -60,6 +92,86 @@ function normalizeHost(host: string) {
   return normalizeOllamaHost(host);
 }
 
+function normalizeGeminiBaseUrl(baseUrl: string | null | undefined) {
+  return (baseUrl ?? GEMINI_OPENAI_COMPATIBLE_BASE_URL).trim().replace(/\/+$/, '');
+}
+
+function normalizeChatBaseUrl({
+  provider,
+  baseUrl,
+  fallbackOllamaHost,
+}: {
+  provider: AdminAiSettings['chat']['provider'];
+  baseUrl: string | null | undefined;
+  fallbackOllamaHost: string;
+}) {
+  return provider === 'gemini'
+    ? normalizeGeminiBaseUrl(baseUrl)
+    : normalizeHost(baseUrl ?? fallbackOllamaHost);
+}
+
+function normalizeModelList(models: readonly string[]) {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const model of models) {
+    const trimmed = model.trim();
+    if (trimmed.length === 0 || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized;
+}
+
+function getDefaultChatModel(provider: AdminAiSettings['chat']['provider'], fallbackModel: string) {
+  if (provider === 'gemini') {
+    return CURATED_GEMINI_CHAT_MODELS[0];
+  }
+
+  return fallbackModel;
+}
+
+function normalizeAllowedChatModels({
+  provider,
+  model,
+  allowedModels,
+}: {
+  provider: AdminAiSettings['chat']['provider'];
+  model: string;
+  allowedModels: readonly string[] | null | undefined;
+}) {
+  const catalog = provider === 'gemini' ? [...CURATED_GEMINI_CHAT_MODELS] : [];
+  const candidates = normalizeModelList([...(allowedModels ?? []), model]);
+  const filtered = provider === 'gemini'
+    ? candidates.filter(candidate => catalog.includes(candidate as typeof CURATED_GEMINI_CHAT_MODELS[number]))
+    : candidates;
+
+  return filtered.length > 0 ? filtered : normalizeModelList([model]);
+}
+
+function normalizeApiKeySecretRef(secretRef: string | null | undefined) {
+  const trimmed = secretRef?.trim();
+  if (!trimmed || RAW_GOOGLE_API_KEY_PATTERN.test(trimmed)) return null;
+  return trimmed;
+}
+
+function resolveApiKey(...secretRefs: Array<string | null | undefined>) {
+  const candidates = [...secretRefs, DEFAULT_GEMINI_API_KEY_SECRET_REF];
+
+  for (const secretRef of candidates) {
+    const normalizedSecretRef = normalizeApiKeySecretRef(secretRef);
+    if (!normalizedSecretRef) continue;
+    const apiKey = process.env[normalizedSecretRef];
+    if (apiKey) return apiKey;
+  }
+
+  return null;
+}
+
 function toIsoOrNull(value: Date | string | null) {
   if (value === null) {
     return null;
@@ -96,6 +208,7 @@ function createDefaultSettings(config: Config): AdminAiSettings {
       baseUrl: ollamaHost,
       apiKeySecretRef: null,
       model,
+      allowedModels: [model],
     },
     translation: {
       provider: 'ollama',
@@ -109,6 +222,12 @@ function createDefaultSettings(config: Config): AdminAiSettings {
       apiKeySecretRef: null,
       model: 'bge-m3',
       dimensions: 1024,
+    },
+    providers: {
+      gemini: {
+        baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
+        apiKeySecretRef: null,
+      },
     },
     ollamaHost,
     model,
@@ -132,20 +251,37 @@ function createDefaultIngestionSettings(config: Config) {
 }
 
 function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
-  const chatBaseUrl = normalizeHost(input.chat?.baseUrl ?? input.ollamaHost);
-  const chatModel = (input.chat?.model ?? input.model).trim();
+  const chatProvider = input.chat?.provider === 'gemini' ? 'gemini' : 'ollama';
+  const chatBaseUrl = normalizeChatBaseUrl({
+    provider: chatProvider,
+    baseUrl: input.chat?.baseUrl,
+    fallbackOllamaHost: input.ollamaHost,
+  });
+  const chatModel = (input.chat?.model ?? getDefaultChatModel(chatProvider, input.model)).trim();
+  const allowedChatModels = normalizeAllowedChatModels({
+    provider: chatProvider,
+    model: chatModel,
+    allowedModels: input.chat?.allowedModels,
+  });
   const translationBaseUrl = normalizeHost(input.translation?.baseUrl ?? chatBaseUrl);
   const translationModel = (input.translation?.model ?? chatModel).trim();
   const embeddingBaseUrl = normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);
   const embeddingModel = input.embedding.model.trim();
+  const legacyOllamaHost = chatProvider === 'ollama' ? chatBaseUrl : translationBaseUrl;
+  const legacyOllamaModel = chatProvider === 'ollama' ? chatModel : translationModel;
+  const geminiApiKeySecretRef = (
+    input.providers?.gemini?.apiKeySecretRef
+    ?? (chatProvider === 'gemini' ? input.chat?.apiKeySecretRef : null)
+  );
 
   return {
     aiFeaturesEnabled: input.aiFeaturesEnabled,
     chat: {
-      provider: 'ollama',
+      provider: chatProvider,
       baseUrl: chatBaseUrl,
-      apiKeySecretRef: null,
+      apiKeySecretRef: normalizeApiKeySecretRef(input.chat?.apiKeySecretRef),
       model: chatModel,
+      allowedModels: allowedChatModels,
     },
     translation: {
       provider: 'ollama',
@@ -160,8 +296,14 @@ function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       model: embeddingModel,
       dimensions: input.embedding.dimensions,
     },
-    ollamaHost: chatBaseUrl,
-    model: chatModel,
+    providers: {
+      gemini: {
+        baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
+        apiKeySecretRef: normalizeApiKeySecretRef(geminiApiKeySecretRef),
+      },
+    },
+    ollamaHost: legacyOllamaHost,
+    model: legacyOllamaModel,
   };
 }
 
@@ -208,13 +350,26 @@ export function createAdminAiServices({
       return defaults;
     }
 
+    const chatProvider = stored.chatProvider === 'gemini' ? 'gemini' : 'ollama';
+    const chatModel = (stored.chatModel ?? stored.ollamaModel ?? getDefaultChatModel(chatProvider, defaults.model)).trim();
+    const chatBaseUrl = normalizeChatBaseUrl({
+      provider: chatProvider,
+      baseUrl: stored.chatBaseUrl ?? stored.ollamaHost,
+      fallbackOllamaHost: stored.ollamaHost,
+    });
+
     return {
       aiFeaturesEnabled: stored.aiFeaturesEnabled,
       chat: {
-        provider: 'ollama',
-        baseUrl: stored.ollamaHost,
-        apiKeySecretRef: null,
-        model: stored.ollamaModel,
+        provider: chatProvider,
+        baseUrl: chatBaseUrl,
+        apiKeySecretRef: normalizeApiKeySecretRef(stored.chatApiKeySecretRef),
+        model: chatModel,
+        allowedModels: normalizeAllowedChatModels({
+          provider: chatProvider,
+          model: chatModel,
+          allowedModels: stored.chatAllowedModels,
+        }),
       },
       translation: {
         provider: 'ollama',
@@ -228,6 +383,12 @@ export function createAdminAiServices({
         apiKeySecretRef: null,
         model: stored.ollamaEmbeddingModel,
         dimensions: stored.ollamaEmbeddingDimensions,
+      },
+      providers: {
+        gemini: {
+          baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
+          apiKeySecretRef: normalizeApiKeySecretRef(stored.geminiApiKeySecretRef),
+        },
       },
       ollamaHost: stored.ollamaHost,
       model: stored.ollamaModel,
@@ -348,6 +509,7 @@ export function createAdminAiServices({
         provider: settings.chat.provider,
         baseUrl: settings.chat.baseUrl,
         model: settings.chat.model,
+        allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
       },
       embedding: {
         activeIndex,
@@ -487,6 +649,12 @@ export function createAdminAiServices({
       .values({
         id: INSTANCE_AI_SETTINGS_ID,
         aiFeaturesEnabled: normalized.aiFeaturesEnabled,
+        chatProvider: normalized.chat.provider,
+        chatBaseUrl: normalized.chat.baseUrl,
+        chatApiKeySecretRef: normalized.chat.apiKeySecretRef,
+        chatModel: normalized.chat.model,
+        chatAllowedModels: normalized.chat.allowedModels ?? [normalized.chat.model],
+        geminiApiKeySecretRef: normalized.providers?.gemini?.apiKeySecretRef ?? null,
         ollamaHost: normalized.ollamaHost,
         ollamaModel: normalized.model,
         aiSummarisationEnabled: normalized.aiFeaturesEnabled,
@@ -501,6 +669,12 @@ export function createAdminAiServices({
         target: instanceSettingsTable.id,
         set: {
           aiFeaturesEnabled: normalized.aiFeaturesEnabled,
+          chatProvider: normalized.chat.provider,
+          chatBaseUrl: normalized.chat.baseUrl,
+          chatApiKeySecretRef: normalized.chat.apiKeySecretRef,
+          chatModel: normalized.chat.model,
+          chatAllowedModels: normalized.chat.allowedModels ?? [normalized.chat.model],
+          geminiApiKeySecretRef: normalized.providers?.gemini?.apiKeySecretRef ?? null,
           ollamaHost: normalized.ollamaHost,
           ollamaModel: normalized.model,
           aiSummarisationEnabled: normalized.aiFeaturesEnabled,
@@ -546,6 +720,34 @@ export function createAdminAiServices({
     return await ollama.listModels({ host: effectiveHost });
   }
 
+  async function listChatModels({
+    provider,
+    baseUrl,
+  }: {
+    provider?: AdminAiSettings['chat']['provider'];
+    baseUrl?: string;
+  } = {}): Promise<AdminAiModel[]> {
+    const settings = provider === undefined || (provider !== 'gemini' && baseUrl === undefined)
+      ? await getSettings()
+      : null;
+    const effectiveProvider = provider ?? settings?.chat.provider ?? 'ollama';
+
+    if (effectiveProvider === 'gemini') {
+      return CURATED_GEMINI_CHAT_MODELS.map(model => ({
+        name: model,
+        size: null,
+        modifiedAt: null,
+      }));
+    }
+
+    const effectiveBaseUrl = baseUrl ?? settings?.chat.baseUrl ?? config.ollama.host;
+    return (await listModels({ host: effectiveBaseUrl }))
+      .filter(model =>
+        model.name !== settings?.embedding.model
+        && !isLikelyEmbeddingModelName(model.name)
+      );
+  }
+
   async function probeModelLoad({
     host,
     model,
@@ -559,14 +761,51 @@ export function createAdminAiServices({
   async function checkModelAvailability({
     host,
     model,
+    provider,
+    apiKeySecretRef,
   }: {
     host?: string;
     model?: string;
+    provider?: AdminAiSettings['chat']['provider'];
+    apiKeySecretRef?: string | null;
   } = {}): Promise<AdminAiModelAvailability> {
-    const settings = host === undefined || model === undefined ? await getSettings() : null;
-    const effectiveHost = normalizeHost(host ?? settings?.ollamaHost ?? config.ollama.host);
-    const effectiveModel = (model ?? settings?.model ?? config.ollama.model).trim();
+    const settings = host === undefined || model === undefined
+      ? await getSettings()
+      : null;
+    const effectiveProvider = provider ?? settings?.chat.provider ?? 'ollama';
+    const effectiveHost = effectiveProvider === 'gemini'
+      ? normalizeGeminiBaseUrl(host ?? settings?.chat.baseUrl)
+      : normalizeHost(host ?? settings?.ollamaHost ?? config.ollama.host);
+    const effectiveModel = (
+      model
+      ?? settings?.chat.model
+      ?? getDefaultChatModel(effectiveProvider, config.ollama.model)
+    ).trim();
     const startedAt = Date.now();
+
+    if (effectiveProvider === 'gemini') {
+      const models = await listChatModels({ provider: 'gemini' });
+      const modelAvailable = models.some(item => item.name === effectiveModel);
+      const apiKeyAvailable = resolveApiKey(
+        apiKeySecretRef
+        ?? settings?.providers?.gemini?.apiKeySecretRef,
+        settings?.chat.apiKeySecretRef,
+      ) !== null;
+
+      return {
+        host: effectiveHost,
+        model: effectiveModel,
+        reachable: apiKeyAvailable,
+        modelAvailable: modelAvailable && apiKeyAvailable,
+        models,
+        responseTimeMs: Date.now() - startedAt,
+        error: !modelAvailable
+          ? `Model "${effectiveModel}" is not in Arkivra's curated Gemini chat catalog.`
+          : !apiKeyAvailable
+              ? 'Gemini API key environment variable is not configured on the API server.'
+              : null,
+      };
+    }
 
     try {
       const models = await listModels({ host: effectiveHost });
@@ -650,6 +889,7 @@ export function createAdminAiServices({
     getIngestionSettings,
     updateSettings,
     listModels,
+    listChatModels,
     checkModelAvailability,
     startEmbeddingIndex,
   };

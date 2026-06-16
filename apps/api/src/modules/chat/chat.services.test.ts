@@ -6,6 +6,7 @@ import {
   buildChatMessageCitationRows,
   buildChunkLevelCitationsForChat,
   buildCitationContext,
+  createChatServices,
   buildExpandedCitationForChat,
   buildManifestHybridSearchArgs,
   buildGlobalIntentSystemPrompt,
@@ -53,6 +54,26 @@ const citation: Citation = {
 };
 
 describe('chat service helpers', () => {
+  test('does not include a configured default model that is no longer available', async () => {
+    const services = createChatServices({
+      db: {} as any,
+      searchServices: {} as any,
+      resolveAiSettings: async () => ({
+        provider: 'ollama',
+        baseUrl: 'http://127.0.0.1:11434',
+        model: 'deleted-model',
+        allowedModels: ['deleted-model'],
+        maxImagesPerRequest: 0,
+      }),
+      listAvailableModels: async () => ['glm-ocr:q8_0', 'granite4.1:3b'],
+    });
+
+    await expect(services.getModelOptions()).resolves.toEqual({
+      defaultModel: 'glm-ocr:q8_0',
+      models: ['glm-ocr:q8_0', 'granite4.1:3b'],
+    });
+  });
+
   test('builds answer prompts from citation payloads only', () => {
     const prompt = buildAnswerPrompt({
       question: 'How long are records kept?',

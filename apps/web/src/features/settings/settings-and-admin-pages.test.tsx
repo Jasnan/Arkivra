@@ -1757,6 +1757,12 @@ describe('settings, admin, and about pages', () => {
               model: 'bge-m3',
               dimensions: 1024,
             },
+            providers: {
+              gemini: {
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                apiKeySecretRef: null,
+              },
+            },
             ollamaHost: 'http://127.0.0.1:11434',
             model: 'gemma4:e4b',
           },
@@ -2026,7 +2032,7 @@ describe('settings, admin, and about pages', () => {
     expect(screen.queryByText(/no ai access/i)).not.toBeInTheDocument();
   });
 
-  it('allows saving chat provider settings while AI features are disabled', async () => {
+  it('allows saving the Ollama base URL while AI features are disabled and no model is selected', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -2090,13 +2096,7 @@ describe('settings, admin, and about pages', () => {
 
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         return jsonResponse({
-          models: [
-            {
-              name: 'gemma4:e4b',
-              size: 1024,
-              modifiedAt: '2026-04-14T19:00:00.000Z',
-            },
-          ],
+          models: [],
         });
       }
 
@@ -2124,8 +2124,7 @@ describe('settings, admin, and about pages', () => {
 
     await renderWithProviders(<AdminAiSettingsPage />);
 
-    expect((await screen.findAllByText('gemma4:e4b')).length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: /view details/i }));
+    await user.click(await screen.findByRole('button', { name: /view details/i }));
     const [chatBaseUrlInput] = await screen.findAllByLabelText(/base url/i);
     await user.clear(chatBaseUrlInput);
     await user.type(chatBaseUrlInput, 'http://127.0.0.1:11435');
@@ -2139,6 +2138,145 @@ describe('settings, admin, and about pages', () => {
           method: 'PUT',
         }),
       );
+    });
+
+    const saveCall = fetchMock.mock.calls.find(([url, init]) =>
+      String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
+    );
+    expect(saveCall).toBeDefined();
+    const payload = JSON.parse(String(saveCall?.[1]?.body));
+    expect(payload).toMatchObject({
+      chat: { baseUrl: 'http://127.0.0.1:11435' },
+      translation: { baseUrl: 'http://127.0.0.1:11435' },
+      embedding: { baseUrl: 'http://127.0.0.1:11435' },
+      ollamaHost: 'http://127.0.0.1:11435',
+    });
+  });
+
+  it('activates Gemini without exposing an API key field in the UI', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_admin',
+          sessionId: 'ses_admin',
+          systemRole: 'admin',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: true,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          settings: {
+            aiFeaturesEnabled: false,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+              allowedModels: ['gemma4:e4b'],
+            },
+            translation: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+            },
+            embedding: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'bge-m3',
+              dimensions: 1024,
+            },
+            ollamaHost: 'http://127.0.0.1:11434',
+            model: 'gemma4:e4b',
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/status') {
+        return jsonResponse({
+          status: {
+            aiFeaturesEnabled: false,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              model: 'gemma4:e4b',
+              allowedModels: ['gemma4:e4b'],
+            },
+            embedding: {
+              semanticSearchAvailable: false,
+              activeIndex: null,
+              candidateIndexes: [],
+              recentIndexes: [],
+              chunkCoverage: {
+                indexedChunkCount: 0,
+                totalChunkCount: 0,
+              },
+            },
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/models' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        return jsonResponse({
+          models: body.provider === 'gemini'
+            ? [
+                { name: 'gemini-3.5-flash', size: null, modifiedAt: null },
+                { name: 'gemini-2.5-flash', size: null, modifiedAt: null },
+              ]
+            : [
+                { name: 'gemma4:e4b', size: 1024, modifiedAt: '2026-04-14T19:00:00.000Z' },
+              ],
+        });
+      }
+
+      if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        return jsonResponse({
+          availability: {
+            host: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            model: 'gemini-3.5-flash',
+            reachable: true,
+            modelAvailable: true,
+            models: [{ name: 'gemini-3.5-flash', size: null, modifiedAt: null }],
+            responseTimeMs: 42,
+            error: null,
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && init?.method === 'PUT') {
+        return jsonResponse({ settings: JSON.parse(String(init.body)) });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /view google gemini provider/i }));
+    expect(screen.queryByLabelText(/gemini api key environment variable/i)).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /use for chat/i }));
+
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(([url, init]) =>
+        String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
+      );
+      expect(saveCall).toBeDefined();
+      const payload = JSON.parse(String(saveCall?.[1]?.body));
+      expect(payload.chat).toMatchObject({
+        provider: 'gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        model: 'gemini-3.5-flash',
+        apiKeySecretRef: null,
+      });
     });
   });
 

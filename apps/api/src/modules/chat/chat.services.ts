@@ -191,8 +191,11 @@ const DEFAULT_INTENT_EXAMPLES: Record<ChatIntent, string[]> = {
 };
 
 type AiRuntimeSettings = {
+  provider: 'ollama' | 'gemini';
   baseUrl: string;
+  apiKey?: string;
   model: string;
+  allowedModels: string[];
   maxImagesPerRequest: number;
 };
 
@@ -2585,7 +2588,7 @@ export function createChatServices({
   searchServices: DocumentSearchServices;
   documentsServices?: DocumentsServices;
   resolveAiSettings: () => Promise<AiRuntimeSettings>;
-  listAvailableModels: (args: { baseUrl: string }) => Promise<string[]>;
+  listAvailableModels: () => Promise<string[]>;
 }) {
   async function listConversations({ userId }: { userId: string }) {
     const rows = await db
@@ -2758,12 +2761,11 @@ export function createChatServices({
 
   async function getModelOptions(): Promise<ChatModelOptions> {
     const settings = await resolveAiSettings();
-    const models = await listAvailableModels({ baseUrl: settings.baseUrl });
-    const uniqueModels = models.includes(settings.model) ? models : [settings.model, ...models];
+    const models = await listAvailableModels();
 
     return {
-      defaultModel: settings.model,
-      models: uniqueModels,
+      defaultModel: models.includes(settings.model) ? settings.model : models[0] ?? '',
+      models,
     };
   }
 
@@ -2974,15 +2976,22 @@ export function createChatServices({
         try {
           const settings = await resolveAiSettings();
           const requestedModel = model?.trim();
+          const availableModels = await listAvailableModels();
           const effectiveModel =
-            requestedModel && requestedModel.length > 0 ? requestedModel : settings.model;
-          if (requestedModel && requestedModel.length > 0 && requestedModel !== settings.model) {
-            const availableModels = await listAvailableModels({ baseUrl: settings.baseUrl });
-            if (!availableModels.includes(requestedModel)) {
-              throw new Error(
-                `Model "${requestedModel}" is not available from the configured chat provider.`,
-              );
-            }
+            requestedModel && requestedModel.length > 0
+              ? requestedModel
+              : availableModels.includes(settings.model)
+                ? settings.model
+                : availableModels[0] ?? '';
+
+          if (effectiveModel.length === 0) {
+            throw new Error('No chat models are available from the configured chat provider.');
+          }
+
+          if (!availableModels.includes(effectiveModel)) {
+            throw new Error(
+              `Model "${effectiveModel}" is not available from the configured chat provider.`,
+            );
           }
 
           const chatModel = createChatModel({ settings, model: effectiveModel });

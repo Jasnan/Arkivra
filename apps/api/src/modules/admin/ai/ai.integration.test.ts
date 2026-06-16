@@ -52,6 +52,9 @@ function createMockAiServices() {
     listModels: vi.fn(async () => [
       { name: 'gemma4:e4b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' },
     ]),
+    listChatModels: vi.fn(async () => [
+      { name: 'gemma4:e4b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' },
+    ]),
     checkModelAvailability: vi.fn(async () => ({
       host: 'http://127.0.0.1:11434',
       model: 'gemma4:e4b',
@@ -780,7 +783,152 @@ describe('admin ai routes integration', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(aiServices.listModels).toHaveBeenCalledWith({ host: 'http://127.0.0.1:11434' });
+    expect(aiServices.listChatModels).toHaveBeenCalledWith({
+      provider: undefined,
+      baseUrl: 'http://127.0.0.1:11434',
+    });
+  });
+
+  test('returns curated Gemini chat models without reading stored settings', async () => {
+    const select = vi.fn(() => {
+      throw new Error('stored settings should not be read');
+    });
+    const aiServices = createAdminAiServices({
+      db: { select } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+      } as any,
+    });
+
+    const models = await aiServices.listChatModels({ provider: 'gemini' });
+    expect(models.map(model => model.name)).toContain('gemini-3.5-flash');
+
+    const availability = await aiServices.checkModelAvailability({
+      provider: 'gemini',
+      host: 'https://generativelanguage.googleapis.com/v1beta/openai',
+      model: 'gemini-3.5-flash',
+      apiKeySecretRef: 'ARKIVRA_TEST_MISSING_GEMINI_KEY',
+    });
+
+    expect(availability).toMatchObject({
+      reachable: false,
+      modelAvailable: false,
+      error: 'Gemini API key environment variable is not configured on the API server.',
+    });
+  });
+
+  test('checks Gemini availability with the stored provider secret ref', async () => {
+    const previousKey = process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY;
+    process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY = 'configured';
+    const aiServices = createAdminAiServices({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [{
+                aiFeaturesEnabled: true,
+                chatProvider: 'gemini',
+                chatBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                chatApiKeySecretRef: 'ARKIVRA_TEST_MISSING_GEMINI_KEY',
+                chatModel: 'gemini-3.5-flash',
+                chatAllowedModels: ['gemini-3.5-flash'],
+                geminiApiKeySecretRef: 'ARKIVRA_TEST_GEMINI_PROVIDER_KEY',
+                ollamaHost: 'http://127.0.0.1:11434',
+                ollamaModel: 'gemma4:e4b',
+                ollamaTranslationModel: 'gemma4:e4b',
+                ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+                ollamaEmbeddingModel: 'bge-m3',
+                ollamaEmbeddingDimensions: 1024,
+              }],
+            }),
+          }),
+        }),
+      } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+      } as any,
+    });
+
+    try {
+      const availability = await aiServices.checkModelAvailability();
+
+      expect(availability).toMatchObject({
+        reachable: true,
+        modelAvailable: true,
+        error: null,
+      });
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY;
+      } else {
+        process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY = previousKey;
+      }
+    }
+  });
+
+  test('ignores raw-looking Gemini keys stored as secret refs and falls back to GEMINI_API_KEY', async () => {
+    const previousKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'configured';
+    const rawLookingKey = `AIza${'x'.repeat(32)}`;
+    const aiServices = createAdminAiServices({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [{
+                aiFeaturesEnabled: true,
+                chatProvider: 'gemini',
+                chatBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                chatApiKeySecretRef: rawLookingKey,
+                chatModel: 'gemini-3.5-flash',
+                chatAllowedModels: ['gemini-3.5-flash'],
+                geminiApiKeySecretRef: rawLookingKey,
+                ollamaHost: 'http://127.0.0.1:11434',
+                ollamaModel: 'gemma4:e4b',
+                ollamaTranslationModel: 'gemma4:e4b',
+                ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+                ollamaEmbeddingModel: 'bge-m3',
+                ollamaEmbeddingDimensions: 1024,
+              }],
+            }),
+          }),
+        }),
+      } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+      } as any,
+    });
+
+    try {
+      const settings = await aiServices.getSettings();
+      const availability = await aiServices.checkModelAvailability();
+
+      expect(settings.chat.apiKeySecretRef).toBeNull();
+      expect(settings.providers?.gemini?.apiKeySecretRef).toBeNull();
+      expect(availability).toMatchObject({
+        reachable: true,
+        modelAvailable: true,
+        error: null,
+      });
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.GEMINI_API_KEY;
+      } else {
+        process.env.GEMINI_API_KEY = previousKey;
+      }
+    }
   });
 
   test('returns availability details without failing the request when Ollama is unreachable', async () => {
@@ -806,6 +954,32 @@ describe('admin ai routes integration', () => {
     const body = await response.json() as any;
     expect(body.availability.reachable).toBe(false);
     expect(body.availability.modelAvailable).toBe(false);
+  });
+
+  test('maps AI availability probe failures to structured 502 responses', async () => {
+    const aiServices = createMockAiServices() as any;
+    aiServices.checkModelAvailability = vi.fn(async () => {
+      throw new Error('unexpected provider probe failure');
+    });
+
+    const { app } = createTestApp({ aiServices });
+    const response = await app.request('/api/admin/ai/availability', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'ollama',
+        host: 'http://127.0.0.1:11434',
+        model: 'glm-ocr:q8_0',
+      }),
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: 'admin.ai_availability_check_failed',
+        message: 'unexpected provider probe failure',
+      },
+    });
   });
 
   test('checks explicit Ollama availability without reading stored AI settings', async () => {

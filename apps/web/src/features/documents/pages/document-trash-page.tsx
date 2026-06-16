@@ -23,20 +23,24 @@ import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
 import { useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
-import { adminQueryKeys } from '@/features/admin/admin.queries';
-import { chatQueryKeys } from '@/features/chat/chat.queries';
 import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
 import {
   getBulkDocumentDeletionImpact,
   getDocumentDeletionImpact,
+  getDocumentDuplicateConflict,
   permanentlyDeleteDocument,
   restoreDocument,
 } from '@/features/documents/documents.api';
 import {
-  documentQueryKeys,
-  useDeletedDocumentsQuery,
-} from '@/features/documents/documents.queries';
+  invalidateDocumentCollectionCaches,
+  removeDocumentsFromDeletedListCache,
+} from '@/features/documents/document-cache-updates';
+import type {
+  DocumentDuplicateConflict,
+  UploadConflictStrategy,
+} from '@/features/documents/documents.api';
+import { useDeletedDocumentsQuery } from '@/features/documents/documents.queries';
 import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import type {
   BulkDocumentDeletionImpactPreview,
@@ -112,6 +116,19 @@ function compareTrashDocuments(
   }
 
   return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+}
+
+function conflictStrategyLabel(strategy: UploadConflictStrategy) {
+  switch (strategy) {
+    case 'skip':
+      return 'Skip';
+    case 'keep_both':
+      return 'Keep both';
+    case 'new_version':
+      return 'New version';
+    default:
+      return strategy;
+  }
 }
 
 export function TrashConfirmDialog({
@@ -282,6 +299,10 @@ export function DocumentTrashPage() {
   const [pendingPermanentDelete, setPendingPermanentDelete] = useState<DeletedDocumentSummary[]>(
     [],
   );
+  const [restoreConflict, setRestoreConflict] = useState<{
+    documents: DeletedDocumentSummary[];
+    conflict: DocumentDuplicateConflict;
+  } | null>(null);
   const [deleteImpact, setDeleteImpact] = useState<
     DocumentDeletionImpactPreview | BulkDocumentDeletionImpactPreview | null
   >(null);
@@ -411,30 +432,48 @@ export function DocumentTrashPage() {
     contextMenu?.item.type === 'document' ? getBrowserItemKey(contextMenu.item) : null;
 
   const restoreMutation = useMutation({
-    mutationFn: async (documents: DeletedDocumentSummary[]) =>
+    mutationFn: async ({
+      documents,
+      conflictStrategy,
+    }: {
+      documents: DeletedDocumentSummary[];
+      conflictStrategy?: UploadConflictStrategy;
+    }) =>
       Promise.all(
         documents.map((document) =>
           restoreDocument({
             vaultId: getResolvedVaultId(document, queryVaultId),
             documentId: document.id,
+            conflictStrategy,
           }),
         ),
       ),
-    onSuccess: async (data, documents) => {
+    onSuccess: async (data, { documents, conflictStrategy }) => {
+      const skipped = data.every((item) => item.skipped);
       toast.success(
-        documents.length === 1
-          ? (data[0]?.message ?? 'File restored to original location')
-          : `${documents.length} documents restored.`,
+        skipped
+          ? 'Restore skipped.'
+          : documents.length === 1
+            ? (data[0]?.message ?? 'File restored to original location')
+            : `${documents.length} documents restored.`,
       );
       clearSelection();
       setContextMenu(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
-        queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
-        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
-      ]);
+      if (conflictStrategy !== undefined) {
+        setRestoreConflict(null);
+      }
+      if (!skipped) {
+        removeDocumentsFromDeletedListCache(queryClient, documents);
+      }
+      await invalidateDocumentCollectionCaches(queryClient);
     },
-    onError: (error) => {
+    onError: (error, { documents }) => {
+      const conflict = getDocumentDuplicateConflict(error);
+      if (documents.length === 1 && conflict !== null && conflict.availableStrategies.length > 0) {
+        setRestoreConflict({ documents, conflict });
+        return;
+      }
+
       toast.error(error instanceof Error ? error.message : 'Could not restore documents.');
     },
   });
@@ -458,11 +497,8 @@ export function DocumentTrashPage() {
       clearSelection();
       setContextMenu(null);
       closePermanentDeleteDialog();
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
-        queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
-        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
-      ]);
+      removeDocumentsFromDeletedListCache(queryClient, documents);
+      await invalidateDocumentCollectionCaches(queryClient);
     },
     onError: (error) => {
       toast.error(
@@ -523,7 +559,7 @@ export function DocumentTrashPage() {
         label: 'Restore',
         icon: RotateCcw,
         disabled: itemMutationPending,
-        onSelect: () => restoreMutation.mutate([document]),
+        onSelect: () => restoreMutation.mutate({ documents: [document] }),
       },
       {
         key: 'permanent-delete',
@@ -847,6 +883,55 @@ export function DocumentTrashPage() {
         }}
       />
 
+      <ChakraDialog.Root
+        open={restoreConflict !== null}
+        onOpenChange={(event) => {
+          if (!event.open && !restoreMutation.isPending) {
+            setRestoreConflict(null);
+          }
+        }}
+        size={{ mdDown: 'full', md: 'lg' }}
+      >
+        <Portal>
+          <ChakraDialog.Backdrop />
+          <ChakraDialog.Positioner>
+            <ChakraDialog.Content>
+              <ChakraDialog.Header>
+                <ChakraDialog.Title>Document already exists</ChakraDialog.Title>
+                <ChakraDialog.CloseTrigger asChild>
+                  <CloseButton size="sm" disabled={restoreMutation.isPending} />
+                </ChakraDialog.CloseTrigger>
+              </ChakraDialog.Header>
+              <ChakraDialog.Body>
+                <Text color="fg.muted" fontSize="sm">
+                  {restoreConflict?.conflict.message ??
+                    'A document with this file already exists in this vault.'}
+                </Text>
+              </ChakraDialog.Body>
+              <ChakraDialog.Footer>
+                {restoreConflict?.conflict.availableStrategies.map((strategy) => (
+                  <Button
+                    key={strategy}
+                    type="button"
+                    variant={strategy === 'keep_both' ? 'default' : 'outline'}
+                    disabled={restoreMutation.isPending}
+                    onClick={() => {
+                      if (restoreConflict === null) return;
+                      restoreMutation.mutate({
+                        documents: restoreConflict.documents,
+                        conflictStrategy: strategy,
+                      });
+                    }}
+                  >
+                    {conflictStrategyLabel(strategy)}
+                  </Button>
+                ))}
+              </ChakraDialog.Footer>
+            </ChakraDialog.Content>
+          </ChakraDialog.Positioner>
+        </Portal>
+      </ChakraDialog.Root>
+
       <ActionBar.Root open={selectedDocuments.length > 0}>
         <Portal>
           <ActionBar.Positioner>
@@ -859,7 +944,7 @@ export function DocumentTrashPage() {
                 size="sm"
                 variant="outline"
                 disabled={itemMutationPending}
-                onClick={() => restoreMutation.mutate(selectedDocuments)}
+                onClick={() => restoreMutation.mutate({ documents: selectedDocuments })}
               >
                 Restore
               </Button>

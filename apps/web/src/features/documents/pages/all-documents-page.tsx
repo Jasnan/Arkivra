@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ActionBar, Box, Collapsible, Flex, Portal, SimpleGrid, Text, chakra } from '@chakra-ui/react';
 import {
-  ChevronDown,
-  Folder,
-  FolderOpen,
-  SearchX,
-  Settings2,
-  Upload,
-} from 'lucide-react';
+  ActionBar,
+  Box,
+  Collapsible,
+  Flex,
+  Portal,
+  SimpleGrid,
+  Text,
+  chakra,
+} from '@chakra-ui/react';
+import { ChevronDown, Folder, FolderOpen, SearchX, Settings2, Upload } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
-import {
-  PageIntro,
-  SurfacePanel,
-} from '@/components/layout/vault-ui';
+import { PageIntro, SurfacePanel } from '@/components/layout/vault-ui';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,21 +26,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
-import { adminQueryKeys } from '@/features/admin/admin.queries';
-import { chatQueryKeys } from '@/features/chat/chat.queries';
 import { getDocumentDownloadUrl, softDeleteDocument } from '@/features/documents/documents.api';
 import { DatePresetSelector } from '@/features/documents/components/date-preset-selector';
 import type { DatePreset } from '@/features/documents/components/date-preset-selector';
-import {
-  DocumentLibraryTable,
-} from '@/features/documents/components/document-library-list';
+import { invalidateDocumentCollectionCaches } from '@/features/documents/document-cache-updates';
+import { DocumentLibraryTable } from '@/features/documents/components/document-library-list';
 import { getDocumentSelectionKey } from '@/features/documents/components/document-library-utils';
-import { documentQueryKeys } from '@/features/documents/documents.queries';
 import {
   DocumentSearchControls,
   SearchFilterMultiSelect,
 } from '@/features/documents/components/document-search-controls';
-import { searchQueryKeys, useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
+import { removeTrashTargetsFromFileBrowserCache } from '@/features/documents/hooks/use-file-browser-mutations';
+import { useGlobalSearchDocumentsQuery } from '@/features/search/search.queries';
 import type { SearchResultItem, SearchSortBy } from '@/features/search/search.types';
 import { tokenizeSnippet } from '@/features/search/search.utils';
 import { useAccessibleTagsQuery } from '@/features/tags/tags.queries';
@@ -183,12 +179,7 @@ export function AllDocumentsPage() {
     enabled: !vaultsQuery.isLoading,
   });
   async function invalidateDocumentQueries() {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
-      queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
-    ]);
+    await invalidateDocumentCollectionCaches(queryClient);
   }
 
   const deleteMutation = useMutation({
@@ -196,9 +187,7 @@ export function AllDocumentsPage() {
       Promise.all(documents.map((document) => softDeleteDocument(document))),
     onSuccess: async (_data, documents) => {
       const deletedKeys = new Set(
-        documents.map((document) =>
-          getDocumentSelectionKey(document.vaultId, document.documentId),
-        ),
+        documents.map((document) => getDocumentSelectionKey(document.vaultId, document.documentId)),
       );
 
       toast.success(
@@ -209,6 +198,14 @@ export function AllDocumentsPage() {
       setSelectedDocumentKeys((current) => {
         return current.filter((key) => !deletedKeys.has(key));
       });
+      removeTrashTargetsFromFileBrowserCache(
+        queryClient,
+        documents.map((document) => ({
+          type: 'document',
+          vaultId: document.vaultId,
+          id: document.documentId,
+        })),
+      );
       await invalidateDocumentQueries();
     },
     onError: (error) => {
@@ -284,11 +281,12 @@ export function AllDocumentsPage() {
   );
 
   const visibleDocumentKeys = useMemo(
-    () => paginatedGroups.flatMap((group) =>
-      group.pageDocuments.map((document) =>
-        getDocumentSelectionKey(document.vaultId, document.documentId),
+    () =>
+      paginatedGroups.flatMap((group) =>
+        group.pageDocuments.map((document) =>
+          getDocumentSelectionKey(document.vaultId, document.documentId),
+        ),
       ),
-    ),
     [paginatedGroups],
   );
 
@@ -329,13 +327,14 @@ export function AllDocumentsPage() {
   const activeFilterCount =
     selectedVaultIds.length + visibleSelectedTagIds.length + (datePreset !== 'any' ? 1 : 0);
   const filterStateKey = useMemo(
-    () => JSON.stringify({
-      vaultIds: selectedVaultIds,
-      tagIds: visibleSelectedTagIds,
-      datePreset,
-      customDateFrom,
-      customDateTo,
-    }),
+    () =>
+      JSON.stringify({
+        vaultIds: selectedVaultIds,
+        tagIds: visibleSelectedTagIds,
+        datePreset,
+        customDateFrom,
+        customDateTo,
+      }),
     [customDateFrom, customDateTo, datePreset, selectedVaultIds, visibleSelectedTagIds],
   );
 
@@ -397,11 +396,13 @@ export function AllDocumentsPage() {
   }
 
   function toggleDocumentSelection(selectionKey: string, checked: boolean) {
-    setSelectedDocumentKeys((current) => (
+    setSelectedDocumentKeys((current) =>
       checked
-        ? current.includes(selectionKey) ? current : [...current, selectionKey]
-        : current.filter((key) => key !== selectionKey)
-    ));
+        ? current.includes(selectionKey)
+          ? current
+          : [...current, selectionKey]
+        : current.filter((key) => key !== selectionKey),
+    );
   }
 
   function toggleAllDocumentSelection(selectionKeys: string[], checked: boolean) {
@@ -542,9 +543,10 @@ export function AllDocumentsPage() {
                   value: tag.id,
                   label: tag.name,
                   color: tag.color,
-                  meta: typeof tag.documentsCount === 'number'
-                    ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
-                    : undefined,
+                  meta:
+                    typeof tag.documentsCount === 'number'
+                      ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? '' : 's'}`
+                      : undefined,
                 }))}
                 selectedValues={visibleSelectedTagIds}
                 isLoading={tagsQuery.isLoading}
@@ -592,24 +594,38 @@ export function AllDocumentsPage() {
         }
       />
 
-      <Flex direction={{ base: 'column', sm: 'row' }} align={{ sm: 'center' }} justify={{ sm: 'space-between' }}>
-        <Text fontSize="lg" fontWeight="semibold" color="fg">{summaryLabel}</Text>
+      <Flex
+        direction={{ base: 'column', sm: 'row' }}
+        align={{ sm: 'center' }}
+        justify={{ sm: 'space-between' }}
+      >
+        <Text fontSize="lg" fontWeight="semibold" color="fg">
+          {summaryLabel}
+        </Text>
         <Badge variant="secondary" rounded="lg" px="3" py="1.5" fontSize="sm" fontWeight="medium">
           {selectedSortLabel}
         </Badge>
       </Flex>
 
       {vaultsQuery.isLoading ? (
-        <Text fontSize="sm" color="fg.muted">Loading vaults...</Text>
+        <Text fontSize="sm" color="fg.muted">
+          Loading vaults...
+        </Text>
       ) : null}
       {vaultsQuery.isError ? (
-        <Text fontSize="sm" color="fg.error">Unable to load vaults.</Text>
+        <Text fontSize="sm" color="fg.error">
+          Unable to load vaults.
+        </Text>
       ) : null}
       {documentsQuery.isLoading ? (
-        <Text fontSize="sm" color="fg.muted">Loading documents...</Text>
+        <Text fontSize="sm" color="fg.muted">
+          Loading documents...
+        </Text>
       ) : null}
       {documentsQuery.isError ? (
-        <Text fontSize="sm" color="fg.error">Unable to load your document library.</Text>
+        <Text fontSize="sm" color="fg.error">
+          Unable to load your document library.
+        </Text>
       ) : null}
 
       {!documentsQuery.isLoading && (documentsQuery.data?.results.length ?? 0) === 0 ? (
@@ -648,7 +664,12 @@ export function AllDocumentsPage() {
                   });
                 }}
               >
-                <Flex borderBottomWidth="1px" borderColor="border.surface" px={{ base: '4', sm: '5' }} py="var(--arkivra-listHeaderPaddingY, 0.75rem)">
+                <Flex
+                  borderBottomWidth="1px"
+                  borderColor="border.surface"
+                  px={{ base: '4', sm: '5' }}
+                  py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
+                >
                   <Flex align="center" gap="2.5" w="full">
                     <Flex w="10" ml="-1" justify="center" color="teal.solid" aria-hidden="true">
                       <Folder size={18} />
@@ -727,27 +748,28 @@ export function AllDocumentsPage() {
                       createdAt: result.createdAt,
                       updatedAt: result.updatedAt,
                       tags: result.tags,
-                      snippet: debouncedQuery.length > 0 && result.bestChunk
-                        ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
-                            part.highlighted ? (
-                              <Box
-                                as="mark"
-                                key={`${result.documentId}-${part.key}`}
-                                rounded="md"
-                                bg="teal.subtle"
-                                px="1.5"
-                                py="0.5"
-                                color="fg"
-                              >
-                                {part.text}
-                              </Box>
-                            ) : (
-                              <Text as="span" key={`${result.documentId}-${part.key}`}>
-                                {part.text}
-                              </Text>
-                            ),
-                          )
-                        : undefined,
+                      snippet:
+                        debouncedQuery.length > 0 && result.bestChunk
+                          ? tokenizeSnippet(result.bestChunk.snippet).map((part) =>
+                              part.highlighted ? (
+                                <Box
+                                  as="mark"
+                                  key={`${result.documentId}-${part.key}`}
+                                  rounded="md"
+                                  bg="teal.subtle"
+                                  px="1.5"
+                                  py="0.5"
+                                  color="fg"
+                                >
+                                  {part.text}
+                                </Box>
+                              ) : (
+                                <Text as="span" key={`${result.documentId}-${part.key}`}>
+                                  {part.text}
+                                </Text>
+                              ),
+                            )
+                          : undefined,
                       documentLink: ROUTES.vaultDocument(result.vaultId, result.documentId),
                     }))}
                     selectedDocumentKeys={selectedDocumentKeys}

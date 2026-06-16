@@ -53,7 +53,8 @@ export type RestoreDocumentResult =
       folderId: string | null;
     }
   | { success: false; reason: 'not_found' }
-  | { success: false; reason: 'duplicate'; existingId: string };
+  | { success: false; reason: 'duplicate'; existingId: string }
+  | { success: false; reason: 'skipped'; existingId: string };
 
 export type RestoreDocumentVersionResult =
   | {
@@ -1184,6 +1185,7 @@ export function createDocumentsServices({
 
     if (
       existingHash !== undefined &&
+      !existingHash.isDeleted &&
       (existingName === null || existingHash.id !== existingName.id) &&
       conflictStrategy === 'skip'
     ) {
@@ -1200,6 +1202,7 @@ export function createDocumentsServices({
 
     if (
       existingHash !== undefined &&
+      !existingHash.isDeleted &&
       (existingName === null || existingHash.id !== existingName.id) &&
       conflictStrategy !== 'keep_both'
     ) {
@@ -1210,18 +1213,6 @@ export function createDocumentsServices({
         skipped: false,
         existingId: existingHash.id,
         duplicateScope: existingHash.isDeleted ? ('trash' as const) : ('active' as const),
-        conflictType: 'hash' as const,
-      };
-    }
-
-    if (existingHash !== undefined && existingHash.isDeleted && conflictStrategy === 'keep_both') {
-      return {
-        document: null,
-        documentVersion: null,
-        duplicate: true,
-        skipped: false,
-        existingId: existingHash.id,
-        duplicateScope: 'trash' as const,
         conflictType: 'hash' as const,
       };
     }
@@ -2074,9 +2065,11 @@ export function createDocumentsServices({
   async function restoreDocument({
     documentId,
     vaultId,
+    conflictStrategy,
   }: {
     documentId: string;
     vaultId: string;
+    conflictStrategy?: UploadConflictStrategy;
   }): Promise<RestoreDocumentResult> {
     return db.transaction(async (tx) => {
       const [deletedDoc] = await tx
@@ -2115,7 +2108,13 @@ export function createDocumentsServices({
         .limit(1);
 
       if (existing !== undefined) {
-        return { success: false, reason: 'duplicate', existingId: existing.id };
+        if (conflictStrategy === 'skip') {
+          return { success: false, reason: 'skipped', existingId: existing.id };
+        }
+
+        if (conflictStrategy !== 'keep_both') {
+          return { success: false, reason: 'duplicate', existingId: existing.id };
+        }
       }
 
       let targetFolderId = deletedDocument.folderId;

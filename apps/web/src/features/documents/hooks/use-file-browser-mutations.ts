@@ -2,19 +2,28 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/components/ui/toaster-store';
 import { ApiError } from '@/lib/api';
-import { adminQueryKeys } from '@/features/admin/admin.queries';
-import { chatQueryKeys } from '@/features/chat/chat.queries';
-import { getDocumentDownloadUrl, moveDocument, renameDocument, softDeleteDocument } from '@/features/documents/documents.api';
-import { documentQueryKeys } from '@/features/documents/documents.queries';
-import type { DocumentSummary } from '@/features/documents/documents.types';
 import {
-  getBrowserItemParentId,
-} from '@/features/file-browser/components/vault-browser.types';
+  getDocumentDownloadUrl,
+  moveDocument,
+  renameDocument,
+  softDeleteDocument,
+} from '@/features/documents/documents.api';
+import { invalidateDocumentCollectionCaches } from '@/features/documents/document-cache-updates';
+import type { DocumentSummary } from '@/features/documents/documents.types';
+import { getBrowserItemParentId } from '@/features/file-browser/components/vault-browser.types';
 import type { BrowserItem } from '@/features/file-browser/components/vault-browser.types';
-import { createFolder, moveFolder, renameFolder, softDeleteFolder } from '@/features/file-browser/file-browser.api';
+import {
+  createFolder,
+  moveFolder,
+  renameFolder,
+  softDeleteFolder,
+} from '@/features/file-browser/file-browser.api';
 import { fileBrowserQueryKeys } from '@/features/file-browser/file-browser.queries';
-import type { FolderItemsResponse, FolderSummary, FolderTreeResponse } from '@/features/file-browser/file-browser.types';
-import { searchQueryKeys } from '@/features/search/search.queries';
+import type {
+  FolderItemsResponse,
+  FolderSummary,
+  FolderTreeResponse,
+} from '@/features/file-browser/file-browser.types';
 
 export type FileBrowserTrashTarget =
   | { type: 'document'; vaultId: string; id: string }
@@ -26,10 +35,12 @@ interface FileBrowserCacheSnapshotEntry {
 }
 
 function isFileBrowserVaultQuery(queryKey: QueryKey, vaultIds: Set<string>) {
-  return Array.isArray(queryKey)
-    && queryKey[0] === fileBrowserQueryKeys.all[0]
-    && typeof queryKey[2] === 'string'
-    && vaultIds.has(queryKey[2]);
+  return (
+    Array.isArray(queryKey) &&
+    queryKey[0] === fileBrowserQueryKeys.all[0] &&
+    typeof queryKey[2] === 'string' &&
+    vaultIds.has(queryKey[2])
+  );
 }
 
 function getRemovedFolderIds(folders: FolderTreeResponse['folders'], folderIds: Set<string>) {
@@ -40,9 +51,9 @@ function getRemovedFolderIds(folders: FolderTreeResponse['folders'], folderIds: 
     removedChild = false;
     for (const folder of folders) {
       if (
-        !removedFolderIds.has(folder.id)
-        && folder.parentId !== null
-        && removedFolderIds.has(folder.parentId)
+        !removedFolderIds.has(folder.id) &&
+        folder.parentId !== null &&
+        removedFolderIds.has(folder.parentId)
       ) {
         removedFolderIds.add(folder.id);
         removedChild = true;
@@ -60,18 +71,21 @@ function removeTrashTargetsFromFolderItems(
 ): FolderItemsResponse {
   return {
     ...data,
-    folders: data.folders.filter(folder => !removedFolderIds.has(folder.id)),
-    documents: data.documents.filter(document =>
-      !documentIds.has(document.id)
-      && (document.folderId === null || !removedFolderIds.has(document.folderId)),
+    folders: data.folders.filter((folder) => !removedFolderIds.has(folder.id)),
+    documents: data.documents.filter(
+      (document) =>
+        !documentIds.has(document.id) &&
+        (document.folderId === null || !removedFolderIds.has(document.folderId)),
     ),
     items: data.items.filter((item) => {
       if (item.type === 'folder') {
         return !removedFolderIds.has(item.folder.id);
       }
 
-      return !documentIds.has(item.document.id)
-        && (item.document.folderId === null || !removedFolderIds.has(item.document.folderId));
+      return (
+        !documentIds.has(item.document.id) &&
+        (item.document.folderId === null || !removedFolderIds.has(item.document.folderId))
+      );
     }),
   };
 }
@@ -83,10 +97,11 @@ function removeTrashTargetsFromFolderTree(
 ): FolderTreeResponse {
   return {
     ...data,
-    folders: data.folders.filter(folder => !removedFolderIds.has(folder.id)),
-    documents: data.documents.filter(document =>
-      !documentIds.has(document.id)
-      && (document.folderId === null || !removedFolderIds.has(document.folderId)),
+    folders: data.folders.filter((folder) => !removedFolderIds.has(folder.id)),
+    documents: data.documents.filter(
+      (document) =>
+        !documentIds.has(document.id) &&
+        (document.folderId === null || !removedFolderIds.has(document.folderId)),
     ),
   };
 }
@@ -102,8 +117,12 @@ export function removeTrashTargetsFromFileBrowserCache(
   }
 
   for (const [targetVaultId, vaultTargets] of targetsByVaultId) {
-    const documentIds = new Set(vaultTargets.filter(target => target.type === 'document').map(target => target.id));
-    const folderIds = new Set(vaultTargets.filter(target => target.type === 'folder').map(target => target.id));
+    const documentIds = new Set(
+      vaultTargets.filter((target) => target.type === 'document').map((target) => target.id),
+    );
+    const folderIds = new Set(
+      vaultTargets.filter((target) => target.type === 'folder').map((target) => target.id),
+    );
     const treeQueryKey = fileBrowserQueryKeys.folderTree(targetVaultId);
     const treeData = queryClient.getQueryData<FolderTreeResponse>(treeQueryKey);
     const removedFolderIds = getRemovedFolderIds(treeData?.folders ?? [], folderIds);
@@ -112,14 +131,15 @@ export function removeTrashTargetsFromFileBrowserCache(
     queryClient.setQueriesData<FolderItemsResponse>(
       {
         queryKey: fileBrowserQueryKeys.all,
-        predicate: query => isFileBrowserVaultQuery(query.queryKey, vaultIds) && query.queryKey[1] === 'folder-items',
+        predicate: (query) =>
+          isFileBrowserVaultQuery(query.queryKey, vaultIds) && query.queryKey[1] === 'folder-items',
       },
-      data => data ? removeTrashTargetsFromFolderItems(data, documentIds, removedFolderIds) : data,
+      (data) =>
+        data ? removeTrashTargetsFromFolderItems(data, documentIds, removedFolderIds) : data,
     );
 
-    queryClient.setQueryData<FolderTreeResponse>(
-      treeQueryKey,
-      data => data ? removeTrashTargetsFromFolderTree(data, documentIds, removedFolderIds) : data,
+    queryClient.setQueryData<FolderTreeResponse>(treeQueryKey, (data) =>
+      data ? removeTrashTargetsFromFolderTree(data, documentIds, removedFolderIds) : data,
     );
   }
 }
@@ -128,13 +148,13 @@ function snapshotFileBrowserCache(
   queryClient: QueryClient,
   targets: FileBrowserTrashTarget[],
 ): FileBrowserCacheSnapshotEntry[] {
-  const vaultIds = new Set(targets.map(target => target.vaultId));
+  const vaultIds = new Set(targets.map((target) => target.vaultId));
 
   return queryClient
     .getQueryCache()
     .findAll({ queryKey: fileBrowserQueryKeys.all })
-    .filter(query => isFileBrowserVaultQuery(query.queryKey, vaultIds))
-    .map(query => ({
+    .filter((query) => isFileBrowserVaultQuery(query.queryKey, vaultIds))
+    .map((query) => ({
       queryKey: query.queryKey,
       data: query.state.data,
     }));
@@ -149,8 +169,10 @@ function restoreFileBrowserCache(
   }
 }
 
-function documentTrashTargets(documents: Array<{ vaultId: string; documentId: string }>): FileBrowserTrashTarget[] {
-  return documents.map(document => ({
+function documentTrashTargets(
+  documents: Array<{ vaultId: string; documentId: string }>,
+): FileBrowserTrashTarget[] {
+  return documents.map((document) => ({
     type: 'document',
     vaultId: document.vaultId,
     id: document.documentId,
@@ -223,13 +245,7 @@ export function useFileBrowserMutations({
   const queryClient = useQueryClient();
 
   async function invalidateBrowserData() {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
-      queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: searchQueryKeys.all }),
-    ]);
+    await invalidateDocumentCollectionCaches(queryClient);
   }
 
   async function prepareTrashMutation(targets: FileBrowserTrashTarget[]) {
@@ -257,7 +273,7 @@ export function useFileBrowserMutations({
   const deleteMutation = useMutation({
     mutationFn: async (documents: Array<{ vaultId: string; documentId: string }>) =>
       Promise.all(documents.map((document) => softDeleteDocument(document))),
-    onMutate: documents => prepareTrashMutation(documentTrashTargets(documents)),
+    onMutate: (documents) => prepareTrashMutation(documentTrashTargets(documents)),
     onSuccess: (_data, documents) => {
       toast.success(
         documents.length === 1
@@ -274,19 +290,19 @@ export function useFileBrowserMutations({
   });
   const deleteItemsMutation = useMutation({
     mutationFn: async (items: BrowserItem[]) =>
-      Promise.all(items.map((item) => {
-        if (item.type === 'folder') {
-          return softDeleteFolder({ vaultId, folderId: item.folder.id });
-        }
+      Promise.all(
+        items.map((item) => {
+          if (item.type === 'folder') {
+            return softDeleteFolder({ vaultId, folderId: item.folder.id });
+          }
 
-        return softDeleteDocument({ vaultId, documentId: item.document.id });
-      })),
-    onMutate: items => prepareTrashMutation(browserItemTrashTargets(vaultId, items)),
+          return softDeleteDocument({ vaultId, documentId: item.document.id });
+        }),
+      ),
+    onMutate: (items) => prepareTrashMutation(browserItemTrashTargets(vaultId, items)),
     onSuccess: (_data, items) => {
       toast.success(
-        items.length === 1
-          ? 'Item moved to trash.'
-          : `${items.length} items moved to trash.`,
+        items.length === 1 ? 'Item moved to trash.' : `${items.length} items moved to trash.`,
       );
       onClearSelection();
     },
@@ -297,11 +313,12 @@ export function useFileBrowserMutations({
     onSettled: () => invalidateBrowserData(),
   });
   const createFolderMutation = useMutation({
-    mutationFn: () => createFolder({
-      vaultId,
-      parentId: createFolderParentId,
-      name: folderName,
-    }),
+    mutationFn: () =>
+      createFolder({
+        vaultId,
+        parentId: createFolderParentId,
+        name: folderName,
+      }),
     onSuccess: async () => {
       toast.success('Folder created.');
       onCreateFolderSuccess();
@@ -345,9 +362,17 @@ export function useFileBrowserMutations({
     },
   });
   const moveItemsMutation = useMutation({
-    mutationFn: async ({ targets, destinationId }: { targets: BrowserItem[]; destinationId: string | null }) => {
-      const targetsToMove = targets.filter(target => getBrowserItemParentId(target) !== destinationId);
-      await Promise.all(targetsToMove.map(target => moveBrowserItem({ target, destinationId })));
+    mutationFn: async ({
+      targets,
+      destinationId,
+    }: {
+      targets: BrowserItem[];
+      destinationId: string | null;
+    }) => {
+      const targetsToMove = targets.filter(
+        (target) => getBrowserItemParentId(target) !== destinationId,
+      );
+      await Promise.all(targetsToMove.map((target) => moveBrowserItem({ target, destinationId })));
       return { movedCount: targetsToMove.length };
     },
     onSuccess: async ({ movedCount }) => {
@@ -365,7 +390,7 @@ export function useFileBrowserMutations({
   });
   const deleteFolderMutation = useMutation({
     mutationFn: (folder: FolderSummary) => softDeleteFolder({ vaultId, folderId: folder.id }),
-    onMutate: folder => prepareTrashMutation([{ type: 'folder', vaultId, id: folder.id }]),
+    onMutate: (folder) => prepareTrashMutation([{ type: 'folder', vaultId, id: folder.id }]),
     onSuccess: () => {
       toast.success('Folder moved to trash.');
       onClearSelection();
@@ -391,11 +416,12 @@ export function useFileBrowserMutations({
     deleteFolderMutation,
     deleteDocument,
     downloadDocuments,
-    itemMutationPending: deleteMutation.isPending
-      || deleteFolderMutation.isPending
-      || deleteItemsMutation.isPending
-      || renameMutation.isPending
-      || moveMutation.isPending
-      || moveItemsMutation.isPending,
+    itemMutationPending:
+      deleteMutation.isPending ||
+      deleteFolderMutation.isPending ||
+      deleteItemsMutation.isPending ||
+      renameMutation.isPending ||
+      moveMutation.isPending ||
+      moveItemsMutation.isPending,
   };
 }

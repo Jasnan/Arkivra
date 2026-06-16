@@ -30,8 +30,6 @@ import { useAccentColor } from '@/components/providers/accent-color-context';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
 import { useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
-import { adminQueryKeys } from '@/features/admin/admin.queries';
-import { chatQueryKeys } from '@/features/chat/chat.queries';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,13 +50,22 @@ import {
   deleteDocumentVersion,
   getDocumentInlineFileUrl,
   getDocumentVersionDownloadUrl,
+  getDocumentDuplicateConflict,
   renameDocument,
   restoreDocument,
   restoreDocumentVersion,
   softDeleteDocument,
   updateDocumentLanguage,
 } from '@/features/documents/documents.api';
-import type { DocumentLanguageMetadata, DocumentVersionSummary } from '@/features/documents/documents.types';
+import { invalidateDocumentCollectionCaches } from '@/features/documents/document-cache-updates';
+import type {
+  DocumentDuplicateConflict,
+  UploadConflictStrategy,
+} from '@/features/documents/documents.api';
+import type {
+  DocumentLanguageMetadata,
+  DocumentVersionSummary,
+} from '@/features/documents/documents.types';
 import {
   documentQueryKeys,
   useDeletedDocumentsQuery,
@@ -70,6 +77,7 @@ import {
   useDocumentVersionQuery,
   useDocumentVersionsQuery,
 } from '@/features/documents/documents.queries';
+import { removeTrashTargetsFromFileBrowserCache } from '@/features/documents/hooks/use-file-browser-mutations';
 import {
   getDocumentProcessingStageDescription,
   getDocumentProcessingStageLabel,
@@ -220,6 +228,19 @@ function getPreviewKind(mimeType: string, name: string, originalName: string): P
   return 'unsupported';
 }
 
+function conflictStrategyLabel(strategy: UploadConflictStrategy) {
+  switch (strategy) {
+    case 'skip':
+      return 'Skip';
+    case 'keep_both':
+      return 'Keep both';
+    case 'new_version':
+      return 'New version';
+    default:
+      return strategy;
+  }
+}
+
 export function DocumentDetailPage({ section = 'preview' }: { section?: DocumentSection }) {
   const params = useParams({ strict: false }) as { vaultId?: string; documentId?: string };
   const documentId = params.documentId ?? '';
@@ -264,15 +285,17 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const [isNameEditing, setIsNameEditing] = useState(false);
   const [isLanguageEditing, setIsLanguageEditing] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [restoreConflict, setRestoreConflict] = useState<DocumentDuplicateConflict | null>(null);
   const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
   const documentVersionSelectionKey = `${vaultId}:${documentId}`;
   const [selectedVersionState, setSelectedVersionState] = useState<{
     key: string;
     versionId: string | null;
   }>({ key: documentVersionSelectionKey, versionId: null });
-  const selectedVersionId = selectedVersionState.key === documentVersionSelectionKey
-    ? selectedVersionState.versionId
-    : null;
+  const selectedVersionId =
+    selectedVersionState.key === documentVersionSelectionKey
+      ? selectedVersionState.versionId
+      : null;
   const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [tagSearchValue, setTagSearchValue] = useState('');
 
@@ -435,9 +458,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
 
   const invalidateDocument = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
-      queryClient.invalidateQueries({ queryKey: chatQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+      invalidateDocumentCollectionCaches(queryClient),
       queryClient.invalidateQueries({ queryKey: tagQueryKeys.list() }),
     ]);
   };
@@ -470,9 +491,16 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
 
   const deleteMutation = useMutation({
     mutationFn: softDeleteDocument,
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       toast.success('Document moved to trash.');
       setIsDeleteDialogOpen(false);
+      removeTrashTargetsFromFileBrowserCache(queryClient, [
+        {
+          type: 'document',
+          vaultId: variables.vaultId,
+          id: variables.documentId,
+        },
+      ]);
       await invalidateDocument();
       navigate({ to: parentRoute, replace: true });
     },
@@ -483,14 +511,23 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
 
   const restoreMutation = useMutation({
     mutationFn: restoreDocument,
-    onSuccess: async () => {
-      toast.success('Document restored.');
+    onSuccess: async (data, variables) => {
+      toast.success(data.skipped ? 'Restore skipped.' : 'Document restored.');
+      if (variables.conflictStrategy !== undefined) {
+        setRestoreConflict(null);
+      }
       await invalidateDocument();
-      if (isTrashDocumentRoute) {
+      if (isTrashDocumentRoute && !data.skipped) {
         navigate({ to: ROUTES.trash, replace: true });
       }
     },
     onError: (error) => {
+      const conflict = getDocumentDuplicateConflict(error);
+      if (conflict !== null && conflict.availableStrategies.length > 0) {
+        setRestoreConflict(conflict);
+        return;
+      }
+
       toast.error(error instanceof Error ? error.message : 'Could not restore document.');
     },
   });
@@ -581,28 +618,31 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   }
 
   const document = documentQuery.data.document;
-  const selectedVersionSummary = selectedVersionId === null
-    ? null
-    : documentVersionsQuery.data?.versions.find((version) => version.id === selectedVersionId) ?? null;
+  const selectedVersionSummary =
+    selectedVersionId === null
+      ? null
+      : (documentVersionsQuery.data?.versions.find((version) => version.id === selectedVersionId) ??
+        null);
   const selectedVersionDetail = selectedDocumentVersionQuery.data?.version ?? null;
   const selectedVersion = selectedVersionDetail ?? selectedVersionSummary;
   const isHistoricalVersionSelected = selectedVersionId !== null;
-  const activeDocument = isHistoricalVersionSelected && selectedVersionDetail !== null
-    ? {
-        ...document,
-        originalName: selectedVersionDetail.originalName,
-        originalSize: selectedVersionDetail.originalSize,
-        originalSha256Hash: selectedVersionDetail.originalSha256Hash,
-        mimeType: selectedVersionDetail.mimeType,
-        processingStatus: selectedVersionDetail.processingStatus,
-        language: selectedVersionDetail.language,
-        content: selectedVersionDetail.content,
-        displayContent: selectedVersionDetail.rawMarkdown || selectedVersionDetail.content,
-        updatedAt: selectedVersionDetail.updatedAt,
-        isDeleted: document.isDeleted || selectedVersionDetail.deletedAt !== null,
-        deletedAt: document.deletedAt ?? selectedVersionDetail.deletedAt,
-      }
-    : document;
+  const activeDocument =
+    isHistoricalVersionSelected && selectedVersionDetail !== null
+      ? {
+          ...document,
+          originalName: selectedVersionDetail.originalName,
+          originalSize: selectedVersionDetail.originalSize,
+          originalSha256Hash: selectedVersionDetail.originalSha256Hash,
+          mimeType: selectedVersionDetail.mimeType,
+          processingStatus: selectedVersionDetail.processingStatus,
+          language: selectedVersionDetail.language,
+          content: selectedVersionDetail.content,
+          displayContent: selectedVersionDetail.rawMarkdown || selectedVersionDetail.content,
+          updatedAt: selectedVersionDetail.updatedAt,
+          isDeleted: document.isDeleted || selectedVersionDetail.deletedAt !== null,
+          deletedAt: document.deletedAt ?? selectedVersionDetail.deletedAt,
+        }
+      : document;
   const activePreviewKind = getPreviewKind(
     activeDocument.mimeType,
     activeDocument.name,
@@ -643,8 +683,13 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const historicalDownloadUrl = selectedVersionId
     ? getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: selectedVersionId })
     : undefined;
-  const canPreview = (!activeDocument.isDeleted || isTrashDocumentRoute) && activePreviewKind !== 'unsupported';
-  const canPrint = !isHistoricalVersionSelected && !document.isDeleted && canPreview && activePreviewKind !== 'markdown';
+  const canPreview =
+    (!activeDocument.isDeleted || isTrashDocumentRoute) && activePreviewKind !== 'unsupported';
+  const canPrint =
+    !isHistoricalVersionSelected &&
+    !document.isDeleted &&
+    canPreview &&
+    activePreviewKind !== 'markdown';
   const currentName = renameValue ?? document.name;
   const currentLanguage = languageValue ?? document.language?.code ?? 'unknown';
   const hasNameChanged = currentName.trim() !== document.name;
@@ -678,7 +723,9 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   );
   const isExtractionActive = isDocumentProcessingActive(activeDocument.processingStatus);
   const showExtractionStatus = isExtractionActive || activeDocument.processingStatus === 'failed';
-  const activeChunksQuery = isHistoricalVersionSelected ? documentVersionChunksQuery : documentChunksQuery;
+  const activeChunksQuery = isHistoricalVersionSelected
+    ? documentVersionChunksQuery
+    : documentChunksQuery;
   const documentSectionSearch = routeSearch;
   const documentSectionMenuItems = !isTrashDocumentRoute
     ? [
@@ -1216,6 +1263,51 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                 >
                   {deleteMutation.isPending ? 'Moving...' : 'Trash'}
                 </DeleteButton>
+              </ChakraDialog.Footer>
+            </ChakraDialog.Content>
+          </ChakraDialog.Positioner>
+        </Portal>
+      </ChakraDialog.Root>
+
+      <ChakraDialog.Root
+        open={restoreConflict !== null}
+        onOpenChange={(event) => {
+          if (!event.open && !restoreMutation.isPending) {
+            setRestoreConflict(null);
+          }
+        }}
+        size={{ mdDown: 'full', md: 'lg' }}
+      >
+        <Portal>
+          <ChakraDialog.Backdrop />
+          <ChakraDialog.Positioner>
+            <ChakraDialog.Content>
+              <ChakraDialog.Header>
+                <ChakraDialog.Title>Document already exists</ChakraDialog.Title>
+                <ChakraDialog.CloseTrigger asChild>
+                  <CloseButton size="sm" disabled={restoreMutation.isPending} />
+                </ChakraDialog.CloseTrigger>
+              </ChakraDialog.Header>
+              <ChakraDialog.Body>
+                <Text color="fg.muted" fontSize="sm">
+                  {restoreConflict?.message ??
+                    'A document with this file already exists in this vault.'}
+                </Text>
+              </ChakraDialog.Body>
+              <ChakraDialog.Footer>
+                {restoreConflict?.availableStrategies.map((strategy) => (
+                  <Button
+                    key={strategy}
+                    type="button"
+                    variant={strategy === 'keep_both' ? 'default' : 'outline'}
+                    disabled={restoreMutation.isPending}
+                    onClick={() => {
+                      restoreMutation.mutate({ vaultId, documentId, conflictStrategy: strategy });
+                    }}
+                  >
+                    {conflictStrategyLabel(strategy)}
+                  </Button>
+                ))}
               </ChakraDialog.Footer>
             </ChakraDialog.Content>
           </ChakraDialog.Positioner>

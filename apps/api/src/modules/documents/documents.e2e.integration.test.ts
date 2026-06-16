@@ -665,7 +665,7 @@ describe.sequential('document upload processing e2e', () => {
     );
   }, 60_000);
 
-  test('blocks re-uploading the same file when the original is in trash', async () => {
+  test('allows re-uploading the same file when the original is in trash', async () => {
     if (app === null || db === null || testContext.vaultId === null) {
       throw new Error('Test app dependencies were not initialized');
     }
@@ -733,20 +733,12 @@ describe.sequential('document upload processing e2e', () => {
       body: secondUploadFormData,
     });
 
-    expect(secondUploadResponse.status).toBe(409);
+    expect(secondUploadResponse.status).toBe(201);
     const secondUploadBody = (await secondUploadResponse.json()) as {
-      error: {
-        code: string;
-        existingId: string;
-        duplicateScope: string;
-        message: string;
-      };
+      document: { id: string };
     };
 
-    expect(secondUploadBody.error.code).toBe('document.duplicate');
-    expect(secondUploadBody.error.existingId).toBe(firstDocumentId);
-    expect(secondUploadBody.error.duplicateScope).toBe('trash');
-    expect(secondUploadBody.error.message).toContain('trash');
+    expect(secondUploadBody.document.id).not.toBe(firstDocumentId);
 
     const [trashedDocument] = await db
       .select({
@@ -758,5 +750,32 @@ describe.sequential('document upload processing e2e', () => {
       .limit(1);
 
     expect(trashedDocument?.isDeleted).toBe(true);
+
+    const restoreResponse = await app.request(
+      `/api/vaults/${testContext.vaultId}/documents/${firstDocumentId}/restore`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: sessionCookie,
+        },
+      },
+    );
+
+    expect(restoreResponse.status).toBe(409);
+    const restoreBody = (await restoreResponse.json()) as {
+      error: {
+        code: string;
+        existingId: string;
+        duplicateScope: string;
+        conflictType: string;
+        availableStrategies: string[];
+      };
+    };
+
+    expect(restoreBody.error.code).toBe('document.duplicate');
+    expect(restoreBody.error.existingId).toBe(secondUploadBody.document.id);
+    expect(restoreBody.error.duplicateScope).toBe('active');
+    expect(restoreBody.error.conflictType).toBe('hash');
+    expect(restoreBody.error.availableStrategies).toEqual(['skip', 'keep_both']);
   }, 60_000);
 });

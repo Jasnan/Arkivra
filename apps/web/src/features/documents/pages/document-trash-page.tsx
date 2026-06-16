@@ -898,11 +898,9 @@ export function DocumentTrashPage() {
             <ChakraDialog.Content>
               <ChakraDialog.Header>
                 <ChakraDialog.Title>Document already exists</ChakraDialog.Title>
-                <CloseButton
-                  size="sm"
-                  disabled={restoreMutation.isPending}
-                  onClick={() => setRestoreConflict(null)}
-                />
+                <ChakraDialog.CloseTrigger asChild>
+                  <CloseButton size="sm" disabled={restoreMutation.isPending} />
+                </ChakraDialog.CloseTrigger>
               </ChakraDialog.Header>
               <ChakraDialog.Body>
                 <Text color="fg.muted" fontSize="sm">
@@ -911,14 +909,6 @@ export function DocumentTrashPage() {
                 </Text>
               </ChakraDialog.Body>
               <ChakraDialog.Footer>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={restoreMutation.isPending}
-                  onClick={() => setRestoreConflict(null)}
-                >
-                  Cancel
-                </Button>
                 {restoreConflict?.conflict.availableStrategies.map((strategy) => (
                   <Button
                     key={strategy}

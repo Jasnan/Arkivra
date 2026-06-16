@@ -1295,14 +1295,6 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
                 </Text>
               </ChakraDialog.Body>
               <ChakraDialog.Footer>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={restoreMutation.isPending}
-                  onClick={() => setRestoreConflict(null)}
-                >
-                  Cancel
-                </Button>
                 {restoreConflict?.availableStrategies.map((strategy) => (
                   <Button
                     key={strategy}

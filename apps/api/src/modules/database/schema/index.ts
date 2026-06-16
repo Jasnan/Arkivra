@@ -12,6 +12,7 @@ export { activityEventsTable } from './activity-events.table.js';
 export { documentsTable, documentVersionsTable } from './documents.table.js';
 export { uploadSessionsTable } from './upload-sessions.table.js';
 export { documentChunksTable } from './document-chunks.table.js';
+export { documentElementProvenanceTable } from './document-element-provenance.table.js';
 export { documentChunkAssetsTable } from './document-chunk-assets.table.js';
 export { aiProviderConfigsTable } from './ai-provider-configs.table.js';
 export {

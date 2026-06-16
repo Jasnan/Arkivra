@@ -239,6 +239,13 @@
       "when": 1781481600000,
       "tag": "0033_default_chat_answer_mode_preference",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781568000000,
+      "tag": "0034_document_element_provenance",
+      "breakpoints": true
     }
   ]
 }

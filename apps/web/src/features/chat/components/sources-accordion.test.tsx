@@ -35,7 +35,7 @@ describe('sources accordion', () => {
       <SourcesAccordion currentVaultId="vlt_1" citations={[citation()]} />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /page 1/i }));
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe('sources accordion', () => {
       expect(document.body.style.pointerEvents).toBe('');
     });
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     expect(screen.getByRole('button', { name: /page 1/i })).toBeInTheDocument();
   });
 
@@ -73,7 +73,7 @@ describe('sources accordion', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /page 1/i }));
 
     expect(
@@ -108,7 +108,7 @@ describe('sources accordion', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /pages 1-2/i }));
 
     const dialog = await screen.findByRole('dialog');
@@ -135,6 +135,16 @@ describe('sources accordion', () => {
                 layoutHeight: 100,
                 system: 'PixelSpace',
               },
+              {
+                pageNumber: 1,
+                x0: 32,
+                y0: 20,
+                x1: 50,
+                y1: 60,
+                layoutWidth: 100,
+                layoutHeight: 100,
+                system: 'PixelSpace',
+              },
             ],
             citationPrecision: 'box',
           }),
@@ -142,7 +152,7 @@ describe('sources accordion', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /page 1/i }));
 
     const image = await screen.findByRole('img', { name: /policy\.pdf page 1/i });
@@ -150,11 +160,12 @@ describe('sources accordion', () => {
     Object.defineProperty(image, 'clientHeight', { configurable: true, value: 700 });
     fireEvent.load(image);
 
+    expect(await screen.findAllByTestId('citation-bounding-box')).toHaveLength(1);
     expect(await screen.findByTestId('citation-bounding-box')).toHaveStyle({
       left: '50px',
       top: '140px',
-      width: '100px',
-      height: '210px',
+      width: '200px',
+      height: '280px',
     });
   });
 
@@ -184,7 +195,7 @@ describe('sources accordion', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /page 1/i }));
 
     const image = await screen.findByRole('img', { name: /policy\.pdf page 1/i });
@@ -213,7 +224,7 @@ describe('sources accordion', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /page 1/i }));
 
     expect(
@@ -245,11 +256,12 @@ describe('sources accordion', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /page 1/i }));
 
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
+    expect(within(dialog).queryByText('Matched policy text')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Section')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Eligibility')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Figure evidence')).not.toBeInTheDocument();

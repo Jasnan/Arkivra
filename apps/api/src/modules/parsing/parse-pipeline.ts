@@ -124,6 +124,7 @@ export function createParsePipeline({
       rawText: persistedRaw?.text ?? raw.text,
       rawMarkdown: persistedRaw?.markdown ?? raw.markdown,
       rawStructuredOutput: persistedRaw?.structuredOutput ?? raw.rawStructuredOutput,
+      structuredElements: raw.structuredElements,
       language,
       chunks,
       warnings: pipelineWarnings,

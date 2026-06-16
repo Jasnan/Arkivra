@@ -13,6 +13,7 @@ import {
   formatFollowUpAssistantMessage,
   isEmptyGeneratedChatContent,
   isLikelyTruncatedSingleTokenAnswer,
+  normalizeCitationsForDisplay,
   normalizeChatGenerationError,
   rankCitationsForQuestion,
   sanitizeCitationsForMessagePersistence,
@@ -448,8 +449,401 @@ describe('chat service helpers', () => {
     expect(expanded?.retrievalRepresentation).toBe('docling_element_pair');
     expect(expanded?.citationPrecision).toBe('box');
     expect(expanded?.sourceElementIds).toEqual(['#/texts/12', '#/texts/13']);
-    expect(expanded?.boundingBoxes).toEqual([labelBox, valueBox]);
+    expect(expanded?.boundingBoxes).toEqual([
+      {
+        ...labelBox,
+        y1: valueBox.y1,
+      },
+    ]);
     expect(expanded?.snippet).toBe('Passport No. With Date and Place of Issue H5536221');
+  });
+
+  test('merges broad Docling multi-box citations into a single display region', () => {
+    const labelBox = {
+      pageNumber: 1,
+      x0: 220,
+      y0: 70,
+      x1: 280,
+      y1: 90,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const passportNumberBox = {
+      pageNumber: 1,
+      x0: 430,
+      y0: 86,
+      x1: 525,
+      y1: 100,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const surnameBox = {
+      pageNumber: 1,
+      x0: 224,
+      y0: 112,
+      x1: 340,
+      y1: 125,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const mrzBox = {
+      pageNumber: 1,
+      x0: 55,
+      y0: 316,
+      x1: 531,
+      y1: 362,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const broadCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_passport_front',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/2', '#/texts/3', '#/texts/4', '#/texts/14'],
+      snippet:
+        'Passport No. R3919512 Surname KAKKAMOOLAKKAL P<INDKAKKAMOOLAKKAL<<RABEEBA R3919512<9IND9409204F2710268',
+      boundingBoxes: [labelBox, passportNumberBox, surnameBox, mrzBox],
+      citationPrecision: 'box',
+      score: 0.95,
+    };
+
+    const normalized = normalizeCitationsForDisplay([broadCitation]);
+
+    expect(normalized[0]?.citationPrecision).toBe('box');
+    expect(normalized[0]?.boundingBoxes).toEqual([
+      {
+        ...labelBox,
+        x0: mrzBox.x0,
+        y0: labelBox.y0,
+        x1: mrzBox.x1,
+        y1: mrzBox.y1,
+      },
+    ]);
+    expect(normalized[0]?.sourceElementIds).toEqual(broadCitation.sourceElementIds);
+    expect(normalized[0]?.snippet).toBe(broadCitation.snippet);
+  });
+
+  test('narrows broad provenance boxes to the matching value element', () => {
+    const labelBox = {
+      pageNumber: 1,
+      x0: 220,
+      y0: 70,
+      x1: 280,
+      y1: 90,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const referenceCodeBox = {
+      pageNumber: 1,
+      x0: 430,
+      y0: 86,
+      x1: 525,
+      y1: 100,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const customerBox = {
+      pageNumber: 1,
+      x0: 224,
+      y0: 112,
+      x1: 340,
+      y1: 125,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const footerBox = {
+      pageNumber: 1,
+      x0: 55,
+      y0: 316,
+      x1: 531,
+      y1: 362,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const broadCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_reference_summary',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/2', '#/texts/3', '#/texts/4', '#/texts/14'],
+      snippet: 'Reference Code AB123456 Customer Alpha Logistics Payment terms net 30',
+      boundingBoxes: [labelBox, referenceCodeBox, customerBox, footerBox],
+      citationPrecision: 'box',
+      score: 0.95,
+    };
+
+    const [narrowed] = buildChunkLevelCitationsForChat({
+      question: 'what is the reference code for Alpha?',
+      citations: [broadCitation],
+      contextChunks: [
+        {
+          chunkId: broadCitation.chunkId,
+          chunkIndex: 0,
+          retrievalRepresentation: 'docling_hybrid',
+          pageStart: 1,
+          pageEnd: 1,
+          section: null,
+          sourceElementIds: broadCitation.sourceElementIds,
+          boundingBoxes: broadCitation.boundingBoxes,
+          citationPrecision: 'box',
+          snippet: broadCitation.snippet,
+          retrievalScore: broadCitation.score,
+          retrievalRank: 0,
+          provenanceElements: [
+            {
+              elementId: '#/texts/2',
+              text: 'Reference Code',
+              pageNumber: 1,
+              bbox: labelBox,
+              sortIndex: 2,
+            },
+            {
+              elementId: '#/texts/3',
+              text: 'AB123456',
+              pageNumber: 1,
+              bbox: referenceCodeBox,
+              sortIndex: 3,
+            },
+            {
+              elementId: '#/texts/4',
+              text: 'Customer Alpha Logistics',
+              pageNumber: 1,
+              bbox: customerBox,
+              sortIndex: 4,
+            },
+            {
+              elementId: '#/texts/14',
+              text: 'Payment terms net 30',
+              pageNumber: 1,
+              bbox: footerBox,
+              sortIndex: 14,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(narrowed).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [referenceCodeBox],
+      sourceElementIds: ['#/texts/3'],
+    });
+  });
+
+  test('narrows broad provenance boxes using chunk text when field labels are missing boxes', () => {
+    const customerBox = {
+      pageNumber: 1,
+      x0: 220,
+      y0: 150,
+      x1: 275,
+      y1: 162,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const referenceCodeBox = {
+      pageNumber: 1,
+      x0: 430,
+      y0: 96,
+      x1: 538,
+      y1: 112,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const sentDateBox = {
+      pageNumber: 1,
+      x0: 270,
+      y0: 278,
+      x1: 360,
+      y1: 290,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const amountBox = {
+      pageNumber: 1,
+      x0: 432,
+      y0: 185,
+      x1: 520,
+      y1: 198,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const dueDateBox = {
+      pageNumber: 1,
+      x0: 432,
+      y0: 279,
+      x1: 520,
+      y1: 293,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const broadCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_reference_values',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/5', '#/texts/9', '#/texts/10', '#/texts/12', '#/texts/13'],
+      snippet:
+        'Reference Code AB123456 Customer ALPHA Sent Date 12/09/2017 Amount 1250.00 Due Date 11/09/2027',
+      boundingBoxes: [customerBox, sentDateBox, referenceCodeBox, amountBox, dueDateBox],
+      citationPrecision: 'box',
+      score: 0.95,
+    };
+    const contextChunk = {
+      chunkId: broadCitation.chunkId,
+      chunkIndex: 0,
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      section: null,
+      sourceElementIds: broadCitation.sourceElementIds,
+      boundingBoxes: broadCitation.boundingBoxes,
+      citationPrecision: 'box' as const,
+      snippet: broadCitation.snippet,
+      retrievalScore: broadCitation.score,
+      retrievalRank: 0,
+      provenanceElements: [
+        { elementId: '#/texts/5', text: 'ALPHA', pageNumber: 1, bbox: customerBox, sortIndex: 5 },
+        {
+          elementId: '#/texts/9',
+          text: '12/09/2017',
+          pageNumber: 1,
+          bbox: sentDateBox,
+          sortIndex: 9,
+        },
+        {
+          elementId: '#/texts/10',
+          text: 'AB123456',
+          pageNumber: 1,
+          bbox: referenceCodeBox,
+          sortIndex: 10,
+        },
+        {
+          elementId: '#/texts/12',
+          text: '1250.00',
+          pageNumber: 1,
+          bbox: amountBox,
+          sortIndex: 12,
+        },
+        {
+          elementId: '#/texts/13',
+          text: '11/09/2027',
+          pageNumber: 1,
+          bbox: dueDateBox,
+          sortIndex: 13,
+        },
+      ],
+    };
+
+    const [referenceCitation] = buildChunkLevelCitationsForChat({
+      question: 'what is the reference code for Alpha?',
+      citations: [broadCitation],
+      contextChunks: [contextChunk],
+    });
+    const [dueCitation] = buildChunkLevelCitationsForChat({
+      question: 'when is it due?',
+      citations: [broadCitation],
+      contextChunks: [contextChunk],
+    });
+
+    expect(referenceCitation).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [referenceCodeBox],
+      sourceElementIds: ['#/texts/10'],
+    });
+    expect(dueCitation).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [dueDateBox],
+      sourceElementIds: ['#/texts/13'],
+    });
+  });
+
+  test('keeps narrow hybrid box citations for display', () => {
+    const valueBox = {
+      pageNumber: 1,
+      x0: 430,
+      y0: 86,
+      x1: 525,
+      y1: 100,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const narrowCitation: Citation = {
+      ...citation,
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/3'],
+      snippet: 'R3919512',
+      boundingBoxes: [valueBox],
+      citationPrecision: 'box',
+    };
+
+    expect(normalizeCitationsForDisplay([narrowCitation])[0]).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [valueBox],
+    });
+  });
+
+  test('merges narrow fine-grained box citations for display', () => {
+    const labelBox = {
+      pageNumber: 1,
+      x0: 220,
+      y0: 70,
+      x1: 280,
+      y1: 90,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const valueBox = {
+      pageNumber: 1,
+      x0: 430,
+      y0: 86,
+      x1: 525,
+      y1: 100,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const fineCitation: Citation = {
+      ...citation,
+      retrievalRepresentation: 'docling_element_pair',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/2', '#/texts/3'],
+      snippet: 'Passport No. R3919512',
+      boundingBoxes: [labelBox, valueBox],
+      citationPrecision: 'box',
+    };
+
+    expect(normalizeCitationsForDisplay([fineCitation])[0]).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [
+        {
+          ...labelBox,
+          x1: valueBox.x1,
+          y1: valueBox.y1,
+        },
+      ],
+    });
   });
 
   test('prioritizes citations that match explicit year constraints', () => {

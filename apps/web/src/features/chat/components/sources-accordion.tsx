@@ -41,7 +41,7 @@ export function SourcesAccordion({
           >
             <Flex align="center" gap="2" minW="0" fontSize="xs" color="fg.muted">
               <FileText size={14} color="currentColor" />
-              <Text fontWeight="medium">{`Sources (${citations.length})`}</Text>
+              <Text fontWeight="medium">{`Cited passages (${citations.length})`}</Text>
             </Flex>
           </AccordionTrigger>
           <AccordionContent>

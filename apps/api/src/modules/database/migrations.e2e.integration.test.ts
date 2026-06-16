@@ -956,6 +956,75 @@ describe.sequential('migrations smoke', () => {
     ).toBe(true);
   });
 
+  test('0034 adds version-owned document element provenance', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columns } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'document_element_provenance'
+      `,
+    );
+
+    const byName = Object.fromEntries(columns.map((row) => [row.column_name, row]));
+
+    expect(byName.document_id?.data_type).toBe('text');
+    expect(byName.document_version_id?.is_nullable).toBe('NO');
+    expect(byName.vault_id?.is_nullable).toBe('NO');
+    expect(byName.element_id?.is_nullable).toBe('NO');
+    expect(byName.element_type?.data_type).toBe('text');
+    expect(byName.text?.data_type).toBe('text');
+    expect(byName.page_number?.data_type).toBe('integer');
+    expect(byName.bbox?.data_type).toBe('jsonb');
+    expect(byName.section_path?.data_type).toBe('jsonb');
+    expect(byName.sort_index?.is_nullable).toBe('NO');
+
+    const { rows: primaryKeyRows } = await pool.query<{ column_name: string }>(
+      `
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_schema = tc.constraint_schema
+          AND kcu.constraint_name = tc.constraint_name
+          AND kcu.table_name = tc.table_name
+        WHERE tc.table_schema = 'public'
+          AND tc.table_name = 'document_element_provenance'
+          AND tc.constraint_type = 'PRIMARY KEY'
+        ORDER BY kcu.ordinal_position
+      `,
+    );
+
+    expect(primaryKeyRows.map((row) => row.column_name)).toEqual([
+      'document_version_id',
+      'element_id',
+    ]);
+
+    const { rows: indexRows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'document_element_provenance'
+      `,
+    );
+
+    expect(indexRows.map((row) => row.indexname)).toEqual(
+      expect.arrayContaining([
+        'document_element_provenance_pk',
+        'document_element_provenance_version_sort_idx',
+        'document_element_provenance_version_page_idx',
+      ]),
+    );
+  });
+
   test('0014 creates the background_jobs table used by async workers', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');

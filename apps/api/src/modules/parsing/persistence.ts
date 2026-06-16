@@ -7,6 +7,7 @@ import type { ParsedChunk, ParsedDocument } from './parsed-document.schema.js';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
+  documentElementProvenanceTable,
   documentVersionsTable,
   documentsTable,
 } from '../database/schema/index.js';
@@ -65,6 +66,7 @@ function tableStorageKey({
 }
 
 type AssetRow = typeof documentChunkAssetsTable.$inferInsert;
+type ElementProvenanceRow = typeof documentElementProvenanceTable.$inferInsert;
 
 type AssetProvenance = {
   elementId?: string;
@@ -88,6 +90,39 @@ function readAssetProvenance(metadata: ParsedChunk['metadata'], key: 'imageProve
   }
 
   return value.filter((entry): entry is AssetProvenance => typeof entry === 'object' && entry !== null);
+}
+
+function buildElementProvenanceRows({
+  documentId,
+  documentVersionId,
+  vaultId,
+  parsed,
+}: {
+  documentId: string;
+  documentVersionId: string;
+  vaultId: string;
+  parsed: ParsedDocument;
+}): ElementProvenanceRow[] {
+  return (parsed.structuredElements ?? []).map((element, index) => ({
+    documentId,
+    documentVersionId,
+    vaultId,
+    elementId: element.elementId,
+    parentElementId: element.parentId,
+    elementType: element.type,
+    text: element.text,
+    pageNumber: element.pageNumber,
+    bbox:
+      element.pageNumber !== null && element.bbox !== null
+        ? {
+            pageNumber: element.pageNumber,
+            ...element.bbox,
+          }
+        : null,
+    section: element.section,
+    sectionPath: element.sectionPath,
+    sortIndex: index,
+  }));
 }
 
 async function buildImageAssetRow({
@@ -301,8 +336,22 @@ export async function persistParsedDocument({
       .delete(documentChunkAssetsTable)
       .where(eq(documentChunkAssetsTable.documentVersionId, documentVersionId));
     await tx
+      .delete(documentElementProvenanceTable)
+      .where(eq(documentElementProvenanceTable.documentVersionId, documentVersionId));
+    await tx
       .delete(documentChunksTable)
       .where(eq(documentChunksTable.documentVersionId, documentVersionId));
+
+    const elementProvenanceRows = buildElementProvenanceRows({
+      documentId,
+      documentVersionId,
+      vaultId,
+      parsed,
+    });
+
+    if (elementProvenanceRows.length > 0) {
+      await tx.insert(documentElementProvenanceTable).values(elementProvenanceRows);
+    }
 
     if (parsed.chunks.length > 0) {
       const insertedChunks = await tx

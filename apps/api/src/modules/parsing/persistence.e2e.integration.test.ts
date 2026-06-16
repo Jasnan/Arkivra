@@ -13,6 +13,7 @@ import * as schema from '../database/schema/index.js';
 import {
   documentChunkAssetsTable,
   documentChunksTable,
+  documentElementProvenanceTable,
   documentVersionsTable,
   documentsTable,
   usersTable,
@@ -170,6 +171,48 @@ describe.sequential('persistParsedDocument integration', () => {
         schema_name: 'DoclingDocument',
         texts: [{ self_ref: '#/texts/0', text: 'Results' }],
       },
+      structuredElements: [
+        {
+          elementId: 'el-2',
+          parentId: 'el-1',
+          type: 'table',
+          text: 'BLEU 28.4 on EN-DE.',
+          tableHtml,
+          image: null,
+          pageNumber: 2,
+          bbox: {
+            x0: 0,
+            y0: 60,
+            x1: 500,
+            y1: 200,
+            layoutWidth: 612,
+            layoutHeight: 792,
+            system: 'PixelSpace',
+          },
+          section: 'Results',
+          sectionPath: ['Financial Statements', 'Results'],
+        },
+        {
+          elementId: 'el-4',
+          parentId: 'el-1',
+          type: 'image',
+          text: '',
+          tableHtml: null,
+          image: { mimeType: 'image/png', data: imageBytes },
+          pageNumber: 2,
+          bbox: {
+            x0: 10,
+            y0: 220,
+            x1: 250,
+            y1: 360,
+            layoutWidth: 612,
+            layoutHeight: 792,
+            system: 'PixelSpace',
+          },
+          section: 'Results',
+          sectionPath: ['Financial Statements', 'Results'],
+        },
+      ],
       language: {
         code: 'en',
         name: 'English',
@@ -294,6 +337,36 @@ describe.sequential('persistParsedDocument integration', () => {
       },
     ]);
 
+    const provenanceRows = await db
+      .select()
+      .from(documentElementProvenanceTable)
+      .where(eq(documentElementProvenanceTable.documentVersionId, version1Id));
+
+    expect(provenanceRows).toHaveLength(2);
+    expect(new Set(provenanceRows.map((row) => row.elementId))).toEqual(new Set(['el-2', 'el-4']));
+    const tableProvenanceRow = provenanceRows.find((row) => row.elementId === 'el-2');
+    expect(tableProvenanceRow).toMatchObject({
+      documentId,
+      documentVersionId: version1Id,
+      vaultId,
+      parentElementId: 'el-1',
+      elementType: 'table',
+      pageNumber: 2,
+      section: 'Results',
+      sectionPath: ['Financial Statements', 'Results'],
+      sortIndex: 0,
+    });
+    expect(tableProvenanceRow?.bbox).toEqual({
+      pageNumber: 2,
+      x0: 0,
+      y0: 60,
+      x1: 500,
+      y1: 200,
+      layoutWidth: 612,
+      layoutHeight: 792,
+      system: 'PixelSpace',
+    });
+
     const assetRows = await db
       .select()
       .from(documentChunkAssetsTable)
@@ -364,9 +437,14 @@ describe.sequential('persistParsedDocument integration', () => {
       .select()
       .from(documentChunkAssetsTable)
       .where(eq(documentChunkAssetsTable.documentId, documentId));
+    const reProvenance = await db
+      .select()
+      .from(documentElementProvenanceTable)
+      .where(eq(documentElementProvenanceTable.documentVersionId, version1Id));
 
     expect(reChunks).toHaveLength(1);
     expect(reAssets).toHaveLength(3);
+    expect(reProvenance).toHaveLength(2);
 
     await db.insert(documentVersionsTable).values({
       id: version2Id,

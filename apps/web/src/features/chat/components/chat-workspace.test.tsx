@@ -267,7 +267,7 @@ vi.mock('./assistant-chat-thread', async () => {
           ? React.createElement(
               'button',
               { type: 'button', onClick: () => setOpenSources(true) },
-              `Sources (${citations.length})`,
+              `Cited passages (${citations.length})`,
             )
           : null,
         openSources
@@ -1224,7 +1224,7 @@ describe('chat workspace new chat drafts', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: /sources \(1\)/i }));
+    await user.click(screen.getByRole('button', { name: /cited passages \(1\)/i }));
     await user.click(screen.getByText('Revenue increased because enterprise renewals improved.'));
 
     expect(await screen.findByText('Figure evidence')).toBeInTheDocument();

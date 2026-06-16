@@ -177,6 +177,11 @@ export const parsedDocumentSchema = z.object({
   rawMarkdown: z.string(),
   /** Raw parser-native structured artifact preserved for reprocessing. */
   rawStructuredOutput: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Normalized parser-native elements with Docling provenance. Stored once per
+   * version and used to resolve citation boxes from element ids.
+   */
+  structuredElements: z.array(structuredElementSchema).optional(),
   /** Dominant source language detected from parser metadata or normalized text. */
   language: documentLanguageMetadataSchema.nullable(),
   chunks: z.array(parsedChunkSchema),

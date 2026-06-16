@@ -19,7 +19,11 @@ import {
   renderMetricsSummary,
   statusLabel,
 } from './chat-utils';
-import { MarkdownMessage, normalizeChatDisplayContent } from './markdown-message';
+import {
+  MarkdownMessage,
+  normalizeChatDisplayContent,
+  projectInlineCitationsForDisplay,
+} from './markdown-message';
 import { SourcesAccordion } from './sources-accordion';
 import { CitationPreviewModal } from './citation-preview-modal';
 import { createContext, useContext, useMemo, useState } from 'react';
@@ -213,7 +217,12 @@ function AssistantResponseMessage() {
 
   const metadata = getMessageMetadata(message);
   const citations = getMessageCitations(message);
-  const displayContent = normalizeChatDisplayContent(getMessageText(message));
+  const projectedCitations = projectInlineCitationsForDisplay({
+    content: normalizeChatDisplayContent(getMessageText(message)),
+    citations,
+  });
+  const displayContent = projectedCitations.content;
+  const displayCitations = projectedCitations.citations;
   const activeStatus = getMessageActiveStatus(message);
   const isStreamingPlaceholder = custom.isOptimistic === true;
   const metrics = getMessageMetrics(message) ?? undefined;
@@ -258,7 +267,7 @@ function AssistantResponseMessage() {
               {displayContent.length > 0 ? (
                 <MarkdownMessage
                   content={displayContent}
-                  citations={citations}
+                  citations={displayCitations}
                   onCitationClick={(citation) => {
                     setSelectedCitation(citation);
                     setIsCitationPreviewOpen(true);
@@ -295,7 +304,7 @@ function AssistantResponseMessage() {
               </Flex>
             ) : null}
 
-            {responseFooter || citations.length > 0 ? (
+            {responseFooter || displayCitations.length > 0 ? (
               <Box
                 borderTopWidth="1px"
                 borderColor="border.surface"
@@ -308,7 +317,7 @@ function AssistantResponseMessage() {
                     {responseFooter}
                   </Text>
                 ) : null}
-                <SourcesAccordion currentVaultId={currentVaultId} citations={citations} />
+                <SourcesAccordion currentVaultId={currentVaultId} citations={displayCitations} />
               </Box>
             ) : null}
           </Box>

@@ -632,6 +632,7 @@ describe('document search services', () => {
       (execute.mock.calls as unknown as any[][])[0]?.[0]?.queryChunks ?? [],
     );
     expect(queryText).toContain('FROM document_chunks AS dc');
+    expect(queryText).toContain('FROM document_element_provenance AS dep');
     expect(queryText).toContain('dc.tsv @@ search_query.query');
     expect(queryText).not.toContain('document_chunk_embeddings');
     expect(result.mode).toBe('fts');

@@ -144,20 +144,6 @@ type DoclingProcessingContext = {
   fallbackReason?: string;
 };
 
-function shouldBuildFineGrainedCitationChunks({
-  input,
-  processingContext,
-}: {
-  input: ParseInput;
-  processingContext: DoclingProcessingContext;
-}) {
-  return (
-    isImageFile(input) ||
-    processingContext.classification.path === 'scan-heavy' ||
-    processingContext.classification.path === 'mixed'
-  );
-}
-
 function isPdfMimeType(mimeType: string) {
   return mimeType.toLowerCase() === 'application/pdf';
 }
@@ -521,6 +507,36 @@ function reindexChunks({
   });
 }
 
+function hasStructuredElementBbox(
+  element: NonNullable<ParserOutput['structuredElements']>[number],
+) {
+  return element.pageNumber !== null && element.bbox !== null;
+}
+
+function mergeStructuredElementsForLayoutSidecar({
+  primary,
+  sidecar,
+}: {
+  primary: ParserOutput['structuredElements'];
+  sidecar: ParserOutput['structuredElements'];
+}) {
+  if (primary === undefined) return sidecar;
+  if (sidecar === undefined) return primary;
+
+  const merged = new Map<string, NonNullable<ParserOutput['structuredElements']>[number]>();
+  for (const element of primary) {
+    merged.set(element.elementId, element);
+  }
+  for (const element of sidecar) {
+    const existing = merged.get(element.elementId);
+    if (existing === undefined || (!hasStructuredElementBbox(existing) && hasStructuredElementBbox(element))) {
+      merged.set(element.elementId, element);
+    }
+  }
+
+  return [...merged.values()];
+}
+
 export function createDoclingParser({
   doclingClient,
   engineVersion = 'v1',
@@ -671,10 +687,7 @@ export function createDoclingParser({
       structuredElements: offsetStructured,
       doclingChunks: offsetDoclingChunks,
       startIndex: chunkStartIndex,
-      fineGrainedCitationChunks: shouldBuildFineGrainedCitationChunks({
-        input,
-        processingContext,
-      }),
+      fineGrainedCitationChunks: false,
     });
     warnings.push(...retrievalRepresentations.warnings);
     const chunksWithProcessingMetadata = retrievalRepresentations.chunks.map((chunk) => ({
@@ -802,8 +815,10 @@ export function createDoclingParser({
 
         effectivePart = {
           ...parsedPart,
-          structuredElements:
-            parsedPart.structuredElements ?? sidecarPart.structuredElements,
+          structuredElements: mergeStructuredElementsForLayoutSidecar({
+            primary: parsedPart.structuredElements,
+            sidecar: sidecarPart.structuredElements,
+          }),
           embeddedImages:
             parsedPart.embeddedImages ?? sidecarPart.embeddedImages,
           chunks: [...parsedPart.chunks, ...sidecarChunks],

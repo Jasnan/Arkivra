@@ -50,13 +50,55 @@ function citationUsesOriginalImagePreview(citation: Citation) {
   return browserImagePreviewExtensions.has(getDocumentFileExtension(citation.documentName));
 }
 
-function groupBoundingBoxesByPage(citation: Citation) {
-  const grouped = new Map<number, Citation['boundingBoxes']>();
-  for (const boundingBox of citation.boundingBoxes) {
+function getBoundingBoxGroupKey(boundingBox: Citation['boundingBoxes'][number]) {
+  return [
+    boundingBox.pageNumber,
+    boundingBox.layoutWidth,
+    boundingBox.layoutHeight,
+    boundingBox.system,
+  ].join(':');
+}
+
+function mergeBoundingBoxes(boundingBoxes: Citation['boundingBoxes']) {
+  const groups = new Map<string, Citation['boundingBoxes'][number]>();
+
+  for (const boundingBox of boundingBoxes) {
     if (!isRenderableBoundingBox(boundingBox)) {
       continue;
     }
 
+    const key = getBoundingBoxGroupKey(boundingBox);
+    const existing = groups.get(key);
+
+    if (!existing) {
+      groups.set(key, { ...boundingBox });
+      continue;
+    }
+
+    groups.set(key, {
+      ...existing,
+      x0: Math.min(existing.x0, boundingBox.x0),
+      y0: Math.min(existing.y0, boundingBox.y0),
+      x1: Math.max(existing.x1, boundingBox.x1),
+      y1: Math.max(existing.y1, boundingBox.y1),
+    });
+  }
+
+  return [...groups.values()].sort(
+    (left, right) =>
+      left.pageNumber - right.pageNumber ||
+      left.y0 - right.y0 ||
+      left.x0 - right.x0,
+  );
+}
+
+function groupBoundingBoxesByPage(citation: Citation) {
+  const grouped = new Map<number, Citation['boundingBoxes']>();
+  if (citation.citationPrecision !== 'box') {
+    return grouped;
+  }
+
+  for (const boundingBox of mergeBoundingBoxes(citation.boundingBoxes)) {
     const current = grouped.get(boundingBox.pageNumber) ?? [];
     current.push(boundingBox);
     grouped.set(boundingBox.pageNumber, current);
@@ -64,7 +106,10 @@ function groupBoundingBoxesByPage(citation: Citation) {
   return grouped;
 }
 
-function citationPreviewPages(citation: Citation) {
+function citationPreviewPages(
+  citation: Citation,
+  groupedBoxes = groupBoundingBoxesByPage(citation),
+) {
   const pageNumbers = new Set<number>();
   if (citation.pageStart !== null && citation.pageEnd !== null) {
     for (let pageNumber = citation.pageStart; pageNumber <= citation.pageEnd; pageNumber += 1) {
@@ -73,10 +118,16 @@ function citationPreviewPages(citation: Citation) {
   }
   if (citation.pageStart !== null) pageNumbers.add(citation.pageStart);
   if (citation.pageEnd !== null) pageNumbers.add(citation.pageEnd);
-  for (const boundingBox of citation.boundingBoxes) {
-    pageNumbers.add(boundingBox.pageNumber);
+  for (const pageNumber of groupedBoxes.keys()) {
+    pageNumbers.add(pageNumber);
   }
   return [...pageNumbers].sort((a, b) => a - b);
+}
+
+function initialCitationPreviewPage(citation: Citation) {
+  const groupedBoxes = groupBoundingBoxesByPage(citation);
+  const firstBoxPage = [...groupedBoxes.keys()].sort((a, b) => a - b)[0];
+  return firstBoxPage ?? citationPreviewPages(citation, groupedBoxes)[0] ?? null;
 }
 
 export function CitationPreviewModal({
@@ -97,8 +148,7 @@ export function CitationPreviewModal({
 
   useEffect(() => {
     if (citation) {
-      const initialPages = citationPreviewPages(citation);
-      setSelectedPage(initialPages[0] ?? null);
+      setSelectedPage(initialCitationPreviewPage(citation));
       setImageSize(null);
       setImageError(false);
     }

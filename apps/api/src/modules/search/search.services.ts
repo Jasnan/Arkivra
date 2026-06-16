@@ -1756,8 +1756,16 @@ export function createDocumentSearchServices({
               COALESCE(dc.source_element_ids, '[]'::jsonb) AS source_element_ids,
               COALESCE(dc.metadata->'tableProvenance', '[]'::jsonb) AS table_source_element_ids,
               COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
-              COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
-              dc.citation_precision,
+              CASE
+                WHEN jsonb_array_length(COALESCE(provenance.bounding_boxes, '[]'::jsonb)) > 0
+                  THEN provenance.bounding_boxes
+                ELSE COALESCE(dc.bounding_boxes, '[]'::jsonb)
+              END AS bounding_boxes,
+              CASE
+                WHEN jsonb_array_length(COALESCE(provenance.bounding_boxes, '[]'::jsonb)) > 0
+                  THEN 'box'
+                ELSE dc.citation_precision
+              END AS citation_precision,
               COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
@@ -1791,6 +1799,19 @@ export function createDocumentSearchServices({
                 AND dca.vault_id = dc.vault_id
                 AND dca.document_version_id = dc.document_version_id
             ) AS assets ON true
+            LEFT JOIN LATERAL (
+              SELECT COALESCE(
+                jsonb_agg(dep.bbox ORDER BY dep.sort_index) FILTER (WHERE dep.bbox IS NOT NULL),
+                '[]'::jsonb
+              ) AS bounding_boxes
+              FROM document_element_provenance AS dep
+              WHERE dep.document_version_id = dc.document_version_id
+                AND dep.element_id IN (
+                  SELECT source_element_id
+                  FROM jsonb_array_elements_text(COALESCE(dc.source_element_ids, '[]'::jsonb))
+                    AS source(source_element_id)
+                )
+            ) AS provenance ON true
             ORDER BY score DESC, dc.chunk_index ASC, dc.id ASC
             LIMIT ${normalizedCandidateLimit}
           `)
@@ -1900,6 +1921,7 @@ export function createDocumentSearchServices({
               dc.vault_id,
               v.name AS vault_name,
               d.name AS document_name,
+              dv.mime_type,
               dc.page_start,
               dc.page_end,
               dc.section,
@@ -1907,8 +1929,16 @@ export function createDocumentSearchServices({
               COALESCE(dc.source_element_ids, '[]'::jsonb) AS source_element_ids,
               COALESCE(dc.metadata->'tableProvenance', '[]'::jsonb) AS table_source_element_ids,
               COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
-              COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
-              dc.citation_precision,
+              CASE
+                WHEN jsonb_array_length(COALESCE(provenance.bounding_boxes, '[]'::jsonb)) > 0
+                  THEN provenance.bounding_boxes
+                ELSE COALESCE(dc.bounding_boxes, '[]'::jsonb)
+              END AS bounding_boxes,
+              CASE
+                WHEN jsonb_array_length(COALESCE(provenance.bounding_boxes, '[]'::jsonb)) > 0
+                  THEN 'box'
+                ELSE dc.citation_precision
+              END AS citation_precision,
               COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
@@ -1942,6 +1972,19 @@ export function createDocumentSearchServices({
                 AND dca.vault_id = dc.vault_id
                 AND dca.document_version_id = dc.document_version_id
             ) AS assets ON true
+            LEFT JOIN LATERAL (
+              SELECT COALESCE(
+                jsonb_agg(dep.bbox ORDER BY dep.sort_index) FILTER (WHERE dep.bbox IS NOT NULL),
+                '[]'::jsonb
+              ) AS bounding_boxes
+              FROM document_element_provenance AS dep
+              WHERE dep.document_version_id = dc.document_version_id
+                AND dep.element_id IN (
+                  SELECT source_element_id
+                  FROM jsonb_array_elements_text(COALESCE(dc.source_element_ids, '[]'::jsonb))
+                    AS source(source_element_id)
+                )
+            ) AS provenance ON true
             ORDER BY ranked.score DESC, dc.chunk_index ASC, dc.id ASC
             LIMIT ${normalizedCandidateLimit}
           `);
@@ -2012,8 +2055,16 @@ export function createDocumentSearchServices({
                 COALESCE(dc.source_element_ids, '[]'::jsonb) AS source_element_ids,
                 COALESCE(dc.metadata->'tableProvenance', '[]'::jsonb) AS table_source_element_ids,
                 COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet,
-                COALESCE(dc.bounding_boxes, '[]'::jsonb) AS bounding_boxes,
-                dc.citation_precision,
+                CASE
+                  WHEN jsonb_array_length(COALESCE(provenance.bounding_boxes, '[]'::jsonb)) > 0
+                    THEN provenance.bounding_boxes
+                  ELSE COALESCE(dc.bounding_boxes, '[]'::jsonb)
+                END AS bounding_boxes,
+                CASE
+                  WHEN jsonb_array_length(COALESCE(provenance.bounding_boxes, '[]'::jsonb)) > 0
+                    THEN 'box'
+                  ELSE dc.citation_precision
+                END AS citation_precision,
                 COALESCE(dc.tables_html, '[]'::jsonb) AS tables_html,
                 COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
                 COALESCE(assets.image_assets, '[]'::json) AS image_assets,
@@ -2051,6 +2102,19 @@ export function createDocumentSearchServices({
                   AND dca.vault_id = dc.vault_id
                   AND dca.document_version_id = dc.document_version_id
               ) AS assets ON true
+              LEFT JOIN LATERAL (
+                SELECT COALESCE(
+                  jsonb_agg(dep.bbox ORDER BY dep.sort_index) FILTER (WHERE dep.bbox IS NOT NULL),
+                  '[]'::jsonb
+                ) AS bounding_boxes
+                FROM document_element_provenance AS dep
+                WHERE dep.document_version_id = dc.document_version_id
+                  AND dep.element_id IN (
+                    SELECT source_element_id
+                    FROM jsonb_array_elements_text(COALESCE(dc.source_element_ids, '[]'::jsonb))
+                      AS source(source_element_id)
+                  )
+              ) AS provenance ON true
               ORDER BY score DESC, dc.chunk_index ASC, dc.id ASC
               LIMIT ${normalizedCandidateLimit}
             `)

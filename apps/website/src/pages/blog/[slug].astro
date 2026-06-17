@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import { format } from 'date-fns';
 import Footer from '../../components/Footer.astro';
 import Header from '../../components/Header.astro';
@@ -13,7 +13,7 @@ export async function getStaticPaths() {
   return blog
     .filter(post => !post.data.draft)
     .map(post => ({
-      params: { slug: post.slug },
+      params: { slug: post.id },
       props: { post },
     }));
 }
@@ -24,8 +24,8 @@ export type Props = {
 
 const { post } = Astro.props;
 
-const { data, render } = post;
-const { Content } = await render();
+const { data } = post;
+const { Content } = await render(post);
 
 const ogImage = await resolveImage(data.ogImage);
 const ogImageUrl = ogImage ? new URL(ogImage.src, Astro.site).toString() : undefined;

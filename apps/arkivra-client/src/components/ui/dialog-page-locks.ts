@@ -4,10 +4,18 @@ const DIALOG_LOCK_CLEANUP_RETRY_MS = 80;
 const DIALOG_LOCK_CLEANUP_MAX_ATTEMPTS = 16;
 
 function hasActiveDialog() {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+
   return document.querySelector('[role="dialog"]') !== null;
 }
 
 export function cleanupDialogPageLocks() {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
   if (hasActiveDialog()) {
     return;
   }
@@ -24,6 +32,10 @@ export function cleanupDialogPageLocks() {
 }
 
 export function scheduleDialogPageLockCleanup() {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
   const timeoutIds: number[] = [];
   let attempts = 0;
 

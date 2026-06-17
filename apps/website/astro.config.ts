@@ -7,6 +7,16 @@ import UnoCSS from 'unocss/astro';
 
 export default defineConfig({
   site: 'https://arkivra.app',
+  vite: {
+    build: {
+      target: 'es2022',
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        target: 'es2022',
+      },
+    },
+  },
 
   integrations: [
     UnoCSS({ injectReset: true }),

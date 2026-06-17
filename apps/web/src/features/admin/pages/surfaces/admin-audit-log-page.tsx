@@ -9,7 +9,13 @@ import { SearchCombobox } from '@/components/ui/search-combobox';
 import { AuditDateFilterPicker } from '@/features/audit/components/audit-date-filter-picker';
 import { useAdminAuditLogQuery } from '@/features/audit/audit.queries';
 import type { AuditLogFilters } from '@/features/audit/audit.types';
-import { formatAuditMetadataEntries, formatAuditTimestamp } from '@/features/audit/audit-formatters';
+import {
+  formatAuditEventTitle,
+  formatAuditAdvancedEntries,
+  formatAuditMetadataEntries,
+  formatAuditTimestamp,
+  getAuditResourceLabel,
+} from '@/features/audit/audit-formatters';
 import { useMeQuery } from '@/features/me/me.queries';
 import { AdminAccessBoundary } from './admin-shared';
 
@@ -183,36 +189,55 @@ export function AdminAuditLogPage() {
 
         {events.length > 0 ? (
           <Stack gap="2">
-            {events.map(event => (
-              <Box key={event.id} rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3">
-                <Flex align="start" justify="space-between" gap="3">
-                  <Box minW="0">
-                    <Text textStyle="sm" fontWeight="semibold" color="fg">{event.summary}</Text>
-                    <Text mt="1" textStyle="xs" color="fg.muted">
-                      {formatAuditTimestamp(event.occurredAt)} · {event.eventType} · {event.outcome}
-                    </Text>
-                    <Text mt="1" textStyle="xs" color="fg.muted">
-                      Actor: {event.actorDisplayName}
-                      {event.vaultId ? ` · Vault: ${event.vaultId}` : ''}
-                      {event.documentId ? ` · Document: ${event.documentId}` : ''}
-                    </Text>
-                  </Box>
-                  <HStack gap="1.5" flexShrink={0}>
-                    <Badge variant="secondary">{event.severity}</Badge>
-                    <Badge variant="outline">{event.eventCategory}</Badge>
-                  </HStack>
-                </Flex>
-                {formatAuditMetadataEntries(event.metadata).length > 0 ? (
-                  <Flex mt="3" flexWrap="wrap" gap="2">
-                    {formatAuditMetadataEntries(event.metadata).map(entry => (
-                      <Text key={entry.key} rounded="md" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
-                        {entry.label}: {entry.value}
+            {events.map((event) => {
+              const resourceLabel = getAuditResourceLabel(event);
+              const metadataEntries = formatAuditMetadataEntries(event.metadata);
+              const advancedEntries = formatAuditAdvancedEntries(event);
+
+              return (
+                <Box key={event.id} rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3">
+                  <Flex align="start" justify="space-between" gap="3">
+                    <Box minW="0">
+                      <Text textStyle="sm" fontWeight="semibold" color="fg">{formatAuditEventTitle(event)}</Text>
+                      <Text mt="1" textStyle="xs" color="fg.muted">
+                        {formatAuditTimestamp(event.occurredAt)} · {event.eventType} · {event.outcome}
                       </Text>
-                    ))}
+                      <Text mt="1" textStyle="xs" color="fg.muted">
+                        Actor: {event.actorDisplayName}
+                        {resourceLabel ? ` · Resource: ${resourceLabel}` : ''}
+                      </Text>
+                    </Box>
+                    <HStack gap="1.5" flexShrink={0}>
+                      <Badge variant="secondary">{event.severity}</Badge>
+                      <Badge variant="outline">{event.eventCategory}</Badge>
+                    </HStack>
                   </Flex>
-                ) : null}
-              </Box>
-            ))}
+                  {metadataEntries.length > 0 ? (
+                    <Flex mt="3" flexWrap="wrap" gap="2">
+                      {metadataEntries.map(entry => (
+                        <Text key={entry.key} rounded="md" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
+                          {entry.label}: {entry.value}
+                        </Text>
+                      ))}
+                    </Flex>
+                  ) : null}
+                  {advancedEntries.length > 0 ? (
+                    <Box as="details" mt="3">
+                      <Box as="summary" cursor="pointer" color="fg.muted" textStyle="xs" fontWeight="medium">
+                        Advanced details
+                      </Box>
+                      <Flex mt="2" flexWrap="wrap" gap="2">
+                        {advancedEntries.map(entry => (
+                          <Text key={entry.key} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="2" py="1" textStyle="xs" color="fg.muted">
+                            {entry.label}: {entry.value}
+                          </Text>
+                        ))}
+                      </Flex>
+                    </Box>
+                  ) : null}
+                </Box>
+              );
+            })}
           </Stack>
         ) : null}
 

@@ -69,6 +69,7 @@ export function toActivityFeedItem(event: AuditEventRecord, viewer: AuditViewer)
     actorDisplayName: getAuditActorLabel(event),
     summary: formatAuditEventSummary(event),
     metadata: filterMetadata(event.metadata, isPrivilegedAuditViewer(viewer)),
+    resource: event.resource,
   };
 }
 

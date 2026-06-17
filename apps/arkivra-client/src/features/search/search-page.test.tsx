@@ -745,7 +745,12 @@ describe('global search page', () => {
     });
 
     await user.click(await screen.findByRole('button', { name: /search mode: ai enhanced/i }));
-    await user.click(await screen.findByRole('menuitemradio', { name: /keyword only exact word matching/i }));
+    const searchModeMenu = await screen.findByRole('menu');
+    const keywordOnlyItem = within(searchModeMenu).getByText(/keyword only/i).closest('[role="menuitemradio"]');
+    if (!keywordOnlyItem) {
+      throw new Error('Keyword-only search mode item was not rendered');
+    }
+    await user.click(keywordOnlyItem);
 
     await waitFor(() => {
       expect(

@@ -790,6 +790,11 @@ describe('admin ai routes integration', () => {
   });
 
   test('returns curated Gemini chat models without reading stored settings', async () => {
+    const previousDefaultKey = process.env.GEMINI_API_KEY;
+    const previousMissingKey = process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY;
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY;
+
     const select = vi.fn(() => {
       throw new Error('stored settings should not be read');
     });
@@ -804,21 +809,35 @@ describe('admin ai routes integration', () => {
       } as any,
     });
 
-    const models = await aiServices.listChatModels({ provider: 'gemini' });
-    expect(models.map(model => model.name)).toContain('gemini-3.5-flash');
+    try {
+      const models = await aiServices.listChatModels({ provider: 'gemini' });
+      expect(models.map(model => model.name)).toContain('gemini-3.5-flash');
 
-    const availability = await aiServices.checkModelAvailability({
-      provider: 'gemini',
-      host: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      model: 'gemini-3.5-flash',
-      apiKeySecretRef: 'ARKIVRA_TEST_MISSING_GEMINI_KEY',
-    });
+      const availability = await aiServices.checkModelAvailability({
+        provider: 'gemini',
+        host: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        model: 'gemini-3.5-flash',
+        apiKeySecretRef: 'ARKIVRA_TEST_MISSING_GEMINI_KEY',
+      });
 
-    expect(availability).toMatchObject({
-      reachable: false,
-      modelAvailable: false,
-      error: 'Gemini API key environment variable is not configured on the API server.',
-    });
+      expect(availability).toMatchObject({
+        reachable: false,
+        modelAvailable: false,
+        error: 'Gemini API key environment variable is not configured on the API server.',
+      });
+    } finally {
+      if (previousDefaultKey === undefined) {
+        delete process.env.GEMINI_API_KEY;
+      } else {
+        process.env.GEMINI_API_KEY = previousDefaultKey;
+      }
+
+      if (previousMissingKey === undefined) {
+        delete process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY;
+      } else {
+        process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY = previousMissingKey;
+      }
+    }
   });
 
   test('checks Gemini availability with the stored provider secret ref', async () => {

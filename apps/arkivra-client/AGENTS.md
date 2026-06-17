@@ -34,6 +34,14 @@ pnpm --filter @arkivra/web build
 - Do not redesign major surfaces unless explicitly requested.
 - Keep operational dashboards dense, scannable, and work-focused.
 
+## File Size and Refactoring Expectations
+
+- Treat oversized files as a maintainability risk and prefer focused modules with clear ownership boundaries.
+- React page and component files should generally stay under 500-800 lines.
+- Test files may be larger, but split them when they exceed 1000-1500 lines or cover unrelated features.
+- When files exceed these ranges, prefer extracting cohesive hooks, dialogs, tables, forms, API helpers, fixtures, or feature-specific tests over broad rewrites.
+- Do not split files mechanically. Preserve behavior, public APIs, authorization-sensitive rendering, and test coverage while refactoring.
+
 ## UX Expectations
 
 - Include loading, empty, error, disabled, and success states for async flows.

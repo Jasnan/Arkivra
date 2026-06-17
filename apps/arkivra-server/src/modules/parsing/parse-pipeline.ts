@@ -386,6 +386,42 @@ function attachTextLocators(parsed: ParsedDocument, source: TextLocatorSource | 
   };
 }
 
+function buildDocumentFallbackChunk({
+  documentId,
+  text,
+}: {
+  documentId: string;
+  text: string;
+}): ParsedChunk | null {
+  const trimmedText = text.trim();
+  if (trimmedText.length === 0) {
+    return null;
+  }
+
+  return {
+    id: `${documentId}:fallback-0`,
+    text: trimmedText,
+    section: null,
+    sectionPath: [],
+    pageNumber: null,
+    pageStart: null,
+    pageEnd: null,
+    boundingBoxes: [],
+    sourceElementIds: [],
+    parentElementId: null,
+    originalText: trimmedText,
+    tablesHtml: [],
+    images: [],
+    citationPrecision: 'document',
+    enhancedContent: null,
+    type: 'other',
+    metadata: {
+      tokenCount: Math.ceil(trimmedText.length / 4),
+      chunkingType: 'document_text_fallback',
+    },
+  };
+}
+
 /**
  * Composes parser → text cleaner → chunker into a single pipeline that
  * yields a validated {@link ParsedDocument}. This is the sole code path
@@ -437,6 +473,24 @@ export function createParsePipeline({
     );
 
     const pipelineWarnings = [...raw.warnings];
+    if (chunks.length === 0) {
+      const fallbackChunk = buildDocumentFallbackChunk({
+        documentId,
+        text: cleanedText,
+      });
+
+      if (fallbackChunk !== null) {
+        chunks.push({
+          ...fallbackChunk,
+          metadata: {
+            ...fallbackChunk.metadata,
+            fileName: chunkFileName,
+          },
+        });
+        pipelineWarnings.push('parser.empty_chunks_fallback');
+      }
+    }
+
     if (chunkSummariser !== undefined) {
       await hooks?.onStageChange?.('summarising');
       for (const chunk of chunks) {

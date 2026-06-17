@@ -1,164 +1,39 @@
 import type { Database } from '../../database/database.js';
-import type { EmbeddingModelConfig, EmbeddingProviderKind } from '../providers/types.js';
-import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { generateId } from '../../database/schema/helpers.js';
+import {
+  buildVectorLiteral,
+  hashEmbeddingContent,
+  hnswIndexName,
+  mapEmbeddingIndexConfig,
+  sqlIdentifier,
+  sqlLiteral,
+} from './embedding-index.helpers.js';
+import type {
+  ActiveEmbeddingIndex,
+  ActiveEmbeddingIndexRow,
+  ChunkEmbeddingWrite,
+  CopiedVersionEmbeddingRow,
+  CreateEmbeddingIndexInput,
+  DiscoveredIndexDocument,
+  DiscoveredIndexDocumentRow,
+  DocumentIndexingWorkRow,
+  DocumentStatusCountRow,
+  EmbeddedCountRow,
+  EmbeddingIndexConfig,
+  EmbeddingIndexConfigRow,
+  RetiredIndexRow,
+  VersionChunkCountRow,
+} from './embedding-index.types.js';
 
-export type ActiveEmbeddingIndex = EmbeddingModelConfig & {
-  id: string;
-  providerConfigId: string;
-  distanceMetric: 'cosine';
-  name: string;
-  isEnabled: boolean;
-};
-
-export type ChunkEmbeddingWrite = {
-  id?: string;
-  chunkId: string;
-  documentId: string;
-  documentVersionId: string;
-  vaultId: string;
-  content: string;
-  embedding: number[];
-};
-
-export type EmbeddingIndexConfig = ActiveEmbeddingIndex & {
-  status: 'building' | 'ready' | 'active' | 'failed' | 'retiring' | 'retired';
-};
-
-export type CreateEmbeddingIndexInput = {
-  provider: EmbeddingProviderKind;
-  model: string;
-  dimensions: number;
-  name?: string;
-  baseUrl?: string;
-  apiKeySecretRef?: string;
-  options?: Record<string, unknown>;
-};
-
-export type DiscoveredIndexDocument = {
-  documentId: string;
-  documentVersionId: string;
-  vaultId: string;
-  expectedChunkCount: number;
-};
-
-type ActiveEmbeddingIndexRow = {
-  id: string;
-  provider_config_id: string;
-  provider: string;
-  model: string;
-  dimensions: number;
-  distance_metric: string;
-  name: string;
-  base_url: string | null;
-  api_key_secret_ref: string | null;
-  config: Record<string, unknown> | null;
-  is_enabled: boolean;
-};
-
-type EmbeddingIndexConfigRow = ActiveEmbeddingIndexRow & {
-  status: EmbeddingIndexConfig['status'];
-};
-
-type DiscoveredIndexDocumentRow = {
-  document_id: string;
-  document_version_id: string;
-  vault_id: string;
-  expected_chunk_count: number;
-};
-
-type DocumentIndexingWorkRow = {
-  document_id: string;
-  document_version_id: string;
-  vault_id: string;
-  expected_chunk_count: number;
-};
-
-type DocumentStatusCountRow = {
-  expected_chunk_count: number;
-  failed_chunk_count: number;
-};
-
-type EmbeddedCountRow = {
-  embedded_chunk_count: number;
-};
-
-type RetiredIndexRow = {
-  id: string;
-};
-
-type CopiedVersionEmbeddingRow = {
-  embedding_index_id: string;
-  copied_chunk_count: number;
-};
-
-type VersionChunkCountRow = {
-  chunk_count: number;
-};
-
-function normalizeProvider(provider: string): EmbeddingProviderKind | null {
-  switch (provider) {
-    case 'ollama':
-    case 'openrouter':
-    case 'gemini':
-    case 'voyage':
-    case 'custom':
-      return provider;
-    default:
-      return null;
-  }
-}
-
-function buildVectorLiteral(vector: number[]) {
-  if (vector.length === 0 || vector.some(value => !Number.isFinite(value))) {
-    throw new Error('Embedding vectors must contain at least one finite number.');
-  }
-
-  return `[${vector.join(',')}]`;
-}
-
-function sqlIdentifier(identifier: string) {
-  if (!/^[a-z_]\w*$/i.test(identifier)) {
-    throw new Error(`Unsafe SQL identifier: ${identifier}`);
-  }
-
-  return `"${identifier.replaceAll('"', '""')}"`;
-}
-
-function sqlLiteral(value: string) {
-  return `'${value.replaceAll("'", "''")}'`;
-}
-
-function hnswIndexName(embeddingIndexId: string) {
-  const normalized = embeddingIndexId.replace(/\W/g, '_');
-  return `dce_hnsw_${normalized}`.slice(0, 63);
-}
-
-function mapEmbeddingIndexConfig(row: ActiveEmbeddingIndexRow): ActiveEmbeddingIndex | null {
-  const provider = normalizeProvider(row.provider);
-  if (provider === null || row.distance_metric !== 'cosine') {
-    return null;
-  }
-
-  return {
-    id: row.id,
-    providerConfigId: row.provider_config_id,
-    provider,
-    model: row.model,
-    dimensions: row.dimensions,
-    distanceMetric: row.distance_metric,
-    name: row.name,
-    baseUrl: row.base_url ?? undefined,
-    apiKeySecretRef: row.api_key_secret_ref ?? undefined,
-    options: row.config ?? {},
-    isEnabled: row.is_enabled,
-  };
-}
-
-export function hashEmbeddingContent(content: string) {
-  return createHash('sha256').update(content).digest('hex');
-}
+export type {
+  ActiveEmbeddingIndex,
+  ChunkEmbeddingWrite,
+  CreateEmbeddingIndexInput,
+  DiscoveredIndexDocument,
+  EmbeddingIndexConfig,
+} from './embedding-index.types.js';
+export { hashEmbeddingContent } from './embedding-index.helpers.js';
 
 export function createEmbeddingIndexServices({ db }: { db: Database }) {
   async function createEmbeddingIndex(input: CreateEmbeddingIndexInput) {

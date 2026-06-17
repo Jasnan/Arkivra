@@ -24,11 +24,11 @@ export default defineConfig({
       collections: {
         'simple-icons': () =>
           import('@iconify-json/simple-icons/icons.json', { with: { type: 'json' } }).then(
-            (i) => i.default,
+            i => i.default,
           ),
-        tabler: () =>
+        'tabler': () =>
           import('@iconify-json/tabler/icons.json', { with: { type: 'json' } }).then(
-            (i) => i.default,
+            i => i.default,
           ),
       },
     }),
@@ -125,7 +125,7 @@ export default defineConfig({
     'sm:grid-cols-4',
     'sm:grid-cols-5',
     'i-tabler-heart-filled',
-    ...getSocials().map((s) => s.icon),
+    ...getSocials().map(s => s.icon),
   ],
   preflights: [
     {

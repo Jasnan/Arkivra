@@ -4,6 +4,16 @@ import starlightThemeRapide from 'starlight-theme-rapide';
 
 export default defineConfig({
   site: 'https://docs.arkivra.app',
+  vite: {
+    build: {
+      target: 'es2022',
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        target: 'es2022',
+      },
+    },
+  },
   integrations: [
     starlight({
       title: 'Arkivra Docs',

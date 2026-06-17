@@ -49,6 +49,15 @@ Use targeted e2e commands for focused changes:
 - Keep business logic in services, not Hono handlers, when behavior is reused or testable.
 - Keep serialization and formatting behavior separate when the module already follows that pattern.
 
+## File Size and Refactoring Expectations
+
+- Treat oversized files as a maintainability risk and prefer focused modules with clear ownership boundaries.
+- Production backend service files should generally stay under 700-900 lines.
+- Route files should generally stay under 400-700 lines.
+- Test files may be larger, but split them when they exceed 1000-1500 lines or cover unrelated features.
+- When files exceed these ranges, prefer extracting cohesive helpers, route groups, service helpers, fixtures, or feature-specific tests over broad rewrites.
+- Do not split files mechanically. Preserve behavior, public APIs, authorization boundaries, audit behavior, and test coverage while refactoring.
+
 ## Authorization and RBAC
 
 - Vault access is the default permission boundary for documents, folders, tags, search, chat, and uploads.

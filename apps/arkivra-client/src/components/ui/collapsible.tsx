@@ -24,6 +24,10 @@ export function Collapsible({
   );
 }
 
-export const CollapsibleTrigger = ChakraCollapsible.Trigger;
+export function CollapsibleTrigger(props: React.ComponentProps<typeof ChakraCollapsible.Trigger>) {
+  return <ChakraCollapsible.Trigger {...props} />;
+}
 
-export const CollapsibleContent = ChakraCollapsible.Content;
+export function CollapsibleContent(props: React.ComponentProps<typeof ChakraCollapsible.Content>) {
+  return <ChakraCollapsible.Content {...props} />;
+}

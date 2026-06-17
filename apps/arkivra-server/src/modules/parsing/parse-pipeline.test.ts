@@ -359,6 +359,31 @@ describe('parse pipeline', () => {
     await expect(pipeline.run(input)).rejects.toThrow(/requires parser-provided chunks/);
   });
 
+  test('falls back to a document-level chunk when parser chunks are empty', async () => {
+    const { pipeline } = makePipeline({
+      text: 'Extracted text without parser chunks',
+      markdown: '',
+      chunks: [],
+    });
+
+    const parsed = await pipeline.run(input);
+
+    expect(parsed.chunks).toEqual([
+      expect.objectContaining({
+        id: 'doc_1:fallback-0',
+        text: 'Extracted text without parser chunks',
+        originalText: 'Extracted text without parser chunks',
+        citationPrecision: 'document',
+        sourceElementIds: [],
+        metadata: expect.objectContaining({
+          chunkingType: 'document_text_fallback',
+          fileName: 'file.pdf',
+        }),
+      }),
+    ]);
+    expect(parsed.warnings).toContain('parser.empty_chunks_fallback');
+  });
+
   test('propagates engine + engineVersion + warnings unchanged', async () => {
     const { pipeline } = makePipeline({
       warnings: ['docling.partial_success', 'ocr glitch'],

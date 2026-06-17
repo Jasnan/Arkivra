@@ -4,6 +4,7 @@ import { scheduleDialogPageLockCleanup } from './dialog-page-locks';
 describe('dialog page lock cleanup', () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     document.body.innerHTML = '';
     document.body.removeAttribute('data-inert');
     document.body.removeAttribute('data-scroll-lock');
@@ -44,6 +45,18 @@ describe('dialog page lock cleanup', () => {
     expect(document.body.style.pointerEvents).toBe('');
     expect(appRoot).not.toHaveAttribute('data-inert');
     expect(appRoot).not.toHaveAttribute('inert');
+
+    cancelCleanup();
+  });
+
+  it('ignores delayed cleanup after the document is unavailable', () => {
+    vi.useFakeTimers();
+
+    const cancelCleanup = scheduleDialogPageLockCleanup();
+
+    vi.stubGlobal('document', undefined);
+
+    expect(() => vi.runOnlyPendingTimers()).not.toThrow();
 
     cancelCleanup();
   });

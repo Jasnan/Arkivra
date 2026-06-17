@@ -276,7 +276,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     documentId,
     includeDeleted: isTrashDocumentRoute,
     enabled:
-      previewKind === 'markdown' &&
+      (previewKind === 'markdown' || previewKind === 'text') &&
       (documentQuery.data?.document.isDeleted === false || isTrashDocumentRoute),
   });
 

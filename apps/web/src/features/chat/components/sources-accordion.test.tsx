@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '@/test/utils';
 import type { Citation } from '../chat.types';
 import { SourcesAccordion } from './sources-accordion';
@@ -27,13 +27,75 @@ function citation(overrides: Partial<Citation> = {}): Citation {
   };
 }
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function textResponse(body: string, status = 200) {
+  return new Response(body, {
+    status,
+    headers: { 'content-type': 'text/plain' },
+  });
+}
+
+function stubCitationPreviewFetch({
+  fileText,
+  content = fileText,
+  documentName = 'notes.txt',
+  mimeType = 'text/plain',
+}: {
+  fileText: string;
+  content?: string;
+  documentName?: string;
+  mimeType?: string;
+}) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/vaults/vlt_1/documents/doc_1/file') {
+        return textResponse(fileText);
+      }
+
+      if (url === '/api/vaults/vlt_1/documents/doc_1') {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: documentName,
+            originalName: documentName,
+            folderId: null,
+            originalSize: fileText.length,
+            originalSha256Hash: 'sha256',
+            mimeType,
+            processingStatus: 'completed',
+            content,
+            createdBy: 'usr_1',
+            language: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+          },
+        });
+      }
+
+      return jsonResponse({ error: { code: 'not_found', message: 'Not found' } }, 404);
+    }),
+  );
+}
+
 describe('sources accordion', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('closes citation previews without leaving the page inert', async () => {
     const user = userEvent.setup();
 
-    await renderWithProviders(
-      <SourcesAccordion currentVaultId="vlt_1" citations={[citation()]} />,
-    );
+    await renderWithProviders(<SourcesAccordion currentVaultId="vlt_1" citations={[citation()]} />);
 
     await user.click(screen.getByRole('button', { name: /cited passages/i }));
     await user.click(screen.getByRole('button', { name: /page 1/i }));
@@ -230,6 +292,138 @@ describe('sources accordion', () => {
     expect(
       await screen.findByRole('img', { name: /back_page_passport\.webp page 1/i }),
     ).toHaveAttribute('src', '/api/vaults/vlt_1/documents/doc_1/file');
+  });
+
+  it('renders and highlights plain text citation previews', async () => {
+    const user = userEvent.setup();
+    const fileText = [
+      'First sentence in the notes.',
+      'The renewal notice must be sent',
+      'within 30 days of approval.',
+      'Final sentence.',
+    ].join('\n');
+    const textStartOffset = fileText.indexOf('The renewal notice');
+    const textEndOffset = fileText.indexOf('Final sentence.') - 1;
+    stubCitationPreviewFetch({ fileText });
+
+    await renderWithProviders(
+      <SourcesAccordion
+        currentVaultId="vlt_1"
+        citations={[
+          citation({
+            documentName: 'notes.txt',
+            mimeType: 'text/plain',
+            pageStart: null,
+            pageEnd: null,
+            snippet: 'The renewal notice must be sent within 30 days of approval.',
+            citationPrecision: 'document',
+            textLocator: {
+              sourceType: 'rawText',
+              startOffset: textStartOffset,
+              endOffset: textEndOffset,
+            },
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
+    await user.click(screen.getByRole('button', { name: /document/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/first sentence in the notes/i)).toBeInTheDocument();
+    expect(await within(dialog).findByTestId('citation-text-highlight')).toHaveTextContent(
+      /The renewal notice must be sent\s+within 30 days of approval\./,
+    );
+  });
+
+  it('does not highlight text citation previews without backend offsets', async () => {
+    const user = userEvent.setup();
+    const fileText = [
+      'First sentence in the notes.',
+      'The renewal notice must be sent',
+      'within 30 days of approval.',
+      'Final sentence.',
+    ].join('\n');
+    stubCitationPreviewFetch({ fileText });
+
+    await renderWithProviders(
+      <SourcesAccordion
+        currentVaultId="vlt_1"
+        citations={[
+          citation({
+            documentName: 'notes.txt',
+            mimeType: 'text/plain',
+            pageStart: null,
+            pageEnd: null,
+            snippet: 'The renewal notice must be sent within 30 days of approval.',
+            citationPrecision: 'document',
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
+    await user.click(screen.getByRole('button', { name: /document/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/first sentence in the notes/i)).toBeInTheDocument();
+    expect(within(dialog).queryByTestId('citation-text-highlight')).not.toBeInTheDocument();
+  });
+
+  it('renders and highlights Markdown citation previews', async () => {
+    const user = userEvent.setup();
+    const fileText = [
+      '# Renewal policy',
+      '',
+      'Global chat requires at least one `full` AI-authorized vault:',
+      '',
+      '1. Give member `full` AI access on one vault.',
+      '2. Go to `/chat`.',
+      '3. Expected: global chat is available.',
+      '4. Remove `full` from all vaults, or set all to `none` / `document_chat`.',
+      '5. Refresh `/chat`.',
+      '6. Expected: global chat is blocked or explains that full AI access is required.',
+    ].join('\n');
+    const textStartOffset = fileText.indexOf('1. Give member');
+    const textEndOffset = fileText.length;
+    stubCitationPreviewFetch({
+      fileText,
+      documentName: 'policy.md',
+      mimeType: 'text/markdown',
+    });
+
+    await renderWithProviders(
+      <SourcesAccordion
+        currentVaultId="vlt_1"
+        citations={[
+          citation({
+            documentName: 'policy.md',
+            mimeType: 'text/markdown',
+            pageStart: null,
+            pageEnd: null,
+            snippet:
+              '1. Give member `full` AI access on one vault. 2. Go to `/chat` . 3. Expected: global chat is available. 4. Remove `full` from all vaults, or set all to `none` / `document_chat` . 5. Refresh `/chat` . 6. Expected: global chat is blocked or explains that full AI access is required.',
+            citationPrecision: 'document',
+            textLocator: {
+              sourceType: 'rawMarkdown',
+              startOffset: textStartOffset,
+              endOffset: textEndOffset,
+            },
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
+    await user.click(screen.getByRole('button', { name: /document/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/# Renewal policy/i)).toBeInTheDocument();
+    const highlights = await within(dialog).findAllByTestId('citation-text-highlight');
+    expect(highlights.map((highlight) => highlight.textContent).join('')).toBe(
+      fileText.slice(textStartOffset, textEndOffset),
+    );
   });
 
   it('omits citation details from the citation preview side panel', async () => {

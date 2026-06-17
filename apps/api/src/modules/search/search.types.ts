@@ -76,6 +76,12 @@ export type CitationImageAsset = {
   pageNumber?: number | null;
 };
 
+export type CitationTextLocator = {
+  sourceType: 'rawMarkdown' | 'rawText';
+  startOffset: number;
+  endOffset: number;
+};
+
 export type Citation = {
   chunkId: string;
   retrievalRepresentation?: string | null;
@@ -99,6 +105,7 @@ export type Citation = {
   tablesHtml: string[];
   imageAssetIds: string[];
   imageAssets?: CitationImageAsset[];
+  textLocator?: CitationTextLocator;
   score: number;
   contextChunks?: CitationContextChunk[];
 };
@@ -111,6 +118,7 @@ export type CitationContextChunk = {
   section: string | null;
   sourceElementIds?: string[];
   snippet: string;
+  textLocator?: CitationTextLocator;
   score: number;
 };
 

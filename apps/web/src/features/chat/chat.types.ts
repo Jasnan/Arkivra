@@ -11,6 +11,12 @@ export interface CitationBoundingBox {
   system: string;
 }
 
+export interface CitationTextLocator {
+  sourceType: 'rawMarkdown' | 'rawText';
+  startOffset: number;
+  endOffset: number;
+}
+
 export interface Citation {
   chunkId: string;
   documentId: string;
@@ -38,6 +44,7 @@ export interface Citation {
     caption?: string | null;
     pageNumber?: number | null;
   }[];
+  textLocator?: CitationTextLocator;
   score: number;
 }
 
@@ -56,7 +63,13 @@ export interface ChatConversation {
 export type ChatContextSnapshot =
   | { type: 'global'; vaultIds: string[] }
   | { type: 'vault'; vaultId: string; vaultName?: string }
-  | { type: 'document'; vaultId: string; documentId: string; vaultName?: string; documentName?: string }
+  | {
+      type: 'document';
+      vaultId: string;
+      documentId: string;
+      vaultName?: string;
+      documentName?: string;
+    }
   | { type: 'selection'; vaults: ChatContextVaultRef[]; documents: ChatContextDocumentRef[] };
 
 export interface ChatContextVaultRef {

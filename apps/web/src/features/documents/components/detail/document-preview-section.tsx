@@ -102,8 +102,8 @@ export function DocumentPreviewSection({
               Historical preview is limited
             </Text>
             <Text maxW="xl" fontSize="sm" lineHeight="6" color="fg.muted">
-              This read-only version can be reviewed through extracted text, chunks, metadata, or
-              by downloading the original source file.
+              This read-only version can be reviewed through extracted text, chunks, metadata, or by
+              downloading the original source file.
             </Text>
           </Box>
           {historicalDownloadUrl ? (
@@ -159,7 +159,8 @@ export function DocumentPreviewSection({
                   Image preview unavailable
                 </Text>
                 <Text maxW="lg" fontSize="sm" lineHeight="6">
-                  Arkivra could not render this image in the browser. Download the file to inspect it.
+                  Arkivra could not render this image in the browser. Download the file to inspect
+                  it.
                 </Text>
               </Box>
             </Flex>
@@ -187,19 +188,35 @@ export function DocumentPreviewSection({
       <Box
         h="full"
         minH={{ base: '720px', md: '0' }}
-        overflow="hidden"
+        overflow="auto"
         rounded="lg"
-        bg="bg.subtle"
-        p="2"
+        borderWidth="1px"
+        borderColor="border.surface"
+        bg="bg.surface"
+        px={{ base: '4', md: '8' }}
+        py={{ base: '5', md: '7' }}
       >
-        <chakra.iframe
-          title="Text preview"
-          src={inlineFileUrl}
-          h="full"
-          w="full"
-          rounded="lg"
-          bg="white"
-        />
+        {isMarkdownLoading && markdownSource === undefined ? (
+          <Text fontSize="sm" color="fg.muted">
+            Loading text preview...
+          </Text>
+        ) : isMarkdownError && fallbackMarkdownContent.length === 0 ? (
+          <Text fontSize="sm" color="fg.error">
+            Unable to load text preview.
+          </Text>
+        ) : (
+          <Text
+            as="pre"
+            whiteSpace="pre-wrap"
+            overflowWrap="anywhere"
+            fontFamily="document"
+            fontSize="sm"
+            lineHeight="1.7"
+            color="fg"
+          >
+            {markdownSource ?? fallbackMarkdownContent}
+          </Text>
+        )}
       </Box>
     );
   }

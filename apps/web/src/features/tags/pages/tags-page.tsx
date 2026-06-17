@@ -14,13 +14,16 @@ import {
   Portal,
   chakra,
 } from '@chakra-ui/react';
+import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Files, Pencil, Tags, Trash2 } from 'lucide-react';
+import { ROUTES } from '@/app/routes';
 import { toast } from '@/components/ui/toaster-store';
 import { CreateButton, DeleteButton } from '@/components/ui/action-buttons';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
+import { formatBytes, formatDate } from '@/features/documents/documents.utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,14 +37,16 @@ import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { createTag, deleteTag, updateTag } from '@/features/tags/tags.api';
 import { TagBadge } from '@/features/tags/components/tag-badge';
 import { TagDialog } from '@/features/tags/components/tag-dialog';
-import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
-import type { Tag } from '@/features/tags/tags.types';
+import { tagQueryKeys, useTagDocumentsQuery, useTagsQuery } from '@/features/tags/tags.queries';
+import type { Tag, TagDocument } from '@/features/tags/tags.types';
 import { formatShortDate } from '@/lib/localization';
 
 type DialogMode = 'create' | 'edit';
 
 const DEFAULT_TAG_COLOR = '#0EA5E9';
 const TAGS_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) minmax(14rem, 1.4fr) 6.5rem 8.5rem 2.75rem';
+const TAG_DOCUMENTS_LIST_MAX_ROWS = 10;
+const TAG_DOCUMENTS_LIST_ROW_HEIGHT = '4.25rem';
 
 type TagContextMenuState = {
   tag: Tag;
@@ -120,7 +125,13 @@ function DeleteTagDialog({
 }) {
   const attachedDocuments = tag?.documentsCount ?? 0;
   return (
-    <ChakraDialog.Root open={open} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root
+      open={open}
+      onOpenChange={(e) => {
+        if (!e.open && !isPending) onClose();
+      }}
+      size={{ mdDown: 'full', md: 'lg' }}
+    >
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -171,7 +182,13 @@ function DeleteTagsDialog({
   const attachedDocuments = tags.reduce((total, tag) => total + (tag.documentsCount ?? 0), 0);
 
   return (
-    <ChakraDialog.Root open={open} onOpenChange={(e) => { if (!e.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
+    <ChakraDialog.Root
+      open={open}
+      onOpenChange={(e) => {
+        if (!e.open && !isPending) onClose();
+      }}
+      size={{ mdDown: 'full', md: 'lg' }}
+    >
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -189,7 +206,14 @@ function DeleteTagsDialog({
                     ? `These tags are currently attached to ${attachedDocuments} document${attachedDocuments === 1 ? '' : 's'} in total. Deleting them here will remove those tags from all attached documents.`
                     : 'These tags are not attached to any documents right now.'}
                 </Text>
-                <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="4" py="3">
+                <Box
+                  rounded="lg"
+                  borderWidth="1px"
+                  borderColor="border.surface"
+                  bg="bg.subtle"
+                  px="4"
+                  py="3"
+                >
                   <Text fontSize="sm" color="fg">
                     {tags.map((tag) => tag.name).join(', ')}
                   </Text>
@@ -238,10 +262,15 @@ function TagActionsMenu({
             key={action.key}
             action={action}
             onSelect={() => {
-              actions(triggerRef.current).find((currentAction) => currentAction.key === action.key)?.onSelect();
+              actions(triggerRef.current)
+                .find((currentAction) => currentAction.key === action.key)
+                ?.onSelect();
             }}
           >
-            <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+            <ActionMenuItemIcon
+              icon={action.icon}
+              tone={action.tone === 'destructive' ? 'destructive' : 'default'}
+            />
             {action.label}
           </TagDropdownMenuItem>
         ))}
@@ -299,7 +328,9 @@ function TagContextMenu({
       window.removeEventListener('resize', onClose);
       window.removeEventListener('scroll', onClose, { capture: true });
       window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
-      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, {
+        capture: true,
+      });
     };
   }, [onClose]);
 
@@ -353,18 +384,29 @@ function TagContextMenu({
                 transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
                 _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: colors.activeColor }}
                 _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: colors.activeColor }}
-                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+                _focusVisible={{
+                  outline: '2px solid',
+                  outlineColor: 'teal.solid',
+                  outlineOffset: '2px',
+                }}
                 onPointerEnter={() => setActiveActionKey(action.key)}
                 onPointerMove={() => setActiveActionKey(action.key)}
-                onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
+                onPointerLeave={() =>
+                  setActiveActionKey((current) => (current === action.key ? null : current))
+                }
                 onFocus={() => setActiveActionKey(action.key)}
-                onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
+                onBlur={() =>
+                  setActiveActionKey((current) => (current === action.key ? null : current))
+                }
                 onClick={() => {
                   onClose();
                   window.setTimeout(action.onSelect, 0);
                 }}
               >
-                <ActionMenuItemIcon icon={action.icon} tone={action.tone === 'destructive' ? 'destructive' : 'default'} />
+                <ActionMenuItemIcon
+                  icon={action.icon}
+                  tone={action.tone === 'destructive' ? 'destructive' : 'default'}
+                />
                 {action.label}
               </chakra.button>
             );
@@ -383,6 +425,202 @@ function formatTagCreatedDate(value?: string) {
 function getTagDescription(tag: Tag) {
   const description = tag.description?.trim();
   return description && description.length > 0 ? description : '—';
+}
+
+function TagDocumentsCountButton({
+  tag,
+  mobile = false,
+  onOpen,
+}: {
+  tag: Tag;
+  mobile?: boolean;
+  onOpen: (tag: Tag, trigger: HTMLElement) => void;
+}) {
+  const documentsCount = tag.documentsCount ?? 0;
+  const label = `${documentsCount} document${documentsCount === 1 ? '' : 's'}`;
+
+  if (documentsCount === 0) {
+    return mobile ? (
+      <Text as="span">{label}</Text>
+    ) : (
+      <Flex align="center" gap="2" minW="0" color="fg.muted">
+        <Files size={16} />
+        <Text truncate fontSize="sm" fontWeight="medium" color="fg.muted">
+          {documentsCount}
+        </Text>
+      </Flex>
+    );
+  }
+
+  if (mobile) {
+    return (
+      <chakra.button
+        type="button"
+        aria-label={`View documents tagged ${tag.name}`}
+        fontWeight="semibold"
+        textDecoration="underline"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen(tag, event.currentTarget);
+        }}
+      >
+        {label}
+      </chakra.button>
+    );
+  }
+
+  return (
+    <chakra.button
+      type="button"
+      aria-label={`View documents tagged ${tag.name}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(tag, event.currentTarget);
+      }}
+    >
+      <Flex
+        align="center"
+        gap="2"
+        minW="0"
+        color="fg.muted"
+        rounded="md"
+        px="1"
+        py="1"
+        transition="background-color 0.15s ease, color 0.15s ease"
+        _hover={{ bg: 'bg.subtle', color: 'teal.fg' }}
+        _focusVisible={{
+          outline: '2px solid',
+          outlineColor: 'teal.focusRing',
+          outlineOffset: '2px',
+        }}
+      >
+        <Files size={16} />
+        <Text truncate fontSize="sm" fontWeight="medium" color="currentColor">
+          {documentsCount}
+        </Text>
+      </Flex>
+    </chakra.button>
+  );
+}
+
+function TagDocumentsDialog({
+  open,
+  tag,
+  documents,
+  isLoading,
+  isError,
+  onClose,
+}: {
+  open: boolean;
+  tag: Tag | null;
+  documents: TagDocument[];
+  isLoading: boolean;
+  isError: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <ChakraDialog.Root
+      open={open}
+      onOpenChange={(event) => {
+        if (!event.open) onClose();
+      }}
+      size={{ mdDown: 'full', md: 'xl' }}
+    >
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content>
+            <ChakraDialog.Header>
+              <ChakraDialog.Title>
+                {tag ? `Documents tagged “${tag.name}”` : 'Tagged documents'}
+              </ChakraDialog.Title>
+              <ChakraDialog.CloseTrigger asChild>
+                <CloseButton size="sm" />
+              </ChakraDialog.CloseTrigger>
+            </ChakraDialog.Header>
+            <ChakraDialog.Body>
+              {isLoading ? (
+                <Text fontSize="sm" color="fg.muted">
+                  Loading documents...
+                </Text>
+              ) : null}
+              {isError ? (
+                <Text fontSize="sm" color="fg.error">
+                  Unable to load documents for this tag.
+                </Text>
+              ) : null}
+              {!isLoading && !isError && documents.length === 0 ? (
+                <Text fontSize="sm" color="fg.muted">
+                  No accessible documents use this tag.
+                </Text>
+              ) : null}
+              {!isLoading && !isError && documents.length > 0 ? (
+                <Stack
+                  gap="0"
+                  borderWidth="1px"
+                  borderColor="border.surface"
+                  rounded="md"
+                  maxH={`calc(${TAG_DOCUMENTS_LIST_ROW_HEIGHT} * ${TAG_DOCUMENTS_LIST_MAX_ROWS})`}
+                  overflowY="auto"
+                  overscrollBehavior="contain"
+                >
+                  {documents.map((document) => (
+                    <Link
+                      key={`${document.vaultId}-${document.id}`}
+                      to={ROUTES.vaultDocument(document.vaultId, document.id)}
+                      style={{ color: 'inherit', textDecoration: 'none' }}
+                      aria-label={`Open ${document.name}`}
+                    >
+                      <Grid
+                        templateColumns={{
+                          base: '1fr',
+                          md: 'minmax(0, 1fr) minmax(8rem, 12rem) minmax(5rem, 7rem)',
+                        }}
+                        gap="3"
+                        alignItems="center"
+                        minH={TAG_DOCUMENTS_LIST_ROW_HEIGHT}
+                        px="4"
+                        py="3"
+                        borderBottomWidth="1px"
+                        borderColor="border.surface"
+                        _hover={{ bg: 'bg.subtle' }}
+                        _last={{ borderBottomWidth: '0' }}
+                      >
+                        <Stack gap="1" minW="0">
+                          <Text truncate fontSize="sm" fontWeight="semibold" color="fg">
+                            {document.name}
+                          </Text>
+                          <Text truncate fontSize="xs" color="fg.muted">
+                            {document.originalName}
+                          </Text>
+                        </Stack>
+                        <Text truncate fontSize="sm" color="fg.muted">
+                          {document.vaultName}
+                        </Text>
+                        <Stack gap="1" minW="0">
+                          <Text fontSize="sm" color="fg.muted">
+                            {formatBytes(document.originalSize)}
+                          </Text>
+                          <Text fontSize="xs" color="fg.muted">
+                            {formatDate(document.updatedAt)}
+                          </Text>
+                        </Stack>
+                      </Grid>
+                    </Link>
+                  ))}
+                </Stack>
+              ) : null}
+            </ChakraDialog.Body>
+            <ChakraDialog.Footer>
+              <Button variant="outline" onClick={onClose}>
+                Close
+              </Button>
+            </ChakraDialog.Footer>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
+  );
 }
 
 function SelectionCheckbox({
@@ -424,10 +662,15 @@ export function TagsPage() {
   const [formColor, setFormColor] = useState(DEFAULT_TAG_COLOR);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [tagsPendingBulkDelete, setTagsPendingBulkDelete] = useState<Tag[]>([]);
+  const [documentsTag, setDocumentsTag] = useState<Tag | null>(null);
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const focusRestoreTargetRef = useRef<HTMLElement | null>(null);
 
   const tags = useMemo(() => tagsQuery.data?.tags ?? [], [tagsQuery.data?.tags]);
+  const tagDocumentsQuery = useTagDocumentsQuery({
+    tagId: documentsTag?.id ?? '',
+    enabled: documentsTag !== null,
+  });
   const selectedTag = useMemo(
     () => tags.find((tag) => tag.id === editingTagId) ?? null,
     [editingTagId, tags],
@@ -466,15 +709,18 @@ export function TagsPage() {
     }
   }
 
-  const openCreateDialog = useCallback((trigger?: HTMLButtonElement | null) => {
-    rememberFocusTarget(trigger ?? createButtonRef.current);
-    setDialogMode('create');
-    setEditingTagId(null);
-    setFormName('');
-    setFormDescription('');
-    setFormColor(DEFAULT_TAG_COLOR);
-    setIsDialogOpen(true);
-  }, [rememberFocusTarget]);
+  const openCreateDialog = useCallback(
+    (trigger?: HTMLButtonElement | null) => {
+      rememberFocusTarget(trigger ?? createButtonRef.current);
+      setDialogMode('create');
+      setEditingTagId(null);
+      setFormName('');
+      setFormDescription('');
+      setFormColor(DEFAULT_TAG_COLOR);
+      setIsDialogOpen(true);
+    },
+    [rememberFocusTarget],
+  );
 
   function openEditDialog(tag: Tag, trigger?: HTMLButtonElement | null) {
     rememberFocusTarget(trigger);
@@ -486,18 +732,30 @@ export function TagsPage() {
     setIsDialogOpen(true);
   }
 
+  function openDocumentsDialog(tag: Tag, trigger?: HTMLElement | null) {
+    rememberFocusTarget(trigger);
+    setDocumentsTag(tag);
+  }
+
+  function closeDocumentsDialog() {
+    setDocumentsTag(null);
+    restoreFocusTarget();
+  }
+
   function closeDialog() {
     setIsDialogOpen(false);
     restoreFocusTarget();
   }
-  const editingTag = editingTagId ? tags.find((tag) => tag.id === editingTagId) ?? null : null;
-  const isTagDialogDirty = dialogMode === 'create'
-    ? formName.trim().length > 0 || formDescription.trim().length > 0 || formColor !== DEFAULT_TAG_COLOR
-    : editingTag !== null && (
-      formName !== editingTag.name ||
-      formDescription !== (editingTag.description ?? '') ||
-      formColor !== (editingTag.color ?? DEFAULT_TAG_COLOR)
-    );
+  const editingTag = editingTagId ? (tags.find((tag) => tag.id === editingTagId) ?? null) : null;
+  const isTagDialogDirty =
+    dialogMode === 'create'
+      ? formName.trim().length > 0 ||
+        formDescription.trim().length > 0 ||
+        formColor !== DEFAULT_TAG_COLOR
+      : editingTag !== null &&
+        (formName !== editingTag.name ||
+          formDescription !== (editingTag.description ?? '') ||
+          formColor !== (editingTag.color ?? DEFAULT_TAG_COLOR));
 
   async function invalidateTagQueries() {
     await queryClient.invalidateQueries({ queryKey: tagQueryKeys.all });
@@ -539,9 +797,7 @@ export function TagsPage() {
     mutationFn: async (tagsToDelete: Array<{ tagId: string }>) =>
       Promise.all(tagsToDelete.map((tagToDelete) => deleteTag(tagToDelete))),
     onSuccess: async (_data, variables) => {
-      toast.success(
-        variables.length === 1 ? 'Tag deleted.' : `${variables.length} tags deleted.`,
-      );
+      toast.success(variables.length === 1 ? 'Tag deleted.' : `${variables.length} tags deleted.`);
       const deletedTagIds = new Set(variables.map((item) => item.tagId));
       setSelectedTagIds((current) => current.filter((id) => !deletedTagIds.has(id)));
       closeDeleteDialogs({ restoreFocus: false });
@@ -578,11 +834,13 @@ export function TagsPage() {
   }, [deleteMutation.isPending, tagPendingDelete, tagsPendingBulkDelete.length]);
 
   function toggleTagSelection(tagId: string, checked: boolean) {
-    setSelectedTagIds((current) => (
+    setSelectedTagIds((current) =>
       checked
-        ? current.includes(tagId) ? current : [...current, tagId]
-        : current.filter((id) => id !== tagId)
-    ));
+        ? current.includes(tagId)
+          ? current
+          : [...current, tagId]
+        : current.filter((id) => id !== tagId),
+    );
   }
 
   function toggleAllVisibleTags(checked: boolean) {
@@ -643,39 +901,48 @@ export function TagsPage() {
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
-  const tagsHeaderLeft = useMemo(() => (
-    <HStack gap="4" minW="0" w="full">
-      <WorkspacePageTitle>Tags</WorkspacePageTitle>
-      <Box w="full" maxW={{ base: '16rem', md: '24rem' }}>
-        <Field>
-          <FieldLabel htmlFor="tag-filter" srOnly>
-            Search tags
-          </FieldLabel>
-          <Input
-            id="tag-filter"
-            value={filterText}
-            onChange={(event) => setFilterText(event.target.value)}
-            placeholder="Search tags"
-            size="sm"
-          />
-        </Field>
-      </Box>
-    </HStack>
-  ), [filterText]);
-  const tagsHeaderActions = useMemo(() => (
-    <CreateButton
-      ref={createButtonRef}
-      type="button"
-      size="sm"
-      onClick={(event) => openCreateDialog(event.currentTarget)}
-    >
-      New tag
-    </CreateButton>
-  ), [openCreateDialog]);
-  const workspaceHeader = useMemo(() => ({
-    left: tagsHeaderLeft,
-    actions: tagsHeaderActions,
-  }), [tagsHeaderActions, tagsHeaderLeft]);
+  const tagsHeaderLeft = useMemo(
+    () => (
+      <HStack gap="4" minW="0" w="full">
+        <WorkspacePageTitle>Tags</WorkspacePageTitle>
+        <Box w="full" maxW={{ base: '16rem', md: '24rem' }}>
+          <Field>
+            <FieldLabel htmlFor="tag-filter" srOnly>
+              Search tags
+            </FieldLabel>
+            <Input
+              id="tag-filter"
+              value={filterText}
+              onChange={(event) => setFilterText(event.target.value)}
+              placeholder="Search tags"
+              size="sm"
+            />
+          </Field>
+        </Box>
+      </HStack>
+    ),
+    [filterText],
+  );
+  const tagsHeaderActions = useMemo(
+    () => (
+      <CreateButton
+        ref={createButtonRef}
+        type="button"
+        size="sm"
+        onClick={(event) => openCreateDialog(event.currentTarget)}
+      >
+        New tag
+      </CreateButton>
+    ),
+    [openCreateDialog],
+  );
+  const workspaceHeader = useMemo(
+    () => ({
+      left: tagsHeaderLeft,
+      actions: tagsHeaderActions,
+    }),
+    [tagsHeaderActions, tagsHeaderLeft],
+  );
   const isInWorkspaceShell = useWorkspaceHeader(workspaceHeader);
 
   return (
@@ -700,10 +967,14 @@ export function TagsPage() {
 
       <Box flex="1" minH="0" overflowY="auto" bg="bg.workspace">
         {tagsQuery.isLoading ? (
-          <Text px="6" py="6" textStyle="sm">Loading tags...</Text>
+          <Text px="6" py="6" textStyle="sm">
+            Loading tags...
+          </Text>
         ) : null}
         {tagsQuery.isError ? (
-          <Text px="6" py="6" textStyle="sm" color="fg.error">Unable to load tags.</Text>
+          <Text px="6" py="6" textStyle="sm" color="fg.error">
+            Unable to load tags.
+          </Text>
         ) : null}
         {!tagsQuery.isLoading && tags.length === 0 ? (
           <CenteredEmptyState
@@ -748,7 +1019,9 @@ export function TagsPage() {
               <Text as="span">Description</Text>
               <Text as="span">Documents</Text>
               <Text as="span">Created</Text>
-              <Text as="span" srOnly>Actions</Text>
+              <Text as="span" srOnly>
+                Actions
+              </Text>
             </Grid>
 
             {filteredTags.map((tag) => {
@@ -759,7 +1032,10 @@ export function TagsPage() {
                   key={tag.id}
                   as="article"
                   alignItems="center"
-                  templateColumns={{ base: '2.5rem minmax(0, 1fr) auto', md: TAGS_LIST_GRID_COLUMNS }}
+                  templateColumns={{
+                    base: '2.5rem minmax(0, 1fr) auto',
+                    md: TAGS_LIST_GRID_COLUMNS,
+                  }}
                   gap="4"
                   h="var(--arkivra-listRowHeight, 4.5rem)"
                   borderBottomWidth="1px"
@@ -781,8 +1057,15 @@ export function TagsPage() {
                   <Flex minW="0" align="center" gap="3">
                     <Stack minW="0" flex="1" gap="1">
                       <TagBadge color={tag.color} name={tag.name} />
-                      <Text display={{ md: 'none' }} truncate fontSize="sm" color="fg.muted">
-                        {tag.documentsCount ?? 0} document{(tag.documentsCount ?? 0) === 1 ? '' : 's'} - {formatTagCreatedDate(tag.createdAt)}
+                      <Text
+                        as="div"
+                        display={{ md: 'none' }}
+                        truncate
+                        fontSize="sm"
+                        color="fg.muted"
+                      >
+                        <TagDocumentsCountButton tag={tag} mobile onOpen={openDocumentsDialog} /> -{' '}
+                        {formatTagCreatedDate(tag.createdAt)}
                       </Text>
                     </Stack>
                   </Flex>
@@ -791,22 +1074,21 @@ export function TagsPage() {
                     {getTagDescription(tag)}
                   </Text>
 
-                  <Flex display={{ base: 'none', md: 'flex' }} align="center" gap="2" minW="0" color="fg.muted">
-                    <Files size={16} />
-                    <Text truncate fontSize="sm" fontWeight="medium" color="fg.muted">
-                      {tag.documentsCount ?? 0}
-                    </Text>
+                  <Flex display={{ base: 'none', md: 'flex' }} align="center" minW="0">
+                    <TagDocumentsCountButton tag={tag} onOpen={openDocumentsDialog} />
                   </Flex>
 
-                  <Text display={{ base: 'none', md: 'block' }} truncate fontSize="sm" color="fg.muted">
+                  <Text
+                    display={{ base: 'none', md: 'block' }}
+                    truncate
+                    fontSize="sm"
+                    color="fg.muted"
+                  >
                     {formatTagCreatedDate(tag.createdAt)}
                   </Text>
 
                   <Box flexShrink="0">
-                    <TagActionsMenu
-                      tag={tag}
-                      actions={(trigger) => getTagActions(tag, trigger)}
-                    />
+                    <TagActionsMenu tag={tag} actions={(trigger) => getTagActions(tag, trigger)} />
                   </Box>
                 </Grid>
               );
@@ -823,10 +1105,7 @@ export function TagsPage() {
         closeLabel={dialogMode === 'create' ? 'Close create tag dialog' : 'Close edit tag dialog'}
         isPending={isSubmitting}
         isDirty={isTagDialogDirty}
-        isSubmitDisabled={
-          formName.trim().length === 0 ||
-          isSubmitting
-        }
+        isSubmitDisabled={formName.trim().length === 0 || isSubmitting}
         nameValue={formName}
         colorValue={formColor}
         descriptionValue={formDescription}
@@ -844,9 +1123,11 @@ export function TagsPage() {
         onClose={closeDeleteDialogs}
         onConfirm={() => {
           if (!tagPendingDelete) return;
-          deleteMutation.mutate([{
-            tagId: tagPendingDelete.id,
-          }]);
+          deleteMutation.mutate([
+            {
+              tagId: tagPendingDelete.id,
+            },
+          ]);
         }}
       />
 
@@ -862,6 +1143,15 @@ export function TagsPage() {
             })),
           );
         }}
+      />
+
+      <TagDocumentsDialog
+        open={documentsTag !== null}
+        tag={documentsTag}
+        documents={tagDocumentsQuery.data?.documents ?? []}
+        isLoading={tagDocumentsQuery.isLoading}
+        isError={tagDocumentsQuery.isError}
+        onClose={closeDocumentsDialog}
       />
 
       {contextMenu !== null ? (

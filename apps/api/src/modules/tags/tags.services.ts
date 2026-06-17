@@ -1,6 +1,11 @@
 import type { Database } from '../database/database.js';
-import { and, asc, eq, exists, inArray, sql } from 'drizzle-orm';
-import { documentTagsTable, documentsTable, tagsTable } from '../database/schema/index.js';
+import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm';
+import {
+  documentTagsTable,
+  documentsTable,
+  tagsTable,
+  vaultsTable,
+} from '../database/schema/index.js';
 
 export function createTagsServices({ db }: { db: Database }) {
   async function listTags({ vaultIds }: { vaultIds?: string[] } = {}) {
@@ -154,12 +159,7 @@ export function createTagsServices({ db }: { db: Database }) {
             db
               .select({ id: documentsTable.id })
               .from(documentsTable)
-              .where(
-                and(
-                  eq(documentsTable.id, documentId),
-                  eq(documentsTable.vaultId, vaultId),
-                ),
-              ),
+              .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId))),
           ),
         ),
       )
@@ -187,13 +187,43 @@ export function createTagsServices({ db }: { db: Database }) {
       .from(documentTagsTable)
       .innerJoin(tagsTable, eq(documentTagsTable.tagId, tagsTable.id))
       .innerJoin(documentsTable, eq(documentTagsTable.documentId, documentsTable.id))
+      .where(and(eq(documentTagsTable.documentId, documentId), eq(documentsTable.vaultId, vaultId)))
+      .orderBy(tagsTable.name);
+  }
+
+  async function listTagDocuments({ tagId, vaultIds }: { tagId: string; vaultIds: string[] }) {
+    if (vaultIds.length === 0) {
+      return [];
+    }
+
+    return db
+      .select({
+        id: documentsTable.id,
+        vaultId: documentsTable.vaultId,
+        vaultName: vaultsTable.name,
+        name: documentsTable.name,
+        originalName: documentsTable.originalName,
+        folderId: documentsTable.folderId,
+        originalSize: documentsTable.originalSize,
+        mimeType: documentsTable.mimeType,
+        processingStatus: documentsTable.processingStatus,
+        language: documentsTable.language,
+        createdAt: documentsTable.createdAt,
+        updatedAt: documentsTable.updatedAt,
+        isDeleted: documentsTable.isDeleted,
+        deletedAt: documentsTable.deletedAt,
+      })
+      .from(documentTagsTable)
+      .innerJoin(documentsTable, eq(documentTagsTable.documentId, documentsTable.id))
+      .innerJoin(vaultsTable, eq(documentsTable.vaultId, vaultsTable.id))
       .where(
         and(
-          eq(documentTagsTable.documentId, documentId),
-          eq(documentsTable.vaultId, vaultId),
+          eq(documentTagsTable.tagId, tagId),
+          inArray(documentsTable.vaultId, vaultIds),
+          eq(documentsTable.isDeleted, false),
         ),
       )
-      .orderBy(tagsTable.name);
+      .orderBy(desc(documentsTable.updatedAt), asc(documentsTable.name));
   }
 
   return {
@@ -201,6 +231,7 @@ export function createTagsServices({ db }: { db: Database }) {
     createTag,
     deleteTag,
     listDocumentTags,
+    listTagDocuments,
     listTags,
     removeTagFromDocument,
     updateTag,

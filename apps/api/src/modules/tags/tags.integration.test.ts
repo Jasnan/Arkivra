@@ -37,6 +37,24 @@ function createMockTagsServices() {
       updatedAt: new Date('2025-01-02T00:00:00.000Z'),
     })),
     deleteTag: vi.fn(async () => ({ id: 'tag_1' })),
+    listTagDocuments: vi.fn(async () => [
+      {
+        id: 'doc_1',
+        vaultId: 'vlt_1',
+        vaultName: 'Test Vault',
+        name: 'Policy.pdf',
+        originalName: 'policy.pdf',
+        folderId: null,
+        originalSize: 1024,
+        mimeType: 'application/pdf',
+        processingStatus: 'completed',
+        language: null,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        isDeleted: false,
+        deletedAt: null,
+      },
+    ]),
     listDocumentTags: vi.fn(async () => [
       {
         id: 'tag_1',
@@ -142,6 +160,54 @@ describe('tags integration', () => {
     expect((tagsServices as any).listTags).toHaveBeenCalledWith({ vaultIds: [] });
   });
 
+  test('passes only readable vault ids when listing global tag counts', async () => {
+    const tagsServices = createMockTagsServices();
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [
+        { id: 'vlt_owner', role: 'owner' },
+        { id: 'vlt_editor', role: 'editor' },
+        { id: 'vlt_viewer', role: 'viewer' },
+        { id: 'vlt_other', role: 'member' },
+      ]),
+    } as unknown as VaultsServices;
+    const app = createTestApp({ tagsServices, vaultServices });
+
+    const response = await app.request('/api/tags', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect((tagsServices as any).listTags).toHaveBeenCalledWith({
+      vaultIds: ['vlt_owner', 'vlt_editor', 'vlt_viewer'],
+    });
+  });
+
+  test('lists documents for a tag using only readable vault ids', async () => {
+    const tagsServices = createMockTagsServices();
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [
+        { id: 'vlt_owner', role: 'owner' },
+        { id: 'vlt_viewer', role: 'viewer' },
+        { id: 'vlt_other', role: 'member' },
+      ]),
+    } as unknown as VaultsServices;
+    const app = createTestApp({ tagsServices, vaultServices });
+
+    const response = await app.request('/api/tags/tag_1/documents', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as any;
+    expect(body.documents).toHaveLength(1);
+    expect((tagsServices as any).listTagDocuments).toHaveBeenCalledWith({
+      tagId: 'tag_1',
+      vaultIds: ['vlt_owner', 'vlt_viewer'],
+    });
+  });
+
   test('creates a global tag', async () => {
     const tagsServices = createMockTagsServices();
     const app = createTestApp({ tagsServices });
@@ -152,7 +218,11 @@ describe('tags integration', () => {
         'x-test-user-id': 'usr_1',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ name: 'Important', color: '#FF0000', description: 'Flagged for follow-up' }),
+      body: JSON.stringify({
+        name: 'Important',
+        color: '#FF0000',
+        description: 'Flagged for follow-up',
+      }),
     });
 
     expect(response.status).toBe(201);

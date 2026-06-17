@@ -1,12 +1,20 @@
 import { fetchJson } from '@/lib/api';
-import type { Tag } from './tags.types';
+import type { Tag, TagDocument } from './tags.types';
 
 interface TagsResponse {
   tags: Tag[];
 }
 
+interface TagDocumentsResponse {
+  documents: TagDocument[];
+}
+
 export async function listTags() {
   return fetchJson<TagsResponse>('/api/tags');
+}
+
+export async function listTagDocuments({ tagId }: { tagId: string }) {
+  return fetchJson<TagDocumentsResponse>(`/api/tags/${tagId}/documents`);
 }
 
 export async function createTag({

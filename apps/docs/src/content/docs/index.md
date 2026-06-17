@@ -1,25 +1,26 @@
 ---
-title: Arkivra Documentation
-description: Documentation for running, configuring, and developing Arkivra.
+title: Introduction
+description: Documentation for self-hosting, configuring, and operating Arkivra.
 ---
 
 # Arkivra Documentation
 
 Arkivra is an open-source, self-hosted document management system for vault-based document ownership, upload, parsing, search, optional semantic retrieval, and optional AI-assisted chat.
 
-The core document workflow does not require AI. PostgreSQL, Docling, the API, the dashboard, and a worker are enough for upload, parsing, vaults, document versions, full-text search, preview, download, trash, and restore workflows. Optional AI features depend on the administrator configuring Ollama-backed settings and, for semantic search, building an active embedding index.
+The core document workflow does not require AI. PostgreSQL, Docling, the API, the dashboard, and a worker are enough for uploads, parsing, vaults, document versions, full-text search, preview, download, trash, and restore workflows.
 
 ## Start Here
 
-- [Getting started](./getting-started.md)
-- [Docker Compose self-hosting](./docker-compose.md)
-- [Configuration reference](./configuration.md)
-- [First admin and authentication](./first-admin-and-auth.md)
-- [Document versioning](./document-versioning.md)
-- [Storage, encryption, and backups](./storage-encryption-backups.md)
-- [Search and optional AI](./search-and-ai.md)
-- [CI strategy](./ci.md)
-- [Troubleshooting](./troubleshooting.md)
+- [Using Docker Compose](./self-hosting/using-docker-compose.md)
+- [Configuration](./self-hosting/configuration.md)
+- [First admin and authentication](./self-hosting/first-admin-and-auth.md)
+- [Roles and administration](./guides/roles-and-administration.md)
+- [Document versioning](./guides/document-versioning.md)
+- [Document encryption](./guides/document-encryption.md)
+- [Backups and restore](./guides/backups-and-restore.md)
+- [Search](./guides/search.md)
+- [AI providers](./guides/ai-providers.md)
+- [Troubleshooting](./resources/troubleshooting.md)
 
 ## Security And Privacy Boundaries
 

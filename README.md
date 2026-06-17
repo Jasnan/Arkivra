@@ -5,9 +5,9 @@
 <p align="center">
   <a href="https://arkivra.app">Website</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="docs/README.md">Documentation</a>
+  <a href="apps/docs/src/content/docs/index.md">Documentation</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="docs/docker-compose.md">Self-hosting</a>
+  <a href="apps/docs/src/content/docs/self-hosting/using-docker-compose.md">Self-hosting</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
   <a href="#features">Features</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
@@ -20,7 +20,7 @@
 
 Arkivra is an open-source, self-hosted document management system with vaults, full-text search, optional semantic search, and optional AI-assisted chat.
 
-Organize documents into vaults, search across your files, and add chat or semantic retrieval when you configure Arkivra's Ollama-backed AI settings and an active embedding index.
+Organize documents into vaults, search across your files, and add chat or semantic retrieval when you configure Arkivra's optional AI settings and, for semantic search, an active embedding index.
 
 ---
 
@@ -38,7 +38,7 @@ The core platform is already usable, but deployment, documentation, and operatio
 - Vault members, roles, and permission management
 - Upload, preview, download, document version history, restore, and trash workflows
 - Full-text search by default, with semantic search when an embedding index is enabled
-- Optional chat with documents, vaults, or your entire library using the configured Ollama-compatible chat endpoint
+- Optional chat with documents, vaults, or your entire library using the configured chat provider
 - Docling-based document parsing and ingestion without an AI dependency
 - Tags, filters, and metadata management
 - Email/password auth, OAuth, and 2FA
@@ -75,7 +75,7 @@ Local URLs:
 - Web: http://localhost:5173
 - API: http://localhost:1221
 
-PostgreSQL and Docling are enough for uploads, parsing, document management, document version history, and keyword search. Ollama is optional; configure it from the admin AI settings when you want local chat, translation, or semantic indexing.
+PostgreSQL and Docling are enough for uploads, parsing, document management, document version history, and keyword search. AI providers are optional; configure them from the admin AI settings when you want chat, translation, or semantic indexing.
 
 ---
 
@@ -92,7 +92,7 @@ For parallel branch work, use Git worktrees with distinct ports and `APP_INSTANC
 
 Docker Compose currently starts PostgreSQL with pgvector, Docling, the API process, and the worker. It does not require Ollama for ingestion or full-text search.
 
-More detailed setup, deployment, and operational documentation is available in [`docs`](docs/README.md).
+More detailed setup, deployment, and operational documentation is available in the [`apps/docs`](apps/docs/src/content/docs/index.md) documentation site source.
 
 ---
 
@@ -100,13 +100,12 @@ More detailed setup, deployment, and operational documentation is available in [
 
 The repository is organized around these public surfaces:
 
-| Surface       | Source                | Target                |
-| ------------- | --------------------- | --------------------- |
-| API           | `apps/arkivra-server` | `api`                 |
-| Dashboard     | `apps/arkivra-client` | `dashboard`           |
-| Website       | `apps/website`        | `https://arkivra.app` |
-| Docs site     | `apps/docs`           | `docs`                |
-| Documentation | `docs`                | local Markdown docs   |
+| Surface   | Source                | Target                     |
+| --------- | --------------------- | -------------------------- |
+| API       | `apps/arkivra-server` | `api`                      |
+| Dashboard | `apps/arkivra-client` | `dashboard`                |
+| Website   | `apps/website`        | `https://arkivra.app`      |
+| Docs site | `apps/docs`           | `https://docs.arkivra.app` |
 
 ---
 
@@ -131,16 +130,16 @@ Losing the active encryption key means losing access to encrypted stored files.
 
 ## Stack
 
-| Layer      | Technology                                                                                                |
-| ---------- | --------------------------------------------------------------------------------------------------------- |
-| Frontend   | React, Vite, TypeScript, Chakra UI, TanStack Router, TanStack Query                                       |
-| Backend    | Hono, Node.js, TypeScript                                                                                 |
-| Auth       | Better Auth                                                                                               |
-| Database   | PostgreSQL, Drizzle ORM, pgvector                                                                         |
-| Jobs       | PostgreSQL-backed workers                                                                                 |
-| Parsing    | Docling                                                                                                   |
-| AI         | Optional Ollama-backed chat, translation, and embeddings; broader provider support is not first-class yet |
-| Deployment | Docker Compose                                                                                            |
+| Layer      | Technology                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| Frontend   | React, Vite, TypeScript, Chakra UI, TanStack Router, TanStack Query                        |
+| Backend    | Hono, Node.js, TypeScript                                                                  |
+| Auth       | Better Auth                                                                                |
+| Database   | PostgreSQL, Drizzle ORM, pgvector                                                          |
+| Jobs       | PostgreSQL-backed workers                                                                  |
+| Parsing    | Docling                                                                                    |
+| AI         | Optional Ollama-compatible chat, translation, and embeddings; optional Gemini chat support |
+| Deployment | Docker Compose                                                                             |
 
 ---
 

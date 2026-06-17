@@ -16,7 +16,7 @@ pnpm --filter @arkivra/docs build
 
 ## Documentation Expectations
 
-- Keep docs consistent with the implementation and root `docs` content.
+- Keep docs consistent with the implementation and public project positioning.
 - Avoid privacy and security overclaims.
 - State AI provider and embedding-index behavior as optional.
 - Prefer practical self-hosting language over marketing claims.

@@ -26,12 +26,14 @@ Use this checklist before a public release. Treat unchecked critical items as bl
   - [ ] `pnpm --filter @arkivra/web build`
   - [ ] `pnpm --filter @arkivra/website check`
   - [ ] `pnpm --filter @arkivra/website build`
+  - [ ] `pnpm --filter @arkivra/docs check`
+  - [ ] `pnpm --filter @arkivra/docs build`
 
 ## CI and Automation
 
 - [ ] CI workflow exists for install, lint, typecheck, tests, and build.
 - [ ] CI uses pnpm and the repo package manager version.
-- [ ] CI covers API, dashboard, and website.
+- [ ] CI covers API, dashboard, website, and docs.
 - [ ] CI documents any external service dependencies.
 - [ ] Commit message validation is either documented or automated.
 
@@ -132,17 +134,19 @@ Use this checklist before a public release. Treat unchecked critical items as bl
 
 ## Documentation Site Minimum Viable Pages
 
-- [ ] Getting started.
+- [ ] Introduction.
+- [ ] Changelog or release status.
 - [ ] Docker Compose self-hosting.
+- [ ] From-source setup.
 - [ ] Configuration reference.
 - [ ] First admin and auth setup.
-- [ ] Vaults, roles, and permissions.
-- [ ] Uploads, parsing, and storage.
+- [ ] Roles and administration.
 - [ ] Document versioning, historical restore, individual version deletion, and permanent purge behavior.
+- [ ] Document encryption.
+- [ ] Backups and restore.
 - [ ] Search and optional semantic search.
 - [ ] Optional AI providers.
-- [ ] Security and privacy model.
-- [ ] Backups and restore.
+- [ ] OAuth setup.
 - [ ] Troubleshooting.
 
 ## Demo Readiness

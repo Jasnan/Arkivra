@@ -115,7 +115,7 @@ Use this checklist when reviewing architecture, planning refactors, or validatin
 ## Documentation Architecture
 
 - [ ] Docs distinguish quick start, self-hosting, configuration, operations, security, and user workflows.
-- [ ] Docs site structure, when added, has a clear source app/package location.
+- [ ] Published user documentation lives in the `apps/docs` Starlight app.
 - [ ] Docs commands match package scripts and Docker Compose behavior.
 - [ ] Docs avoid unsupported claims.
 - [ ] AI provider docs explain optional behavior, active embedding indexes, and data exposure caveats.

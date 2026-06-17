@@ -1,8 +1,9 @@
 ---
 title: Configuration
+description: Environment variables for configuring Arkivra.
 ---
 
-# Configuration Reference
+# Configuration
 
 Arkivra reads configuration from environment variables. The root `.env.example` contains a minimal local configuration.
 
@@ -31,7 +32,7 @@ Arkivra reads configuration from environment variables. The root `.env.example` 
 | `ARKIVRA_DOCLING_VLM_MODEL`    | Docling VLM model/preset. Only valid when VLM pipeline is enabled | Docling `default` when VLM pipeline is enabled      |
 | `ARKIVRA_PARSER_TEXT_CLEANUP`  | `deterministic` or `none`                                         | `deterministic`                                     |
 
-All files use the default Docling pipeline by default. Set `ARKIVRA_DOCLING_VLM_PIPELINE=enabled` only when the configured Docling Serve instance has an approved VLM runtime available. When enabled, Arkivra uses VLM only for scan-heavy PDFs and image files; digital PDFs and ordinary documents stay on the default pipeline. `ARKIVRA_DOCLING_VLM_MODEL` selects the Docling VLM preset sent to Docling Serve, but it is rejected unless the VLM pipeline is enabled. When omitted, Arkivra sends Docling Serve's `default` VLM preset for VLM-routed files.
+Set `ARKIVRA_DOCLING_VLM_PIPELINE=enabled` only when the configured Docling Serve instance has an approved VLM runtime available. When enabled, Arkivra uses VLM only for scan-heavy PDFs and image files; digital PDFs and ordinary documents stay on the default pipeline.
 
 ## Storage, Uploads, And Backups
 
@@ -94,8 +95,9 @@ For key rotation, keep old versions available and add a higher version for new f
 | Variable                              | Purpose                                         | Default                                 |
 | ------------------------------------- | ----------------------------------------------- | --------------------------------------- |
 | `ARKIVRA_OLLAMA_HOST`                 | Default Ollama-compatible endpoint              | `http://127.0.0.1:11434`                |
-| `ARKIVRA_OLLAMA_MODEL`                | Default chat and AI-assisted model              | `gemma4:e4b`                            |
+| `ARKIVRA_OLLAMA_MODEL`                | Default Ollama-compatible chat model            | `gemma4:e4b`                            |
 | `ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE` | Embedding batch size                            | `16` app default; Compose supplies `20` |
 | `ARKIVRA_OLLAMA_LOG_REQUESTS`         | Log Ollama requests and responses for debugging | `false`                                 |
+| `GEMINI_API_KEY`                      | Default environment variable for Gemini chat    | unset                                   |
 
-Leave AI variables unset for PostgreSQL + Docling-only ingestion and full-text search. Configure AI features from the admin AI settings when enabling chat, translation, or semantic indexing.
+Leave AI variables unset for PostgreSQL + Docling-only ingestion and full-text search. Configure AI features from the admin AI settings when enabling chat, translation, or semantic indexing. See [AI Providers](../guides/ai-providers.md) for provider-specific behavior and data exposure notes.

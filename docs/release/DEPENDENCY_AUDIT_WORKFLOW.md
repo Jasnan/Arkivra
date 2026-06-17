@@ -28,7 +28,7 @@ pnpm deps:outdated
 
 `.github/workflows/dependency-audit.yml` runs `pnpm deps:audit`:
 
-- on every pull request;
+- on pull requests that change package manifests, the lockfile, package directories, or dependency-audit workflow files;
 - on every push to `main`;
 - weekly by schedule;
 - manually through `workflow_dispatch`.
@@ -50,7 +50,7 @@ Release-impacting vulnerabilities must be fixed or explicitly accepted with a do
 
 ## Current Overrides
 
-The root `package.json` pins Vite through a pnpm override so transitive website tooling uses a patched Vite 6.4.x release. Keep this override until all direct and transitive Vite consumers resolve to a patched version without it.
+The root `package.json` contains pnpm overrides for selected direct and transitive packages. Review each override during dependency updates and remove it when the affected package resolves safely without the override.
 
 ## Sensitive Dependency Review Areas
 

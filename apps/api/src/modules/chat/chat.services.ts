@@ -470,6 +470,7 @@ type ChatContextChunkRow = {
   bounding_boxes: unknown;
   citation_precision: string | null;
   provenance_elements: unknown;
+  text_locator: unknown;
   snippet: string | null;
 };
 
@@ -492,6 +493,7 @@ export type ChatContextExpansionChunk = {
   boundingBoxes?: CitationBoundingBox[];
   citationPrecision?: Citation['citationPrecision'];
   provenanceElements?: CitationProvenanceElement[];
+  textLocator?: Citation['textLocator'];
   snippet: string;
   retrievalScore?: number;
   retrievalRank?: number;
@@ -576,7 +578,7 @@ function parseStringArray(value: unknown): string[] {
     return [];
   }
 
-  return value.flatMap(item => (typeof item === 'string' ? [item] : []));
+  return value.flatMap((item) => (typeof item === 'string' ? [item] : []));
 }
 
 function parseCitationPrecision(value: string | null): Citation['citationPrecision'] {
@@ -611,17 +613,44 @@ function parseBoundingBoxes(value: unknown): CitationBoundingBox[] {
       return [];
     }
 
-    return [{
-      pageNumber: candidate.pageNumber,
-      x0: candidate.x0,
-      y0: candidate.y0,
-      x1: candidate.x1,
-      y1: candidate.y1,
-      layoutWidth: candidate.layoutWidth,
-      layoutHeight: candidate.layoutHeight,
-      system: candidate.system,
-    }];
+    return [
+      {
+        pageNumber: candidate.pageNumber,
+        x0: candidate.x0,
+        y0: candidate.y0,
+        x1: candidate.x1,
+        y1: candidate.y1,
+        layoutWidth: candidate.layoutWidth,
+        layoutHeight: candidate.layoutHeight,
+        system: candidate.system,
+      },
+    ];
   });
+}
+
+function parseTextLocator(value: unknown): Citation['textLocator'] | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const locator = value as Record<string, unknown>;
+  if (
+    (locator.sourceType !== 'rawMarkdown' && locator.sourceType !== 'rawText') ||
+    typeof locator.startOffset !== 'number' ||
+    typeof locator.endOffset !== 'number' ||
+    !Number.isInteger(locator.startOffset) ||
+    !Number.isInteger(locator.endOffset) ||
+    locator.startOffset < 0 ||
+    locator.endOffset <= locator.startOffset
+  ) {
+    return undefined;
+  }
+
+  return {
+    sourceType: locator.sourceType,
+    startOffset: locator.startOffset,
+    endOffset: locator.endOffset,
+  };
 }
 
 function isRenderableCitationBox(box: CitationBoundingBox) {
@@ -670,10 +699,7 @@ function mergeCitationBoundingBoxes(boxes: CitationBoundingBox[]) {
   }
 
   return [...groups.values()].sort(
-    (left, right) =>
-      left.pageNumber - right.pageNumber ||
-      left.y0 - right.y0 ||
-      left.x0 - right.x0,
+    (left, right) => left.pageNumber - right.pageNumber || left.y0 - right.y0 || left.x0 - right.x0,
   );
 }
 
@@ -704,13 +730,15 @@ function parseProvenanceElements(value: unknown): CitationProvenanceElement[] {
       return [];
     }
 
-    return [{
-      elementId: candidate.elementId,
-      text: candidate.text,
-      pageNumber: typeof candidate.pageNumber === 'number' ? candidate.pageNumber : null,
-      bbox: parseBoundingBoxes([candidate.bbox])[0] ?? null,
-      sortIndex: candidate.sortIndex,
-    }];
+    return [
+      {
+        elementId: candidate.elementId,
+        text: candidate.text,
+        pageNumber: typeof candidate.pageNumber === 'number' ? candidate.pageNumber : null,
+        bbox: parseBoundingBoxes([candidate.bbox])[0] ?? null,
+        sortIndex: candidate.sortIndex,
+      },
+    ];
   });
 }
 
@@ -853,7 +881,8 @@ function scoreContextChunk(chunk: ChatContextExpansionChunk, queryTerms: string[
   return (
     (chunk.retrievalScore ?? 0) +
     getContextRepresentationBonus(chunk.retrievalRepresentation) +
-    queryTermMatchScore * (isFineGrainedDoclingRepresentation(chunk.retrievalRepresentation) ? 2 : 1) +
+    queryTermMatchScore *
+      (isFineGrainedDoclingRepresentation(chunk.retrievalRepresentation) ? 2 : 1) +
     fineGrainedQueryBonus +
     valueAfterQueryBonus
   );
@@ -870,9 +899,8 @@ function rankContextChunks({
 }) {
   const citationRanks = getCitationRetrievalRankMap(citations);
   const chunksById = new Map<string, ChatContextExpansionChunk>();
-  const sourceChunks = contextChunks.length > 0
-    ? contextChunks
-    : citations.map(toFallbackContextChunk);
+  const sourceChunks =
+    contextChunks.length > 0 ? contextChunks : citations.map(toFallbackContextChunk);
 
   for (const chunk of sourceChunks) {
     const retrieval = citationRanks.get(chunk.chunkId);
@@ -914,7 +942,7 @@ function dedupeContextChunks(chunks: ChatContextExpansionChunk[]) {
   for (const chunk of chunks) {
     const snippet = compactWhitespace(chunk.snippet);
     const sourceElementIds = (chunk.sourceElementIds ?? []).filter(
-      sourceElementId => sourceElementId.length > 0,
+      (sourceElementId) => sourceElementId.length > 0,
     );
 
     if (snippet.length === 0 || seen.has(snippet)) {
@@ -922,7 +950,7 @@ function dedupeContextChunks(chunks: ChatContextExpansionChunk[]) {
     }
     if (
       sourceElementIds.length > 0 &&
-      sourceElementIds.every(sourceElementId => seenSourceElementIds.has(sourceElementId))
+      sourceElementIds.every((sourceElementId) => seenSourceElementIds.has(sourceElementId))
     ) {
       continue;
     }
@@ -950,16 +978,19 @@ function buildCitationContextChunks({
   contextChunks: ChatContextExpansionChunk[];
   queryTerms?: string[];
 }): CitationContextChunk[] {
-  return dedupeContextChunks(rankContextChunks({ citations, contextChunks, queryTerms })).map((chunk) => ({
-    chunkId: chunk.chunkId,
-    retrievalRepresentation: chunk.retrievalRepresentation ?? null,
-    pageStart: chunk.pageStart,
-    pageEnd: chunk.pageEnd,
-    section: chunk.section,
-    sourceElementIds: chunk.sourceElementIds ?? [],
-    snippet: chunk.snippet,
-    score: chunk.retrievalScore ?? 0,
-  }));
+  return dedupeContextChunks(rankContextChunks({ citations, contextChunks, queryTerms })).map(
+    (chunk) => ({
+      chunkId: chunk.chunkId,
+      retrievalRepresentation: chunk.retrievalRepresentation ?? null,
+      pageStart: chunk.pageStart,
+      pageEnd: chunk.pageEnd,
+      section: chunk.section,
+      sourceElementIds: chunk.sourceElementIds ?? [],
+      snippet: chunk.snippet,
+      textLocator: chunk.textLocator,
+      score: chunk.retrievalScore ?? 0,
+    }),
+  );
 }
 
 function getBestCitationByChunkId(citations: Citation[]) {
@@ -1169,21 +1200,18 @@ function narrowCitationBoxesForDisplay({
       const valueLike = isValueLikeProvenanceText(element.text);
       const proximityDistance = valueLike
         ? getNearestPrecedingQueryDistance({
-          chunkText: chunk.snippet,
-          element,
-          queryTerms,
-        })
+            chunkText: chunk.snippet,
+            element,
+            queryTerms,
+          })
         : null;
-      const selected = termMatchScore > 0
-        ? getProvenanceElementSelection({ elements, index })
-        : [element];
-      const selectedHasValue = selected.some(selectedElement =>
+      const selected =
+        termMatchScore > 0 ? getProvenanceElementSelection({ elements, index }) : [element];
+      const selectedHasValue = selected.some((selectedElement) =>
         isValueLikeProvenanceText(selectedElement.text),
       );
       const scores = [
-        termMatchScore > 0
-          ? termMatchScore * 10 + (selectedHasValue ? 8 : 0)
-          : null,
+        termMatchScore > 0 ? termMatchScore * 10 + (selectedHasValue ? 8 : 0) : null,
         proximityDistance === null
           ? null
           : 30 - Math.min(proximityDistance / 20, 20) + (valueLike ? 6 : 0),
@@ -1191,10 +1219,12 @@ function narrowCitationBoxesForDisplay({
 
       return scores.length === 0
         ? []
-        : [{
-            selected: uniqueProvenanceElements(selected).slice(0, MAX_DISPLAY_CITATION_REGIONS),
-            score: Math.max(...scores) - compactWhitespace(element.text).length / 1000,
-          }];
+        : [
+            {
+              selected: uniqueProvenanceElements(selected).slice(0, MAX_DISPLAY_CITATION_REGIONS),
+              score: Math.max(...scores) - compactWhitespace(element.text).length / 1000,
+            },
+          ];
     }),
   ];
 
@@ -1231,7 +1261,7 @@ function toChunkLevelCitation({
   const rawBoundingBoxes =
     rawPrecision === 'box'
       ? (chunk.boundingBoxes?.length ?? 0) > 0
-        ? chunk.boundingBoxes ?? []
+        ? (chunk.boundingBoxes ?? [])
         : sourceMatchesChunk
           ? citationSource.boundingBoxes
           : []
@@ -1264,6 +1294,7 @@ function toChunkLevelCitation({
     sourceElementIds: displaySourceElementIds,
     tableSourceElementIds: sourceMatchesChunk ? citationSource.tableSourceElementIds : [],
     snippet: chunk.snippet,
+    textLocator: chunk.textLocator ?? (sourceMatchesChunk ? citationSource.textLocator : undefined),
     boundingBoxes: citationPrecision === 'box' ? displayBoundingBoxes : [],
     citationPrecision,
     assetType: sourceMatchesChunk ? citationSource.assetType : 'text',
@@ -1299,7 +1330,8 @@ export function buildChunkLevelCitationsForChat({
       source: citationsByChunkId.get(chunk.chunkId),
       chunk,
       queryTerms,
-    }));
+    }),
+  );
 
   return normalizeCitationsForDisplay(chunkCitations);
 }
@@ -1358,12 +1390,15 @@ function selectFineGrainedCitationBase({
     return null;
   }
 
-  return chunks.find(chunk =>
-    isFineGrainedDoclingRepresentation(chunk.retrievalRepresentation) &&
-    chunk.citationPrecision === 'box' &&
-    (chunk.boundingBoxes?.length ?? 0) > 0 &&
-    getContextQueryTermMatchScore(chunk, queryTerms) > 0,
-  ) ?? null;
+  return (
+    chunks.find(
+      (chunk) =>
+        isFineGrainedDoclingRepresentation(chunk.retrievalRepresentation) &&
+        chunk.citationPrecision === 'box' &&
+        (chunk.boundingBoxes?.length ?? 0) > 0 &&
+        getContextQueryTermMatchScore(chunk, queryTerms) > 0,
+    ) ?? null
+  );
 }
 
 function extractYearConstraints(question: string) {
@@ -1521,11 +1556,13 @@ export function buildExpandedCitationForChat({
       ? mergedImageAssets.map((asset) => asset.assetId)
       : uniqueStrings(citations.flatMap((citation) => citation.imageAssetIds));
   const queryTerms = extractRetrievalQueryTerms(question);
-  const rankedContextChunks = dedupeContextChunks(rankContextChunks({
-    citations,
-    contextChunks,
-    queryTerms,
-  }));
+  const rankedContextChunks = dedupeContextChunks(
+    rankContextChunks({
+      citations,
+      contextChunks,
+      queryTerms,
+    }),
+  );
   const fineGrainedBase = selectFineGrainedCitationBase({
     chunks: rankedContextChunks,
     queryTerms,
@@ -1538,29 +1575,32 @@ export function buildExpandedCitationForChat({
           baseBounds !== null &&
           mergedBounds.start === baseBounds.start &&
           mergedBounds.end === baseBounds.end
-          ? base.citationPrecision
-          : mergedBounds !== null
-            ? 'page'
-            : base.citationPrecision;
+        ? base.citationPrecision
+        : mergedBounds !== null
+          ? 'page'
+          : base.citationPrecision;
 
   const expandedCitation: Citation = {
     ...base,
     chunkId: fineGrainedBase?.chunkId ?? base.chunkId,
-    retrievalRepresentation: fineGrainedBase?.retrievalRepresentation ?? base.retrievalRepresentation,
+    retrievalRepresentation:
+      fineGrainedBase?.retrievalRepresentation ?? base.retrievalRepresentation,
     pageStart: fineGrainedBase?.pageStart ?? mergedBounds?.start ?? base.pageStart,
     pageEnd: fineGrainedBase?.pageEnd ?? mergedBounds?.end ?? base.pageEnd,
     section: fineGrainedBase?.section ?? base.section,
-    snippet: fineGrainedBase?.snippet ?? buildContextSnippet({ citations, contextChunks, queryTerms }),
+    snippet:
+      fineGrainedBase?.snippet ?? buildContextSnippet({ citations, contextChunks, queryTerms }),
+    textLocator: fineGrainedBase?.textLocator ?? base.textLocator,
     contextChunks: buildCitationContextChunks({ citations, contextChunks, queryTerms }),
-    sourceElementIds: fineGrainedBase !== null
-      ? fineGrainedBase.sourceElementIds ?? []
-      : uniqueStrings(citations.flatMap((citation) => citation.sourceElementIds ?? [])),
+    sourceElementIds:
+      fineGrainedBase !== null
+        ? (fineGrainedBase.sourceElementIds ?? [])
+        : uniqueStrings(citations.flatMap((citation) => citation.sourceElementIds ?? [])),
     tableSourceElementIds: uniqueStrings(
       citations.flatMap((citation) => citation.tableSourceElementIds ?? []),
     ),
-    boundingBoxes: citationPrecision === 'box'
-      ? fineGrainedBase?.boundingBoxes ?? base.boundingBoxes
-      : [],
+    boundingBoxes:
+      citationPrecision === 'box' ? (fineGrainedBase?.boundingBoxes ?? base.boundingBoxes) : [],
     citationPrecision,
     assetType:
       imageAssetIds.length > 0 ? 'image' : tablesHtml.length > 0 ? 'table' : base.assetType,
@@ -1608,6 +1648,7 @@ async function loadContextChunksForCitationGroup({
         ELSE dc.citation_precision
       END AS citation_precision,
       COALESCE(provenance.elements, '[]'::jsonb) AS provenance_elements,
+      dc.metadata->'textLocator' AS text_locator,
       COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet
     FROM document_chunks AS dc
     INNER JOIN documents AS d ON d.id = dc.document_id
@@ -1674,6 +1715,7 @@ async function loadContextChunksForCitationGroup({
         boundingBoxes: parseBoundingBoxes(row.bounding_boxes),
         citationPrecision: parseCitationPrecision(row.citation_precision),
         provenanceElements: parseProvenanceElements(row.provenance_elements),
+        textLocator: parseTextLocator(row.text_locator),
         snippet,
         retrievalScore: retrieval?.score,
         retrievalRank: retrieval?.rank,
@@ -2153,6 +2195,7 @@ export function buildChatMessageCitationRows({
       imageAssetIds: citation.imageAssetIds ?? [],
       imageAssets: citation.imageAssets ?? [],
       boundingBoxes: citation.boundingBoxes ?? [],
+      textLocator: citation.textLocator ?? null,
       assetType: citation.assetType,
     },
   }));
@@ -2233,7 +2276,9 @@ function formatChunkPageRange(chunk: Pick<CitationContextChunk, 'pageStart' | 'p
     return 'document';
   }
 
-  return bounds.start === bounds.end ? `page ${bounds.start}` : `pages ${bounds.start}-${bounds.end}`;
+  return bounds.start === bounds.end
+    ? `page ${bounds.start}`
+    : `pages ${bounds.start}-${bounds.end}`;
 }
 
 function formatSectionPath(citation: Citation) {
@@ -2318,10 +2363,13 @@ function getPromptContextChunks(citation: Citation): CitationContextChunk[] {
   ];
 }
 
-function getAdaptiveContextBudget(citations: Citation[], options: {
-  maxTotalLength?: number;
-  maxSnippetLength?: number;
-}) {
+function getAdaptiveContextBudget(
+  citations: Citation[],
+  options: {
+    maxTotalLength?: number;
+    maxSnippetLength?: number;
+  },
+) {
   const documentCount = citations.length;
   const chunkCount = citations.reduce(
     (total, citation) => total + Math.max(1, getPromptContextChunks(citation).length),
@@ -2764,7 +2812,7 @@ export function createChatServices({
     const models = await listAvailableModels();
 
     return {
-      defaultModel: models.includes(settings.model) ? settings.model : models[0] ?? '',
+      defaultModel: models.includes(settings.model) ? settings.model : (models[0] ?? ''),
       models,
     };
   }
@@ -2982,7 +3030,7 @@ export function createChatServices({
               ? requestedModel
               : availableModels.includes(settings.model)
                 ? settings.model
-                : availableModels[0] ?? '';
+                : (availableModels[0] ?? '');
 
           if (effectiveModel.length === 0) {
             throw new Error('No chat models are available from the configured chat provider.');

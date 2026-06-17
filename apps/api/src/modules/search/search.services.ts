@@ -119,6 +119,7 @@ type HybridSearchRow = {
   image_asset_ids: unknown;
   image_assets: unknown;
   image_provenance: unknown;
+  text_locator: unknown;
   score: number | string | null;
 };
 
@@ -348,6 +349,31 @@ function parseBoundingBoxes(value: unknown): CitationBoundingBox[] {
   });
 }
 
+function parseTextLocator(value: unknown): Citation['textLocator'] | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const locator = value as Record<string, unknown>;
+  if (
+    (locator.sourceType !== 'rawMarkdown' && locator.sourceType !== 'rawText') ||
+    typeof locator.startOffset !== 'number' ||
+    typeof locator.endOffset !== 'number' ||
+    !Number.isInteger(locator.startOffset) ||
+    !Number.isInteger(locator.endOffset) ||
+    locator.startOffset < 0 ||
+    locator.endOffset <= locator.startOffset
+  ) {
+    return undefined;
+  }
+
+  return {
+    sourceType: locator.sourceType,
+    startOffset: locator.startOffset,
+    endOffset: locator.endOffset,
+  };
+}
+
 function parseImageAssets(value: unknown): CitationImageAsset[] {
   if (!Array.isArray(value)) {
     return [];
@@ -487,7 +513,9 @@ function getRowScore(row: Pick<HybridSearchRow, 'score'>) {
   return typeof row.score === 'number' ? row.score : Number(row.score ?? 0);
 }
 
-function getRepresentationBonus(row: Pick<HybridSearchRow, 'retrieval_representation' | 'tables_html' | 'citation_precision'>) {
+function getRepresentationBonus(
+  row: Pick<HybridSearchRow, 'retrieval_representation' | 'tables_html' | 'citation_precision'>,
+) {
   const representation = row.retrieval_representation;
   if (representation === 'docling_element_pair') {
     return 0.00008;
@@ -556,7 +584,7 @@ function diversifyHybridSearchRows(rows: HybridSearchRow[], limit: number) {
   }
 
   const diversified = [...rowsByRegion.values()];
-  const seenChunkIds = new Set(diversified.map(row => row.chunk_id));
+  const seenChunkIds = new Set(diversified.map((row) => row.chunk_id));
   for (const row of overflowRows) {
     if (diversified.length >= limit) {
       break;
@@ -1770,6 +1798,7 @@ export function createDocumentSearchServices({
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
               COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
+              dc.metadata->'textLocator' AS text_locator,
               (1.0 / (60 + fts_ranked.fts_rank))::float8 AS score
             FROM fts_ranked
             INNER JOIN document_chunks AS dc ON dc.id = fts_ranked.id
@@ -1943,6 +1972,7 @@ export function createDocumentSearchServices({
               COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
               COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
+              dc.metadata->'textLocator' AS text_locator,
               ranked.score::float8 AS score
             FROM ranked
             INNER JOIN document_chunks AS dc ON dc.id = ranked.id
@@ -2069,6 +2099,7 @@ export function createDocumentSearchServices({
                 COALESCE(assets.image_asset_ids, '[]'::json) AS image_asset_ids,
                 COALESCE(assets.image_assets, '[]'::json) AS image_assets,
                 COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
+                dc.metadata->'textLocator' AS text_locator,
                 (
                   ${HYBRID_TITLE_MATCH_BASE_SCORE}::float8
                   + title_first_chunks.title_match_count::float8
@@ -2164,6 +2195,7 @@ export function createDocumentSearchServices({
         tablesHtml,
         imageAssetIds,
         imageAssets,
+        textLocator: parseTextLocator(row.text_locator),
         score: typeof row.score === 'number' ? row.score : Number(row.score ?? 0),
       };
     });

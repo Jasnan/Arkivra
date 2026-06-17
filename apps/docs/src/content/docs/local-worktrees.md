@@ -1,3 +1,7 @@
+---
+title: Local Worktrees
+---
+
 # Local Git Worktrees
 
 Arkivra supports running multiple local Git worktrees on the same machine. Each worktree should have its own `.env` file with distinct ports and an `APP_INSTANCE` name.

@@ -8,12 +8,12 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 // Resolve the drizzle migrations folder relative to this file so the
 // test works whether vitest is invoked from the monorepo root or from
-// inside apps/api.
+// inside apps/arkivra-server.
 const drizzleFolder = resolve(dirname(fileURLToPath(import.meta.url)), '../../../drizzle');
 
 // Smoke test for the multimodal RAG ingestion schema (Phase 0).
 // Spins up an isolated Postgres database, runs every migration in
-// apps/api/drizzle, and asserts that the columns/tables/indexes
+// apps/arkivra-server/drizzle, and asserts that the columns/tables/indexes
 // introduced by 0009/0010/0011 exist with the expected types and
 // defaults. Existing columns and indexes are also re-checked so that a
 // future re-numbering or accidental column drop fails loudly here.

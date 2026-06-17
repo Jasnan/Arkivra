@@ -10,7 +10,7 @@ Use this skill for Arkivra dashboard or marketing website UX review, accessibili
 
 ## when to use
 
-- Reviewing dashboard feature flows in `apps/web`.
+- Reviewing dashboard feature flows in `apps/arkivra-client`.
 - Reviewing website pages in `apps/website`.
 - Checking accessibility, responsive behavior, empty states, loading states, and copy consistency.
 - Validating first-release polish without broad redesign.

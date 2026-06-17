@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/web/src/assets/arkivra-project-logo.png" alt="Arkivra - open-source document management with vaults, search, and optional AI chat" width="760">
+  <img src="apps/arkivra-client/src/assets/arkivra-project-logo.png" alt="Arkivra - open-source document management with vaults, search, and optional AI chat" width="760">
 </p>
 
 <p align="center">
@@ -100,12 +100,13 @@ More detailed setup, deployment, and operational documentation is available in [
 
 The repository is organized around these public surfaces:
 
-| Surface       | Source         | Target                |
-| ------------- | -------------- | --------------------- |
-| API           | `apps/api`     | `api`                 |
-| Dashboard     | `apps/web`     | `dashboard`           |
-| Website       | `apps/website` | `https://arkivra.app` |
-| Documentation | `docs`         | local Markdown docs   |
+| Surface       | Source                | Target                |
+| ------------- | --------------------- | --------------------- |
+| API           | `apps/arkivra-server` | `api`                 |
+| Dashboard     | `apps/arkivra-client` | `dashboard`           |
+| Website       | `apps/website`        | `https://arkivra.app` |
+| Docs site     | `apps/docs`           | `docs`                |
+| Documentation | `docs`                | local Markdown docs   |
 
 ---
 

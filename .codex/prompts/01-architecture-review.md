@@ -9,7 +9,7 @@ Review the requested Arkivra area for architecture, boundaries, maintainability,
 ## Inspect
 
 - Root `AGENTS.md` and the nearest app-specific `AGENTS.md`.
-- Relevant files under `apps/api`, `apps/web`, `apps/website`, or `docs`.
+- Relevant files under `apps/arkivra-server`, `apps/arkivra-client`, `apps/website`, or `docs`.
 - Existing tests near the affected modules.
 - Drizzle schema and migrations if persistence is involved.
 - Search, AI provider, worker, storage, authorization, audit, or activity modules when relevant.

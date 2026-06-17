@@ -18,10 +18,11 @@ Core positioning:
 
 ## Repository Structure
 
-- `apps/api`: Hono/Node TypeScript API, worker process, Drizzle schema and migrations, auth, vaults, documents, search, AI, audit, activity, backups, and storage.
-- `apps/web`: React/Vite/TypeScript dashboard using Chakra UI v3, TanStack Router, TanStack Query, Better Auth, and feature folders.
+- `apps/arkivra-server`: Hono/Node TypeScript API, worker process, Drizzle schema and migrations, auth, vaults, documents, search, AI, audit, activity, backups, and storage.
+- `apps/arkivra-client`: React/Vite/TypeScript dashboard using Chakra UI v3, TanStack Router, TanStack Query, Better Auth, and feature folders.
 - `apps/website`: Astro marketing website using UnoCSS and localized content.
-- `docs`: Project documentation and release workflow notes. The docs site app is not present yet.
+- `apps/docs`: Astro Starlight documentation website.
+- `docs`: Source project documentation and release workflow notes.
 - `docker`: Docker support files, including PostgreSQL initialization.
 - `scripts`: Repo scripts such as commit message validation and dev data reset.
 - `.codex`: Repo-local Codex workflow assets, skills, and prompt templates.
@@ -58,11 +59,12 @@ Default local URLs:
 pnpm dev:api
 pnpm dev:worker
 pnpm dev:web
+pnpm dev:docs
 pnpm dev:all
 pnpm --filter @arkivra/website dev
 ```
 
-The API scripts load `.env` from the repo root and `apps/api/.env` when present. Use distinct `APP_INSTANCE` and ports when running multiple worktrees.
+The API scripts load `.env` from the repo root and `apps/arkivra-server/.env` when present. Use distinct `APP_INSTANCE` and ports when running multiple worktrees.
 
 ## Test, Lint, Typecheck, and Build
 
@@ -102,6 +104,8 @@ pnpm --filter @arkivra/website test
 pnpm --filter @arkivra/website lint
 pnpm --filter @arkivra/website check
 pnpm --filter @arkivra/website build
+pnpm --filter @arkivra/docs check
+pnpm --filter @arkivra/docs build
 ```
 
 Run the smallest relevant command first, then broaden checks when changing shared behavior, auth, authorization, search, AI, persistence, migrations, or UI flows.
@@ -127,8 +131,8 @@ Run the smallest relevant command first, then broaden checks when changing share
 
 ## Database and Migration Expectations
 
-- Drizzle schema lives under `apps/api/src/modules/database/schema`.
-- Migrations live under `apps/api/drizzle`.
+- Drizzle schema lives under `apps/arkivra-server/src/modules/database/schema`.
+- Migrations live under `apps/arkivra-server/drizzle`.
 - Generate migrations with `pnpm db:generate`; apply with `pnpm db:migrate`.
 - Do not hand-edit migrations casually. If a migration must be edited, explain why and validate it.
 - Backward compatibility matters for self-hosted deployments. Avoid destructive schema changes without migration and backup implications.

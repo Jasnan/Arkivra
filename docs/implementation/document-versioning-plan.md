@@ -460,20 +460,20 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/database/schema/documents.table.ts`
-- `apps/api/src/modules/database/schema/document-chunks.table.ts`
-- `apps/api/src/modules/database/schema/document-chunk-assets.table.ts`
-- `apps/api/src/modules/database/schema/embedding-indexes.table.ts`
-- `apps/api/src/modules/database/schema/upload-sessions.table.ts`
-- `apps/api/src/modules/database/schema/chat.table.ts`
-- `apps/api/src/modules/database/schema/index.ts`
-- `apps/api/src/modules/database/migrations.e2e.integration.test.ts`
-- `apps/api/src/scripts/check-schema-migration-drift.ts`
-- `apps/api/drizzle/meta/_journal.json`
+- `apps/arkivra-server/src/modules/database/schema/documents.table.ts`
+- `apps/arkivra-server/src/modules/database/schema/document-chunks.table.ts`
+- `apps/arkivra-server/src/modules/database/schema/document-chunk-assets.table.ts`
+- `apps/arkivra-server/src/modules/database/schema/embedding-indexes.table.ts`
+- `apps/arkivra-server/src/modules/database/schema/upload-sessions.table.ts`
+- `apps/arkivra-server/src/modules/database/schema/chat.table.ts`
+- `apps/arkivra-server/src/modules/database/schema/index.ts`
+- `apps/arkivra-server/src/modules/database/migrations.e2e.integration.test.ts`
+- `apps/arkivra-server/src/scripts/check-schema-migration-drift.ts`
+- `apps/arkivra-server/drizzle/meta/_journal.json`
 
 Migration:
 
-- Added `apps/api/drizzle/0030_document_versioning_schema.sql`.
+- Added `apps/arkivra-server/drizzle/0030_document_versioning_schema.sql`.
 
 Tests added:
 
@@ -517,10 +517,10 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/documents/document-storage-keys.ts`
-- `apps/api/src/modules/documents/document-storage-keys.test.ts`
-- `apps/api/src/modules/documents/documents.services.ts`
-- `apps/api/src/modules/documents/documents.restore.integration.test.ts`
+- `apps/arkivra-server/src/modules/documents/document-storage-keys.ts`
+- `apps/arkivra-server/src/modules/documents/document-storage-keys.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.services.ts`
+- `apps/arkivra-server/src/modules/documents/documents.restore.integration.test.ts`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -534,11 +534,11 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api db:migrate` passed and applied Batch 1 migrations to the local Arkivra database before integration testing.
-- `pnpm --dir apps/api exec vitest run src/modules/documents/document-storage-keys.test.ts src/modules/documents/documents.restore.integration.test.ts` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/documents/documents.services.test.ts src/modules/documents/document-storage-keys.test.ts` passed.
-- `pnpm --dir apps/api exec eslint src/modules/documents/documents.services.ts src/modules/documents/document-storage-keys.ts src/modules/documents/document-storage-keys.test.ts src/modules/documents/documents.restore.integration.test.ts` passed.
-- `pnpm --dir apps/api typecheck` still fails at the expected next-batch boundary because existing parsing, backup, and worker fixture write paths still insert chunks/assets without `documentVersionId`.
+- `pnpm --dir apps/arkivra-server db:migrate` passed and applied Batch 1 migrations to the local Arkivra database before integration testing.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/documents/document-storage-keys.test.ts src/modules/documents/documents.restore.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/documents/documents.services.test.ts src/modules/documents/document-storage-keys.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/documents/documents.services.ts src/modules/documents/document-storage-keys.ts src/modules/documents/document-storage-keys.test.ts src/modules/documents/documents.restore.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server typecheck` still fails at the expected next-batch boundary because existing parsing, backup, and worker fixture write paths still insert chunks/assets without `documentVersionId`.
 
 Risks:
 
@@ -579,22 +579,22 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/documents/documents.services.ts`
-- `apps/api/src/modules/documents/documents.routes.ts`
-- `apps/api/src/modules/uploads/uploads.services.ts`
-- `apps/api/src/modules/uploads/uploads.routes.ts`
-- `apps/api/src/modules/uploads/upload-conflicts.ts`
-- `apps/api/src/modules/uploads/upload-conflicts.test.ts`
-- `apps/api/src/modules/documents/documents.integration.test.ts`
-- `apps/api/src/modules/documents/documents.restore.integration.test.ts`
-- `apps/api/src/modules/database/schema/documents.table.ts`
-- `apps/api/src/modules/database/migrations.e2e.integration.test.ts`
-- `apps/api/drizzle/meta/_journal.json`
+- `apps/arkivra-server/src/modules/documents/documents.services.ts`
+- `apps/arkivra-server/src/modules/documents/documents.routes.ts`
+- `apps/arkivra-server/src/modules/uploads/uploads.services.ts`
+- `apps/arkivra-server/src/modules/uploads/uploads.routes.ts`
+- `apps/arkivra-server/src/modules/uploads/upload-conflicts.ts`
+- `apps/arkivra-server/src/modules/uploads/upload-conflicts.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.integration.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.restore.integration.test.ts`
+- `apps/arkivra-server/src/modules/database/schema/documents.table.ts`
+- `apps/arkivra-server/src/modules/database/migrations.e2e.integration.test.ts`
+- `apps/arkivra-server/drizzle/meta/_journal.json`
 - `docs/implementation/document-versioning-plan.md`
 
 Migration:
 
-- Added `apps/api/drizzle/0031_upload_conflict_hash_policy.sql` to drop `documents_vault_hash_unique`.
+- Added `apps/arkivra-server/drizzle/0031_upload_conflict_hash_policy.sql` to drop `documents_vault_hash_unique`.
 
 Tests added:
 
@@ -605,11 +605,11 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec vitest run src/modules/uploads/upload-conflicts.test.ts src/modules/documents/documents.integration.test.ts` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/documents/documents.restore.integration.test.ts --testNamePattern "upload conflicts|upload versions|resolves upload conflicts|creates initial upload"` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/uploads/upload-conflicts.test.ts src/modules/documents/documents.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/documents/documents.restore.integration.test.ts --testNamePattern "upload conflicts|upload versions|resolves upload conflicts|creates initial upload"` passed.
 - `pnpm --filter @arkivra/api test:e2e:migrations` passed.
-- `pnpm --dir apps/api exec eslint src/modules/documents/documents.services.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/uploads/uploads.services.ts src/modules/uploads/uploads.routes.ts src/modules/uploads/upload-conflicts.ts src/modules/uploads/upload-conflicts.test.ts src/modules/database/migrations.e2e.integration.test.ts src/modules/database/schema/documents.table.ts` passed.
-- `pnpm --dir apps/api typecheck` still fails at the expected next-batch boundary because parser persistence, backup/background-job fixtures, and later embedding paths still write the new version-owned schema without `documentVersionId`.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/documents/documents.services.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/uploads/uploads.services.ts src/modules/uploads/uploads.routes.ts src/modules/uploads/upload-conflicts.ts src/modules/uploads/upload-conflicts.test.ts src/modules/database/migrations.e2e.integration.test.ts src/modules/database/schema/documents.table.ts` passed.
+- `pnpm --dir apps/arkivra-server typecheck` still fails at the expected next-batch boundary because parser persistence, backup/background-job fixtures, and later embedding paths still write the new version-owned schema without `documentVersionId`.
 
 Risks:
 
@@ -649,22 +649,22 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/parsing/parser.types.ts`
-- `apps/api/src/modules/parsing/persistence.ts`
-- `apps/api/src/modules/parsing/persistence.e2e.integration.test.ts`
-- `apps/api/src/modules/worker/worker.types.ts`
-- `apps/api/src/modules/worker/queue.ts`
-- `apps/api/src/modules/worker/document.worker.ts`
-- `apps/api/src/modules/worker/document.worker.test.ts`
-- `apps/api/src/modules/worker/maintenance.worker.ts`
-- `apps/api/src/modules/worker/maintenance.worker.test.ts`
-- `apps/api/src/modules/worker/background-jobs.e2e.integration.test.ts`
-- `apps/api/src/modules/documents/documents.services.ts`
-- `apps/api/src/modules/documents/documents.routes.ts`
-- `apps/api/src/modules/documents/documents.integration.test.ts`
-- `apps/api/src/modules/documents/documents.restore.integration.test.ts`
-- `apps/api/src/modules/uploads/uploads.routes.ts`
-- `apps/api/src/modules/admin/backups/backups.e2e.integration.test.ts`
+- `apps/arkivra-server/src/modules/parsing/parser.types.ts`
+- `apps/arkivra-server/src/modules/parsing/persistence.ts`
+- `apps/arkivra-server/src/modules/parsing/persistence.e2e.integration.test.ts`
+- `apps/arkivra-server/src/modules/worker/worker.types.ts`
+- `apps/arkivra-server/src/modules/worker/queue.ts`
+- `apps/arkivra-server/src/modules/worker/document.worker.ts`
+- `apps/arkivra-server/src/modules/worker/document.worker.test.ts`
+- `apps/arkivra-server/src/modules/worker/maintenance.worker.ts`
+- `apps/arkivra-server/src/modules/worker/maintenance.worker.test.ts`
+- `apps/arkivra-server/src/modules/worker/background-jobs.e2e.integration.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.services.ts`
+- `apps/arkivra-server/src/modules/documents/documents.routes.ts`
+- `apps/arkivra-server/src/modules/documents/documents.integration.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.restore.integration.test.ts`
+- `apps/arkivra-server/src/modules/uploads/uploads.routes.ts`
+- `apps/arkivra-server/src/modules/admin/backups/backups.e2e.integration.test.ts`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -682,9 +682,9 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/worker/document.worker.test.ts src/modules/worker/maintenance.worker.test.ts src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/parsing/persistence.e2e.integration.test.ts` passed.
-- `pnpm --dir apps/api exec eslint src/modules/parsing/persistence.ts src/modules/parsing/parser.types.ts src/modules/parsing/persistence.e2e.integration.test.ts src/modules/worker/worker.types.ts src/modules/worker/queue.ts src/modules/worker/document.worker.ts src/modules/worker/document.worker.test.ts src/modules/worker/maintenance.worker.ts src/modules/worker/maintenance.worker.test.ts src/modules/worker/background-jobs.e2e.integration.test.ts src/modules/documents/documents.services.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/uploads/uploads.routes.ts src/modules/admin/backups/backups.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/worker/document.worker.test.ts src/modules/worker/maintenance.worker.test.ts src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/parsing/persistence.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/parsing/persistence.ts src/modules/parsing/parser.types.ts src/modules/parsing/persistence.e2e.integration.test.ts src/modules/worker/worker.types.ts src/modules/worker/queue.ts src/modules/worker/document.worker.ts src/modules/worker/document.worker.test.ts src/modules/worker/maintenance.worker.ts src/modules/worker/maintenance.worker.test.ts src/modules/worker/background-jobs.e2e.integration.test.ts src/modules/documents/documents.services.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/uploads/uploads.routes.ts src/modules/admin/backups/backups.e2e.integration.test.ts` passed.
 
 Risks:
 
@@ -724,18 +724,18 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/admin/ai/ai.services.ts`
-- `apps/api/src/modules/ai/indexing/embedding-index.queue.ts`
-- `apps/api/src/modules/ai/indexing/embedding-index.queue.test.ts`
-- `apps/api/src/modules/ai/indexing/embedding-index.services.ts`
-- `apps/api/src/modules/ai/indexing/embedding-index.services.test.ts`
-- `apps/api/src/modules/ai/indexing/embedding-index.worker.ts`
-- `apps/api/src/modules/ai/indexing/embedding-index.worker.test.ts`
-- `apps/api/src/modules/worker/document.worker.ts`
-- `apps/api/src/modules/worker/document.worker.test.ts`
-- `apps/api/src/modules/documents/documents.routes.ts`
-- `apps/api/src/modules/documents/documents.integration.test.ts`
-- `apps/api/src/start.ts`
+- `apps/arkivra-server/src/modules/admin/ai/ai.services.ts`
+- `apps/arkivra-server/src/modules/ai/indexing/embedding-index.queue.ts`
+- `apps/arkivra-server/src/modules/ai/indexing/embedding-index.queue.test.ts`
+- `apps/arkivra-server/src/modules/ai/indexing/embedding-index.services.ts`
+- `apps/arkivra-server/src/modules/ai/indexing/embedding-index.services.test.ts`
+- `apps/arkivra-server/src/modules/ai/indexing/embedding-index.worker.ts`
+- `apps/arkivra-server/src/modules/ai/indexing/embedding-index.worker.test.ts`
+- `apps/arkivra-server/src/modules/worker/document.worker.ts`
+- `apps/arkivra-server/src/modules/worker/document.worker.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.routes.ts`
+- `apps/arkivra-server/src/modules/documents/documents.integration.test.ts`
+- `apps/arkivra-server/src/start.ts`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -752,9 +752,9 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/ai/indexing/embedding-index.queue.test.ts src/modules/ai/indexing/embedding-index.services.test.ts src/modules/ai/indexing/embedding-index.worker.test.ts src/modules/worker/document.worker.test.ts src/modules/documents/documents.integration.test.ts src/modules/admin/ai/ai.integration.test.ts` passed.
-- `pnpm --dir apps/api exec eslint src/modules/admin/ai/ai.services.ts src/modules/ai/indexing/embedding-index.queue.ts src/modules/ai/indexing/embedding-index.queue.test.ts src/modules/ai/indexing/embedding-index.services.ts src/modules/ai/indexing/embedding-index.services.test.ts src/modules/ai/indexing/embedding-index.worker.ts src/modules/ai/indexing/embedding-index.worker.test.ts src/modules/worker/document.worker.ts src/modules/worker/document.worker.test.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/start.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/ai/indexing/embedding-index.queue.test.ts src/modules/ai/indexing/embedding-index.services.test.ts src/modules/ai/indexing/embedding-index.worker.test.ts src/modules/worker/document.worker.test.ts src/modules/documents/documents.integration.test.ts src/modules/admin/ai/ai.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/admin/ai/ai.services.ts src/modules/ai/indexing/embedding-index.queue.ts src/modules/ai/indexing/embedding-index.queue.test.ts src/modules/ai/indexing/embedding-index.services.ts src/modules/ai/indexing/embedding-index.services.test.ts src/modules/ai/indexing/embedding-index.worker.ts src/modules/ai/indexing/embedding-index.worker.test.ts src/modules/worker/document.worker.ts src/modules/worker/document.worker.test.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/start.ts` passed.
 
 Risks:
 
@@ -795,15 +795,15 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/search/search.types.ts`
-- `apps/api/src/modules/search/search.routes.ts`
-- `apps/api/src/modules/search/search.services.ts`
-- `apps/api/src/modules/search/search.services.test.ts`
-- `apps/api/src/modules/search/search.integration.test.ts`
-- `apps/api/src/modules/chat/chat.services.ts`
-- `apps/api/src/modules/chat/chat.services.test.ts`
-- `apps/api/src/modules/documents/documents.services.ts`
-- `apps/api/src/modules/documents/documents.restore.integration.test.ts`
+- `apps/arkivra-server/src/modules/search/search.types.ts`
+- `apps/arkivra-server/src/modules/search/search.routes.ts`
+- `apps/arkivra-server/src/modules/search/search.services.ts`
+- `apps/arkivra-server/src/modules/search/search.services.test.ts`
+- `apps/arkivra-server/src/modules/search/search.integration.test.ts`
+- `apps/arkivra-server/src/modules/chat/chat.services.ts`
+- `apps/arkivra-server/src/modules/chat/chat.services.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.services.ts`
+- `apps/arkivra-server/src/modules/documents/documents.restore.integration.test.ts`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -819,9 +819,9 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/search/search.services.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.services.test.ts src/modules/documents/documents.restore.integration.test.ts` passed.
-- `pnpm --dir apps/api exec eslint src/modules/search/search.services.ts src/modules/search/search.routes.ts src/modules/search/search.types.ts src/modules/search/search.services.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.services.ts src/modules/chat/chat.services.test.ts src/modules/documents/documents.services.ts src/modules/documents/documents.restore.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/search/search.services.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.services.test.ts src/modules/documents/documents.restore.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/search/search.services.ts src/modules/search/search.routes.ts src/modules/search/search.types.ts src/modules/search/search.services.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.services.ts src/modules/chat/chat.services.test.ts src/modules/documents/documents.services.ts src/modules/documents/documents.restore.integration.test.ts` passed.
 
 Risks:
 
@@ -867,14 +867,14 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/chat/chat.services.ts`
-- `apps/api/src/modules/chat/chat.routes.ts`
-- `apps/api/src/modules/chat/chat.types.ts`
-- `apps/api/src/modules/chat/chat.services.test.ts`
-- `apps/api/src/modules/chat/chat.routes.test.ts`
-- `apps/api/src/modules/database/schema/chat.table.ts`
-- `apps/api/src/modules/database/migrations.e2e.integration.test.ts`
-- `apps/api/drizzle/0030_document_versioning_schema.sql`
+- `apps/arkivra-server/src/modules/chat/chat.services.ts`
+- `apps/arkivra-server/src/modules/chat/chat.routes.ts`
+- `apps/arkivra-server/src/modules/chat/chat.types.ts`
+- `apps/arkivra-server/src/modules/chat/chat.services.test.ts`
+- `apps/arkivra-server/src/modules/chat/chat.routes.test.ts`
+- `apps/arkivra-server/src/modules/database/schema/chat.table.ts`
+- `apps/arkivra-server/src/modules/database/migrations.e2e.integration.test.ts`
+- `apps/arkivra-server/drizzle/0030_document_versioning_schema.sql`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -895,10 +895,10 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/chat/chat.services.test.ts src/modules/chat/chat.routes.test.ts` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/database/migrations.e2e.integration.test.ts` passed.
-- `pnpm --dir apps/api exec eslint src/modules/chat/chat.services.ts src/modules/chat/chat.routes.ts src/modules/chat/chat.services.test.ts src/modules/chat/chat.routes.test.ts src/modules/database/schema/chat.table.ts src/modules/database/migrations.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/chat/chat.services.test.ts src/modules/chat/chat.routes.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/database/migrations.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/chat/chat.services.ts src/modules/chat/chat.routes.ts src/modules/chat/chat.services.test.ts src/modules/chat/chat.routes.test.ts src/modules/database/schema/chat.table.ts src/modules/database/migrations.e2e.integration.test.ts` passed.
 
 Risks:
 
@@ -942,14 +942,14 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/documents/documents.services.ts`
-- `apps/api/src/modules/documents/documents.routes.ts`
-- `apps/api/src/modules/documents/documents.restore.integration.test.ts`
-- `apps/api/src/modules/documents/documents.integration.test.ts`
-- `apps/api/src/modules/audit/audit.types.ts`
-- `apps/api/src/modules/activity/activity.types.ts`
-- `apps/api/src/modules/activity/activity.formatters.ts`
-- `apps/api/src/modules/uploads/uploads.routes.ts`
+- `apps/arkivra-server/src/modules/documents/documents.services.ts`
+- `apps/arkivra-server/src/modules/documents/documents.routes.ts`
+- `apps/arkivra-server/src/modules/documents/documents.restore.integration.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.integration.test.ts`
+- `apps/arkivra-server/src/modules/audit/audit.types.ts`
+- `apps/arkivra-server/src/modules/activity/activity.types.ts`
+- `apps/arkivra-server/src/modules/activity/activity.formatters.ts`
+- `apps/arkivra-server/src/modules/uploads/uploads.routes.ts`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -966,9 +966,9 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/documents/documents.restore.integration.test.ts src/modules/documents/documents.integration.test.ts` passed.
-- `pnpm --dir apps/api exec eslint src/modules/documents/documents.services.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.restore.integration.test.ts src/modules/documents/documents.integration.test.ts src/modules/audit/audit.types.ts src/modules/activity/activity.types.ts src/modules/activity/activity.formatters.ts src/modules/uploads/uploads.routes.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/documents/documents.restore.integration.test.ts src/modules/documents/documents.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/documents/documents.services.ts src/modules/documents/documents.routes.ts src/modules/documents/documents.restore.integration.test.ts src/modules/documents/documents.integration.test.ts src/modules/audit/audit.types.ts src/modules/activity/activity.types.ts src/modules/activity/activity.formatters.ts src/modules/uploads/uploads.routes.ts` passed.
 
 Risks:
 
@@ -1006,17 +1006,17 @@ Summary:
 
 Modified files:
 
-- `apps/api/src/modules/documents/documents.routes.ts`
-- `apps/api/src/modules/documents/documents.integration.test.ts`
-- `apps/api/src/modules/uploads/upload-conflict-response.ts`
-- `apps/api/src/modules/uploads/upload-conflicts.test.ts`
-- `apps/api/src/modules/uploads/uploads.routes.ts`
-- `apps/api/src/modules/uploads/uploads.routes.test.ts`
-- `apps/api/src/modules/uploads/uploads.services.ts`
-- `apps/api/src/modules/search/search.routes.ts`
-- `apps/api/src/modules/search/search.integration.test.ts`
-- `apps/api/src/modules/chat/chat.routes.ts`
-- `apps/api/src/modules/chat/chat.routes.test.ts`
+- `apps/arkivra-server/src/modules/documents/documents.routes.ts`
+- `apps/arkivra-server/src/modules/documents/documents.integration.test.ts`
+- `apps/arkivra-server/src/modules/uploads/upload-conflict-response.ts`
+- `apps/arkivra-server/src/modules/uploads/upload-conflicts.test.ts`
+- `apps/arkivra-server/src/modules/uploads/uploads.routes.ts`
+- `apps/arkivra-server/src/modules/uploads/uploads.routes.test.ts`
+- `apps/arkivra-server/src/modules/uploads/uploads.services.ts`
+- `apps/arkivra-server/src/modules/search/search.routes.ts`
+- `apps/arkivra-server/src/modules/search/search.integration.test.ts`
+- `apps/arkivra-server/src/modules/chat/chat.routes.ts`
+- `apps/arkivra-server/src/modules/chat/chat.routes.test.ts`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -1034,9 +1034,9 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec vitest run src/modules/documents/documents.integration.test.ts src/modules/uploads/upload-conflicts.test.ts src/modules/uploads/uploads.routes.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.routes.test.ts` passed.
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec eslint src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/modules/uploads/uploads.routes.ts src/modules/uploads/uploads.routes.test.ts src/modules/uploads/uploads.services.ts src/modules/uploads/upload-conflict-response.ts src/modules/uploads/upload-conflicts.test.ts src/modules/search/search.routes.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.routes.ts src/modules/chat/chat.routes.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/documents/documents.integration.test.ts src/modules/uploads/upload-conflicts.test.ts src/modules/uploads/uploads.routes.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.routes.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/documents/documents.routes.ts src/modules/documents/documents.integration.test.ts src/modules/uploads/uploads.routes.ts src/modules/uploads/uploads.routes.test.ts src/modules/uploads/uploads.services.ts src/modules/uploads/upload-conflict-response.ts src/modules/uploads/upload-conflicts.test.ts src/modules/search/search.routes.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.routes.ts src/modules/chat/chat.routes.test.ts` passed.
 
 Risks:
 
@@ -1073,25 +1073,25 @@ Summary:
 
 Modified files:
 
-- `apps/web/src/lib/api.ts`
-- `apps/web/src/features/documents/documents.types.ts`
-- `apps/web/src/features/documents/documents.api.ts`
-- `apps/web/src/features/documents/documents.api.test.ts`
-- `apps/web/src/features/documents/documents.queries.ts`
-- `apps/web/src/features/documents/components/detail/document-action-menu.tsx`
-- `apps/web/src/features/documents/components/detail/document-action-menu.test.tsx`
-- `apps/web/src/features/documents/components/detail/document-preview-section.tsx`
-- `apps/web/src/features/documents/components/detail/document-versions-dialog.tsx`
-- `apps/web/src/features/documents/pages/document-detail-page.tsx`
-- `apps/web/src/features/uploads/uploads.types.ts`
-- `apps/web/src/features/uploads/uploads.api.ts`
-- `apps/web/src/features/uploads/upload-manager.ts`
-- `apps/web/src/features/uploads/transfers-display.ts`
-- `apps/web/src/features/uploads/components/transfers-drawer.tsx`
-- `apps/web/src/features/uploads/components/transfers-drawer.test.tsx`
-- `apps/web/src/features/uploads/pages/transfers-page.tsx`
-- `apps/web/src/features/chat/chat.types.ts`
-- `apps/web/src/features/chat/components/chat-workspace.tsx`
+- `apps/arkivra-client/src/lib/api.ts`
+- `apps/arkivra-client/src/features/documents/documents.types.ts`
+- `apps/arkivra-client/src/features/documents/documents.api.ts`
+- `apps/arkivra-client/src/features/documents/documents.api.test.ts`
+- `apps/arkivra-client/src/features/documents/documents.queries.ts`
+- `apps/arkivra-client/src/features/documents/components/detail/document-action-menu.tsx`
+- `apps/arkivra-client/src/features/documents/components/detail/document-action-menu.test.tsx`
+- `apps/arkivra-client/src/features/documents/components/detail/document-preview-section.tsx`
+- `apps/arkivra-client/src/features/documents/components/detail/document-versions-dialog.tsx`
+- `apps/arkivra-client/src/features/documents/pages/document-detail-page.tsx`
+- `apps/arkivra-client/src/features/uploads/uploads.types.ts`
+- `apps/arkivra-client/src/features/uploads/uploads.api.ts`
+- `apps/arkivra-client/src/features/uploads/upload-manager.ts`
+- `apps/arkivra-client/src/features/uploads/transfers-display.ts`
+- `apps/arkivra-client/src/features/uploads/components/transfers-drawer.tsx`
+- `apps/arkivra-client/src/features/uploads/components/transfers-drawer.test.tsx`
+- `apps/arkivra-client/src/features/uploads/pages/transfers-page.tsx`
+- `apps/arkivra-client/src/features/chat/chat.types.ts`
+- `apps/arkivra-client/src/features/chat/components/chat-workspace.tsx`
 - `docs/implementation/document-versioning-plan.md`
 
 Migrations:
@@ -1106,10 +1106,10 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/web typecheck` passed.
-- `pnpm --dir apps/web test` passed.
-- `pnpm --dir apps/web exec vitest run src/features/documents/documents.api.test.ts src/features/documents/components/detail/document-action-menu.test.tsx src/features/uploads/components/transfers-drawer.test.tsx` passed.
-- `pnpm --dir apps/web exec eslint ...changed files...` passed with existing chat-workspace hook warnings only.
+- `pnpm --dir apps/arkivra-client typecheck` passed.
+- `pnpm --dir apps/arkivra-client test` passed.
+- `pnpm --dir apps/arkivra-client exec vitest run src/features/documents/documents.api.test.ts src/features/documents/components/detail/document-action-menu.test.tsx src/features/uploads/components/transfers-drawer.test.tsx` passed.
+- `pnpm --dir apps/arkivra-client exec eslint ...changed files...` passed with existing chat-workspace hook warnings only.
 - `curl -I http://127.0.0.1:5173/` returned `200 OK` from the local Vite dev server.
 
 Risks:
@@ -1148,9 +1148,9 @@ Summary:
 Modified files:
 
 - `README.md`
-- `apps/api/src/modules/worker/backup.worker.ts`
-- `apps/api/src/modules/worker/backup.worker.test.ts`
-- `apps/api/src/modules/admin/backups/backups.e2e.integration.test.ts`
+- `apps/arkivra-server/src/modules/worker/backup.worker.ts`
+- `apps/arkivra-server/src/modules/worker/backup.worker.test.ts`
+- `apps/arkivra-server/src/modules/admin/backups/backups.e2e.integration.test.ts`
 - `docs/README.md`
 - `docs/document-versioning.md`
 - `docs/getting-started.md`
@@ -1173,12 +1173,12 @@ Tests added:
 
 Checks run:
 
-- `pnpm --dir apps/api exec vitest run src/modules/worker/backup.worker.test.ts src/modules/admin/backups/backups.e2e.integration.test.ts` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.routes.test.ts src/modules/chat/chat.services.test.ts src/modules/uploads/uploads.routes.test.ts src/modules/uploads/upload-conflicts.test.ts src/modules/database/migrations.e2e.integration.test.ts src/modules/admin/backups/backups.e2e.integration.test.ts src/modules/worker/backup.worker.test.ts` passed.
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec eslint src/modules/worker/backup.worker.ts src/modules/worker/backup.worker.test.ts src/modules/admin/backups/backups.e2e.integration.test.ts` passed.
-- `pnpm --dir apps/web typecheck` passed.
-- `pnpm --dir apps/web test` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/worker/backup.worker.test.ts src/modules/admin/backups/backups.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/documents/documents.integration.test.ts src/modules/documents/documents.restore.integration.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.routes.test.ts src/modules/chat/chat.services.test.ts src/modules/uploads/uploads.routes.test.ts src/modules/uploads/upload-conflicts.test.ts src/modules/database/migrations.e2e.integration.test.ts src/modules/admin/backups/backups.e2e.integration.test.ts src/modules/worker/backup.worker.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/worker/backup.worker.ts src/modules/worker/backup.worker.test.ts src/modules/admin/backups/backups.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-client typecheck` passed.
+- `pnpm --dir apps/arkivra-client test` passed.
 - `pnpm exec prettier --check README.md docs/README.md docs/document-versioning.md docs/getting-started.md docs/search-and-ai.md docs/storage-encryption-backups.md docs/troubleshooting.md docs/release/RELEASE_READINESS_CHECKLIST.md docs/release/SECURITY_REVIEW_CHECKLIST.md docs/release/ARCHITECTURE_REVIEW_CHECKLIST.md` passed.
 
 Risks:
@@ -1203,11 +1203,11 @@ Findings and classification:
 
 Checks run:
 
-- `pnpm --dir apps/api exec vitest run src/modules/chat/chat.routes.test.ts src/modules/parsing/persistence.e2e.integration.test.ts src/modules/documents/document-versioning-smoke.integration.test.ts src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts` passed.
-- `pnpm --dir apps/api exec vitest run src/modules/documents/documents.restore.integration.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.services.test.ts src/modules/search/search.services.test.ts` passed.
-- `pnpm --dir apps/api exec tsc --noEmit --pretty false` passed.
-- `pnpm --dir apps/api exec eslint src/modules/chat/chat.routes.ts src/modules/chat/chat.routes.test.ts src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts src/modules/documents/document-versioning-smoke.integration.test.ts src/modules/parsing/persistence.e2e.integration.test.ts` passed.
-- `pnpm exec prettier --check docs/document-versioning.md docs/architecture/document-versioning.md docs/implementation/document-versioning-plan.md apps/api/src/modules/chat/chat.routes.ts apps/api/src/modules/chat/chat.routes.test.ts apps/api/src/modules/documents/documents.e2e.integration.test.ts apps/api/src/modules/documents/docling-fixture.e2e.integration.test.ts apps/api/src/modules/documents/document-versioning-smoke.integration.test.ts apps/api/src/modules/parsing/persistence.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/chat/chat.routes.test.ts src/modules/parsing/persistence.e2e.integration.test.ts src/modules/documents/document-versioning-smoke.integration.test.ts src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec vitest run src/modules/documents/documents.restore.integration.test.ts src/modules/search/search.integration.test.ts src/modules/chat/chat.services.test.ts src/modules/search/search.services.test.ts` passed.
+- `pnpm --dir apps/arkivra-server exec tsc --noEmit --pretty false` passed.
+- `pnpm --dir apps/arkivra-server exec eslint src/modules/chat/chat.routes.ts src/modules/chat/chat.routes.test.ts src/modules/documents/documents.e2e.integration.test.ts src/modules/documents/docling-fixture.e2e.integration.test.ts src/modules/documents/document-versioning-smoke.integration.test.ts src/modules/parsing/persistence.e2e.integration.test.ts` passed.
+- `pnpm exec prettier --check docs/document-versioning.md docs/architecture/document-versioning.md docs/implementation/document-versioning-plan.md apps/arkivra-server/src/modules/chat/chat.routes.ts apps/arkivra-server/src/modules/chat/chat.routes.test.ts apps/arkivra-server/src/modules/documents/documents.e2e.integration.test.ts apps/arkivra-server/src/modules/documents/docling-fixture.e2e.integration.test.ts apps/arkivra-server/src/modules/documents/document-versioning-smoke.integration.test.ts apps/arkivra-server/src/modules/parsing/persistence.e2e.integration.test.ts` passed.
 
 ## 3. Schema Change Plan
 

@@ -1,3 +1,7 @@
+---
+title: Getting Started
+---
+
 # Getting Started
 
 This guide starts a local Arkivra deployment with Docker Compose. It is suitable for evaluation and local development. Production deployments should review secrets, TLS, network access, email delivery, backups, and database operations before storing important documents.

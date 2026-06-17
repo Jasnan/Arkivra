@@ -1,7 +1,6 @@
 import type { Hono } from 'hono';
 import type { AdminAiServices } from '../admin/ai/ai.services.js';
 import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
-import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import type { createActivityServices } from '../activity/activity.services.js';
 import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 import type { createAuditServices } from '../audit/audit.services.js';
@@ -23,6 +22,7 @@ import {
   serializeDeletionImpact,
 } from './documents.route-helpers.js';
 import { getUploadConflictResponse } from '../uploads/upload-conflict-response.js';
+import { enqueueSemanticReindexForRestoredDocument } from './documents.semantic-reindex.js';
 
 export type DocumentLifecycleQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
@@ -557,36 +557,14 @@ export function registerDocumentLifecycleRoutes({
         );
       }
 
-      if (adminAiServices !== undefined && embeddingIndexQueue !== undefined) {
-        try {
-          const settings = await adminAiServices.getSettings();
-          if (settings.aiFeaturesEnabled) {
-            const activeIndex = await createEmbeddingIndexServices({
-              db,
-            }).getActiveEmbeddingIndex();
-            if (activeIndex !== null) {
-              const version = await documentsServices.resolveLatestDocumentVersion({
-                documentId: doc.id,
-                vaultId,
-              });
-
-              if (version === null) {
-                throw new Error(`No current version found for restored document ${doc.id}`);
-              }
-
-              await embeddingIndexQueue.enqueueDocumentIndexing({
-                embeddingIndexId: activeIndex.id,
-                documentVersionId: version.id,
-              });
-            }
-          }
-        } catch (error) {
-          console.error(
-            `Could not enqueue semantic reindex after restoring document ${doc.id}:`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-      }
+      await enqueueSemanticReindexForRestoredDocument({
+        db,
+        adminAiServices,
+        embeddingIndexQueue,
+        documentsServices,
+        documentId: doc.id,
+        vaultId,
+      });
 
       const auditEvent = await auditServices?.emitAuditEvent({
         eventType: AUDIT_EVENT_TYPES.documentRestored,

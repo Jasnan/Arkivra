@@ -36,7 +36,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: ./apps/api/Dockerfile
+      dockerfile: ./apps/arkivra-server/Dockerfile
     restart: unless-stopped
     ports:
       - '${ARKIVRA_PORT:-1221}:${ARKIVRA_PORT:-1221}'
@@ -73,7 +73,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: ./apps/api/Dockerfile
+      dockerfile: ./apps/arkivra-server/Dockerfile
     restart: unless-stopped
     environment:
       NODE_ENV: production

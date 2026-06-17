@@ -1,3 +1,7 @@
+---
+title: Document Versioning Architecture
+---
+
 # Document Versioning Architecture Proposal
 
 Status: Phase 1 proposal, no implementation started.

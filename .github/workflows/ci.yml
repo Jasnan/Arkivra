@@ -21,6 +21,7 @@ jobs:
       api_changed: ${{ steps.filter.outputs.api }}
       web_changed: ${{ steps.filter.outputs.web }}
       website_changed: ${{ steps.filter.outputs.website }}
+      docs_changed: ${{ steps.filter.outputs.docs }}
       db_changed: ${{ steps.filter.outputs.db }}
       docling_changed: ${{ steps.filter.outputs.docling }}
       fast_tests_changed: ${{ steps.filter.outputs.fast_tests }}
@@ -34,22 +35,25 @@ jobs:
         with:
           filters: |
             api:
-              - 'apps/api/**'
+              - 'apps/arkivra-server/**'
             web:
-              - 'apps/web/**'
+              - 'apps/arkivra-client/**'
             website:
               - 'apps/website/**'
+            docs:
+              - 'apps/docs/**'
+              - 'docs/**'
             fast_tests:
-              - 'apps/api/**'
-              - 'apps/web/**'
+              - 'apps/arkivra-server/**'
+              - 'apps/arkivra-client/**'
               - 'packages/**'
             db:
-              - 'apps/api/**'
+              - 'apps/arkivra-server/**'
               - 'drizzle/**'
               - 'packages/**'
               - '.github/workflows/**'
             docling:
-              - 'apps/api/**'
+              - 'apps/arkivra-server/**'
               - 'packages/**'
               - 'docker/**'
               - '.github/workflows/**'
@@ -83,6 +87,9 @@ jobs:
 
       - name: Check website
         run: pnpm --filter @arkivra/website check
+
+      - name: Check docs
+        run: pnpm --filter @arkivra/docs check
 
       - name: Build
         run: pnpm build

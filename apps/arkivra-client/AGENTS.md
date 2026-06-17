@@ -1,6 +1,6 @@
 # Arkivra Dashboard Agent Guide
 
-Follow the root `AGENTS.md` first. This guide applies to `apps/web`.
+Follow the root `AGENTS.md` first. This guide applies to `apps/arkivra-client`.
 
 ## Scope
 

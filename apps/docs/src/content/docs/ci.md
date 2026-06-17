@@ -1,3 +1,7 @@
+---
+title: CI Strategy
+---
+
 # CI Strategy
 
 Arkivra uses path-aware pull request CI to keep expensive monorepo checks focused on the areas that changed. Baseline quality gates still run on every pull request.
@@ -22,7 +26,6 @@ Current outputs:
 | `api_changed`        | `apps/arkivra-server/**`                                                      | Exposed for future CI routing and diagnostics |
 | `web_changed`        | `apps/arkivra-client/**`                                                      | Exposed for future CI routing and diagnostics |
 | `website_changed`    | `apps/website/**`                                                             | Exposed for future CI routing and diagnostics |
-| `docs_changed`       | `apps/docs/**`, `docs/**`                                                     | Exposed for future CI routing and diagnostics |
 | `fast_tests_changed` | `apps/arkivra-server/**`, `apps/arkivra-client/**`, `packages/**`             | `Fast tests`                                  |
 | `db_changed`         | `apps/arkivra-server/**`, `drizzle/**`, `packages/**`, `.github/workflows/**` | `PostgreSQL-backed tests`, `Migration drift`  |
 | `docling_changed`    | `apps/arkivra-server/**`, `packages/**`, `docker/**`, `.github/workflows/**`  | `Docling e2e tests`                           |
@@ -34,7 +37,6 @@ The workflow itself is not path-filtered. This avoids required checks being left
 | Change type                                                                        | Baseline checks | Fast tests                                                        | PostgreSQL-backed tests                                         | Migration drift                                                 | Docling e2e tests                                                 |
 | ---------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
 | Website-only PR, such as `apps/website/**`                                         | Run             | Skip                                                              | Skip                                                            | Skip                                                            | Skip                                                              |
-| Docs-only PR, such as `apps/docs/**` or `docs/**`                                  | Run             | Skip                                                              | Skip                                                            | Skip                                                            | Skip                                                              |
 | Web-only PR, such as `apps/arkivra-client/**`                                      | Run             | Run                                                               | Skip                                                            | Skip                                                            | Skip                                                              |
 | API-only PR, such as `apps/arkivra-server/**`                                      | Run             | Run                                                               | Run                                                             | Run                                                             | Run                                                               |
 | Database or migration PR, such as `apps/arkivra-server/drizzle/**` or `drizzle/**` | Run             | Run for `apps/arkivra-server/**`; skip for root `drizzle/**` only | Run                                                             | Run                                                             | Run for `apps/arkivra-server/**`; skip for root `drizzle/**` only |

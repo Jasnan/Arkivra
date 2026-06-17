@@ -5,13 +5,13 @@ WORKDIR /app
 # Install dependencies
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/api/package.json ./apps/api/
+COPY apps/arkivra-server/package.json ./apps/arkivra-server/
 RUN pnpm install --frozen-lockfile
 
 # Build
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=deps /app/apps/arkivra-server/node_modules ./apps/arkivra-server/node_modules
 COPY . .
 RUN pnpm --filter @arkivra/api build
 
@@ -21,17 +21,17 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=build /app/apps/api/dist ./apps/api/dist
-COPY --from=build /app/apps/api/drizzle ./apps/api/drizzle
-COPY --from=build /app/apps/api/package.json ./apps/api/package.json
-COPY --from=build /app/apps/api/src/scripts ./apps/api/src/scripts
+COPY --from=deps /app/apps/arkivra-server/node_modules ./apps/arkivra-server/node_modules
+COPY --from=build /app/apps/arkivra-server/dist ./apps/arkivra-server/dist
+COPY --from=build /app/apps/arkivra-server/drizzle ./apps/arkivra-server/drizzle
+COPY --from=build /app/apps/arkivra-server/package.json ./apps/arkivra-server/package.json
+COPY --from=build /app/apps/arkivra-server/src/scripts ./apps/arkivra-server/src/scripts
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
 RUN mkdir -p /app/document-storage /app/backups
 
-WORKDIR /app/apps/api
+WORKDIR /app/apps/arkivra-server
 
 EXPOSE 1221
 

@@ -1,8 +1,11 @@
 # Dependencies
 node_modules/
+**/node_modules/
 
 # Build output
 dist/
+.astro/
+**/.astro/
 
 # Environment
 .env
@@ -29,15 +32,15 @@ pnpm-debug.log*
 coverage/
 
 # Runtime
-apps/api/upload-staging/
-apps/api/var/
+apps/arkivra-server/upload-staging/
+apps/arkivra-server/var/
 /var/
 
 # Docker volumes / local runtime data
 /postgres-data/
 /docling-data/
-/apps/api/document-storage/
-/apps/api/backups/
+/apps/arkivra-server/document-storage/
+/apps/arkivra-server/backups/
 /backups/
 
 # Drizzle

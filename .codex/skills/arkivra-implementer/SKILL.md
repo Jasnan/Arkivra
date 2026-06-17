@@ -34,7 +34,7 @@ Use this skill for scoped implementation work in Arkivra after the affected app,
 
 ## dashboard dialog lifecycle rule
 
-When implementing or modifying Chakra/Ark dialogs in `apps/web`:
+When implementing or modifying Chakra/Ark dialogs in `apps/arkivra-client`:
 
 - Keep `Dialog.Root`/`ChakraDialog.Root` mounted through the close lifecycle. Do not gate the root with nullable target state such as `if (!target) return null`.
 - Use a dedicated boolean `open` state instead of deriving `open` only from a selected object.

@@ -105,8 +105,8 @@ Use this checklist when reviewing architecture, planning refactors, or validatin
 
 ## Frontend Architecture
 
-- [ ] Dashboard features stay in `apps/web/src/features`.
-- [ ] Shared components live in `apps/web/src/components` only when reused.
+- [ ] Dashboard features stay in `apps/arkivra-client/src/features`.
+- [ ] Shared components live in `apps/arkivra-client/src/components` only when reused.
 - [ ] Chakra UI v3 system tokens are used consistently.
 - [ ] Client-side permission checks are UX hints, not security boundaries.
 - [ ] API client behavior is centralized enough to handle auth and errors consistently.

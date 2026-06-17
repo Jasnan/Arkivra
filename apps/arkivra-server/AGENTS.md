@@ -1,6 +1,6 @@
 # Arkivra API Agent Guide
 
-Follow the root `AGENTS.md` first. This guide applies to `apps/api`.
+Follow the root `AGENTS.md` first. This guide applies to `apps/arkivra-server`.
 
 ## Scope
 

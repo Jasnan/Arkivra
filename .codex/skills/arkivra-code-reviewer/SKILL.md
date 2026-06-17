@@ -28,7 +28,7 @@ Use this skill for code review of Arkivra changes with emphasis on bugs, regress
 - Check route/service/component boundaries.
 - Check auth, vault RBAC, AI access, search/RAG, storage, migration, and backup behavior when touched.
 - Check docs and website copy for unsupported claims.
-- For Chakra/Ark dialogs in `apps/web`, check that the dialog root stays mounted through close, `open` is not derived only from nullable target data, target data is cleared after `onExitComplete`, and tests cover stale modal locks (`data-inert`, native `inert`, `data-scroll-lock`, body `pointerEvents`).
+- For Chakra/Ark dialogs in `apps/arkivra-client`, check that the dialog root stays mounted through close, `open` is not derived only from nullable target data, target data is cleared after `onExitComplete`, and tests cover stale modal locks (`data-inert`, native `inert`, `data-scroll-lock`, body `pointerEvents`).
 - Run or request relevant tests/checks when practical.
 
 ## output format

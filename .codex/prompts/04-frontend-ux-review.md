@@ -8,7 +8,7 @@ Review dashboard or website UX for release readiness, accessibility, visual cons
 
 ## Inspect
 
-- `apps/web` or `apps/website` files in scope.
+- `apps/arkivra-client` or `apps/website` files in scope.
 - Shared components, theme tokens, routes, and feature folders.
 - Existing tests for changed UI behavior.
 - Public copy against README/docs/product behavior.

@@ -8,12 +8,11 @@ Arkivra uses path-aware pull request CI to keep expensive monorepo checks focuse
 
 ## Baseline Pull Request Checks
 
-These checks run for every pull request and should remain required branch protection checks:
+This check runs for every pull request and should remain a required branch protection check:
 
 - `CI / Lint, typecheck, and build`
-- `Dependency Audit / Audit high and critical dependency vulnerabilities`
 
-The dependency audit runs `pnpm deps:audit`, which fails on high or critical npm advisories.
+The dependency audit runs `pnpm deps:audit`, which fails on high or critical npm advisories. On pull requests it runs only when dependency manifests, `pnpm-lock.yaml`, package manifests, or audit workflow files change. It still runs on every `main` push, on the weekly schedule, and through manual dispatch.
 
 ## Path Detection
 
@@ -21,26 +20,29 @@ The `CI` workflow has a central `Detect changed paths` job powered by `dorny/pat
 
 Current outputs:
 
-| Output               | Matching paths                                                                | Used by                                       |
-| -------------------- | ----------------------------------------------------------------------------- | --------------------------------------------- |
-| `api_changed`        | `apps/arkivra-server/**`                                                      | Exposed for future CI routing and diagnostics |
-| `web_changed`        | `apps/arkivra-client/**`                                                      | Exposed for future CI routing and diagnostics |
-| `website_changed`    | `apps/website/**`                                                             | Exposed for future CI routing and diagnostics |
-| `fast_tests_changed` | `apps/arkivra-server/**`, `apps/arkivra-client/**`, `packages/**`             | `Fast tests`                                  |
-| `db_changed`         | `apps/arkivra-server/**`, `drizzle/**`, `packages/**`, `.github/workflows/**` | `PostgreSQL-backed tests`, `Migration drift`  |
-| `docling_changed`    | `apps/arkivra-server/**`, `packages/**`, `docker/**`, `.github/workflows/**`  | `Docling e2e tests`                           |
+| Output               | Matching paths                                                                                                | Used by                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `api_changed`        | `apps/arkivra-server/**`                                                                                      | Exposed for future CI routing and diagnostics |
+| `web_changed`        | `apps/arkivra-client/**`                                                                                      | Exposed for future CI routing and diagnostics |
+| `website_changed`    | `apps/website/**`                                                                                             | Exposed for future CI routing and diagnostics |
+| `docs_changed`       | `apps/docs/**`, `docs/**`                                                                                     | Exposed for future CI routing and diagnostics |
+| `fast_tests_changed` | `apps/arkivra-server/**`, `apps/arkivra-client/**`, packages, package manifests, `pnpm-lock.yaml`             | `Fast tests`                                  |
+| `postgresql_changed` | DB-backed API modules, parser persistence, server wiring, package/lockfile changes, CI workflow changes       | `PostgreSQL-backed tests`                     |
+| `migration_changed`  | Drizzle migrations, Drizzle schema, migration/drift scripts, package/lockfile changes, CI workflow changes    | `Migration drift`                             |
+| `docling_changed`    | Docling client/parser/parsing paths, Docling e2e fixtures, document worker paths, Docker, packages, workflows | `Docling e2e tests`                           |
 
 The workflow itself is not path-filtered. This avoids required checks being left pending when GitHub skips an entire workflow. Expensive jobs use job-level `if` conditions; when they are not relevant, GitHub records them as skipped instead of pending.
 
 ## Pull Request Job Routing
 
-| Change type                                                                        | Baseline checks | Fast tests                                                        | PostgreSQL-backed tests                                         | Migration drift                                                 | Docling e2e tests                                                 |
-| ---------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Website-only PR, such as `apps/website/**`                                         | Run             | Skip                                                              | Skip                                                            | Skip                                                            | Skip                                                              |
-| Web-only PR, such as `apps/arkivra-client/**`                                      | Run             | Run                                                               | Skip                                                            | Skip                                                            | Skip                                                              |
-| API-only PR, such as `apps/arkivra-server/**`                                      | Run             | Run                                                               | Run                                                             | Run                                                             | Run                                                               |
-| Database or migration PR, such as `apps/arkivra-server/drizzle/**` or `drizzle/**` | Run             | Run for `apps/arkivra-server/**`; skip for root `drizzle/**` only | Run                                                             | Run                                                             | Run for `apps/arkivra-server/**`; skip for root `drizzle/**` only |
-| Docling integration PR, such as API ingestion code or `docker/**`                  | Run             | Run for API/package changes; skip for `docker/**` only            | Run for API/package/workflow changes; skip for `docker/**` only | Run for API/package/workflow changes; skip for `docker/**` only | Run                                                               |
+| Change type                                                                        | Static checks | Dependency audit                | Fast tests                                                             | PostgreSQL-backed tests                       | Migration drift                                               | Docling e2e tests                                           |
+| ---------------------------------------------------------------------------------- | ------------- | ------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
+| Website-only PR, such as `apps/website/**`                                         | Run           | Run only for dependency changes | Skip                                                                   | Skip                                          | Skip                                                          | Skip                                                        |
+| Docs-only PR, such as `apps/docs/**` or `docs/**`                                  | Run           | Run only for dependency changes | Skip                                                                   | Skip                                          | Skip                                                          | Skip                                                        |
+| Web-only PR, such as `apps/arkivra-client/**`                                      | Run           | Run only for dependency changes | Run                                                                    | Skip                                          | Skip                                                          | Skip                                                        |
+| Generic API PR, such as route, service, or test refactors                          | Run           | Run only for dependency changes | Run                                                                    | Run only when a DB-backed API surface changes | Skip unless schema, migrations, or migration tooling change   | Skip unless Docling, parsing, processing, or Docker changes |
+| Database or migration PR, such as Drizzle schema, migrations, or migration scripts | Run           | Run only for dependency changes | Run for `apps/arkivra-server/**`; skip for migration-only root changes | Run                                           | Run                                                           | Skip unless Docling-related paths also change               |
+| Docling integration PR, such as parser, processing, Docling client, or `docker/**` | Run           | Run only for dependency changes | Run for API/package changes; skip for `docker/**` only                 | Run only when DB-backed API paths also change | Run only when schema, migrations, or migration tooling change | Run                                                         |
 
 Documentation-only changes, `README.md`, and non-runtime repository metadata run the baseline checks only unless they also touch `.github/workflows/**`.
 

@@ -75,6 +75,15 @@ export function registerTagRoutes({
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
   const tagsServices = services ?? createTagsServices({ db });
 
+  async function listReadableVaultIds(userId: string) {
+    const vaults = await vaultsServices.listUserVaults({ userId });
+    return vaults
+      .filter(
+        (vault) => vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer',
+      )
+      .map((vault) => vault.id);
+  }
+
   app.use('/api/tags', requireAuthentication());
   app.use('/api/tags/*', requireAuthentication());
   app.use('/api/vaults/:vaultId/documents/:documentId/tags', requireAuthentication());
@@ -95,13 +104,24 @@ export function registerTagRoutes({
       return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
     }
 
-    const vaults = await vaultsServices.listUserVaults({ userId });
-    const readableVaultIds = vaults
-      .filter(vault => vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer')
-      .map(vault => vault.id);
+    const readableVaultIds = await listReadableVaultIds(userId);
     const tags = await tagsServices.listTags({ vaultIds: readableVaultIds });
 
     return context.json({ tags });
+  });
+
+  app.get('/api/tags/:tagId/documents', async (context) => {
+    const userId = context.get('userId');
+
+    if (userId === null) {
+      return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
+    }
+
+    const tagId = context.req.param('tagId');
+    const readableVaultIds = await listReadableVaultIds(userId);
+    const documents = await tagsServices.listTagDocuments({ tagId, vaultIds: readableVaultIds });
+
+    return context.json({ documents });
   });
 
   app.post('/api/tags', async (context) => {
@@ -161,85 +181,79 @@ export function registerTagRoutes({
     }
   });
 
-  app.patch(
-    '/api/tags/:tagId',
-    async (context) => {
-      const tagId = context.req.param('tagId');
-      const body = await context.req.json();
-      const name = parseTagName(body.name);
-      const color = parseTagColor(body.color);
-      const description = parseTagDescription(body.description);
+  app.patch('/api/tags/:tagId', async (context) => {
+    const tagId = context.req.param('tagId');
+    const body = await context.req.json();
+    const name = parseTagName(body.name);
+    const color = parseTagColor(body.color);
+    const description = parseTagDescription(body.description);
 
-      if (name === null) {
-        return context.json(
-          { error: { code: 'tag.invalid_name', message: 'Tag name is required' } },
-          400,
-        );
-      }
+    if (name === null) {
+      return context.json(
+        { error: { code: 'tag.invalid_name', message: 'Tag name is required' } },
+        400,
+      );
+    }
 
-      if (body.color !== undefined && body.color !== null && color === null) {
-        return context.json(
-          {
-            error: {
-              code: 'tag.invalid_color',
-              message: 'Tag color must be a hex color like #A1B2C3',
-            },
+    if (body.color !== undefined && body.color !== null && color === null) {
+      return context.json(
+        {
+          error: {
+            code: 'tag.invalid_color',
+            message: 'Tag color must be a hex color like #A1B2C3',
           },
-          400,
-        );
-      }
+        },
+        400,
+      );
+    }
 
-      if (body.description !== undefined && body.description !== null && description === null) {
-        return context.json(
-          {
-            error: {
-              code: 'tag.invalid_description',
-              message: 'Tag description must be at most 256 characters',
-            },
+    if (body.description !== undefined && body.description !== null && description === null) {
+      return context.json(
+        {
+          error: {
+            code: 'tag.invalid_description',
+            message: 'Tag description must be at most 256 characters',
           },
-          400,
-        );
-      }
+        },
+        400,
+      );
+    }
 
-      try {
-        const tag = await tagsServices.updateTag({ tagId, name, color, description });
-
-        if (tag === null) {
-          return context.json({ error: { code: 'tag.not_found', message: 'Tag not found' } }, 404);
-        }
-
-        return context.json({ tag });
-      } catch (error) {
-        if (isDuplicateTagError(error)) {
-          return context.json(
-            {
-              error: {
-                code: 'tag.duplicate',
-                message: 'A tag with this name already exists',
-              },
-            },
-            409,
-          );
-        }
-
-        throw error;
-      }
-    },
-  );
-
-  app.delete(
-    '/api/tags/:tagId',
-    async (context) => {
-      const tagId = context.req.param('tagId');
-      const tag = await tagsServices.deleteTag({ tagId });
+    try {
+      const tag = await tagsServices.updateTag({ tagId, name, color, description });
 
       if (tag === null) {
         return context.json({ error: { code: 'tag.not_found', message: 'Tag not found' } }, 404);
       }
 
-      return context.body(null, 204);
-    },
-  );
+      return context.json({ tag });
+    } catch (error) {
+      if (isDuplicateTagError(error)) {
+        return context.json(
+          {
+            error: {
+              code: 'tag.duplicate',
+              message: 'A tag with this name already exists',
+            },
+          },
+          409,
+        );
+      }
+
+      throw error;
+    }
+  });
+
+  app.delete('/api/tags/:tagId', async (context) => {
+    const tagId = context.req.param('tagId');
+    const tag = await tagsServices.deleteTag({ tagId });
+
+    if (tag === null) {
+      return context.json({ error: { code: 'tag.not_found', message: 'Tag not found' } }, 404);
+    }
+
+    return context.body(null, 204);
+  });
 
   app.get(
     '/api/vaults/:vaultId/documents/:documentId/tags',

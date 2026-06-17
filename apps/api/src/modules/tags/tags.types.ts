@@ -8,12 +8,30 @@ export type Tag = {
   updatedAt: string | Date;
 };
 
+export type TagDocument = {
+  id: string;
+  vaultId: string;
+  vaultName: string;
+  name: string;
+  originalName: string;
+  folderId: string | null;
+  originalSize: number;
+  mimeType: string;
+  processingStatus?: string | null;
+  language?: unknown;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  isDeleted: boolean;
+  deletedAt: string | Date | null;
+};
+
 export type AssignTagResult =
   | { success: true; tag: Tag }
   | { success: false; reason: 'document_not_found' | 'tag_not_found' };
 
 export type TagsServices = {
   listTags: (args?: { vaultIds?: string[] }) => Promise<Tag[]>;
+  listTagDocuments: (args: { tagId: string; vaultIds: string[] }) => Promise<TagDocument[]>;
   createTag: (args: {
     name: string;
     color: string | null;

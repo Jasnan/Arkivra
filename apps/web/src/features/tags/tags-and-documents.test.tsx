@@ -310,6 +310,112 @@ describe('tags and documents pages', () => {
     expect(screen.queryByText('Legal')).not.toBeInTheDocument();
   });
 
+  it('opens accessible documents for a tag when clicking a tag document count', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url === '/api/vaults') {
+          return jsonResponse({
+            vaults: [
+              {
+                id: 'vlt_1',
+                name: 'Personal',
+                description: null,
+                fileCount: 3,
+                totalSize: 1024,
+                createdAt: '2026-04-10T10:00:00.000Z',
+                role: 'owner',
+                aiAccessLevel: 'full',
+                isAdmin: false,
+              },
+            ],
+          });
+        }
+
+        if (url === '/api/tags') {
+          return jsonResponse({
+            tags: [
+              {
+                id: 'tag_1',
+                name: 'Invoices',
+                color: '#2563eb',
+                description: 'Monthly billing documents',
+                documentsCount: 2,
+                createdAt: '2026-04-10T10:00:00.000Z',
+              },
+            ],
+          });
+        }
+
+        if (url === '/api/tags/tag_1/documents') {
+          return jsonResponse({
+            documents: [
+              {
+                id: 'doc_1',
+                vaultId: 'vlt_1',
+                vaultName: 'Personal',
+                name: 'Invoice April.pdf',
+                originalName: 'invoice.pdf',
+                folderId: null,
+                originalSize: 2048,
+                mimeType: 'application/pdf',
+                processingStatus: 'completed',
+                createdAt: '2026-04-10T10:00:00.000Z',
+                updatedAt: '2026-04-10T10:00:00.000Z',
+                isDeleted: false,
+                deletedAt: null,
+              },
+              {
+                id: 'doc_2',
+                vaultId: 'vlt_2',
+                vaultName: 'Finance',
+                name: 'Invoice May.pdf',
+                originalName: 'may.pdf',
+                folderId: null,
+                originalSize: 4096,
+                mimeType: 'application/pdf',
+                processingStatus: 'queued',
+                createdAt: '2026-05-10T10:00:00.000Z',
+                updatedAt: '2026-05-10T10:00:00.000Z',
+                isDeleted: false,
+                deletedAt: null,
+              },
+            ],
+          });
+        }
+
+        throw new Error(`Unhandled request ${url}`);
+      }),
+    );
+
+    await renderWithProviders(<TagsPage />, {
+      initialEntries: ['/tags'],
+      routes: [
+        { path: '/tags' },
+        { path: '/vaults/:vaultId/:documentId', component: () => <div>Document route</div> },
+      ],
+    });
+
+    await user.click(
+      await screen.findByRole('button', { name: /view documents tagged invoices/i }),
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: /documents tagged “invoices”/i });
+    expect(within(dialog).getByRole('link', { name: /open invoice april\.pdf/i })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_1/doc_1',
+    );
+    expect(within(dialog).getByRole('link', { name: /open invoice may\.pdf/i })).toHaveAttribute(
+      'href',
+      '/vaults/vlt_2/doc_2',
+    );
+    expect(within(dialog).getByText('Personal')).toBeInTheDocument();
+    expect(within(dialog).getByText('Finance')).toBeInTheDocument();
+  });
+
   it('returns focus to the new tag button after dismissing the create dialog', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

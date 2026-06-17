@@ -22,7 +22,8 @@ jobs:
       web_changed: ${{ steps.filter.outputs.web }}
       website_changed: ${{ steps.filter.outputs.website }}
       docs_changed: ${{ steps.filter.outputs.docs }}
-      db_changed: ${{ steps.filter.outputs.db }}
+      postgresql_changed: ${{ steps.filter.outputs.postgresql }}
+      migration_changed: ${{ steps.filter.outputs.migration }}
       docling_changed: ${{ steps.filter.outputs.docling }}
       fast_tests_changed: ${{ steps.filter.outputs.fast_tests }}
     steps:
@@ -46,17 +47,67 @@ jobs:
             fast_tests:
               - 'apps/arkivra-server/**'
               - 'apps/arkivra-client/**'
+              - 'apps/**/package.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
               - 'packages/**'
-            db:
-              - 'apps/arkivra-server/**'
-              - 'drizzle/**'
+            postgresql:
+              - 'apps/arkivra-server/src/modules/activity/**'
+              - 'apps/arkivra-server/src/modules/admin/**'
+              - 'apps/arkivra-server/src/modules/ai/indexing/**'
+              - 'apps/arkivra-server/src/modules/audit/**'
+              - 'apps/arkivra-server/src/modules/auth/**'
+              - 'apps/arkivra-server/src/modules/authorization/**'
+              - 'apps/arkivra-server/src/modules/chat/**'
+              - 'apps/arkivra-server/src/modules/database/**'
+              - 'apps/arkivra-server/src/modules/documents/**'
+              - 'apps/arkivra-server/src/modules/folders/**'
+              - 'apps/arkivra-server/src/modules/search/**'
+              - 'apps/arkivra-server/src/modules/security/**'
+              - 'apps/arkivra-server/src/modules/storage/**'
+              - 'apps/arkivra-server/src/modules/tags/**'
+              - 'apps/arkivra-server/src/modules/translations/**'
+              - 'apps/arkivra-server/src/modules/uploads/**'
+              - 'apps/arkivra-server/src/modules/user-preferences/**'
+              - 'apps/arkivra-server/src/modules/vaults/**'
+              - 'apps/arkivra-server/src/modules/worker/**'
+              - 'apps/arkivra-server/src/modules/parsing/parse-pipeline*'
+              - 'apps/arkivra-server/src/modules/parsing/persistence*'
+              - 'apps/arkivra-server/src/modules/parsing/parser.registry*'
+              - 'apps/arkivra-server/src/modules/server/**'
+              - 'apps/arkivra-server/src/start.ts'
+              - 'apps/arkivra-server/package.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
               - 'packages/**'
-              - '.github/workflows/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/nightly.yml'
+            migration:
+              - 'apps/arkivra-server/drizzle/**'
+              - 'apps/arkivra-server/drizzle.config.ts'
+              - 'apps/arkivra-server/src/modules/database/schema/**'
+              - 'apps/arkivra-server/src/scripts/check-schema-migration-drift.ts'
+              - 'apps/arkivra-server/src/scripts/migrate.ts'
+              - 'apps/arkivra-server/package.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/nightly.yml'
             docling:
-              - 'apps/arkivra-server/**'
-              - 'packages/**'
+              - 'apps/arkivra-server/src/modules/docling/**'
+              - 'apps/arkivra-server/src/modules/parsing/**'
+              - 'apps/arkivra-server/src/modules/documents/docling-fixture.e2e.integration.test.ts'
+              - 'apps/arkivra-server/src/modules/documents/documents.e2e.integration.test.ts'
+              - 'apps/arkivra-server/src/modules/documents/document-storage-keys*'
+              - 'apps/arkivra-server/src/modules/worker/document.worker*'
+              - 'apps/arkivra-server/src/start.ts'
+              - 'apps/arkivra-server/package.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
               - 'docker/**'
-              - '.github/workflows/**'
+              - 'packages/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/nightly.yml'
 
   static-checks:
     name: Lint, typecheck, and build
@@ -126,7 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - changes
-    if: ${{ needs.changes.outputs.db_changed == 'true' }}
+    if: ${{ needs.changes.outputs.postgresql_changed == 'true' }}
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -243,7 +294,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - changes
-    if: ${{ needs.changes.outputs.db_changed == 'true' }}
+    if: ${{ needs.changes.outputs.migration_changed == 'true' }}
     services:
       postgres:
         image: pgvector/pgvector:pg16

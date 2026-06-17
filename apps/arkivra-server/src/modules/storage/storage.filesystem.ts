@@ -1,10 +1,28 @@
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import type { StorageDriver } from './storage.types.js';
 
 export function createFilesystemStorage({ basePath }: { basePath: string }): StorageDriver {
+  const rootPath = resolve(basePath);
+
   function resolvePath(key: string): string {
-    return join(basePath, key);
+    const segments = key.split('/');
+    if (
+      key.length === 0 ||
+      key.includes('\\') ||
+      isAbsolute(key) ||
+      segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')
+    ) {
+      throw new Error('Invalid storage key');
+    }
+
+    const filePath = resolve(rootPath, key);
+    const relativePath = relative(rootPath, filePath);
+    if (relativePath.length === 0 || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+      throw new Error('Invalid storage key');
+    }
+
+    return filePath;
   }
 
   return {

@@ -3,6 +3,7 @@ layout: ../layouts/MdPage.astro
 title: Privacy Policy
 description: How the Arkivra website, self-hosted deployments, and future managed services handle data and privacy.
 ---
+
 ## Privacy
 
 - **Effective Date:** May 24, 2026
@@ -53,7 +54,7 @@ The software does not send document content, user information, usage data, or op
 
 ### Document Storage
 
-Uploaded files are encrypted at rest by Arkivra.
+When `ARKIVRA_ENCRYPTION_KEYS` is configured, Arkivra encrypts uploaded files and stored extracted assets at rest.
 
 To support search, retrieval, and optional AI-assisted features, Arkivra also stores processed document data separately from the original files. Depending on configuration, this may include:
 

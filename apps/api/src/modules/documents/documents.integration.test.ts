@@ -837,7 +837,8 @@ describe('documents integration', () => {
   test('uploads a document', async () => {
     const docServices = createMockDocumentsServices();
     const auditServices = createMockAuditServices();
-    const app = createTestApp({ docServices, auditServices });
+    const activityServices = createMockActivityServices();
+    const app = createTestApp({ docServices, auditServices, activityServices });
 
     const formData = new FormData();
     formData.append('file', new File(['hello world'], 'test.txt', { type: 'text/plain' }));
@@ -863,6 +864,7 @@ describe('documents integration', () => {
         mimeType: 'text/plain',
       }),
     );
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledTimes(1);
     expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'document.uploaded',
@@ -876,6 +878,127 @@ describe('documents integration', () => {
           mime_type: 'text/plain',
         },
       }),
+    );
+    expect(auditServices.emitAuditEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'document.version_created' }),
+    );
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledTimes(1);
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityType: 'document.created',
+        documentId: 'doc_test_1',
+      }),
+    );
+    expect(activityServices.emitActivityEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ activityType: 'document.version_created' }),
+    );
+  });
+
+  test('audits a direct new-version upload without duplicate upload events', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).uploadDocument = vi.fn(async ({ fileName, mimeType, vaultId }) => ({
+      document: {
+        id: 'doc_existing_1',
+        vaultId,
+        folderId: null,
+        currentVersionId: 'dvr_test_2',
+        name: fileName.normalize('NFC').trim(),
+        originalName: fileName.normalize('NFC').trim(),
+        originalSize: 100,
+        mimeType,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-02T00:00:00.000Z',
+      },
+      documentVersion: {
+        id: 'dvr_test_2',
+        documentId: 'doc_existing_1',
+        vaultId,
+        versionNumber: 2,
+        uploadedBy: 'usr_1',
+        uploadedAt: new Date('2025-01-02T00:00:00.000Z'),
+        originalName: fileName.normalize('NFC').trim(),
+        originalSize: 100,
+        originalStorageKey: 'vlt_1/dvr_test_2',
+        originalSha256Hash: 'def456',
+        mimeType,
+        content: null,
+        rawText: null,
+        rawMarkdown: null,
+        parserStructuredOutput: null,
+        language: null,
+        parserEngine: null,
+        parserEngineVersion: null,
+        parserWarnings: null,
+        processingStatus: 'pending',
+        fileEncryptionKeyWrapped: null,
+        fileEncryptionKekVersion: null,
+        fileEncryptionAlgorithm: null,
+        restoredFromVersionId: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: new Date('2025-01-02T00:00:00.000Z'),
+        updatedAt: new Date('2025-01-02T00:00:00.000Z'),
+        isCurrent: true,
+        document: {
+          id: 'doc_existing_1',
+          vaultId,
+          name: fileName.normalize('NFC').trim(),
+          folderId: null,
+          currentVersionId: 'dvr_test_2',
+          isDeleted: false,
+          deletedAt: null,
+        },
+      },
+      duplicate: false,
+      skipped: false,
+      existingId: null,
+      duplicateScope: null,
+      conflictType: null,
+    }));
+    const auditServices = createMockAuditServices();
+    const activityServices = createMockActivityServices();
+    const app = createTestApp({ docServices, auditServices, activityServices });
+
+    const formData = new FormData();
+    formData.append('file', new File(['hello world v2'], 'test.txt', { type: 'text/plain' }));
+    formData.append('conflictStrategy', 'new_version');
+
+    const response = await app.request('/api/vaults/vlt_1/documents', {
+      method: 'POST',
+      headers: { 'x-test-user-id': 'usr_1' },
+      body: formData,
+    });
+
+    expect(response.status).toBe(201);
+    expect(docServices.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conflictStrategy: 'new_version',
+      }),
+    );
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledTimes(1);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.version_created',
+        documentId: 'doc_existing_1',
+        target: expect.objectContaining({ type: 'document_version', id: 'dvr_test_2' }),
+        metadata: expect.objectContaining({
+          document_version_id: 'dvr_test_2',
+          version_number: 2,
+        }),
+      }),
+    );
+    expect(auditServices.emitAuditEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'document.uploaded' }),
+    );
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledTimes(1);
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityType: 'document.version_created',
+        documentId: 'doc_existing_1',
+      }),
+    );
+    expect(activityServices.emitActivityEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ activityType: 'document.created' }),
     );
   });
 

@@ -7,6 +7,7 @@ export interface ActivityFeedItem {
   actorDisplayName: string;
   summary: string;
   metadata: Record<string, unknown>;
+  resource?: AuditResourceContext;
 }
 
 export interface AuditLogItem {
@@ -30,6 +31,14 @@ export interface AuditLogItem {
   ipAddress?: string | null;
   userAgent?: string | null;
   requestId?: string | null;
+  resource?: AuditResourceContext;
+}
+
+export interface AuditResourceContext {
+  vaultName?: string | null;
+  documentName?: string | null;
+  documentPath?: string | null;
+  targetName?: string | null;
 }
 
 export interface PaginatedActivityResponse {

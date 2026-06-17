@@ -339,49 +339,17 @@ export function registerUploadRoutes({
 
       if (result.document !== null) {
         const actor = getAuditActorFromContext(context);
-        await auditServices?.emitAuditEvent({
-          eventType: AUDIT_EVENT_TYPES.documentUploaded,
-          eventCategory: 'document',
-          outcome: 'success',
-          actor,
-          vaultId,
-          documentId: result.document.id,
-          target: { type: 'document', id: result.document.id, displayName: result.document.name },
-          source: 'web',
-          requestContext: getAuditRequestContext(context),
-          metadata: {
-            file_name: result.document.originalName,
-            file_size: result.document.originalSize,
-            mime_type: result.document.mimeType,
-          },
-        });
-        await activityServices?.emitActivityEvent({
-          activityType: ACTIVITY_EVENT_TYPES.documentCreated,
-          entityType: 'document',
-          entityId: result.document.id,
-          actor,
-          vaultId,
-          documentId: result.document.id,
-          target: { type: 'document', id: result.document.id, displayName: result.document.name },
-          source: 'web',
-          metadata: {
-            document_name: result.document.name,
-            file_name: result.document.originalName,
-            file_size: result.document.originalSize,
-            mime_type: result.document.mimeType,
-            folder_id: result.document.folderId,
-          },
-        });
+        const documentVersion = result.documentVersion;
 
-        if (result.documentVersion !== null) {
+        if (documentVersion !== null && documentVersion.versionNumber > 1) {
           const versionMetadata = {
-            document_version_id: result.documentVersion.id,
-            version_number: result.documentVersion.versionNumber,
-            file_name: result.documentVersion.originalName,
-            mime_type: result.documentVersion.mimeType,
-            original_sha256_hash: result.documentVersion.originalSha256Hash,
-            processing_status: result.documentVersion.processingStatus,
-            restored_from_version_id: result.documentVersion.restoredFromVersionId,
+            document_version_id: documentVersion.id,
+            version_number: documentVersion.versionNumber,
+            file_name: documentVersion.originalName,
+            mime_type: documentVersion.mimeType,
+            original_sha256_hash: documentVersion.originalSha256Hash,
+            processing_status: documentVersion.processingStatus,
+            restored_from_version_id: documentVersion.restoredFromVersionId,
           };
           const auditEvent = await auditServices?.emitAuditEvent({
             eventType: AUDIT_EVENT_TYPES.documentVersionCreated,
@@ -392,8 +360,8 @@ export function registerUploadRoutes({
             documentId: result.document.id,
             target: {
               type: 'document_version',
-              id: result.documentVersion.id,
-              displayName: result.documentVersion.originalName,
+              id: documentVersion.id,
+              displayName: documentVersion.originalName,
             },
             source: 'web',
             requestContext: getAuditRequestContext(context),
@@ -408,12 +376,46 @@ export function registerUploadRoutes({
             documentId: result.document.id,
             target: {
               type: 'document_version',
-              id: result.documentVersion.id,
-              displayName: result.documentVersion.originalName,
+              id: documentVersion.id,
+              displayName: documentVersion.originalName,
             },
             source: 'web',
             auditEventId: auditEvent?.id,
             metadata: versionMetadata,
+          });
+        } else {
+          await auditServices?.emitAuditEvent({
+            eventType: AUDIT_EVENT_TYPES.documentUploaded,
+            eventCategory: 'document',
+            outcome: 'success',
+            actor,
+            vaultId,
+            documentId: result.document.id,
+            target: { type: 'document', id: result.document.id, displayName: result.document.name },
+            source: 'web',
+            requestContext: getAuditRequestContext(context),
+            metadata: {
+              file_name: result.document.originalName,
+              file_size: result.document.originalSize,
+              mime_type: result.document.mimeType,
+            },
+          });
+          await activityServices?.emitActivityEvent({
+            activityType: ACTIVITY_EVENT_TYPES.documentCreated,
+            entityType: 'document',
+            entityId: result.document.id,
+            actor,
+            vaultId,
+            documentId: result.document.id,
+            target: { type: 'document', id: result.document.id, displayName: result.document.name },
+            source: 'web',
+            metadata: {
+              document_name: result.document.name,
+              file_name: result.document.originalName,
+              file_size: result.document.originalSize,
+              mime_type: result.document.mimeType,
+              folder_id: result.document.folderId,
+            },
           });
         }
       }

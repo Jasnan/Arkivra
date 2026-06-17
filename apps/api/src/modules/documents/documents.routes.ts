@@ -576,41 +576,9 @@ export function registerDocumentRoutes({
 
       if (result.document !== null) {
         const actor = getAuditActorFromContext(context);
-        await auditServices?.emitAuditEvent({
-          eventType: AUDIT_EVENT_TYPES.documentUploaded,
-          eventCategory: 'document',
-          outcome: 'success',
-          actor,
-          vaultId,
-          documentId: result.document.id,
-          target: { type: 'document', id: result.document.id, displayName: result.document.name },
-          source: 'web',
-          requestContext: getAuditRequestContext(context),
-          metadata: {
-            file_name: result.document.originalName,
-            file_size: result.document.originalSize,
-            mime_type: result.document.mimeType,
-          },
-        });
-        await activityServices?.emitActivityEvent({
-          activityType: ACTIVITY_EVENT_TYPES.documentCreated,
-          entityType: 'document',
-          entityId: result.document.id,
-          actor,
-          vaultId,
-          documentId: result.document.id,
-          target: { type: 'document', id: result.document.id, displayName: result.document.name },
-          source: 'web',
-          metadata: {
-            document_name: result.document.name,
-            file_name: result.document.originalName,
-            file_size: result.document.originalSize,
-            mime_type: result.document.mimeType,
-            folder_id: result.document.folderId,
-          },
-        });
+        const documentVersion = result.documentVersion;
 
-        if (result.documentVersion !== null) {
+        if (documentVersion !== null && documentVersion.versionNumber > 1) {
           const auditEvent = await auditServices?.emitAuditEvent({
             eventType: AUDIT_EVENT_TYPES.documentVersionCreated,
             eventCategory: 'document',
@@ -620,12 +588,12 @@ export function registerDocumentRoutes({
             documentId: result.document.id,
             target: {
               type: 'document_version',
-              id: result.documentVersion.id,
-              displayName: result.documentVersion.originalName,
+              id: documentVersion.id,
+              displayName: documentVersion.originalName,
             },
             source: 'web',
             requestContext: getAuditRequestContext(context),
-            metadata: getDocumentVersionAuditMetadata(result.documentVersion),
+            metadata: getDocumentVersionAuditMetadata(documentVersion),
           });
           await activityServices?.emitActivityEvent({
             activityType: ACTIVITY_EVENT_TYPES.documentVersionCreated,
@@ -636,12 +604,46 @@ export function registerDocumentRoutes({
             documentId: result.document.id,
             target: {
               type: 'document_version',
-              id: result.documentVersion.id,
-              displayName: result.documentVersion.originalName,
+              id: documentVersion.id,
+              displayName: documentVersion.originalName,
             },
             source: 'web',
             auditEventId: auditEvent?.id,
-            metadata: getDocumentVersionAuditMetadata(result.documentVersion),
+            metadata: getDocumentVersionAuditMetadata(documentVersion),
+          });
+        } else {
+          await auditServices?.emitAuditEvent({
+            eventType: AUDIT_EVENT_TYPES.documentUploaded,
+            eventCategory: 'document',
+            outcome: 'success',
+            actor,
+            vaultId,
+            documentId: result.document.id,
+            target: { type: 'document', id: result.document.id, displayName: result.document.name },
+            source: 'web',
+            requestContext: getAuditRequestContext(context),
+            metadata: {
+              file_name: result.document.originalName,
+              file_size: result.document.originalSize,
+              mime_type: result.document.mimeType,
+            },
+          });
+          await activityServices?.emitActivityEvent({
+            activityType: ACTIVITY_EVENT_TYPES.documentCreated,
+            entityType: 'document',
+            entityId: result.document.id,
+            actor,
+            vaultId,
+            documentId: result.document.id,
+            target: { type: 'document', id: result.document.id, displayName: result.document.name },
+            source: 'web',
+            metadata: {
+              document_name: result.document.name,
+              file_name: result.document.originalName,
+              file_size: result.document.originalSize,
+              mime_type: result.document.mimeType,
+              folder_id: result.document.folderId,
+            },
           });
         }
       }

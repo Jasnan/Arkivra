@@ -130,6 +130,14 @@ export type AuditEventRecord = {
   before: AuditJson | null;
   after: AuditJson | null;
   schemaVersion: number;
+  resource?: AuditResourceContext;
+};
+
+export type AuditResourceContext = {
+  vaultName?: string | null;
+  documentName?: string | null;
+  documentPath?: string | null;
+  targetName?: string | null;
 };
 
 export type ActivityFeedItem = {
@@ -142,6 +150,7 @@ export type ActivityFeedItem = {
   actorDisplayName: string;
   summary: string;
   metadata: AuditJson;
+  resource?: AuditResourceContext;
 };
 
 export type AuditLogItem = ActivityFeedItem & {

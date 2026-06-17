@@ -981,16 +981,30 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
           }}
         >
           <DropdownMenuTrigger asChild>
-            <IconButton
-              variant="ghost"
-              size="xs"
-              aria-label="Add tag"
-              borderStyle="dashed"
-              color="fg.muted"
-              _hover={{ bg: 'bg.surface', color: 'fg' }}
-            >
-              <Plus size={8} />
-            </IconButton>
+            {assignedTags.length === 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                borderStyle="dashed"
+                color="fg.muted"
+                _hover={{ bg: 'bg.surface', color: 'fg' }}
+              >
+                <Plus size={12} />
+                Add tag
+              </Button>
+            ) : (
+              <IconButton
+                variant="ghost"
+                size="xs"
+                aria-label="Add tag"
+                borderStyle="dashed"
+                color="fg.muted"
+                _hover={{ bg: 'bg.surface', color: 'fg' }}
+              >
+                <Plus size={8} />
+              </IconButton>
+            )}
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"

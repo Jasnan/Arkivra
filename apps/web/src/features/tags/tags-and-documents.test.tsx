@@ -88,7 +88,7 @@ function enableExtractedTextPreference() {
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
     value: {
-      getItem: vi.fn((key: string) => key === 'arkivra.uiPreferences' ? preferences : null),
+      getItem: vi.fn((key: string) => (key === 'arkivra.uiPreferences' ? preferences : null)),
       setItem: vi.fn(),
       removeItem: vi.fn(),
     },
@@ -232,7 +232,9 @@ describe('tags and documents pages', () => {
       ),
     );
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /delete “invoices”\?/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('dialog', { name: /delete “invoices”\?/i }),
+      ).not.toBeInTheDocument();
     });
     await waitFor(() => {
       expect(screen.queryByText('Invoices')).not.toBeInTheDocument();
@@ -828,7 +830,9 @@ describe('tags and documents pages', () => {
     });
 
     fireEvent.contextMenu(documentLink);
-    expect(screen.getByRole('menu', { name: /actions for invoice april\.pdf/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('menu', { name: /actions for invoice april\.pdf/i }),
+    ).toBeInTheDocument();
   });
 
   it('opens root folder actions from the vault root breadcrumb context menu', async () => {
@@ -1048,10 +1052,7 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (
-        url.endsWith('/api/vaults/vlt_1') &&
-        (!init || init.method === undefined)
-      ) {
+      if (url.endsWith('/api/vaults/vlt_1') && (!init || init.method === undefined)) {
         return jsonResponse(vaultDetailResponse());
       }
 
@@ -1146,10 +1147,7 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (
-        url.endsWith('/api/vaults/vlt_1') &&
-        (!init || init.method === undefined)
-      ) {
+      if (url.endsWith('/api/vaults/vlt_1') && (!init || init.method === undefined)) {
         return jsonResponse(vaultDetailResponse());
       }
 
@@ -1180,13 +1178,13 @@ describe('tags and documents pages', () => {
         (!init || init.method === undefined)
       ) {
         return jsonResponse({
-          tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
+          tags: [],
         });
       }
 
       if (url.endsWith('/api/tags') && (!init || init.method === undefined)) {
         return jsonResponse({
-          tags: [{ id: 'tag_1', name: 'Invoices', color: '#2563eb' }],
+          tags: [],
         });
       }
 
@@ -1214,7 +1212,9 @@ describe('tags and documents pages', () => {
     });
 
     await screen.findByRole('heading', { name: /invoice april/i });
-    await user.click(await screen.findByRole('button', { name: /add tag/i }));
+    const addTagButton = await screen.findByRole('button', { name: /^add tag$/i });
+    expect(addTagButton).toHaveTextContent(/add tag/i);
+    await user.click(addTagButton);
     await user.type(screen.getByPlaceholderText(/filter tags/i), 'Testing');
     await user.click(screen.getByRole('menuitem', { name: /new tag "testing"/i }));
     expect(await screen.findByRole('heading', { name: /new tag/i })).toBeInTheDocument();
@@ -1246,10 +1246,7 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (
-        url.endsWith('/api/vaults/vlt_1') &&
-        (!init || init.method === undefined)
-      ) {
+      if (url.endsWith('/api/vaults/vlt_1') && (!init || init.method === undefined)) {
         return jsonResponse(vaultDetailResponse());
       }
 
@@ -1399,22 +1396,25 @@ describe('tags and documents pages', () => {
       const url = String(input);
 
       if (url.endsWith('/api/vaults/vlt_1/documents/doc_1/file')) {
-        return new Response([
-          '# Markdown Title',
-          '',
-          '- First item',
-          '- Second item',
-          '',
-          '| Name | Value |',
-          '| --- | --- |',
-          '| Status | Ready |',
-          '',
-          '```ts',
-          'const preview = true;',
-          '```',
-        ].join('\n'), {
-          headers: { 'content-type': 'text/markdown' },
-        });
+        return new Response(
+          [
+            '# Markdown Title',
+            '',
+            '- First item',
+            '- Second item',
+            '',
+            '| Name | Value |',
+            '| --- | --- |',
+            '| Status | Ready |',
+            '',
+            '```ts',
+            'const preview = true;',
+            '```',
+          ].join('\n'),
+          {
+            headers: { 'content-type': 'text/markdown' },
+          },
+        );
       }
 
       if (
@@ -1460,7 +1460,9 @@ describe('tags and documents pages', () => {
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Markdown Title' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Markdown Title' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('# Markdown Title')).not.toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'Ready' })).toBeInTheDocument();
     expect(screen.getByText('const preview = true;')).toBeInTheDocument();
@@ -1472,10 +1474,7 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (
-        url.endsWith('/api/vaults/vlt_1') &&
-        (!init || init.method === undefined)
-      ) {
+      if (url.endsWith('/api/vaults/vlt_1') && (!init || init.method === undefined)) {
         return jsonResponse(vaultDetailResponse());
       }
 
@@ -1540,10 +1539,7 @@ describe('tags and documents pages', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (
-        url.endsWith('/api/vaults/vlt_1') &&
-        (!init || init.method === undefined)
-      ) {
+      if (url.endsWith('/api/vaults/vlt_1') && (!init || init.method === undefined)) {
         return jsonResponse(vaultDetailResponse({ aiAccessLevel: 'none' }));
       }
 

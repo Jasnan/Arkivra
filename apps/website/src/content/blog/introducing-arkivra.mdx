@@ -91,7 +91,7 @@ The code is available for inspection, modification, and self-hosting. Users shou
 
 Behind the scenes, Arkivra extracts structure and text from uploaded documents, stores searchable representations inside PostgreSQL, and builds retrieval indexes that power search and AI-assisted querying.
 
-Uploaded files are encrypted at rest. Search and retrieval data are stored separately to enable fast queries across large document collections.
+When encryption keys are configured, uploaded files and stored extracted assets are encrypted at rest. Search and retrieval data are stored separately to enable fast queries across large document collections.
 
 If you choose to run local AI models, document context can remain entirely within your own infrastructure.
 

@@ -699,7 +699,7 @@ export function TagsPage() {
       target ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
   }, []);
 
-  function restoreFocusTarget() {
+  const restoreFocusTarget = useCallback(() => {
     const target = focusRestoreTargetRef.current;
     focusRestoreTargetRef.current = null;
     if (target) {
@@ -707,7 +707,7 @@ export function TagsPage() {
         setTimeout(() => target.focus(), 80);
       });
     }
-  }
+  }, []);
 
   const openCreateDialog = useCallback(
     (trigger?: HTMLButtonElement | null) => {
@@ -761,13 +761,16 @@ export function TagsPage() {
     await queryClient.invalidateQueries({ queryKey: tagQueryKeys.all });
   }
 
-  function closeDeleteDialogs({ restoreFocus = true } = {}) {
-    setTagPendingDelete(null);
-    setTagsPendingBulkDelete([]);
-    if (restoreFocus) {
-      restoreFocusTarget();
-    }
-  }
+  const closeDeleteDialogs = useCallback(
+    ({ restoreFocus = true } = {}) => {
+      setTagPendingDelete(null);
+      setTagsPendingBulkDelete([]);
+      if (restoreFocus) {
+        restoreFocusTarget();
+      }
+    },
+    [restoreFocusTarget],
+  );
 
   const createMutation = useMutation({
     mutationFn: createTag,
@@ -831,7 +834,12 @@ export function TagsPage() {
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [deleteMutation.isPending, tagPendingDelete, tagsPendingBulkDelete.length]);
+  }, [
+    closeDeleteDialogs,
+    deleteMutation.isPending,
+    tagPendingDelete,
+    tagsPendingBulkDelete.length,
+  ]);
 
   function toggleTagSelection(tagId: string, checked: boolean) {
     setSelectedTagIds((current) =>

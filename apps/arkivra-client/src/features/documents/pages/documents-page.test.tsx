@@ -341,7 +341,7 @@ describe('documents page', () => {
       routePaths: ['/vaults/:vaultId/:documentId', '/vaults/:vaultId/:documentId/metadata'],
     });
 
-    expect(await screen.findByTitle(/text preview/i)).toBeInTheDocument();
+    expect(await screen.findByText(/extracted policy text/i)).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /preview/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /extracted text/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /metadata/i })).not.toBeInTheDocument();

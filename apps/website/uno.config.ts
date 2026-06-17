@@ -2,8 +2,8 @@ import {
   defineConfig,
   presetIcons,
   presetTypography,
-  presetUno,
   presetWebFonts,
+  presetWind3,
   transformerDirectives,
   transformerVariantGroup,
 } from 'unocss';
@@ -12,7 +12,7 @@ import { getSocials } from './src/socials.ts';
 
 export default defineConfig({
   presets: [
-    presetUno({
+    presetWind3({
       dark: {
         dark: '[data-kb-theme="dark"]',
         light: '[data-kb-theme="light"]',
@@ -22,8 +22,14 @@ export default defineConfig({
     presetAnimations(),
     presetIcons({
       collections: {
-        'simple-icons': () => import('@iconify-json/simple-icons/icons.json', { with: { type: 'json' } }).then(i => i.default),
-        'tabler': () => import('@iconify-json/tabler/icons.json', { with: { type: 'json' } }).then(i => i.default),
+        'simple-icons': () =>
+          import('@iconify-json/simple-icons/icons.json', { with: { type: 'json' } }).then(
+            (i) => i.default,
+          ),
+        tabler: () =>
+          import('@iconify-json/tabler/icons.json', { with: { type: 'json' } }).then(
+            (i) => i.default,
+          ),
       },
     }),
     presetTypography(),
@@ -85,13 +91,12 @@ export default defineConfig({
     animation: {
       keyframes: {
         'accordion-down':
-            '{ from { height: 0 } to { height: var(--kb-accordion-content-height) } }',
-        'accordion-up':
-            '{ from { height: var(--kb-accordion-content-height) } to { height: 0 } }',
+          '{ from { height: 0 } to { height: var(--kb-accordion-content-height) } }',
+        'accordion-up': '{ from { height: var(--kb-accordion-content-height) } to { height: 0 } }',
         'collapsible-down':
-            '{ from { height: 0 } to { height: var(--kb-collapsible-content-height) } }',
+          '{ from { height: 0 } to { height: var(--kb-collapsible-content-height) } }',
         'collapsible-up':
-            '{ from { height: var(--kb-collapsible-content-height) } to { height: 0 } }',
+          '{ from { height: var(--kb-collapsible-content-height) } to { height: 0 } }',
         'caret-blink': '{ 0%,70%,100% { opacity: 1 } 20%,50% { opacity: 0 } }',
       },
       timingFns: {
@@ -113,7 +118,15 @@ export default defineConfig({
       },
     },
   },
-  safelist: ['sm:grid-cols-1', 'sm:grid-cols-2', 'sm:grid-cols-3', 'sm:grid-cols-4', 'sm:grid-cols-5', 'i-tabler-heart-filled', ...getSocials().map(s => s.icon)],
+  safelist: [
+    'sm:grid-cols-1',
+    'sm:grid-cols-2',
+    'sm:grid-cols-3',
+    'sm:grid-cols-4',
+    'sm:grid-cols-5',
+    'i-tabler-heart-filled',
+    ...getSocials().map((s) => s.icon),
+  ],
   preflights: [
     {
       getCSS: () => `

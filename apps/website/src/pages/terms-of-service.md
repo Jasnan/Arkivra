@@ -31,7 +31,7 @@ Arkivra is provided as-is, without warranties of any kind. Use it at your own ri
 
 For production deployments, keep PostgreSQL private, restrict server access, use strong secrets, and back up `ARKIVRA_ENCRYPTION_KEYS` separately.
 
-Uploaded files are encrypted at rest. Extracted retrieval data is stored separately from original files in PostgreSQL for ingestion, search, and chat. Deployment choices determine how that database is secured.
+When `ARKIVRA_ENCRYPTION_KEYS` is configured, uploaded files and stored extracted assets are encrypted at rest. Extracted retrieval data is stored separately from original files in PostgreSQL for ingestion, search, and chat. Deployment choices determine how that database is secured.
 
 Losing the active encryption key means losing access to encrypted stored files.
 

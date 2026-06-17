@@ -1,3 +1,8 @@
+---
+title: First Admin And Authentication
+description: Bootstrap the first admin and configure authentication basics.
+---
+
 # First Admin And Authentication
 
 ## Bootstrap Admin
@@ -41,14 +46,7 @@ ARKIVRA_SMTP_PASSWORD=<password>
 
 ## OAuth
 
-Google and GitHub OAuth are optional. Configure the provider client ID, client secret, and callback URL only when you want that provider enabled.
-
-For the default local API URL, callbacks are:
-
-- Google: `http://localhost:1221/api/auth/callback/google`
-- GitHub: `http://localhost:1221/api/auth/callback/github`
-
-For production, the callback origin must match `BETTER_AUTH_URL`.
+Google and GitHub OAuth are optional. See [OAuth Setup](../guides/oauth-setup.md) for callback URLs and environment variables.
 
 ## Two-Factor Authentication
 

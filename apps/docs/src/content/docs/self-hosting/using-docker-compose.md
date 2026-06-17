@@ -1,8 +1,9 @@
 ---
-title: Docker Compose
+title: Using Docker Compose
+description: Self-host Arkivra with the repository Docker Compose stack.
 ---
 
-# Docker Compose Self-Hosting
+# Using Docker Compose
 
 The repository includes a Docker Compose stack for the current self-hosted path.
 
@@ -27,12 +28,6 @@ The Compose file defines these persistent volumes:
 - `backups`: backup archives and restore maintenance marker files
 
 Do not treat the `backups` volume as a complete disaster recovery plan by itself. Backups do not preserve `.env` secrets or `ARKIVRA_ENCRYPTION_KEYS`; store those separately.
-
-## Scan-Heavy PDF Processing
-
-Scan-heavy PDFs are routed through Docling OCR with `ocr_preset=auto` by default. The Compose `docling` service uses the Docling Serve CPU image, so scan-heavy OCR workloads may be slower than digital PDFs.
-
-For a separate Docling Serve instance configured with a local VLM runtime, scan-heavy PDFs and image files can instead be routed through Docling's VLM pipeline by setting `ARKIVRA_DOCLING_VLM_PIPELINE=enabled`. Digital PDFs and ordinary documents stay on the default pipeline. Set `ARKIVRA_DOCLING_VLM_MODEL` only when the VLM pipeline is enabled and the Docling Serve deployment needs a preset other than `default`, for example `glm_ocr`. Keep this opt-in because VLM conversion may be slower and depends on the configured Docling runtime.
 
 ## Important Environment Values
 
@@ -67,6 +62,12 @@ docker compose logs postgres
 docker compose logs docling
 ```
 
+## Scan-Heavy PDF Processing
+
+Scan-heavy PDFs are routed through Docling OCR with `ocr_preset=auto` by default. The Compose `docling` service uses the Docling Serve CPU image, so scan-heavy OCR workloads may be slower than digital PDFs.
+
+For a separate Docling Serve instance configured with a local VLM runtime, scan-heavy PDFs and image files can instead be routed through Docling's VLM pipeline by setting `ARKIVRA_DOCLING_VLM_PIPELINE=enabled`. Digital PDFs and ordinary documents stay on the default pipeline.
+
 ## Production Notes
 
 - Put Arkivra behind TLS.
@@ -74,3 +75,5 @@ docker compose logs docling
 - Use strong secrets and do not commit `.env`.
 - Keep API, worker, and web origins aligned through `ARKIVRA_SERVER_BASE_URL`, `ARKIVRA_WEB_BASE_URL`, `ARKIVRA_CORS_ORIGINS`, and `BETTER_AUTH_URL`.
 - Keep `ARKIVRA_ENCRYPTION_KEYS` backed up outside the host.
+
+See [Configuration](./configuration.md) for the full environment variable reference.

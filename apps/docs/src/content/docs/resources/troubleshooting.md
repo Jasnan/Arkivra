@@ -1,3 +1,8 @@
+---
+title: Troubleshooting
+description: Common operational checks for Arkivra deployments.
+---
+
 # Troubleshooting
 
 ## API Health Check Fails
@@ -98,10 +103,15 @@ Also check `BETTER_AUTH_URL` and provider-specific redirect URI variables.
 
 ## AI Provider Calls Fail
 
-Check:
+For Ollama-compatible providers, check:
 
-- the Ollama-compatible endpoint is reachable from the API and worker
+- the endpoint is reachable from the API and worker
 - the selected chat or embedding model is installed on that endpoint
 - `ARKIVRA_OLLAMA_LOG_REQUESTS` is disabled unless deliberately debugging provider traffic
+
+For Gemini chat, check:
+
+- `GEMINI_API_KEY` or the configured secret reference is available to the API process
+- the selected Gemini model is listed in the admin AI settings
 
 Do not enable request logging with sensitive documents unless you have a deliberate redacted logging plan.

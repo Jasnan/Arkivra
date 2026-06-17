@@ -22,7 +22,7 @@ Core positioning:
 - `apps/arkivra-client`: React/Vite/TypeScript dashboard using Chakra UI v3, TanStack Router, TanStack Query, Better Auth, and feature folders.
 - `apps/website`: Astro marketing website using UnoCSS and localized content.
 - `apps/docs`: Astro Starlight documentation website.
-- `docs`: Source project documentation and release workflow notes.
+- `docs`: Internal maintainer release checklists.
 - `docker`: Docker support files, including PostgreSQL initialization.
 - `scripts`: Repo scripts such as commit message validation and dev data reset.
 - `.codex`: Repo-local Codex workflow assets, skills, and prompt templates.

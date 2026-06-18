@@ -150,7 +150,9 @@ describe.sequential('document versioning smoke regression', () => {
         allowedModels: ['llama3.2'],
         maxImagesPerRequest: 0,
       }),
-      listAvailableModels: async () => ['llama3.2'],
+      listAvailableModels: async () => [
+        { provider: 'ollama', model: 'llama3.2', value: 'ollama:llama3.2' },
+      ],
     });
 
     await db.insert(usersTable).values({

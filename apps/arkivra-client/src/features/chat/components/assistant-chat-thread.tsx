@@ -8,6 +8,7 @@ import type { ChatMessage, ChatMessageMetadata, Citation } from '../chat.types';
 import {
   formatDate,
   emptyAssistantResponseMessage,
+  formatChatModelLabel,
   getMessageActiveStatus,
   getMessageCitations,
   getMessageCreatedAt,
@@ -227,7 +228,10 @@ function AssistantResponseMessage() {
   const isStreamingPlaceholder = custom.isOptimistic === true;
   const metrics = getMessageMetrics(message) ?? undefined;
   const metricsSummary = renderMetricsSummary(metrics);
-  const responseFooter = [metadata.model ?? null, metricsSummary].filter(Boolean).join(' • ');
+  const responseFooter = [
+    metadata.model ? formatChatModelLabel(metadata.model) : null,
+    metricsSummary,
+  ].filter(Boolean).join(' • ');
   const generationStatus = getMessageGenerationStatus(message);
   const generationError = getMessageGenerationError(message);
   const createdAt = getMessageCreatedAt(message);

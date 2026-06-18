@@ -18,9 +18,17 @@ import type { AdminAiSettings } from '@/features/admin/admin.types';
 import { formatProvider } from './admin-ai-settings-page-model-catalog';
 import type { EmbeddingModelOption } from './admin-ai-settings-page-model-catalog';
 
+interface ChatModelOption {
+  value: string;
+  provider: AdminAiSettings['chat']['provider'];
+  providerLabel: string;
+  model: string;
+  label: string;
+  baseUrl: string;
+}
+
 export function ChatModelsDialog({
   open,
-  aiDraft,
   chatModelOptions,
   draftAllowedChatModels,
   draftDefaultChatModel,
@@ -32,8 +40,7 @@ export function ChatModelsDialog({
   onSave,
 }: {
   open: boolean;
-  aiDraft: AdminAiSettings;
-  chatModelOptions: string[];
+  chatModelOptions: ChatModelOption[];
   draftAllowedChatModels: string[];
   draftDefaultChatModel: string;
   isFetchingChatModels: boolean;
@@ -43,6 +50,20 @@ export function ChatModelsDialog({
   onOpenChange: (open: boolean) => void;
   onSave: () => void;
 }) {
+  const groupedChatModelOptions = chatModelOptions.reduce<Array<[string, ChatModelOption[]]>>(
+    (groups, option) => {
+      const groupLabel = option.providerLabel;
+      const existing = groups.find(([label]) => label === groupLabel);
+      if (existing) {
+        existing[1].push(option);
+      } else {
+        groups.push([groupLabel, [option]]);
+      }
+      return groups;
+    },
+    [],
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent maxW="40rem" w="calc(100vw - 2rem)">
@@ -80,53 +101,67 @@ export function ChatModelsDialog({
                 divideY="1px"
                 divideColor="border.surface"
               >
-                {chatModelOptions.map((model) => (
-                  <Grid
-                    key={model}
-                    templateColumns="minmax(0, 1fr) minmax(7rem, auto)"
-                    gap="3"
-                    alignItems="center"
-                    px="3"
-                    py="2.5"
-                    _hover={{ bg: 'bg.subtle' }}
-                  >
-                    <Checkbox
-                      checked={draftAllowedChatModels.includes(model)}
-                      disabled={model === draftDefaultChatModel}
-                      onCheckedChange={(checked) => onAllowedModelChange(model, checked)}
+                {groupedChatModelOptions.map(([providerLabel, options]) => (
+                  <Stack key={providerLabel} gap="0" divideY="1px" divideColor="border.surface">
+                    <Text
+                      px="3"
+                      py="2"
+                      textStyle="xs"
+                      fontWeight="semibold"
+                      color="fg.muted"
+                      bg="bg.subtle"
                     >
-                      <Stack gap="0" minW="0">
-                        <Text
-                          textStyle="sm"
-                          fontWeight="semibold"
-                          color={model === draftDefaultChatModel ? 'fg.muted' : 'fg'}
-                          truncate
-                        >
-                          {model}
-                        </Text>
-                        <Text textStyle="xs" color="fg.muted" truncate>
-                          {formatProvider(aiDraft.chat.provider)}
-                          {aiDraft.chat.baseUrl ? ` · ${aiDraft.chat.baseUrl}` : ''}
-                        </Text>
-                      </Stack>
-                    </Checkbox>
-                    <HStack as="label" gap="2" justify="flex-end" cursor="pointer">
-                      <RadioGroupItem value={model} />
-                      <Text
-                        textStyle="xs"
-                        color={model === draftDefaultChatModel ? 'fg' : 'fg.muted'}
+                      {providerLabel}
+                    </Text>
+                    {options.map((option) => (
+                      <Grid
+                        key={option.value}
+                        templateColumns="minmax(0, 1fr) minmax(7rem, auto)"
+                        gap="3"
+                        alignItems="center"
+                        px="3"
+                        py="2.5"
+                        _hover={{ bg: 'bg.subtle' }}
                       >
-                        {model === draftDefaultChatModel ? 'Default' : 'Use'}
-                      </Text>
-                    </HStack>
-                  </Grid>
+                        <Checkbox
+                          checked={draftAllowedChatModels.includes(option.value)}
+                          disabled={option.value === draftDefaultChatModel}
+                          onCheckedChange={(checked) => onAllowedModelChange(option.value, checked)}
+                        >
+                          <Stack gap="0" minW="0">
+                            <Text
+                              textStyle="sm"
+                              fontWeight="semibold"
+                              color={option.value === draftDefaultChatModel ? 'fg.muted' : 'fg'}
+                              truncate
+                            >
+                              {option.label}
+                            </Text>
+                            <Text textStyle="xs" color="fg.muted" truncate>
+                              {formatProvider(option.provider)}
+                              {option.baseUrl ? ` · ${option.baseUrl}` : ''}
+                            </Text>
+                          </Stack>
+                        </Checkbox>
+                        <HStack as="label" gap="2" justify="flex-end" cursor="pointer">
+                          <RadioGroupItem value={option.value} />
+                          <Text
+                            textStyle="xs"
+                            color={option.value === draftDefaultChatModel ? 'fg' : 'fg.muted'}
+                          >
+                            {option.value === draftDefaultChatModel ? 'Default' : 'Use'}
+                          </Text>
+                        </HStack>
+                      </Grid>
+                    ))}
+                  </Stack>
                 ))}
               </RadioGroup>
             ) : (
               <Text px="3" py="3" textStyle="sm" color="fg.muted">
                 {isFetchingChatModels
-                  ? 'Loading chat models from Ollama...'
-                  : 'No chat models are available from the configured Ollama endpoint.'}
+                  ? 'Loading chat models from configured providers...'
+                  : 'No chat models are available from the configured providers.'}
               </Text>
             )}
           </Box>

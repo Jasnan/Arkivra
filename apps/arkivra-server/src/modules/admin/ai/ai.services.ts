@@ -28,6 +28,7 @@ import {
   normalizeGeminiBaseUrl,
   normalizeHost,
   normalizeSettings,
+  parseChatModelSelection,
   resolveApiKey,
 } from './ai.settings.js';
 
@@ -140,8 +141,13 @@ export function createAdminAiServices({
       return defaults;
     }
 
-    const chatProvider = stored.chatProvider === 'gemini' ? 'gemini' : 'ollama';
-    const chatModel = (stored.chatModel ?? stored.ollamaModel ?? getDefaultChatModel(chatProvider, defaults.model)).trim();
+    const storedChatProvider = stored.chatProvider === 'gemini' ? 'gemini' : 'ollama';
+    const chatSelection = parseChatModelSelection({
+      value: stored.chatModel ?? stored.ollamaModel ?? getDefaultChatModel(storedChatProvider, defaults.model),
+      fallbackProvider: storedChatProvider,
+    });
+    const chatProvider = chatSelection.provider;
+    const chatModel = chatSelection.model;
     const chatBaseUrl = normalizeChatBaseUrl({
       provider: chatProvider,
       baseUrl: stored.chatBaseUrl ?? stored.ollamaHost,

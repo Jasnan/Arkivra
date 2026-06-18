@@ -48,6 +48,14 @@ import {
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { createDocumentSearchServices } from '../search/search.services.js';
 import { createChatServices } from '../chat/chat.services.js';
+import {
+  formatChatModelValue,
+  parseChatModelSelection,
+} from '../chat/chat.core.js';
+import type {
+  ChatModelSelection,
+  ChatProvider,
+} from '../chat/chat.core.js';
 import { resolveChatProviderApiKey } from '../chat/chat-ai-sdk.js';
 import { registerChatRoutes } from '../chat/chat.routes.js';
 import {
@@ -121,7 +129,7 @@ export function createServer({
     db,
     searchServices,
     documentsServices,
-    resolveAiSettings: async () => {
+    resolveAiSettings: async ({ provider }: { provider?: ChatProvider } = {}) => {
       const [settings, ingestionSettings] = await Promise.all([
         aiServices.getSettings(),
         aiServices.getIngestionSettings(),
@@ -130,15 +138,40 @@ export function createServer({
         throw new Error('AI features are disabled for this Arkivra instance.');
       }
 
+      const effectiveProvider = provider ?? settings.chat.provider;
+      if (effectiveProvider === 'gemini') {
+        return {
+          provider: 'gemini',
+          baseUrl: settings.providers?.gemini?.baseUrl ?? settings.chat.baseUrl,
+          apiKey: resolveChatProviderApiKey({
+            provider: 'gemini',
+            apiKeySecretRef: settings.chat.provider === 'gemini'
+              ? settings.chat.apiKeySecretRef
+              : null,
+            providerApiKeySecretRef: settings.providers?.gemini?.apiKeySecretRef,
+          }),
+          model: settings.chat.provider === 'gemini'
+            ? settings.chat.model
+            : 'gemini-3.5-flash',
+          allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
+          maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
+        };
+      }
+
       return {
-        provider: settings.chat.provider,
-        baseUrl: settings.chat.baseUrl,
+        provider: 'ollama',
+        baseUrl: settings.chat.provider === 'ollama'
+          ? settings.chat.baseUrl
+          : (settings.ollamaHost || settings.translation.baseUrl || settings.embedding.baseUrl),
         apiKey: resolveChatProviderApiKey({
-          provider: settings.chat.provider,
-          apiKeySecretRef: settings.chat.apiKeySecretRef,
-          providerApiKeySecretRef: settings.providers?.gemini?.apiKeySecretRef,
+          provider: 'ollama',
+          apiKeySecretRef: settings.chat.provider === 'ollama'
+            ? settings.chat.apiKeySecretRef
+            : null,
         }),
-        model: settings.chat.model,
+        model: settings.chat.provider === 'ollama'
+          ? settings.chat.model
+          : settings.model,
         allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
         maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
       };
@@ -146,14 +179,70 @@ export function createServer({
     listAvailableModels: async () => {
       const settings = await aiServices.getSettings();
       const allowedModels = settings.chat.allowedModels ?? [settings.chat.model];
-      const availableModels = (await aiServices.listChatModels({
-        provider: settings.chat.provider,
-        baseUrl: settings.chat.baseUrl,
-      })).map(model => model.name);
+      const allowedModelValues = new Set(
+        allowedModels.map(model =>
+          parseChatModelSelection({
+            value: model,
+            fallbackProvider: settings.chat.provider,
+          }).value,
+        ),
+      );
+      const hasQualifiedAllowlist = allowedModels.some(model =>
+        model.startsWith('ollama:') || model.startsWith('gemini:'),
+      );
+      const modelGroups = await Promise.allSettled([
+        aiServices.listChatModels({
+          provider: 'gemini',
+          baseUrl: settings.providers?.gemini?.baseUrl,
+        }),
+        aiServices.listChatModels({
+          provider: 'ollama',
+          baseUrl: settings.chat.provider === 'ollama'
+            ? settings.chat.baseUrl
+            : (settings.ollamaHost || settings.translation.baseUrl || settings.embedding.baseUrl),
+        }),
+      ]);
+      const availableModels: ChatModelSelection[] = [];
 
-      return allowedModels.length > 0
-        ? availableModels.filter(model => allowedModels.includes(model))
-        : availableModels;
+      for (const [index, result] of modelGroups.entries()) {
+        if (result.status !== 'fulfilled') continue;
+
+        const provider: ChatProvider = index === 0 ? 'gemini' : 'ollama';
+        for (const model of result.value) {
+          const value = formatChatModelValue({ provider, model: model.name });
+
+          if (hasQualifiedAllowlist && !allowedModelValues.has(value)) {
+            continue;
+          }
+
+          if (
+            !hasQualifiedAllowlist
+            && allowedModelValues.size > 0
+            && provider === settings.chat.provider
+            && !allowedModelValues.has(value)
+          ) {
+            continue;
+          }
+
+          availableModels.push({
+            provider,
+            model: model.name,
+            value,
+          });
+        }
+      }
+
+      if (availableModels.length === 0) {
+        for (const result of modelGroups) {
+          if (result.status === 'rejected') {
+            throw result.reason instanceof Error
+              ? result.reason
+              : new Error('Could not list chat models.');
+          }
+        }
+      }
+
+      return availableModels;
     },
   });
   const translationProvider = createRuntimeConfiguredOllamaTranslationProvider({

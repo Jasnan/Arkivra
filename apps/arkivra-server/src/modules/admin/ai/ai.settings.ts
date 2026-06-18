@@ -1,6 +1,6 @@
 import type { Config } from '../../config/config.js';
 import { normalizeOllamaHost } from '../../ai/providers/index.js';
-import type { AdminAiSettings } from './ai.types.js';
+import type { AdminAiChatProviderKind, AdminAiSettings } from './ai.types.js';
 
 const DEFAULT_GEMINI_API_KEY_SECRET_REF = 'GEMINI_API_KEY';
 const RAW_GOOGLE_API_KEY_PATTERN = /^AIza[\w-]{20,}$/;
@@ -76,6 +76,45 @@ function normalizeModelList(models: readonly string[]) {
   return normalized;
 }
 
+type ChatProvider = AdminAiSettings['chat']['provider'];
+
+function formatChatModelValue({
+  provider,
+  model,
+}: {
+  provider: ChatProvider;
+  model: string;
+}) {
+  return `${provider}:${model}`;
+}
+
+export function parseChatModelSelection({
+  value,
+  fallbackProvider,
+}: {
+  value: string;
+  fallbackProvider: ChatProvider;
+}): { provider: AdminAiChatProviderKind; model: string; value: string } {
+  const trimmed = value.trim();
+  const separator = trimmed.indexOf(':');
+  const maybeProvider = separator > 0 ? trimmed.slice(0, separator) : '';
+
+  if (maybeProvider === 'ollama' || maybeProvider === 'gemini') {
+    const model = trimmed.slice(separator + 1).trim();
+    return {
+      provider: maybeProvider,
+      model,
+      value: formatChatModelValue({ provider: maybeProvider, model }),
+    };
+  }
+
+  return {
+    provider: fallbackProvider,
+    model: trimmed,
+    value: formatChatModelValue({ provider: fallbackProvider, model: trimmed }),
+  };
+}
+
 export function getDefaultChatModel(
   provider: AdminAiSettings['chat']['provider'],
   fallbackModel: string,
@@ -96,13 +135,17 @@ export function normalizeAllowedChatModels({
   model: string;
   allowedModels: readonly string[] | null | undefined;
 }) {
-  const catalog = provider === 'gemini' ? [...CURATED_GEMINI_CHAT_MODELS] : [];
-  const candidates = normalizeModelList([...(allowedModels ?? []), model]);
-  const filtered = provider === 'gemini'
-    ? candidates.filter(candidate => catalog.includes(candidate as typeof CURATED_GEMINI_CHAT_MODELS[number]))
-    : candidates;
+  const defaultSelection = parseChatModelSelection({ value: model, fallbackProvider: provider });
+  const candidates = normalizeModelList([...(allowedModels ?? []), defaultSelection.value]);
+  const filtered = candidates
+    .map(candidate => parseChatModelSelection({ value: candidate, fallbackProvider: provider }))
+    .filter(selection =>
+      selection.provider !== 'gemini'
+      || CURATED_GEMINI_CHAT_MODELS.includes(selection.model as typeof CURATED_GEMINI_CHAT_MODELS[number]),
+    )
+    .map(selection => selection.value);
 
-  return filtered.length > 0 ? filtered : normalizeModelList([model]);
+  return filtered.length > 0 ? normalizeModelList(filtered) : [defaultSelection.value];
 }
 
 export function normalizeApiKeySecretRef(secretRef: string | null | undefined) {
@@ -178,13 +221,21 @@ export function createDefaultIngestionSettings(config: Config) {
 }
 
 export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
-  const chatProvider = input.chat?.provider === 'gemini' ? 'gemini' : 'ollama';
+  const requestedChatProvider = input.chat?.provider === 'gemini' ? 'gemini' : 'ollama';
+  const requestedChatModel = (
+    input.chat?.model ?? getDefaultChatModel(requestedChatProvider, input.model)
+  ).trim();
+  const chatSelection = parseChatModelSelection({
+    value: requestedChatModel,
+    fallbackProvider: requestedChatProvider,
+  });
+  const chatProvider = chatSelection.provider;
   const chatBaseUrl = normalizeChatBaseUrl({
     provider: chatProvider,
     baseUrl: input.chat?.baseUrl,
     fallbackOllamaHost: input.ollamaHost,
   });
-  const chatModel = (input.chat?.model ?? getDefaultChatModel(chatProvider, input.model)).trim();
+  const chatModel = chatSelection.model;
   const allowedChatModels = normalizeAllowedChatModels({
     provider: chatProvider,
     model: chatModel,

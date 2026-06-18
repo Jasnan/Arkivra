@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { CalendarDays, FileText, Search, Sparkles } from 'lucide-react';
 import { formatShortDate, formatShortDateTime } from '@/lib/localization';
 import type { ChatApiScope } from '../chat.api';
@@ -110,6 +109,39 @@ export function renderMetricsSummary(metrics: ChatGenerationMetrics | null | und
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(' • ') : null;
+}
+
+export function formatChatModelLabel(value: string) {
+  const separator = value.indexOf(':');
+  const provider = separator > 0 ? value.slice(0, separator) : '';
+
+  if (provider !== 'ollama' && provider !== 'gemini') {
+    return value;
+  }
+
+  const model = value.slice(separator + 1);
+  const providerLabel = provider === 'gemini' ? 'Gemini' : 'Ollama';
+  return `${model} · ${providerLabel}`;
+}
+
+export function formatChatModelName(value: string) {
+  const separator = value.indexOf(':');
+  const provider = separator > 0 ? value.slice(0, separator) : '';
+
+  if (provider !== 'ollama' && provider !== 'gemini') {
+    return value;
+  }
+
+  return value.slice(separator + 1);
+}
+
+export function formatChatModelProviderLabel(value: string) {
+  const separator = value.indexOf(':');
+  const provider = separator > 0 ? value.slice(0, separator) : '';
+
+  if (provider === 'gemini') return 'Gemini';
+  if (provider === 'ollama') return 'Ollama';
+  return 'Models';
 }
 
 export function getMessageText(message: ChatMessage) {

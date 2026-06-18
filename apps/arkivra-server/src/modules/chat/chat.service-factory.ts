@@ -39,17 +39,21 @@ import {
   buildGlobalAnswerSystemPrompt,
   buildGlobalIntentSystemPrompt,
   buildGuidedFollowUpUserPrompt,
+  formatChatModelValue,
   formatFollowUpAssistantMessage,
   intentResolutionSchema,
   isGlobalScope,
   normalizeConversationContextSnapshot,
+  parseChatModelSelection,
   sanitizeFollowUpExamples,
   toConversation,
   truncate,
 } from './chat.core.js';
 import type {
   AiRuntimeSettings,
+  ChatModelSelection,
   ChatModelOptions,
+  ChatProvider,
   ChatScopeInput,
   IntentResolution,
 } from './chat.core.js';
@@ -126,8 +130,8 @@ export function createChatServices({
   db: Database;
   searchServices: DocumentSearchServices;
   documentsServices?: DocumentsServices;
-  resolveAiSettings: () => Promise<AiRuntimeSettings>;
-  listAvailableModels: () => Promise<string[]>;
+  resolveAiSettings: (input?: { provider?: ChatProvider }) => Promise<AiRuntimeSettings>;
+  listAvailableModels: () => Promise<ChatModelSelection[]>;
 }) {
   async function listConversations({ userId }: { userId: string }) {
     const rows = await db
@@ -300,11 +304,18 @@ export function createChatServices({
 
   async function getModelOptions(): Promise<ChatModelOptions> {
     const settings = await resolveAiSettings();
-    const models = await listAvailableModels();
+    const availableModels = await listAvailableModels();
+    const modelValues = availableModels.map(model => model.value);
+    const configuredDefault = formatChatModelValue({
+      provider: settings.provider,
+      model: settings.model,
+    });
 
     return {
-      defaultModel: models.includes(settings.model) ? settings.model : (models[0] ?? ''),
-      models,
+      defaultModel: modelValues.includes(configuredDefault)
+        ? configuredDefault
+        : (modelValues[0] ?? ''),
+      models: modelValues,
     };
   }
 
@@ -513,29 +524,39 @@ export function createChatServices({
         const retrievalLimit = Math.min(50, Math.max(CHAT_RETRIEVAL_LIMIT, citationLimit));
 
         try {
-          const settings = await resolveAiSettings();
+          const defaultSettings = await resolveAiSettings();
           const requestedModel = model?.trim();
           const availableModels = await listAvailableModels();
-          const effectiveModel =
+          const availableModelValues = new Set(availableModels.map(item => item.value));
+          const configuredDefault = formatChatModelValue({
+            provider: defaultSettings.provider,
+            model: defaultSettings.model,
+          });
+          const effectiveSelection =
             requestedModel && requestedModel.length > 0
-              ? requestedModel
-              : availableModels.includes(settings.model)
-                ? settings.model
-                : (availableModels[0] ?? '');
+              ? parseChatModelSelection({
+                  value: requestedModel,
+                  fallbackProvider: defaultSettings.provider,
+                })
+              : availableModels.find(item => item.value === configuredDefault)
+                ?? availableModels[0];
 
-          if (effectiveModel.length === 0) {
-            throw new Error('No chat models are available from the configured chat provider.');
+          if (effectiveSelection === undefined || effectiveSelection.model.length === 0) {
+            throw new Error('No chat models are available from the configured chat providers.');
           }
 
-          if (!availableModels.includes(effectiveModel)) {
+          if (!availableModelValues.has(effectiveSelection.value)) {
             throw new Error(
-              `Model "${effectiveModel}" is not available from the configured chat provider.`,
+              `Model "${effectiveSelection.value}" is not available from the configured chat providers.`,
             );
           }
 
-          const chatModel = createChatModel({ settings, model: effectiveModel });
+          const settings = effectiveSelection.provider === defaultSettings.provider
+            ? defaultSettings
+            : await resolveAiSettings({ provider: effectiveSelection.provider });
+          const chatModel = createChatModel({ settings, model: effectiveSelection.model });
           assistantMetadata = {
-            model: effectiveModel,
+            model: effectiveSelection.value,
             conversationId: chatId,
             vaultId: scopeValues.vaultId,
             documentId: scopeValues.documentId,

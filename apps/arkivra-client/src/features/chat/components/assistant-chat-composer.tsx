@@ -1,16 +1,35 @@
 import type { ChangeEvent, RefObject } from 'react';
-import { Box, Flex, Text, chakra } from '@chakra-ui/react';
+import { Fragment, useMemo } from 'react';
+import {
+  Box,
+  Flex,
+  Menu,
+  Portal,
+  Text,
+  chakra,
+} from '@chakra-ui/react';
 import { ComposerPrimitive } from '@assistant-ui/react';
-import { Brain, Send } from 'lucide-react';
-import { RadioDropdownMenu } from '@/components/ui/radio-dropdown-menu';
+import { Brain, Check, ChevronDown, Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { ChatResponseMode } from '../chat.api';
 import { AnswerModePicker } from './answer-mode-picker';
+import {
+  formatChatModelLabel,
+  formatChatModelName,
+  formatChatModelProviderLabel,
+} from './chat-utils';
 import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
 import { ChatContextAddMenu, ContextChipList } from './chat-context-selector';
 
 const ComposerRoot = chakra(ComposerPrimitive.Root);
 const ComposerInput = chakra(ComposerPrimitive.Input);
 const ComposerSend = chakra(ComposerPrimitive.Send);
+
+interface ModelSelectItem {
+  label: string;
+  value: string;
+  category: string;
+}
 
 export function AssistantChatComposer({
   disabled,
@@ -50,8 +69,23 @@ export function AssistantChatComposer({
   onDraftValueChange: (nextValue: string) => void;
 }) {
   const hasModelPicker = Boolean(onSelectedModelChange);
-  const modelLabel = selectedModel || (isLoadingModels ? 'Loading models' : 'No model');
-  const modelDropdownOptions = modelOptions?.map(model => ({ value: model, label: model })) ?? [];
+  const modelLabel = selectedModel
+    ? formatChatModelLabel(selectedModel)
+    : (isLoadingModels ? 'Loading models' : 'No model');
+  const modelCategories = useMemo(() => {
+    const categories = new Map<string, ModelSelectItem[]>();
+
+    for (const model of modelOptions ?? []) {
+      const item = {
+        value: model,
+        label: formatChatModelName(model),
+        category: formatChatModelProviderLabel(model),
+      };
+      categories.set(item.category, [...(categories.get(item.category) ?? []), item]);
+    }
+
+    return Array.from(categories.entries());
+  }, [modelOptions]);
 
   function handleComposerChange(event: ChangeEvent<HTMLTextAreaElement>) {
     onDraftValueChange(event.currentTarget.value);
@@ -118,35 +152,144 @@ export function AssistantChatComposer({
                 onAddDocuments={onAddDocuments}
               />
             ) : null}
-            <AnswerModePicker disabled={disabled} value={responseMode} onValueChange={onResponseModeChange} />
+            <Flex align="center" gap="2" minW="0" flexWrap="nowrap">
+              <AnswerModePicker disabled={disabled} value={responseMode} onValueChange={onResponseModeChange} />
 
-            {hasModelPicker ? (
-              <RadioDropdownMenu
-                ariaLabel="Select model"
-                buttonProps={{
-                  title: 'Select model',
-                  disabled,
-                  minW: '0',
-                  w: 'auto',
-                  maxW: { base: '11rem', sm: '18rem' },
-                  h: '9',
-                  gap: '1.5',
-                  px: '2.5',
-                  rounded: 'lg',
-                  color: 'fg.muted',
-                  variant: 'ghost',
-                }}
-                emptyLabel="No models available"
-                icon={<Brain size={16} />}
-                isDisabled={disabled}
-                isLoading={isLoadingModels}
-                loadingLabel="Loading models..."
-                onValueChange={onSelectedModelChange ?? (() => {})}
-                options={modelDropdownOptions}
-                placeholder={modelLabel}
-                value={selectedModel}
-              />
-            ) : null}
+              {hasModelPicker ? (
+                <Menu.Root positioning={{ placement: 'bottom-start', gutter: 6 }}>
+                  <Menu.Trigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label="Select model"
+                      title="Select model"
+                      disabled={disabled}
+                      size="sm"
+                      minW="0"
+                      w={{ base: '15rem', sm: '22rem' }}
+                      maxW="100%"
+                      h="9"
+                      justifyContent="space-between"
+                      gap="2"
+                      rounded="lg"
+                      px="2.5"
+                      color="fg.muted"
+                      shadow="none"
+                      _hover={{ bg: 'bg.subtle', color: 'fg' }}
+                      _focusVisible={{
+                        borderColor: 'teal.solid',
+                        outline: '2px solid',
+                        outlineColor: 'teal.focusRing',
+                        outlineOffset: '1px',
+                      }}
+                      _disabled={{ opacity: 0.45, cursor: 'not-allowed' }}
+                    >
+                      <Flex minW="0" align="center" gap="2">
+                        <Box color="fg.muted" aria-hidden="true">
+                          <Brain size={16} />
+                        </Box>
+                        <Text
+                          as="span"
+                          truncate
+                          fontSize="sm"
+                          fontWeight="medium"
+                        >
+                          {modelLabel}
+                        </Text>
+                      </Flex>
+                      <Box flexShrink={0} color="fg.muted" aria-hidden="true">
+                        <ChevronDown size={16} />
+                      </Box>
+                    </Button>
+                  </Menu.Trigger>
+                  <Portal>
+                    <Menu.Positioner zIndex="dropdown">
+                      <Menu.Content
+                        minW="22rem"
+                        maxW="calc(100vw - 2rem)"
+                        rounded="lg"
+                        borderWidth="1px"
+                        borderColor="border.surface"
+                        bg="bg.surface"
+                        p="1.5"
+                        shadow="lg"
+                      >
+                        {isLoadingModels ? (
+                          <Text px="3" py="var(--arkivra-menuItemPaddingY, 0.5rem)" fontSize="sm" color="fg.muted">
+                            Loading models...
+                          </Text>
+                        ) : modelCategories.length > 0 ? (
+                          <Menu.RadioItemGroup
+                            value={selectedModel}
+                            onValueChange={(event) => {
+                              if (event.value) {
+                                onSelectedModelChange?.(event.value);
+                              }
+                            }}
+                          >
+                            {modelCategories.map(([category, items]) => (
+                              <Fragment key={category}>
+                                <Text
+                                  as="div"
+                                  px="3"
+                                  py="1.5"
+                                  fontSize="xs"
+                                  fontWeight="semibold"
+                                  color="fg.muted"
+                                >
+                                  {category}
+                                </Text>
+                                {items.map(item => (
+                                  <Menu.RadioItem
+                                    key={item.value}
+                                    value={item.value}
+                                    position="relative"
+                                    minH="var(--arkivra-menuItemMinHeight, 2.5rem)"
+                                    rounded="md"
+                                    py="var(--arkivra-menuItemPaddingY, 0.5rem)"
+                                    ps="3"
+                                    pe="10"
+                                    fontSize="sm"
+                                    fontWeight="medium"
+                                    color="fg"
+                                    _checked={{ bg: 'teal.subtle', color: 'fg' }}
+                                    _highlighted={{
+                                      bg: selectedModel === item.value ? 'teal.subtle' : 'bg.subtle',
+                                    }}
+                                  >
+                                    <Box
+                                      position="absolute"
+                                      right="2.5"
+                                      top="50%"
+                                      display="flex"
+                                      boxSize="5"
+                                      alignItems="center"
+                                      justifyContent="center"
+                                      rounded="sm"
+                                      color="teal.solid"
+                                      transform="translateY(-50%)"
+                                    >
+                                      <Menu.ItemIndicator>
+                                        <Check size={16} strokeWidth={2.5} />
+                                      </Menu.ItemIndicator>
+                                    </Box>
+                                    <Menu.ItemText>{item.label}</Menu.ItemText>
+                                  </Menu.RadioItem>
+                                ))}
+                              </Fragment>
+                            ))}
+                          </Menu.RadioItemGroup>
+                        ) : (
+                          <Text px="3" py="var(--arkivra-menuItemPaddingY, 0.5rem)" fontSize="sm" color="fg.muted">
+                            No models available
+                          </Text>
+                        )}
+                      </Menu.Content>
+                    </Menu.Positioner>
+                  </Portal>
+                </Menu.Root>
+              ) : null}
+            </Flex>
           </Flex>
 
           <ComposerSend

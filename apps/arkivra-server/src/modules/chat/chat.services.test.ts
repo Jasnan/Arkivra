@@ -65,12 +65,43 @@ describe('chat service helpers', () => {
         allowedModels: ['deleted-model'],
         maxImagesPerRequest: 0,
       }),
-      listAvailableModels: async () => ['glm-ocr:q8_0', 'granite4.1:3b'],
+      listAvailableModels: async () => [
+        { provider: 'ollama', model: 'glm-ocr:q8_0', value: 'ollama:glm-ocr:q8_0' },
+        { provider: 'ollama', model: 'granite4.1:3b', value: 'ollama:granite4.1:3b' },
+      ],
     });
 
     await expect(services.getModelOptions()).resolves.toEqual({
-      defaultModel: 'glm-ocr:q8_0',
-      models: ['glm-ocr:q8_0', 'granite4.1:3b'],
+      defaultModel: 'ollama:glm-ocr:q8_0',
+      models: ['ollama:glm-ocr:q8_0', 'ollama:granite4.1:3b'],
+    });
+  });
+
+  test('returns provider-qualified chat model options across providers', async () => {
+    const services = createChatServices({
+      db: {} as any,
+      searchServices: {} as any,
+      resolveAiSettings: async () => ({
+        provider: 'gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        apiKey: 'test-key',
+        model: 'gemini-3.5-flash',
+        allowedModels: ['gemini-3.5-flash'],
+        maxImagesPerRequest: 0,
+      }),
+      listAvailableModels: async () => [
+        {
+          provider: 'gemini',
+          model: 'gemini-3.5-flash',
+          value: 'gemini:gemini-3.5-flash',
+        },
+        { provider: 'ollama', model: 'llama3.2', value: 'ollama:llama3.2' },
+      ],
+    });
+
+    await expect(services.getModelOptions()).resolves.toEqual({
+      defaultModel: 'gemini:gemini-3.5-flash',
+      models: ['gemini:gemini-3.5-flash', 'ollama:llama3.2'],
     });
   });
 

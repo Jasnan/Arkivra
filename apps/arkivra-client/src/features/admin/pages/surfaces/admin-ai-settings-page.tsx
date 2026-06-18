@@ -40,6 +40,56 @@ import {
   getIndexProgress,
 } from './admin-ai-settings-page-status-helpers';
 
+export interface ChatModelOption {
+  value: string;
+  provider: AdminAiSettings['chat']['provider'];
+  providerLabel: string;
+  model: string;
+  label: string;
+  baseUrl: string;
+}
+
+function formatChatModelValue({
+  provider,
+  model,
+}: {
+  provider: AdminAiSettings['chat']['provider'];
+  model: string;
+}) {
+  return `${provider}:${model}`;
+}
+
+function parseChatModelValue({
+  value,
+  fallbackProvider,
+}: {
+  value: string;
+  fallbackProvider: AdminAiSettings['chat']['provider'];
+}): {
+  provider: AdminAiSettings['chat']['provider'];
+  model: string;
+  value: string;
+} {
+  const trimmed = value.trim();
+  const separator = trimmed.indexOf(':');
+  const maybeProvider = separator > 0 ? trimmed.slice(0, separator) : '';
+
+  if (maybeProvider === 'ollama' || maybeProvider === 'gemini') {
+    const model = trimmed.slice(separator + 1).trim();
+    return {
+      provider: maybeProvider,
+      model,
+      value: formatChatModelValue({ provider: maybeProvider, model }),
+    };
+  }
+
+  return {
+    provider: fallbackProvider,
+    model: trimmed,
+    value: formatChatModelValue({ provider: fallbackProvider, model: trimmed }),
+  };
+}
+
 export function AdminAiSettingsPage() {
   const queryClient = useQueryClient();
   const { accentColor } = useAccentColor();
@@ -107,42 +157,73 @@ export function AdminAiSettingsPage() {
     indexedChunkCount: 0,
     totalChunkCount: 0,
   };
-  const canListChatModels = isEnabled && aiDraft.chat.baseUrl.trim().length > 0;
-  const chatModelsQuery = useAdminOllamaModelsQuery({
-    host: aiDraft.chat.baseUrl,
-    provider: aiDraft.chat.provider,
-    enabled: canListChatModels,
+  const canListGeminiChatModels = isEnabled;
+  const geminiChatModelsQuery = useAdminOllamaModelsQuery({
+    host: geminiBaseUrl,
+    provider: 'gemini',
+    enabled: canListGeminiChatModels,
   });
-  const canListOllamaModels = isEnabled && aiDraft.embedding.baseUrl.trim().length > 0;
+  const canListOllamaModels = isEnabled && effectiveOllamaBaseUrl.trim().length > 0;
   const ollamaModelsQuery = useAdminOllamaModelsQuery({
-    host: aiDraft.embedding.baseUrl,
+    host: effectiveOllamaBaseUrl,
     provider: 'ollama',
     enabled: canListOllamaModels,
   });
-  const availableChatModelNames = useMemo(
-    () => chatModelsQuery.data?.models.map((model) => model.name) ?? [],
-    [chatModelsQuery.data?.models],
+  const availableGeminiChatModelNames = useMemo(
+    () => geminiChatModelsQuery.data?.models.map((model) => model.name) ?? [],
+    [geminiChatModelsQuery.data?.models],
   );
   const availableOllamaModelNames = useMemo(
     () => ollamaModelsQuery.data?.models.map((model) => model.name) ?? [],
     [ollamaModelsQuery.data?.models],
   );
-  const chatModelOptions = useMemo(() => {
-    return availableChatModelNames.filter(
-      (model) => !isCatalogEmbeddingModel(aiDraft.chat.provider, model),
-    );
-  }, [aiDraft.chat.provider, availableChatModelNames]);
+  const chatModelOptions = useMemo<ChatModelOption[]>(() => {
+    const geminiOptions = availableGeminiChatModelNames.map((model) => ({
+      value: formatChatModelValue({ provider: 'gemini', model }),
+      provider: 'gemini' as const,
+      providerLabel: 'Gemini',
+      model,
+      label: model,
+      baseUrl: geminiBaseUrl,
+    }));
+    const ollamaOptions = availableOllamaModelNames
+      .filter((model) => !isCatalogEmbeddingModel('ollama', model))
+      .map((model) => ({
+        value: formatChatModelValue({ provider: 'ollama', model }),
+        provider: 'ollama' as const,
+        providerLabel: 'Ollama',
+        model,
+        label: model,
+        baseUrl: effectiveOllamaBaseUrl,
+      }));
+
+    return [...geminiOptions, ...ollamaOptions];
+  }, [availableGeminiChatModelNames, availableOllamaModelNames, effectiveOllamaBaseUrl]);
+  const chatModelValues = useMemo(
+    () => chatModelOptions.map((option) => option.value),
+    [chatModelOptions],
+  );
   const translationModelOptions = useMemo(() => {
     return availableOllamaModelNames.filter(
       (model) => !isCatalogEmbeddingModel(aiDraft.translation.provider, model),
     );
   }, [aiDraft.translation.provider, availableOllamaModelNames]);
-  const configuredChatModel = aiDraft.chat.model.trim();
+  const configuredChatSelection = parseChatModelValue({
+    value: aiDraft.chat.model.trim(),
+    fallbackProvider: aiDraft.chat.provider,
+  });
+  const configuredChatModel = configuredChatSelection.value;
   const isConfiguredChatModelAvailable =
-    configuredChatModel.length > 0 && chatModelOptions.includes(configuredChatModel);
+    configuredChatModel.length > 0 && chatModelValues.includes(configuredChatModel);
   const effectiveDefaultChatModel = isConfiguredChatModelAvailable
     ? configuredChatModel
-    : (chatModelOptions[0] ?? '');
+    : (chatModelOptions[0]?.value ?? '');
+  const effectiveDefaultChatSelection = parseChatModelValue({
+    value: effectiveDefaultChatModel,
+    fallbackProvider: aiDraft.chat.provider,
+  });
+  const effectiveDefaultChatOption =
+    chatModelOptions.find((option) => option.value === effectiveDefaultChatModel) ?? null;
   const configuredTranslationModel =
     aiDraft.translation.model.trim() || savedAiSettings.translation?.model?.trim() || '';
   const isConfiguredTranslationModelAvailable =
@@ -152,18 +233,24 @@ export function AdminAiSettingsPage() {
     ? configuredTranslationModel
     : (translationModelOptions[0] ?? '');
   const savedAllowedChatModels = aiDraft.chat.allowedModels ?? [];
+  const savedAllowedChatModelValues = savedAllowedChatModels.map(
+    (model) => parseChatModelValue({ value: model, fallbackProvider: aiDraft.chat.provider }).value,
+  );
   const effectiveAllowedChatModels =
     savedAllowedChatModels.length === 0
-      ? chatModelOptions
-      : chatModelOptions.filter(
-          (model) => savedAllowedChatModels.includes(model) || model === effectiveDefaultChatModel,
+      ? chatModelValues
+      : chatModelValues.filter(
+          (model) => savedAllowedChatModelValues.includes(model) || model === effectiveDefaultChatModel,
         );
   const chatAvailabilityQuery = useAdminAiAvailabilityQuery({
-    host: aiDraft.chat.baseUrl,
-    model: effectiveDefaultChatModel,
-    provider: aiDraft.chat.provider,
-    apiKeySecretRef: aiDraft.chat.apiKeySecretRef,
-    enabled: canListChatModels && effectiveDefaultChatModel.length > 0,
+    host: effectiveDefaultChatOption?.baseUrl ?? aiDraft.chat.baseUrl,
+    model: effectiveDefaultChatSelection.model,
+    provider: effectiveDefaultChatSelection.provider,
+    apiKeySecretRef:
+      effectiveDefaultChatSelection.provider === 'gemini'
+        ? (aiDraft.providers?.gemini?.apiKeySecretRef ?? aiDraft.chat.apiKeySecretRef)
+        : null,
+    enabled: effectiveDefaultChatModel.length > 0,
   });
   const chatAvailability = chatAvailabilityQuery.data?.availability;
   const geminiAvailabilityQuery = useAdminAiAvailabilityQuery({
@@ -184,7 +271,10 @@ export function AdminAiSettingsPage() {
   });
   const translationAvailability = translationAvailabilityQuery.data?.availability;
   const chatConnectionStatus = getConnectionStatusLabel({
-    enabled: aiDraft.chat.baseUrl.trim().length > 0 && effectiveDefaultChatModel.length > 0,
+    enabled:
+      effectiveDefaultChatModel.length > 0 &&
+      (effectiveDefaultChatSelection.provider === 'gemini' ||
+        (effectiveDefaultChatOption?.baseUrl ?? '').trim().length > 0),
     isLoading: chatAvailabilityQuery.isFetching,
     reachable: chatAvailability?.reachable,
     modelAvailable: chatAvailability?.modelAvailable,
@@ -198,7 +288,9 @@ export function AdminAiSettingsPage() {
     modelAvailable: translationAvailability?.modelAvailable,
   });
   const isChatConfigValid =
-    aiDraft.chat.baseUrl.trim().length > 0 && effectiveDefaultChatModel.length > 0;
+    effectiveDefaultChatModel.length > 0 &&
+    (effectiveDefaultChatSelection.provider === 'gemini' ||
+      (effectiveDefaultChatOption?.baseUrl ?? '').trim().length > 0);
   const ollamaProviderStatus =
     effectiveOllamaBaseUrl.trim().length === 0
       ? 'Not Configured'
@@ -393,18 +485,27 @@ export function AdminAiSettingsPage() {
   }
 
   function normalizeAiSettingsForSave(settings: AdminAiSettings): AdminAiSettings {
-    const chatBaseUrl = settings.chat.baseUrl.trim();
-    const configuredModel = settings.chat.model.trim();
-    const chatModel =
-      chatModelOptions.length === 0 && configuredModel.length > 0
+    const configuredModel = parseChatModelValue({
+      value: settings.chat.model.trim(),
+      fallbackProvider: settings.chat.provider,
+    });
+    const fallbackDefault = parseChatModelValue({
+      value: effectiveDefaultChatModel.trim(),
+      fallbackProvider: settings.chat.provider,
+    });
+    const chatSelection =
+      chatModelValues.length === 0 && configuredModel.model.length > 0
         ? configuredModel
-        : configuredModel.length > 0 && chatModelOptions.includes(configuredModel)
+        : configuredModel.model.length > 0 && chatModelValues.includes(configuredModel.value)
           ? configuredModel
-          : effectiveDefaultChatModel.trim();
-    const ollamaBaseUrl =
-      settings.chat.provider === 'ollama'
-        ? chatBaseUrl
-        : (settings.ollamaHost || savedAiSettings.ollamaHost || settings.embedding.baseUrl).trim();
+          : fallbackDefault;
+    const ollamaBaseUrl = (
+      chatSelection.provider === 'ollama' && settings.chat.baseUrl.trim().length > 0
+        ? settings.chat.baseUrl
+        : settings.ollamaHost || savedAiSettings.ollamaHost || settings.embedding.baseUrl
+    ).trim();
+    const chatBaseUrl =
+      chatSelection.provider === 'gemini' ? geminiBaseUrl : ollamaBaseUrl;
     const translationBaseUrl = (settings.translation.baseUrl || ollamaBaseUrl).trim();
     const configuredTranslation = settings.translation.model.trim();
     const translationModel =
@@ -427,12 +528,13 @@ export function AdminAiSettingsPage() {
       ...settings,
       chat: {
         ...settings.chat,
+        provider: chatSelection.provider,
         baseUrl: chatBaseUrl,
         apiKeySecretRef:
-          settings.chat.provider === 'gemini'
+          chatSelection.provider === 'gemini'
             ? (settings.chat.apiKeySecretRef ?? settings.providers?.gemini?.apiKeySecretRef ?? null)
             : null,
-        model: chatModel,
+        model: chatSelection.model,
         allowedModels: (settings.chat.allowedModels ?? effectiveAllowedChatModels).filter(
           (model) => model.trim().length > 0,
         ),
@@ -456,7 +558,7 @@ export function AdminAiSettingsPage() {
         },
       },
       ollamaHost: ollamaBaseUrl,
-      model: settings.chat.provider === 'ollama' ? chatModel : translationModel,
+      model: chatSelection.provider === 'ollama' ? chatSelection.model : translationModel,
     };
   }
 
@@ -558,13 +660,15 @@ export function AdminAiSettingsPage() {
       baseUrl: geminiBaseUrl,
       model,
       allowedModels:
-        aiDraft.chat.provider === 'gemini' && allowedModels.length > 0 ? allowedModels : [model],
+        aiDraft.chat.provider === 'gemini' && allowedModels.length > 0
+          ? allowedModels
+          : [formatChatModelValue({ provider: 'gemini', model })],
       apiKeySecretRef: null,
     };
   }
 
   function openChatModelsDialog() {
-    const defaultModel = effectiveDefaultChatModel || chatModelOptions[0] || '';
+    const defaultModel = effectiveDefaultChatModel || chatModelOptions[0]?.value || '';
     const allowed =
       effectiveAllowedChatModels.length > 0
         ? effectiveAllowedChatModels
@@ -574,7 +678,7 @@ export function AdminAiSettingsPage() {
 
     setDraftDefaultChatModel(defaultModel);
     setDraftAllowedChatModels(
-      chatModelOptions.filter((model) => allowed.includes(model) || model === defaultModel),
+      chatModelValues.filter((model) => allowed.includes(model) || model === defaultModel),
     );
     setIsChatModelsDialogOpen(true);
   }
@@ -593,14 +697,14 @@ export function AdminAiSettingsPage() {
         next.add(draftDefaultChatModel);
       }
 
-      return chatModelOptions.filter((option) => next.has(option));
+      return chatModelValues.filter((option) => next.has(option));
     });
   }
 
   function updateDraftDefaultChatModel(model: string) {
     setDraftDefaultChatModel(model);
     setDraftAllowedChatModels((current) =>
-      chatModelOptions.filter((option) => current.includes(option) || option === model),
+      chatModelValues.filter((option) => current.includes(option) || option === model),
     );
   }
 
@@ -609,11 +713,27 @@ export function AdminAiSettingsPage() {
       return;
     }
 
-    const allowed = chatModelOptions.filter(
+    const allowed = chatModelValues.filter(
       (model) => draftAllowedChatModels.includes(model) || model === draftDefaultChatModel,
     );
+    const defaultSelection = parseChatModelValue({
+      value: draftDefaultChatModel,
+      fallbackProvider: aiDraft.chat.provider,
+    });
+    const defaultOption = chatModelOptions.find((option) => option.value === draftDefaultChatModel);
     setIsChatModelsDialogOpen(false);
-    persistAiDraft({ chat: { model: draftDefaultChatModel, allowedModels: allowed } });
+    persistAiDraft({
+      chat: {
+        provider: defaultSelection.provider,
+        baseUrl: defaultOption?.baseUrl ?? aiDraft.chat.baseUrl,
+        model: defaultSelection.model,
+        allowedModels: allowed,
+        apiKeySecretRef:
+          defaultSelection.provider === 'gemini'
+            ? (aiDraft.providers?.gemini?.apiKeySecretRef ?? aiDraft.chat.apiKeySecretRef)
+            : null,
+      },
+    });
   }
 
   return (
@@ -671,12 +791,12 @@ export function AdminAiSettingsPage() {
 
         <AdminAiModelSections
           aiDraft={aiDraft}
-          chatModelOptions={chatModelOptions}
+          chatModelOptions={chatModelValues}
           configuredEmbeddingDimensions={configuredEmbeddingDimensions}
           configuredEmbeddingModel={configuredEmbeddingModel}
           configuredEmbeddingProvider={configuredEmbeddingProvider}
           effectiveAllowedChatModels={effectiveAllowedChatModels}
-          effectiveDefaultChatModel={effectiveDefaultChatModel}
+          effectiveDefaultChatModel={effectiveDefaultChatOption?.label ?? effectiveDefaultChatSelection.model}
           effectiveTranslationModel={effectiveTranslationModel}
           embeddingModelOptions={embeddingModelOptions}
           isEmbeddingConfigValid={isEmbeddingConfigValid}
@@ -723,7 +843,12 @@ export function AdminAiSettingsPage() {
                 model: savedAiSettings.model || aiDraft.model || availableOllamaModelNames[0] || '',
                 allowedModels:
                   savedAiSettings.model || aiDraft.model || availableOllamaModelNames[0]
-                    ? [savedAiSettings.model || aiDraft.model || availableOllamaModelNames[0]]
+                    ? [
+                        formatChatModelValue({
+                          provider: 'ollama',
+                          model: savedAiSettings.model || aiDraft.model || availableOllamaModelNames[0],
+                        }),
+                      ]
                     : [],
                 apiKeySecretRef: null,
               },
@@ -734,11 +859,10 @@ export function AdminAiSettingsPage() {
 
       <ChatModelsDialog
         open={isChatModelsDialogOpen}
-        aiDraft={aiDraft}
         chatModelOptions={chatModelOptions}
         draftAllowedChatModels={draftAllowedChatModels}
         draftDefaultChatModel={draftDefaultChatModel}
-        isFetchingChatModels={chatModelsQuery.isFetching}
+        isFetchingChatModels={geminiChatModelsQuery.isFetching || ollamaModelsQuery.isFetching}
         isSaving={aiSettingsMutation.isPending}
         onAllowedModelChange={updateDraftAllowedChatModel}
         onDefaultModelChange={updateDraftDefaultChatModel}

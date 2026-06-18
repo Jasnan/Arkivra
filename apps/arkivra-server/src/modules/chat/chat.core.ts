@@ -98,6 +98,14 @@ export type AiRuntimeSettings = {
   maxImagesPerRequest: number;
 };
 
+export type ChatProvider = AiRuntimeSettings['provider'];
+
+export type ChatModelSelection = {
+  provider: ChatProvider;
+  model: string;
+  value: string;
+};
+
 export type ChatModelOptions = {
   defaultModel: string;
   models: string[];
@@ -137,6 +145,43 @@ export const intentResolutionSchema = z.object({
 });
 
 export type IntentResolution = z.infer<typeof intentResolutionSchema>;
+
+export function formatChatModelValue({
+  provider,
+  model,
+}: {
+  provider: ChatProvider;
+  model: string;
+}) {
+  return `${provider}:${model}`;
+}
+
+export function parseChatModelSelection({
+  value,
+  fallbackProvider,
+}: {
+  value: string;
+  fallbackProvider: ChatProvider;
+}): ChatModelSelection {
+  const trimmed = value.trim();
+  const providerSeparator = trimmed.indexOf(':');
+  const maybeProvider = providerSeparator > 0 ? trimmed.slice(0, providerSeparator) : '';
+
+  if (maybeProvider === 'ollama' || maybeProvider === 'gemini') {
+    const model = trimmed.slice(providerSeparator + 1).trim();
+    return {
+      provider: maybeProvider,
+      model,
+      value: formatChatModelValue({ provider: maybeProvider, model }),
+    };
+  }
+
+  return {
+    provider: fallbackProvider,
+    model: trimmed,
+    value: formatChatModelValue({ provider: fallbackProvider, model: trimmed }),
+  };
+}
 
 export function toConversation(row: ChatConversationRow): ChatConversation {
   const contextSnapshot = normalizeConversationContextSnapshot(row);

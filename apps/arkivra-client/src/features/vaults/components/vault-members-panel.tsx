@@ -1,10 +1,10 @@
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
-import { Box, CloseButton, Dialog as ChakraDialog, Flex, Grid, HStack, Portal, Stack, Text, chakra } from '@chakra-ui/react';
+import { Box, Flex, Grid, HStack, Stack, Text } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Crown, Info, Mail, Send, ShieldCheck, Sparkles, UserMinus, UserRoundPlus, Users } from 'lucide-react';
+import { Crown, Info, ShieldCheck, UserMinus, UserRoundPlus } from 'lucide-react';
 import { toast } from '@/components/ui/toaster-store';
-import { SurfacePanel, vaultInputClassName } from '@/components/layout/vault-ui';
+import { SurfacePanel } from '@/components/layout/vault-ui';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
@@ -14,15 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useMeQuery } from '@/features/me/me.queries';
 import {
   addVaultMember,
@@ -37,306 +28,35 @@ import {
   useVaultPendingInvitationsQuery,
   vaultQueryKeys,
 } from '@/features/vaults/vaults.queries';
-import { formatAiAccess, formatVaultRole } from '@/features/vaults/components/vault-member-formatters';
-import type { AiAccessLevel, VaultDetail, VaultMember, VaultPendingInvitation, VaultRole } from '@/features/vaults/vaults.types';
+import {
+  formatAiAccess,
+  formatVaultRole,
+} from '@/features/vaults/components/vault-member-formatters';
+import type {
+  AiAccessLevel,
+  VaultDetail,
+  VaultMember,
+  VaultRole,
+} from '@/features/vaults/vaults.types';
 
-const roleOptions: Array<{ value: VaultRole; label: string }> = [
-  { value: 'viewer', label: 'Viewer' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'owner', label: 'Owner' },
-];
-
-const aiAccessOptions: Array<{ value: AiAccessLevel; label: string }> = [
-  { value: 'none', label: 'Disabled' },
-  { value: 'full', label: 'Enabled' },
-];
-
-const roleDescriptions: Record<VaultRole, string> = {
-  viewer: 'View and download content. Cannot edit or manage members.',
-  editor: 'Upload, edit, and organize vault content.',
-  owner: 'Manage vault settings, members, and owner access.',
-};
-
-const aiAccessDescriptions: Record<AiAccessLevel, string> = {
-  none: 'AI features are disabled for this member in this vault.',
-  full: 'AI features are enabled for this member in this vault.',
-};
-
-type InviteMode = 'direct' | 'email';
-type PendingMemberAction = {
-  type: 'remove-member' | 'remove-owner-role';
-  member: VaultMember;
-} | null;
-
-function isRequestResponse<T extends object>(value: T | { request: unknown }): value is { request: unknown } {
-  return 'request' in value;
-}
-
-function getMemberDisplayName(member: VaultMember) {
-  return member.name ?? member.email ?? member.userId;
-}
-
-function getMemberInitial(member: VaultMember) {
-  return getMemberDisplayName(member).trim().charAt(0).toUpperCase() || '?';
-}
-
-function getMemberAvatarTone(index: number) {
-  const tones = [
-    { bg: 'green.subtle', color: 'green.fg' },
-    { bg: 'purple.subtle', color: 'purple.fg' },
-    { bg: 'blue.subtle', color: 'blue.fg' },
-    { bg: 'orange.subtle', color: 'orange.fg' },
-    { bg: 'teal.subtle', color: 'teal.fg' },
-  ];
-
-  return tones[index % tones.length]!;
-}
-
-function getRoleSelectTone(role: VaultRole) {
-  if (role === 'owner') {
-    return { bg: 'green.subtle', color: 'green.fg', borderColor: 'green.muted' };
-  }
-  if (role === 'editor') {
-    return { bg: 'blue.subtle', color: 'blue.fg', borderColor: 'blue.muted' };
-  }
-
-  return { bg: 'bg.subtle', color: 'fg.muted', borderColor: 'border.surface' };
-}
-
-function getAiAccessSelectTone(aiAccessLevel: AiAccessLevel) {
-  if (aiAccessLevel === 'full') {
-    return { bg: 'green.subtle', color: 'green.fg', borderColor: 'green.muted' };
-  }
-
-  return { bg: 'orange.subtle', color: 'orange.fg', borderColor: 'orange.muted' };
-}
-
-function getPendingRequestLabel(invitation: VaultPendingInvitation) {
-  if (invitation.requestType === 'vault.owner_promote') return 'Owner promotion pending approval';
-  if (invitation.requestType === 'vault.ai_access_grant') return 'AI access pending approval';
-  if (invitation.requestType === 'vault.external_invite') return 'External invitation pending approval';
-  return 'Invitation pending approval';
-}
-
-function getPendingInvitationStatus(invitation: VaultPendingInvitation) {
-  if (invitation.status === 'approval_pending') {
-    return { label: 'Awaiting admin approval', colorPalette: 'orange' };
-  }
-
-  return { label: 'Pending acceptance', colorPalette: 'blue' };
-}
-
-function formatPendingInviteDate(value: string | null) {
-  if (value === null) {
-    return 'No expiry';
-  }
-
-  return new Date(value).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function MemberAccessFields({
-  role,
-  aiAccessLevel,
-  disabled,
-  idPrefix,
-  onRoleChange,
-  onAiAccessLevelChange,
-}: {
-  idPrefix: string;
-  role: VaultRole;
-  aiAccessLevel: AiAccessLevel;
-  disabled?: boolean;
-  onRoleChange: (role: VaultRole) => void;
-  onAiAccessLevelChange: (level: AiAccessLevel) => void;
-}) {
-  return (
-    <Grid gap="3" templateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}>
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-role`}>Vault role</FieldLabel>
-        <Select
-          value={role}
-          onValueChange={(value) => onRoleChange(value as VaultRole)}
-          disabled={disabled}
-        >
-          <SelectTrigger id={`${idPrefix}-role`} className={vaultInputClassName}>
-            <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
-            {roleOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-ai-access`}>AI access</FieldLabel>
-        <Select
-          value={aiAccessLevel}
-          onValueChange={(value) => onAiAccessLevelChange(value as AiAccessLevel)}
-          disabled={disabled}
-        >
-          <SelectTrigger id={`${idPrefix}-ai-access`} className={vaultInputClassName}>
-            <SelectValue placeholder="Select AI access" />
-          </SelectTrigger>
-          <SelectContent>
-            {aiAccessOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-    </Grid>
-  );
-}
-
-function RoleSelect({
-  value,
-  disabled,
-  disabledRoles = [],
-  onValueChange,
-}: {
-  value: VaultRole;
-  disabled?: boolean;
-  disabledRoles?: VaultRole[];
-  onValueChange: (role: VaultRole) => void;
-}) {
-  const tone = getRoleSelectTone(value);
-
-  return (
-    <Select value={value} onValueChange={(next) => onValueChange(next as VaultRole)} disabled={disabled}>
-      <SelectTrigger
-        aria-label="Vault role"
-        minW="10rem"
-        h="2.5rem"
-        rounded="md"
-        bg={tone.bg}
-        color={tone.color}
-        borderColor={tone.borderColor}
-        px="3"
-        _hover={{ bg: tone.bg, borderColor: tone.borderColor }}
-      >
-        <HStack gap="2">
-          {value === 'owner' ? <Crown size={15} /> : null}
-          <SelectValue />
-        </HStack>
-      </SelectTrigger>
-      <SelectContent>
-        {!disabledRoles.includes('viewer') ? (
-          <SelectItem value="viewer">
-            Viewer
-          </SelectItem>
-        ) : null}
-        {!disabledRoles.includes('editor') ? (
-          <SelectItem value="editor">
-            Editor
-          </SelectItem>
-        ) : null}
-        {!disabledRoles.includes('viewer') || !disabledRoles.includes('editor') ? (
-          <Box mx="-1" my="1" h="1px" bg="border.divider" />
-        ) : null}
-        <SelectItem value="owner">
-          Owner
-        </SelectItem>
-      </SelectContent>
-    </Select>
-  );
-}
-
-function AiAccessSelect({
-  value,
-  disabled,
-  onValueChange,
-}: {
-  value: AiAccessLevel;
-  disabled?: boolean;
-  onValueChange: (level: AiAccessLevel) => void;
-}) {
-  const tone = getAiAccessSelectTone(value);
-
-  return (
-    <Select value={value} onValueChange={(next) => onValueChange(next as AiAccessLevel)} disabled={disabled}>
-      <SelectTrigger
-        aria-label="AI access"
-        minW="12rem"
-        h="2.5rem"
-        rounded="md"
-        bg={tone.bg}
-        color={tone.color}
-        borderColor={tone.borderColor}
-        px="3"
-        _hover={{ bg: tone.bg, borderColor: tone.borderColor }}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {aiAccessOptions.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-function InviteSelect({
-  id,
-  label,
-  value,
-  disabled,
-  icon,
-  description,
-  options,
-  onValueChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  disabled?: boolean;
-  icon: ReactNode;
-  description: string;
-  options: Array<{ value: string; label: string }>;
-  onValueChange: (value: string) => void;
-}) {
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-        <SelectTrigger id={id} h="3rem" rounded="md" px="4">
-          <HStack gap="3">
-            {icon}
-            <SelectValue />
-          </HStack>
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <FieldDescription>{description}</FieldDescription>
-    </Field>
-  );
-}
-
-export function VaultMembersPanel({
-  vault,
-  vaultId,
-}: {
-  vault: VaultDetail;
-  vaultId: string;
-}) {
+import {
+  AiAccessSelect,
+  RoleSelect,
+  formatPendingInviteDate,
+  getMemberAvatarTone,
+  getMemberDisplayName,
+  getMemberInitial,
+  getPendingInvitationStatus,
+  getPendingRequestLabel,
+  isRequestResponse,
+} from './vault-members-panel.helpers';
+import type { InviteMode, PendingMemberAction } from './vault-members-panel.helpers';
+import {
+  AdminJoinVaultDialog,
+  MemberRemovalDialog,
+  VaultInviteDialog,
+} from './vault-members-panel-dialogs';
+export function VaultMembersPanel({ vault, vaultId }: { vault: VaultDetail; vaultId: string }) {
   const queryClient = useQueryClient();
   const meQuery = useMeQuery();
   const membersQuery = useVaultMembersQuery({ vaultId });
@@ -346,13 +66,18 @@ export function VaultMembersPanel({
     () => pendingInvitationsQuery.data?.invitations ?? [],
     [pendingInvitationsQuery.data?.invitations],
   );
-  const ownerCount = useMemo(() => members.filter((member) => member.role === 'owner').length, [members]);
+  const ownerCount = useMemo(
+    () => members.filter((member) => member.role === 'owner').length,
+    [members],
+  );
 
   const [inviteMode, setInviteMode] = useState<InviteMode>('direct');
   const [inviteTarget, setInviteTarget] = useState('');
   const [inviteRole, setInviteRole] = useState<VaultRole>('viewer');
   const [inviteAiAccessLevel, setInviteAiAccessLevel] = useState<AiAccessLevel>('none');
-  const [memberDrafts, setMemberDrafts] = useState<Record<string, { role: VaultRole; aiAccessLevel: AiAccessLevel }>>({});
+  const [memberDrafts, setMemberDrafts] = useState<
+    Record<string, { role: VaultRole; aiAccessLevel: AiAccessLevel }>
+  >({});
   const [pendingMemberAction, setPendingMemberAction] = useState<PendingMemberAction>(null);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
@@ -509,13 +234,18 @@ export function VaultMembersPanel({
   }
 
   function getMemberDraft(member: VaultMember) {
-    return memberDrafts[member.userId] ?? {
-      role: member.role,
-      aiAccessLevel: member.aiAccessLevel,
-    };
+    return (
+      memberDrafts[member.userId] ?? {
+        role: member.role,
+        aiAccessLevel: member.aiAccessLevel,
+      }
+    );
   }
 
-  function updateMemberDraft(member: VaultMember, draft: Partial<{ role: VaultRole; aiAccessLevel: AiAccessLevel }>) {
+  function updateMemberDraft(
+    member: VaultMember,
+    draft: Partial<{ role: VaultRole; aiAccessLevel: AiAccessLevel }>,
+  ) {
     setMemberDrafts((current) => ({
       ...current,
       [member.userId]: {
@@ -528,7 +258,10 @@ export function VaultMembersPanel({
     }));
   }
 
-  function updateMemberAccess(member: VaultMember, draft: Partial<{ role: VaultRole; aiAccessLevel: AiAccessLevel }>) {
+  function updateMemberAccess(
+    member: VaultMember,
+    draft: Partial<{ role: VaultRole; aiAccessLevel: AiAccessLevel }>,
+  ) {
     const currentDraft = getMemberDraft(member);
     const nextDraft = {
       ...currentDraft,
@@ -586,11 +319,13 @@ export function VaultMembersPanel({
   }
 
   const isInviteDialogDirty = inviteTarget.trim().length > 0;
-  const canDismissInviteDialog = !isInviteDialogDirty && !inviteMutation.isPending && !emailInviteMutation.isPending;
+  const canDismissInviteDialog =
+    !isInviteDialogDirty && !inviteMutation.isPending && !emailInviteMutation.isPending;
   const inviteMutationPending = inviteMutation.isPending || emailInviteMutation.isPending;
   const currentUserId = meQuery.data?.userId;
   const memberActionPending = removeMemberMutation.isPending || updateMemberMutation.isPending;
-  const pendingMemberName = pendingMemberAction === null ? 'this member' : getMemberDisplayName(pendingMemberAction.member);
+  const pendingMemberName =
+    pendingMemberAction === null ? 'this member' : getMemberDisplayName(pendingMemberAction.member);
 
   return (
     <>
@@ -602,7 +337,13 @@ export function VaultMembersPanel({
           gap="4"
         >
           <Stack gap="2">
-            <Text as="h2" fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" lineHeight="short" color="fg">
+            <Text
+              as="h2"
+              fontSize={{ base: '2xl', md: '3xl' }}
+              fontWeight="bold"
+              lineHeight="short"
+              color="fg"
+            >
               Members
             </Text>
             <Text fontSize="md" color="fg.muted">
@@ -629,7 +370,10 @@ export function VaultMembersPanel({
           shadow="sm"
         >
           <Grid
-            templateColumns={{ base: '1fr', lg: 'minmax(16rem, 2.2fr) minmax(10rem, 1.15fr) minmax(12rem, 1.25fr) 4rem' }}
+            templateColumns={{
+              base: '1fr',
+              lg: 'minmax(16rem, 2.2fr) minmax(10rem, 1.15fr) minmax(12rem, 1.25fr) 4rem',
+            }}
             gap="4"
             borderBottomWidth="1px"
             borderColor="border.surface"
@@ -639,7 +383,13 @@ export function VaultMembersPanel({
             display={{ base: 'none', lg: 'grid' }}
           >
             {['Member', 'Role', 'AI access', 'Actions'].map((heading) => (
-              <Text key={heading} fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+              <Text
+                key={heading}
+                fontSize="xs"
+                fontWeight="bold"
+                color="fg.muted"
+                textTransform="uppercase"
+              >
                 {heading}
               </Text>
             ))}
@@ -647,12 +397,16 @@ export function VaultMembersPanel({
 
           {membersQuery.isLoading ? (
             <Box px="6" py="8">
-              <Text fontSize="sm" color="fg.muted">Loading members...</Text>
+              <Text fontSize="sm" color="fg.muted">
+                Loading members...
+              </Text>
             </Box>
           ) : null}
           {membersQuery.isError ? (
             <Box px="6" py="8">
-              <Text fontSize="sm" color="fg.error">Unable to load members.</Text>
+              <Text fontSize="sm" color="fg.error">
+                Unable to load members.
+              </Text>
             </Box>
           ) : null}
 
@@ -663,15 +417,21 @@ export function VaultMembersPanel({
                 const avatarTone = getMemberAvatarTone(index);
                 const isCurrentUser = currentUserId === member.userId;
                 const canRemoveOrDemoteOwner = member.role !== 'owner' || ownerCount > 1;
-                const shouldShowActionMenu = canManageMembers && currentUserId !== undefined && !isCurrentUser && canRemoveOrDemoteOwner;
-                const disabledRoleOptions: VaultRole[] = member.role === 'owner' && ownerCount <= 1
-                  ? ['viewer', 'editor']
-                  : [];
+                const shouldShowActionMenu =
+                  canManageMembers &&
+                  currentUserId !== undefined &&
+                  !isCurrentUser &&
+                  canRemoveOrDemoteOwner;
+                const disabledRoleOptions: VaultRole[] =
+                  member.role === 'owner' && ownerCount <= 1 ? ['viewer', 'editor'] : [];
 
                 return (
                   <Grid
                     key={member.userId}
-                    templateColumns={{ base: '1fr', lg: 'minmax(16rem, 2.2fr) minmax(10rem, 1.15fr) minmax(12rem, 1.25fr) 4rem' }}
+                    templateColumns={{
+                      base: '1fr',
+                      lg: 'minmax(16rem, 2.2fr) minmax(10rem, 1.15fr) minmax(12rem, 1.25fr) 4rem',
+                    }}
                     gap={{ base: '3', lg: '4' }}
                     alignItems="center"
                     borderBottomWidth={index === members.length - 1 ? '0' : '1px'}
@@ -703,7 +463,14 @@ export function VaultMembersPanel({
                     </HStack>
 
                     <Box>
-                      <Text display={{ base: 'block', lg: 'none' }} mb="1" fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+                      <Text
+                        display={{ base: 'block', lg: 'none' }}
+                        mb="1"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="fg.muted"
+                        textTransform="uppercase"
+                      >
                         Role
                       </Text>
                       <RoleSelect
@@ -715,13 +482,22 @@ export function VaultMembersPanel({
                     </Box>
 
                     <Box>
-                      <Text display={{ base: 'block', lg: 'none' }} mb="1" fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+                      <Text
+                        display={{ base: 'block', lg: 'none' }}
+                        mb="1"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="fg.muted"
+                        textTransform="uppercase"
+                      >
                         AI access
                       </Text>
                       <AiAccessSelect
                         value={draft.aiAccessLevel}
                         disabled={!canManageMembers || updateMemberMutation.isPending}
-                        onValueChange={(aiAccessLevel) => updateMemberAccess(member, { aiAccessLevel })}
+                        onValueChange={(aiAccessLevel) =>
+                          updateMemberAccess(member, { aiAccessLevel })
+                        }
                       />
                     </Box>
 
@@ -729,7 +505,11 @@ export function VaultMembersPanel({
                       {shouldShowActionMenu ? (
                         <DropdownMenu positioning={{ placement: 'bottom-end' }}>
                           <DropdownMenuTrigger asChild>
-                            <ActionMenuTriggerButton label={`Actions for ${getMemberDisplayName(member)}`} borderWidth="0" bg="transparent" />
+                            <ActionMenuTriggerButton
+                              label={`Actions for ${getMemberDisplayName(member)}`}
+                              borderWidth="0"
+                              bg="transparent"
+                            />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent minW="13rem">
                             {member.role === 'owner' ? (
@@ -737,7 +517,9 @@ export function VaultMembersPanel({
                                 value="remove-owner-role"
                                 disabled={updateMemberMutation.isPending}
                                 color="fg.error"
-                                onSelect={() => setPendingMemberAction({ type: 'remove-owner-role', member })}
+                                onSelect={() =>
+                                  setPendingMemberAction({ type: 'remove-owner-role', member })
+                                }
                               >
                                 <ActionMenuItemIcon icon={Crown} tone="destructive" />
                                 Remove owner role
@@ -747,7 +529,9 @@ export function VaultMembersPanel({
                               value="remove-from-vault"
                               disabled={!canManageMembers || removeMemberMutation.isPending}
                               color="fg.error"
-                              onSelect={() => setPendingMemberAction({ type: 'remove-member', member })}
+                              onSelect={() =>
+                                setPendingMemberAction({ type: 'remove-member', member })
+                              }
                             >
                               <ActionMenuItemIcon icon={UserMinus} tone="destructive" />
                               Remove from vault
@@ -755,7 +539,9 @@ export function VaultMembersPanel({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <Text fontSize="sm" color="fg.subtle">-</Text>
+                        <Text fontSize="sm" color="fg.subtle">
+                          -
+                        </Text>
                       )}
                     </Flex>
                   </Grid>
@@ -764,7 +550,14 @@ export function VaultMembersPanel({
             </Stack>
           ) : null}
 
-          <HStack gap="3" borderTopWidth="1px" borderColor="border.surface" px={{ base: '4', md: '6' }} py="4" color="fg.muted">
+          <HStack
+            gap="3"
+            borderTopWidth="1px"
+            borderColor="border.surface"
+            px={{ base: '4', md: '6' }}
+            py="4"
+            color="fg.muted"
+          >
             <Info size={16} />
             <Text fontSize="sm">
               Owners can manage vault settings and members. At least one owner is required.
@@ -791,18 +584,27 @@ export function VaultMembersPanel({
             py="4"
           >
             <Box>
-              <Text fontSize="md" fontWeight="semibold" color="fg">Pending requests</Text>
+              <Text fontSize="md" fontWeight="semibold" color="fg">
+                Pending requests
+              </Text>
               <Text mt="1" fontSize="sm" color="fg.muted">
                 Requested permissions and invitations that are not active yet.
               </Text>
             </Box>
-            <Badge variant="secondary" colorPalette="gray" alignSelf={{ base: 'flex-start', md: 'center' }}>
+            <Badge
+              variant="secondary"
+              colorPalette="gray"
+              alignSelf={{ base: 'flex-start', md: 'center' }}
+            >
               {pendingInvitations.length}
             </Badge>
           </Flex>
 
           <Grid
-            templateColumns={{ base: '1fr', lg: 'minmax(14rem, 2fr) minmax(9rem, 1fr) minmax(11rem, 1.1fr) minmax(12rem, 1.2fr) minmax(8rem, 0.8fr)' }}
+            templateColumns={{
+              base: '1fr',
+              lg: 'minmax(14rem, 2fr) minmax(9rem, 1fr) minmax(11rem, 1.1fr) minmax(12rem, 1.2fr) minmax(8rem, 0.8fr)',
+            }}
             gap="4"
             borderBottomWidth="1px"
             borderColor="border.surface"
@@ -812,7 +614,13 @@ export function VaultMembersPanel({
             display={{ base: 'none', lg: 'grid' }}
           >
             {['Target', 'Requested role', 'Requested AI', 'Status', 'Expires'].map((heading) => (
-              <Text key={heading} fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+              <Text
+                key={heading}
+                fontSize="xs"
+                fontWeight="bold"
+                color="fg.muted"
+                textTransform="uppercase"
+              >
                 {heading}
               </Text>
             ))}
@@ -820,20 +628,30 @@ export function VaultMembersPanel({
 
           {pendingInvitationsQuery.isLoading ? (
             <Box px="6" py="6">
-              <Text fontSize="sm" color="fg.muted">Loading pending invites...</Text>
+              <Text fontSize="sm" color="fg.muted">
+                Loading pending invites...
+              </Text>
             </Box>
           ) : null}
           {pendingInvitationsQuery.isError ? (
             <Box px="6" py="6">
-              <Text fontSize="sm" color="fg.error">Unable to load pending invites.</Text>
+              <Text fontSize="sm" color="fg.error">
+                Unable to load pending invites.
+              </Text>
             </Box>
           ) : null}
-          {!pendingInvitationsQuery.isLoading && !pendingInvitationsQuery.isError && pendingInvitations.length === 0 ? (
+          {!pendingInvitationsQuery.isLoading &&
+          !pendingInvitationsQuery.isError &&
+          pendingInvitations.length === 0 ? (
             <Box px="6" py="6">
-              <Text fontSize="sm" color="fg.muted">No pending requests.</Text>
+              <Text fontSize="sm" color="fg.muted">
+                No pending requests.
+              </Text>
             </Box>
           ) : null}
-          {!pendingInvitationsQuery.isLoading && !pendingInvitationsQuery.isError && pendingInvitations.length > 0 ? (
+          {!pendingInvitationsQuery.isLoading &&
+          !pendingInvitationsQuery.isError &&
+          pendingInvitations.length > 0 ? (
             <Stack gap="0">
               {pendingInvitations.map((invitation, index) => {
                 const status = getPendingInvitationStatus(invitation);
@@ -841,7 +659,10 @@ export function VaultMembersPanel({
                 return (
                   <Grid
                     key={`${invitation.source}-${invitation.id}`}
-                    templateColumns={{ base: '1fr', lg: 'minmax(14rem, 2fr) minmax(9rem, 1fr) minmax(11rem, 1.1fr) minmax(12rem, 1.2fr) minmax(8rem, 0.8fr)' }}
+                    templateColumns={{
+                      base: '1fr',
+                      lg: 'minmax(14rem, 2fr) minmax(9rem, 1fr) minmax(11rem, 1.1fr) minmax(12rem, 1.2fr) minmax(8rem, 0.8fr)',
+                    }}
                     gap={{ base: '3', lg: '4' }}
                     alignItems="center"
                     borderBottomWidth={index === pendingInvitations.length - 1 ? '0' : '1px'}
@@ -854,34 +675,71 @@ export function VaultMembersPanel({
                         {invitation.name ?? invitation.email}
                       </Text>
                       <Text mt="1" fontSize="xs" color="fg.muted" truncate>
-                        {invitation.email} · Requested {formatPendingInviteDate(invitation.createdAt)}
+                        {invitation.email} · Requested{' '}
+                        {formatPendingInviteDate(invitation.createdAt)}
                       </Text>
                     </Box>
                     <Box>
-                      <Text display={{ base: 'block', lg: 'none' }} mb="1" fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+                      <Text
+                        display={{ base: 'block', lg: 'none' }}
+                        mb="1"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="fg.muted"
+                        textTransform="uppercase"
+                      >
                         Role
                       </Text>
-                      <Text fontSize="sm" fontWeight="medium" color="fg">{formatVaultRole(invitation.role)}</Text>
+                      <Text fontSize="sm" fontWeight="medium" color="fg">
+                        {formatVaultRole(invitation.role)}
+                      </Text>
                     </Box>
                     <Box>
-                      <Text display={{ base: 'block', lg: 'none' }} mb="1" fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+                      <Text
+                        display={{ base: 'block', lg: 'none' }}
+                        mb="1"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="fg.muted"
+                        textTransform="uppercase"
+                      >
                         AI access
                       </Text>
-                      <Text fontSize="sm" fontWeight="medium" color="fg">{formatAiAccess(invitation.aiAccessLevel)}</Text>
+                      <Text fontSize="sm" fontWeight="medium" color="fg">
+                        {formatAiAccess(invitation.aiAccessLevel)}
+                      </Text>
                     </Box>
                     <Box>
-                      <Text display={{ base: 'block', lg: 'none' }} mb="1" fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+                      <Text
+                        display={{ base: 'block', lg: 'none' }}
+                        mb="1"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="fg.muted"
+                        textTransform="uppercase"
+                      >
                         Status
                       </Text>
                       <Badge variant="secondary" colorPalette={status.colorPalette}>
-                        {invitation.status === 'approval_pending' ? getPendingRequestLabel(invitation) : status.label}
+                        {invitation.status === 'approval_pending'
+                          ? getPendingRequestLabel(invitation)
+                          : status.label}
                       </Badge>
                     </Box>
                     <Box>
-                      <Text display={{ base: 'block', lg: 'none' }} mb="1" fontSize="xs" fontWeight="bold" color="fg.muted" textTransform="uppercase">
+                      <Text
+                        display={{ base: 'block', lg: 'none' }}
+                        mb="1"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="fg.muted"
+                        textTransform="uppercase"
+                      >
                         Expires
                       </Text>
-                      <Text fontSize="sm" color="fg.muted">{formatPendingInviteDate(invitation.expiresAt)}</Text>
+                      <Text fontSize="sm" color="fg.muted">
+                        {formatPendingInviteDate(invitation.expiresAt)}
+                      </Text>
                     </Box>
                   </Grid>
                 );
@@ -892,7 +750,9 @@ export function VaultMembersPanel({
 
         <SurfacePanel p={{ base: '5', md: '6' }}>
           <Stack gap="5">
-            <Text fontSize="md" fontWeight="semibold" color="fg">Your access</Text>
+            <Text fontSize="md" fontWeight="semibold" color="fg">
+              Your access
+            </Text>
             <Flex
               direction={{ base: 'column', lg: 'row' }}
               align={{ base: 'stretch', lg: 'center' }}
@@ -915,12 +775,20 @@ export function VaultMembersPanel({
                 </Flex>
                 <Grid gap="5" templateColumns={{ base: '1fr', sm: 'repeat(2, minmax(8rem, 1fr))' }}>
                   <Box>
-                    <Text fontSize="xs" fontWeight="bold" color="fg.muted">Role</Text>
-                    <Text mt="1" fontSize="md" fontWeight="semibold" color="fg">{formatVaultRole(vault.role, vault.isAdmin)}</Text>
+                    <Text fontSize="xs" fontWeight="bold" color="fg.muted">
+                      Role
+                    </Text>
+                    <Text mt="1" fontSize="md" fontWeight="semibold" color="fg">
+                      {formatVaultRole(vault.role, vault.isAdmin)}
+                    </Text>
                   </Box>
                   <Box>
-                    <Text fontSize="xs" fontWeight="bold" color="fg.muted">AI access</Text>
-                    <Text mt="1" fontSize="md" fontWeight="semibold" color="fg">{formatAiAccess(vault.aiAccessLevel)}</Text>
+                    <Text fontSize="xs" fontWeight="bold" color="fg.muted">
+                      AI access
+                    </Text>
+                    <Text mt="1" fontSize="md" fontWeight="semibold" color="fg">
+                      {formatAiAccess(vault.aiAccessLevel)}
+                    </Text>
                   </Box>
                 </Grid>
               </HStack>
@@ -957,7 +825,9 @@ export function VaultMembersPanel({
                   >
                     {leaveVaultMutation.isPending ? 'Removing...' : 'Remove explicit membership'}
                   </Button>
-                  <Text fontSize="xs" color="fg.muted">You will retain admin read-only access.</Text>
+                  <Text fontSize="xs" color="fg.muted">
+                    You will retain admin read-only access.
+                  </Text>
                 </Stack>
               ) : null}
             </Flex>
@@ -965,283 +835,55 @@ export function VaultMembersPanel({
         </SurfacePanel>
       </Stack>
 
-      <ChakraDialog.Root
-        open={pendingMemberAction !== null}
-        closeOnEscape={!memberActionPending}
-        closeOnInteractOutside={!memberActionPending}
-        onOpenChange={(event) => {
-          if (!event.open && !memberActionPending) {
-            setPendingMemberAction(null);
-          }
-        }}
-        size={{ mdDown: 'full', md: 'md' }}
-      >
-        <Portal>
-          <ChakraDialog.Backdrop />
-          <ChakraDialog.Positioner>
-            <ChakraDialog.Content>
-              <ChakraDialog.Header>
-                <ChakraDialog.Title>
-                  {pendingMemberAction?.type === 'remove-owner-role'
-                    ? 'Remove owner role?'
-                    : 'Remove member from vault?'}
-                </ChakraDialog.Title>
-                <ChakraDialog.CloseTrigger asChild>
-                  <CloseButton size="sm" />
-                </ChakraDialog.CloseTrigger>
-              </ChakraDialog.Header>
-              <ChakraDialog.Body>
-                <Text fontSize="sm" lineHeight="6" color="fg.muted">
-                  {pendingMemberAction?.type === 'remove-owner-role'
-                    ? `${pendingMemberName} will become a viewer and will no longer manage vault settings or members.`
-                    : `${pendingMemberName} will lose access to this vault.`}
-                </Text>
-              </ChakraDialog.Body>
-              <ChakraDialog.Footer>
-                <Button type="button" variant="outline" disabled={memberActionPending} onClick={() => setPendingMemberAction(null)}>
-                  Cancel
-                </Button>
-                <Button type="button" colorPalette="red" disabled={memberActionPending} onClick={confirmPendingMemberAction}>
-                  {memberActionPending
-                    ? 'Removing...'
-                    : pendingMemberAction?.type === 'remove-owner-role'
-                      ? 'Remove owner role'
-                      : 'Remove from vault'}
-                </Button>
-              </ChakraDialog.Footer>
-            </ChakraDialog.Content>
-          </ChakraDialog.Positioner>
-        </Portal>
-      </ChakraDialog.Root>
+      <MemberRemovalDialog
+        pendingAction={pendingMemberAction}
+        memberName={pendingMemberName}
+        isPending={memberActionPending}
+        onCancel={() => setPendingMemberAction(null)}
+        onConfirm={confirmPendingMemberAction}
+      />
 
-      <ChakraDialog.Root
+      <VaultInviteDialog
         open={isInviteDialogOpen}
-        closeOnEscape={canDismissInviteDialog}
-        closeOnInteractOutside={canDismissInviteDialog}
-        onOpenChange={(event) => {
-          if (!event.open && !inviteMutation.isPending && !emailInviteMutation.isPending) {
-            setIsInviteDialogOpen(false);
+        canDismiss={canDismissInviteDialog}
+        canManageMembers={canManageMembers}
+        inviteAiAccessLevel={inviteAiAccessLevel}
+        inviteMode={inviteMode}
+        inviteMutationPending={inviteMutationPending}
+        inviteRole={inviteRole}
+        inviteTarget={inviteTarget}
+        onAiAccessLevelChange={setInviteAiAccessLevel}
+        onModeChange={setInviteMode}
+        onOpenChange={setIsInviteDialogOpen}
+        onRoleChange={setInviteRole}
+        onSubmit={(event) => {
+          if (inviteMode === 'email') {
+            handleEmailInvite(event);
+            return;
           }
+
+          handleInvite(event);
         }}
-        size={{ mdDown: 'full', md: 'lg' }}
-      >
-        <Portal>
-          <ChakraDialog.Backdrop />
-          <ChakraDialog.Positioner>
-            <ChakraDialog.Content>
-              <chakra.form
-                onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                  if (inviteMode === 'email') {
-                    handleEmailInvite(event);
-                    return;
-                  }
+        onTargetChange={setInviteTarget}
+      />
 
-                  handleInvite(event);
-                }}
-              >
-                <ChakraDialog.Header px="7" pt="7" pb="3">
-                  <Stack gap="3" flex="1">
-                    <Flex align="center" justify="space-between" gap="4">
-                      <ChakraDialog.Title>Invite Member</ChakraDialog.Title>
-                      <ChakraDialog.CloseTrigger asChild>
-                        <CloseButton size="sm" />
-                      </ChakraDialog.CloseTrigger>
-                    </Flex>
-                    <Text fontSize="sm" color="fg.muted">
-                      Invite a new member to this vault.
-                    </Text>
-                  </Stack>
-                </ChakraDialog.Header>
-                <ChakraDialog.Body px="7" py="4">
-                  <Stack gap="5">
-                    <Field>
-                      <FieldLabel>Invite by</FieldLabel>
-                      <Grid
-                        templateColumns="repeat(2, minmax(0, 1fr))"
-                        overflow="hidden"
-                        rounded="md"
-                        borderWidth="1px"
-                        borderColor="border.surface"
-                        bg="bg.surface"
-                      >
-                        <chakra.button
-                          type="button"
-                          minH="3.25rem"
-                          display="flex"
-                          alignItems="center"
-                          justifyContent="center"
-                          gap="2"
-                          borderBottomWidth="2px"
-                          borderColor={inviteMode === 'direct' ? 'teal.solid' : 'transparent'}
-                          bg={inviteMode === 'direct' ? 'teal.subtle' : 'bg.surface'}
-                          color={inviteMode === 'direct' ? 'teal.fg' : 'fg.muted'}
-                          fontSize="sm"
-                          fontWeight="semibold"
-                          onClick={() => setInviteMode('direct')}
-                        >
-                          <Mail size={16} />
-                          Email or User ID
-                        </chakra.button>
-                        <chakra.button
-                          type="button"
-                          minH="3.25rem"
-                          display="flex"
-                          alignItems="center"
-                          justifyContent="center"
-                          gap="2"
-                          borderBottomWidth="2px"
-                          borderLeftWidth="1px"
-                          borderColor={inviteMode === 'email' ? 'teal.solid' : 'border.surface'}
-                          bg={inviteMode === 'email' ? 'teal.subtle' : 'bg.surface'}
-                          color={inviteMode === 'email' ? 'teal.fg' : 'fg.muted'}
-                          fontSize="sm"
-                          fontWeight="semibold"
-                          onClick={() => setInviteMode('email')}
-                        >
-                          <Mail size={16} />
-                          Email Invitation
-                        </chakra.button>
-                      </Grid>
-                    </Field>
-
-                    <Field>
-                      <FieldLabel htmlFor="vault-invite-target">
-                        {inviteMode === 'email' ? 'Email' : 'Email or User ID'}
-                      </FieldLabel>
-                      <Box position="relative">
-                        <Input
-                          id="vault-invite-target"
-                          type={inviteMode === 'email' ? 'email' : 'text'}
-                          value={inviteTarget}
-                          onChange={(event) => setInviteTarget(event.target.value)}
-                          placeholder={inviteMode === 'email' ? 'Enter email address' : 'Enter email address or user ID'}
-                          disabled={!canManageMembers || inviteMutationPending}
-                          pr="11"
-                        />
-                        <Flex
-                          position="absolute"
-                          top="0"
-                          right="3"
-                          h="full"
-                          align="center"
-                          justify="center"
-                          color="fg.muted"
-                          pointerEvents="none"
-                        >
-                          <UserRoundPlus size={17} />
-                        </Flex>
-                      </Box>
-                      <FieldDescription>
-                        {inviteMode === 'email'
-                          ? 'Admins create invitations immediately. Owner invitations are queued for admin approval.'
-                          : 'If the user has an Arkivra account, they will be added immediately. Otherwise, an email invitation will be sent.'}
-                      </FieldDescription>
-                    </Field>
-
-                    <InviteSelect
-                      id="vault-invite-role"
-                      label="Role"
-                      value={inviteRole}
-                      disabled={!canManageMembers || inviteMutationPending}
-                      icon={<Users size={17} />}
-                      description={roleDescriptions[inviteRole]}
-                      options={roleOptions}
-                      onValueChange={(value) => setInviteRole(value as VaultRole)}
-                    />
-
-                    <InviteSelect
-                      id="vault-invite-ai-access"
-                      label="AI access"
-                      value={inviteAiAccessLevel}
-                      disabled={!canManageMembers || inviteMutationPending}
-                      icon={<Sparkles size={17} />}
-                      description={aiAccessDescriptions[inviteAiAccessLevel]}
-                      options={aiAccessOptions}
-                      onValueChange={(value) => setInviteAiAccessLevel(value as AiAccessLevel)}
-                    />
-                  </Stack>
-                </ChakraDialog.Body>
-                <ChakraDialog.Footer px="7" pb="7" pt="3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={inviteMutationPending}
-                    onClick={() => setIsInviteDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={!canManageMembers || inviteMutationPending}>
-                    <Send size={16} />
-                    {inviteMutationPending ? 'Sending...' : 'Send Invite'}
-                  </Button>
-                </ChakraDialog.Footer>
-              </chakra.form>
-            </ChakraDialog.Content>
-          </ChakraDialog.Positioner>
-        </Portal>
-      </ChakraDialog.Root>
-
-      <ChakraDialog.Root
+      <AdminJoinVaultDialog
         open={isJoinDialogOpen}
-        closeOnEscape={canDismissJoinVaultDialog}
-        closeOnInteractOutside={canDismissJoinVaultDialog}
-        onOpenChange={(event) => {
-          if (!event.open && !joinVaultMutation.isPending) {
-            setIsJoinDialogOpen(false);
-          }
-        }}
-        size={{ mdDown: 'full', md: 'lg' }}
-      >
-        <Portal>
-          <ChakraDialog.Backdrop />
-          <ChakraDialog.Positioner>
-            <ChakraDialog.Content>
-              <chakra.form
-                onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                  event.preventDefault();
-                  joinVaultMutation.mutate({
-                    vaultId,
-                    role: joinRole,
-                    aiAccessLevel: joinAiAccessLevel,
-                  });
-                }}
-              >
-                <ChakraDialog.Header>
-                  <ChakraDialog.Title>Join vault</ChakraDialog.Title>
-                  <ChakraDialog.CloseTrigger asChild>
-                    <CloseButton size="sm" />
-                  </ChakraDialog.CloseTrigger>
-                </ChakraDialog.Header>
-                <ChakraDialog.Body>
-                  <Stack gap="4">
-                    <Text fontSize="sm" lineHeight="6" color="fg.muted">
-                      You are about to become an explicit participant of this vault. This enables collaborative actions and AI participation under your account.
-                    </Text>
-                    <MemberAccessFields
-                      idPrefix="admin-join-vault"
-                      role={joinRole}
-                      aiAccessLevel={joinAiAccessLevel}
-                      disabled={joinVaultMutation.isPending}
-                      onRoleChange={setJoinRole}
-                      onAiAccessLevelChange={setJoinAiAccessLevel}
-                    />
-                  </Stack>
-                </ChakraDialog.Body>
-                <ChakraDialog.Footer>
-                  <ChakraDialog.ActionTrigger asChild>
-                    <Button type="button" variant="outline" disabled={joinVaultMutation.isPending} onClick={() => setIsJoinDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                  </ChakraDialog.ActionTrigger>
-                  <Button type="submit" disabled={joinVaultMutation.isPending}>
-                    {joinVaultMutation.isPending ? 'Joining...' : 'Join'}
-                  </Button>
-                </ChakraDialog.Footer>
-              </chakra.form>
-            </ChakraDialog.Content>
-          </ChakraDialog.Positioner>
-        </Portal>
-      </ChakraDialog.Root>
+        canDismiss={canDismissJoinVaultDialog}
+        aiAccessLevel={joinAiAccessLevel}
+        isPending={joinVaultMutation.isPending}
+        role={joinRole}
+        onAiAccessLevelChange={setJoinAiAccessLevel}
+        onOpenChange={setIsJoinDialogOpen}
+        onRoleChange={setJoinRole}
+        onSubmit={(role, aiAccessLevel) =>
+          joinVaultMutation.mutate({
+            vaultId,
+            role,
+            aiAccessLevel,
+          })
+        }
+      />
     </>
   );
 }

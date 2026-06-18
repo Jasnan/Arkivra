@@ -7,13 +7,12 @@ import {
   Dialog as ChakraDialog,
   Flex,
   Portal,
-  Spinner,
   Stack,
   Text,
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { AlertCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
 import { validateTrashSearch } from '@/app/search-params';
@@ -21,7 +20,6 @@ import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { WorkspacePageTitle } from '@/components/layout/workspace-page-title';
 import { DeleteButton } from '@/components/ui/action-buttons';
 import { Button } from '@/components/ui/button';
-import { useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
 import { CenteredEmptyState } from '@/components/ui/empty-state';
 import { DocumentSortMenu } from '@/features/documents/components/document-sort-menu';
 import { SearchFilterMultiSelect } from '@/features/documents/components/document-search-controls';
@@ -46,7 +44,6 @@ import type {
   BulkDocumentDeletionImpactPreview,
   DeletedDocumentSummary,
   DocumentDeletionImpactPreview,
-  DocumentSummary,
 } from '@/features/documents/documents.types';
 import { useBrowserSelection } from '@/features/documents/hooks/use-browser-selection';
 import {
@@ -64,220 +61,18 @@ import type {
   ContextMenuState,
 } from '@/features/file-browser/components/vault-browser.types';
 import { useVaultsQuery } from '@/features/vaults/vaults.queries';
+import { TrashConfirmDialog } from './document-trash-page-dialogs';
+import {
+  compareTrashDocuments,
+  conflictStrategyLabel,
+  getResolvedVaultId,
+  getResolvedVaultName,
+  TRASH_LIST_GRID_COLUMNS,
+  trashSortOptions,
+} from './document-trash-page.helpers';
+import type { TrashSort } from './document-trash-page.helpers';
 
-type TrashSort = 'name_asc' | 'name_desc' | 'deleted_desc' | 'deleted_asc';
-
-const TRASH_LIST_GRID_COLUMNS =
-  '2.5rem minmax(0, 0.9fr) minmax(9rem, 12rem) minmax(10.5rem, 12rem) 7rem 2rem';
-
-const trashSortOptions: Array<{ value: TrashSort; label: string }> = [
-  { value: 'deleted_desc', label: 'Recent' },
-  { value: 'deleted_asc', label: 'Oldest' },
-  { value: 'name_asc', label: 'A → Z' },
-  { value: 'name_desc', label: 'Z → A' },
-];
-
-function getResolvedVaultId(
-  document: DocumentSummary | DeletedDocumentSummary,
-  fallbackVaultId?: string,
-) {
-  return 'vaultId' in document ? document.vaultId : (fallbackVaultId ?? '');
-}
-
-function getResolvedVaultName(document: DocumentSummary | DeletedDocumentSummary) {
-  return 'vaultName' in document ? document.vaultName : 'Vault';
-}
-
-function getDeletedTime(document: DocumentSummary | DeletedDocumentSummary) {
-  return document.deletedAt ? new Date(document.deletedAt).getTime() : 0;
-}
-
-function compareTrashDocuments(
-  left: DeletedDocumentSummary,
-  right: DeletedDocumentSummary,
-  sortBy: TrashSort,
-) {
-  if (sortBy === 'name_desc') {
-    return right.name.localeCompare(left.name, undefined, { sensitivity: 'base' });
-  }
-
-  if (sortBy === 'deleted_desc') {
-    return (
-      getDeletedTime(right) - getDeletedTime(left) ||
-      left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
-    );
-  }
-
-  if (sortBy === 'deleted_asc') {
-    return (
-      getDeletedTime(left) - getDeletedTime(right) ||
-      left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
-    );
-  }
-
-  return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
-}
-
-function conflictStrategyLabel(strategy: UploadConflictStrategy) {
-  switch (strategy) {
-    case 'skip':
-      return 'Skip';
-    case 'keep_both':
-      return 'Keep both';
-    case 'new_version':
-      return 'New version';
-    default:
-      return strategy;
-  }
-}
-
-export function TrashConfirmDialog({
-  open,
-  title,
-  description,
-  impact,
-  isImpactLoading = false,
-  impactError = null,
-  confirmLabel,
-  pendingLabel,
-  isPending,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  title: string;
-  description: string;
-  impact?: DocumentDeletionImpactPreview | BulkDocumentDeletionImpactPreview | null;
-  isImpactLoading?: boolean;
-  impactError?: string | null;
-  confirmLabel: string;
-  pendingLabel: string;
-  isPending: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  useDialogPageLockCleanup(open);
-
-  return (
-    <ChakraDialog.Root
-      open={open}
-      onOpenChange={(event) => {
-        if (!event.open && !isPending) onClose();
-      }}
-      size={{ mdDown: 'full', md: 'lg' }}
-    >
-      <Portal>
-        <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner>
-          <ChakraDialog.Content>
-            <ChakraDialog.Header>
-              <ChakraDialog.Title>{title}</ChakraDialog.Title>
-              <CloseButton size="sm" disabled={isPending} onClick={onClose} />
-            </ChakraDialog.Header>
-            <ChakraDialog.Body>
-              {isImpactLoading ? (
-                <Flex align="center" gap="3" color="fg.muted">
-                  <Spinner size="sm" color="teal.solid" />
-                  <Text fontSize="sm">Checking affected conversations...</Text>
-                </Flex>
-              ) : impactError !== null ? (
-                <Flex align="center" gap="3" color="fg.error">
-                  <AlertCircle size={18} />
-                  <Text fontSize="sm" fontWeight="semibold">
-                    {impactError}
-                  </Text>
-                </Flex>
-              ) : impact !== null &&
-                impact !== undefined &&
-                impact.affectedConversationCount > 0 ? (
-                'affectedConversations' in impact ? (
-                  <DocumentDeletionImpactWarning impact={impact} />
-                ) : (
-                  <BulkDocumentDeletionImpactWarning impact={impact} />
-                )
-              ) : (
-                <Text color="fg.muted" fontSize="sm">
-                  {description}
-                </Text>
-              )}
-            </ChakraDialog.Body>
-            <ChakraDialog.Footer>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isPending || isImpactLoading}
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              <DeleteButton
-                type="button"
-                disabled={isPending || isImpactLoading || impactError !== null}
-                onClick={onConfirm}
-              >
-                {isPending ? pendingLabel : confirmLabel}
-              </DeleteButton>
-            </ChakraDialog.Footer>
-          </ChakraDialog.Content>
-        </ChakraDialog.Positioner>
-      </Portal>
-    </ChakraDialog.Root>
-  );
-}
-
-function BulkDocumentDeletionImpactWarning({
-  impact,
-}: {
-  impact: BulkDocumentDeletionImpactPreview;
-}) {
-  return (
-    <Stack gap="3" color="fg.muted" fontSize="sm" lineHeight="1.55">
-      <Text>These documents are referenced by conversations.</Text>
-      <Text>This may affect existing conversations.</Text>
-      <Text>{`Affected conversations: ${impact.affectedConversationCount}`}</Text>
-      <Text>Deleting these documents will:</Text>
-      <Stack as="ul" gap="1" m="0" ps="5">
-        <Text as="li">permanently remove all versions</Text>
-        <Text as="li">preserve conversation history</Text>
-        <Text as="li">make affected conversations read-only</Text>
-      </Stack>
-    </Stack>
-  );
-}
-
-function DocumentDeletionImpactWarning({ impact }: { impact: DocumentDeletionImpactPreview }) {
-  const shownCount = impact.affectedConversations.length;
-  const hasMore = impact.affectedConversationCount > shownCount;
-
-  return (
-    <Stack gap="3" color="fg.muted" fontSize="sm" lineHeight="1.55">
-      <Text>{`This document contains ${impact.versionCount} versions.`}</Text>
-      <Text>
-        Some versions are referenced by {impact.affectedConversationCount}{' '}
-        {impact.affectedConversationCount === 1 ? 'conversation' : 'conversations'}.
-      </Text>
-      <Text>Deleting this document will:</Text>
-      <Stack as="ul" gap="1" m="0" ps="5">
-        <Text as="li">permanently remove all versions</Text>
-        <Text as="li">preserve conversation history</Text>
-        <Text as="li">make the affected conversations read-only</Text>
-      </Stack>
-      <Text>Affected conversations{hasMore ? ` (${impact.affectedConversationCount})` : ''}:</Text>
-      <Stack as="ul" gap="1" m="0" ps="5">
-        {impact.affectedConversations.map((conversation) => (
-          <Text as="li" key={conversation.id} overflowWrap="anywhere">
-            {conversation.title}
-          </Text>
-        ))}
-      </Stack>
-      {hasMore ? (
-        <Text>
-          Showing {shownCount} of {impact.affectedConversationCount} conversations.
-        </Text>
-      ) : null}
-    </Stack>
-  );
-}
+export { TrashConfirmDialog } from './document-trash-page-dialogs';
 
 export function DocumentTrashPage() {
   const search = validateTrashSearch(useSearch({ strict: false }));

@@ -1,15 +1,9 @@
-import type { ComponentPropsWithoutRef, CSSProperties, DragEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
-import { Fragment, forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
-import type { VirtuosoGridProps } from 'react-virtuoso';
-import { Box, Checkbox as ChakraCheckbox, CloseButton, Dialog as ChakraDialog, Flex, Grid, Portal, Stack, Text, chakra } from '@chakra-ui/react';
-import { Check, Folder, Home, Search } from 'lucide-react';
+import type { DragEvent, MouseEvent, ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Box, Portal, Text, chakra } from '@chakra-ui/react';
+import { Home } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { ROUTES } from '@/app/routes';
-import { useAccentColor } from '@/components/providers/accent-color-context';
-import { Button } from '@/components/ui/button';
-import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ActionMenuItemIcon } from '@/components/ui/action-menu';
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -19,57 +13,15 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { DocumentFileIconGlyph } from '@/features/documents/components/document-file-icon';
-import { getDocumentFileIconMeta } from '@/features/documents/components/document-file-icon.utils';
-import { formatBytes } from '@/features/documents/documents.utils';
-import { formatShortDate } from '@/lib/localization';
-import { getBrowserItemKey, getDocumentTypeLabel, getFileDisplayName, getItemDisplayName, getItemName } from './vault-browser.types';
-import type { BrowserAction, BrowserContextItem, BrowserContextMenuEntry, BrowserDropTarget, BrowserItem, ContextMenuState, InfoDialogTarget, ItemDialogTarget, MoveDestination, MoveDialogTarget } from './vault-browser.types';
+import { getItemName } from './vault-browser.types';
+import type {
+  BrowserContextItem,
+  BrowserContextMenuEntry,
+  BrowserDropTarget,
+  ContextMenuState,
+} from './vault-browser.types';
 
-const listRowHeights = {
-  compact: 48,
-  comfortable: 56,
-  relaxed: 72,
-} as const;
 const BREADCRUMB_LABEL_MAX_LENGTH = 10;
-const LIST_GRID_COLUMNS = 'minmax(0, 1fr) 6rem 8.5rem 2.75rem';
-const SELECTABLE_LIST_GRID_COLUMNS = '2.5rem minmax(0, 1fr) 6rem 8.5rem 2.75rem';
-const GRID_ITEM_WIDTH = '10.75rem';
-const GRID_ITEM_GAP = '0.8rem';
-const GRID_ITEM_HEIGHT = '8rem';
-const GRID_ITEM_PADDING = '0.75rem';
-const GRID_ITEM_NAME_MAX_LENGTH = 20;
-const singleLineGridItemNameStyle: CSSProperties = {
-  display: 'block',
-  width: '100%',
-  maxWidth: '100%',
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  overflowWrap: 'normal',
-  wordBreak: 'normal',
-};
-const twoLineGridItemNameStyle: CSSProperties = {
-  display: '-webkit-box',
-  width: '100%',
-  maxWidth: '100%',
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  WebkitBoxOrient: 'vertical',
-  WebkitLineClamp: '2',
-  whiteSpace: 'normal',
-  overflowWrap: 'anywhere',
-  wordBreak: 'break-word',
-};
 
 export interface VaultBreadcrumbEntry {
   key: string;
@@ -78,52 +30,6 @@ export interface VaultBreadcrumbEntry {
   onClick?: () => void;
   onContextMenu?: (event: MouseEvent<HTMLElement>) => void;
   dropFolderId?: string | null;
-}
-
-export interface BrowserListColumn {
-  key: string;
-  label: ReactNode;
-}
-
-export interface BrowserListCell {
-  key: string;
-  content: ReactNode;
-}
-
-const virtuosoGridComponents: VirtuosoGridProps<BrowserItem, unknown>['components'] = {
-  // eslint-disable-next-line react/no-forward-ref -- react-virtuoso's documented grid adapter passes its measured list ref this way.
-  List: forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(({ style, children, ...props }, ref) => (
-    <div
-      ref={ref}
-      {...props}
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  )),
-  Item: ({ children, ...props }) => (
-    <div
-      {...props}
-      style={{
-        padding: `calc(var(--arkivra-gridItemGap, ${GRID_ITEM_GAP}) / 2)`,
-        width: `calc(${GRID_ITEM_WIDTH} + var(--arkivra-gridItemGap, ${GRID_ITEM_GAP}))`,
-        display: 'flex',
-        flex: 'none',
-        alignContent: 'stretch',
-        boxSizing: 'border-box',
-      }}
-    >
-      {children}
-    </div>
-  ),
-};
-
-function formatDateOnly(value: string | null) {
-  return formatShortDate(value);
 }
 
 function getItemId(item: BrowserContextItem) {
@@ -138,64 +44,6 @@ function getItemId(item: BrowserContextItem) {
   return item.type === 'folder' ? item.folder.id : item.document.id;
 }
 
-function getItemKindLabel(item: BrowserContextItem) {
-  if (item.type === 'root') {
-    return 'Folder';
-  }
-
-  if (item.type === 'background') {
-    return 'Folder';
-  }
-
-  return item.type === 'folder' ? 'Folder' : getDocumentTypeLabel({ name: item.document.name, mimeType: item.document.mimeType });
-}
-
-export function FileBrowserIcon({ item, size = 'grid' }: { item: BrowserItem; size?: 'list' | 'grid' | 'search' }) {
-  const { density } = useAccentColor();
-  const isList = size === 'list';
-  const isSearch = size === 'search';
-  const listIconSize = density === 'compact' ? {
-    container: '7',
-    documentBox: '5.5',
-    documentIcon: 20,
-    folderIcon: 18,
-  } : density === 'relaxed' ? {
-    container: '10',
-    documentBox: '7',
-    documentIcon: 26,
-    folderIcon: 23,
-  } : {
-    container: '8',
-    documentBox: '6',
-    documentIcon: 22,
-    folderIcon: 20,
-  };
-  const containerSize = isSearch ? '8' : isList ? listIconSize.container : '12';
-  const documentBoxSize = isSearch ? '8' : isList ? listIconSize.documentBox : '9';
-  const documentIconSize = isSearch ? 30 : isList ? listIconSize.documentIcon : 36;
-  const folderIconSize = isSearch ? 24 : isList ? listIconSize.folderIcon : 34;
-
-  if (item.type === 'folder') {
-    return (
-      <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color="fg.muted">
-        <Folder size={folderIconSize} strokeWidth={1.5} />
-      </Flex>
-    );
-  }
-
-  const meta = getDocumentFileIconMeta({
-    name: item.document.name,
-    mimeType: item.document.mimeType,
-  });
-
-  return (
-    <Flex boxSize={containerSize} shrink={0} align="center" justify="center" color={meta.color}>
-      <Box boxSize={documentBoxSize} color={meta.color} display="flex" alignItems="center" justifyContent="center">
-        <DocumentFileIconGlyph meta={meta} iconSize={documentIconSize} strokeWidth={1.5} />
-      </Box>
-    </Flex>
-  );
-}
 
 function isDropTargetForFolder(dropTarget: BrowserDropTarget | null, folderId: string | null) {
   return dropTarget !== null && dropTarget.folderId === folderId;
@@ -206,12 +54,13 @@ function getDropTargetStyles(dropTarget: BrowserDropTarget | null, folderId: str
     return {};
   }
 
-  return dropTarget.state === 'valid'
-    ? { bg: 'teal.subtle' }
-    : { bg: 'red.subtle' };
+  return dropTarget.state === 'valid' ? { bg: 'teal.subtle' } : { bg: 'red.subtle' };
 }
 
-function getCurrentFolderDropZoneStyles(dropTarget: BrowserDropTarget | null, folderId: string | null) {
+function getCurrentFolderDropZoneStyles(
+  dropTarget: BrowserDropTarget | null,
+  folderId: string | null,
+) {
   if (dropTarget === null || dropTarget.folderId !== folderId) {
     return {};
   }
@@ -231,56 +80,6 @@ function getCurrentFolderDropZoneStyles(dropTarget: BrowserDropTarget | null, fo
       };
 }
 
-function getBrowserItemSurfaceStyles({
-  isSelected,
-  isDragSource,
-  isContextTarget,
-  contextBg = 'bg.subtle',
-  contextBorderColor,
-}: {
-  isSelected: boolean;
-  isDragSource: boolean;
-  isContextTarget: boolean;
-  contextBg?: string;
-  contextBorderColor?: string;
-}) {
-  const styles: { bg?: string; borderColor?: string; opacity: number } = {
-    opacity: isDragSource ? 0.65 : 1,
-  };
-
-  if (isContextTarget) {
-    styles.bg = contextBg;
-    styles.borderColor = contextBorderColor ?? 'border.strong';
-  } else if (isSelected) {
-    styles.bg = 'teal.subtle';
-    styles.borderColor = 'teal.muted';
-  }
-
-  return styles;
-}
-
-function handleItemKeyboardSelection({
-  event,
-  item,
-  onOpenItem,
-  onSelectItem,
-}: {
-  event: KeyboardEvent<HTMLElement>;
-  item: BrowserItem;
-  onOpenItem: (item: BrowserItem) => void;
-  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
-}) {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    onOpenItem(item);
-    return;
-  }
-
-  if (event.key === ' ') {
-    event.preventDefault();
-    onSelectItem(event, item);
-  }
-}
 
 function truncateBreadcrumbLabel(label: string) {
   if (label.length <= BREADCRUMB_LABEL_MAX_LENGTH) {
@@ -290,52 +89,15 @@ function truncateBreadcrumbLabel(label: string) {
   return `${label.slice(0, BREADCRUMB_LABEL_MAX_LENGTH - 3).trimEnd()}...`;
 }
 
-function truncateGridItemName(name: string) {
-  if (name.length <= GRID_ITEM_NAME_MAX_LENGTH) {
-    return name;
-  }
-
-  return `${name.slice(0, GRID_ITEM_NAME_MAX_LENGTH - 3).trimEnd()}...`;
-}
 
 function getVisibleVaultBreadcrumbs(entries: VaultBreadcrumbEntry[]) {
   if (entries.length <= 4) {
     return entries;
   }
 
-  return [
-    entries[0],
-    entries[1],
-    null,
-    entries.at(-2)!,
-    entries.at(-1)!,
-  ];
+  return [entries[0], entries[1], null, entries.at(-2)!, entries.at(-1)!];
 }
 
-function SelectionCheckbox({
-  checked,
-  label,
-  onCheckedChange,
-}: {
-  checked: boolean | 'indeterminate';
-  label: string;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <ChakraCheckbox.Root
-      size="sm"
-      checked={checked}
-      aria-label={label}
-      onClick={(event) => event.stopPropagation()}
-      onCheckedChange={(event) => onCheckedChange(event.checked === true)}
-    >
-      <ChakraCheckbox.HiddenInput />
-      <ChakraCheckbox.Control>
-        <ChakraCheckbox.Indicator />
-      </ChakraCheckbox.Control>
-    </ChakraCheckbox.Root>
-  );
-}
 
 export function VaultRouteBreadcrumbs({
   entries,
@@ -365,11 +127,18 @@ export function VaultRouteBreadcrumbs({
       rounded: 'md',
       px: '1',
       borderWidth: '1px',
-      borderColor: dropTarget && isDropTargetForFolder(dropTarget, folderId) ? undefined : 'transparent',
+      borderColor:
+        dropTarget && isDropTargetForFolder(dropTarget, folderId) ? undefined : 'transparent',
       ...getDropTargetStyles(dropTarget ?? null, folderId),
-      onDragOver: onDragOverFolder ? (event: DragEvent<HTMLElement>) => onDragOverFolder(event, folderId) : undefined,
-      onDragLeave: onDragLeaveFolder ? (event: DragEvent<HTMLElement>) => onDragLeaveFolder(event, folderId) : undefined,
-      onDrop: onDropOnFolder ? (event: DragEvent<HTMLElement>) => onDropOnFolder(event, folderId) : undefined,
+      onDragOver: onDragOverFolder
+        ? (event: DragEvent<HTMLElement>) => onDragOverFolder(event, folderId)
+        : undefined,
+      onDragLeave: onDragLeaveFolder
+        ? (event: DragEvent<HTMLElement>) => onDragLeaveFolder(event, folderId)
+        : undefined,
+      onDrop: onDropOnFolder
+        ? (event: DragEvent<HTMLElement>) => onDropOnFolder(event, folderId)
+        : undefined,
     };
   }
 
@@ -390,7 +159,8 @@ export function VaultRouteBreadcrumbs({
             );
           }
 
-          const label = showFullLastLabel && isLast ? entry.label : truncateBreadcrumbLabel(entry.label);
+          const label =
+            showFullLastLabel && isLast ? entry.label : truncateBreadcrumbLabel(entry.label);
 
           return (
             <Fragment key={entry.key}>
@@ -411,7 +181,10 @@ export function VaultRouteBreadcrumbs({
                     </Text>
                   </BreadcrumbLink>
                 ) : entry.to && !isLast ? (
-                  <Link to={entry.to} style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}>
+                  <Link
+                    to={entry.to}
+                    style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}
+                  >
                     <Text
                       title={entry.label}
                       truncate
@@ -445,24 +218,6 @@ export function VaultRouteBreadcrumbs({
   );
 }
 
-function handleBrowserItemClick({
-  event,
-  item,
-  onOpenItem,
-  onSelectItem,
-}: {
-  event: MouseEvent<HTMLElement>;
-  item: BrowserItem;
-  onOpenItem: (item: BrowserItem) => void;
-  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
-}) {
-  if (event.metaKey || event.ctrlKey || event.shiftKey) {
-    onSelectItem(event, item);
-    return;
-  }
-
-  onOpenItem(item);
-}
 
 export function FolderBreadcrumbs({
   currentFolderId,
@@ -501,7 +256,13 @@ export function FolderBreadcrumbs({
       <BreadcrumbList>
         <BreadcrumbItem>
           {currentFolderId === null ? (
-            <BreadcrumbPage display="inline-flex" alignItems="center" gap="1.5" onContextMenu={onOpenRootContextMenu} {...getBreadcrumbDropProps(null)}>
+            <BreadcrumbPage
+              display="inline-flex"
+              alignItems="center"
+              gap="1.5"
+              onContextMenu={onOpenRootContextMenu}
+              {...getBreadcrumbDropProps(null)}
+            >
               <Home size={14} />
               Root
             </BreadcrumbPage>
@@ -528,7 +289,9 @@ export function FolderBreadcrumbs({
               <BreadcrumbSeparator />
               <BreadcrumbItem>
                 {isCurrent ? (
-                  <BreadcrumbPage {...getBreadcrumbDropProps(folder.id)}>{folder.name}</BreadcrumbPage>
+                  <BreadcrumbPage {...getBreadcrumbDropProps(folder.id)}>
+                    {folder.name}
+                  </BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink
                     as="button"
@@ -548,172 +311,6 @@ export function FolderBreadcrumbs({
   );
 }
 
-function BrowserItemActions({
-  item,
-  actions,
-  disabled,
-}: {
-  item: BrowserItem;
-  actions: BrowserAction[];
-  disabled?: boolean;
-}) {
-  const availableActions = actions.filter(action => !action.disabled);
-
-  return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <ActionMenuTriggerButton
-          label={`Open actions for ${getItemName(item)}`}
-          disabled={disabled || availableActions.length === 0}
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" minW="48">
-        <BrowserActionDropdownItems actions={availableActions} />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function BrowserActionDropdownItems({ actions }: { actions: BrowserAction[] }) {
-  const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
-
-  return actions.map((action) => {
-    const isActive = activeActionKey === action.key;
-    const isDestructive = action.tone === 'destructive';
-    const inactiveColor = isDestructive ? 'fg.error' : 'fg.muted';
-    const activeColor = isDestructive ? 'fg.error' : 'teal.fg';
-
-    return (
-      <DropdownMenuItem
-        key={action.key}
-        value={action.key}
-        data-active={isActive ? 'true' : undefined}
-        borderWidth="1px"
-        borderColor={isActive ? 'teal.muted' : 'transparent'}
-        bg={isActive ? 'teal.subtle' : 'transparent'}
-        color={isActive ? activeColor : inactiveColor}
-        transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
-        _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
-        _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
-        _highlighted={{ bg: 'transparent', borderColor: 'transparent', color: inactiveColor }}
-        onPointerEnter={() => setActiveActionKey(action.key)}
-        onPointerMove={() => setActiveActionKey(action.key)}
-        onPointerLeave={() => setActiveActionKey(current => (current === action.key ? null : current))}
-        onFocus={() => setActiveActionKey(action.key)}
-        onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
-        onClick={(event) => event.stopPropagation()}
-        onSelect={action.onSelect}
-      >
-        <ActionMenuItemIcon icon={action.icon} tone={isDestructive ? 'destructive' : 'default'} />
-        {action.label}
-      </DropdownMenuItem>
-    );
-  });
-}
-
-function GridItemActions({
-  item,
-  actions,
-  disabled,
-}: {
-  item: BrowserItem;
-  actions: BrowserAction[];
-  disabled?: boolean;
-}) {
-  return (
-    <Box
-      className="browser-grid-actions"
-      position="absolute"
-      top="2"
-      right="2"
-      zIndex="1"
-      opacity="0"
-      pointerEvents="none"
-      transform="translateY(-2px)"
-      transition="opacity 120ms ease, transform 120ms ease"
-      css={{
-        '@media (hover: none)': {
-          opacity: 1,
-          pointerEvents: 'auto',
-          transform: 'none',
-        },
-      }}
-    >
-      <BrowserItemActions
-        item={item}
-        actions={actions}
-        disabled={disabled}
-      />
-    </Box>
-  );
-}
-
-function ListItemActions({
-  item,
-  actions,
-  disabled,
-}: {
-  item: BrowserItem;
-  actions: BrowserAction[];
-  disabled?: boolean;
-}) {
-  return (
-    <Box
-      className="browser-list-actions"
-      opacity="0"
-      pointerEvents="none"
-      transform="translateY(-1px)"
-      transition="opacity 120ms ease, transform 120ms ease"
-      css={{
-        '@media (hover: none)': {
-          opacity: 1,
-          pointerEvents: 'auto',
-          transform: 'none',
-        },
-      }}
-    >
-      <BrowserItemActions
-        item={item}
-        actions={actions}
-        disabled={disabled}
-      />
-    </Box>
-  );
-}
-
-export function GridItemName({
-  density,
-  name,
-}: {
-  density: string;
-  name: string;
-}) {
-  const displayName = truncateGridItemName(name);
-
-  return (
-    <TooltipProvider delayDuration={20}>
-      <Tooltip openDelay={20} closeDelay={0} positioning={{ placement: 'top' }}>
-        <TooltipTrigger asChild>
-          <Text
-            data-grid-item-name
-            aria-label={name}
-            fontSize="sm"
-            fontWeight="medium"
-            lineHeight="short"
-            color="fg"
-            style={density === 'relaxed' ? twoLineGridItemNameStyle : singleLineGridItemNameStyle}
-          >
-            {displayName}
-          </Text>
-        </TooltipTrigger>
-        <TooltipContent>{name}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
 export function BrowserContextMenu({
   state,
   actions,
@@ -723,11 +320,14 @@ export function BrowserContextMenu({
   actions: BrowserContextMenuEntry[];
   onClose: () => void;
 }) {
-  const visibleEntries = actions.filter(entry => 'type' in entry || !entry.disabled);
+  const visibleEntries = actions.filter((entry) => 'type' in entry || !entry.disabled);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: state.x, y: state.y });
   const menuIdentity = `${state.item.type}:${getItemId(state.item)}:${state.x}:${state.y}`;
-  const [activeAction, setActiveAction] = useState<{ menuIdentity: string; actionKey: string } | null>(null);
+  const [activeAction, setActiveAction] = useState<{
+    menuIdentity: string;
+    actionKey: string;
+  } | null>(null);
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
@@ -744,11 +344,11 @@ export function BrowserContextMenu({
       y: Math.min(Math.max(state.y, viewportMargin), maxY),
     };
 
-    setMenuPosition((currentPosition) => (
+    setMenuPosition((currentPosition) =>
       currentPosition.x === nextPosition.x && currentPosition.y === nextPosition.y
         ? currentPosition
-        : nextPosition
-    ));
+        : nextPosition,
+    );
   }, [state.x, state.y, visibleEntries.length]);
 
   useEffect(() => {
@@ -787,7 +387,9 @@ export function BrowserContextMenu({
       window.removeEventListener('resize', onClose);
       window.removeEventListener('scroll', onClose, { capture: true });
       window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
-      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, {
+        capture: true,
+      });
     };
   }, [onClose]);
 
@@ -814,7 +416,9 @@ export function BrowserContextMenu({
         {visibleEntries.map((entry) => {
           if ('type' in entry) {
             if (entry.type === 'separator') {
-              return <Box key={entry.key} my="1.5" borderTopWidth="1px" borderColor="border.surface" />;
+              return (
+                <Box key={entry.key} my="1.5" borderTopWidth="1px" borderColor="border.surface" />
+              );
             }
 
             return (
@@ -824,7 +428,8 @@ export function BrowserContextMenu({
             );
           }
 
-          const isActive = activeAction?.menuIdentity === menuIdentity && activeAction.actionKey === entry.key;
+          const isActive =
+            activeAction?.menuIdentity === menuIdentity && activeAction.actionKey === entry.key;
           const isDestructive = entry.tone === 'destructive';
           const inactiveColor = isDestructive ? 'fg.error' : 'fg.muted';
           const activeColor = isDestructive ? 'fg.error' : 'teal.fg';
@@ -854,22 +459,37 @@ export function BrowserContextMenu({
               transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
               _hover={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
               _focus={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: activeColor }}
-              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
+              _focusVisible={{
+                outline: '2px solid',
+                outlineColor: 'teal.solid',
+                outlineOffset: '2px',
+              }}
               onPointerEnter={() => setActiveAction({ menuIdentity, actionKey: entry.key })}
               onPointerMove={() => setActiveAction({ menuIdentity, actionKey: entry.key })}
-              onPointerLeave={() => setActiveAction(current => (
-                current?.menuIdentity === menuIdentity && current.actionKey === entry.key ? null : current
-              ))}
+              onPointerLeave={() =>
+                setActiveAction((current) =>
+                  current?.menuIdentity === menuIdentity && current.actionKey === entry.key
+                    ? null
+                    : current,
+                )
+              }
               onFocus={() => setActiveAction({ menuIdentity, actionKey: entry.key })}
-              onBlur={() => setActiveAction(current => (
-                current?.menuIdentity === menuIdentity && current.actionKey === entry.key ? null : current
-              ))}
+              onBlur={() =>
+                setActiveAction((current) =>
+                  current?.menuIdentity === menuIdentity && current.actionKey === entry.key
+                    ? null
+                    : current,
+                )
+              }
               onClick={() => {
                 onClose();
                 window.setTimeout(entry.onSelect, 0);
               }}
             >
-              <ActionMenuItemIcon icon={entry.icon} tone={isDestructive ? 'destructive' : 'default'} />
+              <ActionMenuItemIcon
+                icon={entry.icon}
+                tone={isDestructive ? 'destructive' : 'default'}
+              />
               {entry.label}
             </chakra.button>
           );
@@ -914,998 +534,8 @@ export function BrowserCurrentFolderDropZone({
   );
 }
 
-export function BrowserItemList({
-  items,
-  vaultId,
-  selectedItemKeys,
-  selectable = false,
-  allItemsSelected = false,
-  someItemsSelected = false,
-  contextItemKey,
-  draggedItemKeys,
-  dropTarget,
-  onOpenItem,
-  onSelectItem,
-  onToggleAllItems,
-  onToggleItem,
-  getItemActions,
-  getDocumentLink,
-  listGridColumns,
-  listColumns,
-  renderDocumentListMetadata,
-  hideActionsUntilHover = false,
-  onDragStartItem,
-  onDragEndItem,
-  onDragOverFolder,
-  onDragLeaveFolder,
-  onDropOnFolder,
-  onOpenContextMenu,
-  onOpenBackgroundContextMenu,
-  isMutating,
-  isDraggable = true,
-}: {
-  items: BrowserItem[];
-  vaultId: string;
-  selectedItemKeys: Set<string>;
-  selectable?: boolean;
-  allItemsSelected?: boolean;
-  someItemsSelected?: boolean;
-  contextItemKey?: string | null;
-  draggedItemKeys: Set<string>;
-  dropTarget: BrowserDropTarget | null;
-  onOpenItem: (item: BrowserItem) => void;
-  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
-  onToggleAllItems?: (checked: boolean) => void;
-  onToggleItem?: (item: BrowserItem, checked: boolean) => void;
-  getItemActions: (item: BrowserItem) => BrowserAction[];
-  getDocumentLink?: (document: Extract<BrowserItem, { type: 'document' }>['document']) => string;
-  listGridColumns?: string;
-  listColumns?: BrowserListColumn[];
-  renderDocumentListMetadata?: (item: Extract<BrowserItem, { type: 'document' }>) => BrowserListCell[];
-  hideActionsUntilHover?: boolean;
-  onDragStartItem: (event: DragEvent<HTMLElement>, item: BrowserItem) => void;
-  onDragEndItem: () => void;
-  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
-  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
-  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
-  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
-  onOpenBackgroundContextMenu: (event: MouseEvent<HTMLElement>) => void;
-  isMutating?: boolean;
-  isDraggable?: boolean;
-}) {
-  const { density } = useAccentColor();
-  const listRowHeight = listRowHeights[density];
-  const resolvedListGridColumns = listGridColumns ?? (selectable ? SELECTABLE_LIST_GRID_COLUMNS : LIST_GRID_COLUMNS);
-  const resolvedListColumns = listColumns ?? [
-    { key: 'name', label: 'Name' },
-    { key: 'size', label: 'Size' },
-    { key: 'modified', label: 'Modified' },
-  ];
-  const baseListGridColumns = selectable ? '2.5rem minmax(0, 1fr) auto' : 'minmax(0, 1fr) auto';
 
-  return (
-    <Box
-      role="listbox"
-      aria-label="Folder items"
-      aria-multiselectable="true"
-      display="flex"
-      flexDirection="column"
-      flex="1"
-      minH="0"
-      overflow="hidden"
-      borderColor="border.surface"
-      bg="bg.workspace"
-      onContextMenu={onOpenBackgroundContextMenu}
-    >
-      <Grid
-        display={{ base: 'none', md: 'grid' }}
-        templateColumns={resolvedListGridColumns}
-        gap="4"
-        borderBottomWidth="1px"
-        borderColor="border.surface"
-        flexShrink="0"
-        px="6"
-        py="var(--arkivra-listHeaderPaddingY, 0.75rem)"
-        fontSize="sm"
-        fontWeight="medium"
-        color="fg.subtle"
-      >
-        {selectable ? (
-          <SelectionCheckbox
-            checked={someItemsSelected ? 'indeterminate' : allItemsSelected}
-            label="Select all items"
-            onCheckedChange={(checked) => onToggleAllItems?.(checked)}
-          />
-        ) : null}
-        {resolvedListColumns.map((column) => (
-          <Text key={column.key} as="span">{column.label}</Text>
-        ))}
-        <Text as="span" srOnly>Actions</Text>
-      </Grid>
-
-      <Box flex="1" minH="0" overflow="hidden">
-        <Virtuoso
-          data={items}
-          fixedItemHeight={listRowHeight}
-          computeItemKey={(index, item) => item ? getBrowserItemKey(item) : `__item_${index}`}
-          initialItemCount={Math.min(items.length, 24)}
-          style={{ height: '100%' }}
-          itemContent={(index, item) => {
-            if (item === undefined) {
-              return null;
-            }
-
-            const name = getItemName(item);
-            const displayName = getItemDisplayName(item);
-            const updatedAt = item.type === 'folder' ? item.folder.updatedAt : item.document.updatedAt;
-            const actions = getItemActions(item);
-            const itemKey = getBrowserItemKey(item);
-            const isSelected = selectedItemKeys.has(itemKey);
-            const isContextTarget = contextItemKey === itemKey;
-            const isDragSource = draggedItemKeys.has(itemKey);
-            const itemSurfaceStyles = getBrowserItemSurfaceStyles({ isSelected, isDragSource, isContextTarget });
-            const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
-            const documentLink = item.type === 'document'
-              ? getDocumentLink?.(item.document) ?? ROUTES.vaultDocument(vaultId, item.document.id)
-              : null;
-            const documentMetadataCells = item.type === 'document'
-              ? renderDocumentListMetadata?.(item) ?? [
-                  { key: 'size', content: formatBytes(item.document.originalSize) },
-                  { key: 'modified', content: formatDateOnly(updatedAt) },
-                ]
-              : [];
-
-            return (
-              <Box
-                role="option"
-                aria-selected={isSelected}
-                aria-label={name}
-                tabIndex={0}
-                draggable={isDraggable && !isMutating}
-                h={`${listRowHeight}px`}
-                borderBottomWidth={index === items.length - 1 ? '0' : '1px'}
-                borderColor="border.divider"
-                cursor="pointer"
-                outline="none"
-                {...itemSurfaceStyles}
-                {...folderDropStyles}
-                _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
-                onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
-                onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
-                onDragStart={isDraggable ? (event) => onDragStartItem(event, item) : undefined}
-                onDragEnd={isDraggable ? onDragEndItem : undefined}
-                onDragOver={isDraggable && item.type === 'folder' ? (event) => onDragOverFolder(event, item.folder.id) : undefined}
-                onDragLeave={isDraggable && item.type === 'folder' ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined}
-                onDrop={isDraggable && item.type === 'folder' ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
-                onContextMenu={(event) => onOpenContextMenu(event, item)}
-                css={hideActionsUntilHover ? {
-                  '&:hover .browser-list-actions, &:focus-within .browser-list-actions': {
-                    opacity: 1,
-                    pointerEvents: 'auto',
-                    transform: 'none',
-                  },
-                } : undefined}
-              >
-                {item.type === 'folder' ? (
-                  <Grid
-                    display="grid"
-                    h="full"
-                    w="full"
-                    gridTemplateColumns={{ base: baseListGridColumns, md: resolvedListGridColumns }}
-                    gap="4"
-                    alignItems="center"
-                    px="6"
-                    textAlign="left"
-                    transition="background-color 0.15s ease"
-                    _hover={{ bg: 'bg.subtle' }}
-                  >
-                    {selectable ? (
-                      <SelectionCheckbox
-                        checked={isSelected}
-                        label={`Select ${name}`}
-                        onCheckedChange={(checked) => onToggleItem?.(item, checked)}
-                      />
-                    ) : null}
-                    <chakra.button
-                      type="button"
-                      minW="0"
-                      textAlign="left"
-                      cursor="pointer"
-                      aria-label={`Open folder ${item.folder.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onOpenItem(item);
-                      }}
-                    >
-                      <Flex minW="0" align="center" gap="3">
-                        <FileBrowserIcon item={item} size="list" />
-                        <Box minW="0">
-                          <Text truncate fontWeight="normal" color="fg">{displayName}</Text>
-                          <Text display={{ md: 'none' }} mt="1" textStyle="xs" color="fg.muted">
-                            Folder - Updated {formatDateOnly(updatedAt)}
-                          </Text>
-                        </Box>
-                      </Flex>
-                    </chakra.button>
-                    <Text display={{ base: 'none', md: 'block' }} textStyle="sm" color="fg.muted">Folder</Text>
-                    <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{formatDateOnly(updatedAt)}</Text>
-                    {hideActionsUntilHover ? (
-                      <ListItemActions item={item} actions={actions} disabled={isMutating} />
-                    ) : (
-                      <BrowserItemActions item={item} actions={actions} disabled={isMutating} />
-                    )}
-                  </Grid>
-                ) : (
-                  <Grid
-                    h="full"
-                    templateColumns={{ base: baseListGridColumns, md: resolvedListGridColumns }}
-                    gap="4"
-                    alignItems="center"
-                    px="6"
-                    transition="background-color 0.15s ease"
-                    _hover={{ bg: 'bg.subtle' }}
-                  >
-                    {selectable ? (
-                      <SelectionCheckbox
-                        checked={isSelected}
-                        label={`Select ${name}`}
-                        onCheckedChange={(checked) => onToggleItem?.(item, checked)}
-                      />
-                    ) : null}
-                    <Link
-                      to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Flex minW="0" align="center" gap="3">
-                        <FileBrowserIcon item={item} size="list" />
-                        <Box minW="0">
-                          <Text truncate fontWeight="normal" color="fg">{displayName}</Text>
-                          {item.document.originalName !== item.document.name ? (
-                            <Text mt="1" truncate textStyle="xs" color="fg.muted">
-                              {getFileDisplayName(item.document.originalName)}
-                            </Text>
-                          ) : null}
-                        </Box>
-                      </Flex>
-                    </Link>
-                    {documentMetadataCells.map((cell) => (
-                      <Link
-                        key={cell.key}
-                        to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
-                        style={{ display: 'block', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <Text display={{ base: 'none', md: 'block' }} truncate textStyle="sm">{cell.content}</Text>
-                      </Link>
-                    ))}
-                    {hideActionsUntilHover ? (
-                      <ListItemActions item={item} actions={actions} disabled={isMutating} />
-                    ) : (
-                      <BrowserItemActions
-                        item={item}
-                        actions={actions}
-                        disabled={isMutating}
-                      />
-                    )}
-                  </Grid>
-                )}
-              </Box>
-            );
-          }}
-        />
-      </Box>
-    </Box>
-  );
-}
-
-export function BrowserItemGrid({
-  items,
-  vaultId,
-  selectedItemKeys,
-  selectable = false,
-  contextItemKey,
-  draggedItemKeys,
-  dropTarget,
-  onOpenItem,
-  onSelectItem,
-  onToggleItem,
-  getItemActions,
-  getDocumentLink,
-  renderDocumentGridMeta,
-  onDragStartItem,
-  onDragEndItem,
-  onDragOverFolder,
-  onDragLeaveFolder,
-  onDropOnFolder,
-  onOpenContextMenu,
-  onOpenBackgroundContextMenu,
-  isMutating,
-  isDraggable = true,
-}: {
-  items: BrowserItem[];
-  vaultId: string;
-  selectedItemKeys: Set<string>;
-  selectable?: boolean;
-  contextItemKey?: string | null;
-  draggedItemKeys: Set<string>;
-  dropTarget: BrowserDropTarget | null;
-  onOpenItem: (item: BrowserItem) => void;
-  onSelectItem: (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>, item: BrowserItem) => void;
-  onToggleItem?: (item: BrowserItem, checked: boolean) => void;
-  getItemActions: (item: BrowserItem) => BrowserAction[];
-  getDocumentLink?: (document: Extract<BrowserItem, { type: 'document' }>['document']) => string;
-  renderDocumentGridMeta?: (item: Extract<BrowserItem, { type: 'document' }>) => ReactNode;
-  onDragStartItem: (event: DragEvent<HTMLElement>, item: BrowserItem) => void;
-  onDragEndItem: () => void;
-  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
-  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
-  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string | null) => void;
-  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: BrowserItem) => void;
-  onOpenBackgroundContextMenu: (event: MouseEvent<HTMLElement>) => void;
-  isMutating?: boolean;
-  isDraggable?: boolean;
-}) {
-  const { density } = useAccentColor();
-
-  return (
-    <Box
-      h="full"
-      flex="1"
-      minH="0"
-      overflow="hidden"
-      role="listbox"
-      aria-label="Folder items"
-      aria-multiselectable="true"
-      boxSizing="border-box"
-      borderColor="border.surface"
-      bg="bg.workspace"
-      px={{ base: '3', lg: '4' }}
-      pt={{ base: '3', lg: '4' }}
-      onContextMenu={onOpenBackgroundContextMenu}
-    >
-      <VirtuosoGrid
-        data={items}
-        components={virtuosoGridComponents}
-        computeItemKey={(index, item) => item ? getBrowserItemKey(item) : `__item_${index}`}
-        initialItemCount={Math.min(items.length, 24)}
-        style={{ height: '100%', width: '100%' }}
-        itemContent={(_, item) => {
-          if (item === undefined) {
-            return null;
-          }
-
-          const name = getItemName(item);
-          const displayName = getItemDisplayName(item);
-          const actions = getItemActions(item);
-          const itemKey = getBrowserItemKey(item);
-          const isSelected = selectedItemKeys.has(itemKey);
-          const isContextTarget = contextItemKey === itemKey;
-          const isDragSource = draggedItemKeys.has(itemKey);
-          const itemSurfaceStyles = getBrowserItemSurfaceStyles({
-            isSelected,
-            isDragSource,
-            isContextTarget,
-            contextBg: 'bg.workspaceMuted',
-            contextBorderColor: 'border.strong',
-          });
-          const folderDropStyles = item.type === 'folder' ? getDropTargetStyles(dropTarget, item.folder.id) : {};
-          const documentLink = item.type === 'document'
-            ? getDocumentLink?.(item.document) ?? ROUTES.vaultDocument(vaultId, item.document.id)
-            : null;
-          const body = item.type === 'folder' ? (
-            <Box
-              h="full"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              p={`var(--arkivra-gridItemPadding, ${GRID_ITEM_PADDING})`}
-              rounded="md"
-              borderWidth="1px"
-              borderColor="border.surface"
-              bg="bg.workspace"
-              transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-              _hover={{
-                bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.workspaceMuted',
-                borderColor: isSelected && !isContextTarget ? 'teal.muted' : 'border.strong',
-              }}
-              {...itemSurfaceStyles}
-              {...folderDropStyles}
-            >
-              <Stack align="center" justify="center" gap="2.5" w="full" h="full" textAlign="center">
-                <GridItemActions item={item} actions={actions} disabled={isMutating} />
-                {selectable ? (
-                  <Box position="absolute" top="2" left="2">
-                    <SelectionCheckbox
-                      checked={isSelected}
-                      label={`Select ${name}`}
-                      onCheckedChange={(checked) => onToggleItem?.(item, checked)}
-                    />
-                  </Box>
-                ) : null}
-                <Stack align="center" gap="2.5" w="full" minW="0">
-                  <FileBrowserIcon item={item} />
-                  <chakra.button
-                    type="button"
-                    w="full"
-                    maxW="full"
-                    minW="0"
-                    textAlign="center"
-                    cursor="pointer"
-                    aria-label={`Open folder ${item.folder.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onOpenItem(item);
-                    }}
-                  >
-                    <Box w="full" minW="0" maxW="full" px="1">
-                      <GridItemName name={displayName} density={density} />
-                    </Box>
-                  </chakra.button>
-                </Stack>
-              </Stack>
-            </Box>
-          ) : (
-            <Box
-              h="full"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              p={`var(--arkivra-gridItemPadding, ${GRID_ITEM_PADDING})`}
-              rounded="md"
-              borderWidth="1px"
-              borderColor="border.surface"
-              bg="bg.workspace"
-              transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
-              _hover={{
-                bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.workspaceMuted',
-                borderColor: isSelected && !isContextTarget ? 'teal.muted' : 'border.strong',
-              }}
-              {...itemSurfaceStyles}
-            >
-              <Stack align="center" justify="center" gap="2.5" w="full" h="full" textAlign="center">
-                <GridItemActions item={item} actions={actions} disabled={isMutating} />
-                {selectable ? (
-                  <Box position="absolute" top="2" left="2">
-                    <SelectionCheckbox
-                      checked={isSelected}
-                      label={`Select ${name}`}
-                      onCheckedChange={(checked) => onToggleItem?.(item, checked)}
-                    />
-                  </Box>
-                ) : null}
-                <Stack align="center" gap="2.5" w="full" minW="0">
-                  <FileBrowserIcon item={item} />
-                  <Stack align="center" gap="0.5" w="full" minW="0">
-                    <Link
-                      to={documentLink ?? ROUTES.vaultDocument(vaultId, item.document.id)}
-                      style={{ display: 'block', width: '100%', maxWidth: '100%', minWidth: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'none' }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Box w="full" minW="0" maxW="full" px="1">
-                        <GridItemName name={displayName} density={density} />
-                      </Box>
-                    </Link>
-                    {renderDocumentGridMeta?.(item)}
-                  </Stack>
-                </Stack>
-              </Stack>
-            </Box>
-          );
-
-          return item.type === 'folder' ? (
-            <Box
-              position="relative"
-              w="full"
-              h={`var(--arkivra-gridItemHeight, ${GRID_ITEM_HEIGHT})`}
-              role="option"
-              aria-selected={isSelected}
-              tabIndex={0}
-              aria-label={item.folder.name}
-              draggable={isDraggable && !isMutating}
-              textAlign="left"
-              cursor="pointer"
-              outline="none"
-              onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
-              onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
-              onDragStart={isDraggable ? (event) => onDragStartItem(event, item) : undefined}
-              onDragEnd={isDraggable ? onDragEndItem : undefined}
-              onDragOver={isDraggable ? (event) => onDragOverFolder(event, item.folder.id) : undefined}
-              onDragLeave={isDraggable ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined}
-              onDrop={isDraggable ? (event) => onDropOnFolder(event, item.folder.id) : undefined}
-              onContextMenu={(event) => onOpenContextMenu(event, item)}
-              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
-              css={{
-                '&:hover .browser-grid-actions, &:focus-within .browser-grid-actions': {
-                  opacity: 1,
-                  pointerEvents: 'auto',
-                  transform: 'none',
-                },
-              }}
-            >
-              {body}
-            </Box>
-          ) : (
-            <Box
-              position="relative"
-              w="full"
-              h={`var(--arkivra-gridItemHeight, ${GRID_ITEM_HEIGHT})`}
-              role="option"
-              aria-selected={isSelected}
-              tabIndex={0}
-              aria-label={item.document.name}
-              draggable={isDraggable && !isMutating}
-              cursor="pointer"
-              outline="none"
-              onClick={(event) => handleBrowserItemClick({ event, item, onOpenItem, onSelectItem })}
-              onKeyDown={(event) => handleItemKeyboardSelection({ event, item, onOpenItem, onSelectItem })}
-              onDragStart={isDraggable ? (event) => onDragStartItem(event, item) : undefined}
-              onDragEnd={isDraggable ? onDragEndItem : undefined}
-              onContextMenu={(event) => onOpenContextMenu(event, item)}
-              _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '2px' }}
-              css={{
-                '&:hover .browser-grid-actions, &:focus-within .browser-grid-actions': {
-                  opacity: 1,
-                  pointerEvents: 'auto',
-                  transform: 'none',
-                },
-              }}
-            >
-              {body}
-            </Box>
-          );
-        }}
-      />
-    </Box>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <Grid templateColumns="8rem minmax(0, 1fr)" gap="4" alignItems="start">
-      <Text fontSize="sm" color="fg.muted">{label}</Text>
-      <Text minW="0" fontSize="sm" color="fg" wordBreak="break-word">{value}</Text>
-    </Grid>
-  );
-}
-
-const closedMoveDialogTarget: BrowserItem = {
-  type: 'folder',
-  folder: {
-    id: '__closed_move_dialog__',
-    vaultId: '',
-    parentId: null,
-    name: 'item',
-    createdBy: '',
-    isDeleted: false,
-    deletedAt: null,
-    deletedBy: null,
-    createdAt: '',
-    updatedAt: '',
-  },
-};
-
-function getMoveDialogTargets(target: MoveDialogTarget) {
-  if (Array.isArray(target)) {
-    return target;
-  }
-
-  return target === null ? [] : [target];
-}
-
-function getMoveDialogTargetKey(targets: BrowserItem[]) {
-  if (targets.length === 0) {
-    return '__closed_move_dialog__';
-  }
-
-  return targets.map(item => getBrowserItemKey(item)).join('|');
-}
-
-function getMoveDialogTitle(targets: BrowserItem[]) {
-  if (targets.length === 1) {
-    return `Move ${getItemName(targets[0]!)}`;
-  }
-
-  return `Move ${targets.length} items`;
-}
-
-function getCommonDestinationId(targets: BrowserItem[]) {
-  if (targets.length === 0) {
-    return null;
-  }
-
-  const [firstTarget] = targets;
-  const firstDestinationId = firstTarget.type === 'folder' ? firstTarget.folder.parentId : firstTarget.document.folderId;
-
-  return targets.every((target) => {
-    const destinationId = target.type === 'folder' ? target.folder.parentId : target.document.folderId;
-    return destinationId === firstDestinationId;
-  })
-    ? firstDestinationId
-    : undefined;
-}
-
-export function RenameItemDialog({
-  open,
-  target,
-  value,
-  isPending,
-  onValueChange,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  target: ItemDialogTarget;
-  value: string;
-  isPending: boolean;
-  onValueChange: (value: string) => void;
-  onClose: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  const targetType = target?.type ?? 'item';
-  const originalName = target ? getItemName(target) : '';
-  const isRenameFormDirty = value !== originalName;
-  const canDismissRenameDialog = !isRenameFormDirty && !isPending;
-
-  return (
-    <ChakraDialog.Root open={open} closeOnEscape={canDismissRenameDialog} closeOnInteractOutside={canDismissRenameDialog} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
-      <Portal>
-        <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner>
-          <ChakraDialog.Content>
-            <ChakraDialog.Header>
-              <ChakraDialog.Title>{`Rename ${targetType}`}</ChakraDialog.Title>
-              <ChakraDialog.CloseTrigger asChild>
-                <CloseButton size="sm" />
-              </ChakraDialog.CloseTrigger>
-            </ChakraDialog.Header>
-            <ChakraDialog.Body>
-              <chakra.form id="rename-item-form" display="flex" flexDirection="column" gap="4" onSubmit={onSubmit}>
-                <chakra.label htmlFor="rename-item-name" fontSize="sm" fontWeight="medium" color="fg">
-                  Name
-                </chakra.label>
-                <Input
-                  id="rename-item-name"
-                  autoFocus
-                  value={value}
-                  maxLength={255}
-                  onChange={(event) => onValueChange(event.target.value)}
-                />
-              </chakra.form>
-            </ChakraDialog.Body>
-            <ChakraDialog.Footer>
-              <ChakraDialog.ActionTrigger asChild>
-                <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
-                  Cancel
-                </Button>
-              </ChakraDialog.ActionTrigger>
-              <Button type="submit" form="rename-item-form" disabled={value.trim().length === 0 || isPending}>
-                {isPending ? 'Renaming...' : 'Rename'}
-              </Button>
-            </ChakraDialog.Footer>
-          </ChakraDialog.Content>
-        </ChakraDialog.Positioner>
-      </Portal>
-    </ChakraDialog.Root>
-  );
-}
-
-export function MoveItemDialog({
-  open,
-  target,
-  value,
-  destinations,
-  isPending,
-  isLoading,
-  onValueChange,
-  onClose,
-  onSubmit,
-}: MoveItemDialogProps) {
-  const dialogTargets = getMoveDialogTargets(target);
-
-  return (
-    <OpenMoveItemDialog
-      open={open}
-      targets={dialogTargets.length > 0 ? dialogTargets : [closedMoveDialogTarget]}
-      value={value}
-      destinations={destinations}
-      isPending={isPending}
-      isLoading={isLoading}
-      onValueChange={onValueChange}
-      onClose={onClose}
-      onSubmit={onSubmit}
-    />
-  );
-}
-
-interface MoveItemDialogProps {
-  open: boolean;
-  target: MoveDialogTarget;
-  value: string | null;
-  destinations: MoveDestination[];
-  isPending: boolean;
-  isLoading: boolean;
-  onValueChange: (value: string | null) => void;
-  onClose: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}
-
-interface OpenMoveItemDialogProps extends Omit<MoveItemDialogProps, 'target'> {
-  open: boolean;
-  targets: BrowserItem[];
-}
-
-function OpenMoveItemDialog({
-  open,
-  targets,
-  value,
-  destinations,
-  isPending,
-  isLoading,
-  onValueChange,
-  onClose,
-  onSubmit,
-}: OpenMoveItemDialogProps) {
-  const targetKey = getMoveDialogTargetKey(targets);
-  const [searchState, setSearchState] = useState({ targetKey: '', value: '' });
-  const searchQuery = searchState.targetKey === targetKey ? searchState.value : '';
-
-  const filteredDestinations = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-
-    if (normalizedQuery.length === 0) {
-      return destinations;
-    }
-
-    return destinations.filter((destination) => {
-      const searchableText = `${destination.name} ${destination.label}`.toLocaleLowerCase();
-      return searchableText.includes(normalizedQuery);
-    });
-  }, [destinations, searchQuery]);
-
-  const currentDestinationId = getCommonDestinationId(targets);
-  const selectedDestination = destinations.find(destination => destination.id === value) ?? destinations[0] ?? null;
-  const hasMoveSelectionChanged = currentDestinationId === undefined ? value !== null : value !== currentDestinationId;
-  const isMoveFormDirty = searchQuery.trim().length > 0 || hasMoveSelectionChanged;
-  const canDismissMoveDialog = !isMoveFormDirty && !isPending;
-  const canSubmitMove = !isLoading
-    && !isPending
-    && targets.length > 0
-    && selectedDestination !== null
-    && value === selectedDestination.id
-    && (currentDestinationId === undefined || value !== currentDestinationId);
-
-  return (
-    <ChakraDialog.Root open={open} closeOnEscape={canDismissMoveDialog} closeOnInteractOutside={canDismissMoveDialog} onOpenChange={(event) => { if (!event.open && !isPending) onClose(); }} size={{ mdDown: 'full', md: 'lg' }}>
-      <Portal>
-        <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner>
-          <ChakraDialog.Content>
-            <ChakraDialog.Header>
-              <ChakraDialog.Title>{getMoveDialogTitle(targets)}</ChakraDialog.Title>
-              <ChakraDialog.CloseTrigger asChild>
-                <CloseButton size="sm" />
-              </ChakraDialog.CloseTrigger>
-            </ChakraDialog.Header>
-            <ChakraDialog.Body>
-              <chakra.form id="move-item-form" display="flex" flexDirection="column" gap="4" onSubmit={onSubmit}>
-                <chakra.label htmlFor="move-item-folder-search" fontSize="sm" fontWeight="medium" color="fg">
-                  Search folders
-                </chakra.label>
-                <Box position="relative">
-                  <Flex
-                    position="absolute"
-                    top="0"
-                    bottom="0"
-                    left="3"
-                    align="center"
-                    color="fg.muted"
-                    pointerEvents="none"
-                  >
-                    <Search size={16} />
-                  </Flex>
-                  <Input
-                    id="move-item-folder-search"
-                    autoFocus
-                    value={searchQuery}
-                    disabled={isLoading || isPending}
-                    pl="9"
-                    placeholder="Find a destination"
-                    onChange={(event) => setSearchState({ targetKey, value: event.target.value })}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                      }
-                    }}
-                  />
-                </Box>
-                <Box
-                  role="listbox"
-                  aria-label="Move destination"
-                  h={{ base: '18rem', md: '20rem' }}
-                  overflow="hidden"
-                  rounded="lg"
-                  borderWidth="1px"
-                  borderColor="border.surface"
-                  bg="bg.surface"
-                >
-                  {isLoading ? (
-                    <Flex h="full" align="center" justify="center" px="4">
-                      <Text fontSize="sm" color="fg.muted">Loading folders...</Text>
-                    </Flex>
-                  ) : filteredDestinations.length === 0 ? (
-                    <Flex h="full" align="center" justify="center" px="4">
-                      <Text fontSize="sm" color="fg.muted">No folders found.</Text>
-                    </Flex>
-                  ) : (
-                    <Virtuoso
-                      data={filteredDestinations}
-                      computeItemKey={(index, destination) => destination?.id ?? `__destination_${index}`}
-                      initialItemCount={Math.min(filteredDestinations.length, 32)}
-                      style={{ height: '100%' }}
-                      itemContent={(index, destination) => {
-                        if (destination === undefined) {
-                          return null;
-                        }
-
-                        const isSelected = destination.id === value;
-                        const isCurrent = currentDestinationId !== undefined && destination.id === currentDestinationId;
-                        const icon = destination.id === null ? <Home size={16} /> : <Folder size={16} />;
-
-                        return (
-                          <chakra.button
-                            type="button"
-                            role="option"
-                            aria-selected={isSelected}
-                            disabled={isPending}
-                            display="flex"
-                            w="full"
-                            minH="3rem"
-                            alignItems="center"
-                            gap="3"
-                            borderBottomWidth={index === filteredDestinations.length - 1 ? '0' : '1px'}
-                            borderColor="border.surface"
-                            bg={isSelected ? 'teal.subtle' : 'transparent'}
-                            px="3"
-                            py="2"
-                            textAlign="left"
-                            transition="background-color 0.15s ease"
-                            _hover={{ bg: isSelected ? 'teal.subtle' : 'bg.subtle' }}
-                            _focusVisible={{ outline: '2px solid', outlineColor: 'teal.solid', outlineOffset: '-2px' }}
-                            onClick={() => onValueChange(destination.id)}
-                          >
-                            <Flex
-                              minW="0"
-                              flex="1"
-                              align="center"
-                              gap="3"
-                              ps={`${Math.min(destination.depth, 8) * 0.75}rem`}
-                            >
-                              <Flex
-                                boxSize="7"
-                                shrink={0}
-                                align="center"
-                                justify="center"
-                                rounded="md"
-                                bg={destination.id === null ? 'bg.subtle' : 'teal.subtle'}
-                                color={destination.id === null ? 'fg.muted' : 'teal.fg'}
-                              >
-                                {icon}
-                              </Flex>
-                              <Box minW="0">
-                                <Flex minW="0" align="center" gap="2">
-                                  <Text truncate fontSize="sm" fontWeight="semibold" color="fg">
-                                    {destination.name}
-                                  </Text>
-                                  {isCurrent ? (
-                                    <Text as="span" flexShrink={0} textStyle="xs" color="fg.muted">
-                                      Current
-                                    </Text>
-                                  ) : null}
-                                </Flex>
-                                {destination.label !== destination.name ? (
-                                  <Text mt="0.5" truncate textStyle="xs" color="fg.muted">
-                                    {destination.label}
-                                  </Text>
-                                ) : null}
-                              </Box>
-                            </Flex>
-                            <Flex boxSize="5" shrink={0} align="center" justify="center" color={isSelected ? 'teal.solid' : 'transparent'}>
-                              <Check size={16} strokeWidth={2.5} />
-                            </Flex>
-                          </chakra.button>
-                        );
-                      }}
-                    />
-                  )}
-                </Box>
-                {selectedDestination !== null ? (
-                  <Text fontSize="sm" color="fg.muted">
-                    Destination: {selectedDestination.label}
-                  </Text>
-                ) : null}
-              </chakra.form>
-            </ChakraDialog.Body>
-            <ChakraDialog.Footer>
-              <ChakraDialog.ActionTrigger asChild>
-                <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
-                  Cancel
-                </Button>
-              </ChakraDialog.ActionTrigger>
-              <Button
-                type="submit"
-                form="move-item-form"
-                disabled={!canSubmitMove}
-              >
-                {isPending ? 'Moving...' : 'Move'}
-              </Button>
-            </ChakraDialog.Footer>
-          </ChakraDialog.Content>
-        </ChakraDialog.Positioner>
-      </Portal>
-    </ChakraDialog.Root>
-  );
-}
-
-export function ItemInfoDialog({
-  open,
-  target,
-  folderPath,
-  onClose,
-}: {
-  open: boolean;
-  target: InfoDialogTarget;
-  folderPath: string;
-  onClose: () => void;
-}) {
-  const titleTarget: BrowserContextItem = target ?? {
-    type: 'background',
-    vaultId: '',
-    folderId: null,
-    name: 'Current folder',
-  };
-
-  return (
-    <ChakraDialog.Root open={open} onOpenChange={(event) => { if (!event.open) onClose(); }} size={{ mdDown: 'full', md: 'md' }}>
-      <Portal>
-        <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner>
-          <ChakraDialog.Content>
-            <ChakraDialog.Header>
-              <ChakraDialog.Title>Info</ChakraDialog.Title>
-              <ChakraDialog.CloseTrigger asChild>
-                <CloseButton size="sm" />
-              </ChakraDialog.CloseTrigger>
-            </ChakraDialog.Header>
-            <ChakraDialog.Body>
-              <Stack gap="3">
-                <InfoRow label="Name" value={getItemName(titleTarget)} />
-                <InfoRow label="Type" value={getItemKindLabel(titleTarget)} />
-                {titleTarget.type !== 'root' && titleTarget.type !== 'background' ? <InfoRow label="Location" value={folderPath} /> : null}
-                {titleTarget.type === 'document' ? (
-                  <>
-                    <InfoRow label="Size" value={formatBytes(titleTarget.document.originalSize)} />
-                    <InfoRow label="Original file" value={titleTarget.document.originalName} />
-                    <InfoRow label="MIME type" value={titleTarget.document.mimeType} />
-                  </>
-                ) : null}
-                {titleTarget.type === 'folder' || titleTarget.type === 'document' ? (
-                  <>
-                    <InfoRow label="Created" value={formatDateOnly(titleTarget.type === 'folder' ? titleTarget.folder.createdAt : titleTarget.document.createdAt)} />
-                    <InfoRow label="Updated" value={formatDateOnly(titleTarget.type === 'folder' ? titleTarget.folder.updatedAt : titleTarget.document.updatedAt)} />
-                  </>
-                ) : null}
-                <InfoRow label={titleTarget.type === 'root' ? 'Vault ID' : 'ID'} value={getItemId(titleTarget)} />
-              </Stack>
-            </ChakraDialog.Body>
-            <ChakraDialog.Footer>
-              <Button type="button" onClick={onClose}>
-                Close
-              </Button>
-            </ChakraDialog.Footer>
-          </ChakraDialog.Content>
-        </ChakraDialog.Positioner>
-      </Portal>
-    </ChakraDialog.Root>
-  );
-}
+export { ItemInfoDialog, MoveItemDialog, RenameItemDialog } from './vault-browser-dialogs';
+export { BrowserItemGrid } from './vault-browser-grid';
+export { BrowserItemList, FileBrowserIcon, GridItemName } from './vault-browser-items';
+export type { BrowserListCell, BrowserListColumn } from './vault-browser-items';

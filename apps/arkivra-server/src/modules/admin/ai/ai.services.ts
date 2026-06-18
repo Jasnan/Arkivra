@@ -153,6 +153,12 @@ export function createAdminAiServices({
       baseUrl: stored.chatBaseUrl ?? stored.ollamaHost,
       fallbackOllamaHost: stored.ollamaHost,
     });
+    const storedTranslationProvider = stored.translationProvider === 'gemini' ? 'gemini' : 'ollama';
+    const translationBaseUrl = normalizeChatBaseUrl({
+      provider: storedTranslationProvider,
+      baseUrl: stored.translationBaseUrl ?? stored.ollamaHost,
+      fallbackOllamaHost: stored.ollamaHost,
+    });
 
     return {
       aiFeaturesEnabled: stored.aiFeaturesEnabled,
@@ -168,9 +174,9 @@ export function createAdminAiServices({
         }),
       },
       translation: {
-        provider: 'ollama',
-        baseUrl: stored.ollamaHost,
-        apiKeySecretRef: null,
+        provider: storedTranslationProvider,
+        baseUrl: translationBaseUrl,
+        apiKeySecretRef: normalizeApiKeySecretRef(stored.translationApiKeySecretRef),
         model: stored.ollamaTranslationModel ?? stored.ollamaModel,
       },
       embedding: {
@@ -455,6 +461,9 @@ export function createAdminAiServices({
         ollamaModel: normalized.model,
         aiSummarisationEnabled: normalized.aiFeaturesEnabled,
         ollamaTranslationModel: normalized.translation.model,
+        translationProvider: normalized.translation.provider,
+        translationBaseUrl: normalized.translation.baseUrl,
+        translationApiKeySecretRef: normalized.translation.apiKeySecretRef,
         ollamaEmbeddingEnabled: normalized.aiFeaturesEnabled,
         ollamaEmbeddingHost: normalized.embedding.baseUrl,
         ollamaEmbeddingModel: normalized.embedding.model,
@@ -475,6 +484,9 @@ export function createAdminAiServices({
           ollamaModel: normalized.model,
           aiSummarisationEnabled: normalized.aiFeaturesEnabled,
           ollamaTranslationModel: normalized.translation.model,
+          translationProvider: normalized.translation.provider,
+          translationBaseUrl: normalized.translation.baseUrl,
+          translationApiKeySecretRef: normalized.translation.apiKeySecretRef,
           ollamaEmbeddingEnabled: normalized.aiFeaturesEnabled,
           ollamaEmbeddingHost: normalized.embedding.baseUrl,
           ollamaEmbeddingModel: normalized.embedding.model,
@@ -519,9 +531,11 @@ export function createAdminAiServices({
   async function listChatModels({
     provider,
     baseUrl,
+    includeEmbeddingModels = false,
   }: {
     provider?: AdminAiSettings['chat']['provider'];
     baseUrl?: string;
+    includeEmbeddingModels?: boolean;
   } = {}): Promise<AdminAiModel[]> {
     const settings = provider === undefined || (provider !== 'gemini' && baseUrl === undefined)
       ? await getSettings()
@@ -537,11 +551,16 @@ export function createAdminAiServices({
     }
 
     const effectiveBaseUrl = baseUrl ?? settings?.chat.baseUrl ?? config.ollama.host;
-    return (await listModels({ host: effectiveBaseUrl }))
-      .filter(model =>
-        model.name !== settings?.embedding.model
-        && !isLikelyEmbeddingModelName(model.name)
-      );
+    const models = await listModels({ host: effectiveBaseUrl });
+
+    if (includeEmbeddingModels) {
+      return models;
+    }
+
+    return models.filter(model =>
+      model.name !== settings?.embedding.model
+      && !isLikelyEmbeddingModelName(model.name)
+    );
   }
 
   async function probeModelLoad({

@@ -1,4 +1,6 @@
+import { generateText } from 'ai';
 import { createOllamaProvider } from '../ai/providers/index.js';
+import { createChatModel } from '../chat/chat-ai-sdk.js';
 
 export const SUPPORTED_TRANSLATION_LANGUAGES = ['de', 'en'] as const;
 
@@ -39,8 +41,10 @@ export type DocumentTranslation = {
 
 export type RuntimeTranslationSettings = {
   enabled?: boolean;
+  provider?: 'ollama' | 'gemini';
   host: string;
   model: string;
+  apiKey?: string;
   logRequests?: boolean;
 };
 
@@ -53,6 +57,7 @@ export interface TranslationProvider {
   }) => Promise<{
     text: string;
     model: string;
+    provider?: string;
   }>;
 }
 
@@ -146,6 +151,27 @@ function getOllamaImageAttachments(source: TranslationSource) {
   return [source.imageBase64];
 }
 
+function getAiSdkUserContent({
+  prompt,
+  source,
+}: {
+  prompt: string;
+  source: TranslationSource;
+}) {
+  if (source.type === 'text') {
+    return prompt;
+  }
+
+  return [
+    { type: 'text' as const, text: prompt },
+    {
+      type: 'file' as const,
+      mediaType: source.mimeType,
+      data: source.imageBase64,
+    },
+  ];
+}
+
 export function createRuntimeConfiguredOllamaTranslationProvider({
   resolveSettings,
   fetchImpl = fetch,
@@ -162,7 +188,48 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
       if (settings.enabled === false) {
         throw new Error('AI features are disabled for this Arkivra instance.');
       }
+      const provider = settings.provider ?? 'ollama';
       const prompt = buildPrompt({ targetLanguage, source });
+      if (provider === 'gemini') {
+        if (settings.logRequests) {
+          console.info(
+            `[translation:gemini] translating ${source.type} with model=${settings.model} target=${targetLanguage}`,
+          );
+        }
+
+        const model = createChatModel({
+          settings: {
+            provider: 'gemini',
+            baseUrl: settings.host,
+            apiKey: settings.apiKey,
+          },
+          model: settings.model,
+        });
+        const result = await generateText({
+          model,
+          system: TRANSLATION_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: 'user',
+              content: getAiSdkUserContent({ prompt, source }),
+            },
+          ],
+          temperature: 0,
+          abortSignal: signal,
+        });
+        const text = result.text.trim();
+
+        if (text.length === 0) {
+          throw new Error('Gemini returned an empty translation.');
+        }
+
+        return {
+          text,
+          model: settings.model,
+          provider,
+        };
+      }
+
       const images = getOllamaImageAttachments(source);
 
       if (settings.logRequests) {
@@ -199,6 +266,7 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
       return {
         text,
         model: settings.model,
+        provider,
       };
     },
   };
@@ -224,7 +292,7 @@ export function createDocumentTranslationServices({
       return {
         targetLanguage,
         text: result.text,
-        provider: provider.name,
+        provider: result.provider ?? provider.name,
         model: result.model,
         sourceType: source.type,
       };

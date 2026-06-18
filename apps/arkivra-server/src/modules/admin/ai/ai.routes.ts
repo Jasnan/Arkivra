@@ -24,10 +24,17 @@ const ollamaProviderSettingsSchema = z.object({
   model: z.string().min(1),
 });
 
+const providerSettingsSchema = z.object({
+  provider: z.enum(['ollama', 'gemini']),
+  baseUrl: z.string().url(),
+  apiKeySecretRef: z.string().min(1).nullable().optional(),
+  model: z.string().min(1),
+});
+
 const aiSettingsSchema = z.object({
   aiFeaturesEnabled: z.boolean(),
   chat: chatProviderSettingsSchema,
-  translation: ollamaProviderSettingsSchema.optional(),
+  translation: providerSettingsSchema.optional(),
   embedding: ollamaProviderSettingsSchema.extend({
     dimensions: z.number().int().min(1),
   }),
@@ -44,6 +51,7 @@ const aiSettingsSchema = z.object({
 const aiHostSchema = z.object({
   host: z.string().url(),
   provider: z.enum(['ollama', 'gemini']).optional(),
+  includeEmbeddingModels: z.boolean().optional(),
 });
 
 const aiAvailabilitySchema = z.object({
@@ -123,6 +131,7 @@ export function registerAdminAiRoutes({
       const models = await aiServices.listChatModels({
         provider: parsed.data.provider,
         baseUrl: parsed.data.host,
+        includeEmbeddingModels: parsed.data.includeEmbeddingModels,
       });
       return context.json({ models });
     } catch (error) {

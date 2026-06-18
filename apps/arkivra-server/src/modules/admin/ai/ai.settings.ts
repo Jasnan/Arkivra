@@ -241,12 +241,27 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
     model: chatModel,
     allowedModels: input.chat?.allowedModels,
   });
-  const translationBaseUrl = normalizeHost(input.translation?.baseUrl ?? chatBaseUrl);
+  const requestedTranslationProvider = input.translation?.provider === 'gemini' ? 'gemini' : 'ollama';
+  const translationBaseUrl = normalizeChatBaseUrl({
+    provider: requestedTranslationProvider,
+    baseUrl: input.translation?.baseUrl,
+    fallbackOllamaHost: input.ollamaHost,
+  });
   const translationModel = (input.translation?.model ?? chatModel).trim();
   const embeddingBaseUrl = normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);
   const embeddingModel = input.embedding.model.trim();
-  const legacyOllamaHost = chatProvider === 'ollama' ? chatBaseUrl : translationBaseUrl;
-  const legacyOllamaModel = chatProvider === 'ollama' ? chatModel : translationModel;
+  const legacyOllamaHost =
+    chatProvider === 'ollama'
+      ? chatBaseUrl
+      : requestedTranslationProvider === 'ollama'
+        ? translationBaseUrl
+        : (input.ollamaHost || embeddingBaseUrl);
+  const legacyOllamaModel =
+    chatProvider === 'ollama'
+      ? chatModel
+      : requestedTranslationProvider === 'ollama'
+        ? translationModel
+        : (input.model || embeddingModel);
   const geminiApiKeySecretRef = (
     input.providers?.gemini?.apiKeySecretRef
     ?? (chatProvider === 'gemini' ? input.chat?.apiKeySecretRef : null)
@@ -262,9 +277,12 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       allowedModels: allowedChatModels,
     },
     translation: {
-      provider: 'ollama',
+      provider: requestedTranslationProvider,
       baseUrl: translationBaseUrl,
-      apiKeySecretRef: null,
+      apiKeySecretRef:
+        requestedTranslationProvider === 'gemini'
+          ? normalizeApiKeySecretRef(input.translation?.apiKeySecretRef ?? geminiApiKeySecretRef)
+          : null,
       model: translationModel,
     },
     embedding: {

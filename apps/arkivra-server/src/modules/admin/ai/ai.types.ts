@@ -43,6 +43,7 @@ export type AdminAiModel = {
   name: string;
   size: number | null;
   modifiedAt: string | null;
+  description?: string | null;
 };
 
 export type AdminAiModelAvailability = {

@@ -122,6 +122,7 @@ export interface AdminAiModel {
   name: string;
   size: number | null;
   modifiedAt: string | null;
+  description?: string | null;
 }
 
 export interface AdminAiAvailability {

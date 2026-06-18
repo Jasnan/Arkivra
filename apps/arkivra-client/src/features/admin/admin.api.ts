@@ -158,15 +158,17 @@ export async function updateAdminAiSettings(settings: AdminAiSettings) {
 
 export async function listAiChatModels({
   host,
+  includeEmbeddingModels,
   provider,
 }: {
   host: string;
+  includeEmbeddingModels?: boolean;
   provider?: AdminAiSettings['chat']['provider'];
 }) {
   return fetchJson<{ models: AdminAiModel[] }>('/api/admin/ai/models', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ host, provider }),
+    body: JSON.stringify({ host, includeEmbeddingModels, provider }),
   });
 }
 

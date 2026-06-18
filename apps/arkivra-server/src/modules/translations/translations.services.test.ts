@@ -28,7 +28,7 @@ describe('translation services', () => {
       },
     });
 
-    expect(result).toEqual({ text: 'Hello world', model: 'gemma4:e4b' });
+    expect(result).toEqual({ text: 'Hello world', model: 'gemma4:e4b', provider: 'ollama' });
     expect(fetchMock).toHaveBeenCalledWith('http://ollama.test/api/chat', expect.objectContaining({
       method: 'POST',
     }));

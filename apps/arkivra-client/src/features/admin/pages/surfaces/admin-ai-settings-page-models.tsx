@@ -1,14 +1,6 @@
 import { Flex, HStack, SimpleGrid, Stack, Text } from '@chakra-ui/react';
-import { AlertTriangle, Languages, Package, Send } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Languages, Package, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import type { AdminAiSettings } from '@/features/admin/admin.types';
 import { SettingsStatusBadge } from '@/features/settings/components/settings-ui';
 import type { SettingsStatusTone } from '@/features/settings/components/settings-ui';
@@ -32,11 +24,11 @@ interface AdminAiModelSectionsProps {
   semanticIndexTone: SettingsStatusTone;
   semanticStatus: string;
   translationConnectionStatus: string;
-  translationModelOptions: string[];
+  translationModelCount: number;
   onChangeEmbeddingModel: (key: string) => void;
   onConfigureChatModels: () => void;
   onOpenEmbeddingModelDialog: () => void;
-  onTranslationModelChange: (model: string, baseUrl: string) => void;
+  onOpenTranslationModelDialog: () => void;
 }
 
 export function AdminAiModelSections({
@@ -55,11 +47,11 @@ export function AdminAiModelSections({
   semanticIndexTone,
   semanticStatus,
   translationConnectionStatus,
-  translationModelOptions,
+  translationModelCount,
   onChangeEmbeddingModel,
   onConfigureChatModels,
   onOpenEmbeddingModelDialog,
-  onTranslationModelChange,
+  onOpenTranslationModelDialog,
 }: AdminAiModelSectionsProps) {
   return (
     <SimpleGrid columns={{ base: 1, xl: 3 }} gap="3" alignItems="stretch">
@@ -89,27 +81,6 @@ export function AdminAiModelSections({
               {semanticStatus}
             </SettingsStatusBadge>
           </HStack>
-          <Alert
-            status="warning"
-            colorPalette="orange"
-            borderColor="orange.muted"
-            bg="orange.subtle"
-            alignItems="flex-start"
-          >
-            <AlertTriangle size={16} />
-            <AlertDescription>
-              <Stack gap="1">
-                <Text fontWeight="semibold">
-                  Changing the embedding model requires rebuilding the semantic search index.
-                </Text>
-                <Text>
-                  {aiDraft.aiFeaturesEnabled
-                    ? 'A full reindexing job will run in the background and may take several hours depending on your data size.'
-                    : 'When AI features are enabled, a full reindexing job will run in the background and may take several hours depending on your data size.'}
-                </Text>
-              </Stack>
-            </AlertDescription>
-          </Alert>
           <Button
             type="button"
             variant="outline"
@@ -203,36 +174,10 @@ export function AdminAiModelSections({
               badgeLabel={effectiveTranslationModel ? 'Selected' : 'Not selected'}
             />
           </Stack>
-          <Stack gap="2">
-            <Text textStyle="xs" fontWeight="semibold" color="fg.muted">
-              Translation model
-            </Text>
-            <Select
-              value={effectiveTranslationModel}
-              disabled={translationModelOptions.length === 0 || isSaving}
-              onValueChange={(model) => {
-                const baseUrl =
-                  aiDraft.translation.baseUrl || aiDraft.ollamaHost || aiDraft.embedding.baseUrl;
-                onTranslationModelChange(model, baseUrl);
-              }}
-              positioning={{ sameWidth: true }}
-            >
-              <SelectTrigger aria-label="Translation model" bg="bg.surface">
-                <SelectValue placeholder="Select translation model" />
-              </SelectTrigger>
-              <SelectContent>
-                {translationModelOptions.map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Text textStyle="xs" color="fg.muted">
-              Uses the configured Ollama translation endpoint. Choose a model that supports the
-              document inputs you translate.
-            </Text>
-          </Stack>
+          <Text textStyle="xs" color="fg.muted">
+            Choose a multimodal model that can accept image input for scanned and image-only
+            document pages.
+          </Text>
           <HStack gap="2" align="center">
             <Text textStyle="xs" fontWeight="semibold" color="fg.muted">
               Status
@@ -250,6 +195,16 @@ export function AdminAiModelSections({
               {translationConnectionStatus}
             </SettingsStatusBadge>
           </HStack>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            alignSelf="flex-start"
+            disabled={translationModelCount === 0 || isSaving}
+            onClick={onOpenTranslationModelDialog}
+          >
+            Change model
+          </Button>
         </Stack>
       </AiSettingsSection>
     </SimpleGrid>

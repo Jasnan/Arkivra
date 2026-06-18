@@ -250,8 +250,14 @@ export function createServer({
       const aiSettings = await aiServices.getSettings();
       return {
         enabled: aiSettings.aiFeaturesEnabled,
+        provider: aiSettings.translation.provider,
         host: aiSettings.translation.baseUrl,
         model: aiSettings.translation.model,
+        apiKey: resolveChatProviderApiKey({
+          provider: aiSettings.translation.provider,
+          apiKeySecretRef: aiSettings.translation.apiKeySecretRef,
+          providerApiKeySecretRef: aiSettings.providers?.gemini?.apiKeySecretRef,
+        }),
         logRequests: config.ollama.logRequests,
       };
     },

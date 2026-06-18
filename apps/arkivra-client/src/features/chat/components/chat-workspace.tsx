@@ -2,26 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Box,
-  CloseButton,
-  Drawer,
-  Flex,
-  Portal,
   ScrollArea,
-  Skeleton,
-  Status,
-  Text,
 } from '@chakra-ui/react';
-import {
-  AlertCircle,
-  MessageSquare,
-  X,
-} from 'lucide-react';
 import { toast } from '@/components/ui/toaster-store';
-import { Button } from '@/components/ui/button';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
-import type { ChatApiScope, ChatResponseMode } from '../chat.api';
+import type { ChatResponseMode } from '../chat.api';
 import {
   chatQueryKeys,
   useChatConversationQuery,
@@ -31,22 +18,33 @@ import {
   useUpdateChatConversationContextMutation,
   useChatModelOptionsQuery,
 } from '../chat.queries';
-import type { ChatContextSnapshot, ChatConversation, ChatConversationDetail, ChatIntent, ChatMessage } from '../chat.types';
-import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
 import type {
-  ChatWorkspaceProps,
-} from './chat-utils';
+  ChatConversation,
+  ChatConversationDetail,
+  ChatIntent,
+  ChatMessage,
+} from '../chat.types';
+import type { DraftChatContext, DraftChatDocument, DraftChatVault } from './chat-context-selector';
+import type { ChatWorkspaceProps } from './chat-utils';
 import {
   NEW_CHAT_DRAFT_ID,
   conversationDayLabel,
   getChatExperienceConfig,
   getLatestIntent,
 } from './chat-utils';
+import {
+  canUseContextSnapshot,
+  conversationScopeValuesFromSnapshot,
+  getContextAccessMessage,
+  getContextUnavailableMessage,
+  getRuntimeConversationId,
+  hasPendingAssistantMessage,
+  messageSignature,
+  scopeFromContextSnapshot,
+  shouldUseLocalRuntimeMessages,
+} from './chat-workspace.helpers';
 import { ChatConversationRail } from './chat-conversation-rail';
 import {
-  ConversationForkDialog,
-  DocumentSelectionDialog,
-  VaultSelectionDialog,
   contextSnapshotFromDraft,
   createEmptyDraftContext,
   draftContextFromSnapshot,
@@ -60,197 +58,15 @@ import type {
   AssistantChatRuntimeHandle,
   AssistantChatRuntimeState,
 } from './assistant-chat-runtime';
-import {
-  AssistantChatRuntimeProvider,
-} from './assistant-chat-runtime';
+import { AssistantChatRuntimeProvider } from './assistant-chat-runtime';
 import { AssistantChatThread } from './assistant-chat-thread';
 import { AssistantChatComposer } from './assistant-chat-composer';
-
-function scopeFromContextSnapshot(snapshot: ChatContextSnapshot): ChatApiScope {
-  if (snapshot.type === 'document') {
-    return { vaultId: snapshot.vaultId, documentId: snapshot.documentId };
-  }
-
-  if (snapshot.type === 'vault') {
-    return { vaultId: snapshot.vaultId };
-  }
-
-  return {};
-}
-
-function conversationScopeValuesFromSnapshot(snapshot: ChatContextSnapshot) {
-  if (snapshot.type === 'document') {
-    return {
-      scope: 'document' as const,
-      vaultId: snapshot.vaultId,
-      documentId: snapshot.documentId,
-    };
-  }
-
-  if (snapshot.type === 'vault') {
-    return {
-      scope: 'vault' as const,
-      vaultId: snapshot.vaultId,
-      documentId: null,
-    };
-  }
-
-  return {
-    scope: 'global' as const,
-    vaultId: null,
-    documentId: null,
-  };
-}
-
-function getContextAccessMessage(snapshot: ChatContextSnapshot) {
-  if (snapshot.type === 'document') {
-    return 'Document chat requires document chat or full AI access on this vault.';
-  }
-
-  if (snapshot.type === 'vault') {
-    return 'To chat with this vault, join it as a member with full AI access. Admin access alone is not enough.';
-  }
-
-  if (snapshot.type === 'selection') {
-    return 'Selected context includes vaults or documents without the required AI access.';
-  }
-
-  return 'To start using chat, join at least one vault as a member with full AI access. Admin access alone is not enough.';
-}
-
-function getContextUnavailableMessage(message?: string) {
-  return message ?? 'One or more source versions are unavailable. This conversation is available as read-only history.';
-}
-
-function getMessageConversationId(message: ChatMessage) {
-  const conversationId = message.metadata?.conversationId;
-  return typeof conversationId === 'string' && conversationId.length > 0 ? conversationId : null;
-}
-
-function getRuntimeConversationId(messages: ChatMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const conversationId = getMessageConversationId(messages[index]);
-    if (conversationId !== null) return conversationId;
-  }
-
-  return null;
-}
-
-function hasPendingAssistantMessage(messages: ChatMessage[]) {
-  return messages.some(isPendingAssistantMessage);
-}
-
-function localPendingAssistantMessages(messages: ChatMessage[]) {
-  return messages.filter(isPendingAssistantMessage);
-}
-
-function hasTextContent(message: ChatMessage) {
-  return message.parts.some(part => part.type === 'text' && part.text.trim().length > 0);
-}
-
-function hasStatusPart(message: ChatMessage) {
-  return message.parts.some(part => part.type === 'data-status');
-}
-
-function isPendingAssistantMessage(message: ChatMessage) {
-  if (message.role !== 'assistant') return false;
-
-  const generationStatus = message.metadata?.generationStatus;
-  if (generationStatus === 'completed' || generationStatus === 'failed') return false;
-  if (generationStatus === 'pending') return true;
-
-  return hasStatusPart(message) && !hasTextContent(message);
-}
-
-function hasTerminalPersistedMessageForLocalPending({
-  localMessages,
-  persistedMessages,
-}: {
-  localMessages: ChatMessage[];
-  persistedMessages: ChatMessage[];
-}) {
-  const terminalPersistedIds = new Set(
-    persistedMessages
-      .filter(message =>
-        message.role === 'assistant'
-        && !isPendingAssistantMessage(message))
-      .map(message => message.id),
-  );
-
-  const pendingLocalMessages = localPendingAssistantMessages(localMessages);
-  return pendingLocalMessages.length > 0
-    && pendingLocalMessages.every(message => terminalPersistedIds.has(message.id));
-}
-
-function messageSignature(messages: ChatMessage[]) {
-  return messages
-    .map((message) => [
-      message.id,
-      message.role,
-      message.metadata?.generationStatus ?? '',
-      message.parts.map((part) => {
-        if (part.type === 'text') return `text:${part.text}`;
-        if (part.type === 'data-status') {
-          const label = typeof part.data === 'object'
-            && part.data !== null
-            && 'label' in part.data
-            && typeof part.data.label === 'string'
-            ? part.data.label
-            : '';
-          return `status:${label}`;
-        }
-        return part.type;
-      }).join(','),
-    ].join('|'))
-    .join('||');
-}
-
-function shouldUseLocalRuntimeMessages({
-  localMessages,
-  persistedMessages,
-}: {
-  localMessages: ChatMessage[] | undefined;
-  persistedMessages: ChatMessage[];
-}) {
-  if (!localMessages || localMessages.length === 0) return false;
-  if (persistedMessages.length === 0) return true;
-  if (hasPendingAssistantMessage(localMessages)) {
-    return !hasTerminalPersistedMessageForLocalPending({ localMessages, persistedMessages });
-  }
-  return false;
-}
-
-function canUseContextSnapshot({
-  snapshot,
-  aiAccessByVaultId,
-  hasFullAiVault,
-}: {
-  snapshot: ChatContextSnapshot;
-  aiAccessByVaultId: Map<string, 'none' | 'full'>;
-  hasFullAiVault: boolean;
-}) {
-  if (snapshot.type === 'global') {
-    if (snapshot.vaultIds.length === 0) return hasFullAiVault;
-    return snapshot.vaultIds.every(vaultId => aiAccessByVaultId.get(vaultId) === 'full');
-  }
-
-  if (snapshot.type === 'vault') {
-    return aiAccessByVaultId.get(snapshot.vaultId) === 'full';
-  }
-
-  if (snapshot.type === 'document') {
-    return aiAccessByVaultId.get(snapshot.vaultId) === 'full';
-  }
-
-  if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) {
-    return false;
-  }
-
-  return (
-    snapshot.vaults.every(vault => aiAccessByVaultId.get(vault.vaultId) === 'full')
-    && snapshot.documents.every(document => aiAccessByVaultId.get(document.vaultId) === 'full')
-  );
-}
+import {
+  ChatConversationSkeleton,
+  ChatMobileConversationDrawer,
+  ChatWorkspaceBanners,
+  ChatWorkspaceContextDialogs,
+} from './chat-workspace-layout';
 
 export function ChatWorkspace({
   scope,
@@ -286,7 +102,9 @@ export function ChatWorkspace({
   const [responseMode, setResponseMode] = useState<ChatResponseMode>(defaultChatAnswerMode);
   const [selectedModel, setSelectedModel] = useState('');
   const [composerValue, setComposerValue] = useState('');
-  const [localRuntimeMessagesByChatId, setLocalRuntimeMessagesByChatId] = useState<Record<string, ChatMessage[]>>({});
+  const [localRuntimeMessagesByChatId, setLocalRuntimeMessagesByChatId] = useState<
+    Record<string, ChatMessage[]>
+  >({});
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false);
@@ -297,28 +115,31 @@ export function ChatWorkspace({
   const hasManualResponseModeRef = useRef(false);
   const previousSelectedConversationIdRef = useRef(selectedConversationId);
   const activeRuntimeChatIdRef = useRef('');
-  const isStreaming = runtimeState.status === 'submitted'
-    || runtimeState.status === 'streaming'
-    || hasPendingAssistantMessage(runtimeState.messages);
+  const isStreaming =
+    runtimeState.status === 'submitted' ||
+    runtimeState.status === 'streaming' ||
+    hasPendingAssistantMessage(runtimeState.messages);
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
-  const effectiveSelectedChatId = isDraftConversation
-    ? ''
-    : selectedChatId;
+  const effectiveSelectedChatId = isDraftConversation ? '' : selectedChatId;
   const selectedLocalRuntimeMessages = effectiveSelectedChatId
     ? localRuntimeMessagesByChatId[effectiveSelectedChatId]
     : undefined;
-  const selectedHasPendingLocalMessages = hasPendingAssistantMessage(selectedLocalRuntimeMessages ?? []);
+  const selectedHasPendingLocalMessages = hasPendingAssistantMessage(
+    selectedLocalRuntimeMessages ?? [],
+  );
   const selectedChatQuery = useChatConversationQuery({
     chatId: effectiveSelectedChatId,
     refetchInterval: (query) => {
       const conversation = query.state.data?.conversation;
-      return selectedHasPendingLocalMessages || hasPendingAssistantMessage(conversation?.messages ?? [])
+      return selectedHasPendingLocalMessages ||
+        hasPendingAssistantMessage(conversation?.messages ?? [])
         ? 1500
         : false;
     },
   });
   const hydratedDraftContext = useMemo(
-    () => hydrateDraftContextLabels({ context: draftContext, vaults: vaultsQuery.data?.vaults ?? [] }),
+    () =>
+      hydrateDraftContextLabels({ context: draftContext, vaults: vaultsQuery.data?.vaults ?? [] }),
     [draftContext, vaultsQuery.data?.vaults],
   );
   const draftContextSnapshot = useMemo(
@@ -327,23 +148,22 @@ export function ChatWorkspace({
   );
   const lockedContextSnapshot = selectedChatQuery.data?.conversation.contextSnapshot ?? null;
   const selectedConversationMessageCount = selectedChatQuery.data?.conversation.messages.length;
-  const isPristineSavedConversation = effectiveSelectedChatId.length > 0
-    && selectedConversationMessageCount === 0
-    && !isStreaming;
+  const isPristineSavedConversation =
+    effectiveSelectedChatId.length > 0 && selectedConversationMessageCount === 0 && !isStreaming;
   const isContextLocked = effectiveSelectedChatId.length > 0 && !isPristineSavedConversation;
   const contextAvailability = selectedChatQuery.data?.conversation.contextAvailability;
   const isContextReadOnly = contextAvailability?.readOnly === true;
-  const activeContextSnapshot = isContextLocked && lockedContextSnapshot
-    ? lockedContextSnapshot
-    : draftContextSnapshot;
+  const activeContextSnapshot =
+    isContextLocked && lockedContextSnapshot ? lockedContextSnapshot : draftContextSnapshot;
   const activeScope = scopeFromContextSnapshot(activeContextSnapshot);
   const displayedContext = useMemo(
-    () => isContextLocked && lockedContextSnapshot
-      ? hydrateDraftContextLabels({
-          context: draftContextFromSnapshot(lockedContextSnapshot),
-          vaults: vaultsQuery.data?.vaults ?? [],
-        })
-      : hydratedDraftContext,
+    () =>
+      isContextLocked && lockedContextSnapshot
+        ? hydrateDraftContextLabels({
+            context: draftContextFromSnapshot(lockedContextSnapshot),
+            vaults: vaultsQuery.data?.vaults ?? [],
+          })
+        : hydratedDraftContext,
     [hydratedDraftContext, isContextLocked, lockedContextSnapshot, vaultsQuery.data?.vaults],
   );
   const activeVaultId = activeScope.vaultId;
@@ -363,14 +183,19 @@ export function ChatWorkspace({
 
     return accessByVaultId;
   }, [activeVaultId, vaultAiAccessLevel, vaultsQuery.data?.vaults]);
-  const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some((vault) => vault.aiAccessLevel === 'full');
-  const isContextAccessLoading = vaultsQuery.isLoading || (activeVaultId ? vaultQuery.isLoading : false);
-  const canUseChat = !isContextReadOnly
-    && (isContextAccessLoading || canUseContextSnapshot({
-      snapshot: activeContextSnapshot,
-      aiAccessByVaultId,
-      hasFullAiVault,
-    }));
+  const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some(
+    (vault) => vault.aiAccessLevel === 'full',
+  );
+  const isContextAccessLoading =
+    vaultsQuery.isLoading || (activeVaultId ? vaultQuery.isLoading : false);
+  const canUseChat =
+    !isContextReadOnly &&
+    (isContextAccessLoading ||
+      canUseContextSnapshot({
+        snapshot: activeContextSnapshot,
+        aiAccessByVaultId,
+        hasFullAiVault,
+      }));
   const aiAccessMessage = getContextAccessMessage(activeContextSnapshot);
   const contextUnavailableMessage = getContextUnavailableMessage(
     contextAvailability?.readOnly === true ? contextAvailability.message : undefined,
@@ -389,25 +214,27 @@ export function ChatWorkspace({
     [selectedChatQuery.data?.conversation.messages],
   );
   const runtimeMessagesForSelectedChat = useMemo(
-    () => shouldUseLocalRuntimeMessages({
-      localMessages: selectedLocalRuntimeMessages,
-      persistedMessages,
-    })
-      ? selectedLocalRuntimeMessages ?? []
-      : persistedMessages,
+    () =>
+      shouldUseLocalRuntimeMessages({
+        localMessages: selectedLocalRuntimeMessages,
+        persistedMessages,
+      })
+        ? (selectedLocalRuntimeMessages ?? [])
+        : persistedMessages,
     [persistedMessages, selectedLocalRuntimeMessages],
   );
   const messages = runtimeState.messages;
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
   const effectiveIntent = activeConversationIntent;
-  const isSelectedConversationLoading = effectiveSelectedChatId.length > 0
-    && selectedChatQuery.isLoading
-    && messages.length === 0;
-  const shouldShowEmptyState = effectiveSelectedChatId.length === 0
-    && messages.length === 0
-    && !isStreaming
-    && !createConversation.isPending;
-  const isComposerDisabled = isSelectedConversationLoading || !canUseChat || isStreaming || createConversation.isPending;
+  const isSelectedConversationLoading =
+    effectiveSelectedChatId.length > 0 && selectedChatQuery.isLoading && messages.length === 0;
+  const shouldShowEmptyState =
+    effectiveSelectedChatId.length === 0 &&
+    messages.length === 0 &&
+    !isStreaming &&
+    !createConversation.isPending;
+  const isComposerDisabled =
+    isSelectedConversationLoading || !canUseChat || isStreaming || createConversation.isPending;
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
     if (!isDraftConversation) return conversations;
@@ -426,11 +253,7 @@ export function ChatWorkspace({
       },
       ...conversations,
     ];
-  }, [
-    conversationsQuery.data?.conversations,
-    isDraftConversation,
-    draftContextSnapshot,
-  ]);
+  }, [conversationsQuery.data?.conversations, isDraftConversation, draftContextSnapshot]);
   const conversationSections = useMemo(() => {
     const sections = new Map<string, ChatConversation[]>();
     for (const conversation of visibleConversations) {
@@ -457,45 +280,55 @@ export function ChatWorkspace({
     setRuntimeState({ messages: [], status: 'ready' });
   }, []);
 
-  const setLocalRuntimeMessages = useCallback((chatId: string, messages: ChatMessage[]) => {
-    if (chatId.length === 0 || messages.length === 0) return;
+  const setLocalRuntimeMessages = useCallback(
+    (chatId: string, messages: ChatMessage[]) => {
+      if (chatId.length === 0 || messages.length === 0) return;
 
-    setLocalRuntimeMessagesByChatId((current) => {
-      const existing = current[chatId];
-      if (existing && messageSignature(existing) === messageSignature(messages)) return current;
-      return { ...current, [chatId]: messages };
-    });
+      setLocalRuntimeMessagesByChatId((current) => {
+        const existing = current[chatId];
+        if (existing && messageSignature(existing) === messageSignature(messages)) return current;
+        return { ...current, [chatId]: messages };
+      });
 
-    queryClient.setQueryData(
-      chatQueryKeys.conversation(chatId),
-      (current: { conversation: ChatConversationDetail } | undefined) => {
-        const currentConversation = current?.conversation;
-        if (!currentConversation) return current;
-        if (messageSignature(currentConversation.messages) === messageSignature(messages)) return current;
+      queryClient.setQueryData(
+        chatQueryKeys.conversation(chatId),
+        (current: { conversation: ChatConversationDetail } | undefined) => {
+          const currentConversation = current?.conversation;
+          if (!currentConversation) return current;
+          if (messageSignature(currentConversation.messages) === messageSignature(messages))
+            return current;
 
-        return {
-          conversation: {
-            ...currentConversation,
-            messages,
-          },
-        };
-      },
-    );
-  }, [queryClient]);
+          return {
+            conversation: {
+              ...currentConversation,
+              messages,
+            },
+          };
+        },
+      );
+    },
+    [queryClient],
+  );
 
-  const handleRuntimeStateChange = useCallback((state: AssistantChatRuntimeState) => {
-    const runtimeConversationId = getRuntimeConversationId(state.messages);
-    const targetChatId = runtimeConversationId
-      ?? (state.status === 'submitted' || state.status === 'streaming' ? activeRuntimeChatIdRef.current : effectiveSelectedChatId);
+  const handleRuntimeStateChange = useCallback(
+    (state: AssistantChatRuntimeState) => {
+      const runtimeConversationId = getRuntimeConversationId(state.messages);
+      const targetChatId =
+        runtimeConversationId ??
+        (state.status === 'submitted' || state.status === 'streaming'
+          ? activeRuntimeChatIdRef.current
+          : effectiveSelectedChatId);
 
-    if (targetChatId && state.messages.length > 0) {
-      setLocalRuntimeMessages(targetChatId, state.messages);
-    }
+      if (targetChatId && state.messages.length > 0) {
+        setLocalRuntimeMessages(targetChatId, state.messages);
+      }
 
-    if (!targetChatId || targetChatId === effectiveSelectedChatId) {
-      setRuntimeState(state);
-    }
-  }, [effectiveSelectedChatId, setLocalRuntimeMessages]);
+      if (!targetChatId || targetChatId === effectiveSelectedChatId) {
+        setRuntimeState(state);
+      }
+    },
+    [effectiveSelectedChatId, setLocalRuntimeMessages],
+  );
 
   useEffect(() => {
     if (selectedConversationId === previousSelectedConversationIdRef.current) return;
@@ -546,40 +379,54 @@ export function ChatWorkspace({
 
   const handleCreateConversation = useCallback(() => {
     setSelectedChatId(NEW_CHAT_DRAFT_ID);
-    setDraftContext(selectedConversationId === undefined ? initialDraftContext : createEmptyDraftContext());
+    setDraftContext(
+      selectedConversationId === undefined ? initialDraftContext : createEmptyDraftContext(),
+    );
     setIsMobileConversationRailOpen(false);
     resetComposerState();
     focusComposer();
   }, [focusComposer, initialDraftContext, resetComposerState, selectedConversationId]);
 
-  const handleSelectConversation = useCallback((chatId: string) => {
-    if (chatId === effectiveSelectedChatId) return;
-    setSelectedChatId(chatId);
-    resetComposerState();
-    onConversationSelected?.(chatId);
-  }, [effectiveSelectedChatId, onConversationSelected, resetComposerState]);
-
-  const handleSelectMobileConversation = useCallback((chatId: string) => {
-    handleSelectConversation(chatId);
-    setIsMobileConversationRailOpen(false);
-  }, [handleSelectConversation]);
-
-  const handleDeleteConversation = useCallback(async (chatId: string) => {
-    if (chatId === NEW_CHAT_DRAFT_ID) {
-      setSelectedChatId('');
-      setDraftContext(initialDraftContext);
+  const handleSelectConversation = useCallback(
+    (chatId: string) => {
+      if (chatId === effectiveSelectedChatId) return;
+      setSelectedChatId(chatId);
       resetComposerState();
-      return;
-    }
+      onConversationSelected?.(chatId);
+    },
+    [effectiveSelectedChatId, onConversationSelected, resetComposerState],
+  );
 
-    await deleteConversation.mutateAsync({ chatId });
-    if (selectedChatId === chatId) setSelectedChatId('');
-    await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
-  }, [deleteConversation, initialDraftContext, queryClient, resetComposerState, selectedChatId]);
+  const handleSelectMobileConversation = useCallback(
+    (chatId: string) => {
+      handleSelectConversation(chatId);
+      setIsMobileConversationRailOpen(false);
+    },
+    [handleSelectConversation],
+  );
 
-  const handleDeleteConversationClick = useCallback((chatId: string) => {
-    void handleDeleteConversation(chatId);
-  }, [handleDeleteConversation]);
+  const handleDeleteConversation = useCallback(
+    async (chatId: string) => {
+      if (chatId === NEW_CHAT_DRAFT_ID) {
+        setSelectedChatId('');
+        setDraftContext(initialDraftContext);
+        resetComposerState();
+        return;
+      }
+
+      await deleteConversation.mutateAsync({ chatId });
+      if (selectedChatId === chatId) setSelectedChatId('');
+      await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
+    },
+    [deleteConversation, initialDraftContext, queryClient, resetComposerState, selectedChatId],
+  );
+
+  const handleDeleteConversationClick = useCallback(
+    (chatId: string) => {
+      void handleDeleteConversation(chatId);
+    },
+    [handleDeleteConversation],
+  );
 
   function applyContextChange(nextContext: DraftChatContext) {
     const hydratedNextContext = hydrateDraftContextLabels({
@@ -596,7 +443,8 @@ export function ChatWorkspace({
     setDraftContext(hydratedNextContext);
     if (effectiveSelectedChatId.length > 0) {
       const contextSnapshot = contextSnapshotFromDraft(hydratedNextContext);
-      void updateConversationContext.mutateAsync({ chatId: effectiveSelectedChatId, contextSnapshot })
+      void updateConversationContext
+        .mutateAsync({ chatId: effectiveSelectedChatId, contextSnapshot })
         .then((result) => {
           queryClient.setQueryData(
             chatQueryKeys.conversation(effectiveSelectedChatId),
@@ -614,11 +462,12 @@ export function ChatWorkspace({
           void queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
         })
         .catch((error) => {
-          const message = error instanceof Error
-            ? error.message
-            : 'Could not update conversation context.';
+          const message =
+            error instanceof Error ? error.message : 'Could not update conversation context.';
           toast.error(message);
-          void queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(effectiveSelectedChatId) });
+          void queryClient.invalidateQueries({
+            queryKey: chatQueryKeys.conversation(effectiveSelectedChatId),
+          });
           void queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
         });
     }
@@ -695,67 +544,78 @@ export function ChatWorkspace({
     }
   }
 
-  const resolveRuntimeChatId = useCallback(async ({ content }: { content: string }) => {
-    if (effectiveSelectedChatId.length > 0) {
-      activeRuntimeChatIdRef.current = effectiveSelectedChatId;
-      return effectiveSelectedChatId;
-    }
+  const resolveRuntimeChatId = useCallback(
+    async ({ content }: { content: string }) => {
+      if (effectiveSelectedChatId.length > 0) {
+        activeRuntimeChatIdRef.current = effectiveSelectedChatId;
+        return effectiveSelectedChatId;
+      }
 
-    const result = await createConversation.mutateAsync({
-      contextSnapshot: contextSnapshotFromDraft(hydratedDraftContext),
-      title: content,
-    });
-    const chatId = result.conversation.id;
-    activeRuntimeChatIdRef.current = chatId;
-    setSelectedChatId(chatId);
-    onConversationCreated?.(chatId);
-    queryClient.setQueryData(chatQueryKeys.conversation(chatId), {
-      conversation: { ...result.conversation, messages: [] },
-    });
-    await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
-    return chatId;
-  }, [
-    createConversation,
-    effectiveSelectedChatId,
-    hydratedDraftContext,
-    onConversationCreated,
-    queryClient,
-  ]);
+      const result = await createConversation.mutateAsync({
+        contextSnapshot: contextSnapshotFromDraft(hydratedDraftContext),
+        title: content,
+      });
+      const chatId = result.conversation.id;
+      activeRuntimeChatIdRef.current = chatId;
+      setSelectedChatId(chatId);
+      onConversationCreated?.(chatId);
+      queryClient.setQueryData(chatQueryKeys.conversation(chatId), {
+        conversation: { ...result.conversation, messages: [] },
+      });
+      await queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() });
+      return chatId;
+    },
+    [
+      createConversation,
+      effectiveSelectedChatId,
+      hydratedDraftContext,
+      onConversationCreated,
+      queryClient,
+    ],
+  );
 
   const handleRuntimeFinish = useCallback(() => {
     void Promise.all([
       queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations() }),
       effectiveSelectedChatId
-        ? queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversation(effectiveSelectedChatId) })
+        ? queryClient.invalidateQueries({
+            queryKey: chatQueryKeys.conversation(effectiveSelectedChatId),
+          })
         : Promise.resolve(),
     ]);
   }, [effectiveSelectedChatId, queryClient]);
 
-  const conversationRailProps = useMemo(() => ({
-    conversationsQuery,
-    conversationSections,
-    selectedChatId,
-    effectiveSelectedChatId,
-    createConversationPending: createConversation.isPending,
-    onCreateConversation: handleCreateConversation,
-    onSelectConversation: handleSelectConversation,
-    onDeleteConversation: handleDeleteConversationClick,
-  }), [
-    conversationSections,
-    conversationsQuery,
-    createConversation.isPending,
-    effectiveSelectedChatId,
-    handleCreateConversation,
-    handleDeleteConversationClick,
-    handleSelectConversation,
-    selectedChatId,
-  ]);
+  const conversationRailProps = useMemo(
+    () => ({
+      conversationsQuery,
+      conversationSections,
+      selectedChatId,
+      effectiveSelectedChatId,
+      createConversationPending: createConversation.isPending,
+      onCreateConversation: handleCreateConversation,
+      onSelectConversation: handleSelectConversation,
+      onDeleteConversation: handleDeleteConversationClick,
+    }),
+    [
+      conversationSections,
+      conversationsQuery,
+      createConversation.isPending,
+      effectiveSelectedChatId,
+      handleCreateConversation,
+      handleDeleteConversationClick,
+      handleSelectConversation,
+      selectedChatId,
+    ],
+  );
 
-  const mobileConversationRailProps = useMemo(() => ({
-    ...conversationRailProps,
-    showHeader: false,
-    onSelectConversation: handleSelectMobileConversation,
-  }), [conversationRailProps, handleSelectMobileConversation]);
+  const mobileConversationRailProps = useMemo(
+    () => ({
+      ...conversationRailProps,
+      showHeader: false,
+      onSelectConversation: handleSelectMobileConversation,
+    }),
+    [conversationRailProps, handleSelectMobileConversation],
+  );
 
   const secondaryConversationRail = useMemo(() => {
     if (!renderConversationRailInSecondary) return null;
@@ -818,153 +678,20 @@ export function ChatWorkspace({
         shadow="none"
       >
         <Box minH="0">
-          {runtimeState.error ? (
-            <Flex
-              align="center"
-              gap="2"
-              borderBottomWidth="1px"
-              borderColor="border"
-              bg="bg.error"
-              px="4"
-              py="3"
-              fontSize="sm"
-              color="fg.error"
-              sm={{ px: '6' }}
-            >
-              <AlertCircle size={16} />
-              {runtimeState.error.message}
-            </Flex>
-          ) : null}
-          {showContextReadOnlyBanner ? (
-            <Box px="4" pt={{ base: '4', md: '5' }} sm={{ px: '6' }}>
-              <Flex
-                align="flex-start"
-                gap="4"
-                mx="auto"
-                maxW="72rem"
-                rounded="xl"
-                borderWidth="1px"
-                borderColor="orange.muted"
-                bg="orange.subtle"
-                px={{ base: '4', md: '5' }}
-                py="4"
-                color="fg"
-                shadow="xs"
-              >
-                <Flex mt="0.5" boxSize="7" align="center" justify="center" rounded="full" color="orange.fg" flexShrink="0">
-                  <AlertCircle size={22} />
-                </Flex>
-                <Box minW="0" flex="1">
-                  <Text fontSize="sm" fontWeight="semibold" color="orange.fg">
-                    Source context unavailable
-                  </Text>
-                  <Text mt="1.5" fontSize="sm" color="fg">
-                    {contextUnavailableMessage}
-                  </Text>
-                </Box>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Dismiss source document warning"
-                  color="fg.muted"
-                  flexShrink="0"
-                  style={{ height: '2rem', width: '2rem', borderRadius: '0.5rem' }}
-                  onClick={() => setIsContextWarningDismissed(true)}
-                >
-                  <X size={18} />
-                </Button>
-              </Flex>
-            </Box>
-          ) : null}
-          {!canUseChat && !isContextReadOnly ? (
-            <Flex
-              align="center"
-              gap="2"
-              borderBottomWidth="1px"
-              borderColor="border"
-              bg="bg.warning"
-              px="4"
-              py="3"
-              fontSize="sm"
-              color="fg.warning"
-              sm={{ px: '6' }}
-            >
-              <AlertCircle size={16} />
-              {aiAccessMessage}
-            </Flex>
-          ) : null}
-
-          <Box
-            display={{ base: 'block', lg: 'none' }}
-            w="full"
-            maxW="full"
-            borderBottomWidth="1px"
-            borderColor="border.surface"
-            px="4"
-            py="3"
-            minW="0"
-            overflowX="hidden"
-            sm={{ px: '6' }}
-          >
-            <Drawer.Root
-              open={isMobileConversationRailOpen}
-              placement="bottom"
-              size="full"
-              onOpenChange={(event) => setIsMobileConversationRailOpen(event.open)}
-            >
-              <Drawer.Trigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  w="full"
-                  justifyContent="space-between"
-                  px="0"
-                  color="fg"
-                  _hover={{ bg: 'transparent', color: 'teal.fg' }}
-                >
-                  <Flex align="center" gap="2" minW="0" fontSize="sm" fontWeight="semibold">
-                    <MessageSquare size={16} color="var(--chakra-colors-teal-fg)" />
-                    <Text as="span">Conversations</Text>
-                  </Flex>
-                  <Text as="span" flexShrink="0" fontSize="sm" fontWeight="medium" color="fg.muted">
-                    Show history
-                  </Text>
-                </Button>
-              </Drawer.Trigger>
-              <Portal>
-                <Drawer.Backdrop bg="blackAlpha.500" />
-                <Drawer.Positioner>
-                  <Drawer.Content maxH="84vh" roundedTop="xl" bg="bg.sidebar">
-                    <Drawer.Header borderBottomWidth="1px" borderColor="border.surface" px="5" py="4">
-                      <Flex align="center" justify="space-between" gap="4" pr="8">
-                        <Box minW="0">
-                          <Drawer.Title fontSize="lg" fontWeight="semibold">
-                            Conversations
-                          </Drawer.Title>
-                          <Drawer.Description srOnly>
-                            Chat conversation history
-                          </Drawer.Description>
-                        </Box>
-                      </Flex>
-                    </Drawer.Header>
-                    <Drawer.Body display="flex" minH="0" flexDirection="column" overflow="hidden" px="5" py="4">
-                      <ChatConversationRail {...mobileConversationRailProps} />
-                    </Drawer.Body>
-                    <Drawer.CloseTrigger asChild>
-                      <CloseButton
-                        size="sm"
-                        position="absolute"
-                        top="3"
-                        right="3"
-                        aria-label="Close conversations"
-                      />
-                    </Drawer.CloseTrigger>
-                  </Drawer.Content>
-                </Drawer.Positioner>
-              </Portal>
-            </Drawer.Root>
-          </Box>
+          <ChatWorkspaceBanners
+            aiAccessMessage={aiAccessMessage}
+            canUseChat={canUseChat}
+            contextUnavailableMessage={contextUnavailableMessage}
+            isContextReadOnly={isContextReadOnly}
+            runtimeState={runtimeState}
+            showContextReadOnlyBanner={showContextReadOnlyBanner}
+            onDismissContextWarning={() => setIsContextWarningDismissed(true)}
+          />
+          <ChatMobileConversationDrawer
+            open={isMobileConversationRailOpen}
+            railProps={mobileConversationRailProps}
+            onOpenChange={setIsMobileConversationRailOpen}
+          />
         </Box>
 
         <AssistantChatRuntimeProvider
@@ -1049,76 +776,23 @@ export function ChatWorkspace({
         </AssistantChatRuntimeProvider>
       </Box>
 
-      <VaultSelectionDialog
-        open={isVaultDialogOpen}
+      <ChatWorkspaceContextDialogs
         context={displayedContext}
-        vaults={vaultsQuery.data?.vaults ?? []}
-        onOpenChange={setIsVaultDialogOpen}
-        onConfirm={handleVaultSelectionConfirm}
-      />
-      <DocumentSelectionDialog
-        open={isDocumentDialogOpen}
-        context={displayedContext}
-        vaults={vaultsQuery.data?.vaults ?? []}
-        onOpenChange={setIsDocumentDialogOpen}
-        onConfirm={handleDocumentSelectionConfirm}
-      />
-      <ConversationForkDialog
-        open={isForkDialogOpen}
-        isPending={createConversation.isPending}
-        currentContext={displayedContext}
+        createConversationPending={createConversation.isPending}
+        documentDialogOpen={isDocumentDialogOpen}
+        forkDialogOpen={isForkDialogOpen}
         nextContext={pendingForkContext ?? displayedContext}
-        onOpenChange={handleForkDialogOpenChange}
-        onConfirm={() => {
+        vaultDialogOpen={isVaultDialogOpen}
+        vaults={vaultsQuery.data?.vaults ?? []}
+        onConfirmDocuments={handleDocumentSelectionConfirm}
+        onConfirmFork={() => {
           void handleConfirmFork();
         }}
+        onConfirmVaults={handleVaultSelectionConfirm}
+        onDocumentDialogOpenChange={setIsDocumentDialogOpen}
+        onForkDialogOpenChange={handleForkDialogOpenChange}
+        onVaultDialogOpenChange={setIsVaultDialogOpen}
       />
     </Box>
-  );
-}
-
-function ChatConversationSkeleton() {
-  return (
-    <Flex
-      direction="column"
-      gap="5"
-      mx="auto"
-      w="100%"
-      maxW="72rem"
-      px="4"
-      py={{ base: '5', md: '6' }}
-      sm={{ px: '6' }}
-    >
-      <Status.Root colorPalette="teal" size="sm" color="fg.muted">
-        <Status.Indicator />
-        Loading conversation
-      </Status.Root>
-
-      <Flex gap="3" align="flex-start">
-        <Skeleton boxSize="9" rounded="lg" flexShrink="0" />
-        <Box
-          w="100%"
-          maxW="44rem"
-          rounded="lg"
-          borderWidth="1px"
-          borderColor="border.surface"
-          bg="bg.surface"
-          px="5"
-          py="4"
-        >
-          <Skeleton h="4" maxW="82%" mb="3" />
-          <Skeleton h="4" maxW="96%" mb="3" />
-          <Skeleton h="4" maxW="64%" />
-        </Box>
-      </Flex>
-
-      <Flex gap="3" justify="flex-end">
-        <Box w="100%" maxW="32rem" rounded="xl" bg="teal.subtle" px="4" py="3">
-          <Skeleton h="4" maxW="92%" mb="3" />
-          <Skeleton h="4" maxW="54%" />
-        </Box>
-        <Skeleton boxSize="9" rounded="lg" flexShrink="0" />
-      </Flex>
-    </Flex>
   );
 }

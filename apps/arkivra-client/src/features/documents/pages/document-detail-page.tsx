@@ -1,50 +1,19 @@
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Box,
-  Flex,
-  Text,
-  CloseButton,
-  Dialog as ChakraDialog,
-  Portal,
-  chakra,
-  IconButton,
-} from '@chakra-ui/react';
-import {
-  Check,
-  History,
-  Image as ImageIcon,
-  MessageSquare,
-  ScanText,
-  Tags,
-  Plus,
-} from 'lucide-react';
+import { Box, Flex, Text } from '@chakra-ui/react';
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from '@/components/ui/toaster-store';
 import { ROUTES } from '@/app/routes';
-import type { SearchRouteSearch, VaultWorkspaceSearch } from '@/app/search-params';
 import { validateVaultWorkspaceSearch } from '@/app/search-params';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
-import { DeleteButton } from '@/components/ui/action-buttons';
-import { Button } from '@/components/ui/button';
 import { useDialogPageLockCleanup } from '@/components/ui/dialog-page-locks';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { DocumentActionMenu } from '@/features/documents/components/detail/document-action-menu';
 import { DocumentContentSection } from '@/features/documents/components/detail/document-content-section';
 import type { DocumentContentTab } from '@/features/documents/components/detail/document-content-section';
 import { DocumentMetadataSection } from '@/features/documents/components/detail/document-metadata-section';
 import { DocumentPreviewSection } from '@/features/documents/components/detail/document-preview-section';
-import type { DocumentPreviewKind } from '@/features/documents/components/detail/document-preview-section';
 import { DocumentViewHeader } from '@/features/documents/components/detail/document-view-header';
 import {
   deleteDocumentVersion,
@@ -58,14 +27,8 @@ import {
   updateDocumentLanguage,
 } from '@/features/documents/documents.api';
 import { invalidateDocumentCollectionCaches } from '@/features/documents/document-cache-updates';
-import type {
-  DocumentDuplicateConflict,
-  UploadConflictStrategy,
-} from '@/features/documents/documents.api';
-import type {
-  DocumentLanguageMetadata,
-  DocumentVersionSummary,
-} from '@/features/documents/documents.types';
+import type { DocumentDuplicateConflict } from '@/features/documents/documents.api';
+import type { DocumentVersionSummary } from '@/features/documents/documents.types';
 import {
   documentQueryKeys,
   useDeletedDocumentsQuery,
@@ -84,163 +47,29 @@ import {
   isDocumentProcessingActive,
 } from '@/features/documents/documents.utils';
 import { assignTagToDocument, createTag, removeTagFromDocument } from '@/features/tags/tags.api';
-import { TagBadge } from '@/features/tags/components/tag-badge';
-import { TagDialog } from '@/features/tags/components/tag-dialog';
 import { tagQueryKeys, useTagsQuery } from '@/features/tags/tags.queries';
 import { DocumentActivityPanel } from '@/features/audit/components/document-activity-panel';
-import { DocumentVersionsDialog } from '@/features/documents/components/detail/document-versions-dialog';
 import { VaultRouteBreadcrumbs } from '@/features/file-browser/components/vault-browser-components';
 import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/vault-browser-components';
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { useMeQuery } from '@/features/me/me.queries';
-import { canUseVaultChat } from '@/features/vaults/vault-permissions';
 import { useVaultQuery } from '@/features/vaults/vaults.queries';
 
-type PreviewKind = DocumentPreviewKind;
-export type DocumentSection = 'preview' | 'content' | 'metadata' | 'activity';
-
-const searchReturnParamKeys = [
-  'q',
-  'vaultId',
-  'vaultIds',
-  'tagId',
-  'tagIds',
-  'dateFrom',
-  'dateTo',
-  'sortBy',
-  'searchMode',
-] as const;
-const documentFileExtensionPattern = /\.[^/.]+$/;
-const browserImagePreviewExtensions = new Set(['gif', 'jpeg', 'jpg', 'png', 'webp']);
-
-function getDocumentLanguageLabel(language: DocumentLanguageMetadata | null | undefined) {
-  if (language === null || language === undefined) {
-    return 'Unknown';
-  }
-
-  return language.name || language.code.toUpperCase();
-}
-
-function getDocumentTitle(name: string) {
-  return name.replace(documentFileExtensionPattern, '');
-}
-
-function getDocumentFileTypeLabel(mimeType: string) {
-  if (mimeType === 'application/pdf') {
-    return 'PDF document';
-  }
-
-  if (mimeType.startsWith('image/')) {
-    return 'Image file';
-  }
-
-  if (mimeType.startsWith('text/')) {
-    return 'Text document';
-  }
-
-  return 'Document';
-}
-
-function getSearchReturnParams(search: VaultWorkspaceSearch): SearchRouteSearch | null {
-  if (search.source !== 'search') {
-    return null;
-  }
-
-  const params: SearchRouteSearch = {};
-
-  for (const key of searchReturnParamKeys) {
-    const value = search[key];
-    if (typeof value === 'string' && value.length > 0) {
-      Object.assign(params, { [key]: value });
-    }
-  }
-
-  return params;
-}
-
-function isMarkdownDocument({
-  mimeType,
-  name,
-  originalName,
-}: {
-  mimeType: string;
-  name: string;
-  originalName: string;
-}) {
-  const normalizedMimeType = mimeType.toLowerCase();
-  const normalizedNames = [name, originalName].map((value) => value.toLowerCase());
-
-  return (
-    normalizedMimeType === 'text/markdown' ||
-    normalizedMimeType === 'text/x-markdown' ||
-    normalizedMimeType === 'application/markdown' ||
-    normalizedMimeType === 'application/x-markdown' ||
-    normalizedNames.some(
-      (normalizedName) =>
-        normalizedName.endsWith('.md') ||
-        normalizedName.endsWith('.markdown') ||
-        normalizedName.endsWith('.mdown') ||
-        normalizedName.endsWith('.mkd'),
-    )
-  );
-}
-
-function getDocumentFileExtension(name: string) {
-  const extension = name.split('.').pop()?.trim().toLowerCase();
-  return extension && extension !== name.trim().toLowerCase() ? extension : '';
-}
-
-function isImageDocument({
-  mimeType,
-  name,
-  originalName,
-}: {
-  mimeType: string;
-  name: string;
-  originalName: string;
-}) {
-  if (mimeType.toLowerCase().startsWith('image/')) {
-    return true;
-  }
-
-  return [name, originalName].some((value) =>
-    browserImagePreviewExtensions.has(getDocumentFileExtension(value)),
-  );
-}
-
-function getPreviewKind(mimeType: string, name: string, originalName: string): PreviewKind {
-  if (mimeType === 'application/pdf') {
-    return 'pdf';
-  }
-
-  if (isImageDocument({ mimeType, name, originalName })) {
-    return 'image';
-  }
-
-  if (isMarkdownDocument({ mimeType, name, originalName })) {
-    return 'markdown';
-  }
-
-  if (mimeType.startsWith('text/')) {
-    return 'text';
-  }
-
-  return 'unsupported';
-}
-
-function conflictStrategyLabel(strategy: UploadConflictStrategy) {
-  switch (strategy) {
-    case 'skip':
-      return 'Skip';
-    case 'keep_both':
-      return 'Keep both';
-    case 'new_version':
-      return 'New version';
-    default:
-      return strategy;
-  }
-}
-
+import {
+  getActiveDocumentDetail,
+  getDocumentSectionMenuItems,
+  getDocumentFileTypeLabel,
+  getDocumentLanguageLabel,
+  getDocumentTagPickerState,
+  getDocumentTitle,
+  getPreviewKind,
+  getSearchReturnParams,
+  printDocumentPreview,
+} from './document-detail-page.helpers';
+import type { DocumentSection } from './document-detail-page.helpers';
+import { DocumentDetailDialogs } from './document-detail-page-dialogs';
+import { DocumentDetailTagControls } from './document-detail-page-tags';
+export type { DocumentSection } from './document-detail-page.helpers';
 export function DocumentDetailPage({ section = 'preview' }: { section?: DocumentSection }) {
   const params = useParams({ strict: false }) as { vaultId?: string; documentId?: string };
   const documentId = params.documentId ?? '';
@@ -587,34 +416,18 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
 
   if (!vaultId || !documentId) {
     if (isTrashDocumentRoute && deletedDocumentsQuery.isLoading) {
-      return (
-        <Text fontSize="sm" color="fg.muted">
-          Loading document...
-        </Text>
-      );
+      return <Text fontSize="sm" color="fg.muted">Loading document...</Text>;
     }
 
-    return (
-      <Text fontSize="sm" color="fg.error">
-        Invalid document route.
-      </Text>
-    );
+    return <Text fontSize="sm" color="fg.error">Invalid document route.</Text>;
   }
 
   if (documentQuery.isLoading || (isTrashDocumentRoute && deletedDocumentsQuery.isLoading)) {
-    return (
-      <Text fontSize="sm" color="fg.muted">
-        Loading document...
-      </Text>
-    );
+    return <Text fontSize="sm" color="fg.muted">Loading document...</Text>;
   }
 
   if (documentQuery.isError || !documentQuery.data) {
-    return (
-      <Text fontSize="sm" color="fg.error">
-        Unable to load document.
-      </Text>
-    );
+    return <Text fontSize="sm" color="fg.error">Unable to load document.</Text>;
   }
 
   const document = documentQuery.data.document;
@@ -626,23 +439,10 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const selectedVersionDetail = selectedDocumentVersionQuery.data?.version ?? null;
   const selectedVersion = selectedVersionDetail ?? selectedVersionSummary;
   const isHistoricalVersionSelected = selectedVersionId !== null;
-  const activeDocument =
-    isHistoricalVersionSelected && selectedVersionDetail !== null
-      ? {
-          ...document,
-          originalName: selectedVersionDetail.originalName,
-          originalSize: selectedVersionDetail.originalSize,
-          originalSha256Hash: selectedVersionDetail.originalSha256Hash,
-          mimeType: selectedVersionDetail.mimeType,
-          processingStatus: selectedVersionDetail.processingStatus,
-          language: selectedVersionDetail.language,
-          content: selectedVersionDetail.content,
-          displayContent: selectedVersionDetail.rawMarkdown || selectedVersionDetail.content,
-          updatedAt: selectedVersionDetail.updatedAt,
-          isDeleted: document.isDeleted || selectedVersionDetail.deletedAt !== null,
-          deletedAt: document.deletedAt ?? selectedVersionDetail.deletedAt,
-        }
-      : document;
+  const activeDocument = getActiveDocumentDetail({
+    document,
+    selectedVersionDetail: isHistoricalVersionSelected ? selectedVersionDetail : null,
+  });
   const activePreviewKind = getPreviewKind(
     activeDocument.mimeType,
     activeDocument.name,
@@ -652,29 +452,16 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const availableTags = (tagsQuery.data?.tags ?? []).filter(
     (tag) => !assignedTags.some((assigned) => assigned.id === tag.id),
   );
-  const normalizedTagSearchValue = tagSearchValue.trim().toLowerCase();
-  const filteredAvailableTags = availableTags.filter((tag) => {
-    if (normalizedTagSearchValue.length === 0) {
-      return true;
-    }
-
-    return tag.name.toLowerCase().includes(normalizedTagSearchValue);
+  const {
+    hasExactTagMatch,
+    normalizedSearchValue: normalizedTagSearchValue,
+    selectedMatchingTags,
+    sortedFilteredAvailableTags,
+  } = getDocumentTagPickerState({
+    assignedTags,
+    availableTags,
+    searchValue: tagSearchValue,
   });
-  const sortedFilteredAvailableTags = [...filteredAvailableTags].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
-  const selectedMatchingTags = [...assignedTags]
-    .filter((tag) => {
-      if (normalizedTagSearchValue.length === 0) {
-        return true;
-      }
-
-      return tag.name.toLowerCase().includes(normalizedTagSearchValue);
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const hasExactTagMatch = availableTags.some(
-    (tag) => tag.name.trim().toLowerCase() === normalizedTagSearchValue,
-  );
   const inlineFileUrl = getDocumentInlineFileUrl({
     vaultId,
     documentId,
@@ -727,48 +514,14 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     ? documentVersionChunksQuery
     : documentChunksQuery;
   const documentSectionSearch = routeSearch;
-  const documentSectionMenuItems = !isTrashDocumentRoute
-    ? [
-        {
-          key: 'preview',
-          label: 'Preview',
-          icon: ImageIcon,
-          route: ROUTES.vaultDocument(vaultId, documentId),
-        },
-        ...(canShowExtractedTextTab
-          ? [
-              {
-                key: 'content',
-                label: 'Text & chunks',
-                icon: ScanText,
-                route: ROUTES.vaultDocumentExtractedText(vaultId, documentId),
-              },
-            ]
-          : []),
-        {
-          key: 'metadata',
-          label: 'Metadata',
-          icon: Tags,
-          route: ROUTES.vaultDocumentMetadata(vaultId, documentId),
-        },
-        {
-          key: 'activity',
-          label: 'Activity',
-          icon: History,
-          route: ROUTES.vaultDocumentActivity(vaultId, documentId),
-        },
-        ...(aiFeaturesEnabled && canUseVaultChat(vaultQuery.data?.vault)
-          ? [
-              {
-                key: 'chat',
-                label: 'Chat',
-                icon: MessageSquare,
-                route: ROUTES.vaultDocumentChat(vaultId, documentId),
-              },
-            ]
-          : []),
-      ]
-    : [];
+  const documentSectionMenuItems = getDocumentSectionMenuItems({
+    aiFeaturesEnabled,
+    canShowExtractedTextTab,
+    documentId,
+    isTrashDocumentRoute,
+    vault: vaultQuery.data?.vault,
+    vaultId,
+  });
 
   async function handleMetadataSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -849,69 +602,13 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   }
 
   function handlePrintClick() {
-    if (!canPrint) {
-      return;
-    }
-
-    if (previewKind === 'pdf' || previewKind === 'text') {
-      const frame = window.document.createElement('iframe');
-      frame.style.position = 'fixed';
-      frame.style.right = '0';
-      frame.style.bottom = '0';
-      frame.style.width = '0';
-      frame.style.height = '0';
-      frame.style.border = '0';
-      frame.src = inlineFileUrl;
-      frame.onload = () => {
-        frame.contentWindow?.focus();
-        frame.contentWindow?.print();
-      };
-      window.document.body.appendChild(frame);
-      window.setTimeout(() => {
-        frame.remove();
-      }, 60_000);
-      return;
-    }
-
-    if (previewKind === 'image') {
-      const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-
-      if (printWindow === null) {
-        toast.error('Could not open print dialog.');
-        return;
-      }
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${document.name}</title>
-            <style>
-              body {
-                margin: 0;
-                display: flex;
-                min-height: 100vh;
-                align-items: center;
-                justify-content: center;
-                background: white;
-              }
-              img {
-                max-width: 100%;
-                max-height: 100vh;
-                object-fit: contain;
-              }
-            </style>
-          </head>
-          <body>
-            <img src="${inlineFileUrl}" alt="${document.name}" />
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-      };
-    }
+    printDocumentPreview({
+      canPrint,
+      documentName: document.name,
+      inlineFileUrl,
+      previewKind,
+      onPrintWindowError: () => toast.error('Could not open print dialog.'),
+    });
   }
 
   const documentActionMenu = (
@@ -936,216 +633,37 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   );
 
   const documentTagControls = (
-    <Flex flexWrap="wrap" align="center" gap="2" minW="0">
-      {isHistoricalVersionSelected ? (
-        <Flex
-          align="center"
-          rounded="full"
-          borderWidth="1px"
-          borderColor="orange.muted"
-          bg="orange.subtle"
-          px="3"
-          py="1"
-          fontSize="xs"
-          fontWeight="semibold"
-          color="orange.fg"
-        >
-          {selectedVersion
+    <DocumentDetailTagControls
+      assignedTags={assignedTags}
+      availableTags={sortedFilteredAvailableTags}
+      selectedTags={selectedMatchingTags}
+      isTrashDocumentRoute={isTrashDocumentRoute}
+      isTagPickerOpen={isTagPickerOpen}
+      tagSearchValue={tagSearchValue}
+      normalizedTagSearchValue={normalizedTagSearchValue}
+      hasExactTagMatch={hasExactTagMatch}
+      historicalVersionLabel={
+        isHistoricalVersionSelected
+          ? selectedVersion
             ? `Read-only historical v${selectedVersion.versionNumber}`
-            : 'Loading historical version'}
-        </Flex>
-      ) : null}
-      {assignedTags.map((tag) => (
-        <TagBadge
-          key={tag.id}
-          color={tag.color}
-          name={tag.name}
-          onRemove={
-            !isTrashDocumentRoute
-              ? () => {
-                  removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                }
-              : undefined
-          }
-        />
-      ))}
-      {!isTrashDocumentRoute ? (
-        <DropdownMenu
-          modal={false}
-          open={isTagPickerOpen}
-          onOpenChange={(open) => {
-            setIsTagPickerOpen(open);
-            if (!open) {
-              setTagSearchValue('');
-            }
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            {assignedTags.length === 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                borderStyle="dashed"
-                color="fg.muted"
-                _hover={{ bg: 'bg.surface', color: 'fg' }}
-              >
-                <Plus size={12} />
-                Add tag
-              </Button>
-            ) : (
-              <IconButton
-                variant="ghost"
-                size="xs"
-                aria-label="Add tag"
-                borderStyle="dashed"
-                color="fg.muted"
-                _hover={{ bg: 'bg.surface', color: 'fg' }}
-              >
-                <Plus size={8} />
-              </IconButton>
-            )}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            minW="80"
-            overflow="hidden"
-            rounded="xl"
-            bg="bg.surface"
-            p="0"
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-            }}
-          >
-            <Box borderBottomWidth="1px" borderColor="border.surface" p="2">
-              <Field>
-                <FieldLabel htmlFor="document-detail-tag-filter" srOnly>
-                  Filter tags
-                </FieldLabel>
-                <Input
-                  id="document-detail-tag-filter"
-                  type="text"
-                  value={tagSearchValue}
-                  onChange={(event) => setTagSearchValue(event.target.value)}
-                  placeholder="Filter tags..."
-                  size="md"
-                  borderColor="transparent"
-                  focusRing="none"
-                  autoFocus
-                />
-              </Field>
-            </Box>
-            <Box maxH="72" overflowY="auto" overflowX="hidden" py="1">
-              {selectedMatchingTags.map((tag) => (
-                <chakra.button
-                  key={tag.id}
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked="true"
-                  display="flex"
-                  w="full"
-                  alignItems="center"
-                  gap="3"
-                  px="4"
-                  py="2.5"
-                  textAlign="left"
-                  color="fg"
-                  _hover={{ bg: 'bg.subtle' }}
-                  _focusVisible={{
-                    outline: '2px solid',
-                    outlineColor: 'teal.solid',
-                    outlineOffset: '-2px',
-                  }}
-                  onClick={() => {
-                    removeTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                  }}
-                >
-                  <Flex
-                    aria-hidden="true"
-                    boxSize="6"
-                    flexShrink={0}
-                    align="center"
-                    justify="center"
-                    rounded="md"
-                    bg="#D8FF75"
-                    color="#111827"
-                  >
-                    <Check size={17} strokeWidth={2.4} />
-                  </Flex>
-                  <Box
-                    aria-hidden="true"
-                    boxSize="2.5"
-                    flexShrink={0}
-                    rounded="full"
-                    bg={tag.color ?? '#64748b'}
-                  />
-                  <Text flex="1" minW="0" fontWeight="semibold" color="fg" truncate>
-                    {tag.name}
-                  </Text>
-                </chakra.button>
-              ))}
-              {selectedMatchingTags.length > 0 && sortedFilteredAvailableTags.length > 0 ? (
-                <DropdownMenuSeparator />
-              ) : null}
-              {sortedFilteredAvailableTags.map((tag) => (
-                <chakra.button
-                  key={tag.id}
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked="false"
-                  display="flex"
-                  w="full"
-                  alignItems="center"
-                  gap="3"
-                  px="4"
-                  py="2.5"
-                  textAlign="left"
-                  color="fg"
-                  _hover={{ bg: 'bg.subtle' }}
-                  _focusVisible={{
-                    outline: '2px solid',
-                    outlineColor: 'teal.solid',
-                    outlineOffset: '-2px',
-                  }}
-                  onClick={() => {
-                    assignTagMutation.mutate({ vaultId, documentId, tagId: tag.id });
-                  }}
-                >
-                  <Box aria-hidden="true" boxSize="6" flexShrink={0} />
-                  <Box
-                    aria-hidden="true"
-                    boxSize="2.5"
-                    flexShrink={0}
-                    rounded="full"
-                    bg={tag.color ?? '#64748b'}
-                  />
-                  <Text flex="1" minW="0" fontWeight="semibold" color="fg" truncate>
-                    {tag.name}
-                  </Text>
-                </chakra.button>
-              ))}
-              {normalizedTagSearchValue.length > 0 && !hasExactTagMatch ? (
-                <DropdownMenuItem onSelect={() => openCreateTagDialog(tagSearchValue.trim())}>
-                  <Plus size={16} />
-                  <Text flex="1" minW="0" truncate>{`New tag "${tagSearchValue.trim()}"`}</Text>
-                </DropdownMenuItem>
-              ) : null}
-              {selectedMatchingTags.length === 0 && sortedFilteredAvailableTags.length === 0 ? (
-                normalizedTagSearchValue.length === 0 ? (
-                  <Text px="4" py="3" fontSize="sm" color="fg.muted">
-                    All tags are already assigned.
-                  </Text>
-                ) : !hasExactTagMatch ? null : (
-                  <Text px="4" py="3" fontSize="sm" color="fg.muted">
-                    No matching tags.
-                  </Text>
-                )
-              ) : null}
-            </Box>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-    </Flex>
+            : 'Loading historical version'
+          : null
+      }
+      onAssignTag={(tagId) => {
+        assignTagMutation.mutate({ vaultId, documentId, tagId });
+      }}
+      onOpenChange={(open) => {
+        setIsTagPickerOpen(open);
+        if (!open) {
+          setTagSearchValue('');
+        }
+      }}
+      onOpenCreateTagDialog={openCreateTagDialog}
+      onRemoveTag={(tagId) => {
+        removeTagMutation.mutate({ vaultId, documentId, tagId });
+      }}
+      onSearchValueChange={setTagSearchValue}
+    />
   );
 
   return (
@@ -1232,142 +750,56 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
         ) : null}
       </Box>
 
-      <ChakraDialog.Root
-        open={isDeleteDialogOpen}
-        onOpenChange={(e) => {
-          if (!deleteMutation.isPending) {
-            setIsDeleteDialogOpen(e.open);
-          }
-        }}
-        size={{ mdDown: 'full', md: 'lg' }}
-      >
-        <Portal>
-          <ChakraDialog.Backdrop />
-          <ChakraDialog.Positioner>
-            <ChakraDialog.Content>
-              <ChakraDialog.Header>
-                <ChakraDialog.Title>{`Move "${document.name}" to trash?`}</ChakraDialog.Title>
-                <ChakraDialog.CloseTrigger asChild>
-                  <CloseButton size="sm" />
-                </ChakraDialog.CloseTrigger>
-              </ChakraDialog.Header>
-              <ChakraDialog.Body>
-                <Text color="fg.muted" fontSize="sm">
-                  This document will be removed from the active vault, but it is recoverable from
-                  Trash until it is permanently removed manually or automatically after 30 days.
-                </Text>
-              </ChakraDialog.Body>
-              <ChakraDialog.Footer>
-                <ChakraDialog.ActionTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={deleteMutation.isPending}
-                    onClick={() => setIsDeleteDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                </ChakraDialog.ActionTrigger>
-                <DeleteButton
-                  type="button"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => {
-                    deleteMutation.mutate({ vaultId, documentId });
-                  }}
-                >
-                  {deleteMutation.isPending ? 'Moving...' : 'Trash'}
-                </DeleteButton>
-              </ChakraDialog.Footer>
-            </ChakraDialog.Content>
-          </ChakraDialog.Positioner>
-        </Portal>
-      </ChakraDialog.Root>
-
-      <ChakraDialog.Root
-        open={restoreConflict !== null}
-        onOpenChange={(event) => {
-          if (!event.open && !restoreMutation.isPending) {
-            setRestoreConflict(null);
-          }
-        }}
-        size={{ mdDown: 'full', md: 'lg' }}
-      >
-        <Portal>
-          <ChakraDialog.Backdrop />
-          <ChakraDialog.Positioner>
-            <ChakraDialog.Content>
-              <ChakraDialog.Header>
-                <ChakraDialog.Title>Document already exists</ChakraDialog.Title>
-                <ChakraDialog.CloseTrigger asChild>
-                  <CloseButton size="sm" disabled={restoreMutation.isPending} />
-                </ChakraDialog.CloseTrigger>
-              </ChakraDialog.Header>
-              <ChakraDialog.Body>
-                <Text color="fg.muted" fontSize="sm">
-                  {restoreConflict?.message ??
-                    'A document with this file already exists in this vault.'}
-                </Text>
-              </ChakraDialog.Body>
-              <ChakraDialog.Footer>
-                {restoreConflict?.availableStrategies.map((strategy) => (
-                  <Button
-                    key={strategy}
-                    type="button"
-                    variant={strategy === 'keep_both' ? 'default' : 'outline'}
-                    disabled={restoreMutation.isPending}
-                    onClick={() => {
-                      restoreMutation.mutate({ vaultId, documentId, conflictStrategy: strategy });
-                    }}
-                  >
-                    {conflictStrategyLabel(strategy)}
-                  </Button>
-                ))}
-              </ChakraDialog.Footer>
-            </ChakraDialog.Content>
-          </ChakraDialog.Positioner>
-        </Portal>
-      </ChakraDialog.Root>
-
-      <DocumentVersionsDialog
-        open={isVersionsDialogOpen}
-        onOpenChange={setIsVersionsDialogOpen}
+      <DocumentDetailDialogs
+        documentName={document.name}
+        isDeleteDialogOpen={isDeleteDialogOpen}
+        isDeletePending={deleteMutation.isPending}
+        restoreConflict={restoreConflict}
+        isRestorePending={restoreMutation.isPending}
+        isVersionsDialogOpen={isVersionsDialogOpen}
         vaultId={vaultId}
         documentId={documentId}
         versions={documentVersionsQuery.data?.versions ?? []}
-        isLoading={documentVersionsQuery.isLoading}
-        isError={documentVersionsQuery.isError}
+        isVersionsLoading={documentVersionsQuery.isLoading}
+        isVersionsError={documentVersionsQuery.isError}
         selectedVersionId={selectedVersionId}
-        isRestorePending={restoreVersionMutation.isPending}
-        isDeletePending={deleteVersionMutation.isPending}
-        onSelectVersion={(versionId) => {
-          setSelectedVersionState({ key: documentVersionSelectionKey, versionId });
-          setIsVersionsDialogOpen(false);
+        isRestoreVersionPending={restoreVersionMutation.isPending}
+        isDeleteVersionPending={deleteVersionMutation.isPending}
+        isCreateTagDialogOpen={isCreateTagDialogOpen}
+        isCreateTagPending={createTagMutation.isPending || assignTagMutation.isPending}
+        isCreateTagDialogDirty={isCreateTagDialogDirty}
+        isCreateTagSaveDisabled={isCreateTagSaveDisabled}
+        createTagNameValue={createTagNameValue}
+        createTagColorValue={createTagColorValue}
+        createTagDescriptionValue={createTagDescriptionValue}
+        onCreateTagColorChange={setCreateTagColorValue}
+        onCreateTagDescriptionChange={setCreateTagDescriptionValue}
+        onCreateTagNameChange={setCreateTagNameValue}
+        onCreateTagSubmit={handleCreateTagSubmit}
+        onDelete={() => {
+          deleteMutation.mutate({ vaultId, documentId });
+        }}
+        onDeleteDialogOpenChange={setIsDeleteDialogOpen}
+        onDeleteVersion={async (version: DocumentVersionSummary) => {
+          await deleteVersionMutation.mutateAsync({ vaultId, documentId, versionId: version.id });
+        }}
+        onRestoreConflictOpenChange={(open) => {
+          if (!open) {
+            setRestoreConflict(null);
+          }
+        }}
+        onRestoreConflictStrategy={(strategy) => {
+          restoreMutation.mutate({ vaultId, documentId, conflictStrategy: strategy });
         }}
         onRestoreVersion={async (version: DocumentVersionSummary) => {
           await restoreVersionMutation.mutateAsync({ vaultId, documentId, versionId: version.id });
         }}
-        onDeleteVersion={async (version: DocumentVersionSummary) => {
-          await deleteVersionMutation.mutateAsync({ vaultId, documentId, versionId: version.id });
+        onSelectVersion={(versionId) => {
+          setSelectedVersionState({ key: documentVersionSelectionKey, versionId });
+          setIsVersionsDialogOpen(false);
         }}
-      />
-
-      <TagDialog
-        isOpen={isCreateTagDialogOpen}
-        title="New tag"
-        submitLabel="Create"
-        pendingLabel="Creating..."
-        closeLabel="Close create tag dialog"
-        isPending={createTagMutation.isPending || assignTagMutation.isPending}
-        isDirty={isCreateTagDialogDirty}
-        isSubmitDisabled={isCreateTagSaveDisabled}
-        nameValue={createTagNameValue}
-        colorValue={createTagColorValue}
-        descriptionValue={createTagDescriptionValue}
-        onNameChange={setCreateTagNameValue}
-        onColorChange={setCreateTagColorValue}
-        onDescriptionChange={setCreateTagDescriptionValue}
-        onClose={closeCreateTagDialog}
-        onSubmit={handleCreateTagSubmit}
+        onVersionsDialogOpenChange={setIsVersionsDialogOpen}
+        onCloseCreateTagDialog={closeCreateTagDialog}
       />
     </Flex>
   );
